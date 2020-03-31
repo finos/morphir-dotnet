@@ -1,9 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>netstandard2.1;net461</TargetFrameworks>
+    <RootNamespace>Morphir.SDK</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Basics.fs" />
     <Compile Include="Maybe.fs" />
+    <Compile Include="List.fs" />
+    <Compile Include="String.fs" />
     <Compile Include="Regex.fs" />
     <Content Include="paket.references" />
     
