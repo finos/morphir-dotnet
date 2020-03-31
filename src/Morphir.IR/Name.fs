@@ -2,7 +2,7 @@ module Morphir.IR.Name
 
 open Morphir.SDK
 
-type Name = string list
+type Name = Morphir.SDK.List.List<string>
 
 let inline fromList (words:string list):Name =
     words
@@ -16,3 +16,6 @@ let fromString (string: string): Name =
         |> List.map (fun me -> me.Match)
         |> List.map String.toLower
         |> fromList
+
+let toList  (name:Name) : List<string> =
+    name

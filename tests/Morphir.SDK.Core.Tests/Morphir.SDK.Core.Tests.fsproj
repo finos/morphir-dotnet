@@ -11,6 +11,7 @@
         <Compile Include="BasicsTests.fs" />
         <Compile Include="MaybeTests.fs" />
         <Compile Include="RegexTests.fs" />
+        <Compile Include="StringTests.fs" />
         <Compile Include="Main.fs" />
         <Content Include="paket.references" />
     </ItemGroup>
