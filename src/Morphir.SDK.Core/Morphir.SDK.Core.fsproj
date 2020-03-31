@@ -8,6 +8,7 @@
     <Compile Include="Maybe.fs" />
     <Compile Include="List.fs" />
     <Compile Include="String.fs" />
+    <Compile Include="Char.fs" />
     <Compile Include="Regex.fs" />
     <Content Include="paket.references" />
     
