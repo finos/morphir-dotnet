@@ -4,6 +4,7 @@
     <RootNamespace>Morphir.SDK</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Comparison.fs" />
     <Compile Include="Basics.fs" />
     <Compile Include="Maybe.fs" />
     <Compile Include="List.fs" />

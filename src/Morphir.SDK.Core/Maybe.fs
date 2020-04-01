@@ -74,7 +74,22 @@ let isJust = function
     | Just _ -> true
     | Nothing -> false
 
+let isNothing = function
+    | Just _ -> false
+    | Nothing -> true
+
 let destruct defaultValue func maybe =
     match maybe with
     | Just a -> func a
     | Nothing -> defaultValue
+
+module Conversions =
+    [<AutoOpen>]
+    module Options =
+        let maybeToOptions = function
+            | Just value -> Some value
+            | Nothing -> None
+
+        let optionsToMaybe = function
+            | Some value -> Just value
+            | None -> Nothing
