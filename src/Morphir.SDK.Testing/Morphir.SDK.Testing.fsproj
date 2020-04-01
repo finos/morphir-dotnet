@@ -1,7 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
+    <PropertyGroup Condition=" '$(OS)' != 'Windows_NT' ">
+        <TargetFramework>netstandard2.1</TargetFramework>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(OS)' == 'Windows_NT' ">
         <TargetFrameworks>netstandard2.1;net461</TargetFrameworks>
+        <RootNamespace>Morphir</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
