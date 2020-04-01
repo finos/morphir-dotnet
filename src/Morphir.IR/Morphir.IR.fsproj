@@ -12,7 +12,10 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Name.fs" />
-    <Compile Include="Library.fs" />
+    <Compile Include="Path.fs" />
+    <Compile Include="QName.fs" />
+    <Compile Include="FQName.fs" />
+    <Compile Include="AccessControlled.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>
