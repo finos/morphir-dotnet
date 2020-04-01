@@ -50,7 +50,7 @@ let srcAndTest = !!srcGlob ++ testsGlob
 let distDir = __SOURCE_DIRECTORY__ @@ "dist"
 let distGlob = distDir @@ "*.nupkg"
 
-let coverageThresholdPercent = 40
+let coverageThresholdPercent = 10
 let coverageReportDir = __SOURCE_DIRECTORY__ @@ "docs" @@ "coverage"
 
 
@@ -82,7 +82,7 @@ let publishUrl = "https://www.nuget.org"
 
 let docsSiteBaseUrl = sprintf "https://%s.github.io/%s" gitOwner gitRepoName
 
-let disableCodeCoverage = environVarAsBoolOrDefault "DISABLE_COVERAGE" false
+let disableCodeCoverage = environVarAsBoolOrDefault "DISABLE_COVERAGE" true
 
 //-----------------------------------------------------------------------------
 // Helpers

@@ -1,6 +1,6 @@
-# Morphir.IR
+# morphir-dotnet
 
-[Enter useful description for Morphir.IR]
+Provides a .NET binding to [morphir](https://www.github.com/Morgan-Stanley/morphir) and its IR.
 
 ---
 
@@ -56,19 +56,19 @@ $ ./build.sh  <optional buildtarget>// on unix
 The bin of your library should look similar to:
 
 ```
-$ tree src/MyCoolNewLib/bin/
-src/MyCoolNewLib/bin/
+$ tree src/Morphir.IR/bin/
+src/Morphir.IR/bin/
 └── Debug
     ├── net461
     │   ├── FSharp.Core.dll
-    │   ├── MyCoolNewLib.dll
-    │   ├── MyCoolNewLib.pdb
-    │   ├── MyCoolNewLib.xml
+    │   ├── Morphir.IR.dll
+    │   ├── Morphir.IR.pdb
+    │   ├── Morphir.IR.xml
     └── netstandard2.1
-        ├── MyCoolNewLib.deps.json
-        ├── MyCoolNewLib.dll
-        ├── MyCoolNewLib.pdb
-        └── MyCoolNewLib.xml
+        ├── Morphir.IR.deps.json
+        ├── Morphir.IR.dll
+        ├── Morphir.IR.pdb
+        └── Morphir.IR.xml
 
 ```
 
@@ -103,7 +103,7 @@ src/MyCoolNewLib/bin/
 ```sh
 git add .
 git commit -m "Scaffold"
-git remote add origin https://github.com/user/MyCoolNewLib.git
+git remote add origin https://github.com/user/morphir-dotnet.git
 git push -u origin master
 ```
 
@@ -138,8 +138,8 @@ First release
 ### Added
 - This release already has lots of features
 
-[Unreleased]: https://github.com/user/MyCoolNewLib.git/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/user/MyCoolNewLib.git/releases/tag/v0.1.0
+[Unreleased]: https://github.com/user/morphir-dotnet.git/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/user/morphir-dotnet.git/releases/tag/v0.1.0
 ```
 
 - You can then use the `Release` target, specifying the version number either in the `RELEASE_VERSION` environment
