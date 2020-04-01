@@ -6,14 +6,6 @@ open Morphir.SDK
 [<Tests>]
 let tests =
 
-    let comparison =
-        describe "Comparison" [
-            describe "max tests" [
-                testCase "max" <| fun _ -> Expect.equal 42 (Basics.max 32 42)
-                testCase "min" <| fun _ -> Expect.equal 42 (Basics.min 91 42)
-            ]
-        ]
-
     let basicMathTests =
         describe "Basic Math Tests" [
 
@@ -37,6 +29,5 @@ let tests =
         ]
 
     describe "Basics Tests" [
-        comparison
         basicMathTests
     ]

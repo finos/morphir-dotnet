@@ -4,6 +4,7 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(OS)' == 'Windows_NT' "> 
     <TargetFrameworks>netstandard2.1;net461</TargetFrameworks>
+    <RootNamespace>Morphir</RootNamespace>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <Optimize>true</Optimize>
@@ -14,11 +15,12 @@
     </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="Name.fs" />
-    <Compile Include="Path.fs" />
-    <Compile Include="QName.fs" />
-    <Compile Include="FQName.fs" />
-    <Compile Include="AccessControlled.fs" />
+    <Compile Include="IR\Name.fs" />
+    <Compile Include="IR\Path.fs" />
+    <Compile Include="IR\QName.fs" />
+    <Compile Include="IR\FQName.fs" />
+    <Compile Include="IR\AccessControlled.fs" />
+    <Compile Include="Pattern.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>
