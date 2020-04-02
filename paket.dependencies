@@ -10,6 +10,12 @@ nuget Expecto 8.13.1
 nuget YoloDev.Expecto.TestSdk 0.8.0
 nuget Microsoft.NET.Test.Sdk 15.7.2
 nuget altcover ~> 6
+nuget FluentAssertions 5.10.3
+nuget xunit 2.4.0
+nuget xunit.runner.visualstudio >= 2.4.0 version_in_path: true
+nuget Xbehave 2.4.1
+nuget coverlet.collector 1.2.0
+nuget AutoFixture.Xunit2 4.11.0
 
 // [ FAKE GROUP ]
 group Build
