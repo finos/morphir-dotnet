@@ -1,10 +1,15 @@
 module Morphir.SDK.Maybe
 
+open System.Runtime.CompilerServices
+
 type Maybe<'a> =
     | Just of 'a
     | Nothing
 
+[<CompiledName("Just")>]
 let just value = Just value
+
+[<CompiledName("Nothing")>]
 let nothing = Nothing
 
 let withDefault default' = function
@@ -93,3 +98,9 @@ module Conversions =
         let optionsToMaybe = function
             | Some value -> Just value
             | None -> Nothing
+
+        [<Extension>]
+        module MaybeExtensions =
+            [<Extension>]
+            let ToOption(self: Maybe<'T>) =
+                maybeToOptions self
