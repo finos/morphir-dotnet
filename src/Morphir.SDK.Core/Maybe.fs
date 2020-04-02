@@ -1,16 +1,23 @@
 module Morphir.SDK.Maybe
 
+open System.Runtime.CompilerServices
+
 type Maybe<'a> =
     | Just of 'a
     | Nothing
 
+[<CompiledName("Just")>]
 let just value = Just value
+
+[<CompiledName("Nothing")>]
 let nothing = Nothing
 
+[<CompiledName("WithDefault")>]
 let withDefault default' = function
     | Just value -> value
     | Nothing -> default'
 
+[<CompiledName("Map")>]
 let map f = function
     | Just value -> Just (f value)
     | Nothing -> Nothing
@@ -70,10 +77,12 @@ let andThen callback = function
         callback value
     | Nothing -> Nothing
 
+[<CompiledName("IsJust")>]
 let isJust = function
     | Just _ -> true
     | Nothing -> false
 
+[<CompiledName("IsNothing")>]
 let isNothing = function
     | Just _ -> false
     | Nothing -> true
@@ -86,10 +95,12 @@ let destruct defaultValue func maybe =
 module Conversions =
     [<AutoOpen>]
     module Options =
+        [<CompiledName("MaybeToOptions")>]
         let maybeToOptions = function
             | Just value -> Some value
             | Nothing -> None
 
+        [<CompiledName("OptionsToMaybe")>]
         let optionsToMaybe = function
             | Some value -> Just value
             | None -> Nothing

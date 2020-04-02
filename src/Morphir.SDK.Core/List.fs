@@ -4,6 +4,10 @@ open Morphir.SDK.Maybe
 
 type List<'t> = 't list
 
+[<CompiledName("Empty")>]
+let empty<'T> :List<'T> = FSharp.Collections.List.Empty
+
+[<CompiledName("Singleton")>]
 let inline singleton a =
     [a]
 
@@ -26,7 +30,7 @@ let filterMap (f:'a -> Maybe<'b>) (xs:List<'a>) : List<'b> =
   let fn: 'a -> Option<'b> = f >> Maybe.Conversions.Options.maybeToOptions
   FSharp.Collections.List.choose fn xs
 
-
+[<CompiledName("IsEmpty")>]
 let isEmpty = function
     | [] -> true
     | _ -> false

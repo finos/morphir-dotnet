@@ -9,7 +9,12 @@
         <TargetFrameworks>netstandard2.1;net461</TargetFrameworks>
         <RootNamespace>Morphir</RootNamespace>
     </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <Optimize>true</Optimize>
+        <Tailcalls>true</Tailcalls>
+    </PropertyGroup>
   <ItemGroup>
+    <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Comparison.fs" />
     <Compile Include="Basics.fs" />
     <Compile Include="Maybe.fs" />
@@ -18,6 +23,7 @@
     <Compile Include="Bool.fs" />
     <Compile Include="Char.fs" />
     <Compile Include="Regex.fs" />
+    <Compile Include="Extensions.fs" />
     <Content Include="paket.references" />
     
   </ItemGroup>
