@@ -20,6 +20,8 @@
     <Compile Include="IR\QName.fs" />
     <Compile Include="IR\FQName.fs" />
     <Compile Include="IR\AccessControlled.fs" />
+    <Compile Include="IR\Type.fs" />
+    <Compile Include="IR\Value.fs" />
     <Compile Include="Pattern.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
