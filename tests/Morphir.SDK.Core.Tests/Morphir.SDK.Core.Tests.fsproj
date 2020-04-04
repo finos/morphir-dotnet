@@ -12,6 +12,7 @@
         <Compile Include="BasicsTests.fs" />
         <Compile Include="MaybeTests.fs" />
         <Compile Include="RegexTests.fs" />
+        <Compile Include="ResultTests.fs" />
         <Compile Include="StringTests.fs" />
         <Compile Include="ListTests.fs" />
         <Compile Include="TupleTests.fs" />
