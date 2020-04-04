@@ -1,11 +1,8 @@
 module Morphir.IR.Name
 
 open Morphir.SDK.Maybe
-open Morphir.SDK.String
 open Morphir.SDK
-open Morphir.SDK
-
-type Name = Morphir.SDK.List.List<string>
+type Name = string list
 
 let inline fromList (words:string list):Name =
     words

@@ -15,15 +15,19 @@
     </PropertyGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="Predef.fs" />
     <Compile Include="Comparison.fs" />
     <Compile Include="Basics.fs" />
     <Compile Include="Maybe.fs" />
     <Compile Include="List.fs" />
     <Compile Include="String.fs" />
     <Compile Include="Bool.fs" />
+    <Compile Include="Result.fs" />
     <Compile Include="Char.fs" />
     <Compile Include="Regex.fs" />
     <Compile Include="Extensions.fs" />
+    <Compile Include="Dict.fs" />
+    <Compile Include="Tuple.fs" />
     <Content Include="paket.references" />
     
   </ItemGroup>

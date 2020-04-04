@@ -1,0 +1,10 @@
+xunit
+xunit.runner.visualstudio
+Xbehave
+coverlet.collector
+dotnet-mono
+Microsoft.NET.Test.Sdk
+altcover
+Microsoft.NETFramework.ReferenceAssemblies
+FluentAssertions
+AutoFixture.Xunit2
