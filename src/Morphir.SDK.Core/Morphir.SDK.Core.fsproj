@@ -24,6 +24,7 @@
     <Compile Include="Char.fs" />
     <Compile Include="Regex.fs" />
     <Compile Include="Extensions.fs" />
+    <Compile Include="Dict.fs" />
     <Content Include="paket.references" />
     
   </ItemGroup>

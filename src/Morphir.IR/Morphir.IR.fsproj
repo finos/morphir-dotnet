@@ -10,19 +10,27 @@
     <Optimize>true</Optimize>
     <Tailcalls>true</Tailcalls>
   </PropertyGroup>
+  <PropertyGroup>
+    <RootNamespace>Morphir</RootNamespace>
+  </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..//Morphir.SDK.Core/Morphir.SDK.Core.fsproj" />
     </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="IR\Name.fs" />
+    <Compile Include="IR\Prelude.fs" />
     <Compile Include="IR\Path.fs" />
     <Compile Include="IR\QName.fs" />
     <Compile Include="IR\FQName.fs" />
     <Compile Include="IR\AccessControlled.fs" />
+    <Compile Include="IR\Expression.fs" />
     <Compile Include="IR\Type.fs" />
     <Compile Include="IR\Value.fs" />
+    <Compile Include="IR\Module.fs" />
     <Compile Include="Pattern.fs" />
+    <Compile Include="IR\DSL\IR.fs" />
+    <Folder Include="IR\SDK" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>
