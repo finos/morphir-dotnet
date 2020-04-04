@@ -19,12 +19,11 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="IR\Name.fs" />
-    <Compile Include="IR\Prelude.fs" />
     <Compile Include="IR\Path.fs" />
     <Compile Include="IR\QName.fs" />
     <Compile Include="IR\FQName.fs" />
     <Compile Include="IR\AccessControlled.fs" />
-    <Compile Include="IR\Expression.fs" />
+    <Compile Include="IR\IR.Types.fs" />
     <Compile Include="IR\Type.fs" />
     <Compile Include="IR\Value.fs" />
     <Compile Include="IR\Module.fs" />
