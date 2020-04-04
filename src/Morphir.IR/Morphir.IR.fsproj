@@ -18,6 +18,7 @@
     </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="Pattern.fs" />
     <Compile Include="IR\Name.fs" />
     <Compile Include="IR\Path.fs" />
     <Compile Include="IR\QName.fs" />
@@ -27,7 +28,6 @@
     <Compile Include="IR\Type.fs" />
     <Compile Include="IR\Value.fs" />
     <Compile Include="IR\Module.fs" />
-    <Compile Include="Pattern.fs" />
     <Compile Include="IR\DSL\IR.fs" />
     <Folder Include="IR\SDK" />
   </ItemGroup>

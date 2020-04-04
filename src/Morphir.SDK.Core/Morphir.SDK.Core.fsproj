@@ -25,6 +25,7 @@
     <Compile Include="Regex.fs" />
     <Compile Include="Extensions.fs" />
     <Compile Include="Dict.fs" />
+    <Compile Include="Tuple.fs" />
     <Content Include="paket.references" />
     
   </ItemGroup>
