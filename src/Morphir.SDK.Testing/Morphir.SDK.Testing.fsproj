@@ -4,7 +4,7 @@
         <TargetFramework>netstandard2.1</TargetFramework>
     </PropertyGroup>
     <PropertyGroup Condition=" '$(OS)' == 'Windows_NT' "> 
-        <TargetFrameworks>netstandard2.1;net461</TargetFrameworks>
+        <TargetFrameworks>netstandard2.1;net5.0</TargetFrameworks>
         <RootNamespace>Morphir</RootNamespace>
     </PropertyGroup>
      
