@@ -15,7 +15,7 @@
       ]
     },
     "fake-cli": {
-      "version": "5.19.0",
+      "version": "5.20.3",
       "commands": [
         "fake"
       ]
@@ -33,7 +33,7 @@
       ]
     },
     "fsharp-analyzers": {
-      "version": "0.4.0",
+      "version": "0.6.0",
       "commands": [
         "fsharp-analyzers"
       ]
