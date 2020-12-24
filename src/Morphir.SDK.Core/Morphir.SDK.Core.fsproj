@@ -1,35 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RootNamespace>Morphir.SDK</RootNamespace>
-  </PropertyGroup>
-    <PropertyGroup Condition=" '$(OS)' != 'Windows_NT' ">
-        <TargetFramework>netstandard2.1</TargetFramework>
+    <PropertyGroup>
+        <RootNamespace>Morphir.SDK</RootNamespace>
     </PropertyGroup>
-    <PropertyGroup Condition=" '$(OS)' == 'Windows_NT' ">
-        <TargetFrameworks>netstandard2.1;net5.0</TargetFrameworks>
+    <PropertyGroup>
+        <TargetFramework>net5.0</TargetFramework>
         <RootNamespace>Morphir</RootNamespace>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Configuration)'=='Release'">
         <Optimize>true</Optimize>
         <Tailcalls>true</Tailcalls>
     </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="Predef.fs" />
-    <Compile Include="Comparison.fs" />
-    <Compile Include="Basics.fs" />
-    <Compile Include="Maybe.fs" />
-    <Compile Include="List.fs" />
-    <Compile Include="String.fs" />
-    <Compile Include="Bool.fs" />
-    <Compile Include="Result.fs" />
-    <Compile Include="Char.fs" />
-    <Compile Include="Regex.fs" />
-    <Compile Include="Extensions.fs" />
-    <Compile Include="Dict.fs" />
-    <Compile Include="Tuple.fs" />
-    <Content Include="paket.references" />
-    
-  </ItemGroup>
-  <Import Project="..\..\.paket\Paket.Restore.targets" />
+    <ItemGroup>
+        <Compile Include="AssemblyInfo.fs" />
+        <Compile Include="Predef.fs" />
+        <Compile Include="Comparison.fs" />
+        <Compile Include="Basics.fs" />
+        <Compile Include="Maybe.fs" />
+        <Compile Include="List.fs" />
+        <Compile Include="String.fs" />
+        <Compile Include="Bool.fs" />
+        <Compile Include="Result.fs" />
+        <Compile Include="Char.fs" />
+        <Compile Include="Regex.fs" />
+        <Compile Include="Extensions.fs" />
+        <Compile Include="Dict.fs" />
+        <Compile Include="Tuple.fs" />
+        <Content Include="paket.references" />
+
+    </ItemGroup>
+    <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

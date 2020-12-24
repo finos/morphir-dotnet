@@ -1,35 +1,37 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup Condition=" '$(OS)' != 'Windows_NT' ">
-    <TargetFramework>netstandard2.1</TargetFramework>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(OS)' == 'Windows_NT' "> 
-    <TargetFrameworks>netstandard2.1;net5.0</TargetFrameworks>
-    <RootNamespace>Morphir</RootNamespace>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
-    <Optimize>true</Optimize>
-    <Tailcalls>true</Tailcalls>
-  </PropertyGroup>
-  <PropertyGroup>
-    <RootNamespace>Morphir</RootNamespace>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFramework>net5.0</TargetFramework>
+        <RootNamespace>Morphir</RootNamespace>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <Optimize>true</Optimize>
+        <Tailcalls>true</Tailcalls>
+    </PropertyGroup>
+    <PropertyGroup>
+        <RootNamespace>Morphir</RootNamespace>
+    </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..//Morphir.SDK.Core/Morphir.SDK.Core.fsproj" />
     </ItemGroup>
-  <ItemGroup>
-    <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="Pattern.fs" />
-    <Compile Include="IR\Name.fs" />
-    <Compile Include="IR\Path.fs" />
-    <Compile Include="IR\QName.fs" />
-    <Compile Include="IR\FQName.fs" />
-    <Compile Include="IR\AccessControlled.fs" />
-    <Compile Include="IR\IR.Types.fs" />
-    <Compile Include="IR\Type.fs" />
-    <Compile Include="IR\Value.fs" />
-    <Compile Include="IR\Module.fs" />
-    <Compile Include="IR\DSL\IR.fs" />
-    <Folder Include="IR\SDK" />
-  </ItemGroup>
-  <Import Project="..\..\.paket\Paket.Restore.targets" />
+    <ItemGroup>
+        <Compile Include="AssemblyInfo.fs" />
+        <Compile Include="Pattern.fs" />
+        <Compile Include="IR\Name.fs" />
+        <Compile Include="IR\Path.fs" />
+        <Compile Include="IR\QName.fs" />
+        <Compile Include="IR\FQName.fs" />
+        <Compile Include="IR\AccessControlled.fs" />
+        <Compile Include="IR\IR.Types.fs" />
+        <Compile Include="IR\Type.fs" />
+        <Compile Include="IR\Value.fs" />
+        <Compile Include="IR\Module.fs" />
+        <Compile Include="IR\DSL\IR.fs" />
+        <Folder Include="IR\SDK" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NETCore.Platforms" Version="5.0.0" />
+        <PackageReference Include="Microsoft.NETCore.Targets" Version="5.0.0" />
+        <PackageReference Include="System.Reflection.TypeExtensions" Version="4.7.0" />
+    </ItemGroup>
+    <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

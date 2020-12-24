@@ -2,15 +2,15 @@ version 5.241.2
 source https://www.nuget.org/api/v2
 source https://api.nuget.org/v3/index.json
 storage: none
-clitool dotnet-mono 0.5.2
-nuget FSharp.Core 4.3.4
+clitool dotnet-mono
+nuget FSharp.Core
 nuget Microsoft.SourceLink.GitHub prerelease copy_local: true
 nuget Microsoft.NETFramework.ReferenceAssemblies copy_local: true
-nuget Expecto 8.13.1
-nuget YoloDev.Expecto.TestSdk 0.8.0
-nuget Microsoft.NET.Test.Sdk 15.7.2
+nuget Expecto
+nuget YoloDev.Expecto.TestSdk
+nuget Microsoft.NET.Test.Sdk
 nuget altcover ~> 6
-nuget FluentAssertions 5.10.3
+nuget FluentAssertions
 nuget xunit 2.4.0
 nuget xunit.runner.visualstudio >= 2.4.0 version_in_path: true
 nuget Xbehave 2.4.1
@@ -53,4 +53,4 @@ group Docs
 group Analyzers
   source https://www.nuget.org/api/v2
   source https://api.nuget.org/v3/index.json
-  nuget BinaryDefense.FSharp.Analyzers.Hashing 0.1.0
+  nuget BinaryDefense.FSharp.Analyzers.Hashing
