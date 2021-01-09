@@ -1,0 +1,29 @@
+{
+  "name": "morphir-dotnet",
+  "version": "0.1.0",
+  "description": "F# integration for morphir",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Morgan-Stanley/morphir-dotnet.git"
+  },
+  "keywords": [
+    "morphir"
+  ],
+  "author": "Damian Reeves",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Morgan-Stanley/morphir-dotnet/issues"
+  },
+  "homepage": "https://github.com/Morgan-Stanley/morphir-dotnet#README.md",
+  "devDependencies": {
+    "lerna": "^3.20.2"
+  }
+}

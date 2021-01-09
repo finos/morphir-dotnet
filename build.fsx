@@ -58,6 +58,7 @@ let docsDir = __SOURCE_DIRECTORY__ @@ "docs"
 let docsSrcDir = __SOURCE_DIRECTORY__ @@ "docsSrc"
 let docsToolDir = __SOURCE_DIRECTORY__ @@ "docsTool"
 
+
 let gitOwner = "Morgan-Stanley"
 let gitRepoName = "morphir-dotnet"
 
@@ -83,6 +84,8 @@ let publishUrl = "https://www.nuget.org"
 let docsSiteBaseUrl = sprintf "https://%s.github.io/%s" gitOwner gitRepoName
 
 let disableCodeCoverage = environVarAsBoolOrDefault "DISABLE_COVERAGE" false
+
+let morphirElmSrcDir = __SOURCE_DIRECTORY__ @@ "paket-files" @@ "morphir" @@ gitOwner @@ "morphir-elm"
 
 //-----------------------------------------------------------------------------
 // Helpers
@@ -266,9 +269,23 @@ module DocsTool =
         dotnet.watch (fun args -> { args with WorkingDirectory = docsToolDir }) "run"
             (sprintf "-- watch %s" (watchCLI())) |> failOnBadExitAndPrint
 
+[<RequireQualifiedAccess>]
+module NpmProjects =
+    open Fake.JavaScript
+
+    let install() =
+        // Install this
+        Npm.install(id)
+
+        Npm.install(fun p -> { p with WorkingDirectory =  morphirElmSrcDir })
+
+    let makeMorphirElmCli() =
+        Npm.run "make-cli" <| fun p -> { p with WorkingDirectory =  morphirElmSrcDir }
+
 let allReleaseChecks() =
     isReleaseBranchCheck()
     Changelog.isChangelogEmpty()
+
 
 //-----------------------------------------------------------------------------
 // Target Implementations
@@ -595,6 +612,11 @@ let releaseDocs ctx =
         // If we're calling "Release" target, we'll let the "GitRelease" target do the git push
         Git.Branches.push ""
 
+let npmInstall _ =
+    NpmProjects.install()
+
+let npmBuild _ =
+    NpmProjects.makeMorphirElmCli()
 
 //-----------------------------------------------------------------------------
 // Target Declaration
@@ -621,6 +643,9 @@ Target.create "Release" ignore
 Target.create "BuildDocs" buildDocs
 Target.create "WatchDocs" watchDocs
 Target.create "ReleaseDocs" releaseDocs
+
+Target.create "NpmInstall" npmInstall
+Target.create "NpmBuild" npmBuild
 
 //-----------------------------------------------------------------------------
 // Target Dependencies
@@ -658,6 +683,10 @@ Target.create "ReleaseDocs" releaseDocs
 "UpdateChangelog"
 "UpdateChangelog"
 "UpdateChangelog" ==> "PublishToNuGet"
+
+"NpmInstall" ==> "NpmBuild"
+
+"NpmBuild" ==> "DotnetBuild"
 
 "DotnetBuild"
 "DotnetBuild"
