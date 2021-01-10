@@ -59,7 +59,7 @@ let docsSrcDir = __SOURCE_DIRECTORY__ @@ "docsSrc"
 let docsToolDir = __SOURCE_DIRECTORY__ @@ "docsTool"
 
 
-let gitOwner = "Morgan-Stanley"
+let gitOwner = "finos"
 let gitRepoName = "morphir-dotnet"
 
 let gitHubRepoUrl = sprintf "https://github.com/%s/%s" gitOwner gitRepoName
@@ -86,6 +86,8 @@ let docsSiteBaseUrl = sprintf "https://%s.github.io/%s" gitOwner gitRepoName
 let disableCodeCoverage = environVarAsBoolOrDefault "DISABLE_COVERAGE" false
 
 let morphirElmSrcDir = __SOURCE_DIRECTORY__ @@ "paket-files" @@ "morphir" @@ gitOwner @@ "morphir-elm"
+
+let repoRoot = __SOURCE_DIRECTORY__
 
 //-----------------------------------------------------------------------------
 // Helpers
@@ -280,7 +282,7 @@ module NpmProjects =
         Npm.install(fun p -> { p with WorkingDirectory =  morphirElmSrcDir })
 
     let makeMorphirElmCli() =
-        Npm.run "make-cli" <| fun p -> { p with WorkingDirectory =  morphirElmSrcDir }
+        Npm.run "build" <| fun p -> { p with WorkingDirectory =  repoRoot }
 
 let allReleaseChecks() =
     isReleaseBranchCheck()

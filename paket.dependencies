@@ -59,4 +59,4 @@ group Analyzers
   nuget BinaryDefense.FSharp.Analyzers.Hashing 0.1.0
 
 group Morphir
-  github Morgan-Stanley/morphir-elm:7504e788651e7196547d2133e8c8758d39d88c96
+  github finos/morphir-elm:v2.6.0

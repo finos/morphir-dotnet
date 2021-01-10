@@ -2532,5 +2532,5 @@ NUGET
 GROUP Morphir
 
 GITHUB
-  remote: Morgan-Stanley/morphir-elm
-    FULLPROJECT (bc9559a780f5250fdc639a4e448502547d2b3789)
+  remote: finos/morphir-elm
+    FULLPROJECT (dd1506f7208c87e15357db2813caa4e73c3d0707)
