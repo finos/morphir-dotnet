@@ -1,9 +1,11 @@
-version 5.241.2
+version 5.257.0
+generate_load_scripts: true
 source https://www.nuget.org/api/v2
 source https://api.nuget.org/v3/index.json
 storage: none
-clitool dotnet-mono 0.5.2
-nuget FSharp.Core 4.3.4
+clitool dotnet-mono 0.5.6
+nuget FSharp.Core 4.7.1
+nuget Fable.Core 3.1.5
 nuget Microsoft.SourceLink.GitHub prerelease copy_local: true
 nuget Microsoft.NETFramework.ReferenceAssemblies copy_local: true
 nuget Expecto 8.13.1
@@ -22,18 +24,19 @@ group Build
     storage: none
     source https://www.nuget.org/api/v2
     source https://api.nuget.org/v3/index.json
-    nuget Fake.IO.FileSystem 5.19.0
-    nuget Fake.Core.Target 5.19.0
-    nuget Fake.Core.ReleaseNotes 5.19.0
-    nuget FAKE.Core.Environment 5.19.0
-    nuget Fake.DotNet.Cli 5.19.0
-    nuget FAKE.Core.Process 5.19.0
-    nuget Fake.DotNet.AssemblyInfoFile 5.19.0
-    nuget Fake.Tools.Git 5.19.0
-    nuget Fake.DotNet.Paket 5.19.0
-    nuget Fake.Api.GitHub 5.19.0
-    nuget Fake.BuildServer.AppVeyor 5.19.0
-    nuget Fake.BuildServer.Travis 5.19.0
+    nuget Fake.IO.FileSystem 5.20.3
+    nuget Fake.Core.Target 5.20.3
+    nuget Fake.Core.ReleaseNotes 5.20.3
+    nuget FAKE.Core.Environment 5.20.3
+    nuget Fake.DotNet.Cli 5.20.3
+    nuget FAKE.Core.Process 5.20.3
+    nuget Fake.DotNet.AssemblyInfoFile 5.20.3
+    nuget Fake.Tools.Git 5.20.3
+    nuget Fake.DotNet.Paket 5.20.3
+    nuget Fake.Api.GitHub 5.20.3
+    nuget Fake.BuildServer.AppVeyor 5.20.3
+    nuget Fake.BuildServer.Travis 5.20.3
+    nuget Fake.JavaScript.Npm 5.20.3
     nuget Fantomas
     nuget Argu
 
@@ -54,3 +57,6 @@ group Analyzers
   source https://www.nuget.org/api/v2
   source https://api.nuget.org/v3/index.json
   nuget BinaryDefense.FSharp.Analyzers.Hashing 0.1.0
+
+group Morphir
+  github finos/morphir-elm:v2.6.0

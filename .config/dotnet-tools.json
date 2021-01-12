@@ -14,18 +14,6 @@
         "reportgenerator"
       ]
     },
-    "fake-cli": {
-      "version": "5.19.0",
-      "commands": [
-        "fake"
-      ]
-    },
-    "paket": {
-      "version": "5.241.2",
-      "commands": [
-        "paket"
-      ]
-    },
     "fcswatch-cli": {
       "version": "0.7.14",
       "commands": [
@@ -33,9 +21,21 @@
       ]
     },
     "fsharp-analyzers": {
-      "version": "0.4.0",
+      "version": "0.4.1",
       "commands": [
         "fsharp-analyzers"
+      ]
+    },
+    "fake-cli": {
+      "version": "5.20.3",
+      "commands": [
+        "fake"
+      ]
+    },
+    "paket": {
+      "version": "5.257.0",
+      "commands": [
+        "paket"
       ]
     }
   }
