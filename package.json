@@ -8,6 +8,7 @@
     "test": "tests"
   },
   "scripts": {
+    "build": "lerna run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
