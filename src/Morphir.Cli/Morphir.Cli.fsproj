@@ -11,7 +11,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Morphir.IR\Morphir.IR.fsproj" />
+        <ProjectReference Include="..\Morphir.IR\Morphir.IR.fsproj" />
+        <ProjectReference Include="..\Morphir.Lang.Elm\Morphir.Lang.Elm.fsproj" />
     </ItemGroup>
 
     <Import Project="..\..\.paket\Paket.Restore.targets" />
