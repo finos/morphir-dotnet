@@ -1,8 +1,10 @@
 ﻿open Morphir.IR
+open System
+open Morphir.Lang.Elm
+open FParsec
 
-[<EntryPoint>]
-let main argv =
-    let modulePart = Name.fromString "Morphir.IR"
+let result = ElmParser.parseString """port module Foo
 
-    printfn "Module: %A" modulePart
-    0 // return an integer exit code
+"""
+printfn "%O" result
+

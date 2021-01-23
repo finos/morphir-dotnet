@@ -113,11 +113,6 @@ let morphirElmSrcDir =
 
 let repoRoot = __SOURCE_DIRECTORY__
 
-let morphirElmSrcDir =
-    __SOURCE_DIRECTORY__
-    @@ "paket-files"
-       @@ "morphir" @@ gitOwner @@ "morphir-elm"
-
 //-----------------------------------------------------------------------------
 // Helpers
 //-----------------------------------------------------------------------------
