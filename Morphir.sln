@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{5A6A
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir", "src\Morphir\Morphir.fsproj", "{E54B43D5-DDA9-4781-8F09-A11C9EC1946A}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.Tooling.Shared", "src\Morphir.Tooling.Shared\Morphir.Tooling.Shared.fsproj", "{20418A05-0F91-46FC-B75A-672A16A783DE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -25,6 +27,7 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E54B43D5-DDA9-4781-8F09-A11C9EC1946A} = {0AD98BE3-EFF1-4B99-B3A7-5900FE709BAA}
+		{20418A05-0F91-46FC-B75A-672A16A783DE} = {0AD98BE3-EFF1-4B99-B3A7-5900FE709BAA}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{E54B43D5-DDA9-4781-8F09-A11C9EC1946A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -39,5 +42,17 @@ Global
 		{E54B43D5-DDA9-4781-8F09-A11C9EC1946A}.Release|x64.Build.0 = Release|Any CPU
 		{E54B43D5-DDA9-4781-8F09-A11C9EC1946A}.Release|x86.ActiveCfg = Release|Any CPU
 		{E54B43D5-DDA9-4781-8F09-A11C9EC1946A}.Release|x86.Build.0 = Release|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Debug|x64.Build.0 = Debug|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Debug|x86.Build.0 = Debug|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Release|x64.ActiveCfg = Release|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Release|x64.Build.0 = Release|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Release|x86.ActiveCfg = Release|Any CPU
+		{20418A05-0F91-46FC-B75A-672A16A783DE}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

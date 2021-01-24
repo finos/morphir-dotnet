@@ -1,7 +1,7 @@
 ﻿open Argu
 open System
-open Morphir.Commands
-open Morphir.Commands.Workspace
+open Finos.Morphir.Commands
+open Finos.Morphir.Commands.Workspace
 open Serilog
 open Serilog.Events
 
@@ -18,6 +18,8 @@ type Arguments =
     | Version
     | [<Inherit>] Json
     | [<Inherit; AltCommandLine("-v"); Unique>] Verbosity of LogEventLevel
+    | [<CliPrefix(CliPrefix.None)>] Build of ParseResults<Build.Arguments>
+    | [<CliPrefix(CliPrefix.None)>] Restore of ParseResults<Workspace.Arguments>
     | [<CliPrefix(CliPrefix.None)>] Workspace of ParseResults<Workspace.Arguments>
 with
     interface IArgParserTemplate with
@@ -26,6 +28,8 @@ with
             | Version -> "Display the program's version info."
             | Json -> "Encode output in JSON and print in a single line in stdout. "
             | Verbosity _ -> "Set the verbosity of the tool's logs."
+            | Build _ -> "Build morphir models"
+            | Restore _ -> "Restore the workspace"
             | Workspace _ -> "Execute actions on a workspace"
 
 [<EntryPoint>]
@@ -48,7 +52,9 @@ let main _ =
                 0
             else
                 match results.GetSubCommand() with
-                | Workspace _ -> Ok ()
+                | Build args -> Build.run json args
+                | Restore args -> Restore.run json args
+                | Workspace args -> Workspace.run json args
                 | Version _  | Json | Verbosity _ -> Ok ()
                 |> function | Ok () -> 0 | Error () -> 1
         with

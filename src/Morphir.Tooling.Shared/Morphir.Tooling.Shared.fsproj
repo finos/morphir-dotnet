@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <RootNamespace>Finos.Morphir.Tooling</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Workspace.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Fake.IO.FileSystem" Version="5.20.3" />
+    </ItemGroup>
+
+</Project>
