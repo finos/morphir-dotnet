@@ -1,16 +1,15 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-    <PropertyGroup>
-        <TargetFramework>netstandard2.1</TargetFramework>
-        <RootNamespace>Finos.Morphir.Tooling</RootNamespace>
-    </PropertyGroup>
-
-    <ItemGroup>
-        <Compile Include="Workspace.fs" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <PackageReference Include="Fake.IO.FileSystem" Version="5.20.3" />
-    </ItemGroup>
-
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>Finos.Morphir.Tooling</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Workspace.fs" />
+    <Content Include="paket.references" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Fake.IO.FileSystem" Version="5.20.3" />
+  </ItemGroup>
+  <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

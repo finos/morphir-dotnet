@@ -2,10 +2,18 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>netcoreapp3.1</TargetFramework>
+        <TargetFramework>net5.0</TargetFramework>
         <RootNamespace>Finos.Morphir</RootNamespace>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     </PropertyGroup>
-
+    <PropertyGroup>
+        <Title>Morphir</Title>
+        <Description>Morphir is a multi-language system built on a data format that captures an application's domain model and business logic in a technology agnostic manner. </Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <Optimize>true</Optimize>
+        <Tailcalls>true</Tailcalls>
+    </PropertyGroup>
     <ItemGroup>
         <Compile Include="Commands\Workspace.fs" />
         <Compile Include="Commands\Restore.fs" />
@@ -14,13 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Argu" Version="6.1.1" />
-      <PackageReference Include="ITGlobal.CLI.Table" Version="3.1.23" />
-      <PackageReference Include="Serilog.Sinks.Console" Version="4.0.0-dev-00839" />
-    </ItemGroup>
-
-    <ItemGroup>
       <ProjectReference Include="..\Morphir.Tooling.Shared\Morphir.Tooling.Shared.fsproj" />
     </ItemGroup>
-
+    <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

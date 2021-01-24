@@ -13,6 +13,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir", "src\Morphir\Morp
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.Tooling.Shared", "src\Morphir.Tooling.Shared\Morphir.Tooling.Shared.fsproj", "{20418A05-0F91-46FC-B75A-672A16A783DE}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.Tests", "tests\Morphir.Tests\Morphir.Tests.fsproj", "{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,6 +30,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{E54B43D5-DDA9-4781-8F09-A11C9EC1946A} = {0AD98BE3-EFF1-4B99-B3A7-5900FE709BAA}
 		{20418A05-0F91-46FC-B75A-672A16A783DE} = {0AD98BE3-EFF1-4B99-B3A7-5900FE709BAA}
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E} = {C66627B2-BD69-46D1-B61B-4DF0E8288836}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{E54B43D5-DDA9-4781-8F09-A11C9EC1946A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -54,5 +57,17 @@ Global
 		{20418A05-0F91-46FC-B75A-672A16A783DE}.Release|x64.Build.0 = Release|Any CPU
 		{20418A05-0F91-46FC-B75A-672A16A783DE}.Release|x86.ActiveCfg = Release|Any CPU
 		{20418A05-0F91-46FC-B75A-672A16A783DE}.Release|x86.Build.0 = Release|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Debug|x64.Build.0 = Debug|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Debug|x86.Build.0 = Debug|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Release|x64.ActiveCfg = Release|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Release|x64.Build.0 = Release|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Release|x86.ActiveCfg = Release|Any CPU
+		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

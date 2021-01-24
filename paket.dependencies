@@ -1,4 +1,16 @@
-version 5.257.0
+source https://www.nuget.org/api/v2
+source https://api.nuget.org/v3/index.json
+storage: none
+nuget Argu 6.1.1
+nuget FSharp.Core 5.0
+nuget Expecto 9.0.2
+nuget YoloDev.Expecto.TestSdk 0.9.2
+nuget Microsoft.NET.Test.Sdk 16.8.0
+nuget altcover ~> 7
+nuget Packaging.Targets 0.1.189
+nuget ITGlobal.CLI.Table
+nuget Serilog.Sinks.Console 4.0.0-dev-00839 dev
+nuget Fake.IO.FileSystem 5.20.3
 
 group Morphir
   github finos/morphir-elm:v2.9.0
@@ -8,25 +20,22 @@ group Build
     storage: none
     source https://www.nuget.org/api/v2
     source https://api.nuget.org/v3/index.json
-    framework: netstandard2.0
-
-    nuget Fake.IO.FileSystem 5.20.3
-    nuget Fake.Core.Target 5.20.3
-    nuget Fake.Core.ReleaseNotes 5.20.3
-    nuget FAKE.Core.Environment 5.20.3
-    nuget Fake.DotNet.Cli 5.20.3
-    nuget FAKE.Core.Process 5.20.3
-    nuget Fake.DotNet.AssemblyInfoFile 5.20.3
-    nuget Fake.Tools.Git 5.20.3
-    nuget Fake.DotNet.Paket 5.20.3
-    nuget Fake.Api.GitHub 5.20.3
-    nuget Fake.BuildServer.AppVeyor 5.20.3
-    nuget Fake.BuildServer.Travis 5.20.3
-    nuget Fake.JavaScript.Npm 5.20.3
-    nuget Fantomas
     nuget Argu
+    nuget Fake.IO.FileSystem 5.20.4-alpha.1642
+    nuget Fake.Core.Target 5.20.4-alpha.1642
+    nuget Fake.Core.ReleaseNotes 5.20.4-alpha.1642
+    nuget FAKE.Core.Environment 5.20.4-alpha.1642
+    nuget Fake.DotNet.Cli 5.20.4-alpha.1642
+    nuget FAKE.Core.Process 5.20.4-alpha.1642
+    nuget Fake.DotNet.AssemblyInfoFile 5.20.4-alpha.1642
+    nuget Fake.Tools.Git 5.20.4-alpha.1642
+    nuget Fake.DotNet.Paket 5.20.4-alpha.1642
+    nuget Fake.Api.GitHub 5.20.4-alpha.1642
+    nuget Fake.BuildServer.AppVeyor 5.20.4-alpha.1642
+    nuget Fake.BuildServer.Travis 5.20.4-alpha.1642
+    nuget Fantomas ~> 3
 
 group Analyzers
   source https://www.nuget.org/api/v2
   source https://api.nuget.org/v3/index.json
-  nuget BinaryDefense.FSharp.Analyzers.Hashing 0.1.0
+  nuget BinaryDefense.FSharp.Analyzers.Hashing 0.2.1
