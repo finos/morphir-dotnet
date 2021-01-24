@@ -15,6 +15,7 @@
         <Tailcalls>true</Tailcalls>
     </PropertyGroup>
     <ItemGroup>
+        <Compile Include="AssemblyInfo.fs" />
         <Compile Include="Commands\Workspace.fs" />
         <Compile Include="Commands\Restore.fs" />
         <Compile Include="Commands\Build.fs" />

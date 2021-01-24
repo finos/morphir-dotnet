@@ -4,8 +4,9 @@ open Finos.Morphir.Commands
 open Finos.Morphir.Commands.Workspace
 open Serilog
 open Serilog.Events
+open System.Reflection
 
-let toolsVersion = "0.1.0"
+let toolsVersion = System.AssemblyVersionInformation.AssemblyVersion
 
 type MorphirCLIExiter() =
     interface IExiter with
