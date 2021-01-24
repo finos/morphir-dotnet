@@ -1,31 +1,15 @@
 version 5.257.0
-generate_load_scripts: true
-source https://www.nuget.org/api/v2
-source https://api.nuget.org/v3/index.json
-storage: none
-clitool dotnet-mono 0.5.6
-nuget FSharp.Core 4.7.1
-nuget Fable.Core 3.1.5
-nuget Microsoft.SourceLink.GitHub prerelease copy_local: true
-nuget Microsoft.NETFramework.ReferenceAssemblies copy_local: true
-nuget Expecto 8.13.1
-nuget YoloDev.Expecto.TestSdk 0.8.0
-nuget Microsoft.NET.Test.Sdk 15.7.2
-nuget altcover ~> 6
-nuget FluentAssertions 5.10.3
-nuget xunit 2.4.0
-nuget xunit.runner.visualstudio >= 2.4.0 version_in_path: true
-nuget Xbehave 2.4.1
-nuget coverlet.collector 1.2.0
-nuget AutoFixture.Xunit2 4.11.0
-nuget FParsec 1.1.1
-nuget Farkle 6.0.0-alpha.3
+
+group Morphir
+  github finos/morphir-elm:v2.9.0
 
 // [ FAKE GROUP ]
 group Build
     storage: none
     source https://www.nuget.org/api/v2
     source https://api.nuget.org/v3/index.json
+    framework: netstandard2.0
+
     nuget Fake.IO.FileSystem 5.20.3
     nuget Fake.Core.Target 5.20.3
     nuget Fake.Core.ReleaseNotes 5.20.3
@@ -42,23 +26,7 @@ group Build
     nuget Fantomas
     nuget Argu
 
-group Docs
-    storage: none
-    source https://www.nuget.org/api/v2
-    source https://api.nuget.org/v3/index.json
-    nuget Argu
-    nuget FSharp.Core
-    nuget Fake.IO.FileSystem
-    nuget FAKE.Core.Environment
-    nuget Fake.DotNet.Cli
-    nuget FSharp.Literate
-    nuget Fable.React
-    nuget Dotnet.ProjInfo.Workspace.FCS
-
 group Analyzers
   source https://www.nuget.org/api/v2
   source https://api.nuget.org/v3/index.json
   nuget BinaryDefense.FSharp.Analyzers.Hashing 0.1.0
-
-group Morphir
-  github finos/morphir-elm:v2.6.0
