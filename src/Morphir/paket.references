@@ -3,4 +3,6 @@ Argu
 Packaging.Targets
 Serilog.Sinks.Console
 ITGlobal.CLI.Table
-Jurassic
+Jurassic.Unofficial
+Microsoft.ClearScript.V8
+Microsoft.ClearScript.osx-x64

@@ -3,4 +3,6 @@ FSharp.Core
 Microsoft.NET.Test.Sdk
 YoloDev.Expecto.TestSdk
 altcover
-Jurassic
+Jurassic.Unofficial
+Microsoft.ClearScript.V8
+Microsoft.ClearScript.osx-x64

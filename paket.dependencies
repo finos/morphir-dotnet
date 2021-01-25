@@ -15,7 +15,9 @@ nuget Serilog.Sinks.Console 4.0.0-dev-00839 dev
 nuget Fake.IO.FileSystem 5.20.3
 nuget JavaScriptEngineSwitcher.Core ~> 3.3.0
 nuget JavaScriptEngineSwitcher.Jurassic ~> 3.7.0
-nuget JavaScriptEngineSwitcher.Jurassic ~> 3.7.0
+nuget JavaScriptEngineSwitcher.V8 ~> 3.10.0
+nuget Microsoft.ClearScript.V8 ~> 7.1.0
+nuget Microsoft.ClearScript.osx-x64 ~> 7.1.0
 
 group Morphir
   github finos/morphir-elm:v2.9.0

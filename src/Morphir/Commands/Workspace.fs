@@ -42,7 +42,7 @@ let run json (args:ParseResults<_>) =
     | List args ->
         match args.GetResult ListArgs.Target with
         | ListTarget.Models ->
-            Log.Information($"Listing models from: {workspaceDir.FullName}")
+            Log.Information("Listing models from: {workspaceDir}", workspaceDir.FullName)
             Ok ()
         | _ -> Error ()
     | Restore _ ->
