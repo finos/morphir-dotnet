@@ -1,3 +1,5 @@
+version 5.257.0
+
 source https://www.nuget.org/api/v2
 source https://api.nuget.org/v3/index.json
 storage: none
@@ -11,6 +13,9 @@ nuget Packaging.Targets 0.1.189
 nuget ITGlobal.CLI.Table
 nuget Serilog.Sinks.Console 4.0.0-dev-00839 dev
 nuget Fake.IO.FileSystem 5.20.3
+nuget JavaScriptEngineSwitcher.Core ~> 3.3.0
+nuget JavaScriptEngineSwitcher.Jurassic ~> 3.7.0
+nuget JavaScriptEngineSwitcher.Jurassic ~> 3.7.0
 
 group Morphir
   github finos/morphir-elm:v2.9.0
@@ -33,6 +38,7 @@ group Build
     nuget Fake.Api.GitHub 5.20.4-alpha.1642
     nuget Fake.BuildServer.AppVeyor 5.20.4-alpha.1642
     nuget Fake.BuildServer.Travis 5.20.4-alpha.1642
+    nuget Fake.JavaScript.Npm 5.20.4-alpha.1642
     nuget Fantomas ~> 3
 
 group Analyzers

@@ -4,6 +4,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 15.0.26124.0
 MinimumVisualStudioVersion = 15.0.26124.0
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{0AD98BE3-EFF1-4B99-B3A7-5900FE709BAA}"
+ProjectSection(SolutionItems) = preProject
+	src\Directory.Build.props = src\Directory.Build.props
+EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{C66627B2-BD69-46D1-B61B-4DF0E8288836}"
 EndProject
@@ -14,6 +17,10 @@ EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.Tooling.Shared", "src\Morphir.Tooling.Shared\Morphir.Tooling.Shared.fsproj", "{20418A05-0F91-46FC-B75A-672A16A783DE}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.Tests", "tests\Morphir.Tests\Morphir.Tests.fsproj", "{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.Elm", "src\Morphir.Elm\Morphir.Elm.fsproj", "{616F068D-9CD2-411F-80B1-F6397E2D7FBA}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.Elm.Tests", "tests\Morphir.Elm.Tests\Morphir.Elm.Tests.fsproj", "{FE14043B-0195-47A5-946A-969A60530E9A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,6 +38,8 @@ Global
 		{E54B43D5-DDA9-4781-8F09-A11C9EC1946A} = {0AD98BE3-EFF1-4B99-B3A7-5900FE709BAA}
 		{20418A05-0F91-46FC-B75A-672A16A783DE} = {0AD98BE3-EFF1-4B99-B3A7-5900FE709BAA}
 		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E} = {C66627B2-BD69-46D1-B61B-4DF0E8288836}
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA} = {0AD98BE3-EFF1-4B99-B3A7-5900FE709BAA}
+		{FE14043B-0195-47A5-946A-969A60530E9A} = {C66627B2-BD69-46D1-B61B-4DF0E8288836}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{E54B43D5-DDA9-4781-8F09-A11C9EC1946A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -69,5 +78,29 @@ Global
 		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Release|x64.Build.0 = Release|Any CPU
 		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Release|x86.ActiveCfg = Release|Any CPU
 		{6823EA05-C9C5-4E6A-BBD1-2A6A992DDC8E}.Release|x86.Build.0 = Release|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Debug|x64.Build.0 = Debug|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Debug|x86.Build.0 = Debug|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Release|x64.ActiveCfg = Release|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Release|x64.Build.0 = Release|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Release|x86.ActiveCfg = Release|Any CPU
+		{616F068D-9CD2-411F-80B1-F6397E2D7FBA}.Release|x86.Build.0 = Release|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Debug|x64.Build.0 = Debug|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Debug|x86.Build.0 = Debug|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Release|x64.ActiveCfg = Release|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Release|x64.Build.0 = Release|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Release|x86.ActiveCfg = Release|Any CPU
+		{FE14043B-0195-47A5-946A-969A60530E9A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

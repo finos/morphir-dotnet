@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>net5.0;netstandard2.0</TargetFrameworks>
+        <RootNamespace>Finos.Morphir.Elm</RootNamespace>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    </PropertyGroup>
+    <PropertyGroup>
+        <Title>Morphir.Elm</Title>
+        <Description>Morphir Elm tooling.</Description>
+    </PropertyGroup>
+    <ItemGroup>
+        <Compile Include="AssemblyInfo.fs" />
+        <Compile Include="MorphirElmJs.fs" />
+        <Content Include="paket.references" />
+    </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="static/js/Morphir.Elm.*.js" />
+    </ItemGroup>
+    <Import Project="..\..\.paket\Paket.Restore.targets" />
+</Project>

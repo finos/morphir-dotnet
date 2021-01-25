@@ -2,13 +2,20 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net5.0</TargetFramework>
+        <TargetFrameworks>net5.0;netcoreapp3.1</TargetFrameworks>
         <RootNamespace>Finos.Morphir</RootNamespace>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <PackageId>Morphir</PackageId>
+        <AssemblyName>morphir</AssemblyName>
     </PropertyGroup>
     <PropertyGroup>
         <Title>Morphir</Title>
         <Description>Morphir is a multi-language system built on a data format that captures an application's domain model and business logic in a technology agnostic manner. </Description>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(PackAsTool)' == 'true' ">
+        <!-- .net tools support netcoreapp only -->
+        <TargetFrameworks></TargetFrameworks>
+        <TargetFramework>netcoreapp3.1</TargetFramework>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Configuration)'=='Release'">
         <Optimize>true</Optimize>
@@ -19,10 +26,11 @@
         <Compile Include="Commands\Workspace.fs" />
         <Compile Include="Commands\Restore.fs" />
         <Compile Include="Commands\Build.fs" />
-        <Compile Include="Program.fs" />
+        <Compile Include="Main.fs" />
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Morphir.Elm\Morphir.Elm.fsproj" />
       <ProjectReference Include="..\Morphir.Tooling.Shared\Morphir.Tooling.Shared.fsproj" />
     </ItemGroup>
     <Import Project="..\..\.paket\Paket.Restore.targets" />

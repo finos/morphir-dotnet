@@ -1,15 +1,21 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
+    <TargetFrameworks>net5.0;netstandard2.0</TargetFrameworks>
     <RootNamespace>Finos.Morphir.Tooling</RootNamespace>
+      <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
+    <PropertyGroup>
+        <Title>Morphir.Tooling.Shared</Title>
+        <Description>Provide shared tooling for Morphir!</Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <Optimize>true</Optimize>
+        <Tailcalls>true</Tailcalls>
+    </PropertyGroup>
   <ItemGroup>
     <Compile Include="Workspace.fs" />
     <Content Include="paket.references" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Fake.IO.FileSystem" Version="5.20.3" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

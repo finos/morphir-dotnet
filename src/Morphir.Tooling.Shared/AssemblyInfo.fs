@@ -5,19 +5,19 @@ open System.Reflection
 [<assembly: AssemblyTitleAttribute("Morphir.Tooling.Shared")>]
 [<assembly: AssemblyProductAttribute("Morphir")>]
 [<assembly: AssemblyVersionAttribute("0.0.1")>]
-[<assembly: AssemblyMetadataAttribute("ReleaseDate","2021-01-24T00:00:00.0000000-05:00")>]
+[<assembly: AssemblyMetadataAttribute("ReleaseDate","2021-01-25T00:00:00.0000000-05:00")>]
 [<assembly: AssemblyFileVersionAttribute("0.0.1")>]
 [<assembly: AssemblyInformationalVersionAttribute("0.0.1")>]
 [<assembly: AssemblyMetadataAttribute("ReleaseChannel","alpha")>]
-[<assembly: AssemblyMetadataAttribute("GitHash","10c4e26d645cc99b56c2450f06e63177a2f62bbb")>]
+[<assembly: AssemblyMetadataAttribute("GitHash","07f0c62b07aed54cb1eda41e7870eae518b78758")>]
 do ()
 
 module internal AssemblyVersionInformation =
     let [<Literal>] AssemblyTitle = "Morphir.Tooling.Shared"
     let [<Literal>] AssemblyProduct = "Morphir"
     let [<Literal>] AssemblyVersion = "0.0.1"
-    let [<Literal>] AssemblyMetadata_ReleaseDate = "2021-01-24T00:00:00.0000000-05:00"
+    let [<Literal>] AssemblyMetadata_ReleaseDate = "2021-01-25T00:00:00.0000000-05:00"
     let [<Literal>] AssemblyFileVersion = "0.0.1"
     let [<Literal>] AssemblyInformationalVersion = "0.0.1"
     let [<Literal>] AssemblyMetadata_ReleaseChannel = "alpha"
-    let [<Literal>] AssemblyMetadata_GitHash = "10c4e26d645cc99b56c2450f06e63177a2f62bbb"
+    let [<Literal>] AssemblyMetadata_GitHash = "07f0c62b07aed54cb1eda41e7870eae518b78758"

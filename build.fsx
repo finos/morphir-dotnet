@@ -69,7 +69,7 @@ let distGlob =
     ++ (distDir @@ "*.tgz")
     ++ (distDir @@ "*.tar.gz")
 
-let coverageThresholdPercent = 1
+let coverageThresholdPercent = 0
 let coverageReportDir =  __SOURCE_DIRECTORY__  @@ "docs" @@ "coverage"
 
 let gitOwner = "finos"
@@ -105,9 +105,47 @@ let disableCodeCoverage = environVarAsBoolOrDefault "DISABLE_COVERAGE" false
 let githubToken = Environment.environVarOrNone "GITHUB_TOKEN"
 Option.iter(TraceSecrets.register "<GITHUB_TOKEN>")
 
+let repoRoot = __SOURCE_DIRECTORY__
+
+let morphirElmSrcDir =
+    __SOURCE_DIRECTORY__
+    @@ "paket-files"
+       @@ "morphir" @@ gitOwner @@ "morphir-elm"
+
+let morphirElmCliJSSources =
+    !! (morphirElmSrcDir @@ "cli/Morphir.Elm.CLI.js")
+    ++ (morphirElmSrcDir @@ "cli/Morphir.Elm.DaprCLI.js")
 //-----------------------------------------------------------------------------
 // Helpers
 //-----------------------------------------------------------------------------
+
+let srcDirContains path =
+    let fileInfo = FileInfo.ofPath path
+
+    DirectoryInfo.containsFile fileInfo
+    <| DirectoryInfo.ofPath src
+
+let getProjectData (projectPath: String) =
+    let projectName =
+        System.IO.Path.GetFileNameWithoutExtension(projectPath)
+
+    let projectDir = Path.getDirectory projectPath
+
+    let projectInfo =
+        {| ProjectName = projectName
+           ProjectDir = projectDir
+           FileName = System.IO.Path.GetFileName(projectPath)
+           Path = projectPath |}
+
+    let shouldPack =
+        match projectInfo with
+        | proj when String.Equals(proj.ProjectName, "Morphir.Cli.Fable") -> false
+        | proj when srcDirContains proj.Path -> true
+        | _ -> false
+
+    {| projectInfo with
+           ShouldPack = shouldPack |}
+
 let invokeAsync f = async { f () }
 
 let isRelease (targets : Target list) =
@@ -232,6 +270,20 @@ module FSharpAnalyzers =
         interface IArgParserTemplate with
             member s.Usage = ""
 
+[<RequireQualifiedAccess>]
+module NpmProjects =
+    open Fake.JavaScript
+
+    let install () =
+
+        Npm.install
+            (fun p ->
+                { p with
+                      WorkingDirectory = morphirElmSrcDir })
+
+    let makeMorphirElmCli () =
+        Npm.run "build"
+        <| fun p -> { p with WorkingDirectory = morphirElmSrcDir }
 //-----------------------------------------------------------------------------
 // Target Implementations
 //-----------------------------------------------------------------------------
@@ -565,6 +617,14 @@ let formatCode _ =
         | _ -> ()
     )
 
+let npmInstall _ = NpmProjects.install ()
+
+let npmBuild _ = NpmProjects.makeMorphirElmCli ()
+
+let syncJSSources _ =
+    let targetDir = src @@ "Morphir.Elm" @@ "static" @@ "js"
+    Shell.copyFiles targetDir morphirElmCliJSSources
+
 //-----------------------------------------------------------------------------
 // Target Declaration
 //-----------------------------------------------------------------------------
@@ -586,10 +646,16 @@ Target.create "GitRelease" gitRelease
 Target.create "GitHubRelease" githubRelease
 Target.create "FormatCode" formatCode
 Target.create "Release" ignore
-
+Target.create "NpmInstall" npmInstall
+Target.create "NpmBuild" npmBuild
+Target.create "SyncJSSources" syncJSSources
 //-----------------------------------------------------------------------------
 // Target Dependencies
 //-----------------------------------------------------------------------------
+
+// NPM and Elm related targets
+"NpmInstall" ==> "NpmBuild"
+"NpmBuild" ==> "SyncJSSources"
 
 // Only call Clean if DotnetPack was in the call chain
 // Ensure Clean is called before DotnetRestore
@@ -607,6 +673,8 @@ Target.create "Release" ignore
 "DotnetRestore" ?=> "UpdateChangelog"
 "UpdateChangelog" ?=> "AssemblyInfo"
 "UpdateChangelog" ==> "GitRelease"
+
+"SyncJSSources" ==> "DotnetBuild"
 
 "DotnetRestore"
     ==> "DotnetBuild"
