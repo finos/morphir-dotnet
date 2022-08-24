@@ -1,6 +1,11 @@
+[![FINOS - Archived](https://cdn.jsdelivr.net/gh/finos/contrib-toolbox@master/images/badge-archived.svg)](https://community.finos.org/docs/governance/Software-Projects/stages/archived)
+
+
+**NOTE!** This project was archived on 24 August 2022; you can still consume this software, although not advised, as it's not been maintained since November 2021. If you're interested to restore activity on this repository, please email [help@finos.org](mailto:help@finos.org)
+
 # morphir-dotnet
 
-Provides a .NET binding to [morphir](https://www.github.com/Morgan-Stanley/morphir) and its IR.
+Provides a .NET binding to [morphir](https://www.github.com/finos/morphir) and its IR.
 
 ---
 
