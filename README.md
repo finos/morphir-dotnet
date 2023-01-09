@@ -28,7 +28,7 @@ Morphir.IR | [![NuGet Badge](https://buildstats.info/nuget/Morphir.IR)](https://
 
 Make sure the following **requirements** are installed on your system:
 
-- [dotnet SDK](https://www.microsoft.com/net/download/core) 3.0 or higher
+- [dotnet SDK](https://www.microsoft.com/net/download/core) 6.0 or higher
 - [Mono](http://www.mono-project.com/) if you're on Linux or macOS.
 
 or
