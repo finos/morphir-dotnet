@@ -18,6 +18,8 @@ nuget xunit.runner.visualstudio >= 2.4.0 version_in_path: true
 nuget Xbehave 2.4.1
 nuget coverlet.collector 1.2.0
 nuget AutoFixture.Xunit2 4.11.0
+nuget FParsec 1.1.1
+nuget Farkle 6.0.0-alpha.3
 
 // [ FAKE GROUP ]
 group Build
