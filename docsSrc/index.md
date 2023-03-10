@@ -1,12 +1,12 @@
-# Morphir.IR
+# Morphir
 
 ---
 
-## What is Morphir.IR?
+## What is Morphir?
 
-Morphir.IR is a library that does this specific thing.  
+Morphir is a library that does this specific thing.  
 
-## Why use Morphir.IR?
+## Why use Morphir?
 
 I created it because I had to solve an issue with this other thing.
 
@@ -53,7 +53,7 @@ I created it because I had to solve an issue with this other thing.
         <p class="card-text">Contain technical reference for APIs.</p>
       </div>
       <div class="card-footer text-right   border-top-0">
-        <a href="{{siteBaseUrl}}/Api_Reference/Morphir.IR/Morphir.IR.html" class="btn btn-primary">Read Api Docs</a>
+        <a href="{{siteBaseUrl}}/Api_Reference/Morphir/Morphir.html" class="btn btn-primary">Read Api Docs</a>
       </div>
     </div>
   </div>

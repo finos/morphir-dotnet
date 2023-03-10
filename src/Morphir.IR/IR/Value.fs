@@ -18,11 +18,29 @@ type Value<'A> =
     | FieldFunction of Attributes: 'A * FieldName: Name
     | Apply of Attributes: 'A * Function: Value<'A> * Argument: Value<'A>
     | Lambda of Attributes: 'A * ArgumentPattern: Pattern<'A> * Body: Value<'A>
-    | LetDefinition of Attributes: 'A * ValueName: Name * ValueDefinition: Definition<'A> * InValue: Value<'A>
-    | LetRecursion of Attributes: 'A * ValueDefinitions: (Name * Definition<'A>) list * InValue: Value<'A>
-    | Destructure of Attributes: 'A * Pattern: Pattern<'A> * ValueToDestruct: Value<'A> * InValue: Value<'A>
-    | IfThenElse of Attributes: 'A * Condition: Value<'A> * ThenBranch: Value<'A> * ElseBranch: Value<'A>
-    | PatternMatch of Attributes: 'A * BranchOutOn: Value<'A> * Cases: (Pattern<'A> * Value<'A> list)
+    | LetDefinition of
+        Attributes: 'A *
+        ValueName: Name *
+        ValueDefinition: Definition<'A> *
+        InValue: Value<'A>
+    | LetRecursion of
+        Attributes: 'A *
+        ValueDefinitions: (Name * Definition<'A>) list *
+        InValue: Value<'A>
+    | Destructure of
+        Attributes: 'A *
+        Pattern: Pattern<'A> *
+        ValueToDestruct: Value<'A> *
+        InValue: Value<'A>
+    | IfThenElse of
+        Attributes: 'A *
+        Condition: Value<'A> *
+        ThenBranch: Value<'A> *
+        ElseBranch: Value<'A>
+    | PatternMatch of
+        Attributes: 'A *
+        BranchOutOn: Value<'A> *
+        Cases: (Pattern<'A> * Value<'A> list)
     | UpdateRecord of Attributes: 'A * ValueToUpdate: Value<'A> * FieldsToUpdate: Value<'A>
     | Unit of Attributes: 'A
 
@@ -44,9 +62,10 @@ and Pattern<'A> =
     | HeadTailPattern of Attributes: 'A * Pattern<'A> * Pattern<'A>
     | LiteralPattern of Attributes: 'A * Literal
 
-and Specification<'A> =
-    { Inputs: Name * Type<'A> list
-      Output: Type<'A> }
+and Specification<'A> = {
+    Inputs: Name * Type<'A> list
+    Output: Type<'A>
+}
 
 and Definition<'A> =
     | TypedDefinition of ValueType: Type<'A> * ArgumentNames: Name list * Body: Value<'A>
