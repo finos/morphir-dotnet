@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "dependencies": {
+    ".NETStandard,Version=v2.0": {
+      "Expecto": {
+        "type": "Direct",
+        "requested": "[9.0.4, )",
+        "resolved": "9.0.4",
+        "contentHash": "n/4a8T3FKDmm7DY97yJD+Tr7T8IOAQLfGjySChwATUo3HIr0Ah1zXXOvpLXrkCi7crPN4O2QmeDDelc7/dUzJw==",
+        "dependencies": {
+          "FSharp.Core": "4.6.0",
+          "Mono.Cecil": "0.11.3"
+        }
+      },
+      "NETStandard.Library": {
+        "type": "Direct",
+        "requested": "[2.0.3, )",
+        "resolved": "2.0.3",
+        "contentHash": "st47PosZSHrjECdjeIzZQbzivYBJFv6P2nv4cj2ypdI204DO+vZ7l5raGMiX4eXMJ53RfOIg+/s4DHVZ54Nu2A==",
+        "dependencies": {
+          "Microsoft.NETCore.Platforms": "1.1.0"
+        }
+      },
+      "Microsoft.NETCore.Platforms": {
+        "type": "Transitive",
+        "resolved": "1.1.0",
+        "contentHash": "kz0PEW2lhqygehI/d6XsPCQzD7ff7gUJaVGPVETX611eadGsA3A877GdSlU0LRVMCTH/+P3o2iDTak+S08V2+A=="
+      },
+      "Mono.Cecil": {
+        "type": "Transitive",
+        "resolved": "0.11.3",
+        "contentHash": "DNYE+io5XfEE8+E+5padThTPHJARJHbz1mhbhMPNrrWGKVKKqj/KEeLvbawAmbIcT73NuxLV7itHZaYCZcVWGg=="
+      },
+      "FSharp.Core": {
+        "type": "CentralTransitive",
+        "requested": "[7.0.200, )",
+        "resolved": "4.6.0",
+        "contentHash": "Neg/er6EOaNBrvBS2FrsYdrXW8Jv4CRQhtDfw+0b7usRSDvaJnABTNEWTdh3RqmdyT6K2qOayUsrY0lpiQjBxQ=="
+      }
+    },
+    "net7.0": {
+      "Expecto": {
+        "type": "Direct",
+        "requested": "[9.0.4, )",
+        "resolved": "9.0.4",
+        "contentHash": "n/4a8T3FKDmm7DY97yJD+Tr7T8IOAQLfGjySChwATUo3HIr0Ah1zXXOvpLXrkCi7crPN4O2QmeDDelc7/dUzJw==",
+        "dependencies": {
+          "FSharp.Core": "4.6.0",
+          "Mono.Cecil": "0.11.3"
+        }
+      },
+      "Mono.Cecil": {
+        "type": "Transitive",
+        "resolved": "0.11.3",
+        "contentHash": "DNYE+io5XfEE8+E+5padThTPHJARJHbz1mhbhMPNrrWGKVKKqj/KEeLvbawAmbIcT73NuxLV7itHZaYCZcVWGg=="
+      },
+      "FSharp.Core": {
+        "type": "CentralTransitive",
+        "requested": "[7.0.200, )",
+        "resolved": "4.6.0",
+        "contentHash": "Neg/er6EOaNBrvBS2FrsYdrXW8Jv4CRQhtDfw+0b7usRSDvaJnABTNEWTdh3RqmdyT6K2qOayUsrY0lpiQjBxQ=="
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 namespace Morphir.IR
 
 type IHaveAttribution<'A> =
-   abstract member Attributes:'A with get
+    abstract member Attributes: 'A
 
 type Expression<'A> =
-     inherit IHaveAttribution<'A>
+    inherit IHaveAttribution<'A>

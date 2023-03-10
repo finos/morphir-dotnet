@@ -7,6 +7,4 @@ open Morphir.SDK
 let tests =
     let mapTests = describe "List.map" []
 
-    describe "ListTests" [
-        mapTests
-    ]
+    describe "ListTests" [ mapTests ]

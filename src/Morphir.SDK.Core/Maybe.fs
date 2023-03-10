@@ -13,13 +13,15 @@ let just value = Just value
 let nothing = Nothing
 
 [<CompiledName("WithDefault")>]
-let withDefault default' = function
+let withDefault default' =
+    function
     | Just value -> value
     | Nothing -> default'
 
 [<CompiledName("Map")>]
-let map f = function
-    | Just value -> Just (f value)
+let map f =
+    function
+    | Just value -> Just(f value)
     | Nothing -> Nothing
 
 let map2 func ma mb =
@@ -28,7 +30,7 @@ let map2 func ma mb =
     | Just a ->
         match mb with
         | Nothing -> Nothing
-        | Just b -> Just (func a b)
+        | Just b -> Just(func a b)
 
 let map3 func ma mb mc =
     match ma with
@@ -39,7 +41,7 @@ let map3 func ma mb mc =
         | Just b ->
             match mc with
             | Nothing -> Nothing
-            | Just c -> Just (func a b c)
+            | Just c -> Just(func a b c)
 
 let map4 func ma mb mc md =
     match ma with
@@ -53,7 +55,7 @@ let map4 func ma mb mc md =
             | Just c ->
                 match md with
                 | Nothing -> Nothing
-                | Just d -> Just (func a b c d)
+                | Just d -> Just(func a b c d)
 
 let map5 func ma mb mc md me =
     match ma with
@@ -70,20 +72,22 @@ let map5 func ma mb mc md me =
                 | Just d ->
                     match me with
                     | Nothing -> Nothing
-                    | Just e -> Just (func a b c d e)
+                    | Just e -> Just(func a b c d e)
 
-let andThen callback = function
-    | Just value ->
-        callback value
+let andThen callback =
+    function
+    | Just value -> callback value
     | Nothing -> Nothing
 
 [<CompiledName("IsJust")>]
-let isJust = function
+let isJust =
+    function
     | Just _ -> true
     | Nothing -> false
 
 [<CompiledName("IsNothing")>]
-let isNothing = function
+let isNothing =
+    function
     | Just _ -> false
     | Nothing -> true
 
@@ -96,11 +100,13 @@ module Conversions =
     [<AutoOpen>]
     module Options =
         [<CompiledName("MaybeToOptions")>]
-        let maybeToOptions = function
+        let maybeToOptions =
+            function
             | Just value -> Some value
             | Nothing -> None
 
         [<CompiledName("OptionsToMaybe")>]
-        let optionsToMaybe = function
+        let optionsToMaybe =
+            function
             | Some value -> Just value
             | None -> Nothing

@@ -1,6 +1,5 @@
 using AutoFixture.Xunit2;
 using FluentAssertions;
-using Xunit;
 
 namespace Morphir.SDK
 {

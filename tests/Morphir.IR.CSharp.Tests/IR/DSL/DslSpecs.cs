@@ -1,6 +1,3 @@
-using System;
-using Xunit;
-
 namespace Morphir.IR.DSL
 {
     public class DslSpecs
@@ -11,3 +8,4 @@ namespace Morphir.IR.DSL
         }
     }
 }
+

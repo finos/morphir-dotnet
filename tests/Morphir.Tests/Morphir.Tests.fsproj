@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <TargetFramework>net7.0</TargetFramework>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+        <PackageReference Include="altcover" />
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Include="AssemblyInfo.fs" />
+        <Compile Include="Tests.fs" />
+        <Compile Include="Main.fs" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../src/Morphir/Morphir.fsproj" />
+        <ProjectReference Include="../../src/Morphir.SDK.Testing/Morphir.SDK.Testing.fsproj" />
+    </ItemGroup>
+</Project>

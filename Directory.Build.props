@@ -2,12 +2,12 @@
     <PropertyGroup>
         <!-- summary is not migrated from project.json, but you can use the <Description> property for that if needed. -->
         <PackageTags>f#, fsharp</PackageTags>
-        <PackageProjectUrl>https://github.com/Morgan-Stanley/Morphir.IR</PackageProjectUrl>
-        <PackageLicenseUrl>https://github.com/Morgan-Stanley/Morphir.IR/blob/master/LICENSE.md</PackageLicenseUrl>
+        <PackageProjectUrl>https://github.com/finos/morphir-dotnet</PackageProjectUrl>
+        <PackageLicenseUrl>https://github.com/finos/morphir-dotnet/blob/master/LICENSE.md</PackageLicenseUrl>
         <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
         <RepositoryType>git</RepositoryType>
-        <Authors>Morgan-Stanley</Authors>
-        <RepositoryUrl>https://github.com/Morgan-Stanley/Morphir.IR</RepositoryUrl>
+        <Authors>finos</Authors>
+        <RepositoryUrl>https://github.com/finos/morphir-dotnet</RepositoryUrl>
         <!-- owners is not supported in MSBuild -->
     </PropertyGroup>
 </Project>

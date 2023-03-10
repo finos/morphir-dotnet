@@ -1,15 +1,35 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netcoreapp3.1</TargetFramework>
-        <IsPackable>false</IsPackable>
+        <TargetFramework>net7.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Morphir</RootNamespace>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-        <RootNamespace>Morphir.SDK</RootNamespace>
+        <IsPackable>false</IsPackable>
     </PropertyGroup>
-    
+
+    <ItemGroup>
+        <PackageReference Include="AutoFixture.Xunit2" />
+        <PackageReference Include="FluentAssertions" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
     <ItemGroup>
       <ProjectReference Include="..\..\src\Morphir.SDK.Core\Morphir.SDK.Core.fsproj" />
     </ItemGroup>
-    <Import Project="..\..\.paket\Paket.Restore.targets" />
+
+    <ItemGroup>
+      <Folder Include="SDK" />
+    </ItemGroup>
 
 </Project>
