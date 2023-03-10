@@ -13,20 +13,15 @@ type Definition<'A> =
     { Types: Dict<Name, AccessControlled<Type.Definition<'A>>>
       Values: Dict<Name, AccessControlled<Value.Definition<'A>>> }
 
-let definitionToSpecification (def:Definition<'A>) :Specification<'A> =
+let definitionToSpecification (def: Definition<'A>) : Specification<'A> =
     { Types =
         def.Types
-            |> Dict.toList
-            |> List.filterMap
-                (fun ( path, accessControlledType ) ->
-                    accessControlledType
-                        |> withPublicAccess
-                        |> Maybe.map
-                            (fun typeDef ->
-                                ( path, Type.definitionToSpecification typeDef )
-                            )
-                )
-            |> Dict.fromList
+        |> Dict.toList
+        |> List.filterMap (fun (path, accessControlledType) ->
+            accessControlledType
+            |> withPublicAccess
+            |> Maybe.map (fun typeDef -> (path, Type.definitionToSpecification typeDef)))
+        |> Dict.fromList
       Values = Dict.empty }
 
 
@@ -36,6 +31,5 @@ module Specification =
           Values = Map.empty }
 
 type Definition<'A> with
-    member this.ToSpecification():Specification<'A> =
-        definitionToSpecification this
 
+    member this.ToSpecification() : Specification<'A> = definitionToSpecification this

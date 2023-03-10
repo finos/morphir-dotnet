@@ -2,10 +2,11 @@ module Morphir.IR.AccessControlled
 
 open Morphir.SDK.Maybe
 
-type AccessControlled<'a> =
-    { access: Access
-      value:'a }
-and Access = Public | Private
+type AccessControlled<'a> = { access: Access; value: 'a }
+
+and Access =
+    | Public
+    | Private
 
 let inline mkPublic value = { access = Public; value = value }
 
@@ -22,4 +23,5 @@ let withPrivateAccess ac =
     | Private -> ac.value
 
 let map f ac =
-    {access = ac.access; value = f(ac.value)}
+    { access = ac.access
+      value = f (ac.value) }
