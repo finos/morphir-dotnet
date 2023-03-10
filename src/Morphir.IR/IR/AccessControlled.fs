@@ -22,6 +22,7 @@ let withPrivateAccess ac =
     | Public -> ac.value
     | Private -> ac.value
 
-let map f ac =
-    { access = ac.access
-      value = f (ac.value) }
+let map f ac = {
+    access = ac.access
+    value = f (ac.value)
+}

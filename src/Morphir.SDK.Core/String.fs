@@ -9,16 +9,22 @@ let length =
     | null -> 0
     | (str: string) -> str.Length
 
-let reverse (str: string) = str |> Seq.rev |> System.String.Concat
+let reverse (str: string) =
+    str
+    |> Seq.rev
+    |> System.String.Concat
 
 let repeat (x: int) (str: string) = String.replicate x str
 
 let replace (before: string) (after: string) (str: string) = str.Replace(before, after)
 
-let append (str1: string) (str2: string) = str1 + str2
+let append (str1: string) (str2: string) =
+    str1
+    + str2
 
 let split (sep: string) (str: string) =
-    str.Split([| sep |], System.StringSplitOptions.None) |> Array.toList
+    str.Split([| sep |], System.StringSplitOptions.None)
+    |> Array.toList
 
 let join (sep: string) (chunks: Morphir.SDK.List.List<string>) = System.String.Join(sep, chunks)
 
@@ -30,16 +36,26 @@ let lines (str: string) = split "\n" str
 
 let slice (startIndex: int) (endIndex: int) (str: string) =
     let start =
-        if startIndex >= 0 then
+        if
+            startIndex
+            >= 0
+        then
             startIndex
         else
-            str.Length + startIndex
+            str.Length
+            + startIndex
 
     let last =
-        if endIndex >= 0 then
-            endIndex - 1
+        if
+            endIndex
+            >= 0
+        then
+            endIndex
+            - 1
         else
-            (str.Length + endIndex - 1)
+            (str.Length
+             + endIndex
+             - 1)
 
     str.[start..last]
 
@@ -65,7 +81,14 @@ let rec indexesHelp (substring: string) (str: string) (curr: int) (result: int l
     if (idx = -1) then
         result
     else
-        indexesHelp substring (slice (idx + 1) str.Length str) (curr + idx + 1) (result @ [ curr + idx ])
+        indexesHelp
+            substring
+            (slice (idx + 1) str.Length str)
+            (curr
+             + idx
+             + 1)
+            (result
+             @ [ curr + idx ])
 
 let indexes (substring: string) (str: string) = indexesHelp substring str 0 []
 
@@ -106,17 +129,36 @@ let inline toUpper (str: string) = str.ToUpperInvariant()
 let inline toLower (str: string) = str.ToLowerInvariant()
 
 let pad (n: int) (ch: char) (str: string) =
-    let half: float = float (n - length str) / 2.0
+    let half: float =
+        float (
+            n
+            - length str
+        )
+        / 2.0
 
-    repeat (ceil half |> int) (fromChar ch)
+    repeat
+        (ceil half
+         |> int)
+        (fromChar ch)
     + str
-    + repeat (floor half |> int) (fromChar ch)
+    + repeat
+        (floor half
+         |> int)
+        (fromChar ch)
 
 let padLeft (n: int) (ch: char) (str: string) =
-    repeat (n - length str) (fromChar ch) + str
+    repeat
+        (n
+         - length str)
+        (fromChar ch)
+    + str
 
 let padRight (n: int) (ch: char) (str: string) =
-    str + repeat (n - length str) (fromChar ch)
+    str
+    + repeat
+        (n
+         - length str)
+        (fromChar ch)
 
 let trim (str: string) = str.Trim()
 

@@ -41,22 +41,28 @@ and Specification<'A> =
 
 and Definition<'A> =
     | TypeAliasDefinition of TypeParams: Name list * TypeExpr: Type<'A>
-    | CustomTypeDefinition of TypeParams: Name list * Constructors: AccessControlled<Constructors<'A>>
+    | CustomTypeDefinition of
+        TypeParams: Name list *
+        Constructors: AccessControlled<Constructors<'A>>
 
 type Field<'A> with
 
     member this.MapName f = { this with Name = f (this.Name) }
 
-    member this.MapType f =
-        { Name = this.Name
-          Type = f (this.Type) }
+    member this.MapType f = {
+        Name = this.Name
+        Type = f (this.Type)
+    }
 
 
 let definitionToSpecification (def: Definition<'A>) : Specification<'A> =
     match def with
     | TypeAliasDefinition (p, exp) -> TypeAliasSpecification(p, exp)
     | CustomTypeDefinition (p, accessControlledCtors) ->
-        match accessControlledCtors |> withPublicAccess with
+        match
+            accessControlledCtors
+            |> withPublicAccess
+        with
         | Just ctors -> CustomTypeSpecification(p, ctors)
         | Nothing -> OpaqueTypeSpecification p
 
@@ -104,19 +110,42 @@ let rec mapTypeAttributes f =
     function
     | Variable (a, name) -> Variable((f a), name)
     | Reference (a, fQName, argTypes) ->
-        let newArgTypes = argTypes |> List.map (mapTypeAttributes f)
+        let newArgTypes =
+            argTypes
+            |> List.map (mapTypeAttributes f)
 
         Reference((f a), fQName, newArgTypes)
 
-    | Tuple (a, elemTypes) -> Tuple((f a), (elemTypes |> List.map (mapTypeAttributes f)))
+    | Tuple (a, elemTypes) ->
+        Tuple(
+            (f a),
+            (elemTypes
+             |> List.map (mapTypeAttributes f))
+        )
 
-    | Record (a, fields) -> Record((f a), (fields |> List.map (mapFieldType (mapTypeAttributes f))))
+    | Record (a, fields) ->
+        Record(
+            (f a),
+            (fields
+             |> List.map (mapFieldType (mapTypeAttributes f)))
+        )
 
     | ExtensibleRecord (a, name, fields) ->
-        ExtensibleRecord((f a), name, (fields |> List.map (mapFieldType (mapTypeAttributes f))))
+        ExtensibleRecord(
+            (f a),
+            name,
+            (fields
+             |> List.map (mapFieldType (mapTypeAttributes f)))
+        )
 
     | Function (a, argType, returnType) ->
-        Function((f a), (argType |> mapTypeAttributes f), (returnType |> mapTypeAttributes f))
+        Function(
+            (f a),
+            (argType
+             |> mapTypeAttributes f),
+            (returnType
+             |> mapTypeAttributes f)
+        )
     | Unit a -> Unit(f a)
 
 let typeAttributes (typeExpr: Type<'Attributes>) : 'Attributes = typeExpr.Attributes
@@ -125,18 +154,29 @@ let eraseAttributes (typeDef: Definition<'A>) : Definition<Unit> =
     let mkUnit a = ()
 
     match typeDef with
-    | TypeAliasDefinition (typeVars, tpe) -> TypeAliasDefinition(typeVars, (mapTypeAttributes mkUnit tpe))
+    | TypeAliasDefinition (typeVars, tpe) ->
+        TypeAliasDefinition(typeVars, (mapTypeAttributes mkUnit tpe))
     | CustomTypeDefinition (typeVars, acsCtrlConstructors) ->
         let eraseCtor (ctor: Constructor<'A>) =
             let (Constructor (name, types)) = ctor
 
             let extraErasedTypes =
-                types |> List.map (fun (n, t) -> (n, t |> mapTypeAttributes mkUnit))
+                types
+                |> List.map (fun (n, t) ->
+                    (n,
+                     t
+                     |> mapTypeAttributes mkUnit)
+                )
 
             Constructor(name, extraErasedTypes)
 
         let eraseAccessControlledCtors acsCtrlCtors =
-            AccessControlled.map (fun ctors -> ctors |> List.map eraseCtor) acsCtrlCtors
+            AccessControlled.map
+                (fun ctors ->
+                    ctors
+                    |> List.map eraseCtor
+                )
+                acsCtrlCtors
 
         CustomTypeDefinition(typeVars, (eraseAccessControlledCtors acsCtrlConstructors))
 
