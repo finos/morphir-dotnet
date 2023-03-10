@@ -11,12 +11,19 @@ let inline fromList (names: List<Name>) : Path = names
 let inline toList (names: Path) : List<Name> = names
 
 let toString nameToString sep path =
-    path |> toList |> List.map nameToString |> String.join sep
+    path
+    |> toList
+    |> List.map nameToString
+    |> String.join sep
 
 let fromString string =
-    let separatorRegex = Regex.fromString "[^\\w\\s]+" |> Maybe.withDefault Regex.never in
+    let separatorRegex =
+        Regex.fromString "[^\\w\\s]+"
+        |> Maybe.withDefault Regex.never in
 
-    Regex.split separatorRegex string |> List.map Name.fromString |> fromList
+    Regex.split separatorRegex string
+    |> List.map Name.fromString
+    |> fromList
 
 let rec isPrefixOf (prefix: Path) (path: Path) =
     match (path, prefix) with

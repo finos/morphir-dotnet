@@ -19,13 +19,16 @@ let inline size (dict: Dict<'Key, 'Value>) = Map.count dict
 
 let inline isEmpty (dict: Dict<'Key, 'Value>) = Map.isEmpty dict
 
-let inline insert (key: 'Key) (value: 'Value) (dict: Dict<'Key, 'Value>) : Dict<'Key, 'Value> = Map.add key value dict
+let inline insert (key: 'Key) (value: 'Value) (dict: Dict<'Key, 'Value>) : Dict<'Key, 'Value> =
+    Map.add key value dict
 
 let inline keys (dict: Dict<'Key, 'Value>) : List<'Key> =
-    Map.toList dict |> List.map (fun (k, _) -> k)
+    Map.toList dict
+    |> List.map (fun (k, _) -> k)
 
 let inline values (dict: Dict<'Key, 'Value>) : List<'Value> =
-    Map.toList dict |> List.map (fun (_, v) -> v)
+    Map.toList dict
+    |> List.map (fun (_, v) -> v)
 
 let inline toList (dict: Dict<'Key, 'Value>) : List<'Key * 'Value> = Map.toList dict
 

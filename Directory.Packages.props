@@ -1,9 +1,11 @@
 <!-- https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management -->
 <Project>
   <PropertyGroup>
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+      <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+      <RestoreLockedMode>false</RestoreLockedMode >
+      <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+      <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+      <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <PropertyGroup>
     <FakeVersion>5.20.4</FakeVersion>
@@ -34,5 +36,11 @@
     <PackageVersion Include="xunit" Version="2.4.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.4.5" />
     <PackageVersion Include="FluentAssertions" Version="6.10.0" />
+
+    <PackageVersion Include="FSharp.Formatting" Version="4.0.0-rc1"/>
+    <PackageVersion Include="FSharp.Literate" Version="4.0.0-rc1"/>
+    <PackageVersion Include="Fable.React" Version="6.2.0" />
+    <PackageVersion Include="Dotnet.ProjInfo.Workspace.FCS" Version="0.39" />
+    <PackageVersion Include="FSharp.Compiler.Service" Version="34.1.1"/>
   </ItemGroup>
 </Project>

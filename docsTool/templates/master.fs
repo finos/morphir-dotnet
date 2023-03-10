@@ -90,7 +90,7 @@ let renderFooter (cfg : MasterTemplateConfig) (pageSource : string option) =
                 div [Class "col text-center"] [
                     small [Class "text-light"] [
                         i [Class "fas fa-copyright mr-1"] []
-                        str (sprintf "%s Morphir.IR, All rights reserved" (DateTimeOffset.UtcNow.ToString("yyyy")))
+                        str (sprintf "%s Morphir, All rights reserved" (DateTimeOffset.UtcNow.ToString("yyyy")))
                     ]
                 ]
             ]

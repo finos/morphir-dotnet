@@ -12,13 +12,19 @@ module AssemblyInfo =
         |> Seq.find (fun x -> x.Key = key)
 
     let getReleaseDate assembly =
-        "ReleaseDate" |> getMetaDataAttribute assembly |> metaDataValue
+        "ReleaseDate"
+        |> getMetaDataAttribute assembly
+        |> metaDataValue
 
     let getGitHash assembly =
-        "GitHash" |> getMetaDataAttribute assembly |> metaDataValue
+        "GitHash"
+        |> getMetaDataAttribute assembly
+        |> metaDataValue
 
     let getVersion assembly =
-        "AssemblyVersion" |> getMetaDataAttribute assembly |> metaDataValue
+        "AssemblyVersion"
+        |> getMetaDataAttribute assembly
+        |> metaDataValue
 
     let assembly = lazy (Assembly.GetEntryAssembly())
 
@@ -37,7 +43,9 @@ module AssemblyInfo =
 module Say =
     open System
 
-    let nothing name = name |> ignore
+    let nothing name =
+        name
+        |> ignore
 
     let hello name = sprintf "Hello %s" name
 
@@ -78,9 +86,13 @@ module Main =
             | Some v ->
                 let color = results.GetResult Favorite_Color
 
-                Say.hello v |> Say.colorizeIn color
-            | None -> parser.PrintUsage() |> printfn "%s"
+                Say.hello v
+                |> Say.colorizeIn color
+            | None ->
+                parser.PrintUsage()
+                |> printfn "%s"
         else
-            parser.PrintUsage() |> printfn "%s"
+            parser.PrintUsage()
+            |> printfn "%s"
 
         0

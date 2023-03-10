@@ -24,7 +24,9 @@ let inline map3 mapping list1 list2 list3 =
 let any = FSharp.Collections.List.exists
 
 let filterMap (f: 'a -> Maybe<'b>) (xs: List<'a>) : List<'b> =
-    let fn: 'a -> Option<'b> = f >> Maybe.Conversions.Options.maybeToOptions
+    let fn: 'a -> Option<'b> =
+        f
+        >> Maybe.Conversions.Options.maybeToOptions
 
     FSharp.Collections.List.choose fn xs
 
