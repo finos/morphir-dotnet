@@ -1,4 +1,5 @@
 ﻿module Morphir.SDK.Core.Tests
+
 open Expecto
 
 [<EntryPoint>]

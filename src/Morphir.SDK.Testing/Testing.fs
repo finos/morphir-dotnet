@@ -9,8 +9,11 @@ let testCase = Expecto.Tests.testCase
 module Expect =
     let equal expected actual =
 
-        sprintf """Expected the values to be equal, but they were not:
+        sprintf
+            """Expected the values to be equal, but they were not:
 Expected: %A
 Actual  : %A
-        """ expected actual
+        """
+            expected
+            actual
         |> Expecto.Expect.equal actual expected

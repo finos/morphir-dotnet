@@ -8,5 +8,4 @@ module MaybeExtensions =
     open Morphir.SDK.Maybe.Conversions
 
     [<Extension>]
-    let ToOption(self: Maybe<'T>) =
-        maybeToOptions self
+    let ToOption (self: Maybe<'T>) = maybeToOptions self

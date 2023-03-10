@@ -1,12 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <OutputType>Exe</OutputType>
+        <OutputType>Library</OutputType>
         <GenerateProgramFile>false</GenerateProgramFile>
+        <TargetFramework>net7.0</TargetFramework>
         <RootNamespace>Morphir.SDK</RootNamespace>
-        <TargetFramework>netcoreapp3.1</TargetFramework>
     </PropertyGroup>
-
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+        <PackageReference Include="altcover" />
+    </ItemGroup>
     <ItemGroup>
         <Compile Include="ComparisonTests.fs" />
         <Compile Include="BasicsTests.fs" />
@@ -17,14 +23,11 @@
         <Compile Include="ListTests.fs" />
         <Compile Include="TupleTests.fs" />
         <Compile Include="Main.fs" />
-        <Content Include="paket.references" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\..\src\Morphir.SDK.Core\Morphir.SDK.Core.fsproj" />
       <ProjectReference Include="..\..\src\Morphir.SDK.Testing\Morphir.SDK.Testing.fsproj" />
     </ItemGroup>
-
-    <Import Project="..\..\.paket\Paket.Restore.targets" />
 
 </Project>
