@@ -12,6 +12,7 @@ let inline singleton a = [ a ]
 
 let inline cons a lst = a :: lst
 
+[<CompiledName("Map")>]
 let inline map mapping list =
     Microsoft.FSharp.Collections.List.map mapping list
 
