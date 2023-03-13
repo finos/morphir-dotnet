@@ -13,6 +13,7 @@ type Specification<'A> = {
 type Definition<'A> = {
     Types: Dict<Name, AccessControlled<Type.Definition<'A>>>
     Values: Dict<Name, AccessControlled<Value.Definition<'A>>>
+    Doc: string option
 }
 
 let definitionToSpecification (def: Definition<'A>) : Specification<'A> = {
