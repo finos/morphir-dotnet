@@ -7,7 +7,7 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <RootNamespace>Morphir.SDK</RootNamespace>
         <TargetFrameworks>net7.0;netstandard2.1</TargetFrameworks>
-        <RootNamespace>Morphir.IR</RootNamespace>
+        <RootNamespace>Morphir</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..//Morphir.SDK.Core/Morphir.SDK.Core.fsproj" />
@@ -24,7 +24,10 @@
         <Compile Include="IR\Path.fs" />
         <Compile Include="IR\QName.fs" />
         <Compile Include="IR\FQName.fs" />
+        <Compile Include="IR\Literal.fs" />
+        <Compile Include="IR\NodeId.fs" />
         <Compile Include="IR\NodePath.fs" />
+        <Compile Include="IR\Attribute.fs" />
         <Compile Include="IR\AccessControlled.fs" />
         <Compile Include="IR\IR.Types.fs" />
         <Compile Include="IR\Type.fs" />
