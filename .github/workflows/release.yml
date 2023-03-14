@@ -1,0 +1,23 @@
+name: Release
+
+on:
+  push:
+    tags: [ "v[0-9]+.[0-9]+.[0-9]+" ]
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  nuget-push:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: packages
+          path: ./packages
+      
+      - name: Publish
+        run: dotnet nuget push "./packages/*.nupkg" --no-symbols --source "https://api.nuget.org/v3/index.json" --api-key ${{ secrets.NUGET_KEY }}
