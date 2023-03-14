@@ -25,6 +25,6 @@
   },
   "homepage": "https://github.com/Morgan-Stanley/morphir-dotnet#README.md",
   "devDependencies": {
-    "lerna": "^3.20.2"
+    "lerna": "^6.5.1"
   }
 }
