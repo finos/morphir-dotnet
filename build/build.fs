@@ -65,7 +65,7 @@ let coverageThresholdPercent = 1
 let coverageReportDir =  __SOURCE_DIRECTORY__ </> ".." </> "docs" @@ "coverage"
 
 let gitOwner = "finos"
-let gitRepoName = "Morphir"
+let gitRepoName = "morphir-dotnet"
 
 let gitHubRepoUrl = sprintf "https://github.com/%s/%s" gitOwner gitRepoName
 
@@ -82,7 +82,7 @@ let mutable latestEntry =
 let mutable linkReferenceForLatestEntry = ""
 let mutable changelogBackupFilename = ""
 
-let targetFramework =  "net6.0"
+let targetFramework =  "net7.0"
 
 // RuntimeIdentifiers: https://docs.microsoft.com/en-us/dotnet/core/rid-catalog
 // dotnet-packaging Tasks: https://github.com/qmfrederik/dotnet-packaging/blob/0c8e063ada5ba0de2b194cd3fad8308671b48092/Packaging.Targets/build/Packaging.Targets.targets

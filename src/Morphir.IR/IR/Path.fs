@@ -4,6 +4,9 @@ open Morphir.IR.Name
 open Morphir.SDK.List
 open Morphir.SDK
 
+/// <summary>
+/// Type that represents a path as a list of names.
+/// </summary>
 type Path = List<Name>
 
 let inline fromList (names: List<Name>) : Path = names
