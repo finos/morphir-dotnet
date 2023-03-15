@@ -28,7 +28,7 @@ let withPrivateAccess ac =
     | Public -> ac.value
     | Private -> ac.value
 
-let map f ac = {
+let map (f: 'a -> 'b) (ac: AccessControlled<'a>) : AccessControlled<'b> = {
     access = ac.access
     value = f (ac.value)
 }

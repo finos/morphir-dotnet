@@ -1,9 +1,10 @@
-module Morphir.IR.Type
+module rec Morphir.IR.Type
 
 open Morphir.Pattern
 open Morphir.IR.AccessControlled
 open Morphir.IR.Name
 open Morphir.IR.FQName
+open Morphir.SDK.Dict
 open Morphir.SDK.Maybe
 open Morphir.IR
 open Morphir.SDK
@@ -30,14 +31,38 @@ type Type<'A> =
     interface Expression<'A> with
         member this.Attributes = this.Attributes
 
-and Field<'A> = { Name: Name; Type: Type<'A> }
-and Constructor<'A> = Constructor of Name: Name * Types: (Name * Type<'A>) list
-and Constructors<'A> = Constructor<'A> list
+type Field<'A> = { Name: Name; Type: Type<'A> }
 
-and Specification<'A> =
+type Constructors<'A> = Dict<Name, ConstructorArgs<'A>>
+type Constructor<'a> = Name * ConstructorArgs<'a>
+
+type ConstructorArgs<'a> = List<Name * Type<'a>>
+
+/// <summary>
+/// Represents the specification (in other words the interface) of a type. There are 4 different shapes:
+/// <see cref="TypeAliasSpecification"/>, <see cref="OpaqueTypeSpecification"/>, <see cref="CustomTypeSpecification"/>, and <see cref="DerivedTypeSpecification"/>.
+/// </summary>
+type Specification<'A> =
+    /// <summary>
+    /// Represents an alias for another type.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// type Foo = String
+    /// </code>
+    /// </example>
     | TypeAliasSpecification of TypeParams: Name list * TypeExpr: Type<'A>
+    /// Represents a type with an unknown structure.
+    /// In Elm you could achieve this with a custom type that doesn't expose its constructors.
     | OpaqueTypeSpecification of TypeParams: Name list
     | CustomTypeSpecification of TypeParams: Name list * Constructors: Constructors<'A>
+    | DerivedTypeSpecification of TypeParams: Name list * MappingInfo: DerivedTypeMappingInfo<'A>
+
+and DerivedTypeMappingInfo<'A> = {
+    BaseType: Type<'A>
+    FromBaseType: FQName
+    ToBaseType: FQName
+}
 
 and Definition<'A> =
     | TypeAliasDefinition of TypeParams: Name list * TypeExpr: Type<'A>
@@ -106,15 +131,15 @@ let mapFieldType f (field: Field<'A>) : Field<'B> = field.MapType f
 let matchField (matchFieldName: Pattern<Name, 'A>) (matchFieldType: Pattern<Type<'A>, 'B>) field =
     Maybe.map2 Tuple.pair (matchFieldName field.Name) (matchFieldType field.Type)
 
-let rec mapTypeAttributes f =
+let rec mapTypeAttributes (f: 'a -> 'b) : Type<'a> -> Type<'b> =
     function
-    | Variable (a, name) -> Variable((f a), name)
+    | Variable (a, name) -> Variable(f (a), name)
     | Reference (a, fQName, argTypes) ->
         let newArgTypes =
             argTypes
             |> List.map (mapTypeAttributes f)
 
-        Reference((f a), fQName, newArgTypes)
+        Reference(f (a), fQName, newArgTypes)
 
     | Tuple (a, elemTypes) ->
         Tuple(
@@ -150,35 +175,24 @@ let rec mapTypeAttributes f =
 
 let typeAttributes (typeExpr: Type<'Attributes>) : 'Attributes = typeExpr.Attributes
 
-let eraseAttributes (typeDef: Definition<'A>) : Definition<Unit> =
-    let mkUnit a = ()
-
-    match typeDef with
+let eraseAttributes: Definition<'a> -> Definition<unit> =
+    function
     | TypeAliasDefinition (typeVars, tpe) ->
-        TypeAliasDefinition(typeVars, (mapTypeAttributes mkUnit tpe))
+        TypeAliasDefinition(typeVars, mapTypeAttributes (fun _ -> ()) tpe)
     | CustomTypeDefinition (typeVars, acsCtrlConstructors) ->
-        let eraseCtor (ctor: Constructor<'A>) =
-            let (Constructor (name, types)) = ctor
-
-            let extraErasedTypes =
-                types
-                |> List.map (fun (n, t) ->
-                    (n,
-                     t
-                     |> mapTypeAttributes mkUnit)
-                )
-
-            Constructor(name, extraErasedTypes)
+        let eraseCtor (types: ('Name * Type<'a>) list) : ('Name * Type<unit>) list =
+            types
+            |> List.map (fun (n, t) -> (n, mapTypeAttributes (fun _ -> ()) t))
 
         let eraseAccessControlledCtors acsCtrlCtors =
             AccessControlled.map
                 (fun ctors ->
                     ctors
-                    |> List.map eraseCtor
+                    |> Dict.map (fun _ -> eraseCtor)
                 )
                 acsCtrlCtors
 
-        CustomTypeDefinition(typeVars, (eraseAccessControlledCtors acsCtrlConstructors))
+        CustomTypeDefinition(typeVars, eraseAccessControlledCtors acsCtrlConstructors)
 
 type Definition<'A> with
 

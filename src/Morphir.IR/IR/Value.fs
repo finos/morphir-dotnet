@@ -61,6 +61,11 @@ type Value<'TA, 'VA> =
         FieldsToUpdate: Value<'TA, 'VA>
     | Unit of Attributes: 'VA
 
+/// A value without any additional information.
+and RawValue = Value<Unit, Unit>
+/// A value with type information.
+and TypedValue = Value<Unit, Type<Unit>>
+
 and Pattern<'A> =
     | WildCardPattern of Attributes: 'A
     | AsPattern of Attributes: 'A * Pattern: Pattern<'A> * Name: Name
@@ -86,9 +91,21 @@ and Definition<'TA, 'VA> = {
     Body: Value<'TA, 'VA>
 }
 
+/// Turns a definition into a specification by removing implementation details.
 let definitionToSpecification (def: Definition<'TA, 'VA>) : Specification<'TA> = {
     Inputs =
         def.InputTypes
         |> ParameterList.map (fun (name, _, tpe) -> name, tpe)
     Output = def.OutputType
 }
+
+/// Turn a value definition into a value by wrapping the body value as needed based on the number of arguments the definition has.
+let rec definitionToValue def =
+    match def.InputTypes with
+    | [] -> def.Body
+    | (firstArgName, va, _) :: restOfArgs ->
+        Lambda(
+            va,
+            AsPattern(va, WildCardPattern(va), firstArgName),
+            (definitionToValue { def with InputTypes = restOfArgs })
+        )

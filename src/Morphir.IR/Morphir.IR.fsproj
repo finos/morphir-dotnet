@@ -5,6 +5,7 @@
     </PropertyGroup>
     <PropertyGroup>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <UseMarkdownComments>true</UseMarkdownComments>
         <RootNamespace>Morphir.SDK</RootNamespace>
         <TargetFrameworks>net7.0;netstandard2.1</TargetFrameworks>
         <RootNamespace>Morphir</RootNamespace>
@@ -18,12 +19,14 @@
     <ItemGroup>
         <Compile Include="AssemblyInfo.fs" />
         <Compile Include="Pattern.fs" />
+        <Compile Include="IR\Predef.fs" />
         <Compile Include="IR\Documented.fs" />
         <Compile Include="IR\KindOfName.fs" />
         <Compile Include="IR\Name.fs" />
         <Compile Include="IR\Path.fs" />
         <Compile Include="IR\QName.fs" />
         <Compile Include="IR\FQName.fs" />
+        <Compile Include="IR\Source.fs" />
         <Compile Include="IR\Literal.fs" />
         <Compile Include="IR\NodeId.fs" />
         <Compile Include="IR\NodePath.fs" />
@@ -37,6 +40,5 @@
         <Compile Include="IR\Distribution.fs" />
         <Compile Include="IR\DSL\IR.fs" />
         <Folder Include="IR\SDK" />
-        <Compile Include="IR\Source.fs" />
     </ItemGroup>
 </Project>

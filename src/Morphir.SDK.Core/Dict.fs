@@ -14,6 +14,8 @@ let get (key: 'Key) (dict: Dict<'Key, 'Value>) =
     | Some value -> Just value
     | None -> Nothing
 
+let map (f: 'k -> 'a -> 'b) (dict: Dict<'k, 'a>) : Dict<'k, 'b> = Map.map f dict
+
 let inline ``member`` (key: 'Key) (dict: Dict<'Key, 'Value>) = Map.containsKey key dict
 
 let inline size (dict: Dict<'Key, 'Value>) = Map.count dict
