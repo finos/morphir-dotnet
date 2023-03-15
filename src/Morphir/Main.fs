@@ -32,13 +32,17 @@ module AssemblyInfo =
         let version = assembly.Force().GetName().Version
         printfn "%A" version
 
-    let printInfo () =
-        let assembly = assembly.Force()
+    let mkInfoString (assembly: Assembly) =
         let name = assembly.GetName()
         let version = assembly.GetName().Version
         let releaseDate = getReleaseDate assembly
         let githash = getGitHash assembly
-        printfn "%s - %A - %s - %s" name.Name version releaseDate githash
+        $"%s{name.Name} - %A{version} - %s{releaseDate} - %s{githash}"
+
+    let printInfo () =
+        let assembly = assembly.Force()
+        let str = mkInfoString assembly
+        printfn "%s" str
 
 module Say =
     open System

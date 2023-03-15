@@ -1,6 +1,12 @@
-name: Build mainline
+name: CI
 
-on: [push, pull_request]
+on:
+    pull_request:
+    push:
+        branches: ['main']
+    release:
+        types:
+            - published
 
 jobs:
     build:

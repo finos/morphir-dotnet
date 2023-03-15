@@ -1,56 +1,70 @@
 module Morphir.IR.Value
 
 open Morphir.IR.Type
+open Morphir.IR.Literal
 open Morphir.IR.Name
 open Morphir.IR.FQName
+open Morphir.SDK.List
+
+[<AutoOpen>]
+module Parameter =
+    type Parameter<'TA, 'VA> = Name * 'VA * Type<'TA>
+
+[<AutoOpen>]
+module ParameterList =
+    type ParameterList<'TA, 'VA> = List<Parameter<'TA, 'VA>>
+
+    let map f (parameters: ParameterList<'TA, 'VA>) =
+        parameters
+        |> List.map f
 
 /// Type that represents a value/expression.
-type Value<'A> =
+type Value<'TA, 'VA> =
     /// A literal represents a fixed value in the IR. We only allow values of basic types: bool, char, string, int, float.
-    | Literal of Attributes: 'A * Value: Literal
-    | Constructor of Attributes: 'A * FullyQualifiedName: FQName
-    | Tuple of Attributes: 'A * Elements: Value<'A> list
-    | List of Attributes: 'A * Items: Value<'A> list
-    | Record of Attributes: 'A * Fields: (Name * Value<'A>) list
-    | Variable of Attributes: 'A * Name: Name
-    | Reference of Attributes: 'A * FullyQualifiedName: FQName
-    | Field of Attributes: 'A * SubjectValue: Value<'A> * FieldName: Name
-    | FieldFunction of Attributes: 'A * FieldName: Name
-    | Apply of Attributes: 'A * Function: Value<'A> * Argument: Value<'A>
-    | Lambda of Attributes: 'A * ArgumentPattern: Pattern<'A> * Body: Value<'A>
+    | Literal of Attributes: 'VA * Value: Literal
+    | Constructor of Attributes: 'VA * FullyQualifiedName: FQName
+    | Tuple of Attributes: 'VA * Elements: Value<'TA, 'VA> list
+    | List of Attributes: 'VA * Items: Value<'TA, 'VA> list
+    | Record of Attributes: 'VA * Fields: (Name * Value<'TA, 'VA>) list
+    | Variable of Attributes: 'VA * Name: Name
+    | Reference of Attributes: 'VA * FullyQualifiedName: FQName
+    | Field of Attributes: 'VA * SubjectValue: Value<'TA, 'VA> * FieldName: Name
+    | FieldFunction of Attributes: 'VA * FieldName: Name
+    | Apply of Attributes: 'VA * Function: Value<'TA, 'VA> * Argument: Value<'TA, 'VA>
+    | Lambda of Attributes: 'VA * ArgumentPattern: Pattern<'VA> * Body: Value<'TA, 'VA>
     | LetDefinition of
-        Attributes: 'A *
+        Attributes: 'VA *
         ValueName: Name *
-        ValueDefinition: Definition<'A> *
-        InValue: Value<'A>
+        ValueDefinition: Definition<'TA, 'VA> *
+        InValue: Value<'TA, 'VA>
     | LetRecursion of
-        Attributes: 'A *
-        ValueDefinitions: (Name * Definition<'A>) list *
-        InValue: Value<'A>
+        Attributes: 'VA *
+        ValueDefinitions: (Name * Definition<'TA, 'VA>) list *
+        InValue: Value<'TA, 'VA>
     | Destructure of
-        Attributes: 'A *
-        Pattern: Pattern<'A> *
-        ValueToDestruct: Value<'A> *
-        InValue: Value<'A>
+        Attributes: 'VA *
+        Pattern: Pattern<'VA> *
+        ValueToDestruct: Value<'TA, 'VA> *
+        InValue: Value<'TA, 'VA>
     | IfThenElse of
-        Attributes: 'A *
-        Condition: Value<'A> *
-        ThenBranch: Value<'A> *
-        ElseBranch: Value<'A>
+        Attributes: 'VA *
+        Condition: Value<'TA, 'VA> *
+        ThenBranch: Value<'TA, 'VA> *
+        ElseBranch: Value<'TA, 'VA>
     | PatternMatch of
-        Attributes: 'A *
-        BranchOutOn: Value<'A> *
-        Cases: (Pattern<'A> * Value<'A> list)
-    | UpdateRecord of Attributes: 'A * ValueToUpdate: Value<'A> * FieldsToUpdate: Value<'A>
-    | Unit of Attributes: 'A
+        Attributes: 'VA *
+        BranchOutOn: Value<'TA, 'VA> *
+        Cases: (Pattern<'VA> * Value<'TA, 'VA> list)
+    | UpdateRecord of
+        Attributes: 'VA *
+        ValueToUpdate: Value<'TA, 'VA> *
+        FieldsToUpdate: Value<'TA, 'VA>
+    | Unit of Attributes: 'VA
 
-/// Type that represents a literal value.
-and Literal =
-    | BoolLiteral of bool
-    | CharLiteral of char
-    | StringLiteral of string
-    | IntLiteral of int
-    | FloatLiteral of float
+/// A value without any additional information.
+and RawValue = Value<Unit, Unit>
+/// A value with type information.
+and TypedValue = Value<Unit, Type<Unit>>
 
 and Pattern<'A> =
     | WildCardPattern of Attributes: 'A
@@ -62,19 +76,36 @@ and Pattern<'A> =
     | HeadTailPattern of Attributes: 'A * Pattern<'A> * Pattern<'A>
     | LiteralPattern of Attributes: 'A * Literal
 
-and Specification<'A> = {
-    Inputs: Name * Type<'A> list
-    Output: Type<'A>
+/// Type that represents a value or function specification. The specification of what the value or function
+/// is without the actual data or logic behind it.
+and Specification<'TA> = {
+    Inputs: List<Name * Type<'TA>>
+    Output: Type<'TA>
 }
 
-and Definition<'A> =
-    | TypedDefinition of ValueType: Type<'A> * ArgumentNames: Name list * Body: Value<'A>
-    | UntypedDefinition of ArgumentNames: Name list * Body: Value<'A>
+/// Type that represents a value or function definition. A definition is the actual data or logic as opposed to a specification
+/// which is just the specification of those. Value definitions can be typed or untyped. Exposed values have to be typed.
+and Definition<'TA, 'VA> = {
+    InputTypes: ParameterList<'TA, 'VA>
+    OutputType: Type<'TA>
+    Body: Value<'TA, 'VA>
+}
 
+/// Turns a definition into a specification by removing implementation details.
+let definitionToSpecification (def: Definition<'TA, 'VA>) : Specification<'TA> = {
+    Inputs =
+        def.InputTypes
+        |> ParameterList.map (fun (name, _, tpe) -> name, tpe)
+    Output = def.OutputType
+}
 
-let getDefinitionBody =
-    function
-    | TypedDefinition (_, _, body) -> body
-    | UntypedDefinition (_, body) -> body
-
-let (|DefinitionBody|) = getDefinitionBody
+/// Turn a value definition into a value by wrapping the body value as needed based on the number of arguments the definition has.
+let rec definitionToValue def =
+    match def.InputTypes with
+    | [] -> def.Body
+    | (firstArgName, va, _) :: restOfArgs ->
+        Lambda(
+            va,
+            AsPattern(va, WildCardPattern(va), firstArgName),
+            (definitionToValue { def with InputTypes = restOfArgs })
+        )

@@ -9,12 +9,15 @@
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Expecto" />
+        <PackageReference Include="Expecto.FsCheck" />
+        <PackageReference Include="FsCheck" />
         <PackageReference Include="YoloDev.Expecto.TestSdk" />
         <PackageReference Include="altcover" />
     </ItemGroup>
     <ItemGroup>
         <Compile Include="AssemblyInfo.fs" />
         <Compile Include="Tests.fs" />
+        <Compile Include="AssemblyInfoTests.fs" />
         <Compile Include="Main.fs" />
     </ItemGroup>
     <ItemGroup>

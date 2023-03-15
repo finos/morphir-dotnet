@@ -2,8 +2,14 @@ module Morphir.IR.AccessControlled
 
 open Morphir.SDK.Maybe
 
+/// <summary>
+/// Type that represents different access levels.
+/// </summary>
 type AccessControlled<'a> = { access: Access; value: 'a }
 
+/// <summary>
+/// Public or private access.
+/// </summary>
 and Access =
     | Public
     | Private
@@ -22,7 +28,7 @@ let withPrivateAccess ac =
     | Public -> ac.value
     | Private -> ac.value
 
-let map f ac = {
+let map (f: 'a -> 'b) (ac: AccessControlled<'a>) : AccessControlled<'b> = {
     access = ac.access
     value = f (ac.value)
 }
