@@ -13,7 +13,8 @@ open Serilog.Events
 open Microsoft.Extensions.Logging
 
 type RunArgs =
-    | [<MainCommand>]Path of path: string
+    | [<MainCommand>] Path of path: string
+
     interface IArgParserTemplate with
         member s.Usage =
             match s with
@@ -29,8 +30,7 @@ and MorphirArgs =
         member s.Usage =
             match s with
             | Info -> "info - Display information about the specified path or current directory."
-            | Run _ ->
-                "Run a morphir module"
+            | Run _ -> "Run a morphir module"
             | Test _ ->
                 "test [path] - Run tests for the project at the specified path or in the current directory."
             | Make _ ->
@@ -137,14 +137,18 @@ type CliApp(startupArgs: StartupArgs) =
                     Log.Information("Running tests")
 
                     results.GetResult Test
-                    |> Option.iter (fun path -> Log.Information("Running tests at path {path}", path))
+                    |> Option.iter (fun path ->
+                        Log.Information("Running tests at path {path}", path)
+                    )
 
                     hostBuilder, false
                 elif results.Contains Make then
                     Log.Information("Making project")
 
                     results.GetResult Make
-                    |> Option.iter (fun path -> Log.Information("Making project at path {path}", path))
+                    |> Option.iter (fun path ->
+                        Log.Information("Making project at path {path}", path)
+                    )
 
                     hostBuilder, false
                 else
@@ -158,12 +162,12 @@ type CliApp(startupArgs: StartupArgs) =
             if shouldRunHost then
                 resolvedHostBuilder.Build().Run()
         with
-            | :? ArguException as ex ->
-                //Log.Error(ex, "Error parsing command line arguments")
-                printfn "%s" ex.Message
-            | ex ->
-                Log.Fatal(ex, "Error running Morphir CLI")
-                raise ex
+        | :? ArguException as ex ->
+            //Log.Error(ex, "Error parsing command line arguments")
+            printfn "%s" ex.Message
+        | ex ->
+            Log.Fatal(ex, "Error running Morphir CLI")
+            raise ex
 
 let build (configurator: StartupConfigurator) (argv: string array) =
     let startupArgs = configurator defaultStartupArgs.Value argv
