@@ -80,16 +80,16 @@ namespace Morphir.Features
             this.TestTearDown();
         }
         
-        [Xunit.SkippableFactAttribute(DisplayName="Run the help command")]
+        [Xunit.SkippableFactAttribute(DisplayName="Run the info command")]
         [Xunit.TraitAttribute("FeatureTitle", "MainCliFeature")]
-        [Xunit.TraitAttribute("Description", "Run the help command")]
+        [Xunit.TraitAttribute("Description", "Run the info command")]
         [Xunit.TraitAttribute("Category", "UsesMorphirCLI")]
-        public void RunTheHelpCommand()
+        public void RunTheInfoCommand()
         {
             string[] tagsOfScenario = new string[] {
                     "UsesMorphirCLI"};
             System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new System.Collections.Specialized.OrderedDictionary();
-            TechTalk.SpecFlow.ScenarioInfo scenarioInfo = new TechTalk.SpecFlow.ScenarioInfo("Run the help command", null, tagsOfScenario, argumentsOfScenario, featureTags);
+            TechTalk.SpecFlow.ScenarioInfo scenarioInfo = new TechTalk.SpecFlow.ScenarioInfo("Run the info command", null, tagsOfScenario, argumentsOfScenario, featureTags);
 #line 5
 this.ScenarioInitialize(scenarioInfo);
 #line hidden
@@ -104,7 +104,7 @@ this.ScenarioInitialize(scenarioInfo);
  testRunner.Given("the Morphir CLI is installed", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "Given ");
 #line hidden
 #line 7
- testRunner.When("the info command is run", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "When ");
+ testRunner.When("I run with the following commandline args: info", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "When ");
 #line hidden
 #line 8
  testRunner.Then("we should get the relevant AssemblyInfo", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "Then ");
