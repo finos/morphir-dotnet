@@ -1,53 +1,49 @@
 namespace Morphir
 
+open Microsoft.FSharp.Control
+open Microsoft.Extensions.Hosting
+open Serilog.Sinks.SystemConsole.Themes
 open Serilog
-
-module Say =
-    open System
-
-    let nothing name =
-        name
-        |> ignore
-
-    let hello name = sprintf "Hello %s" name
-
-    let colorizeIn (color: string) str =
-        let oldColor = Console.ForegroundColor
-        Console.ForegroundColor <- (Enum.Parse(typedefof<ConsoleColor>, color) :?> ConsoleColor)
-        printfn "%s" str
-        Console.ForegroundColor <- oldColor
+open Serilog.Events
+open Oakton
 
 module Main =
-    open Argu
 
-    type CLIArguments =
-        | Info
-        | Version
-        | Favorite_Color of string // Look in App.config
-        | [<MainCommand>] Hello of string
+    let createDefaultHostBuilder (argv: string array):IHostBuilder =
+        Host.CreateDefaultBuilder(argv)
+            .UseSerilog( fun (context:HostBuilderContext) (loggerConfiguration:LoggerConfiguration) ->
+                loggerConfiguration
+                    .MinimumLevel.Information()
+                    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                    //.ReadFrom.Configuration(context.Configuration)
+                    .Enrich.FromLogContext()
+                    .WriteTo.Console(theme = AnsiConsoleTheme.Code)
+                |> ignore
+            )
+            .ApplyOaktonExtensions()
 
-        interface IArgParserTemplate with
-            member s.Usage =
-                match s with
-                | Info -> "More detailed information"
-                | Version -> "Version of application"
-                | Favorite_Color _ -> "Favorite color"
-                | Hello _ -> "Who to say hello to"
-
-    [<EntryPoint>]
-    let main (argv: string array) =
-        Log.Logger <- LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger()
+    let executeAsync (createBuilder: string array -> IHostBuilder) (argv: string array): Async<int> = async {
+        Log.Logger <-
+            LoggerConfiguration()
+                .WriteTo.Console()
+                .CreateBootstrapLogger()
 
         try
             try
                 printfn ("")
                 printfn ("Welcome to Morphir!")
                 Log.Information("Program args: {argv}", argv)
-                let app = Cli.buildWithDefaultConfigurator argv
-                app.Run()
+                let builder = createBuilder argv
+                do builder.RunOaktonCommands(argv)
             with ex ->
                 Log.Fatal(ex, "An error occurred")
         finally
             Log.CloseAndFlush()
 
-        System.Environment.ExitCode
+        return System.Environment.ExitCode
+    }
+
+    [<EntryPoint>]
+    let main (argv: string array) =
+        executeAsync createDefaultHostBuilder argv |> Async.RunSynchronously
+

@@ -15,6 +15,7 @@
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="FSharp.Control.FusionTasks" />
         <PackageReference Include="Argu" />
         <PackageReference Include="Microsoft.Extensions.Hosting" />
         <PackageReference Include="MEL.Flex" />
@@ -23,13 +24,14 @@
         <PackageReference Include="Serilog.Sinks.Console" />
         <PackageReference Include="Serilog.Extensions.Hosting" />
         <PackageReference Include="Serilog.Formatting.Compact" />
+        <PackageReference Include="WolverineFX" />
     </ItemGroup>
     <ItemGroup>
         <Compile Include="AssemblyInfo.fs" />
         <None Include="App.config" />
         <Compile Include="AssemblyInfoModule.fs" />
         <Compile Include="CLI\Services\InfoService.fs" />
-        <Compile Include="Cli.fs" />
+        <Compile Include="CLI\Commands\Info.fs" />
         <Compile Include="Main.fs" />
     </ItemGroup>
 </Project>
