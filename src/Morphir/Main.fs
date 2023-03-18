@@ -1,49 +1,5 @@
 namespace Morphir
 
-open System.Reflection
-
-module AssemblyInfo =
-
-    let metaDataValue (mda: AssemblyMetadataAttribute) = mda.Value
-
-    let getMetaDataAttribute (assembly: Assembly) key =
-        assembly.GetCustomAttributes(typedefof<AssemblyMetadataAttribute>)
-        |> Seq.cast<AssemblyMetadataAttribute>
-        |> Seq.find (fun x -> x.Key = key)
-
-    let getReleaseDate assembly =
-        "ReleaseDate"
-        |> getMetaDataAttribute assembly
-        |> metaDataValue
-
-    let getGitHash assembly =
-        "GitHash"
-        |> getMetaDataAttribute assembly
-        |> metaDataValue
-
-    let getVersion assembly =
-        "AssemblyVersion"
-        |> getMetaDataAttribute assembly
-        |> metaDataValue
-
-    let assembly = lazy (Assembly.GetEntryAssembly())
-
-    let printVersion () =
-        let version = assembly.Force().GetName().Version
-        printfn "%A" version
-
-    let mkInfoString (assembly: Assembly) =
-        let name = assembly.GetName()
-        let version = assembly.GetName().Version
-        let releaseDate = getReleaseDate assembly
-        let githash = getGitHash assembly
-        $"%s{name.Name} - %A{version} - %s{releaseDate} - %s{githash}"
-
-    let printInfo () =
-        let assembly = assembly.Force()
-        let str = mkInfoString assembly
-        printfn "%s" str
-
 module Say =
     open System
 
@@ -78,25 +34,8 @@ module Main =
 
     [<EntryPoint>]
     let main (argv: string array) =
-        let parser = ArgumentParser.Create<CLIArguments>(programName = "Morphir")
-        let results = parser.Parse(argv)
-
-        if results.Contains Version then
-            AssemblyInfo.printVersion ()
-        elif results.Contains Info then
-            AssemblyInfo.printInfo ()
-        elif results.Contains Hello then
-            match results.TryGetResult Hello with
-            | Some v ->
-                let color = results.GetResult Favorite_Color
-
-                Say.hello v
-                |> Say.colorizeIn color
-            | None ->
-                parser.PrintUsage()
-                |> printfn "%s"
-        else
-            parser.PrintUsage()
-            |> printfn "%s"
-
+        printfn "Starting..."
+        let app = Cli.buildWithDefaultConfigurator argv
+        app.Run()
+        printfn "Done! Finito!"
         0
