@@ -1,27 +1,36 @@
 module Morphir.Cli
 
+open System
 open Argu
 open System.Threading.Tasks
+open Argu.ArguAttributes
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Hosting
+open Morphir.CLI.Services
 open Serilog.Sinks.SystemConsole.Themes
 open Serilog
 open Serilog.Events
 open Microsoft.Extensions.Logging
 
-type Commands =
-    | [<CustomCommandLine("info")>] Info of path: string option
-    | [<CustomCommandLine("run")>] Run of path: string option
+type RunArgs =
+    | [<MainCommand>]Path of path: string
+    interface IArgParserTemplate with
+        member s.Usage =
+            match s with
+            | Path _ -> "path - The path to the script to run."
+
+and MorphirArgs =
+    | [<CliPrefix(CliPrefix.None)>] Info
+    | [<CliPrefix(CliPrefix.None)>] Run of ParseResults<RunArgs>
     | [<CustomCommandLine("test")>] Test of path: string option
     | [<CustomCommandLine("make")>] Make of path: string option
 
     interface IArgParserTemplate with
         member s.Usage =
             match s with
-            | Info _ ->
-                "info [path] - Display information about the specified path or current directory."
+            | Info -> "info - Display information about the specified path or current directory."
             | Run _ ->
-                "run [path] - Execute a script at the specified path or in the current directory."
+                "Run a morphir module"
             | Test _ ->
                 "test [path] - Run tests for the project at the specified path or in the current directory."
             | Make _ ->
@@ -30,7 +39,7 @@ type Commands =
 
 type StartupArgs =
     {
-        LoggerConfiguration: LoggerConfiguration
+        LoggerConfigurator: HostBuilderContext -> LoggerConfiguration -> unit
         Argv: string array
     }
 
@@ -39,41 +48,54 @@ type StartupArgs =
 
 and StartupConfigurator = StartupArgs -> string array -> StartupArgs
 
-let defaultLoggerConfiguration () : LoggerConfiguration =
-    LoggerConfiguration()
-        .MinimumLevel.Information()
-        //.MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-        .Enrich
-        .FromLogContext()
+let defaultLoggerConfiguration
+    (hostingContext: HostBuilderContext)
+    (loggerConfiguration: LoggerConfiguration)
+    : unit =
+    loggerConfiguration
+        .MinimumLevel
+        .Information()
+        .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+        .Enrich.FromLogContext()
         .WriteTo.Console(theme = AnsiConsoleTheme.Code)
+    //.ReadFrom.Configuration(hostingContext.Configuration)
+    |> ignore
 
-let defaultConfig =
+
+let defaultStartupArgs =
     lazy
         {
-            LoggerConfiguration = defaultLoggerConfiguration ()
+            LoggerConfigurator = defaultLoggerConfiguration
             Argv = Array.empty
         }
 
 // Define ClientService and DaemonService classes
-type ClientService(logger:ILogger<ClientService>) =
+type ClientService(logger: ILogger<ClientService>) =
     interface IHostedService with
         member _.StartAsync(cancellationToken) =
-            logger.LogCritical("Starting ClientService...")
+            logger.LogInformation("Starting ClientService...")
             Task.CompletedTask
 
         member _.StopAsync(cancellationToken) =
             logger.LogInformation("Stopping ClientService...")
             Task.CompletedTask
 
-type DaemonService(logger:ILogger<DaemonService>) =
-    interface IHostedService with
-        member _.StartAsync(cancellationToken) =
-            printfn "Starting DaemonService..."
-            Task.CompletedTask
+type DaemonService
+    (
+        hostApplicationLifetime: IHostApplicationLifetime,
+        logger: ILogger<DaemonService>
+    ) =
+    inherit BackgroundService()
 
-        member _.StopAsync(cancellationToken) =
-            printfn "Stopping DaemonService..."
-            Task.CompletedTask
+    override this.ExecuteAsync(stoppingToken) = task {
+        // while (not stoppingToken.IsCancellationRequested) do
+        //     logger.LogInformation("DaemonService is running...")
+        //     do! Async.Sleep(5000)
+        logger.LogInformation("DaemonService is running...")
+        do! Async.Sleep(5000)
+        hostApplicationLifetime.StopApplication()
+    }
+
 
 type CliApp(startupArgs: StartupArgs) =
     member this.Run() =
@@ -83,40 +105,70 @@ type CliApp(startupArgs: StartupArgs) =
         this.Run(hostBuilder)
 
     member this.Run(hostBuilder: IHostBuilder) =
-        let parser = ArgumentParser.Create<Commands>(programName = "morphir")
-        let results = parser.Parse(startupArgs.Argv)
-        Log.Information("ParseResults are {results}", results)
+        hostBuilder.UseSerilog(defaultLoggerConfiguration)
+        |> ignore
 
-        if results.IsUsageRequested then
-            parser.PrintUsage()
-            |> printfn "%s"
-        else
-            let host = hostBuilder
-                           .ConfigureServices(
-                               fun services ->
-                                   services
-                                           .AddLogging()
-                                           .AddHostedService<ClientService>()
-                                           .AddHostedService<DaemonService>()
-                                   |> ignore
-                           )
-                           .UseSerilog(fun ctx lc ->
-                                 lc
-                                      .MinimumLevel.Information()
-                                      .Enrich.FromLogContext()
-                                      .WriteTo.Console(theme = AnsiConsoleTheme.Code)|>ignore
-                           )
-                           .Build()
-            host.Run()
+        let parser = ArgumentParser.Create<MorphirArgs>(programName = "morphir")
+
+        try
+            let results = parser.ParseCommandLine startupArgs.Argv
+
+            Log.Information("ParseResults are {parse_results}", results.GetAllResults())
+
+            let (resolvedHostBuilder, shouldRunHost) =
+                if results.Contains Info then
+                    Log.Information("Printing info")
+                    printfn "Morphir CLI version 0.1.0"
+
+                    hostBuilder.ConfigureServices(fun services ->
+                        services.AddHostedService<InfoService>()
+                        |> ignore
+                    ),
+                    true
+                elif results.Contains Run then
+                    Log.Information("Running script")
+
+                    let cmd = results.GetResult Run
+                    let path = cmd.GetResult Path
+                    Log.Information("Running script at path {path}", path)
+
+                    hostBuilder, false
+                elif results.Contains Test then
+                    Log.Information("Running tests")
+
+                    results.GetResult Test
+                    |> Option.iter (fun path -> Log.Information("Running tests at path {path}", path))
+
+                    hostBuilder, false
+                elif results.Contains Make then
+                    Log.Information("Making project")
+
+                    results.GetResult Make
+                    |> Option.iter (fun path -> Log.Information("Making project at path {path}", path))
+
+                    hostBuilder, false
+                else
+                    Log.Information("Printing usage")
+
+                    parser.PrintUsage()
+                    |> printfn "%s"
+
+                    hostBuilder, false
+
+            if shouldRunHost then
+                resolvedHostBuilder.Build().Run()
+        with
+            | :? ArguException as ex ->
+                //Log.Error(ex, "Error parsing command line arguments")
+                printfn "%s" ex.Message
+            | ex ->
+                Log.Fatal(ex, "Error running Morphir CLI")
+                raise ex
 
 let build (configurator: StartupConfigurator) (argv: string array) =
-    let startupArgs = configurator defaultConfig.Value argv
-    Log.Logger <- startupArgs.LoggerConfiguration.CreateLogger()
+    let startupArgs = configurator defaultStartupArgs.Value argv
+    let app = CliApp(startupArgs)
+    app
 
-    try
-        let app = CliApp(startupArgs)
-        app
-    finally
-        Log.CloseAndFlush()
-
-let buildWithDefaultConfigurator (argv: string array) = build (fun config argv -> config) argv
+let buildWithDefaultConfigurator (argv: string array) =
+    build (fun startupArgs argv -> { startupArgs with Argv = argv }) argv

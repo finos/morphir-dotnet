@@ -7,11 +7,13 @@ open TechTalk.SpecFlow
 type public MorphirCliSteps(driver: MorphirCliDriver) =
     let _driver = driver
 
-    let [<Given>]``the Morphir CLI is installed`` () = _driver.DisplayHelp()
+    [<Given>]
+    let ``the Morphir CLI is installed`` () = _driver.DisplayHelp()
 
 
-    let [<When>]``I run with the following commandline args: (.*)`` (commandLine:string) =
-        let argv = commandLine.Split([|' '|])
+    [<When>]
+    let ``I run with the following commandline args: (.*)`` (commandLine: string) =
+        let argv = commandLine.Split([| ' ' |])
         driver.ExecuteMain(argv)
 
     [<Then>]

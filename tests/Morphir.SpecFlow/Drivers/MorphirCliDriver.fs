@@ -8,6 +8,4 @@ type MorphirCliDriver() =
 
     member this.DisplayHelp() = ()
 
-    member this.ExecuteMain(argv: string array) =
-        Main.main argv
-
+    member this.ExecuteMain(argv: string array) = Main.main argv

@@ -28,6 +28,7 @@
         <Compile Include="AssemblyInfo.fs" />
         <None Include="App.config" />
         <Compile Include="AssemblyInfoModule.fs" />
+        <Compile Include="CLI\Services\InfoService.fs" />
         <Compile Include="Cli.fs" />
         <Compile Include="Main.fs" />
     </ItemGroup>

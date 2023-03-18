@@ -1,5 +1,7 @@
 namespace Morphir
 
+open Serilog
+
 module Say =
     open System
 
@@ -34,8 +36,18 @@ module Main =
 
     [<EntryPoint>]
     let main (argv: string array) =
-        printfn "Starting..."
-        let app = Cli.buildWithDefaultConfigurator argv
-        app.Run()
-        printfn "Done! Finito!"
-        0
+        Log.Logger <- LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger()
+
+        try
+            try
+                printfn ("")
+                printfn ("Welcome to Morphir!")
+                Log.Information("Program args: {argv}", argv)
+                let app = Cli.buildWithDefaultConfigurator argv
+                app.Run()
+            with ex ->
+                Log.Fatal(ex, "An error occurred")
+        finally
+            Log.CloseAndFlush()
+
+        System.Environment.ExitCode
