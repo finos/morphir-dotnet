@@ -6,44 +6,45 @@ open Serilog.Sinks.SystemConsole.Themes
 open Serilog
 open Serilog.Events
 open Oakton
+open Wolverine
 
 module Main =
 
-    let createDefaultHostBuilder (argv: string array):IHostBuilder =
-        Host.CreateDefaultBuilder(argv)
-            .UseSerilog( fun (context:HostBuilderContext) (loggerConfiguration:LoggerConfiguration) ->
+    let createDefaultHostBuilder (argv: string array) : IHostBuilder =
+        Host
+            .CreateDefaultBuilder(argv)
+            .UseSerilog(fun (context: HostBuilderContext) (loggerConfiguration: LoggerConfiguration) ->
                 loggerConfiguration
-                    .MinimumLevel.Information()
+                    .MinimumLevel
+                    .Information()
                     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
                     //.ReadFrom.Configuration(context.Configuration)
-                    .Enrich.FromLogContext()
+                    .Enrich
+                    .FromLogContext()
                     .WriteTo.Console(theme = AnsiConsoleTheme.Code)
                 |> ignore
             )
             .ApplyOaktonExtensions()
+            .UseWolverine()
 
-    let executeAsync (createBuilder: string array -> IHostBuilder) (argv: string array): Async<int> = async {
-        Log.Logger <-
-            LoggerConfiguration()
-                .WriteTo.Console()
-                .CreateBootstrapLogger()
+    let execute (createBuilder: string array -> IHostBuilder) (argv: string array) =
+        Log.Logger <- LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger()
 
-        try
+        let exitCode =
             try
-                printfn ("")
-                printfn ("Welcome to Morphir!")
-                Log.Information("Program args: {argv}", argv)
-                let builder = createBuilder argv
-                do builder.RunOaktonCommands(argv)
-            with ex ->
-                Log.Fatal(ex, "An error occurred")
-        finally
-            Log.CloseAndFlush()
+                try
+                    printfn ("")
+                    printfn ("Welcome to Morphir!")
+                    Log.Information("Program args: {argv}", argv)
+                    let builder = createBuilder argv
+                    builder.RunOaktonCommandsSynchronously(argv)
+                with ex ->
+                    Log.Fatal(ex, "An error occurred")
+                    1
+            finally
+                Log.CloseAndFlush()
 
-        return System.Environment.ExitCode
-    }
+        exitCode
 
     [<EntryPoint>]
-    let main (argv: string array) =
-        executeAsync createDefaultHostBuilder argv |> Async.RunSynchronously
-
+    let main (argv: string array) = execute createDefaultHostBuilder argv

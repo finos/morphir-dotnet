@@ -30,8 +30,9 @@
         <Compile Include="AssemblyInfo.fs" />
         <None Include="App.config" />
         <Compile Include="AssemblyInfoModule.fs" />
-        <Compile Include="CLI\Services\InfoService.fs" />
-        <Compile Include="CLI\Commands\Info.fs" />
+        <Folder Include="CLI\Services" />
+        <Compile Include="CLI\Commands\InfoCommand.fs" />
+        <Compile Include="CLI\Commands\ServerCommand.fs" />
         <Compile Include="Main.fs" />
     </ItemGroup>
 </Project>
