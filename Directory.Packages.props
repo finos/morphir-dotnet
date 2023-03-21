@@ -43,6 +43,7 @@
 
     <PackageVersion Include="FSharp.Formatting" Version="4.0.0-rc1"/>
     <PackageVersion Include="FSharp.Literate" Version="4.0.0-rc1"/>
+    <PackageVersion Include="FSharp.Control.FusionTasks" Version="2.6.0" />
     <PackageVersion Include="Fable.React" Version="6.2.0" />
     <PackageVersion Include="Dotnet.ProjInfo.Workspace.FCS" Version="0.39" />
     <PackageVersion Include="FSharp.Compiler.Service" Version="34.1.1"/>
@@ -52,5 +53,6 @@
     <PackageVersion Include="Serilog.Formatting.Compact" Version="1.1.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="4.1.0" />
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
+    <PackageVersion Include="WolverineFx" Version="0.9.13" />
   </ItemGroup>
 </Project>
