@@ -38,6 +38,7 @@
         <Compile Include="IR\Module.fs" />
         <Compile Include="IR\Package.fs" />
         <Compile Include="IR\Distribution.fs" />
+        <Compile Include="IR\DecorationID.fs" />
         <Compile Include="IR\DSL\IR.fs" />
         <Folder Include="IR\SDK" />
     </ItemGroup>
