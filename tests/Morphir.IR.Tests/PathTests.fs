@@ -33,14 +33,7 @@ let tests =
 
     let toStringTests =
         describe "toString" [
-            let path =
-                Path.fromList [
-                    Name.fromList [
-                        "foo"
-                        "bar"
-                    ]
-                    Name.fromList [ "baz" ]
-                ]
+            let path = Path.fromList [ Name.fromList [ "foo"; "bar" ]; Name.fromList [ "baz" ] ]
 
             testCase "Using TitleCase"
             <| fun _ ->
@@ -70,36 +63,11 @@ let tests =
                     Path.isPrefixOf prefix path
                     |> Expect.equal expectedResult
 
-            isPrefixOf
-                [
-                    [ "foo" ]
-                    [ "bar" ]
-                ]
-                [ [ "foo" ] ]
-                true
+            isPrefixOf [ [ "foo" ]; [ "bar" ] ] [ [ "foo" ] ] true
 
-            isPrefixOf
-                [ [ "foo" ] ]
-                [
-                    [ "foo" ]
-                    [ "bar" ]
-                ]
-                false
+            isPrefixOf [ [ "foo" ] ] [ [ "foo" ]; [ "bar" ] ] false
 
-            isPrefixOf
-                [
-                    [ "foo" ]
-                    [ "bar" ]
-                ]
-                [
-                    [ "foo" ]
-                    [ "bar" ]
-                ]
-                true
+            isPrefixOf [ [ "foo" ]; [ "bar" ] ] [ [ "foo" ]; [ "bar" ] ] true
         ]
 
-    describe "PathTests" [
-        fromStringTests
-        toStringTests
-        isPrefixOfTests
-    ]
+    describe "PathTests" [ fromStringTests; toStringTests; isPrefixOfTests ]

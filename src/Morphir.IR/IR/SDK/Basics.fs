@@ -27,34 +27,10 @@ let moduleSpec: Module.Specification<unit> = {
     Values =
         Dict.fromList [
             // number
-            vSpec
-                "add"
-                [
-                    ("a", tVar "number")
-                    ("b", tVar "number")
-                ]
-                (tVar "number")
-            vSpec
-                "subtract"
-                [
-                    ("a", tVar "number")
-                    ("b", tVar "number")
-                ]
-                (tVar "number")
-            vSpec
-                "multiply"
-                [
-                    ("a", tVar "number")
-                    ("b", tVar "number")
-                ]
-                (tVar "number")
-            vSpec
-                "divide"
-                [
-                    ("a", floatType ())
-                    ("b", floatType ())
-                ]
-                (floatType ())
+            vSpec "add" [ ("a", tVar "number"); ("b", tVar "number") ] (tVar "number")
+            vSpec "subtract" [ ("a", tVar "number"); ("b", tVar "number") ] (tVar "number")
+            vSpec "multiply" [ ("a", tVar "number"); ("b", tVar "number") ] (tVar "number")
+            vSpec "divide" [ ("a", floatType ()); ("b", floatType ()) ] (floatType ())
         ]
     Doc = Just "Types and functions representing basic mathematical concepts and operations"
 }
