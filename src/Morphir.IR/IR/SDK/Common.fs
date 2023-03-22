@@ -30,21 +30,25 @@ let binaryApply
         arg2
     )
 
-let tVar (varName: string): Type<unit> =
+let tVar (varName: string) : Type<unit> =
     Type.Variable((), Name.fromString varName)
 
-let tFun (argTypes: Type<unit> list) (returnType: Type<unit>): Type<unit> =
+let tFun (argTypes: Type<unit> list) (returnType: Type<unit>) : Type<unit> =
     let rec curry args =
         match args with
         | [] -> returnType
         | arg :: rest -> Type.Function((), arg, curry rest)
+
     curry argTypes
 
 let vSpec
-    (name:string)
-    (args:List<string * Type<unit>)
-    (returnType:Type<unit>): Name * Documented<Value.Specification<unit>> =
+    (name: string)
+    (args: List<string * Type<unit>>)
+    (returnType: Type<unit>)
+    : Name * Documented<Value.Specification<unit>> =
     (Name.fromString name,
      specification
-        (args |> List.map (fun ( argName, argType ) -> ( Name.fromString argName, argType )))
-        returnType|> documented "documentation")
+         (args
+          |> List.map (fun (argName, argType) -> (Name.fromString argName, argType)))
+         returnType
+     |> documented "documentation")

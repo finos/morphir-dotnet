@@ -41,5 +41,6 @@
         <Compile Include="IR\Decoration.fs" />
         <Compile Include="IR\DSL\IR.fs" />
         <Compile Include="IR\SDK\Common.fs" />
+        <Compile Include="IR\SDK\Basics.fs" />
     </ItemGroup>
 </Project>
