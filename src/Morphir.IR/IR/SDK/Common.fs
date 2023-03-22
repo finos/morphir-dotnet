@@ -33,6 +33,15 @@ let binaryApply
 let tVar (varName: string) : Type<unit> =
     Type.Variable((), Name.fromString varName)
 
+let namedTypeSpec
+    (name: string)
+    (spec: Type.Specification<'a>)
+    (doc: string)
+    : Name * Documented<Type.Specification<'a>> =
+    (Name.fromString name,
+     spec
+     |> documented doc)
+
 let tFun (argTypes: Type<unit> list) (returnType: Type<unit>) : Type<unit> =
     let rec curry args =
         match args with

@@ -97,7 +97,11 @@ let specification (inputs: List<Name * Type<'a>>) (output: Type<'a>) : Specifica
 }
 
 /// Represents a function invocation. We use currying to represent function invocations with multiple arguments.
-let inline apply (attributes: 'va) (func: Value<'ta, 'va>) (argument: Value<'ta, 'va>) : Value<'ta, 'va> =
+let inline apply
+    (attributes: 'va)
+    (func: Value<'ta, 'va>)
+    (argument: Value<'ta, 'va>)
+    : Value<'ta, 'va> =
     Apply(attributes, func, argument)
 
 let inline constructor (attributes: 'va) (fqName: FQName) : Value<'ta, 'va> =

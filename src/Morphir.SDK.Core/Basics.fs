@@ -4,7 +4,10 @@ module Morphir.SDK.Basics
 type Int = int64
 type Float = double
 
-type Order = LT | EQ | GT
+type Order =
+    | LT
+    | EQ
+    | GT
 
 let (<|) = Microsoft.FSharp.Core.Operators.(<|)
 let (|>) = Microsoft.FSharp.Core.Operators.(|>)

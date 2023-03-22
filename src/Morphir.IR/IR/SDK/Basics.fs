@@ -12,37 +12,46 @@ open Morphir.IR.SDK.Common
 
 let moduleName: ModuleName = Path.fromString "Basics"
 
-let encodeOrder (order: Order): Value.Value<'a,unit> =
+let encodeOrder (order: Order) : Value.Value<'a, unit> =
     let value =
         match order with
         | LT -> "LT"
         | EQ -> "EQ"
         | GT -> "GT"
+
     Value.Constructor((), toFQName moduleName value)
 
-let inline orderType (attributes: 'a): Type<'a> =
+let inline orderType (attributes: 'a) : Type<'a> =
     Reference(attributes, (toFQName moduleName "Order"), [])
 
-let inline neverType (attributes: 'a): Type<'a> =
+let inline neverType (attributes: 'a) : Type<'a> =
     Reference(attributes, (toFQName moduleName "Never"), [])
 
-let inline equal (attributes: 'a): Value.Value<'b,'a> =
+let inline equal (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "equal"))
 
-let inline notEqual (attributes: 'a): Value.Value<'b,'a> =
+let inline notEqual (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "notEqual"))
 
 let boolType (attributes: 'a) : Type<'a> =
     Reference(attributes, (toFQName moduleName "Bool"), [])
 
-let ``and`` (attributes: 'a) : Value.Value<'b,'a> =
+let ``and`` (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "and"))
 
-let ``or`` (attributes: 'a) : Value.Value<'b,'a> =
+let ``or`` (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "or"))
 
-let negate (refAttributes: 'a) (valueAttributes: 'a) (arg: Value.Value<'b,'a>): Value.Value<'b,'a> =
-    Value.Apply(valueAttributes, Value.Reference(refAttributes, (toFQName moduleName "negate")), arg)
+let negate
+    (refAttributes: 'a)
+    (valueAttributes: 'a)
+    (arg: Value.Value<'b, 'a>)
+    : Value.Value<'b, 'a> =
+    Value.Apply(
+        valueAttributes,
+        Value.Reference(refAttributes, (toFQName moduleName "negate")),
+        arg
+    )
 
 let add attributes =
     Value.Reference(attributes, (toFQName moduleName "add"))
@@ -59,45 +68,64 @@ let power attributes =
 let inline intType (attributes: 'a) : Type<'a> =
     Reference(attributes, (toFQName moduleName "Int"), [])
 
-let integerDivide (attributes: 'a) : Value.Value<'b,'a> =
+let integerDivide (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "integerDivide"))
 
 let inline floatType attributes : Type<'a> =
     Reference(attributes, (toFQName moduleName "Float"), [])
 
-let divide (attributes: 'a) : Value.Value<'b,'a> =
+let divide (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "divide"))
 
-let lessThan (attributes: 'a) : Value.Value<'b,'a> =
+let lessThan (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "lessThan"))
 
-let lessThanOrEqual (attributes: 'a) : Value.Value<'b,'a> =
+let lessThanOrEqual (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "lessThanOrEqual"))
 
-let greaterThan (attributes: 'a) : Value.Value<'b,'a> =
+let greaterThan (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "greaterThan"))
 
-let greaterThanOrEqual (attributes: 'a) : Value.Value<'b,'a> =
+let greaterThanOrEqual (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "greaterThanOrEqual"))
 
-let composeLeft (attributes: 'a) : Value.Value<'b,'a> =
+let composeLeft (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "composeLeft"))
 
-let composeRight (attributes: 'a) : Value.Value<'b,'a> =
+let composeRight (attributes: 'a) : Value.Value<'b, 'a> =
     Value.Reference(attributes, (toFQName moduleName "composeRight"))
 
-let isNumber = function
-    | Reference (_ , FQName([["morphir"]; ["s";"d";"k"]], [["basics"]], ["float"]), []) -> true
-    | Reference (_ , FQName([["morphir"]; ["s";"d";"k"]], [["basics"]], ["int"]), []) -> true
+let isNumber =
+    function
+    | Reference (_, FQName ([ [ "morphir" ]; [ "s"; "d"; "k" ] ], [ [ "basics" ] ], [ "float" ]), []) ->
+        true
+    | Reference (_, FQName ([ [ "morphir" ]; [ "s"; "d"; "k" ] ], [ [ "basics" ] ], [ "int" ]), []) ->
+        true
     | _ -> false
 
 
 let moduleSpec: Module.Specification<unit> = {
     Types =
         Dict.fromList [
-            Name.fromString "Int",
-            OpaqueTypeSpecification []
-            |> documented "Type that represents an integer value."
+            namedTypeSpec
+                "Int"
+                (OpaqueTypeSpecification [])
+                "Type that represents an integer value."
+            namedTypeSpec
+                "Float"
+                (OpaqueTypeSpecification [])
+                "Type that represents a floating-point number."
+            // namedTypeSpec "Order" (customTypeSpecification []
+            //                            Dict.fromList [
+            //                                ("LT" |> Name.fromString, [])
+            //                                ("EQ" |> Name.fromString, [])
+            //                                ("GT" |> Name.fromString, [])
+            //                            ]) "Represents the relative ordering of two things. The relations are less than, equal to, and greater than."
+            namedTypeSpec
+                "Bool"
+                (OpaqueTypeSpecification [])
+                "Type that represents a boolean value."
+            namedTypeSpec "Never" (OpaqueTypeSpecification []) "A value that can never happen!"
         ]
     Values =
         Dict.fromList [
