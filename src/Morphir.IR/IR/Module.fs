@@ -87,16 +87,17 @@ let definitionToSpecification (def: Definition<'TA, 'VA>) : Specification<'TA> =
     Doc = def.Doc
 }
 
-let definitionToSpecificationWithPrivate (def: Definition<'ta,'va>): Specification<'ta> =
+let definitionToSpecificationWithPrivate (def: Definition<'ta, 'va>) : Specification<'ta> =
     let types =
-       def.Types
-      |> Dict.toList
-      |> Morphir.SDK.List.map (fun (path, accessControlledType) ->
-          (path,
-           accessControlledType
-           |> withPrivateAccess
-           |> Documented.map Type.definitionToSpecificationWithPrivate))
-       |> Dict.fromList
+        def.Types
+        |> Dict.toList
+        |> Morphir.SDK.List.map (fun (path, accessControlledType) ->
+            (path,
+             accessControlledType
+             |> withPrivateAccess
+             |> Documented.map Type.definitionToSpecificationWithPrivate)
+        )
+        |> Dict.fromList
 
     let values =
         def.Values
@@ -105,12 +106,14 @@ let definitionToSpecificationWithPrivate (def: Definition<'ta,'va>): Specificati
             (path,
              accessControlledValue
              |> withPrivateAccess
-             |> Documented.map Value.definitionToSpecification))
+             |> Documented.map Value.definitionToSpecification)
+        )
         |> Dict.fromList
 
-    { Types = types
-      Values = values
-      Doc = def.Doc
+    {
+        Types = types
+        Values = values
+        Doc = def.Doc
     }
 
 module Specification =
