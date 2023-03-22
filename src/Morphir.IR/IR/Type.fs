@@ -98,6 +98,7 @@ let definitionToSpecificationWithPrivate (def: Definition<'A>) : Specification<'
         accessControlledCtors
         |> withPrivateAccess
         |> customTypeSpecification p
+
 let variable attributes name = Variable(attributes, name)
 
 let reference attributes typeName typeParameters =

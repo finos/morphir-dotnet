@@ -57,6 +57,18 @@ let lookupValueSpecification
     |> Dict.get localName
     |> Maybe.map Documented.value
 
+/// Look up a value definition by its name in a module specification.
+let lookupValueDefinition
+    localName
+    (moduleDef: Definition<'ta, 'va>)
+    : Maybe<Value.Definition<'ta, 'va>> =
+    moduleDef.Values
+    |> Dict.get localName
+    |> Maybe.map (
+        withPrivateAccess
+        >> Documented.value
+    )
+
 let definitionToSpecification (def: Definition<'TA, 'VA>) : Specification<'TA> = {
     Types =
         def.Types
@@ -115,6 +127,11 @@ let definitionToSpecificationWithPrivate (def: Definition<'ta, 'va>) : Specifica
         Values = values
         Doc = def.Doc
     }
+
+// /// Find all the modules that this module depends on.
+// let dependsOnModules (moduleDef:Definition<'ta,'va>): Set<QualifiedModuleName> =
+//     collectReferences moduleDef
+//         |> Set.map (fun ( packageName, moduleName, _ ) -> ( packageName, moduleName )
 
 module Specification =
     let empty = {
