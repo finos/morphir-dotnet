@@ -17,51 +17,17 @@ let tests =
             <| fun _ -> Expect.equal Nothing (String.uncons "")
 
             testCase "join spaces"
-            <| fun _ ->
-                Expect.equal
-                    "cat dog cow"
-                    (String.join " " [
-                        "cat"
-                        "dog"
-                        "cow"
-                    ])
+            <| fun _ -> Expect.equal "cat dog cow" (String.join " " [ "cat"; "dog"; "cow" ])
             testCase "join slashes"
             <| fun _ ->
-                Expect.equal
-                    "home/steve/Desktop"
-                    (String.join "/" [
-                        "home"
-                        "steve"
-                        "Desktop"
-                    ])
+                Expect.equal "home/steve/Desktop" (String.join "/" [ "home"; "steve"; "Desktop" ])
             testCase "join - make it Hawaiian"
-            <| fun _ ->
-                Expect.equal
-                    "Hawaiian"
-                    (String.join "a" [
-                        "H"
-                        "w"
-                        "ii"
-                        "n"
-                    ])
+            <| fun _ -> Expect.equal "Hawaiian" (String.join "a" [ "H"; "w"; "ii"; "n" ])
             testCase "join - animals"
-            <| fun _ ->
-                Expect.equal
-                    "cat dog cow"
-                    (String.join " " [
-                        "cat"
-                        "dog"
-                        "cow"
-                    ])
+            <| fun _ -> Expect.equal "cat dog cow" (String.join " " [ "cat"; "dog"; "cow" ])
             testCase "join - path"
             <| fun _ ->
-                Expect.equal
-                    "home/evan/Desktop"
-                    (String.join "/" [
-                        "home"
-                        "evan"
-                        "Desktop"
-                    ])
+                Expect.equal "home/evan/Desktop" (String.join "/" [ "home"; "evan"; "Desktop" ])
 
             testCase "length string"
             <| fun _ -> Expect.equal 4 (String.length "four")
@@ -80,41 +46,16 @@ let tests =
             testCase "append"
             <| fun _ -> Expect.equal "HelloWorld" (String.append "Hello" "World")
             testCase "split"
-            <| fun _ ->
-                Expect.equal
-                    [
-                        "earth"
-                        "quake"
-                    ]
-                    (String.split " " "earth quake")
+            <| fun _ -> Expect.equal [ "earth"; "quake" ] (String.split " " "earth quake")
             testCase "concat"
-            <| fun _ ->
-                Expect.equal
-                    "Coming together"
-                    (String.concat [
-                        "Coming"
-                        " "
-                        "together"
-                    ])
+            <| fun _ -> Expect.equal "Coming together" (String.concat [ "Coming"; " "; "together" ])
             testCase "words"
             <| fun _ ->
                 Expect.equal
-                    [
-                        "Breaks"
-                        "up"
-                        "all"
-                        "the"
-                        "words"
-                    ]
+                    [ "Breaks"; "up"; "all"; "the"; "words" ]
                     (String.words "Breaks up all the words")
             testCase "lines"
-            <| fun _ ->
-                Expect.equal
-                    [
-                        "New"
-                        "Line"
-                    ]
-                    (String.lines "New\nLine")
+            <| fun _ -> Expect.equal [ "New"; "Line" ] (String.lines "New\nLine")
 
             testCase "slice1"
             <| fun _ -> Expect.equal "on" (String.slice 7 9 "snakes on a plane!")
@@ -163,35 +104,13 @@ let tests =
             <| fun _ -> Expect.equal true (String.endsWith "ory" "theory")
 
             testCase "indexes i"
-            <| fun _ ->
-                Expect.equal
-                    [
-                        1
-                        4
-                        7
-                        10
-                    ]
-                    (String.indexes "i" "Mississippi")
+            <| fun _ -> Expect.equal [ 1; 4; 7; 10 ] (String.indexes "i" "Mississippi")
             testCase "indexes ss"
-            <| fun _ ->
-                Expect.equal
-                    [
-                        2
-                        5
-                    ]
-                    (String.indexes "ss" "Mississippi")
+            <| fun _ -> Expect.equal [ 2; 5 ] (String.indexes "ss" "Mississippi")
             testCase "indexes none"
             <| fun _ -> Expect.equal [] (String.indexes "needle" "haystack")
             testCase "indices i"
-            <| fun _ ->
-                Expect.equal
-                    [
-                        1
-                        4
-                        7
-                        10
-                    ]
-                    (String.indices "i" "Mississippi")
+            <| fun _ -> Expect.equal [ 1; 4; 7; 10 ] (String.indices "i" "Mississippi")
 
             testCase "toInt1"
             <| fun _ -> Expect.equal (Some 123) (String.toInt "123")
@@ -225,23 +144,9 @@ let tests =
             <| fun _ -> Expect.equal "a" (String.fromChar 'a')
 
             testCase "toList"
-            <| fun _ ->
-                Expect.equal
-                    [
-                        'a'
-                        'b'
-                        'c'
-                    ]
-                    (String.toList "abc")
+            <| fun _ -> Expect.equal [ 'a'; 'b'; 'c' ] (String.toList "abc")
             testCase "fromList"
-            <| fun _ ->
-                Expect.equal
-                    "abc"
-                    (String.fromList [
-                        'a'
-                        'b'
-                        'c'
-                    ])
+            <| fun _ -> Expect.equal "abc" (String.fromList [ 'a'; 'b'; 'c' ])
 
             testCase "toUpper"
             <| fun _ -> Expect.equal "SEYMOUR" (String.toUpper "seymour")
