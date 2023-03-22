@@ -1,4 +1,4 @@
-module Morphir.IR.DecorationID
+module Morphir.IR.Decoration
 
 open Morphir.SDK.Dict
 open Morphir.IR.FQName
