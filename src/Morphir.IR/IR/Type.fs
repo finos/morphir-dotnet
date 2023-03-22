@@ -91,7 +91,13 @@ let definitionToSpecification (def: Definition<'A>) : Specification<'A> =
         | Just ctors -> CustomTypeSpecification(p, ctors)
         | Nothing -> OpaqueTypeSpecification p
 
-
+let definitionToSpecificationWithPrivate (def: Definition<'A>) : Specification<'A> =
+    match def with
+    | TypeAliasDefinition (p, exp) -> TypeAliasSpecification(p, exp)
+    | CustomTypeDefinition (p, accessControlledCtors) ->
+        accessControlledCtors
+        |> withPrivateAccess
+        |> CustomTypeSpecification(p, _)
 let variable attributes name = Variable(attributes, name)
 
 let reference attributes typeName typeParameters =
