@@ -1,6 +1,14 @@
 [<AutoOpen>]
 module Morphir.SDK.Basics
 
+type Int = int64
+type Float = double
+
+type Order =
+    | LT
+    | EQ
+    | GT
+
 let (<|) = Microsoft.FSharp.Core.Operators.(<|)
 let (|>) = Microsoft.FSharp.Core.Operators.(|>)
 
@@ -19,3 +27,10 @@ let inline pow (x: ^a) (n: int) =
 let inline max x y = Microsoft.FSharp.Core.Operators.max x y
 
 let inline min x y = Microsoft.FSharp.Core.Operators.min x y
+
+let clamp low high number =
+    if number < low then low
+    elif number > high then high
+    else number
+
+let inline negate number = -number

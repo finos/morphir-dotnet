@@ -16,36 +16,13 @@ let tests =
                     Name.fromString inString
                     |> Expect.equal (Name.fromList outList)
 
-            assert' "fooBar_baz 123" [
-                "foo"
-                "bar"
-                "baz"
-                "123"
-            ]
+            assert' "fooBar_baz 123" [ "foo"; "bar"; "baz"; "123" ]
 
-            assert' "valueInUSD" [
-                "value"
-                "in"
-                "u"
-                "s"
-                "d"
-            ]
+            assert' "valueInUSD" [ "value"; "in"; "u"; "s"; "d" ]
 
-            assert' "ValueInUSD" [
-                "value"
-                "in"
-                "u"
-                "s"
-                "d"
-            ]
+            assert' "ValueInUSD" [ "value"; "in"; "u"; "s"; "d" ]
 
-            assert' "value_in_USD" [
-                "value"
-                "in"
-                "u"
-                "s"
-                "d"
-            ]
+            assert' "value_in_USD" [ "value"; "in"; "u"; "s"; "d" ]
 
             assert' "_-% " []
         ]
@@ -59,24 +36,9 @@ let tests =
                     |> Name.toTitleCase
                     |> Expect.equal outString
 
-            assert'
-                [
-                    "foo"
-                    "bar"
-                    "baz"
-                    "123"
-                ]
-                "FooBarBaz123"
+            assert' [ "foo"; "bar"; "baz"; "123" ] "FooBarBaz123"
 
-            assert'
-                [
-                    "value"
-                    "in"
-                    "u"
-                    "s"
-                    "d"
-                ]
-                "ValueInUSD"
+            assert' [ "value"; "in"; "u"; "s"; "d" ] "ValueInUSD"
         ]
 
     let toCamelCaseTests =
@@ -88,24 +50,9 @@ let tests =
                     |> Name.toCamelCase
                     |> Expect.equal outString
 
-            assert'
-                [
-                    "foo"
-                    "bar"
-                    "baz"
-                    "123"
-                ]
-                "fooBarBaz123"
+            assert' [ "foo"; "bar"; "baz"; "123" ] "fooBarBaz123"
 
-            assert'
-                [
-                    "value"
-                    "in"
-                    "u"
-                    "s"
-                    "d"
-                ]
-                "valueInUSD"
+            assert' [ "value"; "in"; "u"; "s"; "d" ] "valueInUSD"
         ]
 
     let toSnakeCaseTests =
@@ -117,24 +64,9 @@ let tests =
                     |> Name.toSnakeCase
                     |> Expect.equal outString
 
-            assert'
-                [
-                    "foo"
-                    "bar"
-                    "baz"
-                    "123"
-                ]
-                "foo_bar_baz_123"
+            assert' [ "foo"; "bar"; "baz"; "123" ] "foo_bar_baz_123"
 
-            assert'
-                [
-                    "value"
-                    "in"
-                    "u"
-                    "s"
-                    "d"
-                ]
-                "value_in_USD"
+            assert' [ "value"; "in"; "u"; "s"; "d" ] "value_in_USD"
         ]
 
     let toHumanWordsTests =
@@ -146,29 +78,9 @@ let tests =
                     |> Name.toHumanWords
                     |> Expect.equal outList
 
-            assert' [
-                "foo"
-                "bar"
-                "baz"
-                "123"
-            ] [
-                "foo"
-                "bar"
-                "baz"
-                "123"
-            ]
+            assert' [ "foo"; "bar"; "baz"; "123" ] [ "foo"; "bar"; "baz"; "123" ]
 
-            assert' [
-                "value"
-                "in"
-                "u"
-                "s"
-                "d"
-            ] [
-                "value"
-                "in"
-                "USD"
-            ]
+            assert' [ "value"; "in"; "u"; "s"; "d" ] [ "value"; "in"; "USD" ]
         ]
 
     describe "NameTests" [

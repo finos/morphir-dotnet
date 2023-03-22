@@ -63,14 +63,7 @@ let toHumanWords name : List<string> =
             else
                 match abbrev with
                 | [] -> process' (List.append prefix [ first ]) [] rest
-                | _ ->
-                    process'
-                        (List.append prefix [
-                            join abbrev
-                            first
-                        ])
-                        []
-                        rest
+                | _ -> process' (List.append prefix [ join abbrev; first ]) [] rest
 
     process' [] [] words
 

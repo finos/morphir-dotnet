@@ -79,6 +79,24 @@ type Field<'A> with
         Type = f (this.Type)
     }
 
+let inline typeAliasDefinition typeParams typeExp =
+    TypeAliasDefinition(typeParams, typeExp)
+
+let inline customTypeDefinition typeParams ctors = CustomTypeDefinition(typeParams, ctors)
+
+let inline typeAliasSpecification typeParams typeExp =
+    TypeAliasSpecification(typeParams, typeExp)
+
+let inline opaqueTypeSpecification typeParams = OpaqueTypeSpecification typeParams
+
+let inline customTypeSpecification typeParams ctors =
+    CustomTypeSpecification(typeParams, ctors)
+
+let inline reference attributes typeName typeParameters =
+    Reference(attributes, typeName, typeParameters)
+
+let inline tuple attributes elementTypes = Tuple(attributes, elementTypes)
+let inline record attributes fieldTypes = Record(attributes, fieldTypes)
 
 let definitionToSpecification (def: Definition<'A>) : Specification<'A> =
     match def with
@@ -91,15 +109,16 @@ let definitionToSpecification (def: Definition<'A>) : Specification<'A> =
         | Just ctors -> CustomTypeSpecification(p, ctors)
         | Nothing -> OpaqueTypeSpecification p
 
+let definitionToSpecificationWithPrivate (def: Definition<'A>) : Specification<'A> =
+    match def with
+    | TypeAliasDefinition (p, exp) -> TypeAliasSpecification(p, exp)
+    | CustomTypeDefinition (p, accessControlledCtors) ->
+        accessControlledCtors
+        |> withPrivateAccess
+        |> customTypeSpecification p
 
 let variable attributes name = Variable(attributes, name)
 
-let reference attributes typeName typeParameters =
-    Reference(attributes, typeName, typeParameters)
-
-let tuple attributes elementTypes = Tuple(attributes, elementTypes)
-
-let record attributes fieldTypes = Record(attributes, fieldTypes)
 
 let extensibleRecord attributes variableName fieldTypes =
     ExtensibleRecord(attributes, variableName, fieldTypes)
@@ -108,19 +127,6 @@ let ``function`` attributes argumentType returnType =
     Function(attributes, argumentType, returnType)
 
 let unit attributes = Unit(attributes)
-
-let typeAliasDefinition typeParams typeExp =
-    TypeAliasDefinition(typeParams, typeExp)
-
-let customTypeDefinition typeParams ctors = CustomTypeDefinition(typeParams, ctors)
-
-let typeAliasSpecification typeParams typeExp =
-    TypeAliasSpecification(typeParams, typeExp)
-
-let opaqueTypeSpecification typeParams = OpaqueTypeSpecification typeParams
-
-let customTypeSpecification typeParams ctors =
-    CustomTypeSpecification(typeParams, ctors)
 
 let field name fieldType = { Name = name; Type = fieldType }
 

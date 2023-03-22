@@ -26,33 +26,14 @@ let tests =
             describe "split Tests" [
                 testCase @"split comma ""tom,99,90,85"""
                 <| fun _ ->
-                    Expect.equal
-                        ([
-                            "tom"
-                            "99"
-                            "90"
-                            "85"
-                        ])
-                        (Regex.split comma "tom,99,90,85")
+                    Expect.equal ([ "tom"; "99"; "90"; "85" ]) (Regex.split comma "tom,99,90,85")
                 testCase @"split comma ""tom, 99, 90, 85"""
                 <| fun _ ->
-                    Expect.equal
-                        ([
-                            "tom"
-                            "99"
-                            "90"
-                            "85"
-                        ])
-                        (Regex.split comma "tom, 99, 90, 85")
+                    Expect.equal ([ "tom"; "99"; "90"; "85" ]) (Regex.split comma "tom, 99, 90, 85")
                 testCase @"split comma ""tom , 99, 90, 85"""
                 <| fun _ ->
                     Expect.equal
-                        ([
-                            "tom"
-                            "99"
-                            "90"
-                            "85"
-                        ])
+                        ([ "tom"; "99"; "90"; "85" ])
                         (Regex.split comma "tom , 99, 90, 85")
             ]
 
@@ -60,11 +41,7 @@ let tests =
                 testCase @"splitAtMost comma ""tom,99,90,85"""
                 <| fun _ ->
                     Expect.equal
-                        ([
-                            "tom"
-                            "99"
-                            "90,85"
-                        ])
+                        ([ "tom"; "99"; "90,85" ])
                         (Regex.splitAtMost 2 comma "tom,99,90,85")
             ]
         ]

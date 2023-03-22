@@ -13,3 +13,5 @@ let map (f: 'a -> 'b) (d: Documented<'a>) = { Doc = d.Doc; Value = f d.Value }
 
 [<CompiledName("Value")>]
 let inline value (d: Documented<'a>) = d.Value
+
+let inline documented (doc: string) (value: 'a) : Documented<'a> = { Doc = doc; Value = value }

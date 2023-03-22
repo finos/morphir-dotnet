@@ -91,6 +91,22 @@ and Definition<'TA, 'VA> = {
     Body: Value<'TA, 'VA>
 }
 
+let specification (inputs: List<Name * Type<'a>>) (output: Type<'a>) : Specification<'a> = {
+    Inputs = inputs
+    Output = output
+}
+
+/// Represents a function invocation. We use currying to represent function invocations with multiple arguments.
+let inline apply
+    (attributes: 'va)
+    (func: Value<'ta, 'va>)
+    (argument: Value<'ta, 'va>)
+    : Value<'ta, 'va> =
+    Apply(attributes, func, argument)
+
+let inline constructor (attributes: 'va) (fqName: FQName) : Value<'ta, 'va> =
+    Constructor(attributes, fqName)
+
 /// Turns a definition into a specification by removing implementation details.
 let definitionToSpecification (def: Definition<'TA, 'VA>) : Specification<'TA> = {
     Inputs =
