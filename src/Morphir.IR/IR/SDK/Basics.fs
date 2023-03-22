@@ -6,16 +6,91 @@ open Morphir.SDK
 open Morphir.SDK.Maybe
 open Morphir.IR.Module
 open Morphir.IR.Documented
+open Morphir.IR.FQName
 open Morphir.IR.Type
 open Morphir.IR.SDK.Common
 
 let moduleName: ModuleName = Path.fromString "Basics"
 
-let inline orderType attributes =
+let encodeOrder (order: Order): Value.Value<'a,unit> =
+    let value =
+        match order with
+        | LT -> "LT"
+        | EQ -> "EQ"
+        | GT -> "GT"
+    Value.Constructor((), toFQName moduleName value)
+
+let inline orderType (attributes: 'a): Type<'a> =
     Reference(attributes, (toFQName moduleName "Order"), [])
+
+let inline neverType (attributes: 'a): Type<'a> =
+    Reference(attributes, (toFQName moduleName "Never"), [])
+
+let inline equal (attributes: 'a): Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "equal"))
+
+let inline notEqual (attributes: 'a): Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "notEqual"))
+
+let boolType (attributes: 'a) : Type<'a> =
+    Reference(attributes, (toFQName moduleName "Bool"), [])
+
+let ``and`` (attributes: 'a) : Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "and"))
+
+let ``or`` (attributes: 'a) : Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "or"))
+
+let negate (refAttributes: 'a) (valueAttributes: 'a) (arg: Value.Value<'b,'a>): Value.Value<'b,'a> =
+    Value.Apply(valueAttributes, Value.Reference(refAttributes, (toFQName moduleName "negate")), arg)
+
+let add attributes =
+    Value.Reference(attributes, (toFQName moduleName "add"))
+
+let subtract attributes =
+    Value.Reference(attributes, (toFQName moduleName "subtract"))
+
+let multiply attributes =
+    Value.Reference(attributes, (toFQName moduleName "multiply"))
+
+let power attributes =
+    Value.Reference(attributes, (toFQName moduleName "power"))
+
+let inline intType (attributes: 'a) : Type<'a> =
+    Reference(attributes, (toFQName moduleName "Int"), [])
+
+let integerDivide (attributes: 'a) : Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "integerDivide"))
 
 let inline floatType attributes : Type<'a> =
     Reference(attributes, (toFQName moduleName "Float"), [])
+
+let divide (attributes: 'a) : Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "divide"))
+
+let lessThan (attributes: 'a) : Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "lessThan"))
+
+let lessThanOrEqual (attributes: 'a) : Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "lessThanOrEqual"))
+
+let greaterThan (attributes: 'a) : Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "greaterThan"))
+
+let greaterThanOrEqual (attributes: 'a) : Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "greaterThanOrEqual"))
+
+let composeLeft (attributes: 'a) : Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "composeLeft"))
+
+let composeRight (attributes: 'a) : Value.Value<'b,'a> =
+    Value.Reference(attributes, (toFQName moduleName "composeRight"))
+
+let isNumber = function
+    | Reference (_ , FQName([["morphir"]; ["s";"d";"k"]], [["basics"]], ["float"]), []) -> true
+    | Reference (_ , FQName([["morphir"]; ["s";"d";"k"]], [["basics"]], ["int"]), []) -> true
+    | _ -> false
+
 
 let moduleSpec: Module.Specification<unit> = {
     Types =
