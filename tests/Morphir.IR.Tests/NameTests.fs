@@ -2,6 +2,7 @@ module Morphir.IR.NameTests
 
 open Morphir.SDK.Testing
 open Morphir.IR
+open Thoth.Json.Net
 
 [<Tests>]
 let tests =
@@ -44,7 +45,7 @@ let tests =
     let toCamelCaseTests =
         describe "toCamelCase" [
             let assert' inList outString =
-                testCase (sprintf "Title case %s" outString)
+                testCase (sprintf "Camel case %s" outString)
                 <| fun _ ->
                     Name.fromList inList
                     |> Name.toCamelCase
@@ -58,7 +59,7 @@ let tests =
     let toSnakeCaseTests =
         describe "toSnakeCase" [
             let assert' inList outString =
-                testCase (sprintf "Title case %s" outString)
+                testCase (sprintf "Snake case %s" outString)
                 <| fun _ ->
                     Name.fromList inList
                     |> Name.toSnakeCase
@@ -72,7 +73,7 @@ let tests =
     let toHumanWordsTests =
         describe "toHumanWords" [
             let assert' inList outList =
-                testCase (sprintf "Title case %A" outList)
+                testCase (sprintf "Human words %A" outList)
                 <| fun _ ->
                     Name.fromList inList
                     |> Name.toHumanWords
@@ -83,10 +84,25 @@ let tests =
             assert' [ "value"; "in"; "u"; "s"; "d" ] [ "value"; "in"; "USD" ]
         ]
 
+    let encodeNameTests =
+        describe "encodeName" [
+            let assert' inList expectedText =
+                testCase (sprintf "where name is: %s" expectedText)
+                <| fun _ ->
+                    Name.fromList inList
+                    |> Name.Codec.encodeName
+                    |> Encode.toString 0
+                    |> Expect.equal expectedText
+
+            assert' [ "delta"; "sigma"; "theta" ] """["delta","sigma","theta"]"""
+            assert' [ "sigma"; "gamma"; "rho" ] """["sigma","gamma","rho"]"""
+        ]
+
     describe "NameTests" [
         fromString
         toTitleCaseTests
         toCamelCaseTests
         toSnakeCaseTests
         toHumanWordsTests
+        encodeNameTests
     ]

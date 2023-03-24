@@ -54,5 +54,6 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="4.1.0" />
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
     <PackageVersion Include="WolverineFx" Version="0.9.13" />
+    <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
   </ItemGroup>
 </Project>
