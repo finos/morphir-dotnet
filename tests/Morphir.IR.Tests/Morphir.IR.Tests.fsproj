@@ -8,11 +8,14 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Bogus" />
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Expecto" />
+        <PackageReference Include="Expecto.FsCheck" />
         <PackageReference Include="YoloDev.Expecto.TestSdk" />
         <PackageReference Include="altcover" />
+        <PackageReference Include="Verify.Expecto" />
     </ItemGroup>
 
     <ItemGroup>
@@ -21,8 +24,10 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="AssemblyInfo.fs" />
+        <Compile Include="TestData.fs" />
         <Compile Include="NameTests.fs" />
         <Compile Include="PathTests.fs" />
+        <Compile Include="QNameTests.fs" />
         <Compile Include="Main.fs" />
     </ItemGroup>
 

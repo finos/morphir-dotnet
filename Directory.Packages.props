@@ -9,9 +9,11 @@
   </PropertyGroup>
   <PropertyGroup>
     <FakeVersion>5.20.4</FakeVersion>
+    <VerifyVersion>19.11.2</VerifyVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="AutoFixture.Xunit2" Version="4.18.0" />
+    <PackageVersion Include="Bogus" Version="34.0.2" />
     <PackageVersion Include="coverlet.collector" Version="3.1.2" />
     <PackageVersion Include="FSharp.Core" Version="7.0.200" />
     <PackageVersion Include="Expecto" Version="9.0.4" />
@@ -55,5 +57,7 @@
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
     <PackageVersion Include="WolverineFx" Version="0.9.13" />
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
+    <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
+    <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
   </ItemGroup>
 </Project>

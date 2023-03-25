@@ -80,4 +80,4 @@ let tests =
             assert' [ [ "sigma"; "gamma"; "rho" ] ] """[["sigma","gamma","rho"]]"""
         ]
 
-    describe "PathTests" [ fromStringTests; toStringTests; isPrefixOfTests ]
+    describe "PathTests" [ fromStringTests; toStringTests; isPrefixOfTests; encodePathTests ]
