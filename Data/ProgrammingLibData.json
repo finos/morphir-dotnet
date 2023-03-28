@@ -1,0 +1,85 @@
+[
+    { "LanguageEcosystem": ".NET",
+      "Namespace": "System", 
+      "Type": "String",
+      "Member": "ToUpper"
+    },
+    {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "System",
+        "Type": "String",
+        "Member": "ToLower"
+    },
+    {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "FSharp.Core",
+        "Module": "List",
+        "Member": "map"
+    },
+    {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "FSharp.Collections",
+        "Type": "List",
+        "Member": "Empty"
+    },
+    {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "FSharp.Core",
+        "Type": "Seq",
+        "Member": "toList"
+    },
+    {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "Morphir.SDK",
+        "Module": "Basics",
+        "Member": "identity"
+    },
+    {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "Morphir.SDK",
+        "Module": "Maybe",
+        "Member": "just"
+    },
+    {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "Morphir.SDK",
+        "Module": "Maybe",
+        "Member": "nothing"
+    },
+    {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "Morphir.SDK",
+        "Module": "List",
+        "Member": "map"
+    },
+    {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "Morphir.SDK",
+        "Module": "List",
+        "Member": "empty"
+    },
+    {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "Morphir.SDK",
+        "Module": "List",
+        "Member": "singleton"
+    },
+    {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "Morphir.SDK",
+        "Module": "Dict",
+        "Member": "toList"
+    },
+    {
+        "LanguageEcosystem": "Java",
+        "Namespace": "java.lang",
+        "Type": "String",
+        "Member": "toUpperCase"
+    },
+    {
+        "LanguageEcosystem": "TypeScript",
+        "Namespace": "String",
+        "Type": "String",
+        "Member": "toUpperCase"
+    }
+]

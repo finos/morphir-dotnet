@@ -1,4 +1,4 @@
-module rec Morphir.IR.Tests.QNameTests
+module Morphir.IR.Tests.QNameTests
 
 open System
 open Bogus
@@ -9,6 +9,31 @@ open Morphir.IR
 open Morphir.IR.QName
 open Thoth.Json.Net
 
+module TestData =
+    do Randomizer.Seed <- new Random(8675309)
+    let faker = Faker "en"
+
+
+    let names = [
+        for i = 0 to 10 do
+            faker.Company.CompanyName()
+            |> Name.fromString
+    ]
+
+    let paths = [
+        for i = 0 to 10 do
+            [
+                faker.Internet.DomainSuffix()
+                |> Name.fromString
+            ]
+            |> List.append names
+            |> Path.fromList
+    ]
+
+    let pickAName () = faker.PickRandom(names)
+    let pickAPath () = faker.PickRandom(paths)
+
+    let pickAQName () = QName(pickAPath (), pickAName ())
 
 [<Tests>]
 let tests =
@@ -78,28 +103,3 @@ let tests =
     ]
 
 
-module TestData =
-    do Randomizer.Seed <- new Random(8675309)
-    let faker = Faker "en"
-
-
-    let names = [
-        for i = 0 to 10 do
-            faker.Company.CompanyName()
-            |> Name.fromString
-    ]
-
-    let paths = [
-        for i = 0 to 10 do
-            [
-                faker.Internet.DomainSuffix()
-                |> Name.fromString
-            ]
-            |> List.append names
-            |> Path.fromList
-    ]
-
-    let pickAName () = faker.PickRandom(names)
-    let pickAPath () = faker.PickRandom(paths)
-
-    let pickAQName () = QName(pickAPath (), pickAName ())

@@ -8,14 +8,20 @@
       <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <PropertyGroup>
+    <BunsenBurnerVersion>6.2.1</BunsenBurnerVersion>
     <FakeVersion>5.20.4</FakeVersion>
     <VerifyVersion>19.11.2</VerifyVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="AutoFixture.Xunit2" Version="4.18.0" />
     <PackageVersion Include="Bogus" Version="34.0.2" />
+    <PackageVersion Include="BunsenBurner.Bogus" Version="$(BunsenBurnerVersion)" />
+    <PackageVersion Include="BunsenBurner.Hedgehog" Version="$(BunsenBurnerVersion)" />
+    <PackageVersion Include="BunsenBurner.Xunit" Version="$(BunsenBurnerVersion)" />
+    <PackageVersion Include="BunsenBurner.Verify.Xunit" Version="$(BunsenBurnerVersion)" />
     <PackageVersion Include="coverlet.collector" Version="3.1.2" />
     <PackageVersion Include="FSharp.Core" Version="7.0.200" />
+    <PackageVersion Include="FSharp.Data" Version="5.0.2" />
     <PackageVersion Include="Expecto" Version="9.0.4" />
     <PackageVersion Include="Expecto.FsCheck" Version="9.0.4" />
     <PackageVersion Include="FsCheck" Version="2.16.5" />
@@ -40,7 +46,9 @@
     <PackageVersion Include="xunit" Version="2.4.2" />
     <PackageVersion Include="SpecFlow" Version="3.9.74" />
     <PackageVersion Include="SpecFlow.xUnit" Version="3.9.74" />
+    <PackageVersion Include="System.Text.Json" Version="7.0.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.4.5" />
+    <PackageVersion Include="xunit.runner.console" Version="2.4.5" />
     <PackageVersion Include="FluentAssertions" Version="6.10.0" />
 
     <PackageVersion Include="FSharp.Formatting" Version="4.0.0-rc1"/>
