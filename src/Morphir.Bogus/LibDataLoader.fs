@@ -1,9 +1,10 @@
-module Morphir.Bogus.ProgrammingLibDataLoader
+module Morphir.Bogus.LibDataLoader
 
+open System.Collections.Generic
 open FSharp.Data
 
 type LibraryData =
-    JsonProvider<"../../Data/ProgrammingLibData.json", EmbeddedResource="Morphir.Bogus, Morphir.Bogus.ProgrammingLibData.json", RootName="Record">
+    JsonProvider<"../../Data/ProgrammingLibData.json", EmbeddedResource="Morphir.Bogus, Morphir.Bogus.ProgrammingLibData.json", RootName="LibraryInfo">
 
 type TypeIdentity = {
     LanguageEcosystem: string
@@ -16,6 +17,14 @@ type TypeData = {
     Members: string list
 }
 
+type ModuleInfo = {
+    LanguageEcosystem: string
+    Namespace: string
+    Name: string
+    FunctionsOrValues: string list
+    Types: string list
+}
+
 let private assembly = typeof<TypeIdentity>.Assembly
 
 let private data =
@@ -23,19 +32,19 @@ let private data =
         (LibraryData.GetSamples()
          |> Seq.toArray)
 
-let ProgrammingLibData = data.Value
+let ProgrammingLibData: IReadOnlyList<LibraryData.LibraryInfo> = data.Value
 
-let (|ModuleName|_|) (record: LibraryData.Record) =
+let (|ModuleName|_|) (record: LibraryData.LibraryInfo) =
     match record.Module with
     | Some module_ -> Some module_
     | _ -> None
 
-let (|TypeName|_|) (record: LibraryData.Record) =
+let (|TypeName|_|) (record: LibraryData.LibraryInfo) =
     match record.Type with
     | Some type_ -> Some type_
     | _ -> None
 
-let (|TypeOrModuleName|_|) (record: LibraryData.Record) =
+let (|TypeOrModuleName|_|) (record: LibraryData.LibraryInfo) =
     match record.Type, record.Module with
     | Some type_, _ -> Some type_
     | _, Some module_ -> Some module_
@@ -51,7 +60,7 @@ let getTypeOrModuleName =
     | TypeOrModuleName name -> Some name
     | _ -> None
 
-type LibraryData.Record with
+type LibraryData.LibraryInfo with
 
     member self.HasTypeOrModuleName: bool = hasTypeOrModuleName self
     member self.GetTypeOrModuleName: string option = getTypeOrModuleName self
@@ -78,6 +87,10 @@ let TypeIdentities: seq<TypeIdentity> = query {
                 Name = record.GetTypeOrModuleName.Value
             }
 }
+
+let TypeIdentity (index: int) : TypeIdentity =
+    TypeIdentities
+    |> Seq.item index
 
 let TypeData = query {
     for record in ProgrammingLibData do

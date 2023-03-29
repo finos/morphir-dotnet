@@ -25,7 +25,7 @@
     {
         "LanguageEcosystem": ".NET",
         "Namespace": "FSharp.Core",
-        "Type": "Seq",
+        "Module": "Seq",
         "Member": "toList"
     },
     {

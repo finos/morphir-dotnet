@@ -8,7 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="ProgrammingDataLoaderTests.fs" />
+        <Compile Include="LibDataTests.fs" />
         <Compile Include="Main.fs" />
     </ItemGroup>
 
