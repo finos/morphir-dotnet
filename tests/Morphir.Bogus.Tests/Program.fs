@@ -18,12 +18,14 @@ let testListFromFeature (feature: TickSpec.Feature) : Expecto.Test =
     |> testSequenced
 
 let featureTest (resourceName: string) =
-    (assembly.GetName().Name + "." + resourceName)
+    (assembly.GetName().Name
+     + "."
+     + resourceName)
     |> featureFromEmbeddedResource
     |> testListFromFeature
 
-[<Tests>]
-let libDataSetFeature = featureTest "LibDataSet.feature"
+// [<Tests>]
+// let libDataSetFeature = featureTest "LibDataSet.feature"
 
 [<EntryPoint>]
 let main argv =

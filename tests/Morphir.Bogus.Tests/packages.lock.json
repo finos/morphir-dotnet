@@ -8,6 +8,25 @@
         "resolved": "8.2.825",
         "contentHash": "psfxIpui+qVybAVcM4kWA1f8aJsuE71r2XnZ/ZsGVbasIoFktWfGoU+XZvHyIrafYngCodP/7HxK6WG6nOeFNw=="
       },
+      "Autofac": {
+        "type": "Direct",
+        "requested": "[7.0.0, )",
+        "resolved": "7.0.0",
+        "contentHash": "phR/GEk5h2kQWbMl70cZzCW5ysGxmz2ClaX5CuTw9qc3wtdDu3l9GAhWiWmZLltCytEIxIw98NtAraiOxazqLg==",
+        "dependencies": {
+          "System.Diagnostics.DiagnosticSource": "4.7.1"
+        }
+      },
+      "Autofac.Extensions.DependencyInjection": {
+        "type": "Direct",
+        "requested": "[8.0.0, )",
+        "resolved": "8.0.0",
+        "contentHash": "nGrXNpQX2FiZpIBydK9cxZnnoqP/cUd3k/53uRERYEqLtWzKtE15R6L+j5q5ax5Rv/+3wAIkOaPePkahfqrwjg==",
+        "dependencies": {
+          "Autofac": "6.4.0",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "6.0.0"
+        }
+      },
       "AutoFixture.Xunit2": {
         "type": "Direct",
         "requested": "[4.18.0, )",
@@ -107,6 +126,27 @@
           "xunit.analyzers": "1.0.0",
           "xunit.assert": "2.4.2",
           "xunit.core": "[2.4.2]"
+        }
+      },
+      "Xunit.DependencyInjection": {
+        "type": "Direct",
+        "requested": "[8.7.1, )",
+        "resolved": "8.7.1",
+        "contentHash": "Qv5jSqBdsQxYgTVoS9UlleGBQ9misRtFu2v38KXJ+fhGJCmV6pwYIAOsx+j7CVPGmFKFs8/vf4K1HFV9jjaE/Q==",
+        "dependencies": {
+          "Microsoft.Bcl.AsyncInterfaces": "6.0.0",
+          "Microsoft.Extensions.Hosting": "6.0.0",
+          "System.Diagnostics.DiagnosticSource": "6.0.0",
+          "xunit.extensibility.execution": "[2.4.2, 3.0.0)"
+        }
+      },
+      "Xunit.DependencyInjection.Logging": {
+        "type": "Direct",
+        "requested": "[8.0.1, )",
+        "resolved": "8.0.1",
+        "contentHash": "SXsc9Cp9LrpH3F9+35CbtCv0zuBw8491t3o5rK1/TVYeuwzVVR2h60/uGRYIs2GyVcKNRG7hOH8MbjPaap1sHQ==",
+        "dependencies": {
+          "Xunit.DependencyInjection": "8.4.1"
         }
       },
       "xunit.runner.visualstudio": {
