@@ -10,6 +10,7 @@
   <PropertyGroup>
     <BunsenBurnerVersion>6.2.1</BunsenBurnerVersion>
     <FakeVersion>5.20.4</FakeVersion>
+    <TickSpecVersion>2.0.2</TickSpecVersion>
     <VerifyVersion>19.11.2</VerifyVersion>
   </PropertyGroup>
   <ItemGroup>
@@ -67,5 +68,7 @@
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
+    <PackageVersion Include="TickSpec" Version="2.0.2" />
+    <PackageVersion Include="TickSpec.Xunit" Version="$(TickSpecVersion)" />
   </ItemGroup>
 </Project>

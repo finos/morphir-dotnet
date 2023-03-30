@@ -6,7 +6,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="Serializer.fs" />
         <Compile Include="Guard.fs" />
         <Compile Include="LibDataLoader.fs" />
         <Compile Include="IR\LibDataSet.fs" />
@@ -20,7 +19,6 @@
         <PackageReference Include="Bogus" />
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="FSharp.Data" />
-        <PackageReference Include="System.Text.Json" />
     </ItemGroup>
 
     <ItemGroup>

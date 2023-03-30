@@ -50,6 +50,26 @@
           "Microsoft.TestPlatform.TestHost": "17.3.2"
         }
       },
+      "TickSpec": {
+        "type": "Direct",
+        "requested": "[2.0.2, )",
+        "resolved": "2.0.2",
+        "contentHash": "DqGncFI3D29vRBBzt3V18+v13YFWGXekGlsO9tnDl/BLrVj+KFQ3r2bkKaASBl8NL5Mqge7ljH4vNeIceK4C/Q==",
+        "dependencies": {
+          "FSharp.Core": "4.3.4"
+        }
+      },
+      "TickSpec.Xunit": {
+        "type": "Direct",
+        "requested": "[2.0.2, )",
+        "resolved": "2.0.2",
+        "contentHash": "E2m517NwVaDSO7dRmwnadxsYYtHhWXSrlqaJbghlKQi6DJsL1CRQADbApVwaxcu0+zq49HD46xV4ZseS2R1NCw==",
+        "dependencies": {
+          "FSharp.Core": "4.3.4",
+          "TickSpec": "2.0.2",
+          "Xunit": "2.4.0"
+        }
+      },
       "Verify.Expecto": {
         "type": "Direct",
         "requested": "[19.11.2, )",
@@ -177,6 +197,46 @@
           "SimpleInfoName": "2.1.1"
         }
       },
+      "xunit.abstractions": {
+        "type": "Transitive",
+        "resolved": "2.0.2",
+        "contentHash": "vItLB0WkaKg0426RgWq+ZdXH6D+YV/uH28C0weWMOBnVx7I+luHuEYss9hoOngpkiN5kUpLvh9VZRx1H2sk59A=="
+      },
+      "xunit.analyzers": {
+        "type": "Transitive",
+        "resolved": "0.10.0",
+        "contentHash": "4/IDFCJfIeg6bix9apmUtIMwvOsiwqdEexeO/R2D4GReIGPLIRODTpId/l4LRSrAJk9lEO3Zx1H0Zx6uohJDNg=="
+      },
+      "xunit.assert": {
+        "type": "Transitive",
+        "resolved": "2.4.0",
+        "contentHash": "Swvkm6iTjZr8TiUj5vMnmfG+2dD4s/BIBgsVOzTxxmoq2ndGsmM2WIL4wuqJ8RhxydWIDOPpIaaytjT2pMTEdg=="
+      },
+      "xunit.core": {
+        "type": "Transitive",
+        "resolved": "2.4.0",
+        "contentHash": "BJ/O/tPEcHUCwQYuwqXoYccTMyw6B5dA6yh7WxWWBhKbjqTsG9RWL0nCQXM5yQYJwUuFzBkiXDPN1BO6UdBB4Q==",
+        "dependencies": {
+          "xunit.extensibility.core": "[2.4.0]",
+          "xunit.extensibility.execution": "[2.4.0]"
+        }
+      },
+      "xunit.extensibility.core": {
+        "type": "Transitive",
+        "resolved": "2.4.0",
+        "contentHash": "qr/KrR6uukHXD9e/lLQjyCPfMEDuvvhNFDzsYzCF2kKlYKiqcADfUvA9Q68rBtKFtwHFeghjWEuv15KoGD2SfA==",
+        "dependencies": {
+          "xunit.abstractions": "2.0.2"
+        }
+      },
+      "xunit.extensibility.execution": {
+        "type": "Transitive",
+        "resolved": "2.4.0",
+        "contentHash": "252Dzn7i5bMPKtAL15aOP3qJhxKd+57I8ldwIQRJa745JxQuiBu5Da0vtIISVTtc3buRSkBwVnD9iUzsEmCzZA==",
+        "dependencies": {
+          "xunit.extensibility.core": "[2.4.0]"
+        }
+      },
       "morphir.ir": {
         "type": "Project",
         "dependencies": {
@@ -215,6 +275,17 @@
           "FSharp.Core": "4.7.2",
           "Fable.Core": "3.1.6",
           "Newtonsoft.Json": "11.0.2"
+        }
+      },
+      "xunit": {
+        "type": "CentralTransitive",
+        "requested": "[2.4.2, )",
+        "resolved": "2.4.0",
+        "contentHash": "NL00nGsDsyWc1CWxz5FXXjLpW9oFG18WJoTPCyhNv4KGP/e5iLJqAqgM1uaJZyQ6WaTtmWIy4yjYP3RdcaT7Vw==",
+        "dependencies": {
+          "xunit.analyzers": "0.10.0",
+          "xunit.assert": "[2.4.0]",
+          "xunit.core": "[2.4.0]"
         }
       }
     }

@@ -9,7 +9,10 @@
 
     <ItemGroup>
         <Compile Include="LibDataTests.fs" />
-        <Compile Include="Main.fs" />
+        <Compile Include="LibDataSetSteps.fs" />
+        <EmbeddedResource Include="LibDataSet.feature" />
+        <Compile Include="XunitFeature.fs" />
+        <Compile Include="Program.fs" />
     </ItemGroup>
 
     <ItemGroup>
@@ -21,6 +24,18 @@
         <PackageReference Include="YoloDev.Expecto.TestSdk" />
         <PackageReference Include="altcover" />
         <PackageReference Include="Verify.Expecto" />
+        <PackageReference Include="AutoFixture.Xunit2" />
+        <PackageReference Include="FluentAssertions" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="TickSpec.Xunit" />
     </ItemGroup>
 
     <ItemGroup>

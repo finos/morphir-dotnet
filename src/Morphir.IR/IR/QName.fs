@@ -48,12 +48,7 @@ module Codec =
     let encodeQName: QName -> JsonValue =
         function
         | QName (modulePath, localName) ->
-            Encode.list [
-                modulePath
-                |> encodePath
-                localName
-                |> encodeName
-            ]
+            Encode.list [ encodePath modulePath; encodeName localName ]
 
     let decodeQName: Decoder<QName> =
         Decode.map2 qName (Decode.index 0 decodePath) (Decode.index 1 decodeName)

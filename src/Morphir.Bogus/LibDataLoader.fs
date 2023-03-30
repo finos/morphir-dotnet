@@ -16,14 +16,14 @@ type TypeData = {
     Identity: TypeIdentity
     Members: string list
 }
-
-type ModuleInfo = {
-    LanguageEcosystem: string
-    Namespace: string
-    Name: string
-    FunctionsOrValues: string list
-    Types: string list
-}
+//
+// type ModuleInfo = {
+//     LanguageEcosystem: string
+//     Namespace: string
+//     Name: string
+//     FunctionsOrValues: string list
+//     Types: string list
+// }
 
 let private assembly = typeof<TypeIdentity>.Assembly
 

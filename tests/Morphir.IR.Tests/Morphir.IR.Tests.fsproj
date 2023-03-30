@@ -13,6 +13,8 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Expecto" />
         <PackageReference Include="Expecto.FsCheck" />
+        <PackageReference Include="TickSpec" />
+        <PackageReference Include="TickSpec.Xunit" />
         <PackageReference Include="YoloDev.Expecto.TestSdk" />
         <PackageReference Include="altcover" />
         <PackageReference Include="Verify.Expecto" />
@@ -28,6 +30,7 @@
         <Compile Include="NameTests.fs" />
         <Compile Include="PathTests.fs" />
         <Compile Include="QNameTests.fs" />
+        <Compile Include="FQNameTests.fs" />
         <Compile Include="Main.fs" />
     </ItemGroup>
 

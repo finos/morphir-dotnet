@@ -71,6 +71,12 @@
         "Member": "toList"
     },
     {
+        "LanguageEcosystem": ".NET",
+        "Namespace": "Morphir.IR",
+        "Module": "QName",
+        "Member": "toTuple"
+    },
+    {
         "LanguageEcosystem": "Java",
         "Namespace": "java.lang",
         "Type": "String",
