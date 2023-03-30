@@ -32,5 +32,5 @@ let ``I should get a list of (.*) namespaces``
         |> Seq.toList
 
     printfn "Namespaces = %A" ns
-    output.WriteLine("Output: Namespaces = {0}", ns)
+    output.WriteLine(sprintf "Output: Namespaces = %A" ns)
     ns.Should().HaveCount(n, "because we asked for {0} namespaces", n)

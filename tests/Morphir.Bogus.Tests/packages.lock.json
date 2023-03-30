@@ -128,25 +128,15 @@
           "xunit.core": "[2.4.2]"
         }
       },
-      "Xunit.DependencyInjection": {
+      "xunit.frameworks.autofac": {
         "type": "Direct",
-        "requested": "[8.7.1, )",
-        "resolved": "8.7.1",
-        "contentHash": "Qv5jSqBdsQxYgTVoS9UlleGBQ9misRtFu2v38KXJ+fhGJCmV6pwYIAOsx+j7CVPGmFKFs8/vf4K1HFV9jjaE/Q==",
+        "requested": "[0.5.4, )",
+        "resolved": "0.5.4",
+        "contentHash": "oMenAWrbg93708tN1Xehpc5nDHZ58ZJ+eWtXeQ85YntpLRQgYuL5p78/ih2cCpwvSfh2f1g+63rLACxi8VkZ/Q==",
         "dependencies": {
-          "Microsoft.Bcl.AsyncInterfaces": "6.0.0",
-          "Microsoft.Extensions.Hosting": "6.0.0",
-          "System.Diagnostics.DiagnosticSource": "6.0.0",
-          "xunit.extensibility.execution": "[2.4.2, 3.0.0)"
-        }
-      },
-      "Xunit.DependencyInjection.Logging": {
-        "type": "Direct",
-        "requested": "[8.0.1, )",
-        "resolved": "8.0.1",
-        "contentHash": "SXsc9Cp9LrpH3F9+35CbtCv0zuBw8491t3o5rK1/TVYeuwzVVR2h60/uGRYIs2GyVcKNRG7hOH8MbjPaap1sHQ==",
-        "dependencies": {
-          "Xunit.DependencyInjection": "8.4.1"
+          "Autofac": "6.3.0",
+          "JetBrains.Annotations": "2021.3.0",
+          "xunit.extensibility.execution": "2.4.1"
         }
       },
       "xunit.runner.visualstudio": {
@@ -260,6 +250,11 @@
         "type": "Transitive",
         "resolved": "1.0.0",
         "contentHash": "0igtvJ5kjDP1VHinXobrgPOWnO9Th7IBlgm0AoE6492v594EBRpF8iGIMEyQvBrYQiwAjuH2KwEhHG4IgY5smg=="
+      },
+      "JetBrains.Annotations": {
+        "type": "Transitive",
+        "resolved": "2021.3.0",
+        "contentHash": "Ddxjs5RRjf+c8m9m++WvhW1lz1bqNhsTjWvCLbQN9bvKbkJeR9MhtfNwKgBRRdG2yLHcXFr5Lf7fsvvkiPaDRg=="
       },
       "Lamar": {
         "type": "Transitive",

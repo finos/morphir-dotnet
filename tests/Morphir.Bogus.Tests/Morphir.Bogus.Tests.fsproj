@@ -12,9 +12,8 @@
         <Compile Include="LibDataTests.fs" />
         <EmbeddedResource Include="LibDataSet.feature" />
         <Compile Include="LibDataSetSteps.fs" />
-        <Compile Include="Startup.fs" />
         <Compile Include="XunitAutofacWiring.fs" />
-        <Compile Include="XunitFeature.fs" />
+        <Compile Include="TickSpecXunitFeature.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
@@ -32,8 +31,7 @@
         <PackageReference Include="AutoFixture.Xunit2" />
         <PackageReference Include="FluentAssertions" />
         <PackageReference Include="xunit" />
-        <PackageReference Include="Xunit.DependencyInjection" />
-        <PackageReference Include="Xunit.DependencyInjection.Logging" />
+        <PackageReference Include="xunit.frameworks.autofac" />
         <PackageReference Include="xunit.runner.visualstudio">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
