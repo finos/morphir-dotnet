@@ -16,14 +16,20 @@ let sut = LibDataSet(Randomizer(8675309))
 let ``I have a LibDataSet instance`` () = ()
 
 [<Given>]
+let ``we are requesting (.*) namespaces`` (n:int) = { N = n }
+
+[<Given>]
 let ``n = (.*)`` (n: int) = { N = n }
 
 [<When>]
 let ``I call Namespaces\(n\)`` (ctx: Context) = sut.Namespaces(ctx.N)
 
+[<When>]
+let ``I call Namespaces with n = (.*)`` (N: int) = (N, sut.Namespaces(N))
+
 [<Then>]
 let ``I should get a list of (.*) namespaces``
-    (n: int)
+    (expected: int)
     (namespaces: string seq)
     (output: ITestOutputHelper)
     =
@@ -33,4 +39,4 @@ let ``I should get a list of (.*) namespaces``
 
     printfn "Namespaces = %A" ns
     output.WriteLine(sprintf "Output: Namespaces = %A" ns)
-    ns.Should().HaveCount(n, "because we asked for {0} namespaces", n)
+    ns.Should().HaveCount(expected, "because we asked for {0} namespaces", expected)
