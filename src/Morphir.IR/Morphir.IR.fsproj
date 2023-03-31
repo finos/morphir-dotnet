@@ -19,6 +19,8 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="AssemblyInfo.fs" />
+        <Compile Include="Json.fs" />
+        <Compile Include="Codec.fs" />
         <Compile Include="Pattern.fs" />
         <Compile Include="IR\Predef.fs" />
         <Compile Include="IR\Documented.fs" />

@@ -10,6 +10,7 @@
   <PropertyGroup>
     <BunsenBurnerVersion>6.2.1</BunsenBurnerVersion>
     <FakeVersion>5.20.4</FakeVersion>
+    <LightBDDVersion>3.6.1</LightBDDVersion>
     <TickSpecVersion>2.0.2</TickSpecVersion>
     <VerifyVersion>19.11.2</VerifyVersion>
   </PropertyGroup>
@@ -22,6 +23,7 @@
     <PackageVersion Include="BunsenBurner.Hedgehog" Version="$(BunsenBurnerVersion)" />
     <PackageVersion Include="BunsenBurner.Xunit" Version="$(BunsenBurnerVersion)" />
     <PackageVersion Include="BunsenBurner.Verify.Xunit" Version="$(BunsenBurnerVersion)" />
+    <PackageVersion Include="Codinators.XunitHelpers" Version="3.0.1" />
     <PackageVersion Include="coverlet.collector" Version="3.1.2" />
     <PackageVersion Include="FSharp.Core" Version="7.0.200" />
     <PackageVersion Include="FSharp.Data" Version="5.0.2" />
@@ -29,6 +31,8 @@
     <PackageVersion Include="Expecto.FsCheck" Version="9.0.4" />
     <PackageVersion Include="FsCheck" Version="2.16.5" />
     <PackageVersion Include="Packaging.Targets" Version="0.1.208" PrivateAssets="All" />
+    <PackageVersion Include="LightBDD.Framework" Version="$(LightBDDVersion)" />
+    <PackageVersion Include="LightBDD.XUnit2" Version="$(LightBDDVersion)" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All" />
     <PackageVersion Include="altcover" Version="8.2.825" />
     <PackageVersion Include="YoloDev.Expecto.TestSdk" Version="0.12.12" />

@@ -16,7 +16,7 @@ let sut = LibDataSet(Randomizer(8675309))
 let ``I have a LibDataSet instance`` () = ()
 
 [<Given>]
-let ``we are requesting (.*) namespaces`` (n:int) = { N = n }
+let ``we are requesting (.*) namespaces`` (n: int) = { N = n }
 
 [<Given>]
 let ``n = (.*)`` (n: int) = { N = n }

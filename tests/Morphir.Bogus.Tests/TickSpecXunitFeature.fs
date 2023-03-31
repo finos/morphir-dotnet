@@ -8,14 +8,14 @@ open Xunit.Frameworks.Autofac
 open global.Xunit
 
 
-
 [<UseAutofacTestFramework>]
-type Features(container:ILifetimeScope) =
+type Features(container: ILifetimeScope) =
     static let source =
         AssemblyStepDefinitionsSource(System.Reflection.Assembly.GetExecutingAssembly())
 
     do
-        source.ServiceProviderFactory <- fun () -> AutofacHelpers.beginScopeAsServiceProvider container
+        source.ServiceProviderFactory <-
+            fun () -> AutofacHelpers.beginScopeAsServiceProvider container
 
     static let scenarios resourceName =
         source.ScenariosFromEmbeddedResource resourceName
