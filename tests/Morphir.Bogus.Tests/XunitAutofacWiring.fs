@@ -23,9 +23,6 @@ module AutofacHelpers =
             interface System.IDisposable with
                 member __.Dispose() = scope.Dispose() }
 
-
-
-
 type Setup(diagnosticsMessageSink: IMessageSink) =
     inherit AutofacTestFramework(diagnosticsMessageSink)
 
