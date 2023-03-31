@@ -71,3 +71,17 @@ let toSnakeCase name =
     name
     |> toHumanWords
     |> String.join "_"
+
+module Codec =
+    open Thoth.Json.Net
+
+    let encodeName: Name -> JsonValue =
+        function
+        | name ->
+            name
+            |> List.map Encode.string
+            |> Encode.list
+
+    let decodeName: Decoder<Name> =
+        Decode.list Decode.string
+        |> Decode.map fromList

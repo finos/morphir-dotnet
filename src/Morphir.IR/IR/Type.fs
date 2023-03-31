@@ -203,3 +203,14 @@ let eraseAttributes: Definition<'a> -> Definition<unit> =
 type Definition<'A> with
 
     member this.EraseAttributes() = eraseAttributes this
+
+module Codec =
+    open Json
+    //open Thoth.Json.Net
+    let encodeType (encodeAttributes: 'a -> Encode.Value) (tpe: Type<'a>) : Encode.Value =
+        match tpe with
+        | Unit attr -> Encode.list id [ Encode.string "Unit"; encodeAttributes attr ]
+        | _ ->
+            raise (
+                System.NotImplementedException($"Encoding of type {tpe} is not implemented yet.")
+            )

@@ -40,3 +40,17 @@ let rec isPrefixOf (prefix: Path) (path: Path) =
             isPrefixOf prefixTail pathTail
         else
             false
+
+module Codec =
+    open Thoth.Json.Net
+    open Morphir.IR.Name.Codec
+
+    let encodePath (path: Path) : JsonValue =
+        path
+        |> toList
+        |> List.map encodeName
+        |> Encode.list
+
+    let decodePath: Decoder<Path> =
+        Decode.list decodeName
+        |> Decode.map fromList

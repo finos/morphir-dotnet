@@ -1,6 +1,9 @@
 namespace Morphir.IR.Tests
 
-module ExpectoTemplate =
+[<assembly: ConfiguredLightBddScope>]
+do ()
+
+module Program =
 
     open Expecto
 
