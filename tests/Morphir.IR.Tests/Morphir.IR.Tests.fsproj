@@ -4,15 +4,29 @@
         <OutputType>Library</OutputType>
         <GenerateProgramFile>false</GenerateProgramFile>
         <TargetFramework>net7.0</TargetFramework>
-        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Bogus" />
+        <PackageReference Include="Codinators.XunitHelpers" />
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Expecto" />
+        <PackageReference Include="Expecto.FsCheck" />
+        <PackageReference Include="LightBDD.XUnit2" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
         <PackageReference Include="YoloDev.Expecto.TestSdk" />
         <PackageReference Include="altcover" />
+        <PackageReference Include="Verify.Expecto" />
     </ItemGroup>
 
     <ItemGroup>
@@ -21,9 +35,16 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="AssemblyInfo.fs" />
+        <Compile Include="ExpressionHelpers.fs" />
+        <Compile Include="LightBddHelpers.fs" />
+        <Compile Include="TestData.fs" />
         <Compile Include="NameTests.fs" />
         <Compile Include="PathTests.fs" />
-        <Compile Include="Main.fs" />
+        <Compile Include="QNameTests.fs" />
+        <Compile Include="FQNameTests.fs" />
+        <Compile Include="ConfiguredLightBddScopeAttribute.fs" />
+        <Compile Include="TypeEncodingAndDecodingFeature.fs" />
+        <Compile Include="Program.fs" />
     </ItemGroup>
 
 </Project>

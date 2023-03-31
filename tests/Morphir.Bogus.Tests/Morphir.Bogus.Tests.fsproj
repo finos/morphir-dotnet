@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <TargetFramework>net7.0</TargetFramework>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <EnableXunitDependencyInjectionDefaultTestFrameworkAttribute>false</EnableXunitDependencyInjectionDefaultTestFrameworkAttribute>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="LibDataTests.fs" />
+        <EmbeddedResource Include="LibDataSet.feature" />
+        <Compile Include="LibDataSetSteps.fs" />
+        <Compile Include="XunitAutofacWiring.fs" />
+        <Compile Include="TickSpecXunitFeature.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Autofac" />
+        <PackageReference Include="Autofac.Extensions.DependencyInjection" />
+        <PackageReference Include="Bogus" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="Expecto.FsCheck" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+        <PackageReference Include="altcover" />
+        <PackageReference Include="Verify.Expecto" />
+        <PackageReference Include="AutoFixture.Xunit2" />
+        <PackageReference Include="FluentAssertions" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.frameworks.autofac" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="TickSpec.Xunit" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Morphir.Bogus\Morphir.Bogus.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.IR\Morphir.IR.fsproj" />
+    </ItemGroup>
+
+</Project>

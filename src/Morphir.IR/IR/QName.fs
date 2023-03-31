@@ -6,6 +6,8 @@ open Morphir.SDK
 
 type QName = QName of modulePath: Path * localName: Name
 
+let qName (modulePath: Path) (localName: Name) = QName(modulePath, localName)
+
 /// Turn a qualified name into a tuple.
 let toTuple =
     function
@@ -29,11 +31,24 @@ let getLocalName =
     function
     | QName (_, localName) -> localName
 
-let toString (pathPartToString: Name -> string) (nameToString: Name -> string) (sep: string) =
+/// Turn a QName into a string using ':' as a separator between module and local names.
+let toString =
     function
-    | QName (mPath, lName) ->
-        mPath
-        |> Path.toList
-        |> List.map pathPartToString
-        |> List.append [ nameToString lName ]
-        |> String.join sep
+    | QName (moduleName, localName) ->
+        String.join ":" [
+            Path.toString Name.toTitleCase "." moduleName
+            Name.toCamelCase localName
+        ]
+
+module Codec =
+    open Thoth.Json.Net
+    open Morphir.IR.Name.Codec
+    open Morphir.IR.Path.Codec
+
+    let encodeQName: QName -> JsonValue =
+        function
+        | QName (modulePath, localName) ->
+            Encode.list [ encodePath modulePath; encodeName localName ]
+
+    let decodeQName: Decoder<QName> =
+        Decode.map2 qName (Decode.index 0 decodePath) (Decode.index 1 decodeName)

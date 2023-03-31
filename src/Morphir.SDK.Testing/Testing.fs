@@ -5,6 +5,7 @@ type TestsAttribute = Expecto.TestsAttribute
 let describe = Expecto.Tests.testList
 let test = Expecto.Tests.test
 let testCase = Expecto.Tests.testCase
+let testParam = Expecto.Tests.testParam
 
 module Expect =
     let equal expected actual =

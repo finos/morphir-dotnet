@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net7.0</TargetFramework>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Guard.fs" />
+        <Compile Include="LibDataLoader.fs" />
+        <Compile Include="IR\LibDataSet.fs" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <EmbeddedResource Include="../../Data/ProgrammingLibData.json" Link="ProgrammingLibData.json" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <PackageReference Include="Bogus" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="FSharp.Data" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\tests\Morphir.Tests\Morphir.Tests.fsproj" />
+      <ProjectReference Include="..\Morphir.IR\Morphir.IR.fsproj" />
+    </ItemGroup>
+
+</Project>
