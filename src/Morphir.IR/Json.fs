@@ -8,6 +8,7 @@ open Thoth.Json.Net
 //     let inline emptyArray () :Value = JArray()
 
 type Value = JsonValue
+
 module Value =
     let inline parse (json: string) : Value = JToken.Parse json
 
