@@ -1,4 +1,4 @@
-namespace Morphir.IR.Tests.Type
+namespace Morphir.IR.Tests.Features
 
 open System
 open LightBDD.Framework.Parameters
@@ -8,7 +8,8 @@ open Morphir.IR.Tests
 open LightBDD.Framework.Scenarios
 open LightBDD.Framework
 open LightBDD.XUnit2
-open Morphir.IR.Tests.Type.RoundtripEncodingContext
+open Morphir.IR.Tests.Features.Contexts
+open Morphir.IR.Tests.Features.Contexts.RoundtripEncodingContext
 open Xunit
 
 [<FeatureDescription("""In order to store and retrieve IR node trees
@@ -28,8 +29,8 @@ type ``Codec Support Feature``() as self =
                 fun c ->
                     c.``Given I am provided Morphir IR nodes``(
                         Table.For(
-                            encodedIRRow """["Unit", {}]""" Type "()",
-                            encodedIRRow """["Variable", {}, ["type", "var"]]""" Type "typeVar"
+                            scenarioInput """["Unit", {}]""" Type "()",
+                            scenarioInput """["Variable", {}, ["type", "var"]]""" Type "typeVar"
                         )
                     )
             @>,

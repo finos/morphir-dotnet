@@ -15,7 +15,7 @@ type IBddRunner with
 
     member self.RunScenarioWithContext<'Context>
         ([<ParamArray>] steps: Expr<'Context -> unit> array)
-        =
+        : unit =
         let resolvedSteps: Expression<Action<'Context>>[] =
             steps
             |> Array.map Lambda.ofAction
@@ -46,11 +46,9 @@ type IBddRunner<'TContext> with
 
         self.RunScenario(resolvedSteps)
 
-let verifiableDataTableFromMap (map:Map<'k,'v>) =
-    let dict = map :> IReadOnlyDictionary<'k,'v>
+let verifiableDataTableFromMap (map: Map<'k, 'v>) =
+    let dict = map :> IReadOnlyDictionary<'k, 'v>
     dict.ToVerifiableDataTable()
 
-let verifiableDataTableFromList (list: #IReadOnlyList<'a>) =
-    list.ToVerifiableDataTable()
-let toVerifiableDataTable (list: #IReadOnlyList<'a>) =
-    list.ToVerifiableDataTable()
+let verifiableDataTableFromList (list: #IReadOnlyList<'a>) = list.ToVerifiableDataTable()
+let toVerifiableDataTable (list: #IReadOnlyList<'a>) = list.ToVerifiableDataTable()

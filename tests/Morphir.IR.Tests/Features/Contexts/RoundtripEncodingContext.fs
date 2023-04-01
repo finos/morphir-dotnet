@@ -1,4 +1,4 @@
-namespace Morphir.IR.Tests.Type
+namespace Morphir.IR.Tests.Features.Contexts
 
 open LightBDD.Framework.Parameters
 open Morphir
@@ -10,7 +10,7 @@ module RoundtripEncodingContext =
         | Value
         | Type
 
-    type EncodedIRNode = {
+    type ScenarioInput = {
         Json: string
         NodeKind: NodeKind
         StringRepr: string
@@ -24,7 +24,7 @@ module RoundtripEncodingContext =
         static member Failure(error, repr):ResultsRow<'b> = { Node = None; StringRepr = repr; Error = error}
 
 
-    let decodeInputs attributesDecoder (row: EncodedIRNode):ResultsRow<'a> =
+    let decodeInputs attributesDecoder (row: ScenarioInput):ResultsRow<'a> =
         match row.NodeKind with
         | Type ->
             row.Json
@@ -33,7 +33,9 @@ module RoundtripEncodingContext =
             |> Result.defaultWith (fun error -> ResultsRow.Failure<'a>(Some error, row.StringRepr) )
         | Value -> ResultsRow.Failure<'a> (Some "DecodeInputs for Value Not implemented", row.StringRepr)
 
-    let encodedIRRow json nodeKind stringRepr = {
+//    let (|DecodeNode|_|) (input:EncodedIRNode)
+
+    let scenarioInput json nodeKind stringRepr = {
         Json = json
         NodeKind = nodeKind
         StringRepr = stringRepr
@@ -46,13 +48,14 @@ type RoundtripEncodingContext<'a>(attributesDecoder:Json.Decode.Decoder<'a>) as 
     static member Factory(attributesDecoder:Json.Decode.Decoder<'a>) () = RoundtripEncodingContext.Create(attributesDecoder)
 
     member val GivenJson = "" with get, set
-    member val GivenIRNodes: EncodedIRNode list = [] with get, set
+    member val GivenIRNodes: ScenarioInput list = [] with get, set
     member val Results: ResultsRow<_> list = [] with get, set
+    member val DecodedNodes: {| Index:int; Node:Expression<_> |} list = [] with get, set
 
     member __.``Given a JSON string``(json) = self.GivenJson <- json
     member __.``that JSON string represents a node of kind``(kind: NodeKind) = ()
 
-    member __.``Given I am provided Morphir IR nodes``(table: InputTable<EncodedIRNode>) =
+    member __.``Given I am provided Morphir IR nodes``(table: InputTable<ScenarioInput>) =
         self.GivenIRNodes <-
             table
             |> List.ofSeq
@@ -60,6 +63,8 @@ type RoundtripEncodingContext<'a>(attributesDecoder:Json.Decode.Decoder<'a>) as 
         self.Results <-
             self.GivenIRNodes
             |> List.map (decodeInputs attributesDecoder)
+
+        //self.DecodedNodes
 
     member __.``Then I should get back the expected nodes``(nodes:VerifiableTable<ResultsRow<_>>) =
         nodes.SetActual(self.Results)

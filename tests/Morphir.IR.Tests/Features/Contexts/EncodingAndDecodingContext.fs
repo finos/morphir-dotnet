@@ -1,4 +1,4 @@
-namespace Morphir.IR.Tests.Type
+namespace Morphir.IR.Tests.Features.Contexts
 
 open Json
 open Morphir.Codecs.Default
@@ -6,7 +6,7 @@ open Microsoft.FSharp.Core
 open Morphir.IR
 open Xunit
 
-type private EncodingAndDecodingContext<'TA>
+type EncodingAndDecodingContext<'TA>
     (
         typeExpr: Type.Type<'TA>,
         encodeAttributes: 'TA -> Encode.Value

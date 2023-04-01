@@ -1,4 +1,4 @@
-namespace Morphir.IR.Tests.Type
+namespace Morphir.IR.Tests.Features
 
 open Morphir.IR.Tests
 open Json
@@ -7,6 +7,7 @@ open LightBDD.Framework
 open LightBDD.XUnit2
 open Microsoft.FSharp.Core
 open Morphir.IR
+open Morphir.IR.Tests.Features.Contexts
 open Xunit
 
 [<FeatureDescription("""In order to work with the IR

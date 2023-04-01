@@ -19,6 +19,7 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="AssemblyInfo.fs" />
+        <Compile Include="Extensions\StringBuffer.fs" />
         <Compile Include="Json.fs" />
         <Compile Include="Pattern.fs" />
         <Compile Include="IR\Predef.fs" />

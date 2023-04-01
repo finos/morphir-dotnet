@@ -81,11 +81,20 @@ type Field<'A> with
 
 /// Get a compact string representation of the type.
 [<CompiledName("ToString")>]
-let toString =
-    function
-    | Unit _ -> "()"
-    | Variable (_, name) -> toCamelCase name
-    | tpe -> tpe.ToString()
+let toString tpe =
+    let rec loop stack (sb: System.Text.StringBuilder) =
+        match stack with
+        | [] -> sb.ToString()
+        | Unit _ :: rest ->
+            sb.Append("()")
+            |> loop rest
+        | Variable (_, name) :: rest ->
+            sb.Append(toCamelCase name)
+            |> loop rest
+        | _ -> sb.ToString()
+    //| Tuple (_, elems)->
+
+    loop [ tpe ] (System.Text.StringBuilder())
 
 let inline typeAliasDefinition typeParams typeExp =
     TypeAliasDefinition(typeParams, typeExp)
