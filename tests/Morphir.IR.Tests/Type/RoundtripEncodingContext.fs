@@ -16,15 +16,22 @@ module RoundtripEncodingContext =
         StringRepr: string
     }
 
-    let (|DecodedRow|_|) attributesDecoder (row: EncodedIRNode) =
+    type ResultsRow<'a> = {
+        Node: Expression<'a> option
+        StringRepr: string
+        Error: string option } with
+        static member Success(node:Expression<'b>, stringRepr):ResultsRow<'b> = { Node = Some node; StringRepr = stringRepr; Error = None}
+        static member Failure(error, repr):ResultsRow<'b> = { Node = None; StringRepr = repr; Error = error}
+
+
+    let decodeInputs attributesDecoder (row: EncodedIRNode):ResultsRow<'a> =
         match row.NodeKind with
         | Type ->
-            let r  =
-                row.Json
-                |> Json.Decode.fromString (Default.decodeType attributesDecoder)
-                |> Result.toOption
-            r
-        | Value -> None
+            row.Json
+            |> Json.Decode.fromString (Default.decodeType attributesDecoder)
+            |> Result.map (fun node ->  ResultsRow.Success<'a>(node, (Type.toString node)))
+            |> Result.defaultWith (fun error -> ResultsRow.Failure<'a>(Some error, row.StringRepr) )
+        | Value -> ResultsRow.Failure<'a> (Some "DecodeInputs for Value Not implemented", row.StringRepr)
 
     let encodedIRRow json nodeKind stringRepr = {
         Json = json
@@ -40,7 +47,7 @@ type RoundtripEncodingContext<'a>(attributesDecoder:Json.Decode.Decoder<'a>) as 
 
     member val GivenJson = "" with get, set
     member val GivenIRNodes: EncodedIRNode list = [] with get, set
-    member val DecodedIRNodes: Expression<_> list = [] with get, set
+    member val Results: ResultsRow<_> list = [] with get, set
 
     member __.``Given a JSON string``(json) = self.GivenJson <- json
     member __.``that JSON string represents a node of kind``(kind: NodeKind) = ()
@@ -50,9 +57,9 @@ type RoundtripEncodingContext<'a>(attributesDecoder:Json.Decode.Decoder<'a>) as 
             table
             |> List.ofSeq
     member __.``When I decode the nodes``() =
-        self.DecodedIRNodes <-
+        self.Results <-
             self.GivenIRNodes
-            |> List.choose (function |DecodedRow attributesDecoder node -> Some node | _ -> None)
+            |> List.map (decodeInputs attributesDecoder)
 
-    member __.``Then I should get back the expected nodes``(nodes:VerifiableTable<Expression<_>>) =
-        nodes.SetActual(self.DecodedIRNodes)
+    member __.``Then I should get back the expected nodes``(nodes:VerifiableTable<ResultsRow<_>>) =
+        nodes.SetActual(self.Results)

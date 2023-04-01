@@ -84,6 +84,7 @@ type Field<'A> with
 let toString =
     function
     | Unit _ -> "()"
+    | Variable (_, name) -> toCamelCase name
     | tpe -> tpe.ToString()
 
 let inline typeAliasDefinition typeParams typeExp =

@@ -29,7 +29,7 @@ type ``Codec Support Feature``() as self =
                     c.``Given I am provided Morphir IR nodes``(
                         Table.For(
                             encodedIRRow """["Unit", {}]""" Type "()",
-                            encodedIRRow """["Variable", {}, ["name", "x"]]""" Type "name-x"
+                            encodedIRRow """["Variable", {}, ["type", "var"]]""" Type "typeVar"
                         )
                     )
             @>,
@@ -37,16 +37,10 @@ type ``Codec Support Feature``() as self =
             <@
                 fun c ->
                     c.``Then I should get back the expected nodes``(
-                        Table.ExpectData<Expression<_>>(
-                            Type.unit (),
-                            Type.variable () (Name.fromString "NameX")
+                        Table.ExpectData<ResultsRow<unit>>(
+                            ResultsRow.Success<unit>(Type.unit (), "()" ),
+                            ResultsRow.Success<unit>(Type.variable () (Name.fromString "typeVar"), "typeVar")
                         )
                     )
             @>
-        )
-
-    member val RoundtripTestingInputData =
-        Table.For(
-            encodedIRRow """["Unit", {}]""" Type "()",
-            encodedIRRow """["Variable", {}, ["name", "x"]]""" Type "name-x"
         )
