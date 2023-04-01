@@ -42,6 +42,9 @@ module Decode =
     let inline index (requestedIndex: int) (decoder: Decoder<'a>) =
         Decode.index requestedIndex decoder
 
+
+    let inline list (decoder: Decoder<'a>) : Decoder<'a list> = Decode.list decoder
+
     let inline map (ctor: 'a -> 'b) (decoder: Decoder<'a>) : Decoder<'b> = Decode.map ctor decoder
 
     let inline map2
@@ -61,4 +64,6 @@ module Decode =
 
     let inline succeed (output: 'a) : Decoder<'a> = Decode.succeed output
 
+    let lazyily (thunk: unit -> Decoder<'a>):Decoder<'a> =
+        andThen thunk (succeed ())
     let string: Decoder<string> = Decode.string
