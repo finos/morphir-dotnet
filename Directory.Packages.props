@@ -32,6 +32,7 @@
     <PackageVersion Include="FsCheck" Version="2.16.5" />
     <PackageVersion Include="Packaging.Targets" Version="0.1.208" PrivateAssets="All" />
     <PackageVersion Include="LightBDD.Framework" Version="$(LightBDDVersion)" />
+    <PackageVersion Include="LightBDD.TabularAttributes" Version="1.0.0" />
     <PackageVersion Include="LightBDD.XUnit2" Version="$(LightBDDVersion)" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All" />
     <PackageVersion Include="altcover" Version="8.2.825" />

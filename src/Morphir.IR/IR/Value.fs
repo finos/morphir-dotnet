@@ -61,6 +61,30 @@ type Value<'TA, 'VA> =
         FieldsToUpdate: Value<'TA, 'VA>
     | Unit of Attributes: 'VA
 
+    member this.Attributes =
+        match this with
+        | Literal (attributes, _) -> attributes
+        | Constructor (attributes, _) -> attributes
+        | Tuple (attributes, _) -> attributes
+        | List (attributes, _) -> attributes
+        | Record (attributes, _) -> attributes
+        | Variable (attributes, _) -> attributes
+        | Reference (attributes, _) -> attributes
+        | Field (attributes, _, _) -> attributes
+        | FieldFunction (attributes, _) -> attributes
+        | Apply (attributes, _, _) -> attributes
+        | Lambda (attributes, _, _) -> attributes
+        | LetDefinition (attributes, _, _, _) -> attributes
+        | LetRecursion (attributes, _, _) -> attributes
+        | Destructure (attributes, _, _, _) -> attributes
+        | IfThenElse (attributes, _, _, _) -> attributes
+        | PatternMatch (attributes, _, _) -> attributes
+        | UpdateRecord (attributes, _, _) -> attributes
+        | Unit attributes -> attributes
+
+    interface Expression<'VA> with
+        member this.Attributes = this.Attributes
+
 /// A value without any additional information.
 and RawValue = Value<Unit, Unit>
 /// A value with type information.

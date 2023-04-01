@@ -20,7 +20,6 @@
     <ItemGroup>
         <Compile Include="AssemblyInfo.fs" />
         <Compile Include="Json.fs" />
-        <Compile Include="Codec.fs" />
         <Compile Include="Pattern.fs" />
         <Compile Include="IR\Predef.fs" />
         <Compile Include="IR\Documented.fs" />
@@ -45,5 +44,6 @@
         <Compile Include="IR\DSL\IR.fs" />
         <Compile Include="IR\SDK\Common.fs" />
         <Compile Include="IR\SDK\Basics.fs" />
+        <Compile Include="Codecs.fs" />
     </ItemGroup>
 </Project>

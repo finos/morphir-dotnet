@@ -14,6 +14,7 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Expecto" />
         <PackageReference Include="Expecto.FsCheck" />
+        <PackageReference Include="LightBDD.TabularAttributes" />
         <PackageReference Include="LightBDD.XUnit2" />
         <PackageReference Include="xunit" />
         <PackageReference Include="xunit.runner.visualstudio">
@@ -43,7 +44,10 @@
         <Compile Include="QNameTests.fs" />
         <Compile Include="FQNameTests.fs" />
         <Compile Include="ConfiguredLightBddScopeAttribute.fs" />
-        <Compile Include="TypeEncodingAndDecodingFeature.fs" />
+        <Compile Include="Type\EncodingAndDecodingContext.fs" />
+        <Compile Include="Type\RoundtripEncodingContext.fs" />
+        <Compile Include="Type\DefaultTypeEncodingAndDecodingFeature.fs" />
+        <Compile Include="Type\CodecSupportFeature.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
