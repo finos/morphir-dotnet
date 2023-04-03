@@ -61,15 +61,6 @@
         "resolved": "7.0.200",
         "contentHash": "NmgUnpNH6Zu9B0SPIhojyo38gnPdkdYFYQfbd6zosEH32kbGY/g/Klk7PfOWe1NAe/O1YOMmK9KhwQ2OWsWEbg=="
       },
-      "LightBDD.TabularAttributes": {
-        "type": "Direct",
-        "requested": "[1.0.0, )",
-        "resolved": "1.0.0",
-        "contentHash": "ltG2U36OaNDoZqd9iJ8Js4XACk2E6nh9pQWoys4D+IenXr19DVoTHYuLKbCczpgyIWMiJsNYuzC4N4Bm4IRcXA==",
-        "dependencies": {
-          "LightBDD.Framework": "3.4.0"
-        }
-      },
       "LightBDD.XUnit2": {
         "type": "Direct",
         "requested": "[3.6.1, )",

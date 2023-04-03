@@ -1,5 +1,6 @@
 module rec Morphir.IR.Type
 
+open Morphir
 open Morphir.Pattern
 open Morphir.IR.AccessControlled
 open Morphir.IR.Name
@@ -79,22 +80,75 @@ type Field<'A> with
         Type = f (this.Type)
     }
 
+let fold<'Attrib, 'State>
+    (folder: 'State -> Type<'Attrib> -> 'State)
+    (state: 'State)
+    (typ: Type<'Attrib>)
+    : 'State =
+    match typ with
+    | Unit _ as t -> folder state t
+    | Variable _ as t -> folder state t
+    | Reference _ as t -> folder state t
+    | Tuple (_, elems) as t ->
+        let state =
+            elems
+            |> List.fold folder state
+
+        folder state t
+    | Record (_, fields) as t ->
+        let state =
+            fields
+            |> List.fold (fun state field -> folder state field.Type) state
+
+        folder state t
+    | ExtensibleRecord (_, _, fields) as t ->
+        let state =
+            fields
+            |> List.fold (fun state field -> folder state field.Type) state
+
+        folder state t
+    | Function (_, argType, returnType) as t ->
+        let state = folder state argType
+        let state = folder state returnType
+        folder state t
+
+
 /// Get a compact string representation of the type.
 [<CompiledName("ToString")>]
-let toString tpe =
-    let rec loop stack (sb: System.Text.StringBuilder) =
-        match stack with
-        | [] -> sb.ToString()
-        | Unit _ :: rest ->
-            sb.Append("()")
-            |> loop rest
-        | Variable (_, name) :: rest ->
-            sb.Append(toCamelCase name)
-            |> loop rest
-        | _ -> sb.ToString()
-    //| Tuple (_, elems)->
+let toString tpe = stringBuffer {
+    match tpe with
+    | Unit _ -> yield "()"
+    | Variable (_, name) ->
+        yield
+            name
+            |> Name.toCamelCase
+    | Reference (_, fqName, typeParameters) ->
+        yield
+            fqName
+            |> FQName.toReferenceName
 
-    loop [ tpe ] (System.Text.StringBuilder())
+        for typeStr in typeParameters do
+            yield " "
+
+            yield
+                typeStr
+                |> toString
+    | Tuple (_, elements) ->
+        yield "("
+
+        for (index, t) in
+            (elements
+             |> List.mapi (fun index t -> index, t)) do
+            if index > 0 then
+                yield ", "
+
+            yield
+                t
+                |> toString
+
+        yield ")"
+    | _ -> yield ""
+}
 
 let inline typeAliasDefinition typeParams typeExp =
     TypeAliasDefinition(typeParams, typeExp)
@@ -114,6 +168,7 @@ let inline reference attributes typeName typeParameters =
 
 let inline tuple attributes elementTypes = Tuple(attributes, elementTypes)
 let inline record attributes fieldTypes = Record(attributes, fieldTypes)
+
 
 let definitionToSpecification (def: Definition<'A>) : Specification<'A> =
     match def with

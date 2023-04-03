@@ -29,7 +29,7 @@ type StringFormattingFeature() as self =
                     Inputs.row "Variable" """["Variable", {}, ["hello","world"]]""",
                     Inputs.row "Variable-02" """["Variable", {}, ["a"]]""",
                     Inputs.row "Tuple-01" """["Tuple", {}, [["Unit", {}],["Unit", {}]]]""",
-                    Inputs.row "Tuple-02" """["Tuple", {}, [["Variable", {}, ["a"]],["Variable", {}, ["b"], ["Variable", {}, ["c"]]]]]"""
+                    Inputs.row "Tuple-02" """["Tuple", {}, [["Variable", {}, ["a"]], ["Variable", {}, ["b"]], ["Variable", {}, ["c"]]]]"""
                 ))  @>,
             <@ fun c -> c.``When I decode the Type nodes``(typeDecoder) @>,
             <@ fun c -> c.``When I format the Type nodes``() @>,

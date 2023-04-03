@@ -8,6 +8,7 @@ open Thoth.Json.Net
 //     let inline emptyArray () :Value = JArray()
 
 type Value = JsonValue
+type DecodeError = Thoth.Json.Net.DecoderError
 
 module Value =
     let inline parse (json: string) : Value = JToken.Parse json
@@ -64,6 +65,5 @@ module Decode =
 
     let inline succeed (output: 'a) : Decoder<'a> = Decode.succeed output
 
-    let lazyily (thunk: unit -> Decoder<'a>):Decoder<'a> =
-        andThen thunk (succeed ())
+    let lazyily (thunk: unit -> Decoder<'a>) : Decoder<'a> = andThen thunk (succeed ())
     let string: Decoder<string> = Decode.string
