@@ -147,7 +147,40 @@ let toString tpe = stringBuffer {
                 |> toString
 
         yield ")"
-    | _ -> yield ""
+    | Record (_, fields) ->
+        yield "{ "
+
+        for (index, field) in
+            (fields
+             |> List.mapi (fun index field -> index, field)) do
+            if index > 0 then
+                yield ", "
+
+            yield field.Name|> Name.toCamelCase
+
+            yield " : "
+
+            yield field.Type |> toString
+
+        yield " }"
+    | ExtensibleRecord (_, variableName, fields) ->
+        yield $"{{ {Name.toCamelCase variableName} | "
+        for (index, field) in
+            (fields
+             |> List.mapi (fun index field -> index, field)) do
+            if index > 0 then
+                yield ", "
+
+            yield field.Name|> Name.toCamelCase
+
+            yield " : "
+
+            yield field.Type |> toString
+        yield " }"
+    | Function (_ , (Function(_,_,_) as argType), returnType) ->
+        yield $"({argType |> toString }) -> {returnType |> toString}"
+    | Function (_, argType, returnType) ->
+        yield $"{argType |> toString} -> {returnType |> toString}"
 }
 
 let inline typeAliasDefinition typeParams typeExp =

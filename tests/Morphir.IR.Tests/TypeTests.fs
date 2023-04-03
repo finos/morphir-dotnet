@@ -3,6 +3,7 @@ module Morphir.IR.Tests.TypeTests
 open Morphir.SDK.Testing
 open Morphir.IR
 open Morphir.IR.SDK
+open Morphir.IR.Type
 
 [<Tests>]
 let tests =
@@ -33,6 +34,30 @@ let tests =
                         |> Expect.equal expected
                     }
 
+            ]
+            describe "When Type is a Record" [
+                for (givenClause, input, expected) in
+                    [
+                        "an empty Record", Type.record () [], "{  }"
+                        "a Record with one field", Type.record () [ field (Name.fromString "foo") (Basics.intType ()) ], "{ foo : Morphir.SDK.Basics.Int }"
+                        "a Record with two fields", Type.record () [ field (Name.fromString "foo") (Basics.intType ()); field (Name.fromString "bar") (Basics.floatType ()) ], "{ foo : Morphir.SDK.Basics.Int, bar : Morphir.SDK.Basics.Float }"
+                    ]do
+                    test $"Given {givenClause} When calling ToString Then it should return {expected}" {
+                        Type.toString input
+                        |> Expect.equal expected
+                    }
+            ]
+            describe "When Type is an ExtensibleRecord" [
+                for (givenClause, input, expected) in
+                    [
+                        "an empty ExtensibleRecord", Type.extensibleRecord () (Name.fromString "a") [], "{ a |  }"
+                        "an ExtensibleRecord with one field", Type.extensibleRecord () (Name.fromString "record") [ field (Name.fromString "foo") (Basics.intType ()) ], "{ record | foo : Morphir.SDK.Basics.Int }"
+                        "an ExtensibleRecord with two fields", Type.extensibleRecord () (Name.fromString "b") [ field (Name.fromString "foo") (Basics.intType ()); field (Name.fromString "bar") (Basics.floatType ()) ], "{ b | foo : Morphir.SDK.Basics.Int, bar : Morphir.SDK.Basics.Float }"
+                    ]do
+                    test $"Given {givenClause} When calling ToString Then it should return {expected}" {
+                        Type.toString input
+                        |> Expect.equal expected
+                    }
             ]
             describe "When Type is a Unit:" [
                 test "it should return the proper string" {
