@@ -156,31 +156,47 @@ let toString tpe = stringBuffer {
             if index > 0 then
                 yield ", "
 
-            yield field.Name|> Name.toCamelCase
+            yield
+                field.Name
+                |> Name.toCamelCase
 
             yield " : "
 
-            yield field.Type |> toString
+            yield
+                field.Type
+                |> toString
 
         yield " }"
     | ExtensibleRecord (_, variableName, fields) ->
         yield $"{{ {Name.toCamelCase variableName} | "
+
         for (index, field) in
             (fields
              |> List.mapi (fun index field -> index, field)) do
             if index > 0 then
                 yield ", "
 
-            yield field.Name|> Name.toCamelCase
+            yield
+                field.Name
+                |> Name.toCamelCase
 
             yield " : "
 
-            yield field.Type |> toString
+            yield
+                field.Type
+                |> toString
+
         yield " }"
-    | Function (_ , (Function(_,_,_) as argType), returnType) ->
-        yield $"({argType |> toString }) -> {returnType |> toString}"
+    | Function (_, (Function (_, _, _) as argType), returnType) ->
+        yield
+            $"({argType
+                |> toString}) -> {returnType
+                                  |> toString}"
     | Function (_, argType, returnType) ->
-        yield $"{argType |> toString} -> {returnType |> toString}"
+        yield
+            $"{argType
+               |> toString} -> {returnType
+                                |> toString}"
 }
 
 let inline typeAliasDefinition typeParams typeExp =
@@ -229,6 +245,9 @@ let extensibleRecord attributes variableName fieldTypes =
     ExtensibleRecord(attributes, variableName, fieldTypes)
 
 let ``function`` attributes argumentType returnType =
+    Function(attributes, argumentType, returnType)
+
+let inline func attributes argumentType returnType =
     Function(attributes, argumentType, returnType)
 
 let unit attributes = Unit(attributes)

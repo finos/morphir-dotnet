@@ -39,10 +39,18 @@ let tests =
                 for (givenClause, input, expected) in
                     [
                         "an empty Record", Type.record () [], "{  }"
-                        "a Record with one field", Type.record () [ field (Name.fromString "foo") (Basics.intType ()) ], "{ foo : Morphir.SDK.Basics.Int }"
-                        "a Record with two fields", Type.record () [ field (Name.fromString "foo") (Basics.intType ()); field (Name.fromString "bar") (Basics.floatType ()) ], "{ foo : Morphir.SDK.Basics.Int, bar : Morphir.SDK.Basics.Float }"
-                    ]do
-                    test $"Given {givenClause} When calling ToString Then it should return {expected}" {
+                        "a Record with one field",
+                        Type.record () [ field (Name.fromString "foo") (Basics.intType ()) ],
+                        "{ foo : Morphir.SDK.Basics.Int }"
+                        "a Record with two fields",
+                        Type.record () [
+                            field (Name.fromString "foo") (Basics.intType ())
+                            field (Name.fromString "bar") (Basics.floatType ())
+                        ],
+                        "{ foo : Morphir.SDK.Basics.Int, bar : Morphir.SDK.Basics.Float }"
+                    ] do
+                    test
+                        $"Given {givenClause} When calling ToString Then it should return {expected}" {
                         Type.toString input
                         |> Expect.equal expected
                     }
@@ -50,11 +58,45 @@ let tests =
             describe "When Type is an ExtensibleRecord" [
                 for (givenClause, input, expected) in
                     [
-                        "an empty ExtensibleRecord", Type.extensibleRecord () (Name.fromString "a") [], "{ a |  }"
-                        "an ExtensibleRecord with one field", Type.extensibleRecord () (Name.fromString "record") [ field (Name.fromString "foo") (Basics.intType ()) ], "{ record | foo : Morphir.SDK.Basics.Int }"
-                        "an ExtensibleRecord with two fields", Type.extensibleRecord () (Name.fromString "b") [ field (Name.fromString "foo") (Basics.intType ()); field (Name.fromString "bar") (Basics.floatType ()) ], "{ b | foo : Morphir.SDK.Basics.Int, bar : Morphir.SDK.Basics.Float }"
-                    ]do
-                    test $"Given {givenClause} When calling ToString Then it should return {expected}" {
+                        "an empty ExtensibleRecord",
+                        Type.extensibleRecord () (Name.fromString "a") [],
+                        "{ a |  }"
+                        "an ExtensibleRecord with one field",
+                        Type.extensibleRecord () (Name.fromString "record") [
+                            field (Name.fromString "foo") (Basics.intType ())
+                        ],
+                        "{ record | foo : Morphir.SDK.Basics.Int }"
+                        "an ExtensibleRecord with two fields",
+                        Type.extensibleRecord () (Name.fromString "b") [
+                            field (Name.fromString "foo") (Basics.intType ())
+                            field (Name.fromString "bar") (Basics.floatType ())
+                        ],
+                        "{ b | foo : Morphir.SDK.Basics.Int, bar : Morphir.SDK.Basics.Float }"
+                    ] do
+                    test
+                        $"Given {givenClause} When calling ToString Then it should return {expected}" {
+                        Type.toString input
+                        |> Expect.equal expected
+                    }
+            ]
+            describe "When Type is a Function" [
+                for (givenClause, input, expected) in
+                    [
+                        "a Function with no arguments",
+                        Type.``function`` () (Type.unit ()) (Basics.intType ()),
+                        "() -> Morphir.SDK.Basics.Int"
+                        "a Function with one argument",
+                        Type.``function`` () (Basics.intType ()) (Basics.floatType ()),
+                        "Morphir.SDK.Basics.Int -> Morphir.SDK.Basics.Float"
+                        "a Function with two arguments",
+                        Type.``function``
+                            ()
+                            (func () (Basics.intType ()) (Basics.intType ()))
+                            (Basics.intType ()),
+                        "(Morphir.SDK.Basics.Int -> Morphir.SDK.Basics.Int) -> Morphir.SDK.Basics.Int"
+                    ] do
+                    test
+                        $"Given {givenClause} When calling ToString Then it should return {expected}" {
                         Type.toString input
                         |> Expect.equal expected
                     }
@@ -69,6 +111,4 @@ let tests =
             ]
         ]
 
-    describe "TypeTests" [
-        toStringTests
-    ]
+    describe "TypeTests" [ toStringTests ]
