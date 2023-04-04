@@ -184,9 +184,31 @@ let tests =
             testCase "map"
             <| fun _ ->
                 Expect.equal "a.b.c" (String.map (fun c -> if c.Equals '/' then '.' else c) "a/b/c")
-            testCase "filter"
-            <| fun _ -> Expect.equal "22" (String.filter System.Char.IsDigit "R2-D2")
 
+            testCase "filter1"
+            <| fun _ -> Expect.equal "22" (String.filter System.Char.IsDigit "R2-D2")
+            testCase "filter2"
+            <| fun _ -> Expect.equal "-" (String.filter System.Char.IsPunctuation "R2-D2")
+
+            testCase "foldl"
+            <| fun _ -> Expect.equal "emit" (String.foldl String.cons "" "time")
+
+            testCase "foldr"
+            <| fun _ -> Expect.equal "time" (String.foldr String.cons "" "time")
+
+            testCase "any1"
+            <| fun _ -> Expect.equal true (String.any System.Char.IsDigit "90210")
+            testCase "any2"
+            <| fun _ -> Expect.equal true (String.any System.Char.IsDigit "R2-D2")
+            testCase "any3"
+            <| fun _ -> Expect.equal false (String.any System.Char.IsDigit "rose")
+
+            testCase "all1"
+            <| fun _ -> Expect.equal true (String.all System.Char.IsDigit "90210")
+            testCase "all2"
+            <| fun _ -> Expect.equal false (String.all System.Char.IsDigit "R2-D2")
+            testCase "all3"
+            <| fun _ -> Expect.equal false (String.all System.Char.IsDigit "rose")
         ]
 
     describe "String" [ combiningTests ]
