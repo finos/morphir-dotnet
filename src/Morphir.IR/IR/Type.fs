@@ -1,5 +1,7 @@
 module rec Morphir.IR.Type
 
+open System
+open Fable.Core.JS
 open Morphir
 open Morphir.Pattern
 open Morphir.IR.AccessControlled
@@ -35,9 +37,48 @@ type Type<'A> =
 type Field<'A> = { Name: Name; Type: Type<'A> }
 
 type Constructors<'A> = Dict<Name, ConstructorArgs<'A>>
+
+and Constructors =
+    static member Create
+        ([<ParamArray>] constructors: (Name * ConstructorArgs<'A>) array)
+        : Constructors<'A> =
+        constructors
+        |> List.ofArray
+        |> Dict.fromList
+
+    static member Create
+        ([<ParamArray>] constructors: (String * ConstructorArgs<'A>) array)
+        : Constructors<'A> =
+        constructors
+        |> List.ofArray
+        |> List.map (fun (name, args) -> Name.fromString name, args)
+        |> Dict.fromList
+
+    static member Empty<'A>() : Constructors<'A> = empty
+
 type Constructor<'a> = Name * ConstructorArgs<'a>
 
-type ConstructorArgs<'a> = List<Name * Type<'a>>
+and Constructor =
+    static member Create(name, args) : Constructor<'a> = (name, args)
+
+    static member Create
+        (
+            name: string,
+            [<ParamArray>] args: (string * Type<'a>) array
+        ) : Constructor<'a> =
+        (Name.fromString name, ConstructorArgs.Create(args))
+
+and ConstructorArgs<'a> = List<Name * Type<'a>>
+
+and ConstructorArgs =
+    static member Create([<ParamArray>] args: (Name * Type<'a>) array) : ConstructorArgs<'a> =
+        args
+        |> List.ofArray
+
+    static member Create([<ParamArray>] args: (string * Type<'a>) array) : ConstructorArgs<'a> =
+        args
+        |> List.ofArray
+        |> List.map (fun (name, typ) -> Name.fromString name, typ)
 
 /// <summary>
 /// Represents the specification (in other words the interface) of a type. There are 4 different shapes:
@@ -58,6 +99,25 @@ type Specification<'A> =
     | OpaqueTypeSpecification of TypeParams: Name list
     | CustomTypeSpecification of TypeParams: Name list * Constructors: Constructors<'A>
     | DerivedTypeSpecification of TypeParams: Name list * MappingInfo: DerivedTypeMappingInfo<'A>
+
+and Specification =
+    static member Custom(typeParams, constructors) =
+        let typeParams =
+            typeParams
+            |> List.map Name.fromString
+
+        CustomTypeSpecification(typeParams, constructors)
+
+    static member Custom
+        (
+            typeParams,
+            [<ParamArray>] constructors: (Name * ConstructorArgs<'A>) array
+        ) =
+        let typeParams =
+            typeParams
+            |> List.map Name.fromString
+
+        CustomTypeSpecification(typeParams, Constructors.Create constructors)
 
 and DerivedTypeMappingInfo<'A> = {
     BaseType: Type<'A>
@@ -327,3 +387,22 @@ let eraseAttributes: Definition<'a> -> Definition<unit> =
 type Definition<'A> with
 
     member this.EraseAttributes() = eraseAttributes this
+
+type Type =
+    static member Reference(name: FQName) : Type<unit> = Reference((), name, [])
+
+    static member Reference
+        (
+            attributes: 'A,
+            name: FQName,
+            [<ParamArray>] typeParameters: Type<'A> array
+        ) =
+        Reference(
+            attributes,
+            name,
+            typeParameters
+            |> List.ofArray
+        )
+
+module Constructors =
+    let empty<'a> : Constructors<'a> = Constructors.Empty()

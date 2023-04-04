@@ -115,12 +115,15 @@ let moduleSpec: Module.Specification<unit> = {
                 "Float"
                 (OpaqueTypeSpecification [])
                 "Type that represents a floating-point number."
-            // namedTypeSpec "Order" (customTypeSpecification []
-            //                            Dict.fromList [
-            //                                ("LT" |> Name.fromString, [])
-            //                                ("EQ" |> Name.fromString, [])
-            //                                ("GT" |> Name.fromString, [])
-            //                            ]) "Represents the relative ordering of two things. The relations are less than, equal to, and greater than."
+            namedTypeSpec
+                "Order"
+                (Dict.fromList [
+                    Name.fromString "LT", []
+                    Name.fromString "EQ", []
+                    Name.fromString "GT", []
+                 ]
+                 |> customTypeSpecification [])
+                "Represents the relative ordering of two things. The relations are less than, equal to, and greater than."
             namedTypeSpec
                 "Bool"
                 (OpaqueTypeSpecification [])
@@ -134,6 +137,16 @@ let moduleSpec: Module.Specification<unit> = {
             vSpec "subtract" [ ("a", tVar "number"); ("b", tVar "number") ] (tVar "number")
             vSpec "multiply" [ ("a", tVar "number"); ("b", tVar "number") ] (tVar "number")
             vSpec "divide" [ ("a", floatType ()); ("b", floatType ()) ] (floatType ())
+            // Bool
+            vSpec "not" [ ("a", boolType ()) ] (boolType ())
+            vSpec "and" [ ("a", boolType ()); ("b", boolType ()) ] (boolType ())
+            vSpec "or" [ ("a", boolType ()); ("b", boolType ()) ] (boolType ())
+            vSpec "xor" [ ("a", boolType ()); ("b", boolType ()) ] (boolType ())
+            // appendable
+            vSpec
+                "append"
+                [ ("a", tVar "appendable"); ("b", tVar "appendable") ]
+                (tVar "appendable")
         ]
     Doc = Just "Types and functions representing basic mathematical concepts and operations"
 }
