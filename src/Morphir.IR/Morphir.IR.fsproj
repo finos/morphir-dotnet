@@ -49,6 +49,9 @@
         <Compile Include="IR\SDK\Char.fs" />
         <Compile Include="IR\SDK\Dict.fs" />
         <Compile Include="IR\SDK\Aggregate.fs" />
-        <Compile Include="Codecs.fs" />
+        <Compile Include="IR\Codecs\Name.fs" />
+        <Compile Include="IR\Codecs\Path.fs" />
+        <Compile Include="IR\Codecs\Type.fs" />
+        <Compile Include="Codecs\Default.fs" />
     </ItemGroup>
 </Project>
