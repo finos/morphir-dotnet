@@ -1,3 +1,4 @@
+[<AutoOpen>]
 module Morphir.IR.SDK.Common
 
 open Morphir.IR.Documented

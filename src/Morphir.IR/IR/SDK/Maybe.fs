@@ -12,8 +12,8 @@ open type Type.Type
 
 let moduleName: ModuleName = Path.fromString "Maybe"
 
-let maybeType attributes itemType =
-    Reference(attributes, toFQName moduleName "Maybe", itemType)
+let maybeType attributes itemType : Type<'a> =
+    reference attributes (toFQName moduleName "Maybe") [ itemType ]
 
 let private maybeTypeSpec: Type.Specification<unit> =
     let justConstructor =
