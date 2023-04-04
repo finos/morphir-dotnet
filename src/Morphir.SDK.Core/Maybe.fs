@@ -6,6 +6,17 @@ type Maybe<'a> =
     | Just of 'a
     | Nothing
 
+and Maybe =
+    static member op_Implicit(maybeValue: Maybe<'a>) : 'a option =
+        match maybeValue with
+        | Just value -> Some value
+        | Nothing -> None
+
+    static member op_Implicit(value: 'a option) : Maybe<'a> =
+        match value with
+        | Some value -> Just value
+        | None -> Nothing
+
 [<CompiledName("Just")>]
 let just value = Just value
 

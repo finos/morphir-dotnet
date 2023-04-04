@@ -47,8 +47,13 @@
         <Compile Include="IR\SDK\Basics.fs" />
         <Compile Include="IR\SDK\String.fs" />
         <Compile Include="IR\SDK\Char.fs" />
+        <Compile Include="IR\SDK\Maybe.fs" />
+        <Compile Include="IR\SDK\Int.fs" />
+        <Compile Include="IR\SDK\Decimal.fs" />
+        <Compile Include="IR\SDK\List.fs" />
         <Compile Include="IR\SDK\Dict.fs" />
         <Compile Include="IR\SDK\Aggregate.fs" />
+        <Compile Include="IR\SDK\Rule.fs" />
         <Compile Include="Codecs.fs" />
     </ItemGroup>
 </Project>
