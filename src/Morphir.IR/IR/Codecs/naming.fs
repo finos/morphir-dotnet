@@ -12,8 +12,7 @@ open Morphir.IR.QName
 
 [<RequireQualifiedAccess>]
 module Name =
-    let inline encoder (name:Name): Value =
-        Encode.list Encode.string name
+    let inline encoder (name: Name) : Value = Encode.list Encode.string name
 
     let decoder: Decoder<Name> =
         Decode.list Decode.string
@@ -21,8 +20,7 @@ module Name =
 
 [<RequireQualifiedAccess>]
 module Path =
-    let inline encoder (path: Path) : Value =
-        Encode.list Name.encoder path
+    let inline encoder (path: Path) : Value = Encode.list Name.encoder path
 
     let decoder: Decoder<Path> =
         Decode.list Name.decoder
@@ -33,44 +31,45 @@ module QName =
     open Json
     open Json.Decode
 
-    let encoder = function
-        | QName (modulePath, name) ->
-            Encode.list id
-                [ Path.encoder modulePath
-                  Name.encoder name
-                ]
+    let encoder =
+        function
+        | QName (modulePath, name) -> Encode.list id [ Path.encoder modulePath; Name.encoder name ]
 
-    let decoder:Decoder<QName> =
-        Decode.map2 qName
-           (Decode.index 0 Path.decoder)
-           (Decode.index 1 Name.decoder)
+    let decoder: Decoder<QName> =
+        Decode.map2 qName (Decode.index 0 Path.decoder) (Decode.index 1 Name.decoder)
 
 [<RequireQualifiedAccess>]
 module FQName =
-    let encoder = function
+    let encoder =
+        function
         | FQName (packagePath, modulePath, localName) ->
-            Encode.list id
-                [ Path.encoder packagePath
-                  Path.encoder modulePath
-                  Name.encoder localName
-                ]
+            Encode.list id [
+                Path.encoder packagePath
+                Path.encoder modulePath
+                Name.encoder localName
+            ]
 
-    let decoder:Decoder<FQName> =
-        Decode.map3 fQName
-           (Decode.index 0 Path.decoder)
-           (Decode.index 1 Path.decoder)
-           (Decode.index 2 Name.decoder)
+    let decoder: Decoder<FQName> =
+        Decode.map3
+            fQName
+            (Decode.index 0 Path.decoder)
+            (Decode.index 1 Path.decoder)
+            (Decode.index 2 Name.decoder)
 
 [<RequireQualifiedAccess>]
 module KindOfName =
-    let encoder = function
+    let encoder =
+        function
         | Type -> Encode.string "Type"
         | Constructor -> Encode.string "Constructor"
         | Value -> Encode.string "Value"
 
-    let decoder:Decoder<KindOfName> =
-        Decode.string |> Decode.andThen (function
+    let decoder: Decoder<KindOfName> =
+        Decode.string
+        |> Decode.andThen (
+            function
             | "Type" -> Decode.succeed Type
             | "Constructor" -> Decode.succeed Constructor
             | "Value" -> Decode.succeed Value
-            | _ -> Decode.fail "Invalid KindOfName")
+            | _ -> Decode.fail "Invalid KindOfName"
+        )
