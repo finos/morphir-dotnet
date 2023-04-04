@@ -42,8 +42,14 @@
         <Compile Include="PathTests.fs" />
         <Compile Include="QNameTests.fs" />
         <Compile Include="FQNameTests.fs" />
+        <Compile Include="TypeTests.fs" />
         <Compile Include="ConfiguredLightBddScopeAttribute.fs" />
-        <Compile Include="TypeEncodingAndDecodingFeature.fs" />
+        <Compile Include="Features\Contexts\RoundtripEncodingContext.fs" />
+        <Compile Include="Features\Contexts\EncodingAndDecodingContext.fs" />
+        <Compile Include="Features\Contexts\StringFormattingContext.fs" />
+        <Compile Include="Features\StringFormattingFeature.fs" />
+        <Compile Include="Features\DefaultTypeEncodingAndDecodingFeature.fs" />
+        <Compile Include="Features\CodecSupportFeature.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

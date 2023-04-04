@@ -8,9 +8,11 @@ open Thoth.Json.Net
 //     let inline emptyArray () :Value = JArray()
 
 type Value = JsonValue
+type DecodeError = Thoth.Json.Net.DecoderError
 
 module Value =
     let inline parse (json: string) : Value = JToken.Parse json
+    let inline CreateNull () : Value = JValue.CreateNull()
 
 
 module Encode =
@@ -30,4 +32,38 @@ module Encode =
 
 module Decode =
     type Decoder<'T> = Thoth.Json.Net.Decoder<'T>
+
+    let inline andThen (cb: 'a -> Decoder<'b>) (decoder: Decoder<'a>) : Decoder<'b> =
+        Decode.andThen cb decoder
+
+    let inline fromString (decoder: Decoder<_>) = Decode.fromString decoder
+
+    let inline fail (message: string) : Decoder<'a> = Decode.fail message
+
+    let inline index (requestedIndex: int) (decoder: Decoder<'a>) =
+        Decode.index requestedIndex decoder
+
+
+    let inline list (decoder: Decoder<'a>) : Decoder<'a list> = Decode.list decoder
+
+    let inline map (ctor: 'a -> 'b) (decoder: Decoder<'a>) : Decoder<'b> = Decode.map ctor decoder
+
+    let inline map2
+        (ctor: 'a -> 'b -> 'c)
+        (decoder1: Decoder<'a>)
+        (decoder2: Decoder<'b>)
+        : Decoder<'c> =
+        Decode.map2 ctor decoder1 decoder2
+
+    let inline map3
+        (ctor: 'a -> 'b -> 'c -> 'd)
+        (decoder1: Decoder<'a>)
+        (decoder2: Decoder<'b>)
+        (decoder3: Decoder<'c>)
+        : Decoder<'d> =
+        Decode.map3 ctor decoder1 decoder2 decoder3
+
     let inline succeed (output: 'a) : Decoder<'a> = Decode.succeed output
+
+    let lazyily (thunk: unit -> Decoder<'a>) : Decoder<'a> = andThen thunk (succeed ())
+    let string: Decoder<string> = Decode.string

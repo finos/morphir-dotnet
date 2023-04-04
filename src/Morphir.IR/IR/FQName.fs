@@ -37,6 +37,12 @@ let getLocalName =
 let inline fqn (packageName: string) (moduleName: string) (localName: string) =
     fQName (Path.fromString packageName) (Path.fromString moduleName) (Name.fromString localName)
 
+let toReferenceName (FQName (packageName, moduleName, localName)) =
+    let packageNameString = Path.toString Name.toTitleCase "." packageName
+    let moduleNameString = Path.toString Name.toTitleCase "." moduleName
+    let localNameString = Name.toTitleCase localName
+    $"{packageNameString}.{moduleNameString}.{localNameString}"
+
 /// <summary>
 /// Convert a fully-qualified name to a string.
 /// </summary>
