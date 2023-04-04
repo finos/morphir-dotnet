@@ -170,12 +170,24 @@ let map func str = String.map func str
 
 let filter isGood str = String.filter isGood str
 
-// let foldl func state str =
+let foldl (folder: char -> 'b -> 'b) (state: 'b) (str: string) : 'b =
+    let mutable state = state
 
+    for c in str do
+        state <- folder c state
 
-// let foldr func state str =
+    state
 
-// let any isGood str =
+let foldr (folder: char -> 'b -> 'b) (state: 'b) (str: string) : 'b =
+    foldl folder state (reverse str)
 
+let any isGood str =
+    match List.tryFind isGood (toList str) with
+    | None -> false
+    | _ -> true
 
-// let all isGood str =
+let all isGood str =
+    if (List.filter isGood (toList str)).Length = str.Length then
+        true
+    else
+        false
