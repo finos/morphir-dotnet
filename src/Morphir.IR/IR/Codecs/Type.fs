@@ -158,7 +158,7 @@ let encodeSpecification encodeAttributes spec : Value =
         ]
 
 let decodeSpecification decodeAttributes : Decode.Decoder<Specification<'a>> =
-    let decodeDerivedTypeCpnfig =
+    let decodeDerivedTypeConfig =
         Decode.map3
             (fun baseType fromBaseType toBaseType -> {
                 BaseType = baseType
@@ -189,6 +189,38 @@ let decodeSpecification decodeAttributes : Decode.Decoder<Specification<'a>> =
             Decode.map2
                 derivedTypeSpecification
                 (Decode.index 1 (Decode.list Name.decoder))
-                (Decode.index 2 decodeDerivedTypeCpnfig)
+                (Decode.index 2 decodeDerivedTypeConfig)
+        | kind -> Decode.fail $"Unknown kind: {kind}"
+    )
+
+let encodeDefinition encodeAttributes (definition: Definition<'a>) : Value =
+    match definition with
+    | TypeAliasDefinition (typeParams, exp) ->
+        Encode.list id [
+            Encode.string "TypeAliasDefinition"
+            Encode.list Name.encoder typeParams
+            encoder encodeAttributes exp
+        ]
+    | CustomTypeDefinition (typeParams, constructors) ->
+        Encode.list id [
+            Encode.string "CustomTypeDefinition"
+            Encode.list Name.encoder typeParams
+            AccessControlled.encoder (encodeConstructors encodeAttributes) constructors
+        ]
+
+let decodeDefinition (decodeAttributes: Decode.Decoder<'a>) : Decode.Decoder<Definition<'a>> =
+    Decode.index 0 Decode.string
+    |> Decode.andThen (
+        function
+        | "TypeAliasDefinition" ->
+            Decode.map2
+                typeAliasDefinition
+                (Decode.index 1 (Decode.list Name.decoder))
+                (Decode.index 2 (decoder decodeAttributes))
+        | "CustomTypeDefinition" ->
+            Decode.map2
+                customTypeDefinition
+                (Decode.index 1 (Decode.list Name.decoder))
+                (Decode.index 2 (AccessControlled.decoder (decodeConstructors decodeAttributes)))
         | kind -> Decode.fail $"Unknown kind: {kind}"
     )

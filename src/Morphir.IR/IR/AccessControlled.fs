@@ -18,6 +18,8 @@ and Access =
     | Public
     | Private
 
+let accessControlled access value = { Access = access; Value = value }
+
 /// Mark a node as public access. Actors with both public and private access are allowed to see.
 let inline ``public`` value = { Access = Public; Value = value }
 
