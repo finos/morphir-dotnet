@@ -52,10 +52,10 @@
         <Compile Include="IR\SDK\Decimal.fs" />
         <Compile Include="IR\SDK\List.fs" />
         <Compile Include="IR\SDK\Dict.fs" />
+        <Compile Include="IR\SDK\Rule.fs" />
         <Compile Include="IR\SDK\Aggregate.fs" />
         <Compile Include="IR\Codecs\naming.fs" />
         <Compile Include="IR\Codecs\Type.fs" />
         <Compile Include="Codecs\Default.fs" />
-        <Compile Include="IR\SDK\Rule.fs" />
     </ItemGroup>
 </Project>
