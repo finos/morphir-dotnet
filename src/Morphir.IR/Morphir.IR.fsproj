@@ -57,6 +57,5 @@
         <Compile Include="IR\Codecs\Type.fs" />
         <Compile Include="Codecs\Default.fs" />
         <Compile Include="IR\SDK\Rule.fs" />
-        <Compile Include="Codecs.fs" />
     </ItemGroup>
 </Project>
