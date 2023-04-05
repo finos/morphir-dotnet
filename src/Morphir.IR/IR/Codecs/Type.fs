@@ -111,6 +111,22 @@ let encodeConstructors encodeAttributes (constructors: Constructors<'a>) : Value
         ]
     )
 
+let decodeConstructors decodeAttributes : Decode.Decoder<Constructors<'a>> =
+    Decode.list (
+        Decode.map2
+            Tuple.pair
+            (Decode.index 0 Name.decoder)
+            (Decode.index
+                1
+                (Decode.list (
+                    Decode.map2
+                        Tuple.pair
+                        (Decode.index 0 Name.decoder)
+                        (Decode.index 1 (decoder decodeAttributes))
+                )))
+    )
+    |> Decode.map Dict.fromList
+
 let encodeSpecification encodeAttributes spec : Value =
     match spec with
     | TypeAliasSpecification (typeParams, exp) ->
@@ -140,3 +156,39 @@ let encodeSpecification encodeAttributes spec : Value =
                 "toBaseType", FQName.encoder config.ToBaseType
             ]
         ]
+
+let decodeSpecification decodeAttributes : Decode.Decoder<Specification<'a>> =
+    let decodeDerivedTypeCpnfig =
+        Decode.map3
+            (fun baseType fromBaseType toBaseType -> {
+                BaseType = baseType
+                FromBaseType = fromBaseType
+                ToBaseType = toBaseType
+            }
+            )
+            (Decode.field "baseType" (decoder decodeAttributes))
+            (Decode.field "fromBaseType" FQName.decoder)
+            (Decode.field "toBaseType" FQName.decoder)
+
+    Decode.index 0 Decode.string
+    |> Decode.andThen (
+        function
+        | "TypeAliasSpecification" ->
+            Decode.map2
+                typeAliasSpecification
+                (Decode.index 1 (Decode.list Name.decoder))
+                (Decode.index 2 (decoder decodeAttributes))
+        | "OpaqueTypeSpecification" ->
+            Decode.map opaqueTypeSpecification (Decode.index 1 (Decode.list Name.decoder))
+        | "CustomTypeSpecification" ->
+            Decode.map2
+                customTypeSpecification
+                (Decode.index 1 (Decode.list Name.decoder))
+                (Decode.index 2 (decodeConstructors decodeAttributes))
+        | "DerivedTypeSpecification" ->
+            Decode.map2
+                derivedTypeSpecification
+                (Decode.index 1 (Decode.list Name.decoder))
+                (Decode.index 2 decodeDerivedTypeCpnfig)
+        | kind -> Decode.fail $"Unknown kind: {kind}"
+    )
