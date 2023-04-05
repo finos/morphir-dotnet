@@ -4,6 +4,7 @@ module Morphir.Codecs.Default
 open Json.Decode
 open Morphir
 open Morphir.IR
+open Morphir.IR.AccessControlled
 open Morphir.IR.FQName
 open Morphir.IR.Name
 open Morphir.IR.Path
@@ -30,6 +31,12 @@ let decodeQName: Decoder<QName> = QName.decoder
 let inline encodeFQName (fqname: FQName) = FQName.encoder fqname
 
 let decodeFQName: Decoder<FQName> = FQName.decoder
+
+let inline encodeAccessControlled encodeValue (accessControlled: AccessControlled<'a>) : Encode.Value =
+    AccessControlled.encoder encodeValue accessControlled
+
+let inline decodeAccessControlled decodeValue : Decode.Decoder<AccessControlled<'a>> =
+    AccessControlled.decoder decodeValue
 
 let rec inline encodeType (encodeAttributes: 'a -> Encode.Value) (tpe: Type<'a>) : Encode.Value =
     Type.encoder encodeAttributes tpe
