@@ -272,6 +272,9 @@ let inline opaqueTypeSpecification typeParams = OpaqueTypeSpecification typePara
 let inline customTypeSpecification typeParams ctors =
     CustomTypeSpecification(typeParams, ctors)
 
+let inline derivedTypeSpecification typeParams mappingInfo =
+    DerivedTypeSpecification(typeParams, mappingInfo)
+
 let inline reference attributes typeName typeParameters =
     Reference(attributes, typeName, typeParameters)
 

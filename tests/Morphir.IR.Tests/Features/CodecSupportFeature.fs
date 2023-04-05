@@ -10,6 +10,7 @@ open LightBDD.Framework
 open LightBDD.XUnit2
 open Morphir.IR.Tests.Features.Contexts
 open Morphir.IR.Tests.Features.Contexts.RoundtripEncodingContext
+open Morphir.Codecs
 open Xunit
 
 [<FeatureDescription("""In order to store and retrieve IR node trees
@@ -24,7 +25,7 @@ type ``Codec Support Feature``() as self =
     [<Scenario>]
     member this.``The Codecs module should support round-tripping``() =
         self.Runner.RunScenarioWithProvidedContext(
-            RoundtripEncodingContext.Factory(Codecs.Default.decodeUnit),
+            RoundtripEncodingContext.Factory(decodeUnit),
             <@
                 fun c ->
                     c.``Given I am provided Morphir IR nodes``(

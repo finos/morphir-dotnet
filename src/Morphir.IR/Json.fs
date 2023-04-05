@@ -40,6 +40,9 @@ module Decode =
 
     let inline fail (message: string) : Decoder<'a> = Decode.fail message
 
+    let inline field (fieldName: string) (decoder: Decoder<'a>) : Decoder<'a> =
+        Decode.field fieldName decoder
+
     let inline index (requestedIndex: int) (decoder: Decoder<'a>) =
         Decode.index requestedIndex decoder
 

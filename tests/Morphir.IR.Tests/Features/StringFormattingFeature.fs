@@ -22,7 +22,7 @@ type StringFormattingFeature() as self =
 
     [<Scenario>]
     member __.``Formatting Type Nodes``() =
-        let typeDecoder:Decode.Decoder<Type<unit>> = Default.decodeType Default.decodeUnit
+        let typeDecoder:Decode.Decoder<Type<unit>> = decodeType decodeUnit
         self.Runner.RunScenarioWithContext<StringFormattingContext>(
             <@ fun c -> c.``Given a set of JSON encoded Type nodes``(Table.For(
                     Inputs.row "Unit" """["Unit", {}]""",
