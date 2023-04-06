@@ -142,6 +142,8 @@ let inline apply
     : Value<'ta, 'va> =
     Apply(attributes, func, argument)
 
+let literal (attributes: 'va) (value: Literal) : Value<'ta, 'va> = Literal(attributes, value)
+
 let inline unit attributes = Unit attributes
 
 let inline constructor (attributes: 'va) (fqName: FQName) : Value<'ta, 'va> =

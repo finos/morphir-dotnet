@@ -159,7 +159,20 @@ let decoder
     (decodeTypeAttributes: Decode.Decoder<'ta>)
     (decodeValueAttributes: Decode.Decoder<'va>)
     : Decode.Decoder<Value<'ta, 'va>> =
-    raise (System.NotImplementedException(""))
+    Decode.index 0 Decode.string
+    |> Decode.andThen (fun kind ->
+        match kind with
+        | "literal" ->
+            Decode.map2 literal
+                (Decode.index 1 decodeValueAttributes)
+                (Decode.index 2 Literal.decoder)
+        | "constructor" ->
+            Decode.map2 constructor
+                (Decode.index 1 decodeValueAttributes)
+                (Decode.index 2 FQName.decoder)
+        | other ->
+            Decode.fail ($"Unknown pattern value: {other}")
+    )
 
 let rec encodePattern (encodeAttributes: 'va -> Value) (pattern: Pattern<'va>) : Value =
     match pattern with

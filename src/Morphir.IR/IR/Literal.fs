@@ -26,6 +26,8 @@ let floatLiteral value = FloatLiteral value
 
 let decimalLiteral value = DecimalLiteral value
 
+let wholeNumberLiteral value = WholeNumberLiteral value
+
 let toString =
     function
     | BoolLiteral value -> if value then "True" else "False"

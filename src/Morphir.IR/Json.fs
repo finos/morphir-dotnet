@@ -44,6 +44,19 @@ module Decode =
     let inline andThen (cb: 'a -> Decoder<'b>) (decoder: Decoder<'a>) : Decoder<'b> =
         Decode.andThen cb decoder
 
+    let bool : Decoder<bool> = Decode.bool
+    let char : Decoder<char> = Decode.char
+
+    let int : Decoder<int> = Decode.int
+
+    let float : Decoder<float> = Decode.float
+
+    let decimal : Decoder<decimal> = Decode.decimal
+
+
+    let int16 : Decoder<int16> = Decode.int16
+    let int64 : Decoder<int64> = Decode.int64
+
     let inline fromString (decoder: Decoder<_>) = Decode.fromString decoder
 
     let inline fail (message: string) : Decoder<'a> = Decode.fail message
