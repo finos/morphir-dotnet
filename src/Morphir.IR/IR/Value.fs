@@ -61,7 +61,7 @@ type Value<'TA, 'VA> =
     | UpdateRecord of
         Attributes: 'VA *
         ValueToUpdate: Value<'TA, 'VA> *
-        FieldsToUpdate: Dict<Name,Value<'TA, 'VA>>
+        FieldsToUpdate: Dict<Name, Value<'TA, 'VA>>
     | Unit of Attributes: 'VA
 
     member this.Attributes =
@@ -94,7 +94,7 @@ and RawValue = Value<Unit, Unit>
 and TypedValue = Value<Unit, Type<Unit>>
 
 and Pattern<'A> =
-    | WildCardPattern of Attributes: 'A
+    | WildcardPattern of Attributes: 'A
     | AsPattern of Attributes: 'A * Pattern: Pattern<'A> * Name: Name
     | TuplePattern of Attributes: 'A * ElementPatterns: Pattern<'A> list
     | ConstructorPattern of Attributes: 'A * FQName * Pattern<'A> list
@@ -117,6 +117,17 @@ and Definition<'TA, 'VA> = {
     OutputType: Type<'TA>
     Body: Value<'TA, 'VA>
 }
+
+let definition
+    (inputTypes: ParameterList<'TA, 'VA>)
+    (outputType: Type<'TA>)
+    (body: Value<'TA, 'VA>)
+    : Definition<'TA, 'VA> =
+    {
+        InputTypes = inputTypes
+        OutputType = outputType
+        Body = body
+    }
 
 let specification (inputs: List<Name * Type<'a>>) (output: Type<'a>) : Specification<'a> = {
     Inputs = inputs
@@ -151,80 +162,112 @@ let rec definitionToValue def =
     | (firstArgName, va, _) :: restOfArgs ->
         Lambda(
             va,
-            AsPattern(va, WildCardPattern(va), firstArgName),
+            AsPattern(va, WildcardPattern(va), firstArgName),
             (definitionToValue { def with InputTypes = restOfArgs })
         )
 
-let rec patternToString (pattern:Pattern<'a>): string =
+let rec patternToString (pattern: Pattern<'a>) : string =
     match pattern with
-    | WildCardPattern _ -> "_"
-    | AsPattern(_, WildCardPattern(_), alias) -> Name.toCamelCase alias
-    | AsPattern(_, subjectPattern, alias) -> $"{patternToString subjectPattern} as {Name.toCamelCase alias}"
+    | WildcardPattern _ -> "_"
+    | AsPattern (_, WildcardPattern (_), alias) -> Name.toCamelCase alias
+    | AsPattern (_, subjectPattern, alias) ->
+        $"{patternToString subjectPattern} as {Name.toCamelCase alias}"
     | TuplePattern (_, elements) ->
-        let elementsString = elements |> List.map patternToString |> String.join ", "
+        let elementsString =
+            elements
+            |> List.map patternToString
+            |> String.join ", "
+
         $"( {elementsString} )"
-    | ConstructorPattern(attributes, fqName, argPatterns) ->
+    | ConstructorPattern (attributes, fqName, argPatterns) ->
         let constructorString = FQName.toReferenceName fqName
-        constructorString :: (argPatterns |> List.map patternToString) |> String.join ", "
+
+        constructorString
+        :: (argPatterns
+            |> List.map patternToString)
+        |> String.join ", "
     | EmptyListPattern _ -> "[]"
-    | HeadTailPattern(_, headPattern, tailPattern) ->
+    | HeadTailPattern (_, headPattern, tailPattern) ->
         let headString = patternToString headPattern
         let tailString = patternToString tailPattern
         $"{headString} :: {tailString}"
-    | LiteralPattern(_, lit) -> Literal.toString lit
+    | LiteralPattern (_, lit) -> Literal.toString lit
     | UnitPattern _ -> "()"
 
-let rec toString (value:Value<'ta,'va>):string = stringBuffer {
+let rec toString (value: Value<'ta, 'va>) : string = stringBuffer {
     match value with
     | Literal (_, lit) -> Literal.toString lit
-    | Constructor (_, fQName) ->
-        FQName.toReferenceName fQName
-    | Tuple (_, elems) -> $"""( {elems |> List.map toString |> String.join ", "} )"""
-    | List (_, items) -> $"""[ {items |> List.map toString |> String.join ", "} ]"""
+    | Constructor (_, fQName) -> FQName.toReferenceName fQName
+    | Tuple (_, elems) ->
+        $"""( {elems
+               |> List.map toString
+               |> String.join ", "} )"""
+    | List (_, items) ->
+        $"""[ {items
+               |> List.map toString
+               |> String.join ", "} ]"""
     | Record (_, fields) ->
         let fieldStrings =
             fields
             |> List.map (fun (name, value) -> $"{Name.toCamelCase name} = {toString value}")
             |> String.join ", "
+
         $"{{ {fieldStrings} }}"
-    | Variable(_, name) -> Name.toCamelCase name
-    | Reference(_, fqName) -> FQName.toReferenceName fqName
+    | Variable (_, name) -> Name.toCamelCase name
+    | Reference (_, fqName) -> FQName.toReferenceName fqName
     | Field (_, subject, fieldName) -> $"{toString subject}.{Name.toCamelCase fieldName}"
-    | FieldFunction(_, fieldName) -> $".{Name.toCamelCase fieldName}"
-    | Apply(_, func, arg) -> String.join " " [toString func; toString arg]
-    | Lambda(_, pattern, body) -> $"""(\{patternToString pattern} -> {toString body})"""
-    | LetDefinition(_, name, def, inValue) ->
-        let args = def.InputTypes |> List.map (fun (name, _, _) -> Name.toCamelCase name) |> String.join " "
+    | FieldFunction (_, fieldName) -> $".{Name.toCamelCase fieldName}"
+    | Apply (_, func, arg) -> String.join " " [ toString func; toString arg ]
+    | Lambda (_, pattern, body) -> $"""(\{patternToString pattern} -> {toString body})"""
+    | LetDefinition (_, name, def, inValue) ->
+        let args =
+            def.InputTypes
+            |> List.map (fun (name, _, _) -> Name.toCamelCase name)
+            |> String.join " "
+
         $"let {Name.toCamelCase name} {args} = {toString def.Body} in {toString inValue}"
-    | LetRecursion(_, defs, inValue) ->
-        let args (def:Definition<'ta,'va>) =
-            def.InputTypes |> List.map (fun (name, _, _) -> Name.toCamelCase name)
+    | LetRecursion (_, defs, inValue) ->
+        let args (def: Definition<'ta, 'va>) =
+            def.InputTypes
+            |> List.map (fun (name, _, _) -> Name.toCamelCase name)
+
         let defStrings =
             defs
             |> Dict.toList
             |> List.map (fun (name, def) ->
-                let argsString = args def |> String.join " "
+                let argsString =
+                    args def
+                    |> String.join " "
+
                 $"{Name.toCamelCase name} {argsString} = {toString def.Body}"
             )
-        $"""let {defStrings |> String.join "; "} in {toString inValue}"""
-    | Destructure(_, bindPattern, bindValue, inValue) ->
+
+        $"""let {defStrings
+                 |> String.join "; "} in {toString inValue}"""
+    | Destructure (_, bindPattern, bindValue, inValue) ->
         $"""let {patternToString bindPattern} = {toString bindValue} in {toString inValue}"""
-    | IfThenElse(_, condition, thenBranch, elseBranch) ->
+    | IfThenElse (_, condition, thenBranch, elseBranch) ->
         $"""if {toString condition} then {toString thenBranch} else {toString elseBranch}"""
-    | PatternMatch(_, subject, cases) ->
+    | PatternMatch (_, subject, cases) ->
         let casesString =
             cases
-            |> List.map (fun (casePattern, caseBody) -> $"""{patternToString casePattern} -> {toString caseBody}""")
+            |> List.map (fun (casePattern, caseBody) ->
+                $"""{patternToString casePattern} -> {toString caseBody}"""
+            )
             |> String.join "; "
+
         $"""case {toString subject} of {casesString}"""
-    | UpdateRecord(_, subject, fields) ->
+    | UpdateRecord (_, subject, fields) ->
         let fieldsString =
             fields
             |> Dict.toList
-            |> List.map (fun (fieldName, fieldValue) -> $"""{Name.toCamelCase fieldName} = {toString fieldValue}""")
+            |> List.map (fun (fieldName, fieldValue) ->
+                $"""{Name.toCamelCase fieldName} = {toString fieldValue}"""
+            )
             |> String.join ", "
+
         $"""{{ {toString subject} | {fieldsString} }}"""
     | Unit _ -> "()"
 }
 
-let inline valueToString (value:Value<'ta,'va>) = toString value
+let inline valueToString (value: Value<'ta, 'va>) = toString value

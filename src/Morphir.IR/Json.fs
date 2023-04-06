@@ -17,6 +17,14 @@ module Value =
 
 module Encode =
     type Value = JsonValue
+
+    let inline bool value = Encode.bool value
+
+    let inline decimal value = Encode.decimal value
+
+    let inline float value = Encode.float value
+    let inline int value = Encode.int value
+    let inline int64 value = Encode.int64 value
     let inline string (value: string) : Value = Encode.string value
 
     let list (func: 'a -> Value) (values: #seq<'a>) : Value =

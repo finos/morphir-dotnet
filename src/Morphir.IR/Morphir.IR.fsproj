@@ -57,6 +57,8 @@
         <Compile Include="IR\Codecs\naming.fs" />
         <Compile Include="IR\Codecs\AccessControlled.fs" />
         <Compile Include="IR\Codecs\Type.fs" />
+        <Compile Include="IR\Codecs\Literal.fs" />
+        <Compile Include="IR\Codecs\Value.fs" />
         <Compile Include="Codecs\Default.fs" />
     </ItemGroup>
 </Project>

@@ -32,7 +32,10 @@ let inline encodeFQName (fqname: FQName) = FQName.encoder fqname
 
 let decodeFQName: Decoder<FQName> = FQName.decoder
 
-let inline encodeAccessControlled encodeValue (accessControlled: AccessControlled<'a>) : Encode.Value =
+let inline encodeAccessControlled
+    encodeValue
+    (accessControlled: AccessControlled<'a>)
+    : Encode.Value =
     AccessControlled.encoder encodeValue accessControlled
 
 let inline decodeAccessControlled decodeValue : Decode.Decoder<AccessControlled<'a>> =

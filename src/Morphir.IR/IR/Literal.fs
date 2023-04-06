@@ -26,13 +26,11 @@ let floatLiteral value = FloatLiteral value
 
 let decimalLiteral value = DecimalLiteral value
 
-let toString = function
-    | BoolLiteral value ->
-        if value then "True" else "False"
-    | CharLiteral value ->
-        $"'{value}'"
-    | StringLiteral value ->
-        $"\"{value}\""
+let toString =
+    function
+    | BoolLiteral value -> if value then "True" else "False"
+    | CharLiteral value -> $"'{value}'"
+    | StringLiteral value -> $"\"{value}\""
     | WholeNumberLiteral value -> value.ToString()
     | FloatLiteral value -> value.ToString()
     | DecimalLiteral value -> value.ToString()
