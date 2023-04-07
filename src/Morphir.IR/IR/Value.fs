@@ -176,6 +176,24 @@ let inline lambda
     : Value<'ta, 'va> =
     Lambda(attributes, parameter, body)
 
+let inline letDef attributes valueName valueDefinition inValue =
+    LetDefinition(attributes, valueName, valueDefinition, inValue)
+
+let inline letRec attributes valueDefinition inValue =
+    LetRecursion(attributes, valueDefinition, inValue)
+
+let inline letDestruct attributes pattern valueToDestruct inValue =
+    Destructure(attributes, pattern, valueToDestruct, inValue)
+
+let inline ifThenElse attributes condition ifTrue ifFalse =
+    IfThenElse(attributes, condition, ifTrue, ifFalse)
+
+let inline patternMatch attributes value patterns =
+    PatternMatch(attributes, value, patterns)
+
+let inline update attributes valueToUpdate fields =
+    UpdateRecord(attributes, valueToUpdate, fields)
+
 let inline wildcardPattern (attributes: 'va) : Pattern<'va> = WildcardPattern attributes
 
 let inline asPattern (attributes: 'va) (pattern: Pattern<'va>) (name: Name) : Pattern<'va> =

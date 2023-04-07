@@ -228,6 +228,65 @@ let decoder
                 (Decode.index 1 decodeValueAttributes)
                 (Decode.index 2 (decodePattern decodeValueAttributes))
                 (Decode.index 3 (decoder decodeTypeAttributes decodeValueAttributes))
+        | "let_definition" ->
+            Decode.map4
+                letDef
+                (Decode.index 1 decodeValueAttributes)
+                (Decode.index 2 Name.decoder)
+                (Decode.index 3 (decodeDefinition decodeTypeAttributes decodeValueAttributes))
+                (Decode.index 4 (decoder decodeTypeAttributes decodeValueAttributes))
+        | "let_recursion" ->
+            Decode.map3 letRec
+                (Decode.index 1 decodeValueAttributes)
+                (Decode.index 2
+                    (Decode.list
+                        (Decode.map2 Tuple.pair
+                            (Decode.index 0 Name.decoder)
+                            (Decode.index 1 (decodeDefinition decodeTypeAttributes decodeValueAttributes))
+                        )
+                        |> Decode.map Dict.fromList
+                    )
+                )
+                (Decode.index 3 (decoder decodeTypeAttributes decodeValueAttributes))
+        | "destructure" ->
+            Decode.map4 letDestruct
+                (Decode.index 1 decodeValueAttributes)
+                (Decode.index 2 (decodePattern decodeValueAttributes))
+                (Decode.index 3 (decoder decodeTypeAttributes decodeValueAttributes))
+                (Decode.index 4 (decoder decodeTypeAttributes decodeValueAttributes))
+        | "if_then_else" ->
+            Decode.map4 ifThenElse
+                (Decode.index 1 decodeValueAttributes)
+                (Decode.index 2 (decoder decodeTypeAttributes decodeValueAttributes))
+                (Decode.index 3 (decoder decodeTypeAttributes decodeValueAttributes))
+                (Decode.index 4 (decoder decodeTypeAttributes decodeValueAttributes))
+        | "pattern_match" ->
+            Decode.map3 patternMatch
+                (Decode.index 1 decodeValueAttributes)
+                (Decode.index 2 (decoder decodeTypeAttributes decodeValueAttributes))
+                (Decode.index 3
+                    (Decode.list
+                        (Decode.map2 Tuple.pair
+                            (Decode.index 0 (decodePattern decodeValueAttributes))
+                            (Decode.index 1 (decoder decodeTypeAttributes decodeValueAttributes))
+                        )
+                    )
+                )
+        | "update_record" ->
+            Decode.map3 update
+                (Decode.index 1 decodeValueAttributes)
+                (Decode.index 2 (decoder decodeTypeAttributes decodeValueAttributes))
+                (Decode.index 3
+                    (Decode.list
+                        (Decode.map2 Tuple.pair
+                            (Decode.index 0 Name.decoder)
+                            (Decode.index 1 (decoder decodeTypeAttributes decodeValueAttributes))
+                        )
+                        |> Decode.map Dict.fromList
+                    )
+                )
+        | "unit" ->
+            Decode.map unit (Decode.index 1 decodeValueAttributes)
         | other -> Decode.fail ($"Unknown pattern value: {other}")
     )
 
