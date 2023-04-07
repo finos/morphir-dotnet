@@ -1,6 +1,7 @@
 module Morphir.IR.Literal
 
 open System
+open Morphir
 
 /// <summary>
 /// Type that represents a literal value.
@@ -24,3 +25,14 @@ let intLiteral value = WholeNumberLiteral value
 let floatLiteral value = FloatLiteral value
 
 let decimalLiteral value = DecimalLiteral value
+
+let wholeNumberLiteral value = WholeNumberLiteral value
+
+let toString =
+    function
+    | BoolLiteral value -> if value then "True" else "False"
+    | CharLiteral value -> $"'{value}'"
+    | StringLiteral value -> $"\"{value}\""
+    | WholeNumberLiteral value -> value.ToString()
+    | FloatLiteral value -> value.ToString()
+    | DecimalLiteral value -> value.ToString()
