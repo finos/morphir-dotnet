@@ -41,17 +41,27 @@ let emptyDefinition: Definition<'TA, 'VA> = {
     Doc = Nothing
 }
 
-let specification (types: Dict<Name, Documented<Type.Specification<'TA>>>) (values: Dict<Name, Documented<Value.Specification<'TA>>>) (doc: Maybe<string>) : Specification<'TA> = {
-    Types = types
-    Values = values
-    Doc = doc
-}
+let specification
+    (types: Dict<Name, Documented<Type.Specification<'TA>>>)
+    (values: Dict<Name, Documented<Value.Specification<'TA>>>)
+    (doc: Maybe<string>)
+    : Specification<'TA> =
+    {
+        Types = types
+        Values = values
+        Doc = doc
+    }
 
-let definition (types: Dict<Name, AccessControlled<Documented<Type.Definition<'TA>>>>) (values: Dict<Name, AccessControlled<Documented<Value.Definition<'TA, 'VA>>>>) (doc: Maybe<string>) : Definition<'TA, 'VA> = {
-    Types = types
-    Values = values
-    Doc = doc
-}
+let definition
+    (types: Dict<Name, AccessControlled<Documented<Type.Definition<'TA>>>>)
+    (values: Dict<Name, AccessControlled<Documented<Value.Definition<'TA, 'VA>>>>)
+    (doc: Maybe<string>)
+    : Definition<'TA, 'VA> =
+    {
+        Types = types
+        Values = values
+        Doc = doc
+    }
 
 let lookupTypeSpecification
     (localName: Name)

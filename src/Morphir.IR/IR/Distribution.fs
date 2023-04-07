@@ -12,7 +12,11 @@ type Distribution =
         definition: Package.Definition<unit, Type<unit>>
 
 
-let library (packageName: PackageName) (dependencies: Dict<PackageName, Package.Specification<unit>>) (definition: Package.Definition<unit, Type<unit>>) : Distribution =
+let library
+    (packageName: PackageName)
+    (dependencies: Dict<PackageName, Package.Specification<unit>>)
+    (definition: Package.Definition<unit, Type<unit>>)
+    : Distribution =
     Library(packageName, dependencies, definition)
 
 /// Get the package name of the distribution.

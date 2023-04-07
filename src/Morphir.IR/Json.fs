@@ -101,6 +101,7 @@ module Decode =
         Decode.map4 ctor decoder1 decoder2 decoder3 decoder4
 
     let inline option (decoder: Decoder<'a>) : Decoder<'a option> = Decode.option decoder
+
     let maybe (decoder: Decoder<'a>) : Decoder<Maybe<'a>> =
         Decode.option decoder
         |> Decode.map (fun x -> Conversions.Options.optionsToMaybe x)

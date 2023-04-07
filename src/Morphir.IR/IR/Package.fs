@@ -30,11 +30,13 @@ let emptySpecification<'TA> = { Modules = Map.empty }
 /// Get an empty package definition with no modules.
 let emptyDefinition<'TA, 'VA> = { Modules = Map.empty }
 
-let specification (modules: Dict<ModuleName, Module.Specification<'TA>>) =
-    { Specification.Modules = modules }
+let specification (modules: Dict<ModuleName, Module.Specification<'TA>>) = {
+    Specification.Modules = modules
+}
 
-let definition (modules: Dict<ModuleName, AccessControlled<Module.Definition<'TA, 'VA>>>) =
-    { Definition.Modules = modules }
+let definition (modules: Dict<ModuleName, AccessControlled<Module.Definition<'TA, 'VA>>>) = {
+    Definition.Modules = modules
+}
 
 /// Look up a module specification by its path in a package specification.
 let lookupModuleSpecification
