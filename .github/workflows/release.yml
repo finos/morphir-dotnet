@@ -20,4 +20,14 @@ jobs:
           path: ./packages
       
       - name: Publish
-        run: dotnet nuget push "./packages/*.nupkg" --no-symbols --source "https://api.nuget.org/v3/index.json" --api-key ${{ secrets.NUGET_TOKEN }}
+        if: runner.os != 'Windows'
+        run: |
+            chmod +x ./build.sh
+            ./build.sh Release
+        env:
+            CI: true
+      - name: Publish
+        if: runner.os == 'Windows'
+        run: ./build.cmd Release
+        env:
+            CI: true
