@@ -158,8 +158,7 @@ let inline list (attributes: 'va) (items: Value<'ta, 'va> list) : Value<'ta, 'va
 let inline record (attributes: 'va) (fields: Dict<Name, Value<'ta, 'va>>) : Value<'ta, 'va> =
     Record(attributes, fields)
 
-let inline variable (attributes: 'va) (name: Name) : Value<'ta, 'va> =
-    Variable(attributes, name)
+let inline variable (attributes: 'va) (name: Name) : Value<'ta, 'va> = Variable(attributes, name)
 
 let inline reference (attributes: 'va) (name: FQName) : Value<'ta, 'va> =
     Reference(attributes, name)
@@ -178,12 +177,32 @@ let inline lambda
     Lambda(attributes, parameter, body)
 
 let inline wildcardPattern (attributes: 'va) : Pattern<'va> = WildcardPattern attributes
-let inline asPattern (attributes: 'va) (pattern: Pattern<'va>) (name: Name) : Pattern<'va> = AsPattern(attributes, pattern, name)
-let inline tuplePattern (attributes: 'va) (elementPatterns: Pattern<'va> list) : Pattern<'va> = TuplePattern(attributes, elementPatterns)
-let inline constructorPattern (attributes: 'va) (fqName: FQName) (elementPatterns: Pattern<'va> list) : Pattern<'va> = ConstructorPattern(attributes, fqName, elementPatterns)
+
+let inline asPattern (attributes: 'va) (pattern: Pattern<'va>) (name: Name) : Pattern<'va> =
+    AsPattern(attributes, pattern, name)
+
+let inline tuplePattern (attributes: 'va) (elementPatterns: Pattern<'va> list) : Pattern<'va> =
+    TuplePattern(attributes, elementPatterns)
+
+let inline constructorPattern
+    (attributes: 'va)
+    (fqName: FQName)
+    (elementPatterns: Pattern<'va> list)
+    : Pattern<'va> =
+    ConstructorPattern(attributes, fqName, elementPatterns)
+
 let inline emptyListPattern (attributes: 'va) : Pattern<'va> = EmptyListPattern attributes
-let inline headTailPattern (attributes: 'va) (headPattern: Pattern<'va>) (tailPattern: Pattern<'va>) : Pattern<'va> = HeadTailPattern(attributes, headPattern, tailPattern)
-let inline literalPattern (attributes: 'va) (literal: Literal) : Pattern<'va> = LiteralPattern(attributes, literal)
+
+let inline headTailPattern
+    (attributes: 'va)
+    (headPattern: Pattern<'va>)
+    (tailPattern: Pattern<'va>)
+    : Pattern<'va> =
+    HeadTailPattern(attributes, headPattern, tailPattern)
+
+let inline literalPattern (attributes: 'va) (literal: Literal) : Pattern<'va> =
+    LiteralPattern(attributes, literal)
+
 let inline unitPattern (attributes: 'va) : Pattern<'va> = UnitPattern attributes
 
 /// Turns a definition into a specification by removing implementation details.

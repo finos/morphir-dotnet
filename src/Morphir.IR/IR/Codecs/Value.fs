@@ -40,13 +40,12 @@ let rec encoder
             encodeValueAttributes attributes
             fields
             |> Dict.toList
-            |> Encode.list
-                (fun (name, value) ->
-                    Encode.list id [
-                        Name.encoder name
-                        encoder encodeTypeAttributes encodeValueAttributes value
-                    ]
-                )
+            |> Encode.list (fun (name, value) ->
+                Encode.list id [
+                    Name.encoder name
+                    encoder encodeTypeAttributes encodeValueAttributes value
+                ]
+            )
         ]
     | Variable (attributes, name) ->
         Encode.list id [
@@ -184,17 +183,18 @@ let decoder
                 (Decode.index 1 decodeValueAttributes)
                 (Decode.index 2 (Decode.list (decoder decodeTypeAttributes decodeValueAttributes)))
         | "record" ->
-            Decode.map2 record
+            Decode.map2
+                record
                 (Decode.index 1 decodeValueAttributes)
-                (Decode.index 2
-                    (Decode.list
-                        (Decode.map2 Tuple.pair
+                (Decode.index
+                    2
+                    (Decode.list (
+                        Decode.map2
+                            Tuple.pair
                             (Decode.index 0 Name.decoder)
                             (Decode.index 1 (decoder decodeTypeAttributes decodeValueAttributes))
-                        )
-                        |> Decode.map Dict.fromList
-                    )
-                )
+                     )
+                     |> Decode.map Dict.fromList))
         | "variable" ->
             Decode.map2
                 variable
@@ -206,7 +206,8 @@ let decoder
                 (Decode.index 1 decodeValueAttributes)
                 (Decode.index 2 FQName.decoder)
         | "field" ->
-            Decode.map3 field
+            Decode.map3
+                field
                 (Decode.index 1 decodeValueAttributes)
                 (Decode.index 2 (decoder decodeTypeAttributes decodeValueAttributes))
                 (Decode.index 3 Name.decoder)
@@ -216,12 +217,14 @@ let decoder
                 (Decode.index 1 decodeValueAttributes)
                 (Decode.index 2 Name.decoder)
         | "apply" ->
-            Decode.map3 apply
+            Decode.map3
+                apply
                 (Decode.index 1 decodeValueAttributes)
                 (Decode.index 2 (decoder decodeTypeAttributes decodeValueAttributes))
                 (Decode.index 3 (decoder decodeTypeAttributes decodeValueAttributes))
         | "lambda" ->
-            Decode.map3 lambda
+            Decode.map3
+                lambda
                 (Decode.index 1 decodeValueAttributes)
                 (Decode.index 2 (decodePattern decodeValueAttributes))
                 (Decode.index 3 (decoder decodeTypeAttributes decodeValueAttributes))
@@ -274,67 +277,61 @@ let rec decodePattern (decodeAttributes: Decode.Decoder<'va>) : Decode.Decoder<P
     Decode.index 0 Decode.string
     |> Decode.andThen (fun kind ->
         match kind with
-        | "wildcard_pattern" ->
-            Decode.map
-                wildcardPattern
-                (Decode.index 1 decodeAttributes)
+        | "wildcard_pattern" -> Decode.map wildcardPattern (Decode.index 1 decodeAttributes)
         | "as_pattern" ->
-            Decode.map3 asPattern
+            Decode.map3
+                asPattern
                 (Decode.index 1 decodeAttributes)
                 (Decode.index 2 (decodePattern decodeAttributes))
                 (Decode.index 3 Name.decoder)
         | "tuple_pattern" ->
-            Decode.map2 tuplePattern
+            Decode.map2
+                tuplePattern
                 (Decode.index 1 decodeAttributes)
                 (Decode.index 2 (Decode.list (decodePattern decodeAttributes)))
         | "constructor_pattern" ->
-            Decode.map3 constructorPattern
+            Decode.map3
+                constructorPattern
                 (Decode.index 1 decodeAttributes)
                 (Decode.index 2 FQName.decoder)
                 (Decode.index 3 (Decode.list (decodePattern decodeAttributes)))
-        | "empty_list_pattern" ->
-            Decode.map
-                emptyListPattern
-                (Decode.index 1 decodeAttributes)
+        | "empty_list_pattern" -> Decode.map emptyListPattern (Decode.index 1 decodeAttributes)
         | "head_tail_pattern" ->
-            Decode.map3 headTailPattern
+            Decode.map3
+                headTailPattern
                 (Decode.index 1 decodeAttributes)
                 (Decode.index 2 (decodePattern decodeAttributes))
                 (Decode.index 3 (decodePattern decodeAttributes))
         | "literal_pattern" ->
-            Decode.map2 literalPattern
+            Decode.map2
+                literalPattern
                 (Decode.index 1 decodeAttributes)
                 (Decode.index 2 Literal.decoder)
-        | "unit_pattern" ->
-            Decode.map
-                unitPattern
-                (Decode.index 1 decodeAttributes)
+        | "unit_pattern" -> Decode.map unitPattern (Decode.index 1 decodeAttributes)
         | other -> Decode.fail ($"Unknown pattern: {other}")
     )
 
-let encodeSpecification encodeAttributes (spec:Specification<'a>):Value =
+let encodeSpecification encodeAttributes (spec: Specification<'a>) : Value =
     Encode.object [
         "inputs",
         spec.Inputs
         |> Encode.list (fun (argName, argType) ->
-            Encode.list id [
-                Name.encoder argName
-                Type.encoder encodeAttributes argType
-            ]
+            Encode.list id [ Name.encoder argName; Type.encoder encodeAttributes argType ]
         )
         "output", Type.encoder encodeAttributes spec.Output
     ]
 
 let decodeSpecification decodeAttributes : Decode.Decoder<Specification<'a>> =
-    Decode.map2 specification
+    Decode.map2
+        specification
         (Decode.field
             "inputs"
             (Decode.list (
-                Decode.map2 Tuple.pair
+                Decode.map2
+                    Tuple.pair
                     (Decode.index 0 Name.decoder)
                     (Decode.index 1 (Type.decoder decodeAttributes))
-            ))
-        )
+            )))
         (Decode.field "output" (Type.decoder decodeAttributes))
 
 let encodeDefinition
