@@ -11,7 +11,7 @@ open Morphir.IR.SDK.Basics
 let moduleName: ModuleName = Path.fromString "List"
 
 let listType attributes itemType =
-    reference attributes (toFQName moduleName "List") [ itemType ]
+    Type.reference attributes (toFQName moduleName "List") [ itemType ]
 
 let construct (attributes: 'va) : Value<_, 'va> =
     Value.Reference(attributes, toFQName moduleName "cons")

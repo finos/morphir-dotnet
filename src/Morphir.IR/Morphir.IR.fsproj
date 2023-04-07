@@ -55,8 +55,15 @@
         <Compile Include="IR\SDK\Rule.fs" />
         <Compile Include="IR\SDK\Aggregate.fs" />
         <Compile Include="IR\Codecs\naming.fs" />
+        <Compile Include="IR\Codecs\Prelude.fs" />
+        <Compile Include="IR\Codecs\Documented.fs" />
         <Compile Include="IR\Codecs\AccessControlled.fs" />
         <Compile Include="IR\Codecs\Type.fs" />
+        <Compile Include="IR\Codecs\Literal.fs" />
+        <Compile Include="IR\Codecs\Value.fs" />
+        <Compile Include="IR\Codecs\Module.fs" />
+        <Compile Include="IR\Codecs\Package.fs" />
+        <Compile Include="IR\Codecs\Distribution.fs" />
         <Compile Include="Codecs\Default.fs" />
     </ItemGroup>
 </Project>
