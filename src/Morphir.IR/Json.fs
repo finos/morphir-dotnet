@@ -44,18 +44,18 @@ module Decode =
     let inline andThen (cb: 'a -> Decoder<'b>) (decoder: Decoder<'a>) : Decoder<'b> =
         Decode.andThen cb decoder
 
-    let bool : Decoder<bool> = Decode.bool
-    let char : Decoder<char> = Decode.char
+    let bool: Decoder<bool> = Decode.bool
+    let char: Decoder<char> = Decode.char
 
-    let int : Decoder<int> = Decode.int
+    let int: Decoder<int> = Decode.int
 
-    let float : Decoder<float> = Decode.float
+    let float: Decoder<float> = Decode.float
 
-    let decimal : Decoder<decimal> = Decode.decimal
+    let decimal: Decoder<decimal> = Decode.decimal
 
 
-    let int16 : Decoder<int16> = Decode.int16
-    let int64 : Decoder<int64> = Decode.int64
+    let int16: Decoder<int16> = Decode.int16
+    let int64: Decoder<int64> = Decode.int64
 
     let inline fromString (decoder: Decoder<_>) = Decode.fromString decoder
 
@@ -86,6 +86,15 @@ module Decode =
         (decoder3: Decoder<'c>)
         : Decoder<'d> =
         Decode.map3 ctor decoder1 decoder2 decoder3
+
+    let inline map4
+        (ctor: 'a -> 'b -> 'c -> 'd -> 'e)
+        (decoder1: Decoder<'a>)
+        (decoder2: Decoder<'b>)
+        (decoder3: Decoder<'c>)
+        (decoder4: Decoder<'d>)
+        : Decoder<'e> =
+        Decode.map4 ctor decoder1 decoder2 decoder3 decoder4
 
     let inline succeed (output: 'a) : Decoder<'a> = Decode.succeed output
 

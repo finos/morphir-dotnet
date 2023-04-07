@@ -28,7 +28,7 @@ type Value<'TA, 'VA> =
     | Constructor of Attributes: 'VA * FullyQualifiedName: FQName
     | Tuple of Attributes: 'VA * Elements: Value<'TA, 'VA> list
     | List of Attributes: 'VA * Items: Value<'TA, 'VA> list
-    | Record of Attributes: 'VA * Fields: (Name * Value<'TA, 'VA>) list
+    | Record of Attributes: 'VA * Fields: Dict<Name, Value<'TA, 'VA>>
     | Variable of Attributes: 'VA * Name: Name
     | Reference of Attributes: 'VA * FullyQualifiedName: FQName
     | Field of Attributes: 'VA * SubjectValue: Value<'TA, 'VA> * FieldName: Name
@@ -149,6 +149,43 @@ let inline unit attributes = Unit attributes
 let inline constructor (attributes: 'va) (fqName: FQName) : Value<'ta, 'va> =
     Constructor(attributes, fqName)
 
+let inline tuple (attributes: 'va) (items: Value<'ta, 'va> list) : Value<'ta, 'va> =
+    Tuple(attributes, items)
+
+let inline list (attributes: 'va) (items: Value<'ta, 'va> list) : Value<'ta, 'va> =
+    List(attributes, items)
+
+let inline record (attributes: 'va) (fields: Dict<Name, Value<'ta, 'va>>) : Value<'ta, 'va> =
+    Record(attributes, fields)
+
+let inline variable (attributes: 'va) (name: Name) : Value<'ta, 'va> =
+    Variable(attributes, name)
+
+let inline reference (attributes: 'va) (name: FQName) : Value<'ta, 'va> =
+    Reference(attributes, name)
+
+let inline field (attributes: 'va) (value: Value<'ta, 'va>) (fieldName: Name) : Value<'ta, 'va> =
+    Field(attributes, value, fieldName)
+
+let inline fieldFunction (attributes: 'va) (fieldName: Name) : Value<'ta, 'va> =
+    FieldFunction(attributes, fieldName)
+
+let inline lambda
+    (attributes: 'va)
+    (parameter: Pattern<'va>)
+    (body: Value<'ta, 'va>)
+    : Value<'ta, 'va> =
+    Lambda(attributes, parameter, body)
+
+let inline wildcardPattern (attributes: 'va) : Pattern<'va> = WildcardPattern attributes
+let inline asPattern (attributes: 'va) (pattern: Pattern<'va>) (name: Name) : Pattern<'va> = AsPattern(attributes, pattern, name)
+let inline tuplePattern (attributes: 'va) (elementPatterns: Pattern<'va> list) : Pattern<'va> = TuplePattern(attributes, elementPatterns)
+let inline constructorPattern (attributes: 'va) (fqName: FQName) (elementPatterns: Pattern<'va> list) : Pattern<'va> = ConstructorPattern(attributes, fqName, elementPatterns)
+let inline emptyListPattern (attributes: 'va) : Pattern<'va> = EmptyListPattern attributes
+let inline headTailPattern (attributes: 'va) (headPattern: Pattern<'va>) (tailPattern: Pattern<'va>) : Pattern<'va> = HeadTailPattern(attributes, headPattern, tailPattern)
+let inline literalPattern (attributes: 'va) (literal: Literal) : Pattern<'va> = LiteralPattern(attributes, literal)
+let inline unitPattern (attributes: 'va) : Pattern<'va> = UnitPattern attributes
+
 /// Turns a definition into a specification by removing implementation details.
 let definitionToSpecification (def: Definition<'TA, 'VA>) : Specification<'TA> = {
     Inputs =
@@ -211,6 +248,7 @@ let rec toString (value: Value<'ta, 'va>) : string = stringBuffer {
     | Record (_, fields) ->
         let fieldStrings =
             fields
+            |> Dict.toList
             |> List.map (fun (name, value) -> $"{Name.toCamelCase name} = {toString value}")
             |> String.join ", "
 
