@@ -36,11 +36,11 @@ jobs:
               if: runner.os != 'Windows'
               run: |
                   chmod +x ./build.sh
-                  ./build.sh
+                  ./build.sh CreatePackages
               env:
                   CI: true
             - name: Build
               if: runner.os == 'Windows'
-              run: ./build.cmd
+              run: ./build.cmd CreatePackages
               env:
                   CI: true

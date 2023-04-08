@@ -7,23 +7,25 @@ on:
                 description: 'Version'
                 required: true
                 default: 'v1.0.0'
-  branch:
-      - 'main'
   push:
+    branch:
+      - 'main'
     tags: 
       - 'v[0-9]+.[0-9]+.[0-9]+*'
     
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/build.yml
 
   nuget-push:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: build
     steps:
 
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: packages
           path: ./packages
