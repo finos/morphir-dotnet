@@ -22,7 +22,7 @@ let library
 /// Get the package name of the distribution.
 let lookupPackageName (distribution: Distribution) : PackageName =
     match distribution with
-    | Library (packageName, _, _) -> packageName
+    | Library(packageName, _, _) -> packageName
 
 /// Add a package specification as a dependency of this library.
 let insertDependency
@@ -31,7 +31,7 @@ let insertDependency
     (distribution: Distribution)
     : Distribution =
     match distribution with
-    | Library (packageName, dependencies, definition) ->
+    | Library(packageName, dependencies, definition) ->
         Library(
             packageName,
             insert dependencyPackageName dependencyPackageSpec dependencies,

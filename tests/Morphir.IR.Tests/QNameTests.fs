@@ -54,10 +54,10 @@ let tests =
             "When getting a property using: "
             (testParam (TestData.pickAQName ()) [
                 "getModulePath",
-                fun (QName (moduleName, _) as qname) () ->
+                fun (QName(moduleName, _) as qname) () ->
                     Expect.equal (QName.getModulePath qname) moduleName
                 "getLocalName",
-                fun (QName (_, localName) as qname) () ->
+                fun (QName(_, localName) as qname) () ->
                     Expect.equal (QName.getLocalName qname) localName
              ]
              |> List.ofSeq)

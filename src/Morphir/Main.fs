@@ -14,13 +14,11 @@ module Main =
         Host
             .CreateDefaultBuilder(argv)
             .UseSerilog(fun (context: HostBuilderContext) (loggerConfiguration: LoggerConfiguration) ->
-                loggerConfiguration
-                    .MinimumLevel
+                loggerConfiguration.MinimumLevel
                     .Information()
                     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
                     //.ReadFrom.Configuration(context.Configuration)
-                    .Enrich
-                    .FromLogContext()
+                    .Enrich.FromLogContext()
                     .WriteTo.Console(theme = AnsiConsoleTheme.Code)
                 |> ignore
             )

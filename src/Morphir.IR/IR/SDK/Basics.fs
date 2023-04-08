@@ -97,9 +97,9 @@ let composeRight (attributes: 'a) : Value.Value<'b, 'a> =
 
 let isNumber =
     function
-    | Reference (_, FQName ([ [ "morphir" ]; [ "s"; "d"; "k" ] ], [ [ "basics" ] ], [ "float" ]), []) ->
+    | Reference(_, FQName([ [ "morphir" ]; [ "s"; "d"; "k" ] ], [ [ "basics" ] ], [ "float" ]), []) ->
         true
-    | Reference (_, FQName ([ [ "morphir" ]; [ "s"; "d"; "k" ] ], [ [ "basics" ] ], [ "int" ]), []) ->
+    | Reference(_, FQName([ [ "morphir" ]; [ "s"; "d"; "k" ] ], [ [ "basics" ] ], [ "int" ]), []) ->
         true
     | _ -> false
 

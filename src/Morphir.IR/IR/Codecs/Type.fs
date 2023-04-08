@@ -11,35 +11,35 @@ open Morphir.SDK
 let rec encoder (encodeAttributes: 'a -> Value) (tpe: Type<'a>) : Encode.Value =
     match tpe with
     | Type.Unit attr -> Encode.list id [ Encode.string "Unit"; encodeAttributes attr ]
-    | Type.Variable (attr, name) ->
+    | Type.Variable(attr, name) ->
         Encode.list id [ Encode.string "Variable"; encodeAttributes attr; Name.encoder name ]
-    | Type.Reference (attributes, typeName, typeParameters) ->
+    | Type.Reference(attributes, typeName, typeParameters) ->
         Encode.list id [
             Encode.string "Reference"
             encodeAttributes attributes
             FQName.encoder typeName
             Encode.list (encoder encodeAttributes) typeParameters
         ]
-    | Type.Tuple (attr, elements) ->
+    | Type.Tuple(attr, elements) ->
         Encode.list id [
             Encode.string "Tuple"
             encodeAttributes attr
             Encode.list (encoder encodeAttributes) elements
         ]
-    | Type.Record (attr, fieldTypes) ->
+    | Type.Record(attr, fieldTypes) ->
         Encode.list id [
             Encode.string "Record"
             encodeAttributes attr
             Encode.list (encodeField encodeAttributes) fieldTypes
         ]
-    | Type.ExtensibleRecord (attributes, variableName, fieldTypes) ->
+    | Type.ExtensibleRecord(attributes, variableName, fieldTypes) ->
         Encode.list id [
             Encode.string "ExtensibleRecord"
             encodeAttributes attributes
             Name.encoder variableName
             Encode.list (encodeField encodeAttributes) fieldTypes
         ]
-    | Type.Function (attr, argumentType, returnType) ->
+    | Type.Function(attr, argumentType, returnType) ->
         Encode.list id [
             Encode.string "Function"
             encodeAttributes attr
@@ -129,7 +129,7 @@ let decodeConstructors decodeAttributes : Decode.Decoder<Constructors<'a>> =
 
 let encodeSpecification encodeAttributes spec : Value =
     match spec with
-    | TypeAliasSpecification (typeParams, exp) ->
+    | TypeAliasSpecification(typeParams, exp) ->
         Encode.list id [
             Encode.string "TypeAliasSpecification"
             Encode.list Name.encoder typeParams
@@ -140,13 +140,13 @@ let encodeSpecification encodeAttributes spec : Value =
             Encode.string "OpaqueTypeSpecification"
             Encode.list Name.encoder typeParams
         ]
-    | CustomTypeSpecification (typeParams, constructors) ->
+    | CustomTypeSpecification(typeParams, constructors) ->
         Encode.list id [
             Encode.string "CustomTypeSpecification"
             Encode.list Name.encoder typeParams
             encodeConstructors encodeAttributes constructors
         ]
-    | DerivedTypeSpecification (typeParams, config) ->
+    | DerivedTypeSpecification(typeParams, config) ->
         Encode.list id [
             Encode.string "DerivedTypeSpecification"
             Encode.list Name.encoder typeParams
@@ -164,8 +164,7 @@ let decodeSpecification decodeAttributes : Decode.Decoder<Specification<'a>> =
                 BaseType = baseType
                 FromBaseType = fromBaseType
                 ToBaseType = toBaseType
-            }
-            )
+            })
             (Decode.field "baseType" (decoder decodeAttributes))
             (Decode.field "fromBaseType" FQName.decoder)
             (Decode.field "toBaseType" FQName.decoder)
@@ -195,13 +194,13 @@ let decodeSpecification decodeAttributes : Decode.Decoder<Specification<'a>> =
 
 let encodeDefinition encodeAttributes (definition: Definition<'a>) : Value =
     match definition with
-    | TypeAliasDefinition (typeParams, exp) ->
+    | TypeAliasDefinition(typeParams, exp) ->
         Encode.list id [
             Encode.string "TypeAliasDefinition"
             Encode.list Name.encoder typeParams
             encoder encodeAttributes exp
         ]
-    | CustomTypeDefinition (typeParams, constructors) ->
+    | CustomTypeDefinition(typeParams, constructors) ->
         Encode.list id [
             Encode.string "CustomTypeDefinition"
             Encode.list Name.encoder typeParams

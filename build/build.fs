@@ -60,9 +60,15 @@ let distGlob =
     !! (distDir @@ "*.zip")
     ++ (distDir @@ "*.tgz")
     ++ (distDir @@ "*.tar.gz")
+    ++ (distDir </> "*.nupkg")
+let libDistGlob = distDir </> "*.nupkg"
 
 let coverageThresholdPercent = 1
 let coverageReportDir =  __SOURCE_DIRECTORY__ </> ".." </> "docs" @@ "coverage"
+
+let docsDir = __SOURCE_DIRECTORY__ </> ".." </> "docs"
+let docsSrcDir = __SOURCE_DIRECTORY__ </> ".." </> "docsSrc"
+let docsToolDir = __SOURCE_DIRECTORY__ </> ".." </> "docsTool"
 
 let gitOwner = "finos"
 let gitRepoName = "morphir-dotnet"
@@ -92,11 +98,14 @@ let runtimes = [
     "win-x64", "CreateZip"
 ]
 
+let publishUrl = "https://www.nuget.org"
+
+let docsSiteBaseUrl = sprintf "https://%s.github.io/%s" gitOwner gitRepoName
 let disableCodeCoverage = environVarAsBoolOrDefault "DISABLE_COVERAGE" false
 
 let githubToken = Environment.environVarOrNone "GITHUB_TOKEN"
 
-
+let nugetToken = Environment.environVarOrNone "NUGET_TOKEN"
 //-----------------------------------------------------------------------------
 // Helpers
 //-----------------------------------------------------------------------------
@@ -203,12 +212,21 @@ module dotnet =
     let watch cmdParam program args =
         DotNet.exec cmdParam (sprintf "watch %s" program) args
 
+    let run cmdParam args =
+        DotNet.exec cmdParam "run" args
+
     let tool optionConfig command args =
         DotNet.exec optionConfig (sprintf "%s" command) args
         |> failOnBadExitAndPrint
 
     let reportgenerator optionConfig args =
         tool optionConfig "reportgenerator" args
+
+    let sourcelink optionConfig args =
+        tool optionConfig "sourcelink" args
+
+    let fcswatch optionConfig args =
+        tool optionConfig "fcswatch" args
 
     let fsharpAnalyzer optionConfig args =
         tool optionConfig "fsharp-analyzers" args
@@ -226,6 +244,45 @@ module FSharpAnalyzers =
     with
         interface IArgParserTemplate with
             member s.Usage = ""
+
+open DocsTool.CLIArgs
+module DocsTool =
+    open Argu
+    let buildparser = ArgumentParser.Create<BuildArgs>(programName = "docstool")
+    let buildCLI () =
+        [
+            BuildArgs.SiteBaseUrl docsSiteBaseUrl
+            BuildArgs.ProjectGlob srcGlob
+            BuildArgs.DocsOutputDirectory docsDir
+            BuildArgs.DocsSourceDirectory docsSrcDir
+            BuildArgs.GitHubRepoUrl gitHubRepoUrl
+            BuildArgs.ProjectName gitRepoName
+            BuildArgs.ReleaseVersion latestEntry.NuGetVersion
+        ]
+        |> buildparser.PrintCommandLineArgumentsFlat
+
+    let build () =
+        dotnet.run (fun args ->
+            { args with WorkingDirectory = docsToolDir }
+        ) (sprintf " -- build %s" (buildCLI()))
+        |> failOnBadExitAndPrint
+
+    let watchparser = ArgumentParser.Create<WatchArgs>(programName = "docstool")
+    let watchCLI () =
+        [
+            WatchArgs.ProjectGlob srcGlob
+            WatchArgs.DocsSourceDirectory docsSrcDir
+            WatchArgs.GitHubRepoUrl gitHubRepoUrl
+            WatchArgs.ProjectName gitRepoName
+            WatchArgs.ReleaseVersion latestEntry.NuGetVersion
+        ]
+        |> watchparser.PrintCommandLineArgumentsFlat
+
+    let watch () =
+        dotnet.watch (fun args ->
+           { args with WorkingDirectory = docsToolDir }
+        ) "run" (sprintf "-- watch %s" (watchCLI()))
+        |> failOnBadExitAndPrint
 
 //-----------------------------------------------------------------------------
 // Target Implementations
@@ -478,6 +535,23 @@ let generateAssemblyInfo _ =
         | Vbproj -> AssemblyInfoFile.createVisualBasic ((folderName @@ "My Project") @@ "AssemblyInfo.vb") attributes
         )
 
+let dotnetPack ctx =
+    // Get release notes with properly-linked version number
+    let releaseNotes = latestEntry |> Changelog.mkReleaseNotes linkReferenceForLatestEntry
+    let args =
+        [
+            sprintf "/p:PackageVersion=%s" latestEntry.NuGetVersion
+            sprintf "/p:PackageReleaseNotes=\"%s\"" releaseNotes
+        ]
+    DotNet.pack (fun c ->
+        { c with
+            Configuration = configuration (ctx.Context.AllExecutingTargets)
+            OutputPath = Some distDir
+            Common =
+                c.Common
+                |> DotNet.Options.withAdditionalArgs args
+        }) sln
+
 let createPackages _ =
     runtimes
     |> Seq.iter(fun (runtime, packageType) ->
@@ -498,6 +572,28 @@ let createPackages _ =
         ) "msbuild" args
         |> failOnBadExitAndPrint
     )
+
+let sourceLinkTest _ =
+    //!! distGlob
+    !! libDistGlob
+    |> Seq.iter (fun nupkg ->
+        dotnet.sourcelink id (sprintf "test %s" nupkg)
+    )
+
+let publishToNuget _ =
+    allReleaseChecks ()
+    NuGet.NuGet.NuGetPublish(fun c ->
+        { c with
+            PublishUrl = "https://www.nuget.org"
+            WorkingDir = "dist"
+            AccessKey =
+                match nugetToken with
+                | Some s -> s
+                | _ -> c.AccessKey
+        }
+    )
+    // If build fails after this point, we've pushed a release out with this version of CHANGELOG.md so we should keep it around
+    Target.deactivateBuildFailure "RevertChangelog"
 
 let gitRelease _ =
     allReleaseChecks ()
@@ -572,6 +668,22 @@ let checkFormatCode _ =
     else
         Trace.logf "Errors while formatting: %A" result.Errors
 
+let buildDocs _ =
+    DocsTool.build ()
+
+let watchDocs _ =
+    DocsTool.watch ()
+
+let releaseDocs ctx =
+    isReleaseBranchCheck () // Docs changes don't need a full release to the library
+
+    Git.Staging.stageAll docsDir
+    Git.Commit.exec "" (sprintf "Documentation release of version %s" latestEntry.NuGetVersion)
+    if isRelease (ctx.Context.AllExecutingTargets) |> not then
+        // We only want to push if we're only calling "ReleaseDocs" target
+        // If we're calling "Release" target, we'll let the "GitRelease" target do the git push
+        Git.Branches.push ""
+
 let initTargets () =
     BuildServer.install [
         GitHubActions.Installer
@@ -584,7 +696,7 @@ let initTargets () =
 // Hide Secrets in Logger
 //-----------------------------------------------------------------------------
     Option.iter(TraceSecrets.register "<GITHUB_TOKEN>" ) githubToken
-
+    Option.iter(TraceSecrets.register "<NUGET_TOKEN>") nugetToken
     //-----------------------------------------------------------------------------
     // Target Declaration
     //-----------------------------------------------------------------------------
@@ -601,12 +713,19 @@ let initTargets () =
     Target.create "WatchApp" watchApp
     Target.create "WatchTests" watchTests
     Target.create "AssemblyInfo" generateAssemblyInfo
+    Target.create "DotnetPack" dotnetPack
+    Target.create "SourceLinkTest" sourceLinkTest
+    Target.create "PublishToNuGet" publishToNuget
     Target.create "CreatePackages" createPackages
     Target.create "GitRelease" gitRelease
     Target.create "GitHubRelease" githubRelease
     Target.create "FormatCode" formatCode
     Target.create "CheckFormatCode" checkFormatCode
     Target.create "Release" ignore
+    Target.create "BuildDocs" buildDocs
+    Target.create "WatchDocs" watchDocs
+    Target.create "ReleaseDocs" releaseDocs
+    Target.create "PackItUp" ignore
 
     //-----------------------------------------------------------------------------
     // Target Dependencies
@@ -615,27 +734,41 @@ let initTargets () =
     // Only call Clean if DotnetPack was in the call chain
     // Ensure Clean is called before DotnetRestore
     "Clean" ?=>! "DotnetRestore"
+    "Clean" ==>! "DotnetPack"
     "Clean" ==>! "CreatePackages"
 
     // Only call AssemblyInfo if there is a release target in the call chain
     // Ensure AssemblyInfo is called after DotnetRestore and before DotnetBuild
     "DotnetRestore" ?=>! "AssemblyInfo"
     "AssemblyInfo" ?=>! "DotnetBuild"
+    "AssemblyInfo" ==>! "PublishToNuGet"
     "AssemblyInfo" ==>! "GitRelease"
 
     // Only call UpdateChangelog if there is a release target in the call chain
     // Ensure UpdateChangelog is called after DotnetRestore and before AssemblyInfo
     "DotnetRestore" ?=>! "UpdateChangelog"
     "UpdateChangelog" ?=>! "AssemblyInfo"
+    "UpdateChangelog" ==>! "PublishToNuGet"
     "UpdateChangelog" ==>! "GitRelease"
+
+    "BuildDocs" ==>! "ReleaseDocs"
+    "BuildDocs" ?=>! "PublishToNuget"
+    "DotnetPack" ?=>! "BuildDocs"
+    "GenerateCoverageReport" ?=>! "ReleaseDocs"
+
+    "DotNetPack" ==>! "PackItUp"
+    "CreatePackages" ==>! "PackItUp"
+    "DotNetPack" ?=>! "CreatePackages"
 
     "DotnetRestore"
         ==> "CheckFormatCode"
         ==> "DotnetBuild"
-        // ==> "FSharpAnalyzers"
+        ==> "FSharpAnalyzers"
         ==> "DotnetTest"
         =?> ("GenerateCoverageReport", not disableCodeCoverage)
-        ==> "CreatePackages"
+        ==> "DotnetPack"
+        ==> "PackItUp"
+        ==> "PublishToNuGet"
         ==> "GitRelease"
         ==> "GitHubRelease"
         ==>! "Release"

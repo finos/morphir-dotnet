@@ -16,28 +16,28 @@ let inline fQName packagePath modulePath localName =
     FQName(packagePath, modulePath, localName)
 
 let fromQName packagePath qName =
-    let (QName (modulePath, localName)) = qName
+    let (QName(modulePath, localName)) = qName
     FQName(packagePath, modulePath, localName)
 
 let getPackagePath =
     function
-    | FQName (packagePath, _, _) -> packagePath
+    | FQName(packagePath, _, _) -> packagePath
 
 let getModulePath =
     function
-    | FQName (_, modulePath, _) -> modulePath
+    | FQName(_, modulePath, _) -> modulePath
 
 /// <summary>
 /// Get the local name part of a fully-qualified name.
 /// </summary>
 let getLocalName =
     function
-    | FQName (_, _, localName) -> localName
+    | FQName(_, _, localName) -> localName
 
 let inline fqn (packageName: string) (moduleName: string) (localName: string) =
     fQName (Path.fromString packageName) (Path.fromString moduleName) (Name.fromString localName)
 
-let toReferenceName (FQName (packageName, moduleName, localName)) =
+let toReferenceName (FQName(packageName, moduleName, localName)) =
     let packageNameString = Path.toString Name.toTitleCase "." packageName
     let moduleNameString = Path.toString Name.toTitleCase "." moduleName
     let localNameString = Name.toTitleCase localName
@@ -48,7 +48,7 @@ let toReferenceName (FQName (packageName, moduleName, localName)) =
 /// </summary>
 let toString =
     function
-    | FQName (packagePath, modulePath, localName) ->
+    | FQName(packagePath, modulePath, localName) ->
         sprintf
             "%s:%s:%s"
             (packagePath

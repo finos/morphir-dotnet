@@ -28,7 +28,7 @@ let decoder: Decode.Decoder<Literal> =
                 (Decode.index 1 Decode.string
                  |> Decode.andThen (fun str ->
                      match String.uncons str with
-                     | Just (ch, _) -> Decode.succeed ch
+                     | Just(ch, _) -> Decode.succeed ch
                      | _ -> Decode.fail "Single char expected"
                  ))
         | "StringLiteral" -> Decode.map stringLiteral (Decode.index 1 Decode.string)

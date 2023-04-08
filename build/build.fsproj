@@ -22,6 +22,7 @@
     <PackageReference Include="Octokit"/>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../docsTool/CLI.fs" Link="CLI.fs" />
     <Compile Include="build.fs" />
   </ItemGroup>
 </Project>
