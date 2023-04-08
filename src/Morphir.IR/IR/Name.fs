@@ -21,7 +21,7 @@ let inline toList (name: Name) : List<string> = name
 
 let capitalize string : string =
     match String.uncons string with
-    | Just (headChar, tailString) -> String.cons (Char.toUpper headChar) tailString
+    | Just(headChar, tailString) -> String.cons (Char.toUpper headChar) tailString
     | Nothing -> string
 
 let toTitleCase name =

@@ -10,31 +10,31 @@ let rec encoder
     (value: Value<'ta, 'va>)
     : Value =
     match value with
-    | Literal (attributes, value) ->
+    | Literal(attributes, value) ->
         Encode.list id [
             Encode.string "literal"
             encodeValueAttributes attributes
             Literal.encoder value
         ]
-    | Constructor (attributes, fullyQualifiedName) ->
+    | Constructor(attributes, fullyQualifiedName) ->
         Encode.list id [
             Encode.string "constructor"
             encodeValueAttributes attributes
             FQName.encoder fullyQualifiedName
         ]
-    | Tuple (attributes, elements) ->
+    | Tuple(attributes, elements) ->
         Encode.list id [
             Encode.string "tuple"
             encodeValueAttributes attributes
             Encode.list (encoder encodeTypeAttributes encodeValueAttributes) elements
         ]
-    | List (attributes, items) ->
+    | List(attributes, items) ->
         Encode.list id [
             Encode.string "list"
             encodeValueAttributes attributes
             Encode.list (encoder encodeTypeAttributes encodeValueAttributes) items
         ]
-    | Record (attributes, fields) ->
+    | Record(attributes, fields) ->
         Encode.list id [
             Encode.string "record"
             encodeValueAttributes attributes
@@ -47,46 +47,46 @@ let rec encoder
                 ]
             )
         ]
-    | Variable (attributes, name) ->
+    | Variable(attributes, name) ->
         Encode.list id [
             Encode.string "variable"
             encodeValueAttributes attributes
             Name.encoder name
         ]
-    | Reference (attributes, fullyQualifiedName) ->
+    | Reference(attributes, fullyQualifiedName) ->
         Encode.list id [
             Encode.string "reference"
             encodeValueAttributes attributes
             FQName.encoder fullyQualifiedName
         ]
-    | Field (attributes, subjectValue, fieldName) ->
+    | Field(attributes, subjectValue, fieldName) ->
         Encode.list id [
             Encode.string "field"
             encodeValueAttributes attributes
             encoder encodeTypeAttributes encodeValueAttributes subjectValue
             Name.encoder fieldName
         ]
-    | FieldFunction (attributes, fieldName) ->
+    | FieldFunction(attributes, fieldName) ->
         Encode.list id [
             Encode.string "field_function"
             encodeValueAttributes attributes
             Name.encoder fieldName
         ]
-    | Apply (attributes, ``function``, argument) ->
+    | Apply(attributes, ``function``, argument) ->
         Encode.list id [
             Encode.string "apply"
             encodeValueAttributes attributes
             encoder encodeTypeAttributes encodeValueAttributes ``function``
             encoder encodeTypeAttributes encodeValueAttributes argument
         ]
-    | Lambda (attributes, argumentPattern, body) ->
+    | Lambda(attributes, argumentPattern, body) ->
         Encode.list id [
             Encode.string "lambda"
             encodeValueAttributes attributes
             encodePattern encodeValueAttributes argumentPattern
             encoder encodeTypeAttributes encodeValueAttributes body
         ]
-    | LetDefinition (attributes, valueName, valueDefinition, inValue) ->
+    | LetDefinition(attributes, valueName, valueDefinition, inValue) ->
         Encode.list id [
             Encode.string "let_definition"
             encodeValueAttributes attributes
@@ -94,7 +94,7 @@ let rec encoder
             encodeDefinition encodeTypeAttributes encodeValueAttributes valueDefinition
             encoder encodeTypeAttributes encodeValueAttributes inValue
         ]
-    | LetRecursion (attributes, valueDefinitions, inValue) ->
+    | LetRecursion(attributes, valueDefinitions, inValue) ->
         Encode.list id [
             Encode.string "let_recursion"
             encodeValueAttributes attributes
@@ -108,7 +108,7 @@ let rec encoder
             )
             encoder encodeTypeAttributes encodeValueAttributes inValue
         ]
-    | Destructure (attributes, pattern, valueToDestruct, inValue) ->
+    | Destructure(attributes, pattern, valueToDestruct, inValue) ->
         Encode.list id [
             Encode.string "destructure"
             encodeValueAttributes attributes
@@ -116,7 +116,7 @@ let rec encoder
             encoder encodeTypeAttributes encodeValueAttributes valueToDestruct
             encoder encodeTypeAttributes encodeValueAttributes inValue
         ]
-    | IfThenElse (attributes, condition, thenBranch, elseBranch) ->
+    | IfThenElse(attributes, condition, thenBranch, elseBranch) ->
         Encode.list id [
             Encode.string "if_then_else"
             encodeValueAttributes attributes
@@ -124,7 +124,7 @@ let rec encoder
             encoder encodeTypeAttributes encodeValueAttributes thenBranch
             encoder encodeTypeAttributes encodeValueAttributes elseBranch
         ]
-    | PatternMatch (attributes, branchOutOn, cases) ->
+    | PatternMatch(attributes, branchOutOn, cases) ->
         Encode.list id [
             Encode.string "pattern_match"
             encodeValueAttributes attributes
@@ -138,7 +138,7 @@ let rec encoder
                 )
                 cases
         ]
-    | UpdateRecord (attributes, valueToUpdate, fieldsToUpdate) ->
+    | UpdateRecord(attributes, valueToUpdate, fieldsToUpdate) ->
         Encode.list id [
             Encode.string "update_record"
             encodeValueAttributes attributes
@@ -300,20 +300,20 @@ let rec encodePattern (encodeAttributes: 'va -> Value) (pattern: Pattern<'va>) :
     match pattern with
     | WildcardPattern attributes ->
         Encode.list id [ Encode.string "wildcard_pattern"; encodeAttributes attributes ]
-    | AsPattern (attributes, pattern, name) ->
+    | AsPattern(attributes, pattern, name) ->
         Encode.list id [
             Encode.string "as_pattern"
             encodeAttributes attributes
             encodePattern encodeAttributes pattern
             Name.encoder name
         ]
-    | TuplePattern (attributes, elementPatterns) ->
+    | TuplePattern(attributes, elementPatterns) ->
         Encode.list id [
             Encode.string "tuple_pattern"
             encodeAttributes attributes
             Encode.list (encodePattern encodeAttributes) elementPatterns
         ]
-    | ConstructorPattern (attributes, constructorName, argumentPatterns) ->
+    | ConstructorPattern(attributes, constructorName, argumentPatterns) ->
         Encode.list id [
             Encode.string "constructor_pattern"
             encodeAttributes attributes
@@ -322,14 +322,14 @@ let rec encodePattern (encodeAttributes: 'va -> Value) (pattern: Pattern<'va>) :
         ]
     | EmptyListPattern attributes ->
         Encode.list id [ Encode.string "empty_list_pattern"; encodeAttributes attributes ]
-    | HeadTailPattern (attributes, headPattern, tailPattern) ->
+    | HeadTailPattern(attributes, headPattern, tailPattern) ->
         Encode.list id [
             Encode.string "head_tail_pattern"
             encodeAttributes attributes
             encodePattern encodeAttributes headPattern
             encodePattern encodeAttributes tailPattern
         ]
-    | LiteralPattern (attributes, value) ->
+    | LiteralPattern(attributes, value) ->
         Encode.list id [
             Encode.string "literal_pattern"
             encodeAttributes attributes

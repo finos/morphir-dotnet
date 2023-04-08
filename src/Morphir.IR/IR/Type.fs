@@ -23,12 +23,12 @@ type Type<'A> =
 
     member this.Attributes =
         match this with
-        | Variable (a, _) -> a
-        | Reference (a, _, _) -> a
-        | Tuple (a, _) -> a
-        | Record (a, _) -> a
-        | ExtensibleRecord (a, _, _) -> a
-        | Function (a, _, _) -> a
+        | Variable(a, _) -> a
+        | Reference(a, _, _) -> a
+        | Tuple(a, _) -> a
+        | Record(a, _) -> a
+        | ExtensibleRecord(a, _, _) -> a
+        | Function(a, _, _) -> a
         | Unit a -> a
 
     interface Expression<'A> with
@@ -149,25 +149,25 @@ let fold<'Attrib, 'State>
     | Unit _ as t -> folder state t
     | Variable _ as t -> folder state t
     | Reference _ as t -> folder state t
-    | Tuple (_, elems) as t ->
+    | Tuple(_, elems) as t ->
         let state =
             elems
             |> List.fold folder state
 
         folder state t
-    | Record (_, fields) as t ->
+    | Record(_, fields) as t ->
         let state =
             fields
             |> List.fold (fun state field -> folder state field.Type) state
 
         folder state t
-    | ExtensibleRecord (_, _, fields) as t ->
+    | ExtensibleRecord(_, _, fields) as t ->
         let state =
             fields
             |> List.fold (fun state field -> folder state field.Type) state
 
         folder state t
-    | Function (_, argType, returnType) as t ->
+    | Function(_, argType, returnType) as t ->
         let state = folder state argType
         let state = folder state returnType
         folder state t
@@ -178,11 +178,11 @@ let fold<'Attrib, 'State>
 let toString tpe = stringBuffer {
     match tpe with
     | Unit _ -> yield "()"
-    | Variable (_, name) ->
+    | Variable(_, name) ->
         yield
             name
             |> Name.toCamelCase
-    | Reference (_, fqName, typeParameters) ->
+    | Reference(_, fqName, typeParameters) ->
         yield
             fqName
             |> FQName.toReferenceName
@@ -193,7 +193,7 @@ let toString tpe = stringBuffer {
             yield
                 typeStr
                 |> toString
-    | Tuple (_, elements) ->
+    | Tuple(_, elements) ->
         yield "("
 
         for (index, t) in
@@ -207,7 +207,7 @@ let toString tpe = stringBuffer {
                 |> toString
 
         yield ")"
-    | Record (_, fields) ->
+    | Record(_, fields) ->
         yield "{ "
 
         for (index, field) in
@@ -227,7 +227,7 @@ let toString tpe = stringBuffer {
                 |> toString
 
         yield " }"
-    | ExtensibleRecord (_, variableName, fields) ->
+    | ExtensibleRecord(_, variableName, fields) ->
         yield $"{{ {Name.toCamelCase variableName} | "
 
         for (index, field) in
@@ -247,12 +247,12 @@ let toString tpe = stringBuffer {
                 |> toString
 
         yield " }"
-    | Function (_, (Function (_, _, _) as argType), returnType) ->
+    | Function(_, (Function(_, _, _) as argType), returnType) ->
         yield
             $"({argType
                 |> toString}) -> {returnType
                                   |> toString}"
-    | Function (_, argType, returnType) ->
+    | Function(_, argType, returnType) ->
         yield
             $"{argType
                |> toString} -> {returnType
@@ -284,8 +284,8 @@ let inline record attributes fieldTypes = Record(attributes, fieldTypes)
 
 let definitionToSpecification (def: Definition<'A>) : Specification<'A> =
     match def with
-    | TypeAliasDefinition (p, exp) -> TypeAliasSpecification(p, exp)
-    | CustomTypeDefinition (p, accessControlledCtors) ->
+    | TypeAliasDefinition(p, exp) -> TypeAliasSpecification(p, exp)
+    | CustomTypeDefinition(p, accessControlledCtors) ->
         match
             accessControlledCtors
             |> withPublicAccess
@@ -295,8 +295,8 @@ let definitionToSpecification (def: Definition<'A>) : Specification<'A> =
 
 let definitionToSpecificationWithPrivate (def: Definition<'A>) : Specification<'A> =
     match def with
-    | TypeAliasDefinition (p, exp) -> TypeAliasSpecification(p, exp)
-    | CustomTypeDefinition (p, accessControlledCtors) ->
+    | TypeAliasDefinition(p, exp) -> TypeAliasSpecification(p, exp)
+    | CustomTypeDefinition(p, accessControlledCtors) ->
         accessControlledCtors
         |> withPrivateAccess
         |> customTypeSpecification p
@@ -326,29 +326,29 @@ let matchField (matchFieldName: Pattern<Name, 'A>) (matchFieldType: Pattern<Type
 
 let rec mapTypeAttributes (f: 'a -> 'b) : Type<'a> -> Type<'b> =
     function
-    | Variable (a, name) -> Variable(f (a), name)
-    | Reference (a, fQName, argTypes) ->
+    | Variable(a, name) -> Variable(f (a), name)
+    | Reference(a, fQName, argTypes) ->
         let newArgTypes =
             argTypes
             |> List.map (mapTypeAttributes f)
 
         Reference(f (a), fQName, newArgTypes)
 
-    | Tuple (a, elemTypes) ->
+    | Tuple(a, elemTypes) ->
         Tuple(
             (f a),
             (elemTypes
              |> List.map (mapTypeAttributes f))
         )
 
-    | Record (a, fields) ->
+    | Record(a, fields) ->
         Record(
             (f a),
             (fields
              |> List.map (mapFieldType (mapTypeAttributes f)))
         )
 
-    | ExtensibleRecord (a, name, fields) ->
+    | ExtensibleRecord(a, name, fields) ->
         ExtensibleRecord(
             (f a),
             name,
@@ -356,7 +356,7 @@ let rec mapTypeAttributes (f: 'a -> 'b) : Type<'a> -> Type<'b> =
              |> List.map (mapFieldType (mapTypeAttributes f)))
         )
 
-    | Function (a, argType, returnType) ->
+    | Function(a, argType, returnType) ->
         Function(
             (f a),
             (argType
@@ -370,9 +370,9 @@ let typeAttributes (typeExpr: Type<'Attributes>) : 'Attributes = typeExpr.Attrib
 
 let eraseAttributes: Definition<'a> -> Definition<unit> =
     function
-    | TypeAliasDefinition (typeVars, tpe) ->
+    | TypeAliasDefinition(typeVars, tpe) ->
         TypeAliasDefinition(typeVars, mapTypeAttributes (fun _ -> ()) tpe)
-    | CustomTypeDefinition (typeVars, acsCtrlConstructors) ->
+    | CustomTypeDefinition(typeVars, acsCtrlConstructors) ->
         let eraseCtor (types: ('Name * Type<'a>) list) : ('Name * Type<unit>) list =
             types
             |> List.map (fun (n, t) -> (n, mapTypeAttributes (fun _ -> ()) t))

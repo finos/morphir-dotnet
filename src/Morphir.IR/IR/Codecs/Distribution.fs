@@ -8,7 +8,7 @@ let currentFormatVersion = 2
 
 let encoder (distro: Distribution) : Value =
     match distro with
-    | Library (packagePath, dependencies, def) ->
+    | Library(packagePath, dependencies, def) ->
         Encode.list id [
             Encode.string "library"
             Path.encoder packagePath
