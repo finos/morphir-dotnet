@@ -7,6 +7,7 @@ on:
     release:
         types:
             - published
+    workflow_call:
 
 jobs:
     build:
@@ -24,7 +25,13 @@ jobs:
             # Not specifying a version will attempt to install via global.json
             - name: Use .NET Core global.json
               uses: actions/setup-dotnet@v2
-
+            - uses: actions/cache@v3
+              with:
+                  path: ~/.nuget/packages
+                  # Look to see if there is a cache hit for the corresponding requirements file
+                  key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-nuget
             - name: Build
               if: runner.os != 'Windows'
               run: |
