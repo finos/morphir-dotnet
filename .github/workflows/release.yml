@@ -1,46 +1,37 @@
 name: Release
 
 on:
-  workflow_dispatch:
-      inputs:
-            version:
-                description: 'Version'
-                required: true
-                default: 'v1.0.0'
-  push:
-    branch:
-      - 'main'
-    tags: 
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
-    
+    workflow_dispatch:
+    push:
+        tags:
+            - "v[0-9]+.[0-9]+.[0-9]+"
+            - "v[0-9]+.[0-9]+.[0-9]+-**"
+
 jobs:
-  build:
-    if: github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/build.yml
+    build:
+        uses: ./.github/workflows/build.yml
 
-  nuget-push:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
+    nuget-push:
+        runs-on: ubuntu-latest
+        needs: build
+        steps:
+            - name: Download artifacts
+              uses: actions/download-artifact@v3
+              with:
+                  name: dist
+                  path: ./dist
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: dist
-          path: ./dist
-      
-      - name: Publish
-        if: runner.os != 'Windows'
-        run: |
-            chmod +x ./build.sh
-            ./build.sh Release
-        env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            CI: true
-      - name: Publish
-        if: runner.os == 'Windows'
-        run: ./build.cmd Release
-        env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            CI: true
+            - name: Publish
+              if: runner.os != 'Windows'
+              run: |
+                  chmod +x ./build.sh
+                  ./build.sh Release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  CI: true
+            - name: Publish
+              if: runner.os == 'Windows'
+              run: ./build.cmd Release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  CI: true
