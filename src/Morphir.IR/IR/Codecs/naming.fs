@@ -33,7 +33,7 @@ module QName =
 
     let encoder =
         function
-        | QName (modulePath, name) -> Encode.list id [ Path.encoder modulePath; Name.encoder name ]
+        | QName(modulePath, name) -> Encode.list id [ Path.encoder modulePath; Name.encoder name ]
 
     let decoder: Decoder<QName> =
         Decode.map2 qName (Decode.index 0 Path.decoder) (Decode.index 1 Name.decoder)
@@ -42,7 +42,7 @@ module QName =
 module FQName =
     let encoder =
         function
-        | FQName (packagePath, modulePath, localName) ->
+        | FQName(packagePath, modulePath, localName) ->
             Encode.list id [
                 Path.encoder packagePath
                 Path.encoder modulePath

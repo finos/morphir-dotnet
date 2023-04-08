@@ -11,7 +11,7 @@ let qName (modulePath: Path) (localName: Name) = QName(modulePath, localName)
 /// Turn a qualified name into a tuple.
 let toTuple =
     function
-    | QName (path, name) -> (path, name)
+    | QName(path, name) -> (path, name)
 
 /// Turn a tuple into a qualified name.
 let fromTuple =
@@ -24,17 +24,17 @@ let fromName modulePath localName = QName(modulePath, localName)
 /// Get the module path part of a qualified name.
 let getModulePath =
     function
-    | QName (modulePath, _) -> modulePath
+    | QName(modulePath, _) -> modulePath
 
 /// Get the local name part of a qualified name.
 let getLocalName =
     function
-    | QName (_, localName) -> localName
+    | QName(_, localName) -> localName
 
 /// Turn a QName into a string using ':' as a separator between module and local names.
 let toString =
     function
-    | QName (moduleName, localName) ->
+    | QName(moduleName, localName) ->
         String.join ":" [
             Path.toString Name.toTitleCase "." moduleName
             Name.toCamelCase localName
@@ -47,7 +47,7 @@ module Codec =
 
     let encodeQName: QName -> JsonValue =
         function
-        | QName (modulePath, localName) ->
+        | QName(modulePath, localName) ->
             Encode.list [ encodePath modulePath; encodeName localName ]
 
     let decodeQName: Decoder<QName> =

@@ -36,11 +36,16 @@ jobs:
               if: runner.os != 'Windows'
               run: |
                   chmod +x ./build.sh
-                  ./build.sh CreatePackages
+                  ./build.sh PackItUp
               env:
                   CI: true
             - name: Build
               if: runner.os == 'Windows'
-              run: ./build.cmd CreatePackages
+              run: ./build.cmd PackItUp
               env:
                   CI: true
+            - name: Upload Artifacts
+              uses: actions/upload-artifact@v2
+              with:
+                name: dist
+                path: ./dist
