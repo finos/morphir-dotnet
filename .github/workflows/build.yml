@@ -1,27 +1,68 @@
-name: CI
+name: "CI/CD"
 
 on:
     pull_request:
     push:
-        branches: ['main']
+        branches: ["main"]
+        tags:
+            - "v[0-9]+.[0-9]+.[0-9]+"
+            - "v[0-9]+.[0-9]+.[0-9]+-**"
     release:
         types:
             - published
     workflow_call:
+    workflow_dispatch:
 
 jobs:
+    lint:
+        strategy:
+            matrix:
+                os: [ubuntu-latest, windows-latest, macOS-latest]
+        runs-on: ${{ matrix.os }}
+
+        steps:
+            - uses: actions/checkout@v3.5.0
+              with:
+                  fetch-depth: 0
+            - name: Setup .NET Core SDK
+              uses: actions/setup-dotnet@v2
+              with:
+                  dotnet-version: "7.0.x"
+            # Not specifying a version will attempt to install via global.json
+            - name: Use .NET Core global.json
+              uses: actions/setup-dotnet@v2
+            - uses: actions/cache@v3
+              with:
+                  path: ~/.nuget/packages
+                  # Look to see if there is a cache hit for the corresponding requirements file
+                  key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-nuget
+            - name: Build
+              if: runner.os != 'Windows'
+              run: |
+                  chmod +x ./build.sh
+                  ./build.sh CheckFormatCode
+              env:
+                  CI: true
+            - name: Build
+              if: runner.os == 'Windows'
+              run: ./build.cmd CheckFormatCode
+              env:
+                  CI: true
+
     build:
         strategy:
             matrix:
                 os: [ubuntu-latest, windows-latest, macOS-latest]
         runs-on: ${{ matrix.os }}
-        
+
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v3.5.0
             - name: Setup .NET Core SDK
               uses: actions/setup-dotnet@v2
               with:
-                  dotnet-version: '7.0.x'
+                  dotnet-version: "7.0.x"
             # Not specifying a version will attempt to install via global.json
             - name: Use .NET Core global.json
               uses: actions/setup-dotnet@v2
@@ -47,5 +88,62 @@ jobs:
             - name: Upload Artifacts
               uses: actions/upload-artifact@v2
               with:
-                name: dist
-                path: ./dist
+                  name: dist
+                  path: ./dist
+
+    ci:
+        runs-on: ubuntu-latest
+        needs: [lint, build]
+        steps:
+            - name: Aggregate of lint, and all tests
+              run: echo "ci passed"
+
+    nuget-push:
+        # when in master repo: all commits to main branch and all additional tags
+        if: github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
+
+        runs-on: ubuntu-latest
+        needs: build
+        steps:
+            - uses: actions/checkout@v3.5.0
+            - name: Setup .NET Core SDK
+              uses: actions/setup-dotnet@v2
+              with:
+                  dotnet-version: "7.0.x"
+            # Not specifying a version will attempt to install via global.json
+            - name: Use .NET Core global.json
+              uses: actions/setup-dotnet@v2
+            - uses: actions/cache@v3
+              with:
+                  path: ~/.nuget/packages
+                  # Look to see if there is a cache hit for the corresponding requirements file
+                  key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-nuget
+            - name: Download artifacts
+              uses: actions/download-artifact@v3
+              with:
+                  name: dist
+                  path: ./dist
+
+            - name: Publish
+              if: runner.os != 'Windows'
+              run: |
+                  chmod +x ./build.sh
+                  ./build.sh Release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  CI: true
+            - name: Publish
+              if: runner.os == 'Windows'
+              run: ./build.cmd Release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  CI: true
+
+    cd:
+        runs-on: ubuntu-latest
+        needs: [nuget-push]
+        steps:
+            - name: Aggregate of deployment jobs
+              run: echo "cd passed"
