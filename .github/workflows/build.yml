@@ -4,14 +4,13 @@ on:
     pull_request:
     push:
         branches: ["main"]
-        tags:
-            - "v[0-9]+.[0-9]+.[0-9]+"
-            - "v[0-9]+.[0-9]+.[0-9]+-**"
-    release:
-        types:
-            - published
     workflow_call:
     workflow_dispatch:
+        inputs:
+            version:
+                description: "Version to release"
+                required: true
+                type: string
 
 jobs:
     lint:
@@ -51,7 +50,7 @@ jobs:
               env:
                   CI: true
 
-    build:
+    test:
         strategy:
             matrix:
                 os: [ubuntu-latest, windows-latest, macOS-latest]
@@ -77,23 +76,23 @@ jobs:
               if: runner.os != 'Windows'
               run: |
                   chmod +x ./build.sh
-                  ./build.sh PackItUp
+                  ./build.sh GenerateCoverageReport
               env:
                   CI: true
             - name: Build
               if: runner.os == 'Windows'
-              run: ./build.cmd PackItUp
+              run: ./build.cmd GenerateCoverageReport
               env:
                   CI: true
             - name: Upload Artifacts
               uses: actions/upload-artifact@v2
               with:
-                  name: dist
-                  path: ./dist
+                  name: docs
+                  path: ./docs
 
     ci:
         runs-on: ubuntu-latest
-        needs: [lint, build]
+        needs: [lint, test]
         steps:
             - name: Aggregate of lint, and all tests
               run: echo "ci passed"
@@ -103,9 +102,11 @@ jobs:
         if: github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
 
         runs-on: ubuntu-latest
-        needs: build
+        needs: [ci]
         steps:
             - uses: actions/checkout@v3.5.0
+              with:
+                  fetch-depth: 0
             - name: Setup .NET Core SDK
               uses: actions/setup-dotnet@v2
               with:
@@ -120,11 +121,9 @@ jobs:
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
-            - name: Download artifacts
-              uses: actions/download-artifact@v3
-              with:
-                  name: dist
-                  path: ./dist
+            -   name: Git Version
+                id: version
+                uses: codacy/git-version@2.4.0                          
 
             - name: Publish
               if: runner.os != 'Windows'
@@ -133,12 +132,14 @@ jobs:
                   ./build.sh Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  RELEASE_VERSION: ${{ steps.version.outputs.version }}
                   CI: true
             - name: Publish
               if: runner.os == 'Windows'
               run: ./build.cmd Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  RELEASE_VERSION: ${{ steps.version.outputs.version }}
                   CI: true
 
     cd:
