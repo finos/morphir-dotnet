@@ -108,6 +108,7 @@ jobs:
                       const version = process.env.RELEASE_VERSION;
                       if (!semverPattern.test(version)) {
                         core.setOutput("is_version_number_valid", false);
+                        core.setOutput("version", "");
                         core.exportVariable("RELEASE_VERSION", "");
                         core.exportVariable("IS_VALID_RELEASE_VERSION", false);
                         core.notice(`Invalid semantic version: ${version}`);             
@@ -128,7 +129,7 @@ jobs:
         # Second, the release job will only run if it is provided a valid semantic version
         # Third, the release job will only run if the current repository is the main repository
         # when in main repo: all commits to main branch and all additional tags
-        if: (${{ github.event_name == 'workflow_dispatch'}} && ${{ env.IS_VALID_RELEASE_VERSION }}) && github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
+        if: (${{ github.event_name == 'workflow_dispatch'}} && ${{ needs.validate-release-version.outputs.is_version_number_valid }}) && github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
 
         steps:
             - name: Fetch Source Code
