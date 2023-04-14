@@ -95,19 +95,23 @@ jobs:
         steps:
             - name: Aggregate of lint, and all tests
               run: echo "ci passed"
-              
+
     validate-release-version:
         runs-on: ubuntu-latest
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         steps:
             - name: Check if release_version is valid
+              id: check_semver
               uses: actions/github-script@v6
               with:
                   script: |
                       const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$/;
                       const version = process.env.RELEASE_VERSION;
                       if (!semverPattern.test(version)) {
+                        core.setOutput("is_version_number_valid", false);
                         core.setFailed(`Invalid semantic version: ${version}`);
+                      } else {
+                        core.setOutput("is_version_number_valid", true);
+                        core.setOutput("version", version);
                       }
               env:
                   RELEASE_VERSION: ${{ github.event.inputs.release_version }}
@@ -119,7 +123,7 @@ jobs:
         # Second, the release job will only run if it is provided a valid semantic version
         # Third, the release job will only run if the current repository is the main repository
         # when in main repo: all commits to main branch and all additional tags
-        if: ${{ github.event_name == 'workflow_dispatch' && !failure() }} && github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
+        if: (${{ github.event_name == 'workflow_dispatch' && !failure() }}) && github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
 
         steps:
             - name: Fetch Source Code
