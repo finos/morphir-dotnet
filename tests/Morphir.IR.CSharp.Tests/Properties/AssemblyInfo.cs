@@ -9,7 +9,7 @@ using System.Reflection;
 [assembly: AssemblyFileVersion("0.0.1")]
 [assembly: AssemblyInformationalVersion("0.0.1")]
 [assembly: AssemblyMetadata("ReleaseChannel","alpha")]
-[assembly: AssemblyMetadata("GitHash","7d8de514e069d91502f60c85a88ad1a98307014a")]
+[assembly: AssemblyMetadata("GitHash","282c5e3a534fc4f27bb97d4d70c580e27661c7bc")]
 namespace System {
     internal static class AssemblyVersionInformation {
         internal const System.String AssemblyTitle = "Morphir.IR.CSharp.Tests";
@@ -19,6 +19,6 @@ namespace System {
         internal const System.String AssemblyFileVersion = "0.0.1";
         internal const System.String AssemblyInformationalVersion = "0.0.1";
         internal const System.String AssemblyMetadata_ReleaseChannel = "alpha";
-        internal const System.String AssemblyMetadata_GitHash = "7d8de514e069d91502f60c85a88ad1a98307014a";
+        internal const System.String AssemblyMetadata_GitHash = "282c5e3a534fc4f27bb97d4d70c580e27661c7bc";
     }
 }
