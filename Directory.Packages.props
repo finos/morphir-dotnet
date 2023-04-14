@@ -9,7 +9,7 @@
   </PropertyGroup>
   <PropertyGroup>
     <BunsenBurnerVersion>6.2.1</BunsenBurnerVersion>
-    <FakeVersion>5.20.4</FakeVersion>
+    <FakeVersion>6.0.0</FakeVersion>
     <LightBDDVersion>3.6.1</LightBDDVersion>
     <TickSpecVersion>2.0.2</TickSpecVersion>
     <VerifyVersion>19.11.2</VerifyVersion>
@@ -49,7 +49,7 @@
     <PackageVersion Include="Fake.BuildServer.GitHubActions" Version="$(FakeVersion)" />
     <PackageVersion Include="MSBuild.StructuredLogger" Version="2.1.768" />
     <PackageVersion Include="Argu" Version="6.0" />
-    <PackageVersion Include="Octokit" Version="0.48" />
+    <PackageVersion Include="Octokit" Version="0.50.0" />
     <PackageVersion Include="xunit" Version="2.4.2" />
     <PackageVersion Include="SpecFlow" Version="3.9.74" />
     <PackageVersion Include="SpecFlow.xUnit" Version="3.9.74" />
