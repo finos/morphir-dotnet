@@ -133,6 +133,7 @@ jobs:
             # Not specifying a version will attempt to install via global.json
             - name: Use .NET Core global.json
               uses: actions/setup-dotnet@v2
+            - name: Cache Nuget Packages
             - uses: actions/cache@v3
               with:
                   path: ~/.nuget/packages
