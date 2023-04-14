@@ -108,10 +108,15 @@ jobs:
                       const version = process.env.RELEASE_VERSION;
                       if (!semverPattern.test(version)) {
                         core.setOutput("is_version_number_valid", false);
-                        core.setFailed(`Invalid semantic version: ${version}`);
+                        core.exportVariable("RELEASE_VERSION", "");
+                        core.exportVariable("IS_VALID_RELEASE_VERSION", false);
+                        core.notice(`Invalid semantic version: ${version}`);             
                       } else {
                         core.setOutput("is_version_number_valid", true);
                         core.setOutput("version", version);
+                        core.exportVariable("RELEASE_VERSION", version);
+                        core.exportVariable("IS_VALID_RELEASE_VERSION", true);
+                        core.notice(`Setting RELEASE_VERSION environment variable to the valid semantic version: ${version}`);
                       }
               env:
                   RELEASE_VERSION: ${{ github.event.inputs.release_version }}
@@ -123,7 +128,7 @@ jobs:
         # Second, the release job will only run if it is provided a valid semantic version
         # Third, the release job will only run if the current repository is the main repository
         # when in main repo: all commits to main branch and all additional tags
-        if: (${{ github.event_name == 'workflow_dispatch' && !failure() }}) && github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
+        if: (${{ github.event_name == 'workflow_dispatch'}} && ${{ env.IS_VALID_RELEASE_VERSION }}) && github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
 
         steps:
             - name: Fetch Source Code
@@ -136,7 +141,7 @@ jobs:
                   dotnet-version: "7.0.x"
             # Not specifying a version will attempt to install via global.json
             - name: Use .NET Core global.json
-              uses: actions/setup-dotnet@v2
+              uses: actions/setup-dotnet@v3
             - name: Cache Nuget Packages
               uses: actions/cache@v3
               with:
@@ -153,14 +158,12 @@ jobs:
                   ./build.sh Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  RELEASE_VERSION: ${{ github.event.inputs.release_version }}
                   CI: true
             - name: Publish
               if: runner.os == 'Windows'
               run: ./build.cmd Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  RELEASE_VERSION: ${{ github.event.inputs.release_version }}
                   CI: true
 
     cd:
