@@ -112,12 +112,14 @@ jobs:
                         core.exportVariable("RELEASE_VERSION", "");
                         core.exportVariable("IS_VALID_RELEASE_VERSION", false);
                         core.notice(`Invalid semantic version: ${version}`);             
+                        return false;
                       } else {
                         core.setOutput("is_version_number_valid", true);
                         core.setOutput("version", version);
                         core.exportVariable("RELEASE_VERSION", version);
                         core.exportVariable("IS_VALID_RELEASE_VERSION", true);
                         core.notice(`Setting RELEASE_VERSION environment variable to the valid semantic version: ${version}`);
+                        return true;
                       }
               env:
                   RELEASE_VERSION: ${{ github.event.inputs.release_version }}
@@ -129,7 +131,7 @@ jobs:
         # Second, the release job will only run if it is provided a valid semantic version
         # Third, the release job will only run if the current repository is the main repository
         # when in main repo: all commits to main branch and all additional tags
-        if: (github.event_name == 'workflow_dispatch') && (needs.validate-release-version.outputs.is_version_number_valid == true) && github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
+        if: (github.event_name == 'workflow_dispatch') && (needs.validate-release-version.result == true) && github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
 
         steps:
             - name: Fetch Source Code
@@ -153,7 +155,7 @@ jobs:
                       ${{ runner.os }}-nuget
 
             - name: Publish
-              if: runner.os != 'Windows'
+              if: runner.os != 'Windows' && env.RELEASE_VERSION != ''
               run: |
                   chmod +x ./build.sh
                   ./build.sh Release
@@ -161,7 +163,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   CI: true
             - name: Publish
-              if: runner.os == 'Windows'
+              if: runner.os == 'Windows' && env.RELEASE_VERSION != ''
               run: ./build.cmd Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
