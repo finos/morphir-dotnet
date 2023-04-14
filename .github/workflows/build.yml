@@ -4,11 +4,10 @@ on:
     pull_request:
     push:
         branches: ["main"]
-    workflow_call:
     workflow_dispatch:
         inputs:
-            version:
-                description: "Version to release"
+            release_version:
+                description: "Release version following semantic versioning"
                 required: true
                 type: string
 
@@ -96,14 +95,34 @@ jobs:
         steps:
             - name: Aggregate of lint, and all tests
               run: echo "ci passed"
-
-    nuget-push:
-        # when in master repo: all commits to main branch and all additional tags
-        if: github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
-
+              
+    validate-release-version:
         runs-on: ubuntu-latest
-        needs: [ci]
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         steps:
+            - name: Check if release_version is valid
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                      const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$/;
+                      const version = process.env.RELEASE_VERSION;
+                      if (!semverPattern.test(version)) {
+                        core.setFailed(`Invalid semantic version: ${version}`);
+                      }
+              env:
+                  RELEASE_VERSION: ${{ github.event.inputs.release_version }}
+
+    release:
+        runs-on: ubuntu-latest
+        needs: [ci, validate-release-version]
+        # First of all the release job requires a manual trigger
+        # Second, the release job will only run if it is provided a valid semantic version
+        # Third, the release job will only run if the current repository is the main repository
+        # when in main repo: all commits to main branch and all additional tags
+        if: ${{ github.event_name == 'workflow_dispatch' && !failure() }} && github.repository == 'finos/morphir-dotnet' && ( github.ref == 'refs/heads/main' || (github.ref != 'refs/heads/main' && startsWith( github.ref, 'refs/tags/') ) )
+
+        steps:
+            - name: Fetch Source Code
             - uses: actions/checkout@v3.5.0
               with:
                   fetch-depth: 0
@@ -121,9 +140,6 @@ jobs:
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
-            -   name: Git Version
-                id: version
-                uses: codacy/git-version@2.4.0                          
 
             - name: Publish
               if: runner.os != 'Windows'
@@ -132,19 +148,19 @@ jobs:
                   ./build.sh Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  RELEASE_VERSION: ${{ steps.version.outputs.version }}
+                  RELEASE_VERSION: ${{ github.event.inputs.release_version }}
                   CI: true
             - name: Publish
               if: runner.os == 'Windows'
               run: ./build.cmd Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  RELEASE_VERSION: ${{ steps.version.outputs.version }}
+                  RELEASE_VERSION: ${{ github.event.inputs.release_version }}
                   CI: true
 
     cd:
         runs-on: ubuntu-latest
-        needs: [nuget-push]
+        needs: [validate-release-version, release]
         steps:
             - name: Aggregate of deployment jobs
               run: echo "cd passed"
