@@ -10,13 +10,19 @@ on:
             release-version:
                 description: "Release version following semantic versioning"
                 required: true
-                defaults: "0.0.0"
+                default: "0.0.0"
                 type: string
+            skip-git-release:
+                description: "Skip git release"
+                required: false
+                default: false
+                type: boolean
 
 env:
     CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
     RELEASE_VERSION: ${{ github.event.inputs.release-version }}
     NUGET_TOKEN: ${{ secrets.NUGET_TOKEN }}
+    SKIP_GIT_RELEASE: ${{ github.event.inputs.skip-git-release }}
 
 jobs:
     validate-release-version:
@@ -43,6 +49,13 @@ jobs:
         if: ${{ !failure() }}
 
         steps:
+            - name: Get User Email
+              id: get_user_email
+              uses: evvanErb/get-github-email-by-username-action@v2
+              with:
+                  github-username: ${{ github.actor }}
+                  token: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Fetch Source Code
               uses: actions/checkout@v3.5.0
               with:
@@ -62,7 +75,9 @@ jobs:
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
-
+            - name: Print the user's email
+              run: |
+                  echo "The user who executed this workflow was: ${{github.actor}} and the user's email is: ${{ steps.get_user_email.outputs.email }}"
             - name: Publish (non-Windows)
               if: runner.os != 'Windows'
               run: |
@@ -70,12 +85,16 @@ jobs:
                   ./build.sh Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GIT_USER_NAME: ${{ github.actor }}
+                  GIT_USER_EMAIL: ${{ steps.get_user_email.outputs.email }}
                   CI: true
             - name: Publish (Windows)
               if: runner.os == 'Windows'
               run: ./build.cmd Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GIT_USER_NAME: ${{ github.actor }}
+                  GIT_USER_EMAIL: ${{ steps.get_user_email.outputs.email }}
                   CI: true
 
     cd:
