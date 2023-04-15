@@ -5,6 +5,9 @@
         <IsPackable>true</IsPackable>
         <IsTestProject>false</IsTestProject>
         <PackageReadmeFile>README.md</PackageReadmeFile> <!--https://docs.microsoft.com/en-gb/nuget/reference/msbuild-targets#packagereadmefile -->
+        <!-- Symbols -->
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <!-- Sourcelink -->
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
