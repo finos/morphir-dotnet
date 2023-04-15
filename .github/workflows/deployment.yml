@@ -2,23 +2,28 @@ name: "Deployment"
 on:
     workflow_dispatch:
         inputs:
-            release_version:
+            configuration:
+                description: "Configuration to build"
+                required: true
+                default: "Release"
+                type: string
+            release-version:
                 description: "Release version following semantic versioning"
                 required: true
                 type: string
 
 env:
-    CONFIGURATION: Release
-    RELEASE_VERSION: ${{ github.event.inputs.release_version }}
+    CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
+    RELEASE_VERSION: ${{ github.event.inputs.release-version }}
 
-jobs:    
+jobs:
     test:
         uses: ./.github/workflows/development.yml
         secrets: inherit
-        env:
-            CONFIGURATION: Release
-            RELEASE_VERSION: ${{ github.event.inputs.release_version }}
-        
+        with:
+            configuration: ${{ inputs.configuration || 'Release' }}
+            release-version: ${{ inputs.release-version }}
+
     validate-release-version:
         runs-on: ubuntu-latest
         steps:
