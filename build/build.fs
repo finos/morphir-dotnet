@@ -885,31 +885,41 @@ let publishToNuget _ =
     Target.deactivateBuildFailure "RevertChangelog"
 
 let gitRelease _ =
-    allReleaseChecks ()
+    let skipGitRelease = Environment.environVarAsBoolOrDefault "SKIP_GIT_RELEASE" false
+    if skipGitRelease then
+        Trace.traceImportant "Skipping git release"
+    else
+        allReleaseChecks ()
+        let releaseNotesGitCommitFormat = latestEntry.ToString()
 
-    let releaseNotesGitCommitFormat = latestEntry.ToString()
+        let (defaultUserName,defaultUserEmail) = Git.Information.getLastAuthorUserNameAndEmail ""
+        let userName = Environment.environVarOrDefault "GIT_USER_NAME" defaultUserName
+        let userEmail = Environment.environVarOrDefault "GIT_USER_EMAIL" defaultUserEmail
 
-    Git.Staging.stageFile "" "CHANGELOG.md"
-    |> ignore
+        // Set user name and email for the release commit
+        Git.Config.setUserInfo "" (fun c -> { c with Name = userName; Email = userEmail })
 
-    !! "src/**/AssemblyInfo.fs"
-    |> Seq.iter (
-        Git.Staging.stageFile ""
-        >> ignore
-    )
+        Git.Staging.stageFile "" "CHANGELOG.md"
+        |> ignore
 
-    Git.Commit.exec
-        ""
-        (sprintf "Bump version to %s\n\n%s" latestEntry.NuGetVersion releaseNotesGitCommitFormat)
+        !! "src/**/AssemblyInfo.fs"
+        |> Seq.iter (
+            Git.Staging.stageFile ""
+            >> ignore
+        )
 
-    Git.Branches.push ""
+        Git.Commit.exec
+            ""
+            (sprintf "Bump version to %s\n\n%s" latestEntry.NuGetVersion releaseNotesGitCommitFormat)
 
-    let tag = tagFromVersionNumber latestEntry.NuGetVersion
+        Git.Branches.push ""
 
-    Git.Branches.tag "" tag
-    Git.Branches.pushTag "" "origin" tag
-    // If build fails after this point, we've pushed a release out with this version of CHANGELOG.md so we should keep it around
-    Target.deactivateBuildFailure "RevertChangelog"
+        let tag = tagFromVersionNumber latestEntry.NuGetVersion
+
+        Git.Branches.tag "" tag
+        Git.Branches.pushTag "" "origin" tag
+        // If build fails after this point, we've pushed a release out with this version of CHANGELOG.md so we should keep it around
+        Target.deactivateBuildFailure "RevertChangelog"
 
 let githubRelease _ =
     allReleaseChecks ()
