@@ -99,6 +99,7 @@ let runtimes = [
 ]
 
 let publishUrl = "https://www.nuget.org"
+let nugetSource = Environment.environVarOrDefault "NUGET_SOURCE" "https://api.nuget.org/v3/index.json"
 
 let docsSiteBaseUrl = sprintf "https://%s.github.io/%s" gitOwner gitRepoName
 let disableCodeCoverage = environVarAsBoolOrDefault "DISABLE_COVERAGE" false
@@ -584,7 +585,7 @@ let publishToNuget _ =
     allReleaseChecks ()
     let nugetApiKey = Environment.environVarOrNone "NUGET_TOKEN"
     let setNugetPushParams (defaults:NuGet.NuGet.NuGetPushParams) =
-        { defaults with ApiKey = nugetApiKey }
+        { defaults with ApiKey = nugetApiKey; Source = (Option.ofObj nugetSource) }
     let setParams (defaults:DotNet.NuGetPushOptions) =
         { defaults with
             PushParams = setNugetPushParams defaults.PushParams }
