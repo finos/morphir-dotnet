@@ -49,14 +49,6 @@ jobs:
         if: ${{ !failure() }}
 
         steps:
-            - name: Get User Email
-              id: get_user_email
-              uses: evvanErb/get-github-email-by-username-action@v2.0
-
-              with:
-                  github-username: ${{ github.actor }}
-                  token: ${{ secrets.GITHUB_TOKEN }}
-
             - name: Fetch Source Code
               uses: actions/checkout@v3.5.0
               with:
@@ -87,7 +79,6 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   GIT_USER_NAME: ${{ github.actor }}
-                  GIT_USER_EMAIL: ${{ steps.get_user_email.outputs.email }}
                   CI: true
             - name: Publish (Windows)
               if: runner.os == 'Windows'
@@ -95,7 +86,6 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   GIT_USER_NAME: ${{ github.actor }}
-                  GIT_USER_EMAIL: ${{ steps.get_user_email.outputs.email }}
                   CI: true
 
     cd:
