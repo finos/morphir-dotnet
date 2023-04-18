@@ -7,6 +7,7 @@ open Serilog
 open Serilog.Events
 open Oakton
 open Wolverine
+open Morphir.Tools
 
 module Main =
 
@@ -44,5 +45,9 @@ module Main =
 
         exitCode
 
+
+    let mainOld (argv: string array) = execute createDefaultHostBuilder argv
+
     [<EntryPoint>]
-    let main (argv: string array) = execute createDefaultHostBuilder argv
+    let main (argv: string array) =
+        CommandLine.run argv

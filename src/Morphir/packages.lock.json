@@ -28,6 +28,16 @@
         "resolved": "7.0.200",
         "contentHash": "NmgUnpNH6Zu9B0SPIhojyo38gnPdkdYFYQfbd6zosEH32kbGY/g/Klk7PfOWe1NAe/O1YOMmK9KhwQ2OWsWEbg=="
       },
+      "FSharp.SystemCommandLine": {
+        "type": "Direct",
+        "requested": "[0.17.0-beta4, )",
+        "resolved": "0.17.0-beta4",
+        "contentHash": "CcBlcYXBb9KeS9yWGfRpj7CMipxgNsBfdg/r3mpjd7zmQfXMDdbOIO2VbQ4YlEYVek5+ZpAehzNHKGbwByntYg==",
+        "dependencies": {
+          "FSharp.Core": "6.0.0",
+          "System.CommandLine": "2.0.0-beta4.22272.1"
+        }
+      },
       "MEL.Flex": {
         "type": "Direct",
         "requested": "[0.1.0, )",
@@ -669,6 +679,11 @@
           "System.Runtime.CompilerServices.Unsafe": "6.0.0"
         }
       },
+      "System.CommandLine": {
+        "type": "Transitive",
+        "resolved": "2.0.0-beta4.22272.1",
+        "contentHash": "1uqED/q2H0kKoLJ4+hI2iPSBSEdTuhfCYADeJrAqERmiGQ2NNacYKRNEQ+gFbU4glgVyK8rxI+ZOe1onEtr/Pg=="
+      },
       "System.ComponentModel": {
         "type": "Transitive",
         "resolved": "4.3.0",
@@ -1023,11 +1038,24 @@
         "resolved": "4.5.4",
         "contentHash": "zteT+G8xuGu6mS+mzDzYXbzS7rd3K6Fjb9RiZlYlJPam2/hU7JCBZBVEcywNuR+oZ1ncTvc/cq0faRr3P01OVg=="
       },
+      "morphir.elm.tools": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.SystemCommandLine": "[0.17.0-beta4, )",
+          "Morphir.Tools.Core": "[1.0.0, )"
+        }
+      },
+      "morphir.tools.core": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.SystemCommandLine": "[0.17.0-beta4, )"
+        }
+      },
       "System.Text.Json": {
         "type": "CentralTransitive",
         "requested": "[7.0.2, )",
-        "resolved": "7.0.2",
-        "contentHash": "/LZf/JrGyilojqwpaywb+sSz8Tew7ij4K/Sk+UW8AKfAK7KRhR6mKpKtTm06cYA7bCpGTWfYksIW+mVsdxPegQ==",
+        "resolved": "7.0.0",
+        "contentHash": "DaGSsVqKsn/ia6RG8frjwmJonfos0srquhw09TlT8KRw5I43E+4gs+/bZj4K0vShJ5H9imCuXupb4RmS+dBy3w==",
         "dependencies": {
           "System.Text.Encodings.Web": "7.0.0"
         }

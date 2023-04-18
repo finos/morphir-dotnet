@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net7.0</TargetFramework>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="CommandLine\commands.fs" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <PackageReference Include="FSharp.SystemCommandLine" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Morphir.Tools.Core\Morphir.Tools.Core.fsproj" />
+    </ItemGroup>
+
+</Project>
