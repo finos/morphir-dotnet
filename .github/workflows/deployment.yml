@@ -23,6 +23,7 @@ env:
     RELEASE_VERSION: ${{ github.event.inputs.release-version }}
     NUGET_TOKEN: ${{ secrets.NUGET_TOKEN }}
     SKIP_GIT_RELEASE: ${{ github.event.inputs.skip-git-release }}
+    GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
 jobs:
     validate-release-version:
@@ -49,10 +50,18 @@ jobs:
         if: ${{ !failure() }}
 
         steps:
+            - name: 🔍 GH_TOKEN
+              if: env.GH_TOKEN == ''
+              env:
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: echo "GH_TOKEN=${GITHUB_TOKEN}" >> $GITHUB_ENV  
+              
             - name: Fetch Source Code
               uses: actions/checkout@v3.5.0
               with:
                   fetch-depth: 0
+                  token: ${{ env.GH_TOKEN }}
+                  
             - name: Setup .NET Core SDK
               uses: actions/setup-dotnet@v3
               with:
@@ -68,9 +77,6 @@ jobs:
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
-            - name: Print the user's email
-              run: |
-                  echo "The user who executed this workflow was: ${{github.actor}} and the user's email is: ${{ steps.get_user_email.outputs.email }}"
             - name: Publish (non-Windows)
               if: runner.os != 'Windows'
               run: |
