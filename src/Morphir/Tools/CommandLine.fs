@@ -9,19 +9,6 @@ open Microsoft.Extensions.Logging
 open Morphir.Elm.Tools.CommandLine
 open Serilog
 
-type Dummy = Dummy
-
-let developCommand (host: IHost) =
-    let handler (logger: ILogger) () =
-        logger.Information("Running morphir develop")
-
-    let logger = host.Services.GetService<ILogger>()
-
-    command "develop" {
-        description "Start a development server"
-        setHandler (handler logger)
-    }
-
 let workspaceCommand =
     command "workspace" {
         description "Work with a morphir workspace"
@@ -43,9 +30,10 @@ let morphir argv =
     rootCommand argv {
         description "Morphir CLI"
         inputs ctx
-        addCommand (developCommand host)
+        addCommand (DevelopCommand.Create(host))
         addCommand ElmCommands.elmCommand
         addCommand workspaceCommand
+        addCommand (DockerizeCommand.Create(host))
         setHandler handler
     }
 

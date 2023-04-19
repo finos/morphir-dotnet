@@ -11,7 +11,7 @@ module AssemblyInfoTests =
         testList "Morphir.AssemblyInfo" [
             testCase "mkInfoString should have at least four segments"
             <| fun () ->
-                let assembly = typeof<CommandLine.Dummy>.Assembly
+                let assembly = typeof<DevelopCommand>.Assembly
                 let actual = AssemblyInfo.mkInfoString (assembly)
 
                 let length =
