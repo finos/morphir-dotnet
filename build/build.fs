@@ -840,12 +840,14 @@ let createPackages _ =
     |> Seq.iter (fun (runtime, packageType) ->
         let args =
             [
-                sprintf "/t:Restore;%s" packageType
-                sprintf "/p:TargetFramework=%s" targetFramework
-                sprintf "/p:CustomTarget=%s" packageType
-                sprintf "/p:RuntimeIdentifier=%s" runtime
+                $"/t:Restore;%s{packageType}"
+                $"/p:TargetFramework=%s{targetFramework}"
+                $"/p:CustomTarget=%s{packageType}"
+                $"/p:RuntimeIdentifier=%s{runtime}"
                 sprintf "/p:Configuration=%s" "Release"
-                sprintf "/p:PackageVersion=%s" latestEntry.NuGetVersion
+                $"/p:PackageVersion=%s{latestEntry.NuGetVersion}"
+                $"/p:PackAsTool=false"
+                $"/p:GeneratePackageOnBuild=false"
                 sprintf
                     "/p:PackagePath=\"%s\""
                     (distDir
@@ -1048,7 +1050,7 @@ let initTargets () =
     Target.create "BuildDocs" buildDocs
     Target.create "WatchDocs" watchDocs
     Target.create "ReleaseDocs" releaseDocs
-    Target.create "PackItUp" ignore
+    Target.create "Package" ignore
 
     //-----------------------------------------------------------------------------
     // Target Dependencies
@@ -1106,10 +1108,10 @@ let initTargets () =
     ?=>! "ReleaseDocs"
 
     "DotNetPack"
-    ==>! "PackItUp"
+    ==>! "Package"
 
     "CreatePackages"
-    ==>! "PackItUp"
+    ==>! "Package"
 
     "DotNetPack"
     ?=>! "CreatePackages"
@@ -1121,7 +1123,7 @@ let initTargets () =
     ==> "DotnetTest"
     =?> ("GenerateCoverageReport", not disableCodeCoverage)
     ==> "DotnetPack"
-    ==> "PackItUp"
+    ==> "Package"
     ==> "PublishToNuGet"
     ==> "GitRelease"
     ==> "GitHubRelease"
