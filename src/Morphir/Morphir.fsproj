@@ -8,7 +8,7 @@
     <PropertyGroup>
         <Title>morphir</Title>
         <ToolCommandName>morphir</ToolCommandName>
-        <Description>Morphir does the thing!</Description>
+        <Description>A set of tools for integrating technologies. Morphir is composed of a library of tools that facilitate the digitisation of business logic into multiple different languages &amp; platforms.</Description>
         <PackAsTool>true</PackAsTool>
         <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
         <PackageOutputPath>./dist</PackageOutputPath>
@@ -35,6 +35,7 @@
         <Compile Include="AssemblyInfo.fs" />
         <None Include="App.config" />
         <Compile Include="AssemblyInfoModule.fs" />
+        <Compile Include="Tools\DockerizeCommand.fs" />
         <Compile Include="Tools\CommandLineHost.fs" />
         <Compile Include="Tools\CommandLine.fs" />
         <Compile Include="Main.fs" />
