@@ -36,6 +36,8 @@
         <None Include="App.config" />
         <Compile Include="AssemblyInfoModule.fs" />
         <Compile Include="Tools\DockerizeCommand.fs" />
+        <Compile Include="Tools\DevelopCommand.fs" />
+        <Compile Include="Tools\WorkspaceCommand.fs" />
         <Compile Include="Tools\CommandLineHost.fs" />
         <Compile Include="Tools\CommandLine.fs" />
         <Compile Include="Main.fs" />
