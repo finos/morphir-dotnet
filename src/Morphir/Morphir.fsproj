@@ -6,8 +6,12 @@
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     </PropertyGroup>
     <PropertyGroup>
-        <Title>Morphir</Title>
+        <Title>morphir</Title>
+        <ToolCommandName>morphir</ToolCommandName>
         <Description>Morphir does the thing!</Description>
+        <PackAsTool>true</PackAsTool>
+        <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+        <PackageOutputPath>./dist</PackageOutputPath>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Configuration)'=='Release'">
         <Optimize>true</Optimize>
@@ -16,6 +20,7 @@
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="FSharp.Control.FusionTasks" />
+        <PackageReference Include="FSharp.SystemCommandLine" />
         <PackageReference Include="Argu" />
         <PackageReference Include="Microsoft.Extensions.Hosting" />
         <PackageReference Include="MEL.Flex" />
@@ -30,9 +35,12 @@
         <Compile Include="AssemblyInfo.fs" />
         <None Include="App.config" />
         <Compile Include="AssemblyInfoModule.fs" />
-        <Folder Include="CLI\Services" />
-        <Compile Include="CLI\Commands\InfoCommand.fs" />
-        <Compile Include="CLI\Commands\ServerCommand.fs" />
+        <Compile Include="Tools\CommandLineHost.fs" />
+        <Compile Include="Tools\CommandLine.fs" />
         <Compile Include="Main.fs" />
+    </ItemGroup>
+    <ItemGroup>
+      <ProjectReference Include="..\Morphir.Elm.Tools\Morphir.Elm.Tools.fsproj" />
+      <ProjectReference Include="..\Morphir.Tools.Core\Morphir.Tools.Core.fsproj" />
     </ItemGroup>
 </Project>
