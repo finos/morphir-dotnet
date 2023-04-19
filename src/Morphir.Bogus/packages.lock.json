@@ -370,17 +370,6 @@
           "Microsoft.Extensions.FileProviders.Abstractions": "7.0.0"
         }
       },
-      "Microsoft.Extensions.Logging": {
-        "type": "Transitive",
-        "resolved": "7.0.0",
-        "contentHash": "Nw2muoNrOG5U5qa2ZekXwudUn2BJcD41e65zwmDHb1fQegTX66UokLWZkJRpqSSHXDOWZ5V0iqhbxOEky91atA==",
-        "dependencies": {
-          "Microsoft.Extensions.DependencyInjection": "7.0.0",
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "7.0.0",
-          "Microsoft.Extensions.Logging.Abstractions": "7.0.0",
-          "Microsoft.Extensions.Options": "7.0.0"
-        }
-      },
       "Microsoft.Extensions.Logging.Abstractions": {
         "type": "Transitive",
         "resolved": "7.0.0",
@@ -587,6 +576,11 @@
         "dependencies": {
           "System.Runtime.CompilerServices.Unsafe": "6.0.0"
         }
+      },
+      "System.CommandLine": {
+        "type": "Transitive",
+        "resolved": "2.0.0-beta4.22272.1",
+        "contentHash": "1uqED/q2H0kKoLJ4+hI2iPSBSEdTuhfCYADeJrAqERmiGQ2NNacYKRNEQ+gFbU4glgVyK8rxI+ZOe1onEtr/Pg=="
       },
       "System.ComponentModel": {
         "type": "Transitive",
@@ -948,13 +942,24 @@
           "Argu": "[6.0.0, )",
           "FSharp.Control.FusionTasks": "[2.6.0, )",
           "FSharp.Core": "[7.0.200, )",
+          "FSharp.SystemCommandLine": "[0.17.0-beta4, )",
           "MEL.Flex": "[0.1.0, )",
           "Microsoft.Extensions.Hosting": "[7.0.1, )",
+          "Morphir.Elm.Tools": "[1.0.0, )",
+          "Morphir.Tools.Core": "[1.0.0, )",
           "Serilog": "[2.12.0, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
           "Serilog.Formatting.Compact": "[1.1.0, )",
           "Serilog.Sinks.Console": "[4.1.0, )",
           "WolverineFX": "[0.9.13, )"
+        }
+      },
+      "morphir.elm.tools": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.SystemCommandLine": "[0.17.0-beta4, )",
+          "Microsoft.Extensions.Logging": "[7.0.0, )",
+          "Morphir.Tools.Core": "[1.0.0, )"
         }
       },
       "morphir.ir": {
@@ -985,10 +990,16 @@
           "FSharp.Core": "[7.0.200, )",
           "FsCheck": "[2.16.5, )",
           "Microsoft.NET.Test.Sdk": "[17.3.2, )",
-          "Morphir": "[1.0.0, )",
           "Morphir.SDK.Testing": "[1.0.0, )",
           "YoloDev.Expecto.TestSdk": "[0.12.12, )",
-          "altcover": "[8.2.825, )"
+          "altcover": "[8.2.825, )",
+          "morphir": "[1.0.0, )"
+        }
+      },
+      "morphir.tools.core": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.SystemCommandLine": "[0.17.0-beta4, )"
         }
       },
       "altcover": {
@@ -1046,6 +1057,16 @@
           "Microsoft.Bcl.AsyncInterfaces": "6.0.0"
         }
       },
+      "FSharp.SystemCommandLine": {
+        "type": "CentralTransitive",
+        "requested": "[0.17.0-beta4, )",
+        "resolved": "0.17.0-beta4",
+        "contentHash": "CcBlcYXBb9KeS9yWGfRpj7CMipxgNsBfdg/r3mpjd7zmQfXMDdbOIO2VbQ4YlEYVek5+ZpAehzNHKGbwByntYg==",
+        "dependencies": {
+          "FSharp.Core": "6.0.0",
+          "System.CommandLine": "2.0.0-beta4.22272.1"
+        }
+      },
       "MEL.Flex": {
         "type": "CentralTransitive",
         "requested": "[0.1.0, )",
@@ -1084,6 +1105,18 @@
           "Microsoft.Extensions.Logging.EventSource": "7.0.0",
           "Microsoft.Extensions.Options": "7.0.1",
           "System.Diagnostics.DiagnosticSource": "7.0.1"
+        }
+      },
+      "Microsoft.Extensions.Logging": {
+        "type": "CentralTransitive",
+        "requested": "[7.0.0, )",
+        "resolved": "7.0.0",
+        "contentHash": "Nw2muoNrOG5U5qa2ZekXwudUn2BJcD41e65zwmDHb1fQegTX66UokLWZkJRpqSSHXDOWZ5V0iqhbxOEky91atA==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection": "7.0.0",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "7.0.0",
+          "Microsoft.Extensions.Logging.Abstractions": "7.0.0",
+          "Microsoft.Extensions.Options": "7.0.0"
         }
       },
       "Microsoft.NET.Test.Sdk": {

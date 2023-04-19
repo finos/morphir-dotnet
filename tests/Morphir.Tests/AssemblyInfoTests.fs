@@ -3,7 +3,7 @@ namespace Morphir.Tests
 open System.Reflection
 open Expecto
 open Morphir
-open Morphir.CLI.Commands
+open Morphir.Tools
 
 module AssemblyInfoTests =
     [<Tests>]
@@ -11,7 +11,7 @@ module AssemblyInfoTests =
         testList "Morphir.AssemblyInfo" [
             testCase "mkInfoString should have at least four segments"
             <| fun () ->
-                let assembly = typeof<ServerCommand>.Assembly
+                let assembly = typeof<CommandLine.Dummy>.Assembly
                 let actual = AssemblyInfo.mkInfoString (assembly)
 
                 let length =
