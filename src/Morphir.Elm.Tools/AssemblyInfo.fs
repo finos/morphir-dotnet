@@ -2,7 +2,7 @@
 namespace System
 open System.Reflection
 
-[<assembly: AssemblyTitleAttribute("Morphir.SDK.Testing")>]
+[<assembly: AssemblyTitleAttribute("Morphir.Elm.Tools")>]
 [<assembly: AssemblyProductAttribute("Morphir")>]
 [<assembly: AssemblyVersionAttribute("0.0.1")>]
 [<assembly: AssemblyMetadataAttribute("ReleaseDate","2023-04-19T00:00:00.0000000+00:00")>]
@@ -13,7 +13,7 @@ open System.Reflection
 do ()
 
 module internal AssemblyVersionInformation =
-    let [<Literal>] AssemblyTitle = "Morphir.SDK.Testing"
+    let [<Literal>] AssemblyTitle = "Morphir.Elm.Tools"
     let [<Literal>] AssemblyProduct = "Morphir"
     let [<Literal>] AssemblyVersion = "0.0.1"
     let [<Literal>] AssemblyMetadata_ReleaseDate = "2023-04-19T00:00:00.0000000+00:00"
