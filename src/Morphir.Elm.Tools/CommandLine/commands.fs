@@ -16,25 +16,34 @@ module ElmCommands =
             printfn $"typesOnly: %A{typesOnly}"
             printfn $"fallbackCli: %A{fallbackCli}"
 
-        let projectDir = Input.Option<DirectoryInfo>(
-            aliases = ["--project-dir"; "-p"],
-            defaultValue = DirectoryInfo(Directory.GetCurrentDirectory()),
-            description = "Root directory of the project where morphir.json is located.")
+        let projectDir =
+            Input.Option<DirectoryInfo>(
+                aliases = [ "--project-dir"; "-p" ],
+                defaultValue = DirectoryInfo(Directory.GetCurrentDirectory()),
+                description = "Root directory of the project where morphir.json is located."
+            )
 
-        let outputDir = Input.Option<FileInfo>(
-            aliases = ["--output-dir"; "-o"],
-            defaultValue = FileInfo(Path.Combine(Directory.GetCurrentDirectory(), "morphir-ir.json")),
-            description = "Target file location where the Morphir IR will be saved.")
+        let outputDir =
+            Input.Option<FileInfo>(
+                aliases = [ "--output-dir"; "-o" ],
+                defaultValue =
+                    FileInfo(Path.Combine(Directory.GetCurrentDirectory(), "morphir-ir.json")),
+                description = "Target file location where the Morphir IR will be saved."
+            )
 
-        let typesOnly = Input.Option<bool>(
-            aliases = ["--types-only"; "-t"],
-            defaultValue = false,
-            description = "Only include type information in the IR, no values.")
+        let typesOnly =
+            Input.Option<bool>(
+                aliases = [ "--types-only"; "-t" ],
+                defaultValue = false,
+                description = "Only include type information in the IR, no values."
+            )
 
-        let fallbackCli = Input.Option<bool>(
-            aliases = ["--fallback-cli"; "-f"],
-            defaultValue = false,
-            description = "Use the old make function.")
+        let fallbackCli =
+            Input.Option<bool>(
+                aliases = [ "--fallback-cli"; "-f" ],
+                defaultValue = false,
+                description = "Use the old make function."
+            )
 
         command "make" {
             description "Translate Elm source code into Morphir IR"
@@ -50,25 +59,35 @@ module ElmCommands =
             printfn $"target: %A{target}"
             printfn $"targetVersion: %A{targetVersion}"
 
-        let input = Input.Option<FileInfo>(
-            aliases = ["--input"; "-i"],
-            defaultValue = FileInfo(Path.Combine(Directory.GetCurrentDirectory(), "morphir-ir.json")),
-            description = "Source location where the Morphir IR will be loaded from.")
+        let input =
+            Input.Option<FileInfo>(
+                aliases = [ "--input"; "-i" ],
+                defaultValue =
+                    FileInfo(Path.Combine(Directory.GetCurrentDirectory(), "morphir-ir.json")),
+                description = "Source location where the Morphir IR will be loaded from."
+            )
 
-        let output = Input.Option<DirectoryInfo>(
-            aliases = ["--output"; "-o"],
-            defaultValue = DirectoryInfo(Path.Combine(Directory.GetCurrentDirectory(), "dist")),
-            description = "Target location where the generated code will be saved.")
+        let output =
+            Input.Option<DirectoryInfo>(
+                aliases = [ "--output"; "-o" ],
+                defaultValue = DirectoryInfo(Path.Combine(Directory.GetCurrentDirectory(), "dist")),
+                description = "Target location where the generated code will be saved."
+            )
 
-        let target = Input.Option<string>(
-            aliases = ["--target"; "-t"],
-            defaultValue = "Scala",
-            description = "Language to generate (Scala | SpringBoot | cypher | triples | TypeScript)")
+        let target =
+            Input.Option<string>(
+                aliases = [ "--target"; "-t" ],
+                defaultValue = "Scala",
+                description =
+                    "Language to generate (Scala | SpringBoot | cypher | triples | TypeScript)"
+            )
 
-        let targetVersion = Input.Option<string>(
-            aliases = ["--target-version"; "-e"],
-            defaultValue = "2.11",
-            description = "Version of the target language to generate")
+        let targetVersion =
+            Input.Option<string>(
+                aliases = [ "--target-version"; "-e" ],
+                defaultValue = "2.11",
+                description = "Version of the target language to generate"
+            )
 
         command "gen" {
             description "Generate Morphir code from Morphir IR"
@@ -83,20 +102,26 @@ module ElmCommands =
             printfn $"host: %s{host}"
             printfn $"projectDir: %A{projectDir}"
 
-        let port = Input.Option<int>(
-            aliases = ["--port"; "-p"],
-            defaultValue = 3000,
-            description = "Port to use for the web server")
+        let port =
+            Input.Option<int>(
+                aliases = [ "--port"; "-p" ],
+                defaultValue = 3000,
+                description = "Port to use for the web server"
+            )
 
-        let host = Input.Option<string>(
-            aliases = ["--host"; "-h"],
-            defaultValue = "localhost",
-            description = "Host to use for the web server")
+        let host =
+            Input.Option<string>(
+                aliases = [ "--host"; "-h" ],
+                defaultValue = "localhost",
+                description = "Host to use for the web server"
+            )
 
-        let projectDir = Input.Option<DirectoryInfo>(
-            aliases = ["--project-dir"; "-i"],
-            defaultValue = DirectoryInfo(Directory.GetCurrentDirectory()),
-            description = "Root directory of the project where morphir.json is located.")
+        let projectDir =
+            Input.Option<DirectoryInfo>(
+                aliases = [ "--project-dir"; "-i" ],
+                defaultValue = DirectoryInfo(Directory.GetCurrentDirectory()),
+                description = "Root directory of the project where morphir.json is located."
+            )
 
         command "develop" {
             description "Start up a web server and expose developer tools through a web UI"
