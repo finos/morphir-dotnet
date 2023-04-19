@@ -7,8 +7,11 @@
     </PropertyGroup>
     <PropertyGroup>
         <Title>morphir</Title>
-        <AssemblyName>morphir</AssemblyName>
+        <ToolCommandName>morphir</ToolCommandName>
         <Description>Morphir does the thing!</Description>
+        <PackAsTool>true</PackAsTool>
+        <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+        <PackageOutputPath>./dist</PackageOutputPath>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Configuration)'=='Release'">
         <Optimize>true</Optimize>
@@ -32,9 +35,6 @@
         <Compile Include="AssemblyInfo.fs" />
         <None Include="App.config" />
         <Compile Include="AssemblyInfoModule.fs" />
-        <Folder Include="CLI\Services" />
-        <Compile Include="CLI\Commands\InfoCommand.fs" />
-        <Compile Include="CLI\Commands\ServerCommand.fs" />
         <Compile Include="Tools\CommandLineHost.fs" />
         <Compile Include="Tools\CommandLine.fs" />
         <Compile Include="Main.fs" />

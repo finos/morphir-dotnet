@@ -3,7 +3,7 @@
         <!-- summary is not migrated from project.json, but you can use the <Description> property for that if needed. -->
         <PackageTags>f#, fsharp</PackageTags>
         <PackageProjectUrl>https://github.com/finos/morphir-dotnet</PackageProjectUrl>
-        <PackageLicenseUrl>https://github.com/finos/morphir-dotnet/blob/master/LICENSE.md</PackageLicenseUrl>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
         <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
         <RepositoryType>git</RepositoryType>
         <Authors>finos</Authors>

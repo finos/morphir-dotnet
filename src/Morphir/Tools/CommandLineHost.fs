@@ -1,5 +1,6 @@
 [<RequireQualifiedAccess>]
 module Morphir.Tools.CommandLineHost
+
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.Hosting
@@ -11,10 +12,10 @@ open Serilog.Events
 let build (argv: string[]) =
     Host
         .CreateDefaultBuilder(argv)
-        .ConfigureHostConfiguration(fun configBuilder -> () )
-        .UseSerilog(fun hostingContext loggerConfiguration ->
-            loggerConfiguration
-                .MinimumLevel.Information()
+        .ConfigureHostConfiguration(fun configBuilder -> ())
+        .UseSerilog(fun context loggerConfiguration ->
+            loggerConfiguration.MinimumLevel
+                .Information()
                 .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
                 //.ReadFrom.Configuration(context.Configuration)
                 .Enrich.FromLogContext()
@@ -22,4 +23,3 @@ let build (argv: string[]) =
             |> ignore
         )
         .Build()
-
