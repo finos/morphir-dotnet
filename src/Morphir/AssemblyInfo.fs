@@ -5,19 +5,19 @@ open System.Reflection
 [<assembly: AssemblyTitleAttribute("Morphir")>]
 [<assembly: AssemblyProductAttribute("Morphir")>]
 [<assembly: AssemblyVersionAttribute("0.0.1")>]
-[<assembly: AssemblyMetadataAttribute("ReleaseDate","2023-04-19T00:00:00.0000000+00:00")>]
+[<assembly: AssemblyMetadataAttribute("ReleaseDate","2023-04-20T00:00:00.0000000+00:00")>]
 [<assembly: AssemblyFileVersionAttribute("0.0.1")>]
 [<assembly: AssemblyInformationalVersionAttribute("0.0.1")>]
 [<assembly: AssemblyMetadataAttribute("ReleaseChannel","alpha")>]
-[<assembly: AssemblyMetadataAttribute("GitHash","b93b62ff26343659d319e1804a1c31ddfecb6e83")>]
+[<assembly: AssemblyMetadataAttribute("GitHash","99a68f79ab1e7f1b9b3f37fc377114155f4c7e50")>]
 do ()
 
 module internal AssemblyVersionInformation =
     let [<Literal>] AssemblyTitle = "Morphir"
     let [<Literal>] AssemblyProduct = "Morphir"
     let [<Literal>] AssemblyVersion = "0.0.1"
-    let [<Literal>] AssemblyMetadata_ReleaseDate = "2023-04-19T00:00:00.0000000+00:00"
+    let [<Literal>] AssemblyMetadata_ReleaseDate = "2023-04-20T00:00:00.0000000+00:00"
     let [<Literal>] AssemblyFileVersion = "0.0.1"
     let [<Literal>] AssemblyInformationalVersion = "0.0.1"
     let [<Literal>] AssemblyMetadata_ReleaseChannel = "alpha"
-    let [<Literal>] AssemblyMetadata_GitHash = "b93b62ff26343659d319e1804a1c31ddfecb6e83"
+    let [<Literal>] AssemblyMetadata_GitHash = "99a68f79ab1e7f1b9b3f37fc377114155f4c7e50"
