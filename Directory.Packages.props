@@ -11,6 +11,7 @@
     <BunsenBurnerVersion>6.2.1</BunsenBurnerVersion>
     <FakeVersion>6.0.0</FakeVersion>
     <LightBDDVersion>3.6.1</LightBDDVersion>
+    <MyriadVersion>0.8.2</MyriadVersion>
     <SystemCommandLineVersion>2.0.0-beta4.22272.1</SystemCommandLineVersion>
     <TickSpecVersion>2.0.2</TickSpecVersion>
     <VerifyVersion>19.11.2</VerifyVersion>
@@ -49,6 +50,7 @@
     <PackageVersion Include="Fake.Tools.Git" Version="$(FakeVersion)" />
     <PackageVersion Include="Fake.Api.GitHub" Version="$(FakeVersion)" />
     <PackageVersion Include="Fake.BuildServer.GitHubActions" Version="$(FakeVersion)" />
+    <PackageVersion Include="Fabulous.AST" Version="0.4.0" />
     <PackageVersion Include="MSBuild.StructuredLogger" Version="2.1.768" />
     <PackageVersion Include="Argu" Version="6.0" />
     <PackageVersion Include="Octokit" Version="0.50.0" />
@@ -70,7 +72,9 @@
     <PackageVersion Include="Dotnet.ProjInfo.Workspace.FCS" Version="0.39" />
     <PackageVersion Include="FSharp.Compiler.Service" Version="34.1.1"/>
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="7.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="7.0.0" />  
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="7.0.0" />
+    <PackageVersion Include="Myriad.Core" Version="$(MyriadVersion)" />
+    <PackageVersion Include="Myriad.Sdk" Version="$(MyriadVersion)" />
     <PackageVersion Include="Serilog" Version="2.12.0" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="5.0.1" />
     <PackageVersion Include="Serilog.Formatting.Compact" Version="1.1.0" />
