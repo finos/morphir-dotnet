@@ -3,8 +3,9 @@
     <PropertyGroup>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <RootNamespace>Morphir.SDK</RootNamespace>
-        <TargetFrameworks>net7.0;net6.0;netstandard2.0</TargetFrameworks>
+        <TargetFrameworks>net7.0;net6.0;netstandard2.1;netstandard2.0</TargetFrameworks>
         <LangVersion>latestmajor</LangVersion>
+        <DebugType>portable</DebugType>d
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
@@ -26,5 +27,9 @@
         <Compile Include="Extensions.fs" />
         <Compile Include="Dict.fs" />
         <Compile Include="Tuple.fs" />
+    </ItemGroup>
+    <!-- Add source files to "fable" folder in Nuget package -->
+    <ItemGroup>
+        <Content Include="*.fsproj; **\*.fs" PackagePath="fable\" />
     </ItemGroup>
 </Project>

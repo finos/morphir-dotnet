@@ -45,5 +45,6 @@
     <ItemGroup>
       <ProjectReference Include="..\..\src\Morphir.Myriad.Plugins\Morphir.Myriad.Plugins.fsproj" />
     </ItemGroup>
+    
     <Import Project="..\..\src\Morphir.Myriad.Plugins/build\Morphir.Myriad.Plugins.InTest.props" />
 </Project>
