@@ -1,4 +1,5 @@
 module Morphir.Myriad.Plugins.Debugging
+
 open System
 let mutable shouldBreak = true
 

@@ -84,6 +84,7 @@
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
+    <PackageVersion Include="Wasi.Sdk" Version="0.1.4-preview.10020" />
     <PackageVersion Include="TickSpec" Version="2.0.2" />
     <PackageVersion Include="TickSpec.Xunit" Version="$(TickSpecVersion)" />
   </ItemGroup>
