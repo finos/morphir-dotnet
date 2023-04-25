@@ -43,6 +43,7 @@
         <Compile Include="QNameTests.fs" />
         <Compile Include="FQNameTests.fs" />
         <Compile Include="TypeTests.fs" />
+        <Compile Include="BuilderTests.fs" />
         <Compile Include="ConfiguredLightBddScopeAttribute.fs" />
         <Compile Include="Features\Contexts\RoundtripEncodingContext.fs" />
         <Compile Include="Features\Contexts\EncodingAndDecodingContext.fs" />

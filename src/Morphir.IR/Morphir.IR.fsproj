@@ -38,7 +38,8 @@
         <Compile Include="IR\Package.fs" />
         <Compile Include="IR\Distribution.fs" />
         <Compile Include="IR\Decoration.fs" />
-        <Compile Include="IR\DSL\IR.fs" />
+        <Compile Include="Analyzers\IR.fs" />
+        <Compile Include="IR\Builders.fs" />
         <Compile Include="IR\SDK\Common.fs" />
         <Compile Include="IR\SDK\Basics.fs" />
         <Compile Include="IR\SDK\String.fs" />
