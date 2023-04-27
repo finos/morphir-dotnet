@@ -1,6 +1,7 @@
 module rec Morphir.IR.Package
 
 open Morphir.IR.AccessControlled
+open Morphir.IR.Name
 open Morphir.IR.Path
 open Morphir.IR.Module
 open Morphir.IR.Value
@@ -62,5 +63,7 @@ let lookupModuleDefinition
 module PackageName =
     let fromString (name: string):PackageName =
         Path.fromString name
+        
+    let fromNames(names: Name list) = Path.fromList names
 
     let root : PackageName = Path.fromList []
