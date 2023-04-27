@@ -15,7 +15,7 @@ let tests =
 
             let (Library (packageName, _,_)) = actual
 
-            Expect.equal (PackageName.frogit mString "My.SuperPackage") packageName
+            Expect.equal (PackageName.fromString "My.SuperPackage") packageName
         }
     ]
     describe "BuilderTests" [
