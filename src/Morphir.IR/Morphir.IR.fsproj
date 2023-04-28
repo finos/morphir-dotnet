@@ -39,6 +39,7 @@
         <Compile Include="IR\Distribution.fs" />
         <Compile Include="IR\Decoration.fs" />
         <Compile Include="Analyzers\IR.fs" />
+        <Compile Include="IR\Tree.fs" />
         <Compile Include="IR\Builders.fs" />
         <Compile Include="IR\SDK\Common.fs" />
         <Compile Include="IR\SDK\Basics.fs" />

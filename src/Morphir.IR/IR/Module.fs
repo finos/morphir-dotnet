@@ -13,6 +13,9 @@ open Morphir.SDK
 /// which is a list of names.
 type ModuleName = Path
 
+module ModuleName =
+    let fromStrinng (name:string):ModuleName = Path.fromString name
+
 /// A qualified module name is a globally unique identifier for a module. It is represented by a tuple
 /// of the package and the module name.
 type QualifiedModuleName = Path * Path
@@ -149,6 +152,8 @@ let definitionToSpecificationWithPrivate (def: Definition<'ta, 'va>) : Specifica
         Values = values
         Doc = def.Doc
     }
+
+let inline moduleNameFromString name:ModuleName = Path.fromString name
 
 // /// Find all the modules that this module depends on.
 // let dependsOnModules (moduleDef:Definition<'ta,'va>): Set<QualifiedModuleName> =

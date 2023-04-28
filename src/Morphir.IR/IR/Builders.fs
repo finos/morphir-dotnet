@@ -1,6 +1,7 @@
 [<AutoOpen>]
 module Morphir.IR.Builders
 
+open Morphir.IR.Module
 open Morphir.IR.Package
 open Morphir.IR.Distribution
 open Morphir.IR.Type
@@ -47,6 +48,27 @@ type LibraryBuilder() =
             (emptyLibrary Package.PackageName.root)
 
 let library = LibraryBuilder()
+
+type ModuleProperty =
+    | ModuleName of moduleName:ModuleName
+
+type Module<'ta,'va> =
+    | Module of spec:Module.Specification<'ta> * def:Module.Definition<'ta,'va>
+    | ModuleSpec of spec:Module.Specification<'ta>
+    | ModuleDef of spec:Module.Definition<'ta,'va>
+
+type ModuleBuilder() =
+    member _.Yield(()) = ()
+
+    [<CustomOperation("moduleName")>]
+    member _.ModuleName((), moduleName:ModuleName) = [ModuleProperty.ModuleName moduleName]
+    [<CustomOperation("moduleName")>]
+    member _.ModuleName((), moduleName:string) = [ModuleProperty.ModuleName <| moduleNameFromString moduleName]
+
+    member _.Run(props) = ()
+
+
+let module' = ModuleBuilder()
 
 module Demo =
     let result = library {
