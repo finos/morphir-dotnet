@@ -201,7 +201,10 @@ let ofLength (length: int) (ctor: string -> 'a) (value: string) =
 
 // Checks the max length of a string and wraps it using the specified constructor.
 let ofMaxLength (maxLength: int) (ctor: string -> 'a) (value: string) =
-    if String.length value <= maxLength then
-        Some (ctor value)
+    if
+        String.length value
+        <= maxLength
+    then
+        Some(ctor value)
     else
         None
