@@ -4,6 +4,8 @@ open Morphir.SDK.Testing
 open Morphir.SDK
 open Morphir.SDK.Maybe
 
+let toInt (value: string) = int value
+
 [<Tests>]
 let tests =
     let combiningTests =
@@ -209,6 +211,20 @@ let tests =
             <| fun _ -> Expect.equal false (String.all System.Char.IsDigit "R2-D2")
             testCase "all3"
             <| fun _ -> Expect.equal false (String.all System.Char.IsDigit "rose")
+
+            testCase "ofLength1"
+            <| fun _ -> Expect.equal (Some(123)) (String.ofLength 3 toInt "123")
+            testCase "ofLength2"
+            <| fun _ -> Expect.equal None (String.ofLength 3 toInt "12")
+            testCase "ofLength3"
+            <| fun _ -> Expect.equal None (String.ofLength 3 toInt "1234")
+
+            testCase "ofMaxLength1"
+            <| fun _ -> Expect.equal (Some(123)) (String.ofMaxLength 3 toInt "123")
+            testCase "ofMaxLength2"
+            <| fun _ -> Expect.equal (Some(12)) (String.ofMaxLength 3 toInt "12")
+            testCase "ofMaxLength3"
+            <| fun _ -> Expect.equal None (String.ofMaxLength 3 toInt "1234")
         ]
 
     describe "String" [ combiningTests ]

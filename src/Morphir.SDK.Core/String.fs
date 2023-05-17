@@ -191,3 +191,20 @@ let all isGood str =
         true
     else
         false
+
+// Checks the exact length of a string and wraps it using the specified constructor.
+let ofLength (length: int) (ctor: string -> 'a) (value: string) =
+    if String.length value = length then
+        Some(ctor value)
+    else
+        None
+
+// Checks the max length of a string and wraps it using the specified constructor.
+let ofMaxLength (maxLength: int) (ctor: string -> 'a) (value: string) =
+    if
+        String.length value
+        <= maxLength
+    then
+        Some(ctor value)
+    else
+        None
