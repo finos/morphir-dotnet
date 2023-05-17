@@ -187,7 +187,7 @@ let any isGood str =
     | _ -> true
 
 let all isGood str =
-    if (List.filter isGood (toList str)).Length = str.  then
+    if (List.filter isGood (toList str)).Length = str.Length then
         true
     else
         false
