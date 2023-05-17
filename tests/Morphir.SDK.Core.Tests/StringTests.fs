@@ -218,6 +218,13 @@ let tests =
             <| fun _ -> Expect.equal None (String.ofLength 3 toInt "12")
             testCase "ofLength3"
             <| fun _ -> Expect.equal None (String.ofLength 3 toInt "1234")
+
+            testCase "ofMaxLength1"
+            <| fun _ -> Expect.equal (Some(123)) (String.ofMaxLength 3 toInt "123")
+            testCase "ofMaxLength2"
+            <| fun _ -> Expect.equal None (String.ofMaxLength 3 toInt "12")
+            testCase "ofMaxLength3"
+            <| fun _ -> Expect.equal None (String.ofMaxLength 3 toInt "1234")
         ]
 
     describe "String" [ combiningTests ]
