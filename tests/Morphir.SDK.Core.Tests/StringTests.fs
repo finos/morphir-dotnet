@@ -222,7 +222,7 @@ let tests =
             testCase "ofMaxLength1"
             <| fun _ -> Expect.equal (Some(123)) (String.ofMaxLength 3 toInt "123")
             testCase "ofMaxLength2"
-            <| fun _ -> Expect.equal None (String.ofMaxLength 3 toInt "12")
+            <| fun _ -> Expect.equal (Some(12)) (String.ofMaxLength 3 toInt "12")
             testCase "ofMaxLength3"
             <| fun _ -> Expect.equal None (String.ofMaxLength 3 toInt "1234")
         ]
