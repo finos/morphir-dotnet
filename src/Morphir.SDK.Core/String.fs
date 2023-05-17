@@ -187,7 +187,15 @@ let any isGood str =
     | _ -> true
 
 let all isGood str =
-    if (List.filter isGood (toList str)).Length = str.Length then
+    if (List.filter isGood (toList str)).Length = str.  then
         true
     else
         false
+
+// Checks the exact length of a string and wraps it using the specified constructor.
+let ofLength (length: int) (ctor: string -> 'a) (value: string) =
+    if (String.length value = length) then
+        Some(ctor value)
+
+    else
+        None
