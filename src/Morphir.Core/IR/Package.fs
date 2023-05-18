@@ -15,25 +15,29 @@ type PackageName = Path
 
 /// Type that represents a package specification. A package specification only contains types that
 /// are exposed publicly and type signatures for values that are exposed publicly.
-type Specification<'TA> = {
-    Modules: Dict<ModuleName, Module.Specification<'TA>>
-} with
-    static member Empty:Specification<'TA> = { Specification.Modules = Dict.empty }
+type Specification<'TA> =
+    {
+        Modules: Dict<ModuleName, Module.Specification<'TA>>
+    }
+
+    static member Empty: Specification<'TA> = { Specification.Modules = Dict.empty }
 
 /// Type that represents a package definition. A package definition contains all the details including implementation
 /// and private types and values. The modules field is a dictionary keyed by module name that contains access controlled
 /// module definitions. The `AccessControlled` adds access classifiers to each module to differentiate public and private
 /// modules.
-type Definition<'TA, 'VA> = {
-    Modules: Dict<ModuleName, AccessControlled<Module.Definition<'TA, 'VA>>>
-} with
-    static member Empty:Definition<'TA,'VA> = { Definition.Modules = Dict.empty }
+type Definition<'TA, 'VA> =
+    {
+        Modules: Dict<ModuleName, AccessControlled<Module.Definition<'TA, 'VA>>>
+    }
+
+    static member Empty: Definition<'TA, 'VA> = { Definition.Modules = Dict.empty }
 
 /// Get an empty package specification with no modules.
 let emptySpecification<'TA> = { Modules = Map.empty }
 
 /// Get an empty package definition with no modules.
-let emptyDefinition<'TA, 'VA> : Definition<'TA,'VA> = { Modules = Map.empty }
+let emptyDefinition<'TA, 'VA> : Definition<'TA, 'VA> = { Modules = Map.empty }
 
 let specification (modules: Dict<ModuleName, Module.Specification<'TA>>) = {
     Specification.Modules = modules
@@ -61,9 +65,8 @@ let lookupModuleDefinition
     |> map withPrivateAccess
 
 module PackageName =
-    let fromString (name: string):PackageName =
-        Path.fromString name
-        
-    let fromNames(names: Name list) = Path.fromList names
+    let fromString (name: string) : PackageName = Path.fromString name
 
-    let root : PackageName = Path.fromList []
+    let fromNames (names: Name list) = Path.fromList names
+
+    let root: PackageName = Path.fromList []

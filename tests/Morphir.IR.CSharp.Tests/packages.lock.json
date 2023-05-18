@@ -1024,7 +1024,7 @@
           "xunit.extensibility.core": "[2.4.2]"
         }
       },
-      "morphir.ir": {
+      "morphir.core": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[7.0.200, )",

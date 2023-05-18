@@ -320,7 +320,7 @@
           "System.Drawing.Common": "4.7.0"
         }
       },
-      "morphir.ir": {
+      "morphir.core": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[7.0.200, )",

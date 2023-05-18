@@ -7,11 +7,14 @@
 
     <ItemGroup>
         <Compile Include="Configuration.fs" />
+        <Compile Include="Workspace.fs" />
+        <Compile Include="Morphir.AST.Morphir.fs" />
         <Compile Include="Processor.fs" />
+        <Compile Include="Printer.fs" />
     </ItemGroup>
     
     <ItemGroup>
-        
+      <ProjectReference Include="..\Morphir.Core\Morphir.Core.fsproj" />
     </ItemGroup>
 
 </Project>

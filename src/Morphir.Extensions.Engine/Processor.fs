@@ -34,8 +34,8 @@ type ProcessorStages<'Out> = {
     Backend: IBackendStage<'Out>
 }
 
-type Processor =
-    static member Create() = ()
+type Processor<'Out>(stages: ProcessorStages<'Out>) =
+    static member Create(stages: ProcessorStages<'Out>) = ()
 
 module Processor =
-    ()
+    let create<'Out> (stages: ProcessorStages<'Out>) = Processor<'Out>.Create(stages)

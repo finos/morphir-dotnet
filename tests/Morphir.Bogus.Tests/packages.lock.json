@@ -1652,8 +1652,16 @@
           "Bogus": "[34.0.2, )",
           "FSharp.Core": "[7.0.200, )",
           "FSharp.Data": "[5.0.2, )",
-          "Morphir.IR": "[1.0.0, )",
+          "Morphir.Core": "[1.0.0, )",
           "Morphir.Tests": "[1.0.0, )"
+        }
+      },
+      "morphir.core": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[7.0.200, )",
+          "Morphir.SDK.Core": "[1.0.0, )",
+          "Thoth.Json.Net": "[11.0.0, )"
         }
       },
       "morphir.elm.tools": {
@@ -1662,14 +1670,6 @@
           "FSharp.SystemCommandLine": "[0.17.0-beta4, )",
           "Microsoft.Extensions.Logging": "[7.0.0, )",
           "Morphir.Tools.Core": "[1.0.0, )"
-        }
-      },
-      "morphir.ir": {
-        "type": "Project",
-        "dependencies": {
-          "FSharp.Core": "[7.0.200, )",
-          "Morphir.SDK.Core": "[1.0.0, )",
-          "Thoth.Json.Net": "[11.0.0, )"
         }
       },
       "morphir.sdk.core": {

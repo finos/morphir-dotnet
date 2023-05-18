@@ -18,7 +18,8 @@
           <MyriadNamespace>Hello</MyriadNamespace>
 <!--          <Generators>MorphirIRGenerator</Generators>-->
         </Compile>
-        <Compile Include="Tests.fs" />
+        <Compile Include="ElmToFSharpGeneratorTests.fs" />
+        <Compile Include="MorphirIRGeneratorTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

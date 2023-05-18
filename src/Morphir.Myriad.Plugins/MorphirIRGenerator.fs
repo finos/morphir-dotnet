@@ -10,7 +10,7 @@ type MorphirIRGenerator() =
     interface IMyriadGenerator with
         member this.Generate(ctx) =
             printfn $"Running MorphirIRGenerator for {ctx.InputFilename}"
-            let source = Module("Some.Foo") { Value("x", "43") }
+            let source = Module("Some.Foo") { Value("x", "44") }
             let oak = Tree.compile source
 
             let code =

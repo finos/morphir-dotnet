@@ -45,7 +45,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Bogus\Morphir.Bogus.fsproj" />
-        <ProjectReference Include="..\..\src\Morphir.IR\Morphir.IR.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.Core\Morphir.Core.fsproj" />
     </ItemGroup>
 
 </Project>

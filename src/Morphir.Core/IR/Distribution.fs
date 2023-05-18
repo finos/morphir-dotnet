@@ -12,13 +12,13 @@ type Distribution =
         packageName: PackageName *
         dependencies: Dict<PackageName, Package.Specification<unit>> *
         definition: Package.Definition<unit, Type<unit>>
-    with
-     static member EmptyLibrary( name : PackageName) =
-        Library(name, Dict.empty, Package.emptyDefinition<unit,Type<unit>>)
+
+    static member EmptyLibrary(name: PackageName) =
+        Library(name, Dict.empty, Package.emptyDefinition<unit, Type<unit>>)
 
 
 let emptyLibrary (name: PackageName) : Distribution =
-    Library(name, Dict.empty, Package.emptyDefinition<unit,Type<unit>>)
+    Library(name, Dict.empty, Package.emptyDefinition<unit, Type<unit>>)
 
 let library
     (packageName: PackageName)
@@ -48,16 +48,12 @@ let insertDependency
 
 let changePackageName packageName distribution =
     match distribution with
-    | Library(_, dependencies, definition) ->
-        Library(packageName, dependencies, definition)
+    | Library(_, dependencies, definition) -> Library(packageName, dependencies, definition)
 
 let updateDefinition definition distribution =
     match distribution with
-    | Library(packageName, dependencies, _) ->
-        Library(packageName, dependencies, definition)
+    | Library(packageName, dependencies, _) -> Library(packageName, dependencies, definition)
 
 let updateDependencies dependencies distribution =
     match distribution with
-    | Library(packageName, _, definition) ->
-        Library(packageName, dependencies, definition)
-
+    | Library(packageName, _, definition) -> Library(packageName, dependencies, definition)
