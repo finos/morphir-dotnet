@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <UsingTask TaskName="Morphir.MSBuild.WriteMorphirJsonTask" AssemblyFile="..\..\..\..\src\Morphir.MSBuild\bin\Debug\netstandard2.0\Morphir.MSBuild.dll" />
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net7.0</TargetFramework>
+        <RootFolder>$(MSBuildProjectDirectory)</RootFolder>
+        <MorphirDotJsonFileName>morphir.json</MorphirDotJsonFileName>
+        <MorphirJsonProjectFile>$(RootFolder)\$(MorphirDotJsonFileName)</MorphirJsonProjectFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Program.fs"/>
+    </ItemGroup>
+    
+    <ItemGroup>
+        <PackageReference Include="Morphir.MSBuild" VersionOverride="*-*" />
+    </ItemGroup>
+    
+    <Target Name="GenerateMorphirJson" 
+            BeforeTargets="CoreCompile" 
+            Inputs="@(MorphirCompile);$(MorphirJsonProjectFile)" 
+            Outputs="$(MorphirJsonProjectFile)">
+        <WriteMorphirJsonTask ProjectFile="$(MSBuildProjectFullPath)" OutputFile="$(MorphirJsonProjectFile)">
+            <Output TaskParameter="OutputFile" PropertyName="MorphirDotJsonFile" />
+        </WriteMorphirJsonTask>
+    </Target>
+
+</Project>

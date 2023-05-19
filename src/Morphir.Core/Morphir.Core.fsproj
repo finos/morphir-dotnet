@@ -63,5 +63,6 @@
         <Compile Include="IR\Codecs\Package.fs" />
         <Compile Include="IR\Codecs\Distribution.fs" />
         <Compile Include="Codecs\Default.fs" />
+        <Compile Include="ProjectSystem\ProjectSystem.fs" />
     </ItemGroup>
 </Project>

@@ -1193,7 +1193,7 @@
       "morphir.myriad.plugins": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[7.0.200, )",
+          "FSharp.Core": "[7.0.0, )",
           "Fabulous.AST": "[0.4.0, )",
           "Microsoft.SourceLink.GitHub": "[1.1.0, )",
           "Myriad.Core": "[0.8.2, )",

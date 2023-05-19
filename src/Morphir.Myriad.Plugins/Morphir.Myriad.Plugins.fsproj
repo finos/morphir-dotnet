@@ -3,6 +3,7 @@
     <PropertyGroup>
         <TargetFramework>netstandard2.1</TargetFramework>
         <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+   
     </PropertyGroup>
 
     <ItemGroup>
@@ -15,7 +16,7 @@
     
     <ItemGroup>
         <PackageReference Include="Fabulous.AST" />
-        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="FSharp.Core" VersionOverride="7.0.0" />
         <PackageReference Include="Microsoft.SourceLink.GitHub" />
         <PackageReference Include="Myriad.Core" />
         <PackageReference Include="Myriad.Sdk" />
