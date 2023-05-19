@@ -33,7 +33,7 @@
       },
       "FSharp.Core": {
         "type": "CentralTransitive",
-        "requested": "[7.0.200, )",
+        "requested": "[7.0.300, )",
         "resolved": "4.6.0",
         "contentHash": "Neg/er6EOaNBrvBS2FrsYdrXW8Jv4CRQhtDfw+0b7usRSDvaJnABTNEWTdh3RqmdyT6K2qOayUsrY0lpiQjBxQ=="
       }
@@ -56,7 +56,7 @@
       },
       "FSharp.Core": {
         "type": "CentralTransitive",
-        "requested": "[7.0.200, )",
+        "requested": "[7.0.300, )",
         "resolved": "4.6.0",
         "contentHash": "Neg/er6EOaNBrvBS2FrsYdrXW8Jv4CRQhtDfw+0b7usRSDvaJnABTNEWTdh3RqmdyT6K2qOayUsrY0lpiQjBxQ=="
       }

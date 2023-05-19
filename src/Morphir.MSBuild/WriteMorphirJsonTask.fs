@@ -18,8 +18,9 @@ type WriteMorphirJsonTask() as this =
 
     [<Required>]
     member val PackageName: string = "" with get, set
+
     [<Required>]
-    member val ProjectFile : string = "" with get, set
+    member val ProjectFile: string = "" with get, set
 
     member val Path: string = "" with get, set
 
@@ -32,6 +33,7 @@ type WriteMorphirJsonTask() as this =
 
     override _.Execute() =
         this.Log.LogMessage(MessageImportance.High, $"Executing {this.GetType().FullName}...")
+
         let projectFile =
             if System.String.IsNullOrWhiteSpace(this.ProjectFile) then
                 FileInfo(this.BuildEngine.ProjectFileOfTaskNode)

@@ -27,7 +27,7 @@
     <PackageVersion Include="BunsenBurner.Verify.Xunit" Version="$(BunsenBurnerVersion)" />
     <PackageVersion Include="Codinators.XunitHelpers" Version="3.0.1" />
     <PackageVersion Include="coverlet.collector" Version="3.1.2" />
-    <PackageVersion Include="FSharp.Core" Version="7.0.200" />
+    <PackageVersion Include="FSharp.Core" Version="7.0.300" />
     <PackageVersion Include="FSharp.Data" Version="5.0.2" />
     <PackageVersion Include="FSharp.SystemCommandLine" Version="0.17.0-beta4" />
     <PackageVersion Include="Expecto" Version="9.0.4" />

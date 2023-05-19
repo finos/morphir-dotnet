@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFrameworks>net472;net7.0</TargetFrameworks>
+        <DebugType>embedded</DebugType>
         <!-- This target will run when MSBuild is collecting the files to be packaged, and we'll implement it below. This property controls the dependency list for this packaging process, so by adding our custom property we hook ourselves into the process in a supported way. -->
         <TargetsForTfmSpecificBuildOutput>
             $(TargetsForTfmSpecificBuildOutput);CopyProjectReferencesToPackage
@@ -9,7 +10,7 @@
         <!-- This property tells MSBuild where the root folder of the package's build assets should be. Because we are not a library package, we should not pack to 'lib'. Instead, we choose 'tasks' by convention. -->
         <BuildOutputTargetFolder>tasks</BuildOutputTargetFolder>
         <!-- NuGet does validation that libraries in a package are exposed as dependencies, but we _explicitly_ do not want that behavior for MSBuild tasks. They are isolated by design. Therefore we ignore this specific warning. -->
-        <NoWarn>NU5100</NoWarn>
+        <NoWarn>NU5128;NU5100</NoWarn><!-- NU5100 is because we pack to tasks/, not lib/ -->
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <!-- Tell the SDK to generate a deps.json file -->
         <GenerateDependencyFile>true</GenerateDependencyFile>
@@ -17,11 +18,14 @@
 
     <ItemGroup>
         <Compile Include="WriteMorphirJsonTask.fs" />
-        <!-- these lines pack the build props/targets files to the `build` folder in the generated package.
-    by convention, the .NET SDK will look for build\<Package Id>.props and build\<Package Id>.targets
-    for automatic inclusion in the build. -->
-        <Content Include="build\Morphir.MSBuild.props" PackagePath="build\"/>
-        <Content Include="build\Morphir.MSBuild.targets" PackagePath="build\" />
+        <!-- these lines pack the single-TFM build props/targets files to the `build` folder in the generated package.
+         By convention, the .NET SDK will look for `build\<Package Id>.props` and `build\<Package Id>.targets`
+         for automatic inclusion in a single-TFM build. -->
+        <Content Include="build\*" PackagePath="build\" />
+        <!-- these lines pack the multi-target TFM build props/targets files to the `buildMultiTargeting` folder in the generated package.
+             By convention, the .NET SDK will look for `buildMultiTargeting\<Package Id>.props` and `buildMultiTargeting\<Package Id>.targets`
+             for automatic inclusion in a multi-TFM build. -->
+        <Content Include="buildMultiTargeting\*" PackagePath="buildMultiTargeting\" />
     </ItemGroup>
     
     <ItemGroup>
@@ -37,28 +41,17 @@
 <!--        <PackageFile Include="build\Morphir.MSBuild.props" Kind="build" />-->
 <!--        <PackageFile Include="build\Morphir.MSBuild.targets" Kind="build" />-->
 <!--    </ItemGroup>-->
-    <!-- This is the target we defined above. It's purpose is to add all of our PackageReference and ProjectReference's runtime assets to our package output.  -->
-    <Target
-        Name="CopyProjectReferencesToPackage"
-        DependsOnTargets="ResolveReferences">
-        <ItemGroup>
-            <!-- The TargetPath is the path inside the package that the source file will be placed. This is already precomputed in the ReferenceCopyLocalPaths items' DestinationSubPath, so reuse it here. -->
-            <BuildOutputInPackage
-                Include="@(ReferenceCopyLocalPaths)"
-                TargetPath="%(ReferenceCopyLocalPaths.DestinationSubPath)" />
-        </ItemGroup>
-    </Target>
-    <!-- This target adds the generated deps.json file to our package output -->
-    <Target
-        Name="AddBuildDependencyFileToBuiltProjectOutputGroupOutput"
-        BeforeTargets="BuiltProjectOutputGroup"
-        Condition=" '$(GenerateDependencyFile)' == 'true'">
+    <Target Name="AddBuildDependencyFileToBuiltProjectOutputGroupOutput" BeforeTargets="BuiltProjectOutputGroup" Condition=" '$(GenerateDependencyFile)' == 'true'">
 
         <ItemGroup>
-            <BuiltProjectOutputGroupOutput
-                Include="$(ProjectDepsFilePath)"
-                TargetPath="$(ProjectDepsFileName)"
-                FinalOutputPath="$(ProjectDepsFilePath)" />
+            <BuiltProjectOutputGroupOutput Include="$(ProjectDepsFilePath)" TargetPath="$(ProjectDepsFileName)" FinalOutputPath="$(ProjectDepsFilePath)" />
+        </ItemGroup>
+    </Target>
+
+    <Target Name="CopyProjectReferencesToPackage" DependsOnTargets="ResolveReferences">
+        <ItemGroup>
+            <!-- the dependencies of your MSBuild task must be packaged inside the package, they cannot be expressed as normal PackageReferences -->
+            <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)" TargetPath="%(ReferenceCopyLocalPaths.DestinationSubPath)" />
         </ItemGroup>
     </Target>
 </Project>

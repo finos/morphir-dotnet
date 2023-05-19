@@ -27,7 +27,7 @@
       },
       "FSharp.Core": {
         "type": "CentralTransitive",
-        "requested": "[7.0.200, )",
+        "requested": "[7.0.300, )",
         "resolved": "7.0.200",
         "contentHash": "NmgUnpNH6Zu9B0SPIhojyo38gnPdkdYFYQfbd6zosEH32kbGY/g/Klk7PfOWe1NAe/O1YOMmK9KhwQ2OWsWEbg=="
       },
