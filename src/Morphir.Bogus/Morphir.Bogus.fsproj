@@ -23,7 +23,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\tests\Morphir.Tests\Morphir.Tests.fsproj" />
-      <ProjectReference Include="..\Morphir.IR\Morphir.IR.fsproj" />
+      <ProjectReference Include="..\Morphir.Core\Morphir.Core.fsproj" />
     </ItemGroup>
 
 </Project>

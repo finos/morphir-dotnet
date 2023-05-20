@@ -23,7 +23,7 @@
         "contentHash": "kz0PEW2lhqygehI/d6XsPCQzD7ff7gUJaVGPVETX611eadGsA3A877GdSlU0LRVMCTH/+P3o2iDTak+S08V2+A=="
       }
     },
-    "net7.0": {
+    ".NETStandard,Version=v2.1": {
       "FSharp.Core": {
         "type": "Direct",
         "requested": "[7.0.200, )",

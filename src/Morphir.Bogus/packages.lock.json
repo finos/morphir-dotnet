@@ -954,20 +954,20 @@
           "WolverineFX": "[0.9.13, )"
         }
       },
+      "morphir.core": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[7.0.200, )",
+          "Morphir.SDK.Core": "[1.0.0, )",
+          "Thoth.Json.Net": "[11.0.0, )"
+        }
+      },
       "morphir.elm.tools": {
         "type": "Project",
         "dependencies": {
           "FSharp.SystemCommandLine": "[0.17.0-beta4, )",
           "Microsoft.Extensions.Logging": "[7.0.0, )",
           "Morphir.Tools.Core": "[1.0.0, )"
-        }
-      },
-      "morphir.ir": {
-        "type": "Project",
-        "dependencies": {
-          "FSharp.Core": "[7.0.200, )",
-          "Morphir.SDK.Core": "[1.0.0, )",
-          "Thoth.Json.Net": "[11.0.0, )"
         }
       },
       "morphir.sdk.core": {
@@ -990,10 +990,10 @@
           "FSharp.Core": "[7.0.200, )",
           "FsCheck": "[2.16.5, )",
           "Microsoft.NET.Test.Sdk": "[17.3.2, )",
+          "Morphir": "[1.0.0, )",
           "Morphir.SDK.Testing": "[1.0.0, )",
           "YoloDev.Expecto.TestSdk": "[0.12.12, )",
-          "altcover": "[8.2.825, )",
-          "morphir": "[1.0.0, )"
+          "altcover": "[8.2.825, )"
         }
       },
       "morphir.tools.core": {

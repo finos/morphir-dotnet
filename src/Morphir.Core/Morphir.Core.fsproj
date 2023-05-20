@@ -6,8 +6,8 @@
     <PropertyGroup>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <UseMarkdownComments>true</UseMarkdownComments>
-        <RootNamespace>Morphir.SDK</RootNamespace>
-        <TargetFrameworks>net7.0;netstandard2.0</TargetFrameworks>
+        <RootNamespace>Morphir</RootNamespace>
+        <TargetFrameworks>netstandard2.1;netstandard2.0</TargetFrameworks>
         <RootNamespace>Morphir</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
