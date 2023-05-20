@@ -83,6 +83,7 @@
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
     <PackageVersion Include="WolverineFx" Version="0.9.13" />
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
+    <PackageVersion Include="Thoth.Json" Version="10.1.0" />
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
     <PackageVersion Include="Wasi.Sdk" Version="0.1.4-preview.10020" />

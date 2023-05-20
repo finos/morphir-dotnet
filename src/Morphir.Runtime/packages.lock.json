@@ -311,6 +311,7 @@
         "dependencies": {
           "FSharp.Core": "[7.0.300, )",
           "Morphir.SDK.Core": "[1.0.0, )",
+          "Thoth.Json": "[10.1.0, )",
           "Thoth.Json.Net": "[11.0.0, )"
         }
       },
@@ -333,6 +334,16 @@
           "System.Configuration.ConfigurationManager": "4.7.0",
           "System.Security.Permissions": "4.7.0",
           "System.Text.Encoding.CodePages": "4.0.1"
+        }
+      },
+      "Thoth.Json": {
+        "type": "CentralTransitive",
+        "requested": "[10.1.0, )",
+        "resolved": "10.1.0",
+        "contentHash": "2KpHPR0646KzD4WBlBgbLL4rgkoQ6yXKzqHCuSETlklb2dax/YzuLeUHc7axEBY9wHYiIMfpO0mtXmTu0XPh5w==",
+        "dependencies": {
+          "FSharp.Core": "4.7.2",
+          "Fable.Core": "3.1.6"
         }
       },
       "Thoth.Json.Net": {

@@ -1413,6 +1413,7 @@
         "dependencies": {
           "FSharp.Core": "[7.0.300, )",
           "Morphir.SDK.Core": "[1.0.0, )",
+          "Thoth.Json": "[10.1.0, )",
           "Thoth.Json.Net": "[11.0.0, )"
         }
       },
@@ -1444,6 +1445,16 @@
         "contentHash": "XQewJY8eQ3X17PvW/VxBxlTv/Y1UQJdhI4OBkQr+nuP6LZPWRV0HOHH4iMlxWkgLTrVoS/lbcmTu7Etv3lanQg==",
         "dependencies": {
           "LightBDD.Core": "3.6.1"
+        }
+      },
+      "Thoth.Json": {
+        "type": "CentralTransitive",
+        "requested": "[10.1.0, )",
+        "resolved": "10.1.0",
+        "contentHash": "2KpHPR0646KzD4WBlBgbLL4rgkoQ6yXKzqHCuSETlklb2dax/YzuLeUHc7axEBY9wHYiIMfpO0mtXmTu0XPh5w==",
+        "dependencies": {
+          "FSharp.Core": "4.7.2",
+          "Fable.Core": "3.1.6"
         }
       },
       "Thoth.Json.Net": {

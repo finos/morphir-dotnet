@@ -3,7 +3,7 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <UseMarkdownComments>true</UseMarkdownComments>
         <RootNamespace>Morphir</RootNamespace>
-        <TargetFrameworks>net6.0;net7.0;netstandard2.0;netstandard2.1</TargetFrameworks>
+        <TargetFramework>netstandard2.0</TargetFramework>
         <RootNamespace>Morphir</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
@@ -12,6 +12,7 @@
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="Thoth.Json.Net" />
+        <PackageReference Include="Thoth.Json" />
     </ItemGroup>
     <ItemGroup>
         <Compile Include="AssemblyInfo.fs" />
@@ -64,5 +65,9 @@
         <Compile Include="IR\Codecs\Distribution.fs" />
         <Compile Include="Codecs\Default.fs" />
         <Compile Include="ProjectSystem\ProjectSystem.fs" />
+    </ItemGroup>
+    <!-- Add source files to "fable" folder in Nuget package -->
+    <ItemGroup>
+        <Content Include="*.fsproj; **\*.fs" PackagePath="fable\" />
     </ItemGroup>
 </Project>

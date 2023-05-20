@@ -1,15 +1,19 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
+        <CoreCompileDependsOn>
+            GenerateMorphirJson;
+            $(CoreCompileDependsOn)
+        </CoreCompileDependsOn>
+        
         <_Morphir_MSBuild_TFM Condition=" '$(MSBuildRuntimeType)' != 'Core' ">net472</_Morphir_MSBuild_TFM>
         <_Morphir_MSBuild_TFM Condition=" '$(MSBuildRuntimeType)' == 'Core' ">net6.0</_Morphir_MSBuild_TFM>
     </PropertyGroup>
 
     <UsingTask
         AssemblyFile="$(MSBuildThisFileDirectory)../tasks/$(_Morphir_MSBuild_TFM)/Morphir.MSBuild.dll"
-        TaskName="Morphir.MSBuild.dll" />
+        TaskName="Morphir.MSBuild" />
 
     <Target Name="GenerateMorphirJson"
-            BeforeTargets="CoreCompile"
             Inputs="@(MorphirCompile);$(MorphirJsonProjectFile)"
             Outputs="$(MorphirJsonProjectFile)">
         <WriteMorphirJsonTask ProjectFile="$(MSBuildProjectFullPath)" OutputFile="$(MorphirJsonProjectFile)">
