@@ -89,5 +89,6 @@
     <PackageVersion Include="Wasi.Sdk" Version="0.1.4-preview.10020" />
     <PackageVersion Include="TickSpec" Version="2.0.2" />
     <PackageVersion Include="TickSpec.Xunit" Version="$(TickSpecVersion)" />
+    <PackageVersion Include="DotNet.ReproducibleBuilds" Version="1.1.1" />
   </ItemGroup>
 </Project>
