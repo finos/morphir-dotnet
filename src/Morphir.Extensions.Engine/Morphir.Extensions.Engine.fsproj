@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net7.0;net6.0;netstandard2.1;netstandard2.0</TargetFrameworks>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Configuration.fs" />
+        <Compile Include="Workspace.fs" />
+        <Compile Include="Morphir.AST.Morphir.fs" />
+        <Compile Include="Processor.fs" />
+        <Compile Include="Printer.fs" />
+    </ItemGroup>
+    
+    <ItemGroup>
+      <ProjectReference Include="..\Morphir.Core\Morphir.Core.fsproj" />
+    </ItemGroup>
+
+</Project>

@@ -1,8 +1,10 @@
 module rec Morphir.IR.Distribution
 
 open Morphir.IR.Package
+open Morphir.IR
 open Morphir.IR.Type
 open Morphir.SDK.Dict
+open Morphir.SDK
 
 /// Type that represents a package distribution. Currently the only distribution type we provide is a `Library`.
 type Distribution =
@@ -11,6 +13,12 @@ type Distribution =
         dependencies: Dict<PackageName, Package.Specification<unit>> *
         definition: Package.Definition<unit, Type<unit>>
 
+    static member EmptyLibrary(name: PackageName) =
+        Library(name, Dict.empty, Package.emptyDefinition<unit, Type<unit>>)
+
+
+let emptyLibrary (name: PackageName) : Distribution =
+    Library(name, Dict.empty, Package.emptyDefinition<unit, Type<unit>>)
 
 let library
     (packageName: PackageName)
@@ -37,3 +45,15 @@ let insertDependency
             insert dependencyPackageName dependencyPackageSpec dependencies,
             definition
         )
+
+let changePackageName packageName distribution =
+    match distribution with
+    | Library(_, dependencies, definition) -> Library(packageName, dependencies, definition)
+
+let updateDefinition definition distribution =
+    match distribution with
+    | Library(packageName, dependencies, _) -> Library(packageName, dependencies, definition)
+
+let updateDependencies dependencies distribution =
+    match distribution with
+    | Library(packageName, _, definition) -> Library(packageName, dependencies, definition)

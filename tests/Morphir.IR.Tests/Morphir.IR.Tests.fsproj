@@ -30,7 +30,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\Morphir.IR\Morphir.IR.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.Core\Morphir.Core.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.SDK.Testing\Morphir.SDK.Testing.fsproj" />
     </ItemGroup>
     <ItemGroup>
@@ -43,6 +43,7 @@
         <Compile Include="QNameTests.fs" />
         <Compile Include="FQNameTests.fs" />
         <Compile Include="TypeTests.fs" />
+        <Compile Include="BuilderTests.fs" />
         <Compile Include="ConfiguredLightBddScopeAttribute.fs" />
         <Compile Include="Features\Contexts\RoundtripEncodingContext.fs" />
         <Compile Include="Features\Contexts\EncodingAndDecodingContext.fs" />

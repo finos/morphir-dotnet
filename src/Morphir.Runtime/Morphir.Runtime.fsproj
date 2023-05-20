@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net7.0</TargetFramework>
+        <RootNamespace>Morphir</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="IR.fs" />
+        <Compile Include="Program.fs" />
+        <Folder Include="IR\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Wasi.Sdk" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Morphir.Core\Morphir.Core.fsproj" />
+    </ItemGroup>
+</Project>

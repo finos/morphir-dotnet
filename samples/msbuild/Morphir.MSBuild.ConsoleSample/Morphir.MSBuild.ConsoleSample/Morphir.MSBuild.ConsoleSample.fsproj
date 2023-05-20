@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net7.0</TargetFramework>
+        <RootFolder>$(MSBuildProjectDirectory)</RootFolder>
+        <MorphirDotJsonFileName>morphir.json</MorphirDotJsonFileName>
+        <MorphirJsonProjectFile>$(RootFolder)\$(MorphirDotJsonFileName)</MorphirJsonProjectFile>
+    </PropertyGroup>
+    
+    <PropertyGroup>
+        
+        <MorphirPackageName Condition=" '$(MorphirPackageName)' == ''">$(AssemblyName)</MorphirPackageName>
+
+        <CoreCompileDependsOn>
+            GenerateMorphirJson;
+            $(CoreCompileDependsOn)
+        </CoreCompileDependsOn>
+        
+        <_Morphir_MSBuild_TFM Condition=" '$(MSBuildRuntimeType)' != 'Core' ">net472</_Morphir_MSBuild_TFM>
+        <_Morphir_MSBuild_TFM Condition=" '$(MSBuildRuntimeType)' == 'Core' ">net6.0</_Morphir_MSBuild_TFM> 
+    </PropertyGroup>
+
+    <UsingTask 
+        TaskName="Morphir.MSBuild.WriteMorphirJsonTask" 
+        AssemblyFile="..\..\..\..\src\Morphir.MSBuild\bin\Debug\$(_Morphir_MSBuild_TFM)\Morphir.MSBuild.dll" />
+    
+    <ItemGroup>
+        <Compile Include="Program.fs"/>
+    </ItemGroup>
+    
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+    
+    <Target Name="GenerateMorphirJson" 
+            Inputs="@(MorphirCompile);$(MorphirJsonProjectFile)" 
+            Outputs="$(MorphirJsonProjectFile)">
+        <Morphir.MSBuild.WriteMorphirJsonTask 
+            PackageName="$(MorphirPackageName)"
+            ProjectFile="$(MSBuildProjectFullPath)" 
+            OutputFile="$(MorphirJsonProjectFile)">
+            <Output TaskParameter="OutputFile" PropertyName="MorphirDotJsonFile" />
+        </Morphir.MSBuild.WriteMorphirJsonTask>
+    </Target>
+
+</Project>

@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net7.0</TargetFramework>
+
+        <IsPackable>false</IsPackable>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <IsTestProject>true</IsTestProject>
+<!--        <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>-->
+<!--        <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>-->
+        <MyriadSdkVerboseOutput>true</MyriadSdkVerboseOutput>
+<!--        <MyriadSdkWaitForDebugger>true</MyriadSdkWaitForDebugger>-->
+    </PropertyGroup>
+    
+    
+    <ItemGroup>
+        <Compile Include="Input.fs" />
+        <Compile Include="MorphirIRFromInput.fs">
+<!--          <MyriadFile>Input.fs</MyriadFile>-->
+<!--          <MyriadNamespace>Hello</MyriadNamespace>-->
+<!--          <Generators>MorphirIRGenerator</Generators>-->
+        </Compile>
+        <Compile Include="ElmToFSharpGeneratorTests.fs" />
+        <Compile Include="MorphirIRGeneratorTests.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core"  />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="Expecto.FsCheck" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="altcover" />
+        <PackageReference Include="Myriad.Core" />
+        <PackageReference Include="Myriad.Sdk" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\src\Morphir.Myriad.Plugins\Morphir.Myriad.Plugins.fsproj" />
+    </ItemGroup>
+    
+    <Import Project="..\..\src\Morphir.Myriad.Plugins/build\Morphir.Myriad.Plugins.InTest.props" />
+</Project>

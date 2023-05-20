@@ -29,7 +29,7 @@
         <PackageReference Include="Serilog.Sinks.Console" />
         <PackageReference Include="Serilog.Extensions.Hosting" />
         <PackageReference Include="Serilog.Formatting.Compact" />
-        <PackageReference Include="WolverineFX" />
+        <PackageReference Include="Wasi.Sdk" />
     </ItemGroup>
     <ItemGroup>
         <Compile Include="AssemblyInfo.fs" />
