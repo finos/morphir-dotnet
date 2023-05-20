@@ -34,8 +34,8 @@
       "FSharp.Core": {
         "type": "CentralTransitive",
         "requested": "[7.0.300, )",
-        "resolved": "4.6.0",
-        "contentHash": "Neg/er6EOaNBrvBS2FrsYdrXW8Jv4CRQhtDfw+0b7usRSDvaJnABTNEWTdh3RqmdyT6K2qOayUsrY0lpiQjBxQ=="
+        "resolved": "7.0.300",
+        "contentHash": "8vvItREJ1l5lcp3vBCSJ1mFevVAhR48I34DuF/EoUa7o1KlFpQpagyuZkVYMAsHPIjdp47ZxM9sI4eqeXaeWkA=="
       }
     },
     "net7.0": {
@@ -57,8 +57,8 @@
       "FSharp.Core": {
         "type": "CentralTransitive",
         "requested": "[7.0.300, )",
-        "resolved": "4.6.0",
-        "contentHash": "Neg/er6EOaNBrvBS2FrsYdrXW8Jv4CRQhtDfw+0b7usRSDvaJnABTNEWTdh3RqmdyT6K2qOayUsrY0lpiQjBxQ=="
+        "resolved": "7.0.300",
+        "contentHash": "8vvItREJ1l5lcp3vBCSJ1mFevVAhR48I34DuF/EoUa7o1KlFpQpagyuZkVYMAsHPIjdp47ZxM9sI4eqeXaeWkA=="
       }
     }
   }

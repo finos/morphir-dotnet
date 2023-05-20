@@ -62,7 +62,9 @@ type WriteMorphirJsonTask() as this =
                 |> List.ofSeq
         }
 
-        let contents = morphirJsonData |> MorphirJson.encode
+        let contents =
+            morphirJsonData
+            |> MorphirJson.encode
 
         if
             (morphirJsonFile.Exists

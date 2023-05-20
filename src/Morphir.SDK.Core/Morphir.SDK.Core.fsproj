@@ -8,7 +8,7 @@
     </PropertyGroup>
     
     <ItemGroup>
-        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="FSharp.Core"  />
     </ItemGroup>
     
     <ItemGroup>

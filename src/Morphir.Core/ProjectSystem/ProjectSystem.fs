@@ -12,21 +12,22 @@ type MorphirJson = {
 
 module MorphirJson =
     [<CompiledName("Decode")>]
-    let decode json = Decode.Auto.fromString<MorphirJson> json
+    let decode json =
+        Decode.Auto.fromString<MorphirJson> json
 
     [<CompiledName("Encode")>]
-    let encode (value:MorphirJson) = Encode.Auto.toString value
+    let encode (value: MorphirJson) = Encode.Auto.toString value
 
-    let createOrUpdate newInstance (original:MorphirJson option) : MorphirJson =
+    let createOrUpdate newInstance (original: MorphirJson option) : MorphirJson =
         match original with
-        | Some original ->
-            {
-                PackageName = newInstance.PackageName
-                SourceDirectory = newInstance.SourceDirectory
-                ExposedModules = newInstance.ExposedModules
-            }
-        | None ->
-            newInstance
+        | Some original -> {
+            PackageName = newInstance.PackageName
+            SourceDirectory = newInstance.SourceDirectory
+            ExposedModules = newInstance.ExposedModules
+          }
+        | None -> newInstance
 
 type MorphirJson with
-    static member CreateOrUpdate(newInstance, original) = MorphirJson.createOrUpdate newInstance original
+
+    static member CreateOrUpdate(newInstance, original) =
+        MorphirJson.createOrUpdate newInstance original
