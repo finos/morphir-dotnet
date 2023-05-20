@@ -115,8 +115,8 @@
       },
       "Microsoft.Build.Tasks.Git": {
         "type": "Transitive",
-        "resolved": "1.1.0",
-        "contentHash": "DD84CsvKf+hfDBbYXIvBXeY7JGfbtoIMMjlPGVaKIp6aWoIdL5EJbWvk+skGkM7/Weezj3q1a89nTPAcGlGcpw=="
+        "resolved": "1.1.1",
+        "contentHash": "AT3HlgTjsqHnWpBHSNeR0KxbLZD7bztlZVj7I8vgeYG9SYqbeFGh0TM/KVtC6fg53nrWHl3VfZFvb5BiQFcY6Q=="
       },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
@@ -158,8 +158,8 @@
       },
       "Microsoft.SourceLink.Common": {
         "type": "Transitive",
-        "resolved": "1.1.0",
-        "contentHash": "TyGnSaCanfxunClp2af9jpXY127q7g5tiOv0XN/JGcalyKwYusYp06BUGSmCopg/GhmJJSiR/9PS0suXHCGxtw=="
+        "resolved": "1.1.1",
+        "contentHash": "WMcGpWKrmJmzrNeuaEb23bEMnbtR/vLmvZtkAP5qWu7vQsY59GqfRJd65sFpBszbd2k/bQ8cs8eWawQKAabkVg=="
       },
       "Microsoft.TestPlatform.ObjectModel": {
         "type": "Transitive",
@@ -1195,7 +1195,7 @@
         "dependencies": {
           "FSharp.Core": "[7.0.0, )",
           "Fabulous.AST": "[0.4.0, )",
-          "Microsoft.SourceLink.GitHub": "[1.1.0, )",
+          "Microsoft.SourceLink.GitHub": "[1.1.1, )",
           "Myriad.Core": "[0.8.2, )",
           "Myriad.Sdk": "[0.8.2, )"
         }
@@ -1212,20 +1212,20 @@
       "FsCheck": {
         "type": "CentralTransitive",
         "requested": "[2.16.5, )",
-        "resolved": "2.16.5",
-        "contentHash": "Tw6Lb/UBqtmUj5porM1rRcAU5xT9NttSlFTaIQ8gn4Fsw2LiZavN/eMAZqSA63laV51t4HRJJAAGeYSWFFxRfA==",
+        "resolved": "2.14.3",
+        "contentHash": "MA1erHuUGjCf6BUOOKaGoiGI+nfSQc+0GCvuJx4qK9SPcrPoTJyirsrx40ywvixcSKqn9sY8Va9fhu6kS/M4dQ==",
         "dependencies": {
           "FSharp.Core": "4.2.3"
         }
       },
       "Microsoft.SourceLink.GitHub": {
         "type": "CentralTransitive",
-        "requested": "[1.1.0, )",
-        "resolved": "1.1.0",
-        "contentHash": "DD/LF81k5ODHCfPnBCds97N6KKSS1X1NiDcJYUUpiTu5mmuPktZplhYFrAPQPktMBKvNMdwFrwJ7Fqa3tyTIuA==",
+        "requested": "[1.1.1, )",
+        "resolved": "1.1.1",
+        "contentHash": "IaJGnOv/M7UQjRJks7B6p7pbPnOwisYGOIzqCz5ilGFTApZ3ktOR+6zJ12ZRPInulBmdAf1SrGdDG2MU8g6XTw==",
         "dependencies": {
-          "Microsoft.Build.Tasks.Git": "1.1.0",
-          "Microsoft.SourceLink.Common": "1.1.0"
+          "Microsoft.Build.Tasks.Git": "1.1.1",
+          "Microsoft.SourceLink.Common": "1.1.1"
         }
       }
     }
