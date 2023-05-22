@@ -53,7 +53,7 @@
         }
       }
     },
-    "net7.0": {
+    ".NETStandard,Version=v2.1": {
       "FSharp.Core": {
         "type": "Direct",
         "requested": "[7.0.200, )",

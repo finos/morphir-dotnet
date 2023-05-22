@@ -19,11 +19,11 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.SDK.Core", "src\Mor
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.SDK.Core.Tests", "tests\Morphir.SDK.Core.Tests\Morphir.SDK.Core.Tests.fsproj", "{226C49C8-6A95-4923-BD7D-6EC7F4D5385B}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.IR", "src\Morphir.IR\Morphir.IR.fsproj", "{581F1357-EA3A-4ECD-B11E-2C03D63795E3}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.Core", "src\Morphir.Core\Morphir.Core.fsproj", "{581F1357-EA3A-4ECD-B11E-2C03D63795E3}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.IR.Tests", "tests\Morphir.IR.Tests\Morphir.IR.Tests.fsproj", "{52E4474E-6F5A-441C-A958-A3ECF00E4BAA}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Morphir.Core.Tests", "tests\Morphir.Core.Tests\Morphir.Core.Tests.fsproj", "{52E4474E-6F5A-441C-A958-A3ECF00E4BAA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Morphir.IR.CSharp.Tests", "tests\Morphir.IR.CSharp.Tests\Morphir.IR.CSharp.Tests.csproj", "{0B75402F-C2AD-4EB7-A34B-D0C0F18E99B2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Morphir.Core.CSharp.Tests", "tests\Morphir.Core.CSharp.Tests\Morphir.Core.CSharp.Tests.csproj", "{0B75402F-C2AD-4EB7-A34B-D0C0F18E99B2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Morphir.SDK.Core.CSharp.Tests", "tests\Morphir.SDK.Core.CSharp.Tests\Morphir.SDK.Core.CSharp.Tests.csproj", "{4DB0AC86-7BCA-4638-841D-64EF6CC0AF3B}"
 EndProject

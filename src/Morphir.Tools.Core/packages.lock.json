@@ -1,7 +1,7 @@
 {
   "version": 2,
   "dependencies": {
-    "net7.0": {
+    "net6.0": {
       "FSharp.SystemCommandLine": {
         "type": "Direct",
         "requested": "[0.17.0-beta4, )",
@@ -20,9 +20,10 @@
       "FSharp.Core": {
         "type": "CentralTransitive",
         "requested": "[7.0.200, )",
-        "resolved": "6.0.0",
-        "contentHash": "fbv1UwJ2LXVcFCt+GGDPu0sIYA5C6gdDvAupDj3iLQF3clRkua/6J33f+FiGQa8P1tEa+zmz3wrjoTnXZ1UiYg=="
+        "resolved": "7.0.200",
+        "contentHash": "NmgUnpNH6Zu9B0SPIhojyo38gnPdkdYFYQfbd6zosEH32kbGY/g/Klk7PfOWe1NAe/O1YOMmK9KhwQ2OWsWEbg=="
       }
-    }
+    },
+    "net6.0/win-x64": {}
   }
 }

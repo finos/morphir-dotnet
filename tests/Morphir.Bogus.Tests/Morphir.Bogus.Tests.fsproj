@@ -3,7 +3,7 @@
     <PropertyGroup>
         <OutputType>Library</OutputType>
         <GenerateProgramFile>false</GenerateProgramFile>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFramework>net6.0</TargetFramework>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <EnableXunitDependencyInjectionDefaultTestFrameworkAttribute>false</EnableXunitDependencyInjectionDefaultTestFrameworkAttribute>
     </PropertyGroup>
@@ -45,7 +45,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Bogus\Morphir.Bogus.fsproj" />
-        <ProjectReference Include="..\..\src\Morphir.IR\Morphir.IR.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.Core\Morphir.Core.fsproj" />
     </ItemGroup>
 
 </Project>
