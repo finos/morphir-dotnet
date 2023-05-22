@@ -3,8 +3,9 @@
     <PropertyGroup>
         <OutputType>Library</OutputType>
         <GenerateProgramFile>false</GenerateProgramFile>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFramework>net6.0</TargetFramework>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <RootNamespace>Morphir.IR.Tests</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
@@ -30,7 +31,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\Morphir.IR\Morphir.IR.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.Core\Morphir.Core.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.SDK.Testing\Morphir.SDK.Testing.fsproj" />
     </ItemGroup>
     <ItemGroup>

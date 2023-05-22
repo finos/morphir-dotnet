@@ -38,7 +38,7 @@
         "contentHash": "Neg/er6EOaNBrvBS2FrsYdrXW8Jv4CRQhtDfw+0b7usRSDvaJnABTNEWTdh3RqmdyT6K2qOayUsrY0lpiQjBxQ=="
       }
     },
-    "net7.0": {
+    ".NETStandard,Version=v2.1": {
       "Expecto": {
         "type": "Direct",
         "requested": "[9.0.4, )",
