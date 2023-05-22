@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFrameworks>net6.0;netstandard2.0</TargetFrameworks>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>
 
@@ -22,8 +22,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\tests\Morphir.Tests\Morphir.Tests.fsproj" />
       <ProjectReference Include="..\Morphir.Core\Morphir.Core.fsproj" />
+      <ProjectReference Include="..\Morphir.SDK.Testing\Morphir.SDK.Testing.fsproj" />
     </ItemGroup>
 
 </Project>
