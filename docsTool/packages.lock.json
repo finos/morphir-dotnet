@@ -1059,7 +1059,7 @@
       },
       "Microsoft.Build.Utilities.Core": {
         "type": "CentralTransitive",
-        "requested": "[17.6.3, )",
+        "requested": "[17.0.0, )",
         "resolved": "16.10.0",
         "contentHash": "R8eATgdaGCfdepd67LMe1qhJz6iQOTuI9gVoOqXrHwhc77sBDqG0XD9zKvrgOqfS6NJ03KKTAhbbXnLgD5fKCA==",
         "dependencies": {
