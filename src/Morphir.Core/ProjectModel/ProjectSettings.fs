@@ -26,5 +26,6 @@ module ProjectSettings =
         | None -> newInstance
 
 type ProjectSettings with
+
     static member CreateOrUpdate(newInstance, original) =
         ProjectSettings.createOrUpdate newInstance original

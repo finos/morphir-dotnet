@@ -1,4 +1,5 @@
 namespace Morphir.MSBuild
+
 open System.IO
 open Microsoft.Build.Framework
 open Microsoft.Build.Utilities
@@ -84,4 +85,3 @@ type WriteMorphirProjectSettingsTask() as this =
 
             File.WriteAllText(morphirJsonFile.FullName, contents, System.Text.Encoding.UTF8)
             true
-
