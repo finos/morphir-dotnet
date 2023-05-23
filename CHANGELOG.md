@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Targeted NetStandard 2.0 and .NET 6 
-### Added Morphir.MSBuild
+### Added
+- Targeted NetStandard 2.0 and .NET 6 
+- Added Morphir.MSBuild
 
 ## [0.0.1-alpha-008] - 2023-04-20
 
