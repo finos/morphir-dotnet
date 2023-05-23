@@ -44,6 +44,7 @@ module Encode =
 
 module Decode =
     type Decoder<'T> = Thoth.Json.Net.Decoder<'T>
+    module Auto = Decode.Auto
 
     let inline andThen (cb: 'a -> Decoder<'b>) (decoder: Decoder<'a>) : Decoder<'b> =
         Decode.andThen cb decoder
