@@ -1,21 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>net6.0;netstandard2.0</TargetFrameworks>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <RootNamespace>Morphir</RootNamespace>
+        <TargetFrameworks>net6.0;netstandard2.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="FSharp.SystemCommandLine" />
+        <Compile Include="Target.fs" />
     </ItemGroup>
-    
-    <ItemGroup>
-        <Compile Include="PlaceHolder.fs" />
-    </ItemGroup>
-    
+
     <ItemGroup>
       <ProjectReference Include="..\Morphir.Core\Morphir.Core.fsproj" />
+      <ProjectReference Include="..\Morphir.FSharp.Tools\Morphir.FSharp.Tools.fsproj" />
     </ItemGroup>
 
 </Project>

@@ -24,6 +24,14 @@
           "Microsoft.Extensions.Options": "7.0.0"
         }
       },
+      "Fable.Core": {
+        "type": "Transitive",
+        "resolved": "3.1.6",
+        "contentHash": "w6M1F0zoLk4kTFc1Lx6x1Ft6BD3QwRe0eaLiinAqbjVkcF+iK+NiXGJO+a6q9RAF9NCg0vI48Xku7aNeqG4JVw==",
+        "dependencies": {
+          "FSharp.Core": "4.7.1"
+        }
+      },
       "Microsoft.Extensions.DependencyInjection": {
         "type": "Transitive",
         "resolved": "7.0.0",
@@ -59,6 +67,11 @@
           "System.Runtime.CompilerServices.Unsafe": "6.0.0"
         }
       },
+      "Newtonsoft.Json": {
+        "type": "Transitive",
+        "resolved": "11.0.2",
+        "contentHash": "IvJe1pj7JHEsP8B8J8DwlMEx8UInrs/x+9oVY+oCD13jpLu4JbJU2WCIsMRn5C4yW9+DgkaO8uiVE5VHKjpmdQ=="
+      },
       "System.CommandLine": {
         "type": "Transitive",
         "resolved": "2.0.0-beta4.22272.1",
@@ -69,17 +82,43 @@
         "resolved": "6.0.0",
         "contentHash": "/iUeP3tq1S0XdNNoMz5C9twLSrM/TH+qElHkXWaPvuNOt+99G75NrV0OS2EqHx5wMN7popYjpc8oTjC1y16DLg=="
       },
+      "morphir.core": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[7.0.200, )",
+          "Morphir.SDK.Core": "[1.0.0, )",
+          "Thoth.Json.Net": "[11.0.0, )"
+        }
+      },
+      "morphir.sdk.core": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[7.0.200, )"
+        }
+      },
       "morphir.tools.core": {
         "type": "Project",
         "dependencies": {
-          "FSharp.SystemCommandLine": "[0.17.0-beta4, )"
+          "FSharp.SystemCommandLine": "[0.17.0-beta4, )",
+          "Morphir.Core": "[1.0.0, )"
         }
       },
       "FSharp.Core": {
         "type": "CentralTransitive",
         "requested": "[7.0.200, )",
-        "resolved": "6.0.0",
-        "contentHash": "fbv1UwJ2LXVcFCt+GGDPu0sIYA5C6gdDvAupDj3iLQF3clRkua/6J33f+FiGQa8P1tEa+zmz3wrjoTnXZ1UiYg=="
+        "resolved": "7.0.200",
+        "contentHash": "NmgUnpNH6Zu9B0SPIhojyo38gnPdkdYFYQfbd6zosEH32kbGY/g/Klk7PfOWe1NAe/O1YOMmK9KhwQ2OWsWEbg=="
+      },
+      "Thoth.Json.Net": {
+        "type": "CentralTransitive",
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "ugheFKMHRO3ReobCENha5J6uexPrp+Bn2d+WEcFbXaA77sNBWtTlx2StB+7lX8prMqdvO5uqlPeHlg+9dSpkNg==",
+        "dependencies": {
+          "FSharp.Core": "4.7.2",
+          "Fable.Core": "3.1.6",
+          "Newtonsoft.Json": "11.0.2"
+        }
       }
     }
   }
