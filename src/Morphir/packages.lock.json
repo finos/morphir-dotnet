@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "Microsoft.DotNet.ILCompiler": {
+        "type": "Direct",
+        "requested": "[10.0.0-preview.5.25277.114, )",
+        "resolved": "10.0.0-preview.5.25277.114",
+        "contentHash": "vXjeluSHQwXVeP3dwtBuT5Kzi/QgECRmECAWoFvZvfj450a5lLy8v6MC4nuWuY2tYDXBvbZPH+WM5vIvDithXQ=="
+      },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.0-preview.5.25277.114, )",
+        "resolved": "10.0.0-preview.5.25277.114",
+        "contentHash": "lKaVaiJvMwAny3XEQI8zP88GVLKBQeb5VIG25jzGkoO4ilRWJAJpYgP0EmgBi4BjJB5PbKEAuMCEbxYthf2vQw=="
+      },
+      "System.CommandLine": {
+        "type": "Direct",
+        "requested": "[2.0.0-beta5.25306.1, )",
+        "resolved": "2.0.0-beta5.25306.1",
+        "contentHash": "ce0wuowuh13Cd7GXqLCq77/YWlxQMxrVCMIO/2/QUP6CdP/JWnlYSN/N3/55wwGsUwa9CvPuT8ddjgyypUr5ag=="
+      }
+    },
+    "net10.0/linux-arm64": {
+      "Microsoft.DotNet.ILCompiler": {
+        "type": "Direct",
+        "requested": "[10.0.0-preview.5.25277.114, )",
+        "resolved": "10.0.0-preview.5.25277.114",
+        "contentHash": "vXjeluSHQwXVeP3dwtBuT5Kzi/QgECRmECAWoFvZvfj450a5lLy8v6MC4nuWuY2tYDXBvbZPH+WM5vIvDithXQ==",
+        "dependencies": {
+          "runtime.linux-arm64.Microsoft.DotNet.ILCompiler": "10.0.0-preview.5.25277.114"
+        }
+      },
+      "runtime.linux-arm64.Microsoft.DotNet.ILCompiler": {
+        "type": "Transitive",
+        "resolved": "10.0.0-preview.5.25277.114",
+        "contentHash": "OPoJczx84I4lcJzu/ZGIB2pEs0aNgEL1sxJYP1yARiX5Hs7AIIoiGM87Th61FQhQrk1wD5w7c6u6hMz6MzfM+w=="
+      }
+    }
+  }
+}

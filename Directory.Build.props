@@ -1,0 +1,13 @@
+<Project>
+    <PropertyGroup>
+        <!-- summary is not migrated from project.json, but you can use the <Description> property for that if needed. -->
+        <PackageTags>f#, fsharp, finos</PackageTags>
+        <PackageProjectUrl>https://github.com/finos/morphir-dotnet</PackageProjectUrl>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+        <RepositoryType>git</RepositoryType>
+        <Authors>finos</Authors>
+        <RepositoryUrl>https://github.com/finos/morphir-dotnet</RepositoryUrl>
+        <!-- owners is not supported in MSBuild -->
+    </PropertyGroup>
+</Project>
