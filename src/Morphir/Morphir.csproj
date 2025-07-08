@@ -12,7 +12,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="System.CommandLine"/>
+        <PackageReference Include="Extism.runtime.all" />
+        <PackageReference Include="Extism.Sdk" />
+        <PackageReference Include="System.CommandLine" />
     </ItemGroup>
 
 </Project>

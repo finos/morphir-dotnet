@@ -2,6 +2,26 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
+      "Extism.runtime.all": {
+        "type": "Direct",
+        "requested": "[1.11.1, )",
+        "resolved": "1.11.1",
+        "contentHash": "GnE9ze1mebEN0dACHce4D3HOkyFplRi3EN/Uia/u/6WUZMtUF574WtIL48bDsAKtM9vJmyHf+mswpatju8Mxgg==",
+        "dependencies": {
+          "Extism.runtime.linux-arm64": "1.11.1",
+          "Extism.runtime.linux-musl-arm64": "1.11.1",
+          "Extism.runtime.linux-x64": "1.11.1",
+          "Extism.runtime.osx-arm64": "1.11.1",
+          "Extism.runtime.osx-x64": "1.11.1",
+          "Extism.runtime.win-x64": "1.11.1"
+        }
+      },
+      "Extism.Sdk": {
+        "type": "Direct",
+        "requested": "[1.9.1, )",
+        "resolved": "1.9.1",
+        "contentHash": "zKh+InOPFRBYLKoR5jL9buMVmSMTJOe1UClWY95WYb64Obk+Be2xgfv0sRz9yK0RCpW1iwsvT42UwG1o8GePuw=="
+      },
       "Microsoft.DotNet.ILCompiler": {
         "type": "Direct",
         "requested": "[10.0.0-preview.5.25277.114, )",
@@ -19,22 +39,36 @@
         "requested": "[2.0.0-beta5.25306.1, )",
         "resolved": "2.0.0-beta5.25306.1",
         "contentHash": "ce0wuowuh13Cd7GXqLCq77/YWlxQMxrVCMIO/2/QUP6CdP/JWnlYSN/N3/55wwGsUwa9CvPuT8ddjgyypUr5ag=="
-      }
-    },
-    "net10.0/linux-arm64": {
-      "Microsoft.DotNet.ILCompiler": {
-        "type": "Direct",
-        "requested": "[10.0.0-preview.5.25277.114, )",
-        "resolved": "10.0.0-preview.5.25277.114",
-        "contentHash": "vXjeluSHQwXVeP3dwtBuT5Kzi/QgECRmECAWoFvZvfj450a5lLy8v6MC4nuWuY2tYDXBvbZPH+WM5vIvDithXQ==",
-        "dependencies": {
-          "runtime.linux-arm64.Microsoft.DotNet.ILCompiler": "10.0.0-preview.5.25277.114"
-        }
       },
-      "runtime.linux-arm64.Microsoft.DotNet.ILCompiler": {
+      "Extism.runtime.linux-arm64": {
         "type": "Transitive",
-        "resolved": "10.0.0-preview.5.25277.114",
-        "contentHash": "OPoJczx84I4lcJzu/ZGIB2pEs0aNgEL1sxJYP1yARiX5Hs7AIIoiGM87Th61FQhQrk1wD5w7c6u6hMz6MzfM+w=="
+        "resolved": "1.11.1",
+        "contentHash": "cLBg5WLHEWz9wxY7181DbC9woJ44IDAK0SFkKd41O/PaJxW9/uR/asaUbJ+OB9wsOuMdrI8dPaZNOc89HsH0aQ=="
+      },
+      "Extism.runtime.linux-musl-arm64": {
+        "type": "Transitive",
+        "resolved": "1.11.1",
+        "contentHash": "vbbc+LdVLb8Ggxx9OQFT44Ul1HVFtnd9Z/ZMtYT9iOx4cFcEFggOwCiLpwnfyGLihbrMIeE+U3w26NKExrTj3Q=="
+      },
+      "Extism.runtime.linux-x64": {
+        "type": "Transitive",
+        "resolved": "1.11.1",
+        "contentHash": "E2joo1dkfOI8fO96DWykOPlPcYD3orwW+vZtwXaxdiltjtUImwxtDb8yd6sAhWf4cA+HZvQmJOVkU8ob4yKQLw=="
+      },
+      "Extism.runtime.osx-arm64": {
+        "type": "Transitive",
+        "resolved": "1.11.1",
+        "contentHash": "/Dr4aAEZXJnvlslB1LtoMlNkghULSpKT9e6pmERZAD9E30FMoLIpbSGylXa4F+zF/ETy3bpD+QTqB1SfBVikbg=="
+      },
+      "Extism.runtime.osx-x64": {
+        "type": "Transitive",
+        "resolved": "1.11.1",
+        "contentHash": "jTTxdwlOLdPHhIxKaOz9yX4h7BMYSIaUl/fNFQqnqi3A9CLyig3FLfcMbRHG5uiR6SlSl7gtSg6eLjyWVfM2Cg=="
+      },
+      "Extism.runtime.win-x64": {
+        "type": "Transitive",
+        "resolved": "1.11.1",
+        "contentHash": "V9lnbM74UzmRf3VOwwllAe+iqS6zpm4cE4bAlF7dEDS3CghqkVzF2wp4COiRqeC+b7YmiOywf6s+xjel+8cf8Q=="
       }
     }
   }
