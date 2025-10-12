@@ -14,9 +14,9 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Morphir/Morphir.csproj" />
-    <Project Path="src\Morphir.DotNet.Core\Morphir.DotNet.Core.csproj" Type="Classic C#" />
+    <Project Path="src\Morphir.Core\Morphir.Core.csproj" Type="Classic C#" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests\Morphir.Dotnet.Core.Tests\Morphir.Dotnet.Core.Tests.csproj" Type="Classic C#" />
+    <Project Path="tests\Morphir.Core.Tests\Morphir.Core.Tests.csproj" Type="Classic C#" />
   </Folder>
 </Solution>

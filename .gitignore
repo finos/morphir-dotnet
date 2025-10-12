@@ -272,3 +272,6 @@ coverage.*.xml
 .ionide
 
 docs/coverage/
+
+# Verify
+*.received.*

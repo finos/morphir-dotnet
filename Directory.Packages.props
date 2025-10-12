@@ -13,7 +13,7 @@
         <LightBDDVersion>3.6.1</LightBDDVersion>
         <SystemCommandLineVersion>2.0.0-beta4.22272.1</SystemCommandLineVersion>
         <TickSpecVersion>2.0.2</TickSpecVersion>
-        <VerifyVersion>19.11.2</VerifyVersion>
+        <VerifyVersion>31.0.0</VerifyVersion>
     </PropertyGroup>
     <ItemGroup>
         <PackageVersion Include="Autofac" Version="7.0.0"/>
@@ -31,9 +31,7 @@
         <PackageVersion Include="FSharp.Core" Version="7.0.200"/>
         <PackageVersion Include="FSharp.Data" Version="5.0.2"/>
         <PackageVersion Include="FSharp.SystemCommandLine" Version="0.17.0-beta4"/>
-        <PackageVersion Include="Expecto" Version="9.0.4"/>
-        <PackageVersion Include="Expecto.FsCheck" Version="9.0.4"/>
-        <PackageVersion Include="FsCheck" Version="2.16.5"/>
+        <PackageVersion Include="Generator.Equals" Version="3.2.1" />
         <PackageVersion Include="Packaging.Targets" Version="0.1.208" PrivateAssets="All"/>
         <PackageVersion Include="LightBDD.Framework" Version="$(LightBDDVersion)"/>
         <PackageVersion Include="LightBDD.XUnit2" Version="$(LightBDDVersion)"/>
@@ -53,16 +51,9 @@
         <PackageVersion Include="Fake.Api.GitHub" Version="$(FakeVersion)"/>
         <PackageVersion Include="Fake.BuildServer.GitHubActions" Version="$(FakeVersion)"/>
         <PackageVersion Include="MSBuild.StructuredLogger" Version="2.1.768"/>
-        <PackageVersion Include="Argu" Version="6.0"/>
         <PackageVersion Include="Octokit" Version="0.50.0"/>
         <PackageVersion Include="SpecFlow" Version="3.9.74"/>
         <PackageVersion Include="SpecFlow.xUnit" Version="3.9.74"/>
-        <PackageVersion Include="System.Text.Json" Version="7.0.2"/>
-        <!-- <PackageVersion Include="xunit.runner.visualstudio" Version="2.4.5"/>
-        <PackageVersion Include="xunit.runner.console" Version="2.4.5"/>
-        <PackageVersion Include="Xunit.DependencyInjection.Logging" Version="8.0.1"/>
-        <PackageVersion Include="Xunit.DependencyInjection" Version="8.7.1"/>
-        <PackageVersion Include="xunit.frameworks.autofac" Version="0.5.4"/> -->
         <PackageVersion Include="FluentAssertions" Version="8.7.1"/>
         <PackageVersion Include="FSharp.Formatting" Version="4.0.0-rc1"/>
         <PackageVersion Include="FSharp.Literate" Version="4.0.0-rc1"/>
@@ -72,7 +63,6 @@
         <PackageVersion Include="FSharp.Compiler.Service" Version="34.1.1"/>
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="7.0.1"/>
         <PackageVersion Include="Microsoft.Extensions.Logging" Version="7.0.0"/>
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1"/>
         <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.1.0" />
 
         <PackageVersion Include="Serilog" Version="2.12.0"/>
@@ -80,14 +70,13 @@
         <PackageVersion Include="Serilog.Formatting.Compact" Version="1.1.0"/>
         <PackageVersion Include="Serilog.Sinks.Console" Version="4.1.0"/>
         <PackageVersion Include="MEL.Flex" Version="0.1.0"/>
-        <PackageVersion Include="WolverineFx" Version="0.9.13"/>
         <PackageVersion Include="Thoth.Json.Net" Version="11.0.0"/>
+        <PackageVersion Include="TUnit" Version="0.67.10" />
         <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)"/>
+        <PackageVersion Include="Verify.TUnit" Version="$(VerifyVersion)" />
         <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)"/>
         <PackageVersion Include="Vogen" Version="8.0.3-beta.2"/>
         <PackageVersion Include="TickSpec" Version="2.0.2"/>
         <PackageVersion Include="TickSpec.Xunit" Version="$(TickSpecVersion)"/>
-        <PackageVersion Include="xunit.v3" Version="3.1.0"/>
-        <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.3"/>
     </ItemGroup>
 </Project>
