@@ -24,21 +24,21 @@
       },
       "Microsoft.DotNet.ILCompiler": {
         "type": "Direct",
-        "requested": "[10.0.0-preview.5.25277.114, )",
-        "resolved": "10.0.0-preview.5.25277.114",
-        "contentHash": "vXjeluSHQwXVeP3dwtBuT5Kzi/QgECRmECAWoFvZvfj450a5lLy8v6MC4nuWuY2tYDXBvbZPH+WM5vIvDithXQ=="
+        "requested": "[10.0.0-rc.1.25451.107, )",
+        "resolved": "10.0.0-rc.1.25451.107",
+        "contentHash": "pGlnnJrQ4s3pjbvaTlC1MeZ+x18t2iYn25Jz+nzzgp0BCndbSxbxHzFL2IzV55bbeKecJszF8/8RHFKwVjRKpQ=="
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
-        "requested": "[10.0.0-preview.5.25277.114, )",
-        "resolved": "10.0.0-preview.5.25277.114",
-        "contentHash": "lKaVaiJvMwAny3XEQI8zP88GVLKBQeb5VIG25jzGkoO4ilRWJAJpYgP0EmgBi4BjJB5PbKEAuMCEbxYthf2vQw=="
+        "requested": "[10.0.0-rc.1.25451.107, )",
+        "resolved": "10.0.0-rc.1.25451.107",
+        "contentHash": "MnPx3NJT7pLBfOgIVs1/IXL8n5sEErhaJu14TQujaXTMwzv9I3v+nzPqUrUuEunaHeeH10n/3oZBn/Xg4trP0g=="
       },
       "System.CommandLine": {
         "type": "Direct",
-        "requested": "[2.0.0-beta5.25306.1, )",
-        "resolved": "2.0.0-beta5.25306.1",
-        "contentHash": "ce0wuowuh13Cd7GXqLCq77/YWlxQMxrVCMIO/2/QUP6CdP/JWnlYSN/N3/55wwGsUwa9CvPuT8ddjgyypUr5ag=="
+        "requested": "[2.0.0-rc.1.25451.107, )",
+        "resolved": "2.0.0-rc.1.25451.107",
+        "contentHash": "j+0Yg2TZ5rwbGTRArdF9w993dGWCPRbD+lg3S0D6MLckrKQ3J70s52TlbxKlISsoXUP/X+e6uPocbkKjP3wSag=="
       },
       "Extism.runtime.linux-arm64": {
         "type": "Transitive",
