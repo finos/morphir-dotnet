@@ -1,89 +1,74 @@
 <!-- https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management -->
 <Project>
-  <PropertyGroup>
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <RestoreLockedMode>false</RestoreLockedMode>
-    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
-    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-  </PropertyGroup>
-  <PropertyGroup>
-    <BunsenBurnerVersion>6.2.1</BunsenBurnerVersion>
-    <FakeVersion>6.0.0</FakeVersion>
-    <LightBDDVersion>3.6.1</LightBDDVersion>
-    <SystemCommandLineVersion>2.0.0-beta4.22272.1</SystemCommandLineVersion>
-    <TickSpecVersion>2.0.2</TickSpecVersion>
-    <VerifyVersion>19.11.2</VerifyVersion>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageVersion Include="Autofac" Version="7.0.0" />
-    <PackageVersion Include="Autofac.Extensions.DependencyInjection" Version="8.0.0" />
-    <PackageVersion Include="AutoFixture.Xunit2" Version="4.18.0" />
-    <PackageVersion Include="Bogus" Version="34.0.2" />
-    <PackageVersion Include="BunsenBurner.Bogus" Version="$(BunsenBurnerVersion)" />
-    <PackageVersion Include="BunsenBurner.Hedgehog" Version="$(BunsenBurnerVersion)" />
-    <PackageVersion Include="BunsenBurner.Xunit" Version="$(BunsenBurnerVersion)" />
-    <PackageVersion Include="BunsenBurner.Verify.Xunit" Version="$(BunsenBurnerVersion)" />
-    <PackageVersion Include="Codinators.XunitHelpers" Version="3.0.1" />
-    <PackageVersion Include="coverlet.collector" Version="3.1.2" />
-    <PackageVersion Include="Extism.runtime.all" Version="1.11.1" />
-    <PackageVersion Include="Extism.Sdk" Version="1.9.1" />
-    <PackageVersion Include="FSharp.Core" Version="7.0.200" />
-    <PackageVersion Include="FSharp.Data" Version="5.0.2" />
-    <PackageVersion Include="FSharp.SystemCommandLine" Version="0.17.0-beta4" />
-    <PackageVersion Include="Expecto" Version="9.0.4" />
-    <PackageVersion Include="Expecto.FsCheck" Version="9.0.4" />
-    <PackageVersion Include="FsCheck" Version="2.16.5" />
-    <PackageVersion Include="Packaging.Targets" Version="0.1.208" PrivateAssets="All" />
-    <PackageVersion Include="LightBDD.Framework" Version="$(LightBDDVersion)" />
-    <PackageVersion Include="LightBDD.XUnit2" Version="$(LightBDDVersion)" />
-    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.0.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All" />
-    <PackageVersion Include="altcover" Version="8.2.825" />
-    <PackageVersion Include="System.CommandLine" Version="2.0.0-beta5.25306.1" />
-    <PackageVersion Include="YoloDev.Expecto.TestSdk" Version="0.12.12" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.3.2" />
-    <PackageVersion Include="Fake.IO.FileSystem" Version="$(FakeVersion)" />
-    <PackageVersion Include="Fake.Core.Target" Version="$(FakeVersion)" />
-    <PackageVersion Include="Fake.Core.ReleaseNotes" Version="$(FakeVersion)" />
-    <PackageVersion Include="FAKE.Core.Environment" Version="$(FakeVersion)" />
-    <PackageVersion Include="Fake.DotNet.Cli" Version="$(FakeVersion)" />
-    <PackageVersion Include="FAKE.Core.Process" Version="$(FakeVersion)" />
-    <PackageVersion Include="Fake.DotNet.AssemblyInfoFile" Version="$(FakeVersion)" />
-    <PackageVersion Include="Fake.Tools.Git" Version="$(FakeVersion)" />
-    <PackageVersion Include="Fake.Api.GitHub" Version="$(FakeVersion)" />
-    <PackageVersion Include="Fake.BuildServer.GitHubActions" Version="$(FakeVersion)" />
-    <PackageVersion Include="MSBuild.StructuredLogger" Version="2.1.768" />
-    <PackageVersion Include="Argu" Version="6.0" />
-    <PackageVersion Include="Octokit" Version="0.50.0" />
-    <PackageVersion Include="xunit" Version="2.4.2" />
-    <PackageVersion Include="SpecFlow" Version="3.9.74" />
-    <PackageVersion Include="SpecFlow.xUnit" Version="3.9.74" />
-    <PackageVersion Include="System.Text.Json" Version="7.0.2" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="2.4.5" />
-    <PackageVersion Include="xunit.runner.console" Version="2.4.5" />
-    <PackageVersion Include="Xunit.DependencyInjection.Logging" Version="8.0.1" />
-    <PackageVersion Include="Xunit.DependencyInjection" Version="8.7.1" />
-    <PackageVersion Include="xunit.frameworks.autofac" Version="0.5.4" />
-    <PackageVersion Include="FluentAssertions" Version="6.10.0" />
-    <PackageVersion Include="FSharp.Formatting" Version="4.0.0-rc1" />
-    <PackageVersion Include="FSharp.Literate" Version="4.0.0-rc1" />
-    <PackageVersion Include="FSharp.Control.FusionTasks" Version="2.6.0" />
-    <PackageVersion Include="Fable.React" Version="6.2.0" />
-    <PackageVersion Include="Dotnet.ProjInfo.Workspace.FCS" Version="0.39" />
-    <PackageVersion Include="FSharp.Compiler.Service" Version="34.1.1" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="7.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="7.0.0" />
-    <PackageVersion Include="Serilog" Version="2.12.0" />
-    <PackageVersion Include="Serilog.Extensions.Hosting" Version="5.0.1" />
-    <PackageVersion Include="Serilog.Formatting.Compact" Version="1.1.0" />
-    <PackageVersion Include="Serilog.Sinks.Console" Version="4.1.0" />
-    <PackageVersion Include="MEL.Flex" Version="0.1.0" />
-    <PackageVersion Include="WolverineFx" Version="0.9.13" />
-    <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
-    <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
-    <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
-    <PackageVersion Include="TickSpec" Version="2.0.2" />
-    <PackageVersion Include="TickSpec.Xunit" Version="$(TickSpecVersion)" />
-  </ItemGroup>
+    <PropertyGroup>
+        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+        <RestoreLockedMode>false</RestoreLockedMode>
+        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+        <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+    </PropertyGroup>
+    <PropertyGroup>
+        <BunsenBurnerVersion>6.2.1</BunsenBurnerVersion>
+        <FakeVersion>6.0.0</FakeVersion>
+        <LightBDDVersion>3.6.1</LightBDDVersion>
+        <SystemCommandLineVersion>2.0.0-beta4.22272.1</SystemCommandLineVersion>
+        <TickSpecVersion>2.0.2</TickSpecVersion>
+        <VerifyVersion>31.0.0</VerifyVersion>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageVersion Include="Autofac" Version="7.0.0"/>
+        <PackageVersion Include="Autofac.Extensions.DependencyInjection" Version="8.0.0"/>
+        <PackageVersion Include="AutoFixture.Xunit2" Version="4.18.0"/>
+        <PackageVersion Include="Bogus" Version="34.0.2"/>
+        <PackageVersion Include="BunsenBurner.Bogus" Version="$(BunsenBurnerVersion)"/>
+        <PackageVersion Include="BunsenBurner.Hedgehog" Version="$(BunsenBurnerVersion)"/>
+        <PackageVersion Include="BunsenBurner.Xunit" Version="$(BunsenBurnerVersion)"/>
+        <PackageVersion Include="BunsenBurner.Verify.Xunit" Version="$(BunsenBurnerVersion)"/>
+        <PackageVersion Include="Codinators.XunitHelpers" Version="3.0.1"/>
+        <PackageVersion Include="coverlet.collector" Version="3.1.2"/>
+        <PackageVersion Include="Dunet" Version="1.11.3" /> 
+        <PackageVersion Include="Extism.runtime.all" Version="1.11.1"/>
+        <PackageVersion Include="Extism.Sdk" Version="1.9.1"/>
+        <PackageVersion Include="FSharp.Core" Version="7.0.200"/>
+        <PackageVersion Include="FSharp.Data" Version="5.0.2"/>
+        <PackageVersion Include="FSharp.SystemCommandLine" Version="0.17.0-beta4"/>
+        <PackageVersion Include="Generator.Equals" Version="3.2.1" />
+        <PackageVersion Include="Packaging.Targets" Version="0.1.208" PrivateAssets="All"/>
+        <PackageVersion Include="LightBDD.Framework" Version="$(LightBDDVersion)"/>
+        <PackageVersion Include="LightBDD.XUnit2" Version="$(LightBDDVersion)"/>
+        <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.0.0"/>
+        <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All"/>
+        <PackageVersion Include="altcover" Version="8.2.825"/>
+        <PackageVersion Include="System.CommandLine" Version="2.0.0-rc.1.25451.107"/>
+        <PackageVersion Include="Funcky.DiscriminatedUnion" Version="1.2.1" />
+        <PackageVersion Include="MSBuild.StructuredLogger" Version="2.1.768"/>
+        <PackageVersion Include="Octokit" Version="0.50.0"/>
+        <PackageVersion Include="SpecFlow" Version="3.9.74"/>
+        <PackageVersion Include="SpecFlow.xUnit" Version="3.9.74"/>
+        <PackageVersion Include="StaticCS" Version="0.3.1" />
+        <PackageVersion Include="FluentAssertions" Version="8.7.1"/>
+        <PackageVersion Include="FSharp.Formatting" Version="4.0.0-rc1"/>
+        <PackageVersion Include="FSharp.Literate" Version="4.0.0-rc1"/>
+        <PackageVersion Include="FSharp.Control.FusionTasks" Version="2.6.0"/>
+        <PackageVersion Include="Fable.React" Version="6.2.0"/>
+        <PackageVersion Include="Dotnet.ProjInfo.Workspace.FCS" Version="0.39"/>
+        <PackageVersion Include="FSharp.Compiler.Service" Version="34.1.1"/>
+        <PackageVersion Include="Microsoft.Extensions.Hosting" Version="7.0.1"/>
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="7.0.0"/>
+        <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.1.0" />
+
+        <PackageVersion Include="Serilog" Version="2.12.0"/>
+        <PackageVersion Include="Serilog.Extensions.Hosting" Version="5.0.1"/>
+        <PackageVersion Include="Serilog.Formatting.Compact" Version="1.1.0"/>
+        <PackageVersion Include="Serilog.Sinks.Console" Version="4.1.0"/>
+        <PackageVersion Include="MEL.Flex" Version="0.1.0"/>
+        <PackageVersion Include="Thoth.Json.Net" Version="11.0.0"/>
+        <PackageVersion Include="TUnit" Version="0.67.10" />
+        <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)"/>
+        <PackageVersion Include="Verify.TUnit" Version="$(VerifyVersion)" />
+        <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)"/>
+        <PackageVersion Include="Vogen" Version="8.0.3-beta.2"/>
+        <PackageVersion Include="TickSpec" Version="2.0.2"/>
+        <PackageVersion Include="TickSpec.Xunit" Version="$(TickSpecVersion)"/>
+    </ItemGroup>
 </Project>
