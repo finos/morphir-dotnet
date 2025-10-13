@@ -138,6 +138,8 @@
         "dependencies": {
           "Dunet": "[1.11.3, )",
           "Generator.Equals": "[3.2.1, )",
+          "LanguageExt.Core": "[5.0.0-beta-54, )",
+          "LanguageExt.Prelude": "(, )",
           "Vogen": "[8.0.3-beta.2, )"
         }
       },
@@ -155,6 +157,12 @@
         "dependencies": {
           "Generator.Equals.Runtime": "3.2.1"
         }
+      },
+      "LanguageExt.Core": {
+        "type": "CentralTransitive",
+        "requested": "[5.0.0-beta-54, )",
+        "resolved": "5.0.0-beta-54",
+        "contentHash": "hjEB7AbVt5fhjXDHalBwW+gz6cw2PfLT6R20NMUkEnt6Yii74Hdp7TBHjAcLkYNgsrKikk+wuyRTDB426kKmLg=="
       },
       "Vogen": {
         "type": "CentralTransitive",

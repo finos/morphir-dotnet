@@ -22,11 +22,28 @@ public class NameTests
     }
     
     [Test]
+    [Arguments(new[]{"foo","bar","baz","123"}, "fooBarBaz123")]
+    [Arguments(new[]{"value","in","u","s","d"}, "valueInUSD")]
+    public async Task ToCamelCase_Tests(string[] segments, string expected)
+    {
+        var actual = Name.FromList(segments);
+        await Assert.That(actual.ToCamelCase()).IsEqualTo(expected);
+    }
+    
+    [Test]
     [Arguments(new[]{"value","in","u","s","d"},new[]{"value","in","USD"})]
     public async Task ToHumanWords_Tests(string[] segments, string[] expected)
     {
         var actual = Name.FromList(segments);
         await Assert.That(actual.ToHumanWords()).IsEquivalentTo(expected);
+    }
+    
+    [Test]
+    [Arguments(new[]{"value","in","u","s","d"},new[]{"Value","in","USD"})]
+    public async Task ToHumanWordsTitle_Tests(string[] segments, string[] expected)
+    {
+        var actual = Name.FromList(segments);
+        await Assert.That(actual.ToHumanWordsTitle()).IsEquivalentTo(expected);
     }
     
     [Test]
@@ -36,6 +53,15 @@ public class NameTests
     {
         var actual = Name.FromList(segments);
         await Assert.That(actual.ToSnakeCase()).IsEqualTo(expected);
+    }
+    
+    [Test]
+    [Arguments(new[]{"foo","bar","baz","123"},"FooBarBaz123")]
+    [Arguments(new[]{"value","in","u","s","d"},"ValueInUSD")]
+    public async Task ToTitleCase_Tests(string[] segments, string expected)
+    {
+        var actual = Name.FromList(segments);
+        await Assert.That(actual.ToTitleCase()).IsEqualTo(expected);
     }
     
     [Test]

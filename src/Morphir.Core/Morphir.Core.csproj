@@ -6,21 +6,27 @@
         <Nullable>enable</Nullable>
         <RootNamespace>Morphir</RootNamespace>
     </PropertyGroup>
+    
 
     <ItemGroup>
         <PackageReference Include="Dunet" />
-        <PackageReference Include="Vogen" />
+        <PackageReference Include="Funcky.DiscriminatedUnion">
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
         <PackageReference Include="Generator.Equals" />
+        <PackageReference Include="LanguageExt.Core" />
+        <PackageReference Include="Vogen" />
         <PackageReference Include="StaticCS">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-        </PackageReference>
-        <PackageReference Include="Funcky.DiscriminatedUnion">
-            <PrivateAssets>all</PrivateAssets>
         </PackageReference>
     </ItemGroup>
     
     <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Core.Tests" />
+        <Using Include="LanguageExt" />
+        <Using Include="LanguageExt.Common" />
+        <Using Include="LanguageExt.Traits" />
+        <Using Include="LanguageExt.Prelude" Static="True" />
     </ItemGroup>
 </Project>
