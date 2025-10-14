@@ -5,6 +5,39 @@ namespace Morphir.IR;
 public class PathTests
 {
     [Test]
+    public async Task It_Should_Support_Deconstruction_When_Empty()
+    {
+        var (head, tail) = Path.Empty;
+        using (Assert.Multiple())
+        {
+            await Assert.That(head).IsEqualTo(null);
+            await Assert.That(tail).IsEqualTo(ImmutableList<Name>.Empty);
+        }
+    }
+    
+    [Test]
+    public async Task It_Should_Support_Deconstruction_When_Constructed_From_A_Single_Name()
+    {
+        var (head, tail) = Path.FromList(Name.FromList("Single"));
+        using (Assert.Multiple())
+        {
+            await Assert.That(head).IsEqualTo(Name.FromList("Single"));
+            await Assert.That(tail).IsEqualTo(ImmutableList<Name>.Empty);
+        }
+    }
+    
+    [Test]
+    public async Task It_Should_Support_Deconstruction_When_Constructed_From_A_Path_With_Two_Names()
+    {
+        var (head, tail) = Path.FromList(Name.FromList("Morphir"), Name.FromList("IR"));
+        using (Assert.Multiple())
+        {
+            await Assert.That(head).IsEqualTo(Name.FromList("Morphir"));
+            await Assert.That(tail).IsEquivalentTo(ImmutableList<Name>.Empty.Add(Name.FromList("IR")));
+        }
+    }
+    
+    [Test]
     [Arguments("fooBar.Baz", new[]{"fooBar", "Baz"})]
     [Arguments("foo bar/baz", new[]{"fooBar", "Baz"})]
     public async Task FromString_Tests(string input, string[] expectedNameStrings)
@@ -45,4 +78,20 @@ public class PathTests
             await Assert.That(path.ToString()).IsEqualTo(path.ToCanonicalString());
         }
     }
+
+    [Test]
+    [Arguments("Foo.Bar", "Foo", true)]
+    [Arguments("Foo", "Foo.Bar", false)]
+    [Arguments("Foo.Bar", "Foo.Bar", true)]
+    public async Task IsPrefixOf(string pathInput, string prefixInput, bool expected)
+    {
+        var path = Path.FromString(pathInput);
+        var prefix = Path.FromString(prefixInput);
+        using (Assert.Multiple())
+        {
+            await Assert.That(Path.IsPrefixOf(path, prefix)).IsEqualTo(expected);
+            await Assert.That(prefix.IsPrefixOf(path)).IsEqualTo(expected);
+        }
+    }
+    
 }

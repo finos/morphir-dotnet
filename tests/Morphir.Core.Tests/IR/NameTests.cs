@@ -72,13 +72,13 @@ public class NameTests
     public async Task Should_Be_Possible_To_Create()
     {
         Name actual = new (["classic", "name"]);
-        await Assert.That(actual).IsEqualTo(Name.FromList(["classic", "name"]));
+        await Assert.That(actual).IsEqualTo(Name.FromList("classic", "name"));
 
     }
 
     [Test]
     [Arguments<string[]>(["value","in","u","s","d"])]
-    public async Task Should_Serialize_As_Expected_Json(IReadOnlyList<string> input)
+    public async Task Should_Serialize_As_Expected_Json(string[] input)
     {
         var name  = Name.FromList(input);
         var json = JsonSerializer.Serialize(name);

@@ -96,7 +96,8 @@ public partial record Name(Seq<string> Segments)
     /// </summary>
     /// <param name="segments">The words in the name.</param>
     /// <returns>A new <see cref="Name"/> consisting of the provided words.</returns>
-    public static Name FromList(IReadOnlyList<string> segments) => new ([..segments]);
+    public static Name FromList(params ImmutableList<string> segments) => new (toSeq(segments));
+    public static Name FromList(string[] segments) => new (toSeq(segments));
 
     /// <summary>
     /// Translate a string into a name by splitting it into words.
