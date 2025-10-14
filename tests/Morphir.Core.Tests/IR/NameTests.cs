@@ -27,7 +27,11 @@ public class NameTests
     public async Task ToCamelCase_Tests(string[] segments, string expected)
     {
         var actual = Name.FromList(segments);
-        await Assert.That(actual.ToCamelCase()).IsEqualTo(expected);
+        using (Assert.Multiple())
+        {
+            await Assert.That(actual.ToCamelCase()).IsEqualTo(expected);
+            await Assert.That(actual.ToCamelCase()).IsEqualTo(Name.ToCamelCase(actual));
+        }
     }
     
     [Test]

@@ -16,12 +16,16 @@
         <PackageReference Include="Verify.TUnit" />
     </ItemGroup>
     
-
     <ItemGroup>
       <ProjectReference Include="..\..\src\Morphir.Core\Morphir.Core.csproj" />
     </ItemGroup>
     
-
+    <ItemGroup>
+        <Using Include="LanguageExt" />
+        <Using Include="LanguageExt.Prelude" Static="True" />
+        <Using Include="LanguageExt.Seq" Static="True" />
+    </ItemGroup>
+    
     <ItemGroup>
       <Folder Include="Classic\IR\" />
     </ItemGroup>

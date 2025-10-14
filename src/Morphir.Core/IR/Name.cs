@@ -17,7 +17,9 @@ namespace Morphir.IR;
 public partial record Name(Seq<string> Segments)
 {
     public bool IsEmpty => Segments.Count == 0;
-    public Seq<string> ToList() => Segments;
+    
+    public IImmutableList<string> ToList() => Segments.ToImmutableList();
+    public Seq<string> ToSeq() => Segments;
 
     /// <summary>
     /// Turns a name into a camel-case string.
@@ -71,12 +73,19 @@ public partial record Name(Seq<string> Segments)
 
 
     public override string ToString() => Segments.ToFullArrayString(", ");
+
+    /// <summary>
+    /// Turns a name into a kebab-case string.
+    /// </summary>
+    /// <returns>A kebab-cased string consisting of the words in this <see cref="Name"/></returns>
+    public string ToKebabCase() => ToHumanWords().ToFullString("-");
     
     /// <summary>
     /// Turns a name into a snake-case string.
     /// </summary>
     /// <returns>A snake-cased string consisting of the words in this <see cref="Name"/>.</returns>
     public string ToSnakeCase() => ToHumanWords().ToFullString("_");
+    
     public string ToTitleCase() => 
         Segments.Map(s => s.Capitalize()).ToFullString("");
     
@@ -98,6 +107,10 @@ public partial record Name(Seq<string> Segments)
     /// <param name="input">the input string</param>
     /// <returns>A new <seealso cref="Name"/> instance.</returns>
     public static Name FromString(string input) => 
-        FromList(input.ToMorphirWords().Select(w => w.ToLowerInvariant()).ToImmutableList());
+        new(toSeq(input.ToMorphirWords().Select(w => w.ToLowerInvariant())));
 
+    public static string ToCamelCase(Name name) => name.ToCamelCase();
+    public static string ToKebabCase(Name name) => name.ToKebabCase();
+    public static string ToSnakeCase(Name name) => name.ToSnakeCase();
+    public static string ToTitleCase(Name name) => name.ToTitleCase();
 }
