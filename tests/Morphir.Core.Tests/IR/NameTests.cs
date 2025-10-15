@@ -22,11 +22,32 @@ public class NameTests
     }
     
     [Test]
+    [Arguments(new[]{"foo","bar","baz","123"}, "fooBarBaz123")]
+    [Arguments(new[]{"value","in","u","s","d"}, "valueInUSD")]
+    public async Task ToCamelCase_Tests(string[] segments, string expected)
+    {
+        var actual = Name.FromList(segments);
+        using (Assert.Multiple())
+        {
+            await Assert.That(actual.ToCamelCase()).IsEqualTo(expected);
+            await Assert.That(actual.ToCamelCase()).IsEqualTo(Name.ToCamelCase(actual));
+        }
+    }
+    
+    [Test]
     [Arguments(new[]{"value","in","u","s","d"},new[]{"value","in","USD"})]
     public async Task ToHumanWords_Tests(string[] segments, string[] expected)
     {
         var actual = Name.FromList(segments);
         await Assert.That(actual.ToHumanWords()).IsEquivalentTo(expected);
+    }
+    
+    [Test]
+    [Arguments(new[]{"value","in","u","s","d"},new[]{"Value","in","USD"})]
+    public async Task ToHumanWordsTitle_Tests(string[] segments, string[] expected)
+    {
+        var actual = Name.FromList(segments);
+        await Assert.That(actual.ToHumanWordsTitle()).IsEquivalentTo(expected);
     }
     
     [Test]
@@ -39,16 +60,25 @@ public class NameTests
     }
     
     [Test]
+    [Arguments(new[]{"foo","bar","baz","123"},"FooBarBaz123")]
+    [Arguments(new[]{"value","in","u","s","d"},"ValueInUSD")]
+    public async Task ToTitleCase_Tests(string[] segments, string expected)
+    {
+        var actual = Name.FromList(segments);
+        await Assert.That(actual.ToTitleCase()).IsEqualTo(expected);
+    }
+    
+    [Test]
     public async Task Should_Be_Possible_To_Create()
     {
         Name actual = new (["classic", "name"]);
-        await Assert.That(actual).IsEqualTo(Name.FromList(["classic", "name"]));
+        await Assert.That(actual).IsEqualTo(Name.FromList("classic", "name"));
 
     }
 
     [Test]
     [Arguments<string[]>(["value","in","u","s","d"])]
-    public async Task Should_Serialize_As_Expected_Json(IReadOnlyList<string> input)
+    public async Task Should_Serialize_As_Expected_Json(string[] input)
     {
         var name  = Name.FromList(input);
         var json = JsonSerializer.Serialize(name);
