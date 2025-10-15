@@ -48,8 +48,9 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
 
         public override bool CanConvert(System.Type typeToConvert)
         {
-            if (typeToConvert == typeof(Type<TAttributes>)) return true;
-            return typeToConvert == typeof(Type<TAttributes>.Variable);
+            return (typeToConvert == typeof(Type<TAttributes>)) 
+                   || (typeToConvert == typeof(Type<TAttributes>.Variable))
+                   || (typeToConvert == typeof(Type<TAttributes>.Unit));
         }
 
         public override Type<TAttributes>? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
@@ -63,7 +64,10 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             {
                 WriteVariable(writer, variable, options);
             }
-            else
+            else if (value is Type<TAttributes>.Unit unit)
+            {
+                WriteUnit(writer, unit, options);
+            } else
             {
                 throw new NotSupportedException($"Encoding not supported for Classic Type case: {value?.GetType().Name}");
             }
@@ -78,6 +82,14 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             AttributeConverter.Write(writer, variable.Attributes, options);
             // Name
             NameConverter.Write(writer, variable.Name, options);
+            writer.WriteEndArray();
+        }
+
+        private void WriteUnit(Utf8JsonWriter writer, Type<TAttributes>.Unit unit, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            writer.WriteStringValue("Unit");
+            AttributeConverter.Write(writer, unit.Attributes, options);
             writer.WriteEndArray();
         }
     

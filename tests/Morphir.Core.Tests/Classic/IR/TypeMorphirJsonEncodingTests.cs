@@ -13,5 +13,14 @@ public class TypeMorphirJsonEncodingTests
         var encoded = MorphirJson.EncodeAsString(actual);
         await Assert.That(encoded).IsEqualTo(expected);
     }
+
+    [Test]
+    public async Task It_Should_Encode_A_Unit_Type_Correctly()
+    {
+        var tpe = Type.Unit(Unit.Default);
+        var encoded = MorphirJson.EncodeAsString(tpe);
+        var expected = """["Unit",{}]""";
+        await Assert.That(encoded).IsEqualTo(expected);
+    }
     
 }

@@ -28,4 +28,7 @@ public static class Type
     
     public static Type<TAttributes>.Variable Variable<TAttributes>(TAttributes attributes, Name name) =>
         new Type<TAttributes>.Variable(name){ Attributes = attributes };
+    
+    public static Type<TAttributes>.Unit Unit<TAttributes>(TAttributes attributes) =>
+        new Type<TAttributes>.Unit(){ Attributes = attributes };
 }
