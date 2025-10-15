@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Seq = LanguageExt.Seq;
 
 namespace Morphir.IR.Codecs;
 
@@ -19,7 +20,7 @@ internal class NameConverter : JsonConverter<Name>
             }
 
             if(reader.TokenType == JsonTokenType.EndArray) 
-                return new Name(builder.ToImmutable());
+                return Name.FromList(builder.ToImmutable());
         }
 
         return null;
