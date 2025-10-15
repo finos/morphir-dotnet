@@ -16,6 +16,7 @@
         <PackageReference Include="Verify.TUnit" />
     </ItemGroup>
     
+
     <ItemGroup>
       <ProjectReference Include="..\..\src\Morphir.Core\Morphir.Core.csproj" />
     </ItemGroup>
@@ -26,6 +27,7 @@
         <Using Include="LanguageExt.Seq" Static="True" />
     </ItemGroup>
     
+
     <ItemGroup>
       <Folder Include="Classic\IR\" />
     </ItemGroup>
