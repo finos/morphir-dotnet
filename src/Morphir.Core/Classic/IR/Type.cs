@@ -24,7 +24,6 @@ public static class Type
     public record Field<TAttribute>(Name Name, Type<TAttribute> Type)
         : Morphir.IR.Type.Field<Type<TAttribute>>(Name, Type)
     {
-        
     }
     
     public static Type<TAttributes>.Variable Variable<TAttributes>(TAttributes attributes, Name name) =>

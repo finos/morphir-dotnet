@@ -5,8 +5,10 @@ using Seq = LanguageExt.Seq;
 
 namespace Morphir.IR.Codecs;
 
-internal class NameConverter : JsonConverter<Name>
+internal class NameConverter(MorphirJsonOptions morphirJsonOptions) : JsonConverter<Name>
 {
+    public NameConverter():this(MorphirJsonOptions.Default) { }
+    
     public override Name? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
     {
         if (!reader.Read()) return null;

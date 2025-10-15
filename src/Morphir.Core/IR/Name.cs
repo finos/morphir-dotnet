@@ -101,7 +101,7 @@ public partial record Name(Seq<string> Segments)
 
     /// <summary>
     /// Translate a string into a name by splitting it into words.
-    /// The algorithm is designed to work with most well-known naming conventions or mix of them.
+    /// The algorithm is designed to work with the most well-known naming conventions or mixes of them.
     /// The general rule is that consecutive letters and numbers are treated as words,
     /// upper-case letters and non-alphanumeric characters start a new word.
     /// </summary>
