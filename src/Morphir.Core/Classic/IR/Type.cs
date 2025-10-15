@@ -27,6 +27,6 @@ public static class Type
         
     }
     
-    public static Type<TAttributes> Variable<TAttributes>(TAttributes attributes, Name name) =>
+    public static Type<TAttributes>.Variable Variable<TAttributes>(TAttributes attributes, Name name) =>
         new Type<TAttributes>.Variable(name){ Attributes = attributes };
 }

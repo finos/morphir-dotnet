@@ -26,10 +26,5 @@
         <Using Include="LanguageExt.Prelude" Static="True" />
         <Using Include="LanguageExt.Seq" Static="True" />
     </ItemGroup>
-    
-
-    <ItemGroup>
-      <Folder Include="Classic\IR\" />
-    </ItemGroup>
 
 </Project>
