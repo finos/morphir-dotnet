@@ -14,7 +14,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         if (typeToConvert.IsGenericType)
         {
             var genericDef = typeToConvert.GetGenericTypeDefinition();
-            if (genericDef == typeof(Type<>))
+            if (genericDef.DeclaringType == typeof(Type<>))
             {
                 return true;
             }
@@ -49,7 +49,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         public override bool CanConvert(System.Type typeToConvert)
         {
             if (typeToConvert == typeof(Type<TAttributes>)) return true;
-            return false;
+            return typeToConvert == typeof(Type<TAttributes>.Variable);
         }
 
         public override Type<TAttributes>? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)

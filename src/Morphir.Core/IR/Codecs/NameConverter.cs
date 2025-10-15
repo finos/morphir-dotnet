@@ -30,11 +30,19 @@ internal class NameConverter(MorphirJsonOptions morphirJsonOptions) : JsonConver
 
     public override void Write(Utf8JsonWriter writer, Name value, JsonSerializerOptions options)
     {
-        writer.WriteStartArray();
-        foreach (var segment in value.Segments)
+        if (morphirJsonOptions.FormatVersion.IsClassic)
         {
-            writer.WriteStringValue(segment);
+            writer.WriteStartArray();
+            foreach (var segment in value.Segments)
+            {
+                writer.WriteStringValue(segment);
+            }
+
+            writer.WriteEndArray();
         }
-        writer.WriteEndArray();
+        else
+        {
+            writer.WriteStringValue(value.ToKebabCase());       
+        }
     }
 }
