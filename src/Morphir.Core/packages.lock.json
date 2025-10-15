@@ -23,6 +23,12 @@
           "Generator.Equals.Runtime": "3.2.1"
         }
       },
+      "InlineComposition": {
+        "type": "Direct",
+        "requested": "[1.4.0, )",
+        "resolved": "1.4.0",
+        "contentHash": "K6cIWjr96hxEsg6POXtfBd9LgYV6+CtVr2GDsA50c9u5Zfv/ZumSp5OUF9OuI/Ll+rCDajnN67bkOvCt8i6yug=="
+      },
       "LanguageExt.Core": {
         "type": "Direct",
         "requested": "[5.0.0-beta-54, )",

@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
+using System.Diagnostics.Contracts;
 using System.Text.RegularExpressions;
 using Generator.Equals;
 using Morphir.Internals;
-using static LanguageExt.Seq;
 namespace Morphir.IR;
 
 [Equatable]
@@ -10,7 +10,7 @@ public partial record Path([property:OrderedEquality]ImmutableList<Name> Names)
 {
     [GeneratedRegex("[^\\w\\s]+")]
     private static partial Regex SeparatorRegex();
-
+    
     public static Path FromList(params ImmutableList<Name> names) => new (names);
 
     /// <summary>
@@ -19,15 +19,8 @@ public partial record Path([property:OrderedEquality]ImmutableList<Name> Names)
     /// </summary>
     /// <param name="input"></param>
     /// <returns></returns>
-    public static Path FromString(string input)
-    {
-        var names = SeparatorRegex()
-            .Split(input)
-            .Select(Name.FromString);
-        return new Path(names.ToImmutableList());
-    }
-    
-    public Name? Head => Names.IsEmpty ? null : Names[0];
+    [Pure]
+    public static Path FromString(string input) => new(NamesFromString(input).ToImmutableList());
     
     /// <summary>
     /// Checks if this <see cref="Path"/> is a prefix of the provided path.
@@ -51,7 +44,13 @@ public partial record Path([property:OrderedEquality]ImmutableList<Name> Names)
     public static Path Empty => new Path(ImmutableList<Name>.Empty);
     
     public static IImmutableList<Name> ToList(Path path) => path.ToList();
-    
+
+    [Pure]
+    protected static IEnumerable<Name> NamesFromString(string input) => 
+        SeparatorRegex()
+            .Split(input)
+            .Select(Name.FromString);
+
     public static string ToString(Func<Name, string> render, string separator, Path path) =>
         path.ToString(render, separator);
 
@@ -80,4 +79,11 @@ public partial record Path([property:OrderedEquality]ImmutableList<Name> Names)
         }    
     }
     
+}
+public static class PathExtensions 
+{
+    extension(Path self) 
+    {
+        public Name? Head => self.Names.IsEmpty ? null : self.Names[0];
+    }
 }
