@@ -11,6 +11,7 @@
     <File Path="LICENSE.spdx" />
     <File Path="NOTICE" />
     <File Path="dotnet.config" />
+    <File Path="AGENTS.md" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Morphir/Morphir.csproj" />

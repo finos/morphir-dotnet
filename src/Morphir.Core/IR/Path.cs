@@ -38,7 +38,15 @@ public partial record Path([property:OrderedEquality]ImmutableList<Name> Names)
     public Seq<Name> ToSeq() => toSeq(Names);
 
     public string ToCanonicalString() => ToString(Name.ToKebabCase, "/");
-    public string ToString(Func<Name, string> render, string separator) => Names.Select(render).MakeString(separator);
+    public string ToString(Func<Name, string> render, string separator) => 
+        Names.Select(render).MakeString(separator);
+    
+    /// <summary>
+    /// Provides a curried factory for constructing <see cref="Path"/> instances.
+    /// </summary>
+    public static Func<Func<Name,String>, Func<String, Func<Path, String>>> toString = 
+        render => separator => path => ToString(render, separator, path);
+    
     public override string ToString() => ToCanonicalString();
 
     public static Path Empty => new Path(ImmutableList<Name>.Empty);
