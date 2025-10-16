@@ -57,7 +57,15 @@ public class PathJsonConverter(MorphirJsonOptions morphirJsonOptions) : JsonConv
             names.Add(name);
         }
 
-        return new Path(names.ToImmutable());
+        var namesList = names.ToImmutable();
+
+        // Create the appropriate derived type based on typeToConvert
+        if (typeToConvert == typeof(ModulePath))
+            return new ModulePath(namesList);
+        if (typeToConvert == typeof(PackageName))
+            return new PackageName(namesList);
+
+        return new Path(namesList);
     }
 
     /// <summary>
@@ -80,5 +88,57 @@ public class PathJsonConverter(MorphirJsonOptions morphirJsonOptions) : JsonConv
         }
 
         writer.WriteEndArray();
+    }
+}
+
+/// <summary>
+/// JSON converter for serializing and deserializing <see cref="ModulePath"/> instances.
+/// </summary>
+public class ModulePathJsonConverter : JsonConverter<ModulePath>
+{
+    private readonly PathJsonConverter _pathConverter;
+
+    public ModulePathJsonConverter(MorphirJsonOptions morphirJsonOptions)
+    {
+        _pathConverter = new PathJsonConverter(morphirJsonOptions);
+    }
+
+    public ModulePathJsonConverter() : this(MorphirJsonOptions.Default) { }
+
+    public override ModulePath? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+    {
+        var path = _pathConverter.Read(ref reader, typeof(ModulePath), options);
+        return path as ModulePath;
+    }
+
+    public override void Write(Utf8JsonWriter writer, ModulePath value, JsonSerializerOptions options)
+    {
+        _pathConverter.Write(writer, value, options);
+    }
+}
+
+/// <summary>
+/// JSON converter for serializing and deserializing <see cref="PackageName"/> instances.
+/// </summary>
+public class PackageNameJsonConverter : JsonConverter<PackageName>
+{
+    private readonly PathJsonConverter _pathConverter;
+
+    public PackageNameJsonConverter(MorphirJsonOptions morphirJsonOptions)
+    {
+        _pathConverter = new PathJsonConverter(morphirJsonOptions);
+    }
+
+    public PackageNameJsonConverter() : this(MorphirJsonOptions.Default) { }
+
+    public override PackageName? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+    {
+        var path = _pathConverter.Read(ref reader, typeof(PackageName), options);
+        return path as PackageName;
+    }
+
+    public override void Write(Utf8JsonWriter writer, PackageName value, JsonSerializerOptions options)
+    {
+        _pathConverter.Write(writer, value, options);
     }
 }

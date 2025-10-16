@@ -163,4 +163,80 @@ public class TypeMorphirJsonEncodingTests
         }
     }
 
+    [Test]
+    public async Task It_Should_Encode_ModulePath()
+    {
+        var modulePath = ModulePath.FromList(
+            Name.FromList("morphir"),
+            Name.FromList("sdk"),
+            Name.FromList("basics")
+        );
+        var actual = MorphirJson.EncodeAsString(modulePath);
+        var expected = """[["morphir"],["sdk"],["basics"]]""";
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Decode_ModulePath()
+    {
+        var json = """[["morphir"],["sdk"],["basics"]]""";
+        var decoded = MorphirJson.DecodeFromString<ModulePath>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded!.Names.Count).IsEqualTo(3);
+            await Assert.That(decoded.Names[0]).IsEqualTo(Name.FromList("morphir"));
+            await Assert.That(decoded.Names[1]).IsEqualTo(Name.FromList("sdk"));
+            await Assert.That(decoded.Names[2]).IsEqualTo(Name.FromList("basics"));
+        }
+    }
+
+    [Test]
+    public async Task It_Should_Encode_PackageName()
+    {
+        var packageName = PackageName.FromList(
+            Name.FromList("my"),
+            Name.FromList("company"),
+            Name.FromList("package")
+        );
+        var actual = MorphirJson.EncodeAsString(packageName);
+        var expected = """[["my"],["company"],["package"]]""";
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Decode_PackageName()
+    {
+        var json = """[["my"],["company"],["package"]]""";
+        var decoded = MorphirJson.DecodeFromString<PackageName>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded!.Names.Count).IsEqualTo(3);
+            await Assert.That(decoded.Names[0]).IsEqualTo(Name.FromList("my"));
+            await Assert.That(decoded.Names[1]).IsEqualTo(Name.FromList("company"));
+            await Assert.That(decoded.Names[2]).IsEqualTo(Name.FromList("package"));
+        }
+    }
+
+    [Test]
+    public async Task It_Should_Encode_Empty_ModulePath()
+    {
+        var modulePath = ModulePath.Empty;
+        var actual = MorphirJson.EncodeAsString(modulePath);
+        var expected = "[]";
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Encode_Empty_PackageName()
+    {
+        var packageName = PackageName.Empty;
+        var actual = MorphirJson.EncodeAsString(packageName);
+        var expected = "[]";
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
 }
