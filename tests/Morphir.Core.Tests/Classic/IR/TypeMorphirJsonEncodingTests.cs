@@ -1,4 +1,5 @@
 ﻿using Morphir.IR;
+using Path = Morphir.IR.Path;
 
 namespace Morphir.Classic.IR;
 
@@ -78,6 +79,87 @@ public class TypeMorphirJsonEncodingTests
             await Assert.That(decoded).IsNotNull();
             await Assert.That(decoded!.Name).IsEqualTo(Name.FromString("UnitField"));
             await Assert.That(decoded.Type).IsTypeOf<Type<Unit>.Unit>();
+        }
+    }
+
+    [Test]
+    public async Task It_Should_Encode_Path_With_Single_Segment_Names()
+    {
+        var path = Path.FromList(
+            Name.FromList("alpha"),
+            Name.FromList("beta"),
+            Name.FromList("gamma")
+        );
+        var actual = MorphirJson.EncodeAsString(path);
+        var expected = """[["alpha"],["beta"],["gamma"]]""";
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Encode_Path_With_Multi_Segment_Names()
+    {
+        var path = Path.FromList(
+            Name.FromList("alpha", "omega"),
+            Name.FromList("beta", "delta"),
+            Name.FromList("gamma")
+        );
+        var actual = MorphirJson.EncodeAsString(path);
+        var expected = """[["alpha","omega"],["beta","delta"],["gamma"]]""";
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Encode_Empty_Path()
+    {
+        var path = Path.Empty;
+        var actual = MorphirJson.EncodeAsString(path);
+        var expected = "[]";
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Decode_Path_With_Single_Segment_Names()
+    {
+        var json = """[["alpha"],["beta"],["gamma"]]""";
+        var decoded = MorphirJson.DecodeFromString<Path>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded!.Names.Count).IsEqualTo(3);
+            await Assert.That(decoded.Names[0]).IsEqualTo(Name.FromList("alpha"));
+            await Assert.That(decoded.Names[1]).IsEqualTo(Name.FromList("beta"));
+            await Assert.That(decoded.Names[2]).IsEqualTo(Name.FromList("gamma"));
+        }
+    }
+
+    [Test]
+    public async Task It_Should_Decode_Path_With_Multi_Segment_Names()
+    {
+        var json = """[["alpha","omega"],["beta","delta"],["gamma"]]""";
+        var decoded = MorphirJson.DecodeFromString<Path>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded!.Names.Count).IsEqualTo(3);
+            await Assert.That(decoded.Names[0]).IsEqualTo(Name.FromList("alpha", "omega"));
+            await Assert.That(decoded.Names[1]).IsEqualTo(Name.FromList("beta", "delta"));
+            await Assert.That(decoded.Names[2]).IsEqualTo(Name.FromList("gamma"));
+        }
+    }
+
+    [Test]
+    public async Task It_Should_Decode_Empty_Path()
+    {
+        var json = "[]";
+        var decoded = MorphirJson.DecodeFromString<Path>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded!.Names).IsEmpty();
+            await Assert.That(decoded).IsEqualTo(Path.Empty);
         }
     }
 

@@ -1,11 +1,15 @@
 using System.Collections.Immutable;
 using System.Diagnostics.Contracts;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Generator.Equals;
 using Morphir.Internals;
+using Morphir.IR.Codecs;
+
 namespace Morphir.IR;
 
 [Equatable]
+[JsonConverter(typeof(PathJsonConverter))]
 public partial record Path([property:OrderedEquality]ImmutableList<Name> Names)
 {
     [GeneratedRegex("[^\\w\\s]+")]
