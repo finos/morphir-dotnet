@@ -14,5 +14,8 @@ public abstract partial record Document
     public sealed partial record Boolean(bool Value) : DocumentValue;
 
     public sealed partial record DocNumber(decimal Value) : DocumentValue;
+    
+    public sealed partial record Object(ImmutableDictionary<string, Document> Items) : Document;
+    
 }
 

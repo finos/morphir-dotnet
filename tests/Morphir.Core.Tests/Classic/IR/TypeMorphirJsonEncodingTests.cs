@@ -22,5 +22,19 @@ public class TypeMorphirJsonEncodingTests
         var expected = """["Unit",{}]""";
         await Assert.That(encoded).IsEqualTo(expected);
     }
+
+    [Test]
+    public async Task It_Should_Encode_A_Tuple_Type_Correctly()
+    {
+        // Tuple with two element types: Unit and a Variable named "x"
+        Type<Unit> elem1 = Type.Unit(Unit.Default);
+        Type<Unit> elem2 = Type.Variable(Unit.Default, Name.FromString("x"));
+        var elements = new Seq<Type<Unit>>(new[] { elem1, elem2 });
+        var tuple = new Type<Unit>.Tuple(elements) { Attributes = Unit.Default };
+
+        var encoded = MorphirJson.EncodeAsString(tuple);
+        var expected = """["Tuple",{},[["Unit",{}],["Variable",{},["x"]]]]""";
+        await Assert.That(encoded).IsEqualTo(expected);
+    }
     
 }

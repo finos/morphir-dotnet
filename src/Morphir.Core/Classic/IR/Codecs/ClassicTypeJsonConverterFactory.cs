@@ -14,7 +14,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         if (typeToConvert.IsGenericType)
         {
             var genericDef = typeToConvert.GetGenericTypeDefinition();
-            if (genericDef.DeclaringType == typeof(Type<>))
+            if ((genericDef == typeof(Type<>)) || genericDef.DeclaringType == typeof(Type<>))
             {
                 return true;
             }
@@ -46,18 +46,38 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         private JsonConverter<TAttributes> AttributeConverter { get; } =
             (JsonConverter<TAttributes>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(TAttributes));
 
+        // Converter for nested Type<TAttributes> sequences (used by Tuple and others)
+        private JsonConverter<System.Collections.Generic.IEnumerable<Type<TAttributes>>> TypeSeqConverter { get; } =
+            (JsonConverter<System.Collections.Generic.IEnumerable<Type<TAttributes>>>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(System.Collections.Generic.IEnumerable<Type<TAttributes>>));
+
         public override bool CanConvert(System.Type typeToConvert)
         {
             return (typeToConvert == typeof(Type<TAttributes>)) 
                    || (typeToConvert == typeof(Type<TAttributes>.Variable))
-                   || (typeToConvert == typeof(Type<TAttributes>.Unit));
+                   || (typeToConvert == typeof(Type<TAttributes>.Unit))
+                   || (typeToConvert == typeof(Type<TAttributes>.Tuple));
         }
 
         public override Type<TAttributes>? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
         {
-            throw new NotSupportedException();
+            if(reader.TokenType != JsonTokenType.StartArray) throw new NotSupportedException($"Unexpected token when parsing Classic Type, we expected an array but got: {reader.TokenType}");
+            if (reader.Read() && reader.TokenType == JsonTokenType.String)
+            {
+                var typeNodeName = reader.GetString();
+                switch (typeNodeName)
+                {
+                    case "Variable":
+                        return ReadVariable(ref reader, typeToConvert, options);
+                    case "Unit":
+                        return ReadUnit(ref reader, typeToConvert, options);
+                    default:
+                        throw new NotSupportedException($"Unexpected type name when parsing Classic Type: {typeNodeName}");
+                }
+            }
+            
+            throw new NotSupportedException($"Unexpected token when parsing Classic Type: {reader.TokenType}");
         }
-
+        
         public override void Write(Utf8JsonWriter writer, Type<TAttributes> value, JsonSerializerOptions options)
         {
             if (value is Type<TAttributes>.Variable variable)
@@ -67,10 +87,57 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             else if (value is Type<TAttributes>.Unit unit)
             {
                 WriteUnit(writer, unit, options);
-            } else
+            }
+            else if (value is Type<TAttributes>.Tuple tuple)
+            {
+                WriteTuple(writer, tuple, options);
+            }
+            else
             {
                 throw new NotSupportedException($"Encoding not supported for Classic Type case: {value?.GetType().Name}");
             }
+        }
+        
+        private Type<TAttributes>? ReadUnit(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.Read())
+            {
+                var attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                if (attributes == null)
+                    throw new JsonException("Malformed \"Unit\" encountered: attributes cannot be null");
+
+                if (reader.Read() && reader.TokenType == JsonTokenType.EndArray)
+                    return IR.Type.Unit(attributes!);
+            }
+            throw new JsonException("Malformed Unit encountered: " + reader.TokenType);
+        }
+
+        private Type<TAttributes>? ReadVariable(ref Utf8JsonReader reader, System.Type typeToConvert,  JsonSerializerOptions options)
+        {
+            // We expect that we will be on the tag token
+            TAttributes? attributes = default;
+            Name? name = default;
+            
+            if (reader.Read())
+            {
+                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+            }
+
+            if (reader.Read())
+            {
+                name = NameConverter.Read(ref reader, typeToConvert, options);
+            }
+
+            if (reader.Read() && reader.TokenType == JsonTokenType.EndArray)
+            {
+                
+                if(attributes == null && name == null) 
+                    throw new JsonException("Misformed \"Variable\" encountered: \"Attributes\" and \"Name\" cannot be null");
+            
+                return IR.Type.Variable(attributes!, name!);            
+            }
+
+            throw new JsonException("Misformed \"Variable\" encountered: Did not find expected end of array");
         }
 
         private void WriteVariable(Utf8JsonWriter writer, Type<TAttributes>.Variable variable,
@@ -92,6 +159,21 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             AttributeConverter.Write(writer, unit.Attributes, options);
             writer.WriteEndArray();
         }
-    
+
+        private void WriteTuple(Utf8JsonWriter writer, Type<TAttributes>.Tuple tuple, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            writer.WriteStringValue("Tuple");
+            // Attributes
+            AttributeConverter.Write(writer, tuple.Attributes, options);
+            // Write the sequence of element types as a JSON array
+            writer.WriteStartArray();
+            foreach (var elem in tuple.ElementTypes)
+            {
+                Write(writer, elem, options);
+            }
+            writer.WriteEndArray();
+            writer.WriteEndArray();
+        }
     }
 }

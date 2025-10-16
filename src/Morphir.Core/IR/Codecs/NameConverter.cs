@@ -11,7 +11,6 @@ internal class NameConverter(MorphirJsonOptions morphirJsonOptions) : JsonConver
     
     public override Name? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
     {
-        if (!reader.Read()) return null;
         if (reader.TokenType == JsonTokenType.StartArray)
         {
             var builder = ImmutableList.CreateBuilder<string>();

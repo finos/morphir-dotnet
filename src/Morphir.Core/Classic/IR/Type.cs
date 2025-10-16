@@ -14,9 +14,8 @@ public abstract partial record Type<TAttrib>
     public partial record Tuple(Seq<Type<TAttrib>> ElementTypes);
     public partial record Record(Seq<Type.Field<TAttrib>> FieldTypes);
     public partial record ExtensibleRecord(Name VariableName, Seq<Type.Field<TAttrib>> FieldTypes);
-    public partial record Function(Type<TAttrib> ParameterType, Type<Attribute> ReturnType);
+    public partial record Function(Type<TAttrib> ParameterType, Type<TAttrib> ReturnType);
     public partial record Unit;
-
 }
 
 public static class Type

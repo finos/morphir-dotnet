@@ -9,6 +9,9 @@ public record MorphirJsonOptions(MorphirFormatVersion FormatVersion)
     [field: AllowNull, MaybeNull]
     public JsonSerializerOptions JsonSerializerOptions => field ??= ToJsonSerializerOptions(this);
     
+    public MorphirJsonOptions WithFormatVersion(MorphirFormatVersion formatVersion) =>
+        new(formatVersion);
+    
     public static MorphirJsonOptions Default { get; } = new(new MorphirFormatVersion.Version2());
 
     private static JsonSerializerOptions ToJsonSerializerOptions(MorphirJsonOptions options)
