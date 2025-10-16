@@ -38,4 +38,9 @@ public class MorphirJsonSerializationStepDefinitions(ClassicMorphirIrSerializati
         await Assert.That(Driver.ExpectedJson).IsEqualTo(Driver.InputJson);       
     }
 
+    [Given("a classic Morphir IR Type encoded as JSON text: {string}")]
+    public void GivenAClassicMorphirIrTypeEncodedAsJsonText(string json)
+    {
+        Driver.InputJson = json;       
+    }
 }

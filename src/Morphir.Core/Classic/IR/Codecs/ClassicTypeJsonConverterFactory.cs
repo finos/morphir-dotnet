@@ -70,6 +70,8 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
                         return ReadVariable(ref reader, typeToConvert, options);
                     case "Unit":
                         return ReadUnit(ref reader, typeToConvert, options);
+                    case "Tuple":
+                        return ReadTuple(ref reader, typeToConvert, options);
                     default:
                         throw new NotSupportedException($"Unexpected type name when parsing Classic Type: {typeNodeName}");
                 }
@@ -138,6 +140,42 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             }
 
             throw new JsonException("Misformed \"Variable\" encountered: Did not find expected end of array");
+        }
+
+        private Type<TAttributes>? ReadTuple(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+        {
+            TAttributes? attributes = default;
+            List<Type<TAttributes>> elementTypes = new();
+
+            // Read attributes
+            if (reader.Read())
+            {
+                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                if (attributes == null)
+                    throw new JsonException("Malformed \"Tuple\" encountered: attributes cannot be null");
+            }
+
+            // Read element types array
+            if (reader.Read() && reader.TokenType == JsonTokenType.StartArray)
+            {
+                while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+                {
+                    var elementType = Read(ref reader, typeof(Type<TAttributes>), options);
+                    if (elementType == null)
+                        throw new JsonException("Malformed \"Tuple\" encountered: element type cannot be null");
+                    elementTypes.Add(elementType);
+                }
+
+                // We should now be at the end of the element types array
+                // Read the closing bracket of the outer Tuple array
+                if (reader.Read() && reader.TokenType == JsonTokenType.EndArray)
+                {
+                    var elementSeq = new Seq<Type<TAttributes>>(elementTypes.ToArray());
+                    return IR.Type.Tuple(attributes!, elementSeq);
+                }
+            }
+
+            throw new JsonException("Malformed \"Tuple\" encountered: " + reader.TokenType);
         }
 
         private void WriteVariable(Utf8JsonWriter writer, Type<TAttributes>.Variable variable,

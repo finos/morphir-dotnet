@@ -36,5 +36,26 @@ public class TypeMorphirJsonEncodingTests
         var expected = """["Tuple",{},[["Unit",{}],["Variable",{},["x"]]]]""";
         await Assert.That(encoded).IsEqualTo(expected);
     }
-    
+
+    [Test]
+    public async Task It_Should_Decode_A_Tuple_Type_Correctly()
+    {
+        var json = """["Tuple",{},[["Unit",{}],["Variable",{},["x"]]]]""";
+        var decoded = MorphirJson.DecodeFromString<Type<Unit>>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded).IsTypeOf<Type<Unit>.Tuple>();
+
+            var tuple = (Type<Unit>.Tuple)decoded!;
+            await Assert.That(tuple.ElementTypes.Count).IsEqualTo(2);
+            await Assert.That(tuple.ElementTypes[0]).IsTypeOf<Type<Unit>.Unit>();
+            await Assert.That(tuple.ElementTypes[1]).IsTypeOf<Type<Unit>.Variable>();
+
+            var variable = (Type<Unit>.Variable)tuple.ElementTypes[1];
+            await Assert.That(variable.Name).IsEqualTo(Name.FromString("x"));
+        }
+    }
+
 }

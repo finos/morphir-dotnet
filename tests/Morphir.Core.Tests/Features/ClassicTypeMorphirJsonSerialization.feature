@@ -24,3 +24,13 @@ This feature is about serializing and deserializing the classic Type structure i
             When we deserialize it
             And we serialize it back
             Then the result should match the original input
+        
+        Scenario Outline: Deserializing and serializing a Classic Tuple Type FormatVersion 2 should support round-tripping
+            Given a classic Morphir IR Type encoded as JSON text: <TypeJson>
+            When we deserialize it
+            And we serialize it back
+            Then the result should match the original input
+            
+            Examples: 
+            | TypeJson                                       |
+            | '["Tuple",{},[["Unit",{}],["Unit",{}]]]'       |
