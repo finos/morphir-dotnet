@@ -1,10 +1,7 @@
 using System.Collections.Immutable;
-using System.Text.Json.Serialization;
-using Morphir.IR.Codecs;
 
 namespace Morphir.IR;
 
-[JsonConverter(typeof(PackageNameJsonConverter))]
 public sealed record PackageName(ImmutableList<Name> Names):Path(Names)
 {
     public new static PackageName Empty => new(ImmutableList<Name>.Empty);

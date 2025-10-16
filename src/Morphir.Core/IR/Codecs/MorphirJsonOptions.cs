@@ -24,9 +24,10 @@ public record MorphirJsonOptions(MorphirFormatVersion FormatVersion)
                 new NameConverter(options),
                 new TypeJsonConverter(options),
                 new ClassicTypeJsonConverterFactory(options),
-                new FieldJsonConverterFactory(options)
-                // Note: PathJsonConverter is registered via [JsonConverter] attribute on Path.cs
-                // to avoid circular dependency during initialization
+                new FieldJsonConverterFactory(options),
+                new PathJsonConverter(options),
+                new ModulePathJsonConverter(options),
+                new PackageNameJsonConverter(options)
             }
         };
 

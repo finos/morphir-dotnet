@@ -13,18 +13,16 @@ namespace Morphir.IR.Codecs;
 /// Example: A path with names ["alpha"], ["beta"], ["gamma"] is serialized as:
 /// [["alpha"],["beta"],["gamma"]]
 /// </remarks>
-public class PathJsonConverter(MorphirJsonOptions morphirJsonOptions) : JsonConverter<Path>
+public class PathJsonConverter : JsonConverter<Path>
 {
+    public PathJsonConverter(MorphirJsonOptions morphirJsonOptions)
+    {
+    }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PathJsonConverter"/> class with default options.
     /// </summary>
-    public PathJsonConverter() : this(MorphirJsonOptions.Default) { }
-
-    /// <summary>
-    /// Gets the converter for serializing and deserializing individual names.
-    /// </summary>
-    private JsonConverter<Name> NameConverter { get; } =
-        (JsonConverter<Name>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(Name));
+    public PathJsonConverter() { }
 
     /// <summary>
     /// Reads and deserializes a Path from JSON.
@@ -47,11 +45,12 @@ public class PathJsonConverter(MorphirJsonOptions morphirJsonOptions) : JsonConv
         if (reader.TokenType != JsonTokenType.StartArray)
             throw new JsonException($"Unexpected token when parsing Path, expected StartArray but got: {reader.TokenType}");
 
+        var nameConverter = (JsonConverter<Name>)options.GetConverter(typeof(Name));
         var names = ImmutableList.CreateBuilder<Name>();
 
         while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
         {
-            var name = NameConverter.Read(ref reader, typeof(Name), options);
+            var name = nameConverter.Read(ref reader, typeof(Name), options);
             if (name == null)
                 throw new JsonException("Malformed Path encountered: name cannot be null");
             names.Add(name);
@@ -80,11 +79,12 @@ public class PathJsonConverter(MorphirJsonOptions morphirJsonOptions) : JsonConv
     /// </remarks>
     public override void Write(Utf8JsonWriter writer, Path value, JsonSerializerOptions options)
     {
+        var nameConverter = (JsonConverter<Name>)options.GetConverter(typeof(Name));
         writer.WriteStartArray();
 
         foreach (var name in value.Names)
         {
-            NameConverter.Write(writer, name, options);
+            nameConverter.Write(writer, name, options);
         }
 
         writer.WriteEndArray();
