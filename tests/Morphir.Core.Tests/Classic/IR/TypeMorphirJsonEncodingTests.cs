@@ -58,4 +58,27 @@ public class TypeMorphirJsonEncodingTests
         }
     }
 
+    [Test]
+    public async Task It_Should_Encode_Field_Correctly()
+    {
+        var sut = Type.Field.Create(Name.FromString("UnitField"), Type.Unit(Unit.Default));
+        var actual = MorphirJson.EncodeAsString(sut);
+        var expected = """{"name":["unit","field"],"tpe":["Unit",{}]}""";
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Decode_Field_Correctly()
+    {
+        var json = """{"name":["unit","field"],"tpe":["Unit",{}]}""";
+        var decoded = MorphirJson.DecodeFromString<Type.Field<Unit>>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded!.Name).IsEqualTo(Name.FromString("UnitField"));
+            await Assert.That(decoded.Type).IsTypeOf<Type<Unit>.Unit>();
+        }
+    }
+
 }

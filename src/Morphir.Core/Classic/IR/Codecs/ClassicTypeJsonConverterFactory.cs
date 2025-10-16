@@ -35,8 +35,8 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         var converterType = typeof(ClassicTypeJsonConverter<>).MakeGenericType(attributeType);
         return (JsonConverter?)Activator.CreateInstance(converterType, morphirJsonOptions);
     }
-    
-    public class ClassicTypeJsonConverter<TAttributes>(MorphirJsonOptions morphirJsonOptions):JsonConverter<Type<TAttributes>>
+
+    private class ClassicTypeJsonConverter<TAttributes>(MorphirJsonOptions morphirJsonOptions):JsonConverter<Type<TAttributes>>
     {
         public ClassicTypeJsonConverter():this(MorphirJsonOptions.Default) { }
 

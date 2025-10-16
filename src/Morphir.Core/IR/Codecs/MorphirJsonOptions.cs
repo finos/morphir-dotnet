@@ -23,7 +23,8 @@ public record MorphirJsonOptions(MorphirFormatVersion FormatVersion)
             {
                 new NameConverter(options),
                 new TypeJsonConverter(options),
-                new ClassicTypeJsonConverterFactory(options)
+                new ClassicTypeJsonConverterFactory(options),
+                new FieldJsonConverterFactory(options)
             }
         };
 
