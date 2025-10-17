@@ -16,6 +16,7 @@ namespace Morphir.IR;
 ///
 /// <para>Available variants:</para>
 /// <list type="bullet">
+/// <item><description><see cref="Null"/> - Represents null/absent values</description></item>
 /// <item><description><see cref="Boolean"/> - Represents true/false values</description></item>
 /// <item><description><see cref="Number"/> - Represents decimal numbers</description></item>
 /// <item><description><see cref="Integer"/> - Represents integer values</description></item>
@@ -38,9 +39,17 @@ public abstract partial record Document
     public sealed partial record Array([property:OrderedEquality]IImmutableList<Document> Items) : Document;
 
     /// <summary>
-    /// Base type for primitive document values (Boolean, Number, Integer).
+    /// Base type for primitive document values (Null, Boolean, Number, Integer).
     /// </summary>
     public abstract partial record DocumentValue : Document;
+
+    /// <summary>
+    /// Represents a null value in a document, similar to JSON's null.
+    /// </summary>
+    /// <remarks>
+    /// This type represents the absence of a value. Create instances using <c>new Document.Null()</c>.
+    /// </remarks>
+    public sealed partial record Null() : DocumentValue;
 
     /// <summary>
     /// Represents a boolean (true/false) value in a document.

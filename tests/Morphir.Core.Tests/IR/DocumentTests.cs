@@ -80,6 +80,75 @@ public class DocumentTests
 
     #endregion
 
+    #region Null Tests
+
+    [Test]
+    public async Task Null_Should_Create_Instance()
+    {
+        var doc = new Document.Null();
+        await Assert.That(doc).IsNotNull();
+    }
+
+    [Test]
+    public async Task Null_Should_Support_Equality()
+    {
+        var doc1 = new Document.Null();
+        var doc2 = new Document.Null();
+
+        await Assert.That(doc1).IsEqualTo(doc2);
+    }
+
+    [Test]
+    public async Task Null_Should_Not_Equal_Other_Types()
+    {
+        Document nullDoc = new Document.Null();
+        Document boolDoc = Document.False;
+        Document intDoc = new Document.Integer(0);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(nullDoc).IsNotEqualTo(boolDoc);
+            await Assert.That(nullDoc).IsNotEqualTo(intDoc);
+        }
+    }
+
+    [Test]
+    public async Task Null_Should_Be_Usable_In_Arrays()
+    {
+        var items = ImmutableList.Create<Document>(
+            new Document.Null(),
+            Document.True,
+            new Document.Null()
+        );
+        var doc = new Document.Array(items);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc.Items.Count).IsEqualTo(3);
+            await Assert.That(doc.Items[0]).IsTypeOf<Document.Null>();
+            await Assert.That(doc.Items[1]).IsTypeOf<Document.Boolean>();
+            await Assert.That(doc.Items[2]).IsTypeOf<Document.Null>();
+        }
+    }
+
+    [Test]
+    public async Task Null_Should_Be_Usable_In_Objects()
+    {
+        var items = ImmutableDictionary<string, Document>.Empty
+            .Add("value", new Document.Null())
+            .Add("active", Document.True);
+        var doc = new Document.Object(items);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc.Items.Count).IsEqualTo(2);
+            await Assert.That(doc.Items["value"]).IsTypeOf<Document.Null>();
+            await Assert.That(doc.Items["active"]).IsTypeOf<Document.Boolean>();
+        }
+    }
+
+    #endregion
+
     #region Integer Tests
 
     [Test]
@@ -401,6 +470,14 @@ public class DocumentTests
     #region Type Hierarchy Tests
 
     [Test]
+    public async Task Null_Should_Be_DocumentValue()
+    {
+        Document.Null doc = new Document.Null();
+        Document.DocumentValue value = doc;
+        await Assert.That(value).IsNotNull();
+    }
+
+    [Test]
     public async Task Boolean_Should_Be_DocumentValue()
     {
         Document.Boolean doc = new Document.Boolean(true);
@@ -498,8 +575,9 @@ public class DocumentTests
     [Test]
     public async Task Should_Create_Mixed_Type_Array()
     {
-        // Create: [true, 42, 3.14, [], {}]
+        // Create: [null, true, 42, 3.14, [], {}]
         var array = new Document.Array(ImmutableList.Create<Document>(
+            new Document.Null(),
             Document.True,
             new Document.Integer(42),
             new Document.Number(3.14m),
@@ -509,12 +587,13 @@ public class DocumentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(array.Items.Count).IsEqualTo(5);
-            await Assert.That(array.Items[0]).IsTypeOf<Document.Boolean>();
-            await Assert.That(array.Items[1]).IsTypeOf<Document.Integer>();
-            await Assert.That(array.Items[2]).IsTypeOf<Document.Number>();
-            await Assert.That(array.Items[3]).IsTypeOf<Document.Array>();
-            await Assert.That(array.Items[4]).IsTypeOf<Document.Object>();
+            await Assert.That(array.Items.Count).IsEqualTo(6);
+            await Assert.That(array.Items[0]).IsTypeOf<Document.Null>();
+            await Assert.That(array.Items[1]).IsTypeOf<Document.Boolean>();
+            await Assert.That(array.Items[2]).IsTypeOf<Document.Integer>();
+            await Assert.That(array.Items[3]).IsTypeOf<Document.Number>();
+            await Assert.That(array.Items[4]).IsTypeOf<Document.Array>();
+            await Assert.That(array.Items[5]).IsTypeOf<Document.Object>();
         }
     }
 
