@@ -166,6 +166,127 @@ public class DocumentTests
 
     #endregion
 
+    #region String Tests
+
+    [Test]
+    public async Task String_Should_Store_String_Value()
+    {
+        var doc = new Document.String("hello");
+        await Assert.That(doc.Value).IsEqualTo("hello");
+    }
+
+    [Test]
+    public async Task String_Should_Store_Empty_String()
+    {
+        var doc = new Document.String("");
+        await Assert.That(doc.Value).IsEqualTo("");
+    }
+
+    [Test]
+    public async Task String_Should_Store_Multiline_String()
+    {
+        var value = "line1\nline2\nline3";
+        var doc = new Document.String(value);
+        await Assert.That(doc.Value).IsEqualTo(value);
+    }
+
+    [Test]
+    public async Task String_Should_Store_Special_Characters()
+    {
+        var value = "Hello, \"World\"!\t\n";
+        var doc = new Document.String(value);
+        await Assert.That(doc.Value).IsEqualTo(value);
+    }
+
+    [Test]
+    public async Task String_Str_Factory_Should_Create_String()
+    {
+        var doc = Document.Str("test");
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.String>();
+            await Assert.That(doc.Value).IsEqualTo("test");
+        }
+    }
+
+    [Test]
+    public async Task String_Should_Support_Equality()
+    {
+        var doc1 = new Document.String("hello");
+        var doc2 = new Document.String("hello");
+        var doc3 = new Document.String("world");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc1).IsEqualTo(doc2);
+            await Assert.That(doc1).IsNotEqualTo(doc3);
+        }
+    }
+
+    #endregion
+
+    #region Char Tests
+
+    [Test]
+    public async Task Char_Should_Store_Char_Value()
+    {
+        var doc = new Document.Char('a');
+        await Assert.That(doc.Value).IsEqualTo('a');
+    }
+
+    [Test]
+    public async Task Char_Should_Store_Special_Characters()
+    {
+        var specialChars = new[] { '\n', '\t', '\r', '\\', '"', '\'' };
+        foreach (var ch in specialChars)
+        {
+            var doc = new Document.Char(ch);
+            await Assert.That(doc.Value).IsEqualTo(ch);
+        }
+    }
+
+    [Test]
+    public async Task Char_Should_Store_Unicode_Characters()
+    {
+        var doc1 = new Document.Char('€');
+        var doc2 = new Document.Char('日');
+        var doc3 = new Document.Char('א');
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc1.Value).IsEqualTo('€');
+            await Assert.That(doc2.Value).IsEqualTo('日');
+            await Assert.That(doc3.Value).IsEqualTo('א');
+        }
+    }
+
+    [Test]
+    public async Task Char_Chr_Factory_Should_Create_Char()
+    {
+        var doc = Document.Chr('x');
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Char>();
+            await Assert.That(doc.Value).IsEqualTo('x');
+        }
+    }
+
+    [Test]
+    public async Task Char_Should_Support_Equality()
+    {
+        var doc1 = new Document.Char('a');
+        var doc2 = new Document.Char('a');
+        var doc3 = new Document.Char('b');
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc1).IsEqualTo(doc2);
+            await Assert.That(doc1).IsNotEqualTo(doc3);
+        }
+    }
+
+    #endregion
+
     #region Integer Tests
 
     [Test]
@@ -617,6 +738,22 @@ public class DocumentTests
     }
 
     [Test]
+    public async Task String_Should_Be_DocumentValue()
+    {
+        Document.String doc = new Document.String("test");
+        Document.DocumentValue value = doc;
+        await Assert.That(value).IsNotNull();
+    }
+
+    [Test]
+    public async Task Char_Should_Be_DocumentValue()
+    {
+        Document.Char doc = new Document.Char('a');
+        Document.DocumentValue value = doc;
+        await Assert.That(value).IsNotNull();
+    }
+
+    [Test]
     public async Task Integer_Should_Be_DocumentValue()
     {
         Document.Integer doc = new Document.Integer(42);
@@ -656,15 +793,12 @@ public class DocumentTests
     public async Task Should_Create_Complex_Nested_Document()
     {
         // Create a document like: { "user": { "name": "Alice", "age": 30, "active": true } }
-        var userObj = new Document.Object(
-            ImmutableDictionary<string, Document>.Empty
-                .Add("name", new Document.Integer(0)) // Placeholder, would be string in real scenario
-                .Add("age", new Document.Integer(30))
-                .Add("active", Document.True)
+        var userObj = Document.Obj(
+            ("name", Document.Str("Alice")),
+            ("age", new Document.Integer(30)),
+            ("active", Document.True)
         );
-        var rootObj = new Document.Object(
-            ImmutableDictionary<string, Document>.Empty.Add("user", userObj)
-        );
+        var rootObj = Document.Obj(("user", userObj));
 
         using (Assert.Multiple())
         {
@@ -673,6 +807,7 @@ public class DocumentTests
 
             var user = (Document.Object)rootObj.Items["user"];
             await Assert.That(user.Items.Count).IsEqualTo(3);
+            await Assert.That(((Document.String)user.Items["name"]).Value).IsEqualTo("Alice");
             await Assert.That(((Document.Integer)user.Items["age"]).Value).IsEqualTo(30L);
             await Assert.That(user.Items["active"]).IsEqualTo(Document.True);
         }
@@ -706,10 +841,12 @@ public class DocumentTests
     [Test]
     public async Task Should_Create_Mixed_Type_Array()
     {
-        // Create: [null, true, 42, 3.14, [], {}]
+        // Create: [null, true, "hello", 'x', 42, 3.14, [], {}]
         var array = new Document.Array(ImmutableList.Create<Document>(
             Document.NullDoc,
             Document.True,
+            Document.Str("hello"),
+            Document.Chr('x'),
             new Document.Integer(42),
             new Document.Number(3.14m),
             new Document.Array(ImmutableList<Document>.Empty),
@@ -718,13 +855,15 @@ public class DocumentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(array.Items.Count).IsEqualTo(6);
+            await Assert.That(array.Items.Count).IsEqualTo(8);
             await Assert.That(array.Items[0]).IsTypeOf<Document.Null>();
             await Assert.That(array.Items[1]).IsTypeOf<Document.Boolean>();
-            await Assert.That(array.Items[2]).IsTypeOf<Document.Integer>();
-            await Assert.That(array.Items[3]).IsTypeOf<Document.Number>();
-            await Assert.That(array.Items[4]).IsTypeOf<Document.Array>();
-            await Assert.That(array.Items[5]).IsTypeOf<Document.Object>();
+            await Assert.That(array.Items[2]).IsTypeOf<Document.String>();
+            await Assert.That(array.Items[3]).IsTypeOf<Document.Char>();
+            await Assert.That(array.Items[4]).IsTypeOf<Document.Integer>();
+            await Assert.That(array.Items[5]).IsTypeOf<Document.Number>();
+            await Assert.That(array.Items[6]).IsTypeOf<Document.Array>();
+            await Assert.That(array.Items[7]).IsTypeOf<Document.Object>();
         }
     }
 

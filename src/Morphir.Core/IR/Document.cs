@@ -12,12 +12,15 @@ namespace Morphir.IR;
 /// </summary>
 /// <remarks>
 /// The Document type is analogous to JSON's value types and provides a type-safe way to work with
-/// document-like structures in .NET. Unlike JSON, it distinguishes between Integer and Number (decimal) types.
+/// document-like structures in .NET. Unlike JSON, it distinguishes between Integer and Number (decimal) types,
+/// and also provides String and Char types for textual data.
 ///
 /// <para>Available variants:</para>
 /// <list type="bullet">
 /// <item><description><see cref="Null"/> - Represents null/absent values</description></item>
 /// <item><description><see cref="Boolean"/> - Represents true/false values</description></item>
+/// <item><description><see cref="String"/> - Represents string values</description></item>
+/// <item><description><see cref="Char"/> - Represents single character values</description></item>
 /// <item><description><see cref="Number"/> - Represents decimal numbers</description></item>
 /// <item><description><see cref="Integer"/> - Represents integer values</description></item>
 /// <item><description><see cref="Array"/> - Represents ordered collections of documents</description></item>
@@ -39,7 +42,7 @@ public abstract partial record Document
     public sealed partial record Array([property:OrderedEquality]IImmutableList<Document> Items) : Document;
 
     /// <summary>
-    /// Base type for primitive document values (Null, Boolean, Number, Integer).
+    /// Base type for primitive document values (Null, Boolean, String, Char, Number, Integer).
     /// </summary>
     public abstract partial record DocumentValue : Document;
 
@@ -57,6 +60,18 @@ public abstract partial record Document
     /// </summary>
     /// <param name="Value">The boolean value.</param>
     public sealed partial record Boolean(bool Value) : DocumentValue;
+
+    /// <summary>
+    /// Represents a string value in a document.
+    /// </summary>
+    /// <param name="Value">The string value.</param>
+    public sealed partial record String(string Value) : DocumentValue;
+
+    /// <summary>
+    /// Represents a single character value in a document.
+    /// </summary>
+    /// <param name="Value">The character value.</param>
+    public sealed partial record Char(char Value) : DocumentValue;
 
     /// <summary>
     /// Represents a decimal number value in a document.
@@ -129,6 +144,20 @@ public abstract partial record Document
     /// <param name="value">The boolean value.</param>
     /// <returns>A new <see cref="Boolean"/> document with the specified value.</returns>
     public static Boolean Bool(bool value) => new(value);
+
+    /// <summary>
+    /// Creates a <see cref="String"/> document from a string value.
+    /// </summary>
+    /// <param name="value">The string value.</param>
+    /// <returns>A new <see cref="String"/> document with the specified value.</returns>
+    public static String Str(string value) => new(value);
+
+    /// <summary>
+    /// Creates a <see cref="Char"/> document from a character value.
+    /// </summary>
+    /// <param name="value">The character value.</param>
+    /// <returns>A new <see cref="Char"/> document with the specified value.</returns>
+    public static Char Chr(char value) => new(value);
 
     /// <summary>
     /// Creates an <see cref="Object"/> document from key-value pairs.
