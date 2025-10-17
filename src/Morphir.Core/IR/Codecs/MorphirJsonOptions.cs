@@ -19,9 +19,11 @@ public record MorphirJsonOptions(MorphirFormatVersion FormatVersion)
         JsonSerializerOptions jsonSerializationOptions = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
             Converters =
             {
                 new NameConverter(options),
+                new DocumentJsonConverter(options),
                 new TypeJsonConverter(options),
                 new ClassicTypeJsonConverterFactory(options),
                 new FieldJsonConverterFactory(options),

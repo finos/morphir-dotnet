@@ -226,70 +226,6 @@ public class DocumentTests
 
     #endregion
 
-    #region Char Tests
-
-    [Test]
-    public async Task Char_Should_Store_Char_Value()
-    {
-        var doc = Document.Chr('a');
-        await Assert.That(doc.Value).IsEqualTo(new Rune('a'));
-    }
-
-    [Test]
-    public async Task Char_Should_Store_Special_Characters()
-    {
-        var specialChars = new[] { '\n', '\t', '\r', '\\', '"', '\'' };
-        foreach (var ch in specialChars)
-        {
-            var doc = Document.Chr(ch);
-            await Assert.That(doc.Value).IsEqualTo(new Rune(ch));
-        }
-    }
-
-    [Test]
-    public async Task Char_Should_Store_Unicode_Characters()
-    {
-        var doc1 = Document.Chr('€');
-        var doc2 = Document.Chr('日');
-        var doc3 = Document.Chr('א');
-        var doc4 = Document.Chr(new Rune(0x1F600)); // 😀 emoji (outside BMP)
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(doc1.Value).IsEqualTo(new Rune('€'));
-            await Assert.That(doc2.Value).IsEqualTo(new Rune('日'));
-            await Assert.That(doc3.Value).IsEqualTo(new Rune('א'));
-            await Assert.That(doc4.Value).IsEqualTo(new Rune(0x1F600));
-        }
-    }
-
-    [Test]
-    public async Task Char_Chr_Factory_Should_Create_Char()
-    {
-        var doc = Document.Chr('x');
-        using (Assert.Multiple())
-        {
-            await Assert.That(doc).IsTypeOf<Document.Char>();
-            await Assert.That(doc.Value).IsEqualTo(new Rune('x'));
-        }
-    }
-
-    [Test]
-    public async Task Char_Should_Support_Equality()
-    {
-        var doc1 = Document.Chr('a');
-        var doc2 = Document.Chr('a');
-        var doc3 = Document.Chr('b');
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(doc1).IsEqualTo(doc2);
-            await Assert.That(doc1).IsNotEqualTo(doc3);
-        }
-    }
-
-    #endregion
-
     #region Uri Tests
 
     [Test]
@@ -992,14 +928,6 @@ public class DocumentTests
     }
 
     [Test]
-    public async Task Char_Should_Be_DocumentValue()
-    {
-        Document.Char doc = Document.Chr('a');
-        Document.DocumentValue value = doc;
-        await Assert.That(value).IsNotNull();
-    }
-
-    [Test]
     public async Task Integer_Should_Be_DocumentValue()
     {
         Document.Integer doc = new Document.Integer(42);
@@ -1111,12 +1039,11 @@ public class DocumentTests
     [Test]
     public async Task Should_Create_Mixed_Type_Array()
     {
-        // Create: [null, true, "hello", 'x', uri, uuid, bytes, 42, 3.14, [], {}]
+        // Create: [null, true, "hello", uri, uuid, bytes, 42, 3.14, [], {}]
         var array = new Document.Array(ImmutableList.Create<Document>(
             Document.NullDoc,
             Document.True,
             Document.Str("hello"),
-            Document.Chr('x'),
             Document.UriDoc("https://example.com"),
             Document.UuidDoc(Guid.Parse("550e8400-e29b-41d4-a716-446655440000")),
             Document.BytesDoc(new byte[] { 0x48, 0x65, 0x6C, 0x6C, 0x6F }),
@@ -1128,18 +1055,17 @@ public class DocumentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(array.Items.Count).IsEqualTo(11);
+            await Assert.That(array.Items.Count).IsEqualTo(10);
             await Assert.That(array.Items[0]).IsTypeOf<Document.Null>();
             await Assert.That(array.Items[1]).IsTypeOf<Document.Boolean>();
             await Assert.That(array.Items[2]).IsTypeOf<Document.String>();
-            await Assert.That(array.Items[3]).IsTypeOf<Document.Char>();
-            await Assert.That(array.Items[4]).IsTypeOf<Document.Uri>();
-            await Assert.That(array.Items[5]).IsTypeOf<Document.Uuid>();
-            await Assert.That(array.Items[6]).IsTypeOf<Document.Bytes>();
-            await Assert.That(array.Items[7]).IsTypeOf<Document.Integer>();
-            await Assert.That(array.Items[8]).IsTypeOf<Document.Number>();
-            await Assert.That(array.Items[9]).IsTypeOf<Document.Array>();
-            await Assert.That(array.Items[10]).IsTypeOf<Document.Object>();
+            await Assert.That(array.Items[3]).IsTypeOf<Document.Uri>();
+            await Assert.That(array.Items[4]).IsTypeOf<Document.Uuid>();
+            await Assert.That(array.Items[5]).IsTypeOf<Document.Bytes>();
+            await Assert.That(array.Items[6]).IsTypeOf<Document.Integer>();
+            await Assert.That(array.Items[7]).IsTypeOf<Document.Number>();
+            await Assert.That(array.Items[8]).IsTypeOf<Document.Array>();
+            await Assert.That(array.Items[9]).IsTypeOf<Document.Object>();
         }
     }
 

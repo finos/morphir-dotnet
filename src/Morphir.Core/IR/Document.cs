@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
 using System.Text;
+using System.Text.Json.Serialization;
 using Funcky;
 using Generator.Equals;
-using StaticCs;
+using Morphir.IR.Codecs;
 
 namespace Morphir.IR;
 
@@ -14,14 +15,13 @@ namespace Morphir.IR;
 /// <remarks>
 /// The Document type is analogous to JSON's value types and provides a type-safe way to work with
 /// document-like structures in .NET. Unlike JSON, it distinguishes between Integer and Number (decimal) types,
-/// and also provides String, Char, Uri, Uuid, and Bytes types for various data representations.
+/// and also provides String, Uri, Uuid, and Bytes types for various data representations.
 ///
 /// <para>Available variants:</para>
 /// <list type="bullet">
 /// <item><description><see cref="Null"/> - Represents null/absent values</description></item>
 /// <item><description><see cref="Boolean"/> - Represents true/false values</description></item>
 /// <item><description><see cref="String"/> - Represents string values</description></item>
-/// <item><description><see cref="Char"/> - Represents single character values</description></item>
 /// <item><description><see cref="Uri"/> - Represents URI values</description></item>
 /// <item><description><see cref="Uuid"/> - Represents UUID values</description></item>
 /// <item><description><see cref="Bytes"/> - Represents binary data</description></item>
@@ -31,6 +31,7 @@ namespace Morphir.IR;
 /// <item><description><see cref="Object"/> - Represents key-value mappings</description></item>
 /// </list>
 /// </remarks>
+[JsonConverter(typeof(DocumentJsonConverter))]
 [DiscriminatedUnion]
 public abstract partial record Document
 {
@@ -46,7 +47,7 @@ public abstract partial record Document
     public sealed partial record Array([property:OrderedEquality]IImmutableList<Document> Items) : Document;
 
     /// <summary>
-    /// Base type for primitive document values (Null, Boolean, String, Char, Uri, Uuid, Bytes, Number, Integer).
+    /// Base type for primitive document values (Null, Boolean, String, Uri, Uuid, Bytes, Number, Integer).
     /// </summary>
     public abstract partial record DocumentValue : Document;
 
@@ -70,16 +71,6 @@ public abstract partial record Document
     /// </summary>
     /// <param name="Value">The string value.</param>
     public sealed partial record String(string Value) : DocumentValue;
-
-    /// <summary>
-    /// Represents a Unicode scalar value (UTF-8 character) in a document.
-    /// </summary>
-    /// <param name="Value">The Unicode scalar value represented as a <see cref="Rune"/>.</param>
-    /// <remarks>
-    /// This type uses <see cref="Rune"/> to properly support all Unicode code points,
-    /// including those outside the Basic Multilingual Plane (BMP) that require surrogate pairs in UTF-16.
-    /// </remarks>
-    public sealed partial record Char(Rune Value) : DocumentValue;
 
     /// <summary>
     /// Represents a URI (Uniform Resource Identifier) in a document.
@@ -190,24 +181,6 @@ public abstract partial record Document
     /// <param name="value">The string value.</param>
     /// <returns>A new <see cref="String"/> document with the specified value.</returns>
     public static String Str(string value) => new(value);
-
-    /// <summary>
-    /// Creates a <see cref="Char"/> document from a Unicode scalar value.
-    /// </summary>
-    /// <param name="value">The Unicode scalar value.</param>
-    /// <returns>A new <see cref="Char"/> document with the specified value.</returns>
-    public static Char Chr(Rune value) => new(value);
-
-    /// <summary>
-    /// Creates a <see cref="Char"/> document from a character.
-    /// </summary>
-    /// <param name="value">The character value.</param>
-    /// <returns>A new <see cref="Char"/> document with the specified value.</returns>
-    /// <remarks>
-    /// This overload is provided for convenience when working with C# <see cref="char"/> literals.
-    /// For characters outside the BMP, use the <see cref="Rune"/> overload.
-    /// </remarks>
-    public static Char Chr(char value) => new(new Rune(value));
 
     /// <summary>
     /// Creates a <see cref="Uri"/> document from a <see cref="System.Uri"/> value.
