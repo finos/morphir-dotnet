@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json.Serialization;
 using Generator.Equals;
@@ -17,7 +17,7 @@ namespace Morphir.IR;
 public partial record Name(Seq<string> Segments)
 {
     public bool IsEmpty => Segments.Count == 0;
-    
+
     public IImmutableList<string> ToList() => Segments.ToImmutableList();
     public Seq<string> ToSeq() => Segments;
 
@@ -27,11 +27,11 @@ public partial record Name(Seq<string> Segments)
     /// <returns>A camel-case string constructed from this <see cref="Name"/>.</returns>
     public string ToCamelCase()
     {
-        if(Segments.IsEmpty) return string.Empty;
+        if (Segments.IsEmpty) return string.Empty;
         var (head, tail) = Segments;
         return head.Cons(tail.Map(s => s.Capitalize())).ToFullString(string.Empty);
     }
-    
+
     /// <summary>
     /// Turns a name into a list of human-readable strings.
     /// The only difference compared to toList is how it handles abbreviations.
@@ -61,14 +61,14 @@ public partial record Name(Seq<string> Segments)
             }
             seq = tail;
         }
-        if(abbrev.Length > 0) result.Add(abbrev.ToString().ToUpperInvariant());
+        if (abbrev.Length > 0) result.Add(abbrev.ToString().ToUpperInvariant());
         return new Seq<string>(result);
     }
 
     public Seq<string> ToHumanWordsTitle()
     {
         var words = ToHumanWords();
-        return words.Head.Match(head => head.Capitalize().Cons(words.Tail), () => Empty);
+        return words.Head.Match(head => head.Capitalize().Cons(words.Tail), () => new Seq<string>());
     }
 
 
@@ -79,35 +79,37 @@ public partial record Name(Seq<string> Segments)
     /// </summary>
     /// <returns>A kebab-cased string consisting of the words in this <see cref="Name"/></returns>
     public string ToKebabCase() => ToHumanWords().ToFullString("-");
-    
+
     /// <summary>
     /// Turns a name into a snake-case string.
     /// </summary>
     /// <returns>A snake-cased string consisting of the words in this <see cref="Name"/>.</returns>
     public string ToSnakeCase() => ToHumanWords().ToFullString("_");
-    
-    public string ToTitleCase() => 
+
+    public string ToTitleCase() =>
         Segments.Map(s => s.Capitalize()).ToFullString("");
-    
-    public static Name Create(params string[] segments) => new ([..segments]);
-    
+
+    public static Name Create(params string[] segments) => new([.. segments]);
+
+    public static Name Empty => new([]);
+
     /// <summary>
     /// Convert a list of strings into a name.
     /// </summary>
     /// <param name="segments">The words in the name.</param>
     /// <returns>A new <see cref="Name"/> consisting of the provided words.</returns>
-    public static Name FromList(params ImmutableList<string> segments) => new (toSeq(segments));
-    public static Name FromList(string[] segments) => new (toSeq(segments));
+    public static Name FromList(params ImmutableList<string> segments) => new(toSeq(segments));
+    public static Name FromList(string[] segments) => new(toSeq(segments));
 
     /// <summary>
     /// Translate a string into a name by splitting it into words.
-    /// The algorithm is designed to work with most well-known naming conventions or mix of them.
+    /// The algorithm is designed to work with the most well-known naming conventions or mixes of them.
     /// The general rule is that consecutive letters and numbers are treated as words,
     /// upper-case letters and non-alphanumeric characters start a new word.
     /// </summary>
     /// <param name="input">the input string</param>
     /// <returns>A new <seealso cref="Name"/> instance.</returns>
-    public static Name FromString(string input) => 
+    public static Name FromString(string input) =>
         new(toSeq(input.ToMorphirWords().Select(w => w.ToLowerInvariant())));
 
     public static string ToCamelCase(Name name) => name.ToCamelCase();

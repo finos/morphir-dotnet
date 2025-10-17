@@ -6,7 +6,7 @@ public static class NameExtensions
 {
     extension(IName name)
     {
-        public string ToTitleCase() => 
+        public string ToTitleCase() =>
             name.ToList()
                 .Select(s => s.Capitalize())
                 .MakeString("");

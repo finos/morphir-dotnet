@@ -2,6 +2,37 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
+      "coverlet.collector": {
+        "type": "Direct",
+        "requested": "[6.0.2, )",
+        "resolved": "6.0.2",
+        "contentHash": "bJShQ6uWRTQ100ZeyiMqcFlhP7WJ+bCuabUs885dJiBEzMsJMSFr7BOyeCw4rgvQokteGi5rKQTlkhfQPUXg2A=="
+      },
+      "Reqnroll": {
+        "type": "Direct",
+        "requested": "[3.1.2, )",
+        "resolved": "3.1.2",
+        "contentHash": "pob1c5Nz54UiIYuM1vRWXnVfCXiIaT0kP75jufWpx2OZe3m8SA0GNpAQy4MOVJrTQLM41ljBN9+70MBI75veDg==",
+        "dependencies": {
+          "Cucumber.CucumberExpressions": "17.1.0",
+          "Cucumber.HtmlFormatter": "21.15.1",
+          "Cucumber.Messages": "29.0.1",
+          "Gherkin": "35.0.0",
+          "Microsoft.Bcl.AsyncInterfaces": "9.0.6",
+          "Microsoft.Extensions.DependencyModel": "8.0.2"
+        }
+      },
+      "Reqnroll.TUnit": {
+        "type": "Direct",
+        "requested": "[3.1.2, )",
+        "resolved": "3.1.2",
+        "contentHash": "xepi64IvCO3aB+zquWRp5xf8IztTKoAxdtko9BHGIaM1TS6y/MeNWCuCabQKuFSYXrywpuFN7FWb7yvloZu8Qw==",
+        "dependencies": {
+          "Reqnroll": "[3.1.2]",
+          "Reqnroll.Tools.MsBuild.Generation": "[3.1.2]",
+          "TUnit.Core": "0.55.23"
+        }
+      },
       "TUnit": {
         "type": "Direct",
         "requested": "[0.67.10, )",
@@ -30,6 +61,24 @@
         "resolved": "0.32.0",
         "contentHash": "sW2tLL6cllHx5Q305AkXmGN4gWSGk8Ij2xH6kje1dy5k0Ef3V9g/qE6Y0GH5du515k3coiR9PY8EvZ5SIl9jOw=="
       },
+      "Cucumber.CucumberExpressions": {
+        "type": "Transitive",
+        "resolved": "17.1.0",
+        "contentHash": "IZFDLLwrUCKuGDXQzmAWZa+kQFpVmVwWD8wEl0UWGOR83UQfzqg8hZeSSNUOXlW0Kh3vMO6kEm3FpNC4amKMaw=="
+      },
+      "Cucumber.HtmlFormatter": {
+        "type": "Transitive",
+        "resolved": "21.15.1",
+        "contentHash": "At28t7VZsS8ccscrD0zjUpp02QeRz2MrBLvpSzO4eL6OD76HoPdCSN4aNyg3q5RD+t21uYpIQq0N2XR6J0MB0A==",
+        "dependencies": {
+          "Cucumber.Messages": "29.0.1"
+        }
+      },
+      "Cucumber.Messages": {
+        "type": "Transitive",
+        "resolved": "29.0.1",
+        "contentHash": "R2oo/wR3mXrbdK04Yraf+KhB01f/lyBkLQZcdxYt9XKE6tV+Af45MEk+jfbsew1SVvrAO0WvkIRwGYUozKCJvQ=="
+      },
       "DiffEngine": {
         "type": "Transitive",
         "resolved": "16.7.1",
@@ -57,10 +106,28 @@
           "Microsoft.Bcl.HashCode": "1.1.1"
         }
       },
+      "Gherkin": {
+        "type": "Transitive",
+        "resolved": "35.0.0",
+        "contentHash": "ha+QNevQsXEESbzazUceHTCtKOjoBTBa8kLFdKpu6vSEbb3UMt3a55RG78tIoU/C4qzIqX3jQxaIdIcYGO+IWQ==",
+        "dependencies": {
+          "Cucumber.Messages": "29.0.1"
+        }
+      },
+      "Microsoft.Bcl.AsyncInterfaces": {
+        "type": "Transitive",
+        "resolved": "9.0.6",
+        "contentHash": "82rLw487j5jBXEi2r3WvA/cagOhcRREVRtet6izzjDMY+i392W5oNSN2KCtuIvlTpyMONEUD0MIlGAgDdsvQ/w=="
+      },
       "Microsoft.Bcl.HashCode": {
         "type": "Transitive",
         "resolved": "1.1.1",
         "contentHash": "MalY0Y/uM/LjXtHfX/26l2VtN4LDNZ2OE3aumNOHDLsT4fNYy2hiHXI4CXCqKpNUNm7iJ2brrc4J89UdaL56FA=="
+      },
+      "Microsoft.Extensions.DependencyModel": {
+        "type": "Transitive",
+        "resolved": "8.0.2",
+        "contentHash": "mUBDZZRgZrSyFOsJ2qJJ9fXfqd/kXJwf3AiDoqLD9m6TjY5OO/vLNOb9fb4juC0487eq4hcGN/M2Rh/CKS7QYw=="
       },
       "Microsoft.Testing.Extensions.TrxReport.Abstractions": {
         "type": "Transitive",
@@ -82,6 +149,11 @@
         "dependencies": {
           "Microsoft.Testing.Platform": "1.4.3"
         }
+      },
+      "Reqnroll.Tools.MsBuild.Generation": {
+        "type": "Transitive",
+        "resolved": "3.1.2",
+        "contentHash": "H8tIY7bAa4K+Kjf0RjAIDWQy5A9YZiKdrT2vYm18Go+3XIcV3PCV3ZJyH51tiwrj+xEVhkrhw54Q7sIoOvsFxQ=="
       },
       "SimpleInfoName": {
         "type": "Transitive",
@@ -139,7 +211,6 @@
           "Dunet": "[1.11.3, )",
           "Generator.Equals": "[3.2.1, )",
           "LanguageExt.Core": "[5.0.0-beta-54, )",
-          "LanguageExt.Prelude": "(, )",
           "Vogen": "[8.0.3-beta.2, )"
         }
       },
