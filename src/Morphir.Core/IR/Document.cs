@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text;
 using Funcky;
 using Generator.Equals;
 using StaticCs;
@@ -68,10 +69,14 @@ public abstract partial record Document
     public sealed partial record String(string Value) : DocumentValue;
 
     /// <summary>
-    /// Represents a single character value in a document.
+    /// Represents a Unicode scalar value (UTF-8 character) in a document.
     /// </summary>
-    /// <param name="Value">The character value.</param>
-    public sealed partial record Char(char Value) : DocumentValue;
+    /// <param name="Value">The Unicode scalar value represented as a <see cref="Rune"/>.</param>
+    /// <remarks>
+    /// This type uses <see cref="Rune"/> to properly support all Unicode code points,
+    /// including those outside the Basic Multilingual Plane (BMP) that require surrogate pairs in UTF-16.
+    /// </remarks>
+    public sealed partial record Char(Rune Value) : DocumentValue;
 
     /// <summary>
     /// Represents a decimal number value in a document.
@@ -153,11 +158,22 @@ public abstract partial record Document
     public static String Str(string value) => new(value);
 
     /// <summary>
-    /// Creates a <see cref="Char"/> document from a character value.
+    /// Creates a <see cref="Char"/> document from a Unicode scalar value.
+    /// </summary>
+    /// <param name="value">The Unicode scalar value.</param>
+    /// <returns>A new <see cref="Char"/> document with the specified value.</returns>
+    public static Char Chr(Rune value) => new(value);
+
+    /// <summary>
+    /// Creates a <see cref="Char"/> document from a character.
     /// </summary>
     /// <param name="value">The character value.</param>
     /// <returns>A new <see cref="Char"/> document with the specified value.</returns>
-    public static Char Chr(char value) => new(value);
+    /// <remarks>
+    /// This overload is provided for convenience when working with C# <see cref="char"/> literals.
+    /// For characters outside the BMP, use the <see cref="Rune"/> overload.
+    /// </remarks>
+    public static Char Chr(char value) => new(new Rune(value));
 
     /// <summary>
     /// Creates an <see cref="Object"/> document from key-value pairs.

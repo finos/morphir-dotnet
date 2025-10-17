@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text;
 
 namespace Morphir.IR;
 
@@ -230,8 +231,8 @@ public class DocumentTests
     [Test]
     public async Task Char_Should_Store_Char_Value()
     {
-        var doc = new Document.Char('a');
-        await Assert.That(doc.Value).IsEqualTo('a');
+        var doc = Document.Chr('a');
+        await Assert.That(doc.Value).IsEqualTo(new Rune('a'));
     }
 
     [Test]
@@ -240,23 +241,25 @@ public class DocumentTests
         var specialChars = new[] { '\n', '\t', '\r', '\\', '"', '\'' };
         foreach (var ch in specialChars)
         {
-            var doc = new Document.Char(ch);
-            await Assert.That(doc.Value).IsEqualTo(ch);
+            var doc = Document.Chr(ch);
+            await Assert.That(doc.Value).IsEqualTo(new Rune(ch));
         }
     }
 
     [Test]
     public async Task Char_Should_Store_Unicode_Characters()
     {
-        var doc1 = new Document.Char('€');
-        var doc2 = new Document.Char('日');
-        var doc3 = new Document.Char('א');
+        var doc1 = Document.Chr('€');
+        var doc2 = Document.Chr('日');
+        var doc3 = Document.Chr('א');
+        var doc4 = Document.Chr(new Rune(0x1F600)); // 😀 emoji (outside BMP)
 
         using (Assert.Multiple())
         {
-            await Assert.That(doc1.Value).IsEqualTo('€');
-            await Assert.That(doc2.Value).IsEqualTo('日');
-            await Assert.That(doc3.Value).IsEqualTo('א');
+            await Assert.That(doc1.Value).IsEqualTo(new Rune('€'));
+            await Assert.That(doc2.Value).IsEqualTo(new Rune('日'));
+            await Assert.That(doc3.Value).IsEqualTo(new Rune('א'));
+            await Assert.That(doc4.Value).IsEqualTo(new Rune(0x1F600));
         }
     }
 
@@ -267,16 +270,16 @@ public class DocumentTests
         using (Assert.Multiple())
         {
             await Assert.That(doc).IsTypeOf<Document.Char>();
-            await Assert.That(doc.Value).IsEqualTo('x');
+            await Assert.That(doc.Value).IsEqualTo(new Rune('x'));
         }
     }
 
     [Test]
     public async Task Char_Should_Support_Equality()
     {
-        var doc1 = new Document.Char('a');
-        var doc2 = new Document.Char('a');
-        var doc3 = new Document.Char('b');
+        var doc1 = Document.Chr('a');
+        var doc2 = Document.Chr('a');
+        var doc3 = Document.Chr('b');
 
         using (Assert.Multiple())
         {
@@ -748,7 +751,7 @@ public class DocumentTests
     [Test]
     public async Task Char_Should_Be_DocumentValue()
     {
-        Document.Char doc = new Document.Char('a');
+        Document.Char doc = Document.Chr('a');
         Document.DocumentValue value = doc;
         await Assert.That(value).IsNotNull();
     }
