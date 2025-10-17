@@ -130,7 +130,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         private Type<TAttributes>? ReadReference(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
         {
             TAttributes? attributes = default;
-            FqName? typeName = default;
+            FqName? typeName = null;
             List<Type<TAttributes>> typeParameters = new();
 
             // Read attributes
@@ -210,7 +210,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         private Type<TAttributes>? ReadExtensibleRecord(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
         {
             TAttributes? attributes = default;
-            Name? variableName = default;
+            Name? variableName = null;
             List<Type.Field<TAttributes>> fieldTypes = new();
 
             // Read attributes
@@ -255,8 +255,8 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         private Type<TAttributes>? ReadFunction(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
         {
             TAttributes? attributes = default;
-            Type<TAttributes>? parameterType = default;
-            Type<TAttributes>? returnType = default;
+            Type<TAttributes>? parameterType = null;
+            Type<TAttributes>? returnType = null;
 
             // Read attributes
             if (reader.Read())
@@ -309,7 +309,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         {
             // We expect that we will be on the tag token
             TAttributes? attributes = default;
-            Name? name = default;
+            Name? name = null;
             
             if (reader.Read())
             {
