@@ -28,35 +28,24 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - uses: actions/checkout@v3.5.0
+            - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - name: Setup .NET Core SDK
-              uses: actions/setup-dotnet@v3
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v4
               with:
-                  dotnet-version: "7.0.x"
-            # Not specifying a version will attempt to install via global.json
-            - name: Use .NET Core global.json
-              uses: actions/setup-dotnet@v3
-            - uses: actions/cache@v3
+                  dotnet-version: "10.0.x"
+            - uses: actions/cache@v4
               with:
                   path: ~/.nuget/packages
                   # Look to see if there is a cache hit for the corresponding requirements file
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
-            - name: Check Format Code
-              if: runner.os != 'Windows'
-              run: |
-                  chmod +x ./build.sh
-                  ./build.sh CheckFormatCode
-              env:
-                  CI: true
-            - name: Check Format Code
-              if: runner.os == 'Windows'
-              run: ./build.cmd CheckFormatCode
-              env:
-                  CI: true
+            - name: Restore dependencies
+              run: dotnet restore
+            - name: Check code formatting
+              run: dotnet format --verify-no-changes
 
     test:
         strategy:
@@ -65,39 +54,24 @@ jobs:
         runs-on: ${{ matrix.os }}
 
         steps:
-            - uses: actions/checkout@v3.5.0
-            - name: Setup .NET Core SDK
-              uses: actions/setup-dotnet@v3
+            - uses: actions/checkout@v4
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v4
               with:
-                  dotnet-version: "7.0.x"
-            # Not specifying a version will attempt to install via global.json
-            - name: Use .NET Core global.json
-              uses: actions/setup-dotnet@v3
-            - uses: actions/cache@v3
+                  dotnet-version: "10.0.x"
+            - uses: actions/cache@v4
               with:
                   path: ~/.nuget/packages
                   # Look to see if there is a cache hit for the corresponding requirements file
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
-            - name: Test
-              if: runner.os != 'Windows'
-              run: |
-                  chmod +x ./build.sh
-                  ./build.sh GenerateCoverageReport
-              env:
-                  CI: true
-            - name: Test
-              if: runner.os == 'Windows'
-              run: ./build.cmd GenerateCoverageReport
-              env:
-                  CI: true
-            - name: Upload Artifacts
-              uses: actions/upload-artifact@v3
-              with:
-                  name: docs
-                  path: ./docs
-                  retention-days: 21
+            - name: Restore dependencies
+              run: dotnet restore
+            - name: Build
+              run: dotnet build --no-restore --configuration ${{ env.CONFIGURATION }}
+            - name: Run tests
+              run: dotnet test --no-build --configuration ${{ env.CONFIGURATION }}
 
     ci:
         runs-on: ubuntu-latest

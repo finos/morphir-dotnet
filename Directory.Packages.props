@@ -13,6 +13,7 @@
         <LanguageExtVersion>5.0.0-beta-54</LanguageExtVersion>
         <LightBDDVersion>3.6.1</LightBDDVersion>
         <SystemCommandLineVersion>2.0.0-beta4.22272.1</SystemCommandLineVersion>
+        <ReqnrollVersion>3.1.2</ReqnrollVersion>
         <TickSpecVersion>2.0.2</TickSpecVersion>
         <VerifyVersion>31.0.0</VerifyVersion>
     </PropertyGroup>
@@ -22,7 +23,7 @@
         <PackageVersion Include="Bogus" Version="34.0.2"/>
         <PackageVersion Include="BunsenBurner.Bogus" Version="$(BunsenBurnerVersion)"/>
         <PackageVersion Include="BunsenBurner.Hedgehog" Version="$(BunsenBurnerVersion)"/>
-        <PackageVersion Include="coverlet.collector" Version="3.1.2"/>
+        <PackageVersion Include="coverlet.collector" Version="6.0.2"/>
         <PackageVersion Include="Dunet" Version="1.11.3" /> 
         <PackageVersion Include="Extism.runtime.all" Version="1.11.1"/>
         <PackageVersion Include="Extism.Sdk" Version="1.9.1"/>
@@ -53,6 +54,8 @@
         <PackageVersion Include="Microsoft.Extensions.Logging" Version="7.0.0"/>
         <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.1.0" />
 
+        <PackageVersion Include="Reqnroll" Version="$(ReqnrollVersion)" />
+        <PackageVersion Include="Reqnroll.TUnit" Version="$(ReqnrollVersion)" />
         <PackageVersion Include="Serilog" Version="2.12.0"/>
         <PackageVersion Include="Serilog.Extensions.Hosting" Version="5.0.1"/>
         <PackageVersion Include="Serilog.Formatting.Compact" Version="1.1.0"/>

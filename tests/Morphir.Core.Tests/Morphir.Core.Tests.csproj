@@ -11,7 +11,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-<!--        <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />-->
+        <PackageReference Include="coverlet.collector" />
+        <PackageReference Include="Reqnroll" />
+        <PackageReference Include="Reqnroll.TUnit" />
         <PackageReference Include="TUnit" />
         <PackageReference Include="Verify.TUnit" />
     </ItemGroup>
@@ -22,14 +24,18 @@
     </ItemGroup>
     
     <ItemGroup>
+        <Content Include="**/*.feature"/>
+    </ItemGroup>
+    
+    <ItemGroup>
         <Using Include="LanguageExt" />
         <Using Include="LanguageExt.Prelude" Static="True" />
         <Using Include="LanguageExt.Seq" Static="True" />
+        <Using Include="Reqnroll" />
     </ItemGroup>
     
-
     <ItemGroup>
-      <Folder Include="Classic\IR\" />
+        <!-- hiding .gitkeep files in Visual Studio; they are only needed to ensure the existence of the empty folders in git -->
+        <None Update="**/.gitkeep" Visible="false" />
     </ItemGroup>
-
 </Project>

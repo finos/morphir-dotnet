@@ -5,21 +5,22 @@ using Seq = LanguageExt.Seq;
 
 namespace Morphir.IR.Codecs;
 
-internal class NameConverter : JsonConverter<Name>
+internal class NameConverter(MorphirJsonOptions morphirJsonOptions) : JsonConverter<Name>
 {
+    public NameConverter() : this(MorphirJsonOptions.Default) { }
+
     public override Name? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
     {
-        if (!reader.Read()) return null;
         if (reader.TokenType == JsonTokenType.StartArray)
         {
             var builder = ImmutableList.CreateBuilder<string>();
             while (reader.Read() && reader.TokenType == JsonTokenType.String)
             {
                 var item = reader.GetString();
-                if(item != null) builder.Add(item);
+                if (item != null) builder.Add(item);
             }
 
-            if(reader.TokenType == JsonTokenType.EndArray) 
+            if (reader.TokenType == JsonTokenType.EndArray)
                 return Name.FromList(builder.ToImmutable());
         }
 
@@ -28,11 +29,19 @@ internal class NameConverter : JsonConverter<Name>
 
     public override void Write(Utf8JsonWriter writer, Name value, JsonSerializerOptions options)
     {
-        writer.WriteStartArray();
-        foreach (var segment in value.Segments)
+        if (morphirJsonOptions.FormatVersion.IsClassic)
         {
-            writer.WriteStringValue(segment);
+            writer.WriteStartArray();
+            foreach (var segment in value.Segments)
+            {
+                writer.WriteStringValue(segment);
+            }
+
+            writer.WriteEndArray();
         }
-        writer.WriteEndArray();
+        else
+        {
+            writer.WriteStringValue(value.ToKebabCase());
+        }
     }
 }
