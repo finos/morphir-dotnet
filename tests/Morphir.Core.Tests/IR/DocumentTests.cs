@@ -290,6 +290,167 @@ public class DocumentTests
 
     #endregion
 
+    #region Uri Tests
+
+    [Test]
+    public async Task Uri_Should_Store_Uri_Value()
+    {
+        var uri = new System.Uri("https://example.com");
+        var doc = new Document.Uri(uri);
+        await Assert.That(doc.Value).IsEqualTo(uri);
+    }
+
+    [Test]
+    public async Task Uri_Should_Store_Complex_Uri()
+    {
+        var uri = new System.Uri("https://example.com:8080/path/to/resource?query=value&other=123#fragment");
+        var doc = new Document.Uri(uri);
+        await Assert.That(doc.Value).IsEqualTo(uri);
+    }
+
+    [Test]
+    public async Task Uri_UriDoc_Factory_Should_Create_From_Uri()
+    {
+        var uri = new System.Uri("https://example.com");
+        var doc = Document.UriDoc(uri);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Uri>();
+            await Assert.That(doc.Value).IsEqualTo(uri);
+        }
+    }
+
+    [Test]
+    public async Task Uri_UriDoc_Factory_Should_Create_From_String()
+    {
+        var doc = Document.UriDoc("https://example.com");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Uri>();
+            await Assert.That(doc.Value.ToString()).IsEqualTo("https://example.com/");
+        }
+    }
+
+    [Test]
+    public async Task Uri_UriDoc_Factory_Should_Throw_On_Null_Uri()
+    {
+        await Assert.That(() => Document.UriDoc((System.Uri)null!)).Throws<ArgumentNullException>();
+    }
+
+    [Test]
+    public async Task Uri_UriDoc_Factory_Should_Throw_On_Invalid_Uri()
+    {
+        await Assert.That(() => Document.UriDoc("not a valid uri")).Throws<UriFormatException>();
+    }
+
+    [Test]
+    public async Task Uri_Should_Support_Equality()
+    {
+        var uri1 = new System.Uri("https://example.com");
+        var uri2 = new System.Uri("https://example.com");
+        var uri3 = new System.Uri("https://other.com");
+        var doc1 = new Document.Uri(uri1);
+        var doc2 = new Document.Uri(uri2);
+        var doc3 = new Document.Uri(uri3);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc1).IsEqualTo(doc2);
+            await Assert.That(doc1).IsNotEqualTo(doc3);
+        }
+    }
+
+    #endregion
+
+    #region Uuid Tests
+
+    [Test]
+    public async Task Uuid_Should_Store_Guid_Value()
+    {
+        var guid = Guid.NewGuid();
+        var doc = new Document.Uuid(guid);
+        await Assert.That(doc.Value).IsEqualTo(guid);
+    }
+
+    [Test]
+    public async Task Uuid_Should_Store_Empty_Guid()
+    {
+        var guid = Guid.Empty;
+        var doc = new Document.Uuid(guid);
+        await Assert.That(doc.Value).IsEqualTo(Guid.Empty);
+    }
+
+    [Test]
+    public async Task Uuid_UuidDoc_Factory_Should_Create_From_Guid()
+    {
+        var guid = Guid.NewGuid();
+        var doc = Document.UuidDoc(guid);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Uuid>();
+            await Assert.That(doc.Value).IsEqualTo(guid);
+        }
+    }
+
+    [Test]
+    public async Task Uuid_UuidDoc_Factory_Should_Create_From_String()
+    {
+        var guidString = "550e8400-e29b-41d4-a716-446655440000";
+        var doc = Document.UuidDoc(guidString);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Uuid>();
+            await Assert.That(doc.Value).IsEqualTo(Guid.Parse(guidString));
+        }
+    }
+
+    [Test]
+    public async Task Uuid_UuidDoc_Factory_Should_Support_Different_Formats()
+    {
+        var guid = Guid.Parse("550e8400-e29b-41d4-a716-446655440000");
+
+        // Test different GUID string formats
+        var doc1 = Document.UuidDoc("550e8400-e29b-41d4-a716-446655440000"); // D format (default)
+        var doc2 = Document.UuidDoc("{550e8400-e29b-41d4-a716-446655440000}"); // B format
+        var doc3 = Document.UuidDoc("550e8400e29b41d4a716446655440000"); // N format
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc1.Value).IsEqualTo(guid);
+            await Assert.That(doc2.Value).IsEqualTo(guid);
+            await Assert.That(doc3.Value).IsEqualTo(guid);
+        }
+    }
+
+    [Test]
+    public async Task Uuid_UuidDoc_Factory_Should_Throw_On_Invalid_String()
+    {
+        await Assert.That(() => Document.UuidDoc("not-a-uuid")).Throws<FormatException>();
+    }
+
+    [Test]
+    public async Task Uuid_Should_Support_Equality()
+    {
+        var guid1 = Guid.Parse("550e8400-e29b-41d4-a716-446655440000");
+        var guid2 = Guid.Parse("550e8400-e29b-41d4-a716-446655440000");
+        var guid3 = Guid.Parse("6ba7b810-9dad-11d1-80b4-00c04fd430c8");
+        var doc1 = new Document.Uuid(guid1);
+        var doc2 = new Document.Uuid(guid2);
+        var doc3 = new Document.Uuid(guid3);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc1).IsEqualTo(doc2);
+            await Assert.That(doc1).IsNotEqualTo(doc3);
+        }
+    }
+
+    #endregion
+
     #region Integer Tests
 
     [Test]
@@ -773,6 +934,22 @@ public class DocumentTests
     }
 
     [Test]
+    public async Task Uri_Should_Be_DocumentValue()
+    {
+        Document.Uri doc = Document.UriDoc("https://example.com");
+        Document.DocumentValue value = doc;
+        await Assert.That(value).IsNotNull();
+    }
+
+    [Test]
+    public async Task Uuid_Should_Be_DocumentValue()
+    {
+        Document.Uuid doc = Document.UuidDoc(Guid.NewGuid());
+        Document.DocumentValue value = doc;
+        await Assert.That(value).IsNotNull();
+    }
+
+    [Test]
     public async Task Array_Should_Be_Document()
     {
         Document.Array arr = new Document.Array(ImmutableList<Document>.Empty);
@@ -844,12 +1021,14 @@ public class DocumentTests
     [Test]
     public async Task Should_Create_Mixed_Type_Array()
     {
-        // Create: [null, true, "hello", 'x', 42, 3.14, [], {}]
+        // Create: [null, true, "hello", 'x', uri, uuid, 42, 3.14, [], {}]
         var array = new Document.Array(ImmutableList.Create<Document>(
             Document.NullDoc,
             Document.True,
             Document.Str("hello"),
             Document.Chr('x'),
+            Document.UriDoc("https://example.com"),
+            Document.UuidDoc(Guid.Parse("550e8400-e29b-41d4-a716-446655440000")),
             new Document.Integer(42),
             new Document.Number(3.14m),
             new Document.Array(ImmutableList<Document>.Empty),
@@ -858,15 +1037,17 @@ public class DocumentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(array.Items.Count).IsEqualTo(8);
+            await Assert.That(array.Items.Count).IsEqualTo(10);
             await Assert.That(array.Items[0]).IsTypeOf<Document.Null>();
             await Assert.That(array.Items[1]).IsTypeOf<Document.Boolean>();
             await Assert.That(array.Items[2]).IsTypeOf<Document.String>();
             await Assert.That(array.Items[3]).IsTypeOf<Document.Char>();
-            await Assert.That(array.Items[4]).IsTypeOf<Document.Integer>();
-            await Assert.That(array.Items[5]).IsTypeOf<Document.Number>();
-            await Assert.That(array.Items[6]).IsTypeOf<Document.Array>();
-            await Assert.That(array.Items[7]).IsTypeOf<Document.Object>();
+            await Assert.That(array.Items[4]).IsTypeOf<Document.Uri>();
+            await Assert.That(array.Items[5]).IsTypeOf<Document.Uuid>();
+            await Assert.That(array.Items[6]).IsTypeOf<Document.Integer>();
+            await Assert.That(array.Items[7]).IsTypeOf<Document.Number>();
+            await Assert.That(array.Items[8]).IsTypeOf<Document.Array>();
+            await Assert.That(array.Items[9]).IsTypeOf<Document.Object>();
         }
     }
 

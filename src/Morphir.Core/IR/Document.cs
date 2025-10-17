@@ -14,7 +14,7 @@ namespace Morphir.IR;
 /// <remarks>
 /// The Document type is analogous to JSON's value types and provides a type-safe way to work with
 /// document-like structures in .NET. Unlike JSON, it distinguishes between Integer and Number (decimal) types,
-/// and also provides String and Char types for textual data.
+/// and also provides String, Char, Uri, and Uuid types for various data representations.
 ///
 /// <para>Available variants:</para>
 /// <list type="bullet">
@@ -22,6 +22,8 @@ namespace Morphir.IR;
 /// <item><description><see cref="Boolean"/> - Represents true/false values</description></item>
 /// <item><description><see cref="String"/> - Represents string values</description></item>
 /// <item><description><see cref="Char"/> - Represents single character values</description></item>
+/// <item><description><see cref="Uri"/> - Represents URI values</description></item>
+/// <item><description><see cref="Uuid"/> - Represents UUID values</description></item>
 /// <item><description><see cref="Number"/> - Represents decimal numbers</description></item>
 /// <item><description><see cref="Integer"/> - Represents integer values</description></item>
 /// <item><description><see cref="Array"/> - Represents ordered collections of documents</description></item>
@@ -43,7 +45,7 @@ public abstract partial record Document
     public sealed partial record Array([property:OrderedEquality]IImmutableList<Document> Items) : Document;
 
     /// <summary>
-    /// Base type for primitive document values (Null, Boolean, String, Char, Number, Integer).
+    /// Base type for primitive document values (Null, Boolean, String, Char, Uri, Uuid, Number, Integer).
     /// </summary>
     public abstract partial record DocumentValue : Document;
 
@@ -77,6 +79,26 @@ public abstract partial record Document
     /// including those outside the Basic Multilingual Plane (BMP) that require surrogate pairs in UTF-16.
     /// </remarks>
     public sealed partial record Char(Rune Value) : DocumentValue;
+
+    /// <summary>
+    /// Represents a URI (Uniform Resource Identifier) in a document.
+    /// </summary>
+    /// <param name="Value">The URI represented as a <see cref="System.Uri"/>.</param>
+    /// <remarks>
+    /// This type uses <see cref="System.Uri"/> to properly validate and represent URIs.
+    /// Only absolute URIs are supported for consistency.
+    /// </remarks>
+    public sealed partial record Uri(System.Uri Value) : DocumentValue;
+
+    /// <summary>
+    /// Represents a UUID (Universally Unique Identifier) in a document.
+    /// </summary>
+    /// <param name="Value">The UUID represented as a <see cref="Guid"/>.</param>
+    /// <remarks>
+    /// This type uses <see cref="Guid"/> to properly represent UUIDs.
+    /// Supports all standard UUID/GUID formats.
+    /// </remarks>
+    public sealed partial record Uuid(Guid Value) : DocumentValue;
 
     /// <summary>
     /// Represents a decimal number value in a document.
@@ -174,6 +196,39 @@ public abstract partial record Document
     /// For characters outside the BMP, use the <see cref="Rune"/> overload.
     /// </remarks>
     public static Char Chr(char value) => new(new Rune(value));
+
+    /// <summary>
+    /// Creates a <see cref="Uri"/> document from a <see cref="System.Uri"/> value.
+    /// </summary>
+    /// <param name="value">The URI value.</param>
+    /// <returns>A new <see cref="Uri"/> document with the specified value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="value"/> is null.</exception>
+    public static Uri UriDoc(System.Uri value) => new(value ?? throw new ArgumentNullException(nameof(value)));
+
+    /// <summary>
+    /// Creates a <see cref="Uri"/> document from a string URI.
+    /// </summary>
+    /// <param name="value">The URI string. Must be an absolute URI.</param>
+    /// <returns>A new <see cref="Uri"/> document with the specified value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="value"/> is null.</exception>
+    /// <exception cref="UriFormatException">Thrown when <paramref name="value"/> is not a valid absolute URI.</exception>
+    public static Uri UriDoc(string value) => new(new System.Uri(value, UriKind.Absolute));
+
+    /// <summary>
+    /// Creates a <see cref="Uuid"/> document from a <see cref="Guid"/> value.
+    /// </summary>
+    /// <param name="value">The UUID/GUID value.</param>
+    /// <returns>A new <see cref="Uuid"/> document with the specified value.</returns>
+    public static Uuid UuidDoc(Guid value) => new(value);
+
+    /// <summary>
+    /// Creates a <see cref="Uuid"/> document from a string UUID.
+    /// </summary>
+    /// <param name="value">The UUID string in any valid GUID format.</param>
+    /// <returns>A new <see cref="Uuid"/> document with the specified value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="value"/> is null.</exception>
+    /// <exception cref="FormatException">Thrown when <paramref name="value"/> is not a valid UUID format.</exception>
+    public static Uuid UuidDoc(string value) => new(Guid.Parse(value));
 
     /// <summary>
     /// Creates an <see cref="Object"/> document from key-value pairs.
