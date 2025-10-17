@@ -31,7 +31,6 @@ namespace Morphir.IR;
 /// <item><description><see cref="Object"/> - Represents key-value mappings</description></item>
 /// </list>
 /// </remarks>
-[JsonConverter(typeof(DocumentJsonConverter))]
 [DiscriminatedUnion]
 public abstract partial record Document
 {
@@ -44,7 +43,7 @@ public abstract partial record Document
     /// Equality comparison considers both the order and values of items.
     /// </remarks>
     [Equatable]
-    public sealed partial record Array([property:OrderedEquality]IImmutableList<Document> Items) : Document;
+    public sealed partial record Array([property: OrderedEquality] IImmutableList<Document> Items) : Document;
 
     /// <summary>
     /// Base type for primitive document values (Null, Boolean, String, Uri, Uuid, Bytes, Number, Integer).
@@ -101,7 +100,7 @@ public abstract partial record Document
     /// Supports base64 encoding/decoding for string conversion.
     /// </remarks>
     [Equatable]
-    public sealed partial record Bytes([property:OrderedEquality]ImmutableArray<byte> Value) : DocumentValue;
+    public sealed partial record Bytes([property: OrderedEquality] ImmutableArray<byte> Value) : DocumentValue;
 
     /// <summary>
     /// Represents a decimal number value in a document.
@@ -130,7 +129,7 @@ public abstract partial record Document
     /// Key ordering is not guaranteed.
     /// </remarks>
     [Equatable]
-    public sealed partial record Object([property:UnorderedEquality]ImmutableDictionary<string, Document> Items) : Document
+    public sealed partial record Object([property: UnorderedEquality] ImmutableDictionary<string, Document> Items) : Document
     {
         /// <summary>
         /// Gets an empty object with no key-value pairs.

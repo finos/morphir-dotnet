@@ -1,4 +1,4 @@
-﻿using Dunet;
+using Dunet;
 using Morphir.IR;
 
 namespace Morphir.Classic.IR;
@@ -15,5 +15,5 @@ public partial record Value<TTypeAttributes, TValueAttributes>
 
 public static class Value
 {
-    
+
 }

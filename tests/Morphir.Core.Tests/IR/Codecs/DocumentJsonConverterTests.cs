@@ -1,10 +1,7 @@
 using System.Collections.Immutable;
-using System.Text;
 using System.Text.Json;
-using Morphir.IR;
-using Morphir.IR.Codecs;
 
-namespace Morphir.Tests.IR.Codecs;
+namespace Morphir.IR.Codecs;
 
 public class DocumentJsonConverterTests
 {
