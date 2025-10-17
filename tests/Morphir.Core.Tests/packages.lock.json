@@ -8,6 +8,12 @@
         "resolved": "6.0.2",
         "contentHash": "bJShQ6uWRTQ100ZeyiMqcFlhP7WJ+bCuabUs885dJiBEzMsJMSFr7BOyeCw4rgvQokteGi5rKQTlkhfQPUXg2A=="
       },
+      "Json.More.Net": {
+        "type": "Direct",
+        "requested": "[2.1.2, )",
+        "resolved": "2.1.2",
+        "contentHash": "gMRhJLzUHf1K4wmI3eIx6YxQtBHRfWmgzYo6rU3FDJtHEbbPVFlGBXkm2bbJhdtTVMVMlIdpzYMU4G/o5yXpzw=="
+      },
       "Reqnroll": {
         "type": "Direct",
         "requested": "[3.1.2, )",
