@@ -15,6 +15,8 @@
         <PackageReference Include="Json.More.Net" />
         <PackageReference Include="Reqnroll" />
         <PackageReference Include="Reqnroll.TUnit" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="Shouldly.Json" />
         <PackageReference Include="TUnit" />
         <PackageReference Include="Verify.TUnit" />
     </ItemGroup>

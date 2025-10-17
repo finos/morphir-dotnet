@@ -1,7 +1,6 @@
-using System.Text.Json;
-using Json.More;
 using Morphir.Classic.IR;
 using Morphir.IR;
+using Shouldly;
 
 namespace Morphir.StepDefinitions;
 
@@ -41,22 +40,10 @@ public class MorphirJsonSerializationStepDefinitions(ClassicMorphirIrSerializati
     }
 
     [Then("the result should be equivalent to the original input")]
-    public async Task ThenTheResultShouldBeEquivalentToTheOriginalInput()
+    public void ThenTheResultShouldBeEquivalentToTheOriginalInput()
     {
-        // Parse both JSON strings into JsonElement for structural comparison
-        using var expectedDoc = JsonDocument.Parse(Driver.ExpectedJson);
-        using var inputDoc = JsonDocument.Parse(Driver.InputJson);
-
-        // Use Json.More.Net's IsEquivalentTo extension method
-        var areEquivalent = expectedDoc.RootElement.IsEquivalentTo(inputDoc.RootElement);
-
-        if (!areEquivalent)
-        {
-            throw new InvalidOperationException(
-                $"JSON structures are not equivalent.\nExpected: {Driver.InputJson}\nActual: {Driver.ExpectedJson}");
-        }
-
-        await Assert.That(areEquivalent).IsTrue();
+        // Use Shouldly.Json's semantic JSON comparison
+        Driver.ExpectedJson.ShouldBeSemanticallySameJson(Driver.InputJson);
     }
 
     [Given("a classic Morphir IR Type encoded as JSON text: {string}")]

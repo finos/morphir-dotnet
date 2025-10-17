@@ -39,6 +39,28 @@
           "TUnit.Core": "0.55.23"
         }
       },
+      "Shouldly": {
+        "type": "Direct",
+        "requested": "[4.3.0, )",
+        "resolved": "4.3.0",
+        "contentHash": "sDetrWXrl6YXZ4HeLsdBoNk3uIa7K+V4uvIJ+cqdRa5DrFxeTED7VkjoxCuU1kJWpUuBDZz2QXFzSxBtVXLwRQ==",
+        "dependencies": {
+          "DiffEngine": "11.3.0",
+          "EmptyFiles": "4.4.0"
+        }
+      },
+      "Shouldly.Json": {
+        "type": "Direct",
+        "requested": "[0.6.1, )",
+        "resolved": "0.6.1",
+        "contentHash": "W0qyX+nBC/VtV+xXgn69iOUXnku/OCx9PVJ2QPibq3Pwj79tAGk+aaLDHV5S6lrj48kUFTLQlBDlDLye+a1vLA==",
+        "dependencies": {
+          "Json.More.Net": "2.1.3",
+          "JsonPointer.Net": "5.3.1",
+          "JsonSchema.Net": "7.4.0",
+          "Shouldly": "4.3.0"
+        }
+      },
       "TUnit": {
         "type": "Direct",
         "requested": "[0.67.10, )",
@@ -118,6 +140,28 @@
         "contentHash": "ha+QNevQsXEESbzazUceHTCtKOjoBTBa8kLFdKpu6vSEbb3UMt3a55RG78tIoU/C4qzIqX3jQxaIdIcYGO+IWQ==",
         "dependencies": {
           "Cucumber.Messages": "29.0.1"
+        }
+      },
+      "Humanizer.Core": {
+        "type": "Transitive",
+        "resolved": "2.14.1",
+        "contentHash": "lQKvtaTDOXnoVJ20ibTuSIOf2i0uO0MPbDhd1jm238I+U/2ZnRENj0cktKZhtchBMtCUSRQ5v4xBCUbKNmyVMw=="
+      },
+      "JsonPointer.Net": {
+        "type": "Transitive",
+        "resolved": "5.3.1",
+        "contentHash": "3e2OJjU0OaE26XC/klgxbJuXvteFWTDJIJv0ITYWcJEoskq7jzUwPSC1s0iz4wPPQnfN7vwwFmg2gJfwRAPwgw==",
+        "dependencies": {
+          "Humanizer.Core": "2.14.1",
+          "Json.More.Net": "2.1.1"
+        }
+      },
+      "JsonSchema.Net": {
+        "type": "Transitive",
+        "resolved": "7.4.0",
+        "contentHash": "5T3DWENwuCzLwFWz0qjXXVWA8+5+gC95OLkhqUBWpVpWBMr9gwfhWNeX8rWyr+fLQ7pIQ+lWuHIrmXRudxOOSw==",
+        "dependencies": {
+          "JsonPointer.Net": "5.3.1"
         }
       },
       "Microsoft.Bcl.AsyncInterfaces": {
