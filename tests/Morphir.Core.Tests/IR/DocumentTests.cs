@@ -90,18 +90,35 @@ public class DocumentTests
     }
 
     [Test]
+    public async Task Null_NullDoc_Static_Property_Should_Return_Null()
+    {
+        var doc = Document.NullDoc;
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Null>();
+            await Assert.That(doc).IsNotNull();
+        }
+    }
+
+    [Test]
     public async Task Null_Should_Support_Equality()
     {
         var doc1 = new Document.Null();
         var doc2 = new Document.Null();
+        var doc3 = Document.NullDoc;
 
-        await Assert.That(doc1).IsEqualTo(doc2);
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc1).IsEqualTo(doc2);
+            await Assert.That(doc1).IsEqualTo(doc3);
+            await Assert.That(doc2).IsEqualTo(doc3);
+        }
     }
 
     [Test]
     public async Task Null_Should_Not_Equal_Other_Types()
     {
-        Document nullDoc = new Document.Null();
+        Document nullDoc = Document.NullDoc;
         Document boolDoc = Document.False;
         Document intDoc = new Document.Integer(0);
 
@@ -116,9 +133,9 @@ public class DocumentTests
     public async Task Null_Should_Be_Usable_In_Arrays()
     {
         var items = ImmutableList.Create<Document>(
-            new Document.Null(),
+            Document.NullDoc,
             Document.True,
-            new Document.Null()
+            Document.NullDoc
         );
         var doc = new Document.Array(items);
 
@@ -135,7 +152,7 @@ public class DocumentTests
     public async Task Null_Should_Be_Usable_In_Objects()
     {
         var items = ImmutableDictionary<string, Document>.Empty
-            .Add("value", new Document.Null())
+            .Add("value", Document.NullDoc)
             .Add("active", Document.True);
         var doc = new Document.Object(items);
 
@@ -374,6 +391,18 @@ public class DocumentTests
     }
 
     [Test]
+    public async Task Object_EmptyDoc_Static_Property_Should_Return_Empty_Object()
+    {
+        var doc = Document.EmptyDoc;
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Object>();
+            await Assert.That(doc.Items).IsEmpty();
+            await Assert.That(doc).IsEqualTo(Document.Object.Empty);
+        }
+    }
+
+    [Test]
     public async Task Object_Should_Store_Single_Property()
     {
         var items = ImmutableDictionary<string, Document>.Empty.Add("key", Document.True);
@@ -577,12 +606,12 @@ public class DocumentTests
     {
         // Create: [null, true, 42, 3.14, [], {}]
         var array = new Document.Array(ImmutableList.Create<Document>(
-            new Document.Null(),
+            Document.NullDoc,
             Document.True,
             new Document.Integer(42),
             new Document.Number(3.14m),
             new Document.Array(ImmutableList<Document>.Empty),
-            Document.Object.Empty
+            Document.EmptyDoc
         ));
 
         using (Assert.Multiple())

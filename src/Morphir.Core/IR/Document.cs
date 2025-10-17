@@ -47,7 +47,8 @@ public abstract partial record Document
     /// Represents a null value in a document, similar to JSON's null.
     /// </summary>
     /// <remarks>
-    /// This type represents the absence of a value. Create instances using <c>new Document.Null()</c>.
+    /// This type represents the absence of a value. Use the static <see cref="Document.NullDoc"/> property
+    /// for convenience, or create instances using <c>new Document.Null()</c>.
     /// </remarks>
     public sealed partial record Null() : DocumentValue;
 
@@ -93,6 +94,11 @@ public abstract partial record Document
     }
 
     /// <summary>
+    /// Gets a <see cref="Null"/> document representing a null value.
+    /// </summary>
+    public static Null NullDoc => new();
+
+    /// <summary>
     /// Gets a <see cref="Boolean"/> document representing the value <c>true</c>.
     /// </summary>
     public static Boolean True => new(true);
@@ -101,6 +107,14 @@ public abstract partial record Document
     /// Gets a <see cref="Boolean"/> document representing the value <c>false</c>.
     /// </summary>
     public static Boolean False => new(false);
+
+    /// <summary>
+    /// Gets an empty <see cref="Object"/> document with no key-value pairs.
+    /// </summary>
+    /// <remarks>
+    /// This is a convenience property equivalent to <see cref="Object.Empty"/>.
+    /// </remarks>
+    public static Object EmptyDoc => Object.Empty;
 
     /// <summary>
     /// Creates an <see cref="Array"/> document from a collection of items.
