@@ -27,7 +27,8 @@ public record MorphirJsonOptions(MorphirFormatVersion FormatVersion)
                 new FieldJsonConverterFactory(options),
                 new PathJsonConverter(options),
                 new ModulePathJsonConverter(options),
-                new PackageNameJsonConverter(options)
+                new PackageNameJsonConverter(options),
+                new FqNameJsonConverter(options)
             }
         };
 

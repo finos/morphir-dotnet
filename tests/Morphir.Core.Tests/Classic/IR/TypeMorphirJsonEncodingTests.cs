@@ -239,4 +239,231 @@ public class TypeMorphirJsonEncodingTests
         await Assert.That(actual).IsEqualTo(expected);
     }
 
+    #region FqName Tests
+
+    [Test]
+    [Arguments("morphir", "sdk", "basics", "int", """[[["morphir"]],[["sdk"],["basics"]],["int"]]""")]
+    [Arguments("my", "company", "my.module", "myFunction", """[[["my"]],[["company"],["my","module"]],["my","function"]]""")]
+    [Arguments("org", "example", "domain.core", "processData", """[[["org"]],[["example"],["domain","core"]],["process","data"]]""")]
+    public async Task It_Should_Encode_FqName_With_Parameterized_Values(
+        string packageNameInput,
+        string modulePathInput1,
+        string modulePathInput2,
+        string localNameInput,
+        string expected)
+    {
+        var packageName = PackageName.FromList(Name.FromString(packageNameInput));
+        var modulePath = ModulePath.FromList(Name.FromString(modulePathInput1), Name.FromString(modulePathInput2));
+        var localName = Name.FromString(localNameInput);
+
+        var fqName = new FqName(packageName, modulePath, localName);
+        var actual = MorphirJson.EncodeAsString(fqName);
+
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Encode_FqName_With_Single_Segment_Components()
+    {
+        var packageName = PackageName.FromList(Name.FromList("morphir"));
+        var modulePath = ModulePath.FromList(Name.FromList("sdk"), Name.FromList("basics"));
+        var localName = Name.FromList("int");
+
+        var fqName = new FqName(packageName, modulePath, localName);
+        var actual = MorphirJson.EncodeAsString(fqName);
+        var expected = """[[["morphir"]],[["sdk"],["basics"]],["int"]]""";
+
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Encode_FqName_With_Multi_Segment_Components()
+    {
+        var packageName = PackageName.FromList(Name.FromList("my", "company"));
+        var modulePath = ModulePath.FromList(Name.FromList("core", "domain"), Name.FromList("utils"));
+        var localName = Name.FromList("process", "data");
+
+        var fqName = new FqName(packageName, modulePath, localName);
+        var actual = MorphirJson.EncodeAsString(fqName);
+        var expected = """[[["my","company"]],[["core","domain"],["utils"]],["process","data"]]""";
+
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Encode_FqName_With_Empty_Package_And_Module()
+    {
+        var packageName = PackageName.Empty;
+        var modulePath = ModulePath.Empty;
+        var localName = Name.FromList("standalone");
+
+        var fqName = new FqName(packageName, modulePath, localName);
+        var actual = MorphirJson.EncodeAsString(fqName);
+        var expected = """[[],[],["standalone"]]""";
+
+        await Assert.That(actual).IsEqualTo(expected);
+    }
+
+    [Test]
+    [Arguments("""[[["morphir"]],[["sdk"],["basics"]],["int"]]""", "morphir", "sdk", "basics", "int")]
+    [Arguments("""[[["my"]],[["company"],["my","module"]],["my","function"]]""", "my", "company", "my.module", "myFunction")]
+    [Arguments("""[[["org"]],[["example"],["domain","core"]],["process","data"]]""", "org", "example", "domain.core", "processData")]
+    public async Task It_Should_Decode_FqName_With_Parameterized_Values(
+        string json,
+        string expectedPackageName,
+        string expectedModulePath1,
+        string expectedModulePath2,
+        string expectedLocalName)
+    {
+        var decoded = MorphirJson.DecodeFromString<FqName>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded!.PackagePath.Names.Count).IsEqualTo(1);
+            await Assert.That(decoded.PackagePath.Names[0]).IsEqualTo(Name.FromString(expectedPackageName));
+            await Assert.That(decoded.ModulePath.Names.Count).IsEqualTo(2);
+            await Assert.That(decoded.ModulePath.Names[0]).IsEqualTo(Name.FromString(expectedModulePath1));
+            await Assert.That(decoded.ModulePath.Names[1]).IsEqualTo(Name.FromString(expectedModulePath2));
+            await Assert.That(decoded.LocalName).IsEqualTo(Name.FromString(expectedLocalName));
+        }
+    }
+
+    [Test]
+    public async Task It_Should_Decode_FqName_With_Single_Segment_Components()
+    {
+        var json = """[[["morphir"]],[["sdk"],["basics"]],["int"]]""";
+        var decoded = MorphirJson.DecodeFromString<FqName>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded!.PackagePath.Names.Count).IsEqualTo(1);
+            await Assert.That(decoded.PackagePath.Names[0]).IsEqualTo(Name.FromList("morphir"));
+            await Assert.That(decoded.ModulePath.Names.Count).IsEqualTo(2);
+            await Assert.That(decoded.ModulePath.Names[0]).IsEqualTo(Name.FromList("sdk"));
+            await Assert.That(decoded.ModulePath.Names[1]).IsEqualTo(Name.FromList("basics"));
+            await Assert.That(decoded.LocalName).IsEqualTo(Name.FromList("int"));
+        }
+    }
+
+    [Test]
+    public async Task It_Should_Decode_FqName_With_Multi_Segment_Components()
+    {
+        var json = """[[["my","company"]],[["core","domain"],["utils"]],["process","data"]]""";
+        var decoded = MorphirJson.DecodeFromString<FqName>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded!.PackagePath.Names.Count).IsEqualTo(1);
+            await Assert.That(decoded.PackagePath.Names[0]).IsEqualTo(Name.FromList("my", "company"));
+            await Assert.That(decoded.ModulePath.Names.Count).IsEqualTo(2);
+            await Assert.That(decoded.ModulePath.Names[0]).IsEqualTo(Name.FromList("core", "domain"));
+            await Assert.That(decoded.ModulePath.Names[1]).IsEqualTo(Name.FromList("utils"));
+            await Assert.That(decoded.LocalName).IsEqualTo(Name.FromList("process", "data"));
+        }
+    }
+
+    [Test]
+    public async Task It_Should_Decode_FqName_With_Empty_Package_And_Module()
+    {
+        var json = """[[],[],["standalone"]]""";
+        var decoded = MorphirJson.DecodeFromString<FqName>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded!.PackagePath).IsEqualTo(PackageName.Empty);
+            await Assert.That(decoded.ModulePath).IsEqualTo(ModulePath.Empty);
+            await Assert.That(decoded.LocalName).IsEqualTo(Name.FromList("standalone"));
+        }
+    }
+
+    [Test]
+    [Arguments("morphir", "sdk", "basics", "int")]
+    [Arguments("my", "company", "my.module", "myFunction")]
+    [Arguments("org", "example", "domain.core", "processData")]
+    public async Task It_Should_RoundTrip_FqName_Serialization(
+        string packageNameInput,
+        string modulePathInput1,
+        string modulePathInput2,
+        string localNameInput)
+    {
+        // Arrange
+        var packageName = PackageName.FromList(Name.FromString(packageNameInput));
+        var modulePath = ModulePath.FromList(Name.FromString(modulePathInput1), Name.FromString(modulePathInput2));
+        var localName = Name.FromString(localNameInput);
+        var original = new FqName(packageName, modulePath, localName);
+
+        // Act
+        var json = MorphirJson.EncodeAsString(original);
+        var decoded = MorphirJson.DecodeFromString<FqName>(json);
+
+        // Assert
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded).IsEqualTo(original);
+            await Assert.That(decoded!.PackagePath).IsEqualTo(original.PackagePath);
+            await Assert.That(decoded.ModulePath).IsEqualTo(original.ModulePath);
+            await Assert.That(decoded.LocalName).IsEqualTo(original.LocalName);
+        }
+    }
+
+    [Test]
+    public async Task It_Should_RoundTrip_FqName_With_Multi_Segment_Names()
+    {
+        // Arrange
+        var packageName = PackageName.FromList(
+            Name.FromList("my", "company", "name")
+        );
+        var modulePath = ModulePath.FromList(
+            Name.FromList("core", "domain"),
+            Name.FromList("business", "logic"),
+            Name.FromList("utils")
+        );
+        var localName = Name.FromList("process", "customer", "data");
+        var original = new FqName(packageName, modulePath, localName);
+
+        // Act
+        var json = MorphirJson.EncodeAsString(original);
+        var decoded = MorphirJson.DecodeFromString<FqName>(json);
+
+        // Assert
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded).IsEqualTo(original);
+            await Assert.That(decoded!.PackagePath.Names[0]).IsEqualTo(Name.FromList("my", "company", "name"));
+            await Assert.That(decoded.ModulePath.Names[0]).IsEqualTo(Name.FromList("core", "domain"));
+            await Assert.That(decoded.ModulePath.Names[1]).IsEqualTo(Name.FromList("business", "logic"));
+            await Assert.That(decoded.ModulePath.Names[2]).IsEqualTo(Name.FromList("utils"));
+            await Assert.That(decoded.LocalName).IsEqualTo(Name.FromList("process", "customer", "data"));
+        }
+    }
+
+    [Test]
+    public async Task It_Should_RoundTrip_FqName_With_Empty_Components()
+    {
+        // Arrange
+        var original = new FqName(PackageName.Empty, ModulePath.Empty, Name.FromList("function"));
+
+        // Act
+        var json = MorphirJson.EncodeAsString(original);
+        var decoded = MorphirJson.DecodeFromString<FqName>(json);
+
+        // Assert
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded).IsEqualTo(original);
+            await Assert.That(decoded!.PackagePath).IsEqualTo(PackageName.Empty);
+            await Assert.That(decoded.ModulePath).IsEqualTo(ModulePath.Empty);
+            await Assert.That(decoded.LocalName).IsEqualTo(Name.FromList("function"));
+        }
+    }
+
+    #endregion
+
 }
