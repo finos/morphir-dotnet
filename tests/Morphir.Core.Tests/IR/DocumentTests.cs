@@ -494,6 +494,108 @@ public class DocumentTests
         await Assert.That(doc1).IsNotEqualTo(doc2);
     }
 
+    [Test]
+    public async Task Object_Obj_Factory_Should_Create_Empty_Object()
+    {
+        var doc = Document.Obj();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Object>();
+            await Assert.That(doc.Items).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task Object_Obj_Factory_Should_Create_Single_Property()
+    {
+        var doc = Document.Obj(("key", Document.True));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Object>();
+            await Assert.That(doc.Items.Count).IsEqualTo(1);
+            await Assert.That(doc.Items["key"]).IsEqualTo(Document.True);
+        }
+    }
+
+    [Test]
+    public async Task Object_Obj_Factory_Should_Create_Multiple_Properties()
+    {
+        var doc = Document.Obj(
+            ("bool", Document.True),
+            ("int", new Document.Integer(42)),
+            ("num", new Document.Number(3.14m))
+        );
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Object>();
+            await Assert.That(doc.Items.Count).IsEqualTo(3);
+            await Assert.That(doc.Items["bool"]).IsTypeOf<Document.Boolean>();
+            await Assert.That(doc.Items["int"]).IsTypeOf<Document.Integer>();
+            await Assert.That(doc.Items["num"]).IsTypeOf<Document.Number>();
+        }
+    }
+
+    [Test]
+    public async Task Object_Obj_Factory_Should_Support_Nested_Objects()
+    {
+        var doc = Document.Obj(
+            ("inner", Document.Obj(("value", Document.True))),
+            ("outer", Document.False)
+        );
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc.Items.Count).IsEqualTo(2);
+            await Assert.That(doc.Items["inner"]).IsTypeOf<Document.Object>();
+            await Assert.That(doc.Items["outer"]).IsTypeOf<Document.Boolean>();
+
+            var inner = (Document.Object)doc.Items["inner"];
+            await Assert.That(inner.Items["value"]).IsEqualTo(Document.True);
+        }
+    }
+
+    [Test]
+    public async Task Object_Obj_Factory_Should_Support_All_Value_Types()
+    {
+        var doc = Document.Obj(
+            ("null", Document.NullDoc),
+            ("bool", Document.True),
+            ("int", new Document.Integer(42)),
+            ("num", new Document.Number(3.14m)),
+            ("array", new Document.Array(ImmutableList<Document>.Empty)),
+            ("obj", Document.EmptyDoc)
+        );
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc.Items.Count).IsEqualTo(6);
+            await Assert.That(doc.Items["null"]).IsTypeOf<Document.Null>();
+            await Assert.That(doc.Items["bool"]).IsTypeOf<Document.Boolean>();
+            await Assert.That(doc.Items["int"]).IsTypeOf<Document.Integer>();
+            await Assert.That(doc.Items["num"]).IsTypeOf<Document.Number>();
+            await Assert.That(doc.Items["array"]).IsTypeOf<Document.Array>();
+            await Assert.That(doc.Items["obj"]).IsTypeOf<Document.Object>();
+        }
+    }
+
+    [Test]
+    public async Task Object_Obj_Factory_Should_Support_Equality()
+    {
+        var doc1 = Document.Obj(
+            ("a", Document.True),
+            ("b", Document.False)
+        );
+        var doc2 = Document.Obj(
+            ("a", Document.True),
+            ("b", Document.False)
+        );
+
+        await Assert.That(doc1).IsEqualTo(doc2);
+    }
+
     #endregion
 
     #region Type Hierarchy Tests

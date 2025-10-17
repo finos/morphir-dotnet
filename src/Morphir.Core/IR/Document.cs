@@ -130,5 +130,24 @@ public abstract partial record Document
     /// <returns>A new <see cref="Boolean"/> document with the specified value.</returns>
     public static Boolean Bool(bool value) => new(value);
 
+    /// <summary>
+    /// Creates an <see cref="Object"/> document from key-value pairs.
+    /// </summary>
+    /// <param name="items">The key-value pairs to include in the object.</param>
+    /// <returns>A new <see cref="Object"/> document containing the specified key-value pairs.</returns>
+    /// <remarks>
+    /// This is a convenience method for creating objects with a more concise syntax using tuples.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var person = Document.Obj(
+    ///     ("name", new Document.Integer(0)),  // placeholder for string
+    ///     ("age", new Document.Integer(30)),
+    ///     ("active", Document.True)
+    /// );
+    /// </code>
+    /// </example>
+    public static Object Obj(params (string key, Document value)[] items) => new(items.ToImmutableDictionary(t => t.key, t => t.value));
+
 }
 
