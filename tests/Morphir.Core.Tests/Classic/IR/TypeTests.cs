@@ -1,4 +1,4 @@
-﻿using Morphir.IR;
+using Morphir.IR;
 
 namespace Morphir.Classic.IR;
 

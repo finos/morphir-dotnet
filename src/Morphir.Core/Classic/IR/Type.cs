@@ -27,23 +27,23 @@ public static class Type
         : Morphir.IR.Type.Field<Type<TAttribute>>(Name, Type)
     {
     }
-    
-    public static class Field 
+
+    public static class Field
     {
         public static Field<T> Create<T>(Name name, Type<T> type) => new(name, type);
-        public static Func<Name, Func<Type<T>,Field<T>>> Create<T>() => 
+        public static Func<Name, Func<Type<T>, Field<T>>> Create<T>() =>
             name => type => new(name, type);
     }
 
-    public static Seq<Field<T>> Fields<T>(params IEnumerable<(Name Name, Type<T> Type)> fields) => 
-        toSeq(fields.Select( pair => new Field<T>(pair.Name, pair.Type)));
-    
+    public static Seq<Field<T>> Fields<T>(params IEnumerable<(Name Name, Type<T> Type)> fields) =>
+        toSeq(fields.Select(pair => new Field<T>(pair.Name, pair.Type)));
+
     public static Type<T>.Tuple Tuple<T>(T attributes, params Seq<Type<T>> elementTypes) =>
-        new (elementTypes){ Attributes = attributes };
-    
+        new(elementTypes) { Attributes = attributes };
+
     public static Type<TAttributes>.Variable Variable<TAttributes>(TAttributes attributes, Name name) =>
-        new (name){ Attributes = attributes };
-    
+        new(name) { Attributes = attributes };
+
     public static Type<TAttributes>.Unit Unit<TAttributes>(TAttributes attributes) =>
-        new (){ Attributes = attributes };
+        new() { Attributes = attributes };
 }

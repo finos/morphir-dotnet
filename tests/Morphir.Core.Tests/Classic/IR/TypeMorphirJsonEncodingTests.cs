@@ -1,12 +1,12 @@
-﻿using Morphir.IR;
+using Morphir.IR;
 using Path = Morphir.IR.Path;
 
 namespace Morphir.Classic.IR;
 
 public class TypeMorphirJsonEncodingTests
 {
-    [Test]   
-    [Arguments("MorphirEncoder","""["Variable",{},["morphir","encoder"]]""")]
+    [Test]
+    [Arguments("MorphirEncoder", """["Variable",{},["morphir","encoder"]]""")]
     public async Task It_Should_Encode_A_Variable_Type_Appropriately(string variableNameInput, string expected)
     {
         var variableName = Name.FromString(variableNameInput);

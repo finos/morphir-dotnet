@@ -26,23 +26,23 @@ public record AccessControlled<T>(AccessControlled.Access Access, T Value)
 
 public static class AccessControlled
 {
-    
+
     /// <summary>
     /// Represents the accessibility level of a value wrapped in <see cref="AccessControlled{T}"/>.
     /// </summary>
     public enum Access
     {
-       /// <summary>
-       /// The value is publicly accessible. It may be referenced and used by any consumer.
-       /// </summary>
-       Public,
+        /// <summary>
+        /// The value is publicly accessible. It may be referenced and used by any consumer.
+        /// </summary>
+        Public,
 
-       /// <summary>
-       /// The value is private to its defining scope and should not be accessed by external consumers.
-       /// </summary>
-       Private
+        /// <summary>
+        /// The value is private to its defining scope and should not be accessed by external consumers.
+        /// </summary>
+        Private
     }
-    
+
     /// <summary>
     /// Maps the value of the given <see cref="AccessControlled{T}"/> to a new value of type <typeparamref name="TResult"/>.
     /// </summary>
@@ -51,8 +51,8 @@ public static class AccessControlled
     /// <typeparam name="T">The type of the value to map.</typeparam>
     /// <typeparam name="TResult">The type of the result value.</typeparam>
     /// <returns>A new <see cref="AccessControlled{TResult}"/> with the same access as the given <paramref name="accessControlled"/>, but with the mapped value.</returns>
-    public static AccessControlled<TResult> Map<T,TResult>(Func<T,TResult> mapper, AccessControlled<T> accessControlled) =>
-        new (accessControlled.Access, mapper(accessControlled.Value));
+    public static AccessControlled<TResult> Map<T, TResult>(Func<T, TResult> mapper, AccessControlled<T> accessControlled) =>
+        new(accessControlled.Access, mapper(accessControlled.Value));
 
     public static AccessControlled<T> Public<T>(T value) =>
         new(Access.Public, value);

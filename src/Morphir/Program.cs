@@ -1,6 +1,7 @@
-﻿using System.CommandLine;
+using System.CommandLine;
 
 namespace Morphir;
+
 using Extism.Sdk;
 
 internal static class Program

@@ -23,7 +23,7 @@
         <PackageVersion Include="Bogus" Version="34.0.2"/>
         <PackageVersion Include="BunsenBurner.Bogus" Version="$(BunsenBurnerVersion)"/>
         <PackageVersion Include="BunsenBurner.Hedgehog" Version="$(BunsenBurnerVersion)"/>
-        <PackageVersion Include="coverlet.collector" Version="3.1.2"/>
+        <PackageVersion Include="coverlet.collector" Version="6.0.2"/>
         <PackageVersion Include="Dunet" Version="1.11.3" /> 
         <PackageVersion Include="Extism.runtime.all" Version="1.11.1"/>
         <PackageVersion Include="Extism.Sdk" Version="1.9.1"/>

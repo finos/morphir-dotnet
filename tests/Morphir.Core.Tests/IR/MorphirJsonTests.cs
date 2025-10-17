@@ -1,4 +1,4 @@
-﻿using Morphir.IR.Codecs;
+using Morphir.IR.Codecs;
 
 namespace Morphir.IR;
 

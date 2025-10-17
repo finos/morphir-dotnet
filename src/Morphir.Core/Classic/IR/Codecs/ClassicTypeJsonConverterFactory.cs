@@ -1,14 +1,14 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Morphir.IR;
 using Morphir.IR.Codecs;
 
 namespace Morphir.Classic.IR.Codecs;
 
-public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptions): JsonConverterFactory
+public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptions) : JsonConverterFactory
 {
-    public ClassicTypeJsonConverterFactory():this(MorphirJsonOptions.Default) { }
-    
+    public ClassicTypeJsonConverterFactory() : this(MorphirJsonOptions.Default) { }
+
     public override bool CanConvert(System.Type typeToConvert)
     {
         if (typeToConvert.IsGenericType)
@@ -36,13 +36,13 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         return (JsonConverter?)Activator.CreateInstance(converterType, morphirJsonOptions);
     }
 
-    private class ClassicTypeJsonConverter<TAttributes>(MorphirJsonOptions morphirJsonOptions):JsonConverter<Type<TAttributes>>
+    private class ClassicTypeJsonConverter<TAttributes>(MorphirJsonOptions morphirJsonOptions) : JsonConverter<Type<TAttributes>>
     {
-        public ClassicTypeJsonConverter():this(MorphirJsonOptions.Default) { }
+        public ClassicTypeJsonConverter() : this(MorphirJsonOptions.Default) { }
 
         private JsonConverter<Name> NameConverter { get; } =
             (JsonConverter<Name>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(Name));
-        
+
         private JsonConverter<TAttributes> AttributeConverter { get; } =
             (JsonConverter<TAttributes>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(TAttributes));
 
@@ -63,7 +63,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
 
         public override Type<TAttributes>? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
         {
-            if(reader.TokenType != JsonTokenType.StartArray) throw new NotSupportedException($"Unexpected token when parsing Classic Type, we expected an array but got: {reader.TokenType}");
+            if (reader.TokenType != JsonTokenType.StartArray) throw new NotSupportedException($"Unexpected token when parsing Classic Type, we expected an array but got: {reader.TokenType}");
             if (reader.Read() && reader.TokenType == JsonTokenType.String)
             {
                 var typeNodeName = reader.GetString();
@@ -87,10 +87,10 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
                         throw new NotSupportedException($"Unexpected type name when parsing Classic Type: {typeNodeName}");
                 }
             }
-            
+
             throw new NotSupportedException($"Unexpected token when parsing Classic Type: {reader.TokenType}");
         }
-        
+
         public override void Write(Utf8JsonWriter writer, Type<TAttributes> value, JsonSerializerOptions options)
         {
             if (value is Type<TAttributes>.Variable variable)
@@ -126,7 +126,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
                 throw new NotSupportedException($"Encoding not supported for Classic Type case: {value?.GetType().Name}");
             }
         }
-        
+
         private Type<TAttributes>? ReadReference(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
         {
             TAttributes? attributes = default;
@@ -305,12 +305,12 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             throw new JsonException("Malformed Unit encountered: " + reader.TokenType);
         }
 
-        private Type<TAttributes>? ReadVariable(ref Utf8JsonReader reader, System.Type typeToConvert,  JsonSerializerOptions options)
+        private Type<TAttributes>? ReadVariable(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
         {
             // We expect that we will be on the tag token
             TAttributes? attributes = default;
             Name? name = null;
-            
+
             if (reader.Read())
             {
                 attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
@@ -323,11 +323,11 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
 
             if (reader.Read() && reader.TokenType == JsonTokenType.EndArray)
             {
-                
-                if(attributes == null && name == null) 
+
+                if (attributes == null && name == null)
                     throw new JsonException("Misformed \"Variable\" encountered: \"Attributes\" and \"Name\" cannot be null");
-            
-                return IR.Type.Variable(attributes!, name!);            
+
+                return IR.Type.Variable(attributes!, name!);
             }
 
             throw new JsonException("Misformed \"Variable\" encountered: Did not find expected end of array");

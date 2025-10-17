@@ -9,7 +9,7 @@ public static class ImmutableCollectionExtensions
         public Option<T> HeadOption => self.Count == 0 ? None : Some(self[0]);
         public void Deconstruct(out T? head, out ImmutableList<T> tail)
         {
-            switch(self.Count)
+            switch (self.Count)
             {
                 case 0:
                     head = default;

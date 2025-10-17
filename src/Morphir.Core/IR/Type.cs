@@ -16,6 +16,6 @@ public abstract record Type
         public Field<TResult> Map<TResult>(Func<T, TResult> mapper) =>
             new(Name, mapper(Type));
     }
-    
+
     public record Field(Name Name, Type Type) : Field<Type>(Name, Type);
 }

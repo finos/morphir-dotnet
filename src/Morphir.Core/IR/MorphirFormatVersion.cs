@@ -1,4 +1,4 @@
-﻿using StaticCs;
+using StaticCs;
 
 namespace Morphir.IR;
 
@@ -7,7 +7,7 @@ public abstract record MorphirFormatVersion
 {
     private MorphirFormatVersion(string version)
     {
-        Version = version;   
+        Version = version;
     }
     public string Version { get; }
 
@@ -17,11 +17,11 @@ public abstract record MorphirFormatVersion
         Experimental _ => false,
         _ => false
     };
-    
-    public record Version2():MorphirFormatVersion("2"){}
-    
+
+    public record Version2() : MorphirFormatVersion("2") { }
+
     public record Experimental() : MorphirFormatVersion("3.0-Experimental");
-    
+
     public static MorphirFormatVersion Parse(string text, MorphirFormatVersion fallbackVersion) =>
         text switch
         {

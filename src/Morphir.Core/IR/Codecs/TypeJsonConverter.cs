@@ -1,9 +1,9 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Morphir.IR.Codecs;
 
-public class TypeJsonConverter(MorphirJsonOptions morphirJsonOptions):JsonConverter<Type>
+public class TypeJsonConverter(MorphirJsonOptions morphirJsonOptions) : JsonConverter<Type>
 {
     public override Type? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
     {

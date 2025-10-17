@@ -1,4 +1,4 @@
-﻿namespace Morphir.IR;
+namespace Morphir.IR;
 
 public class PlaceHolderTests
 {
@@ -7,7 +7,7 @@ public class PlaceHolderTests
     {
         var sut = PlaceHolder.Default;
         var actual = MorphirJson.EncodeAsString(sut);
-        await Assert.That(actual).IsEqualTo("{}");       
+        await Assert.That(actual).IsEqualTo("{}");
     }
 
     [Test]
@@ -15,6 +15,6 @@ public class PlaceHolderTests
     {
         var sut = PlaceHolder.Default;
         var actual = MorphirJson.DecodeFromString<PlaceHolder>("{}");
-        await Assert.That(actual).IsEqualTo(sut);       
+        await Assert.That(actual).IsEqualTo(sut);
     }
 }

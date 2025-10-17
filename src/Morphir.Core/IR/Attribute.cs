@@ -1,4 +1,4 @@
-﻿using Dunet;
+using Dunet;
 using StaticCs;
 
 namespace Morphir.IR;
@@ -9,6 +9,6 @@ public abstract partial record Attribute
 {
     public partial record Empty : Attribute
     {
-        public static Empty Instance { get; } = new ();
+        public static Empty Instance { get; } = new();
     }
 }

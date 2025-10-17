@@ -11,7 +11,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-<!--        <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />-->
+        <PackageReference Include="coverlet.collector" />
         <PackageReference Include="Reqnroll" />
         <PackageReference Include="Reqnroll.TUnit" />
         <PackageReference Include="TUnit" />

@@ -1,4 +1,4 @@
-﻿namespace Morphir.IR;
+namespace Morphir.IR;
 
 /// <summary>
 /// Represents a qualified name, which is a combination of a module path and a local name.
@@ -13,11 +13,11 @@ public record QName(Path ModulePath, Name LocalName)
     /// <param name="name">The qualified name to inspect.</param>
     /// <returns>The module path portion of the qualified name.</returns>
     public static Path GetModulePath(QName name) => name.ModulePath;
-    
+
     /// <summary>
     /// Provides a curried factory for constructing <see cref="QName"/> instances.
     /// </summary>
-    public static Func<Path, Func<Name, QName>> FromName => modulePath => localName => 
+    public static Func<Path, Func<Name, QName>> FromName => modulePath => localName =>
         new(modulePath, localName);
 
     /// <summary>
@@ -25,9 +25,9 @@ public record QName(Path ModulePath, Name LocalName)
     /// </summary>
     /// <param name="qName">The qualified name to convert.</param>
     /// <returns>A tuple containing the module path and local name.</returns>
-    public static (Path ModulePath, Name LocalName) ToTuple(QName qName) => 
+    public static (Path ModulePath, Name LocalName) ToTuple(QName qName) =>
         (qName.ModulePath, qName.LocalName);
-    
+
     /// <summary>
     /// Renders the qualified name using Morphir's canonical module path and camel-cased local name format.
     /// </summary>

@@ -7,8 +7,8 @@ namespace Morphir.IR.Codecs;
 
 internal class NameConverter(MorphirJsonOptions morphirJsonOptions) : JsonConverter<Name>
 {
-    public NameConverter():this(MorphirJsonOptions.Default) { }
-    
+    public NameConverter() : this(MorphirJsonOptions.Default) { }
+
     public override Name? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.StartArray)
@@ -17,10 +17,10 @@ internal class NameConverter(MorphirJsonOptions morphirJsonOptions) : JsonConver
             while (reader.Read() && reader.TokenType == JsonTokenType.String)
             {
                 var item = reader.GetString();
-                if(item != null) builder.Add(item);
+                if (item != null) builder.Add(item);
             }
 
-            if(reader.TokenType == JsonTokenType.EndArray) 
+            if (reader.TokenType == JsonTokenType.EndArray)
                 return Name.FromList(builder.ToImmutable());
         }
 
@@ -41,7 +41,7 @@ internal class NameConverter(MorphirJsonOptions morphirJsonOptions) : JsonConver
         }
         else
         {
-            writer.WriteStringValue(value.ToKebabCase());       
+            writer.WriteStringValue(value.ToKebabCase());
         }
     }
 }
