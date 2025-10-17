@@ -68,7 +68,7 @@ public partial record Name(Seq<string> Segments)
     public Seq<string> ToHumanWordsTitle()
     {
         var words = ToHumanWords();
-        return words.Head.Match(head => head.Capitalize().Cons(words.Tail), () => Empty);
+        return words.Head.Match(head => head.Capitalize().Cons(words.Tail), () => new Seq<string>());
     }
 
 
@@ -90,6 +90,8 @@ public partial record Name(Seq<string> Segments)
         Segments.Map(s => s.Capitalize()).ToFullString("");
     
     public static Name Create(params string[] segments) => new ([..segments]);
+    
+    public static Name Empty => new ([]);
     
     /// <summary>
     /// Convert a list of strings into a name.

@@ -239,6 +239,241 @@ public class TypeMorphirJsonEncodingTests
         await Assert.That(actual).IsEqualTo(expected);
     }
 
+    #region Classic Type Tests
+
+    [Test]
+    public async Task It_Should_Encode_Reference_Type_Correctly()
+    {
+        // Reference type: morphir.sdk.basics:Int with no type parameters
+        var fqName = new FqName(
+            PackageName.FromList(Name.FromList("morphir")),
+            ModulePath.FromList(Name.FromList("sdk"), Name.FromList("basics")),
+            Name.FromList("int")
+        );
+        var reference = new Type<Unit>.Reference(fqName, new Seq<Type<Unit>>()) { Attributes = Unit.Default };
+
+        var encoded = MorphirJson.EncodeAsString(reference);
+        var expected = """["Reference",{},[[["morphir"]],[["sdk"],["basics"]],["int"]],[]]""";
+        await Assert.That(encoded).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Encode_Reference_Type_With_Type_Parameters()
+    {
+        // Reference type: List<String>
+        var listFqName = new FqName(
+            PackageName.FromList(Name.FromList("morphir")),
+            ModulePath.FromList(Name.FromList("sdk"), Name.FromList("list")),
+            Name.FromList("list")
+        );
+        var stringFqName = new FqName(
+            PackageName.FromList(Name.FromList("morphir")),
+            ModulePath.FromList(Name.FromList("sdk"), Name.FromList("string")),
+            Name.FromList("string")
+        );
+        var stringRef = new Type<Unit>.Reference(stringFqName, new Seq<Type<Unit>>()) { Attributes = Unit.Default };
+        var listRef = new Type<Unit>.Reference(listFqName, new Seq<Type<Unit>>(new[] { stringRef })) { Attributes = Unit.Default };
+
+        var encoded = MorphirJson.EncodeAsString(listRef);
+        var expected = """["Reference",{},[[["morphir"]],[["sdk"],["list"]],["list"]],[["Reference",{},[[["morphir"]],[["sdk"],["string"]],["string"]],[]]]]""";
+        await Assert.That(encoded).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Decode_Reference_Type_Correctly()
+    {
+        var json = """["Reference",{},[[["morphir"]],[["sdk"],["basics"]],["int"]],[]]""";
+        var decoded = MorphirJson.DecodeFromString<Type<Unit>>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded).IsTypeOf<Type<Unit>.Reference>();
+
+            var reference = (Type<Unit>.Reference)decoded!;
+            await Assert.That(reference.TypeName.PackagePath.Names[0]).IsEqualTo(Name.FromList("morphir"));
+            await Assert.That(reference.TypeName.ModulePath.Names.Count).IsEqualTo(2);
+            await Assert.That(reference.TypeName.LocalName).IsEqualTo(Name.FromList("int"));
+            await Assert.That(reference.TypeParameters.Count).IsEqualTo(0);
+        }
+    }
+
+    [Test]
+    public async Task It_Should_Encode_Record_Type_Correctly()
+    {
+        // Record with two fields: name: String, age: Int
+        var field1 = Type.Field.Create(Name.FromString("name"), Type.Unit(Unit.Default));
+        var field2 = Type.Field.Create(Name.FromString("age"), Type.Unit(Unit.Default));
+        var fields = new Seq<Type.Field<Unit>>(new[] { field1, field2 });
+        var record = new Type<Unit>.Record(fields) { Attributes = Unit.Default };
+
+        var encoded = MorphirJson.EncodeAsString(record);
+        var expected = """["Record",{},[{"name":["name"],"tpe":["Unit",{}]},{"name":["age"],"tpe":["Unit",{}]}]]""";
+        await Assert.That(encoded).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Decode_Record_Type_Correctly()
+    {
+        var json = """["Record",{},[{"name":["name"],"tpe":["Unit",{}]},{"name":["age"],"tpe":["Unit",{}]}]]""";
+        var decoded = MorphirJson.DecodeFromString<Type<Unit>>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded).IsTypeOf<Type<Unit>.Record>();
+
+            var record = (Type<Unit>.Record)decoded!;
+            await Assert.That(record.FieldTypes.Count).IsEqualTo(2);
+            await Assert.That(record.FieldTypes[0].Name).IsEqualTo(Name.FromString("name"));
+            await Assert.That(record.FieldTypes[1].Name).IsEqualTo(Name.FromString("age"));
+        }
+    }
+
+    [Test]
+    public async Task It_Should_Encode_ExtensibleRecord_Type_Correctly()
+    {
+        // ExtensibleRecord with variable "r" and field name: String
+        var variableName = Name.FromString("r");
+        var field = Type.Field.Create(Name.FromString("name"), Type.Unit(Unit.Default));
+        var fields = new Seq<Type.Field<Unit>>(new[] { field });
+        var extensibleRecord = new Type<Unit>.ExtensibleRecord(variableName, fields) { Attributes = Unit.Default };
+
+        var encoded = MorphirJson.EncodeAsString(extensibleRecord);
+        var expected = """["ExtensibleRecord",{},["r"],[{"name":["name"],"tpe":["Unit",{}]}]]""";
+        await Assert.That(encoded).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Decode_ExtensibleRecord_Type_Correctly()
+    {
+        var json = """["ExtensibleRecord",{},["r"],[{"name":["name"],"tpe":["Unit",{}]}]]""";
+        var decoded = MorphirJson.DecodeFromString<Type<Unit>>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded).IsTypeOf<Type<Unit>.ExtensibleRecord>();
+
+            var extensibleRecord = (Type<Unit>.ExtensibleRecord)decoded!;
+            await Assert.That(extensibleRecord.VariableName).IsEqualTo(Name.FromString("r"));
+            await Assert.That(extensibleRecord.FieldTypes.Count).IsEqualTo(1);
+            await Assert.That(extensibleRecord.FieldTypes[0].Name).IsEqualTo(Name.FromString("name"));
+        }
+    }
+
+    [Test]
+    public async Task It_Should_Encode_Function_Type_Correctly()
+    {
+        // Function type: Unit -> Unit
+        var paramType = Type.Unit(Unit.Default);
+        var returnType = Type.Unit(Unit.Default);
+        var function = new Type<Unit>.Function(paramType, returnType) { Attributes = Unit.Default };
+
+        var encoded = MorphirJson.EncodeAsString(function);
+        var expected = """["Function",{},["Unit",{}],["Unit",{}]]""";
+        await Assert.That(encoded).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Encode_Complex_Function_Type()
+    {
+        // Function type: (Int -> String) -> Bool
+        var intType = Type.Unit(Unit.Default);
+        var stringType = Type.Variable(Unit.Default, Name.FromString("s"));
+        var innerFunction = new Type<Unit>.Function(intType, stringType) { Attributes = Unit.Default };
+        var boolType = Type.Unit(Unit.Default);
+        var outerFunction = new Type<Unit>.Function(innerFunction, boolType) { Attributes = Unit.Default };
+
+        var encoded = MorphirJson.EncodeAsString(outerFunction);
+        var expected = """["Function",{},["Function",{},["Unit",{}],["Variable",{},["s"]]],["Unit",{}]]""";
+        await Assert.That(encoded).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task It_Should_Decode_Function_Type_Correctly()
+    {
+        var json = """["Function",{},["Unit",{}],["Variable",{},["x"]]]""";
+        var decoded = MorphirJson.DecodeFromString<Type<Unit>>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded).IsTypeOf<Type<Unit>.Function>();
+
+            var function = (Type<Unit>.Function)decoded!;
+            await Assert.That(function.ParameterType).IsTypeOf<Type<Unit>.Unit>();
+            await Assert.That(function.ReturnType).IsTypeOf<Type<Unit>.Variable>();
+
+            var returnVar = (Type<Unit>.Variable)function.ReturnType;
+            await Assert.That(returnVar.Name).IsEqualTo(Name.FromString("x"));
+        }
+    }
+
+    [Test]
+    public async Task It_Should_RoundTrip_Reference_Type()
+    {
+        var fqName = new FqName(
+            PackageName.FromList(Name.FromList("morphir")),
+            ModulePath.FromList(Name.FromList("sdk"), Name.FromList("basics")),
+            Name.FromList("int")
+        );
+        var original = new Type<Unit>.Reference(fqName, new Seq<Type<Unit>>()) { Attributes = Unit.Default };
+
+        var json = MorphirJson.EncodeAsString(original);
+        var decoded = MorphirJson.DecodeFromString<Type<Unit>>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded).IsTypeOf<Type<Unit>.Reference>();
+            var reference = (Type<Unit>.Reference)decoded!;
+            await Assert.That(reference.TypeName).IsEqualTo(original.TypeName);
+        }
+    }
+
+    [Test]
+    public async Task It_Should_RoundTrip_Record_Type()
+    {
+        var field1 = Type.Field.Create(Name.FromString("name"), Type.Unit(Unit.Default));
+        var field2 = Type.Field.Create(Name.FromString("age"), Type.Variable(Unit.Default, Name.FromString("a")));
+        var fields = new Seq<Type.Field<Unit>>(new[] { field1, field2 });
+        var original = new Type<Unit>.Record(fields) { Attributes = Unit.Default };
+
+        var json = MorphirJson.EncodeAsString(original);
+        var decoded = MorphirJson.DecodeFromString<Type<Unit>>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded).IsTypeOf<Type<Unit>.Record>();
+            var record = (Type<Unit>.Record)decoded!;
+            await Assert.That(record.FieldTypes.Count).IsEqualTo(2);
+        }
+    }
+
+    [Test]
+    public async Task It_Should_RoundTrip_Function_Type()
+    {
+        var paramType = Type.Variable(Unit.Default, Name.FromString("a"));
+        var returnType = Type.Variable(Unit.Default, Name.FromString("b"));
+        var original = new Type<Unit>.Function(paramType, returnType) { Attributes = Unit.Default };
+
+        var json = MorphirJson.EncodeAsString(original);
+        var decoded = MorphirJson.DecodeFromString<Type<Unit>>(json);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(decoded).IsNotNull();
+            await Assert.That(decoded).IsTypeOf<Type<Unit>.Function>();
+            var function = (Type<Unit>.Function)decoded!;
+            await Assert.That(function.ParameterType).IsTypeOf<Type<Unit>.Variable>();
+            await Assert.That(function.ReturnType).IsTypeOf<Type<Unit>.Variable>();
+        }
+    }
+
+    #endregion
+
     #region FqName Tests
 
     [Test]

@@ -46,16 +46,19 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         private JsonConverter<TAttributes> AttributeConverter { get; } =
             (JsonConverter<TAttributes>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(TAttributes));
 
-        // Converter for nested Type<TAttributes> sequences (used by Tuple and others)
-        private JsonConverter<System.Collections.Generic.IEnumerable<Type<TAttributes>>> TypeSeqConverter { get; } =
-            (JsonConverter<System.Collections.Generic.IEnumerable<Type<TAttributes>>>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(System.Collections.Generic.IEnumerable<Type<TAttributes>>));
+        private JsonConverter<FqName> FqNameConverter { get; } =
+            (JsonConverter<FqName>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(FqName));
 
         public override bool CanConvert(System.Type typeToConvert)
         {
-            return (typeToConvert == typeof(Type<TAttributes>)) 
+            return (typeToConvert == typeof(Type<TAttributes>))
                    || (typeToConvert == typeof(Type<TAttributes>.Variable))
-                   || (typeToConvert == typeof(Type<TAttributes>.Unit))
-                   || (typeToConvert == typeof(Type<TAttributes>.Tuple));
+                   || (typeToConvert == typeof(Type<TAttributes>.Reference))
+                   || (typeToConvert == typeof(Type<TAttributes>.Tuple))
+                   || (typeToConvert == typeof(Type<TAttributes>.Record))
+                   || (typeToConvert == typeof(Type<TAttributes>.ExtensibleRecord))
+                   || (typeToConvert == typeof(Type<TAttributes>.Function))
+                   || (typeToConvert == typeof(Type<TAttributes>.Unit));
         }
 
         public override Type<TAttributes>? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
@@ -68,10 +71,18 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
                 {
                     case "Variable":
                         return ReadVariable(ref reader, typeToConvert, options);
-                    case "Unit":
-                        return ReadUnit(ref reader, typeToConvert, options);
+                    case "Reference":
+                        return ReadReference(ref reader, typeToConvert, options);
                     case "Tuple":
                         return ReadTuple(ref reader, typeToConvert, options);
+                    case "Record":
+                        return ReadRecord(ref reader, typeToConvert, options);
+                    case "ExtensibleRecord":
+                        return ReadExtensibleRecord(ref reader, typeToConvert, options);
+                    case "Function":
+                        return ReadFunction(ref reader, typeToConvert, options);
+                    case "Unit":
+                        return ReadUnit(ref reader, typeToConvert, options);
                     default:
                         throw new NotSupportedException($"Unexpected type name when parsing Classic Type: {typeNodeName}");
                 }
@@ -86,13 +97,29 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             {
                 WriteVariable(writer, variable, options);
             }
-            else if (value is Type<TAttributes>.Unit unit)
+            else if (value is Type<TAttributes>.Reference reference)
             {
-                WriteUnit(writer, unit, options);
+                WriteReference(writer, reference, options);
             }
             else if (value is Type<TAttributes>.Tuple tuple)
             {
                 WriteTuple(writer, tuple, options);
+            }
+            else if (value is Type<TAttributes>.Record record)
+            {
+                WriteRecord(writer, record, options);
+            }
+            else if (value is Type<TAttributes>.ExtensibleRecord extensibleRecord)
+            {
+                WriteExtensibleRecord(writer, extensibleRecord, options);
+            }
+            else if (value is Type<TAttributes>.Function function)
+            {
+                WriteFunction(writer, function, options);
+            }
+            else if (value is Type<TAttributes>.Unit unit)
+            {
+                WriteUnit(writer, unit, options);
             }
             else
             {
@@ -100,6 +127,170 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             }
         }
         
+        private Type<TAttributes>? ReadReference(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+        {
+            TAttributes? attributes = default;
+            FqName? typeName = default;
+            List<Type<TAttributes>> typeParameters = new();
+
+            // Read attributes
+            if (reader.Read())
+            {
+                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                if (attributes == null)
+                    throw new JsonException("Malformed \"Reference\" encountered: attributes cannot be null");
+            }
+
+            // Read FqName
+            if (reader.Read())
+            {
+                typeName = FqNameConverter.Read(ref reader, typeof(FqName), options);
+                if (typeName == null)
+                    throw new JsonException("Malformed \"Reference\" encountered: typeName cannot be null");
+            }
+
+            // Read type parameters array
+            if (reader.Read() && reader.TokenType == JsonTokenType.StartArray)
+            {
+                while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+                {
+                    var typeParam = Read(ref reader, typeof(Type<TAttributes>), options);
+                    if (typeParam == null)
+                        throw new JsonException("Malformed \"Reference\" encountered: type parameter cannot be null");
+                    typeParameters.Add(typeParam);
+                }
+
+                // Read the closing bracket of the outer Reference array
+                if (reader.Read() && reader.TokenType == JsonTokenType.EndArray)
+                {
+                    var typeParamSeq = new Seq<Type<TAttributes>>(typeParameters.ToArray());
+                    return new Type<TAttributes>.Reference(typeName!, typeParamSeq) { Attributes = attributes! };
+                }
+            }
+
+            throw new JsonException("Malformed \"Reference\" encountered: " + reader.TokenType);
+        }
+
+        private Type<TAttributes>? ReadRecord(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+        {
+            TAttributes? attributes = default;
+            List<Type.Field<TAttributes>> fieldTypes = new();
+
+            // Read attributes
+            if (reader.Read())
+            {
+                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                if (attributes == null)
+                    throw new JsonException("Malformed \"Record\" encountered: attributes cannot be null");
+            }
+
+            // Read field types array
+            if (reader.Read() && reader.TokenType == JsonTokenType.StartArray)
+            {
+                var fieldConverter = (JsonConverter<Type.Field<TAttributes>>)options.GetConverter(typeof(Type.Field<TAttributes>));
+                while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+                {
+                    var field = fieldConverter.Read(ref reader, typeof(Type.Field<TAttributes>), options);
+                    if (field == null)
+                        throw new JsonException("Malformed \"Record\" encountered: field cannot be null");
+                    fieldTypes.Add(field);
+                }
+
+                // Read the closing bracket of the outer Record array
+                if (reader.Read() && reader.TokenType == JsonTokenType.EndArray)
+                {
+                    var fieldSeq = new Seq<Type.Field<TAttributes>>(fieldTypes.ToArray());
+                    return new Type<TAttributes>.Record(fieldSeq) { Attributes = attributes! };
+                }
+            }
+
+            throw new JsonException("Malformed \"Record\" encountered: " + reader.TokenType);
+        }
+
+        private Type<TAttributes>? ReadExtensibleRecord(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+        {
+            TAttributes? attributes = default;
+            Name? variableName = default;
+            List<Type.Field<TAttributes>> fieldTypes = new();
+
+            // Read attributes
+            if (reader.Read())
+            {
+                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                if (attributes == null)
+                    throw new JsonException("Malformed \"ExtensibleRecord\" encountered: attributes cannot be null");
+            }
+
+            // Read variable name
+            if (reader.Read())
+            {
+                variableName = NameConverter.Read(ref reader, typeof(Name), options);
+                if (variableName == null)
+                    throw new JsonException("Malformed \"ExtensibleRecord\" encountered: variableName cannot be null");
+            }
+
+            // Read field types array
+            if (reader.Read() && reader.TokenType == JsonTokenType.StartArray)
+            {
+                var fieldConverter = (JsonConverter<Type.Field<TAttributes>>)options.GetConverter(typeof(Type.Field<TAttributes>));
+                while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+                {
+                    var field = fieldConverter.Read(ref reader, typeof(Type.Field<TAttributes>), options);
+                    if (field == null)
+                        throw new JsonException("Malformed \"ExtensibleRecord\" encountered: field cannot be null");
+                    fieldTypes.Add(field);
+                }
+
+                // Read the closing bracket of the outer ExtensibleRecord array
+                if (reader.Read() && reader.TokenType == JsonTokenType.EndArray)
+                {
+                    var fieldSeq = new Seq<Type.Field<TAttributes>>(fieldTypes.ToArray());
+                    return new Type<TAttributes>.ExtensibleRecord(variableName!, fieldSeq) { Attributes = attributes! };
+                }
+            }
+
+            throw new JsonException("Malformed \"ExtensibleRecord\" encountered: " + reader.TokenType);
+        }
+
+        private Type<TAttributes>? ReadFunction(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+        {
+            TAttributes? attributes = default;
+            Type<TAttributes>? parameterType = default;
+            Type<TAttributes>? returnType = default;
+
+            // Read attributes
+            if (reader.Read())
+            {
+                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                if (attributes == null)
+                    throw new JsonException("Malformed \"Function\" encountered: attributes cannot be null");
+            }
+
+            // Read parameter type
+            if (reader.Read())
+            {
+                parameterType = Read(ref reader, typeof(Type<TAttributes>), options);
+                if (parameterType == null)
+                    throw new JsonException("Malformed \"Function\" encountered: parameterType cannot be null");
+            }
+
+            // Read return type
+            if (reader.Read())
+            {
+                returnType = Read(ref reader, typeof(Type<TAttributes>), options);
+                if (returnType == null)
+                    throw new JsonException("Malformed \"Function\" encountered: returnType cannot be null");
+            }
+
+            // Read the closing bracket of the Function array
+            if (reader.Read() && reader.TokenType == JsonTokenType.EndArray)
+            {
+                return new Type<TAttributes>.Function(parameterType!, returnType!) { Attributes = attributes! };
+            }
+
+            throw new JsonException("Malformed \"Function\" encountered: " + reader.TokenType);
+        }
+
         private Type<TAttributes>? ReadUnit(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
         {
             if (reader.Read())
@@ -211,6 +402,73 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
                 Write(writer, elem, options);
             }
             writer.WriteEndArray();
+            writer.WriteEndArray();
+        }
+
+        private void WriteReference(Utf8JsonWriter writer, Type<TAttributes>.Reference reference, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            writer.WriteStringValue("Reference");
+            // Attributes
+            AttributeConverter.Write(writer, reference.Attributes, options);
+            // FqName
+            FqNameConverter.Write(writer, reference.TypeName, options);
+            // Type parameters
+            writer.WriteStartArray();
+            foreach (var typeParam in reference.TypeParameters)
+            {
+                Write(writer, typeParam, options);
+            }
+            writer.WriteEndArray();
+            writer.WriteEndArray();
+        }
+
+        private void WriteRecord(Utf8JsonWriter writer, Type<TAttributes>.Record record, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            writer.WriteStringValue("Record");
+            // Attributes
+            AttributeConverter.Write(writer, record.Attributes, options);
+            // Field types
+            writer.WriteStartArray();
+            var fieldConverter = (JsonConverter<Type.Field<TAttributes>>)options.GetConverter(typeof(Type.Field<TAttributes>));
+            foreach (var field in record.FieldTypes)
+            {
+                fieldConverter.Write(writer, field, options);
+            }
+            writer.WriteEndArray();
+            writer.WriteEndArray();
+        }
+
+        private void WriteExtensibleRecord(Utf8JsonWriter writer, Type<TAttributes>.ExtensibleRecord extensibleRecord, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            writer.WriteStringValue("ExtensibleRecord");
+            // Attributes
+            AttributeConverter.Write(writer, extensibleRecord.Attributes, options);
+            // Variable name
+            NameConverter.Write(writer, extensibleRecord.VariableName, options);
+            // Field types
+            writer.WriteStartArray();
+            var fieldConverter = (JsonConverter<Type.Field<TAttributes>>)options.GetConverter(typeof(Type.Field<TAttributes>));
+            foreach (var field in extensibleRecord.FieldTypes)
+            {
+                fieldConverter.Write(writer, field, options);
+            }
+            writer.WriteEndArray();
+            writer.WriteEndArray();
+        }
+
+        private void WriteFunction(Utf8JsonWriter writer, Type<TAttributes>.Function function, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            writer.WriteStringValue("Function");
+            // Attributes
+            AttributeConverter.Write(writer, function.Attributes, options);
+            // Parameter type
+            Write(writer, function.ParameterType, options);
+            // Return type
+            Write(writer, function.ReturnType, options);
             writer.WriteEndArray();
         }
     }
