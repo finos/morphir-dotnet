@@ -451,6 +451,88 @@ public class DocumentTests
 
     #endregion
 
+    #region Bytes Tests
+
+    [Test]
+    public async Task Bytes_Should_Store_Byte_Array()
+    {
+        var bytes = new byte[] { 0x48, 0x65, 0x6C, 0x6C, 0x6F }; // "Hello"
+        var doc = new Document.Bytes(bytes.ToImmutableArray());
+        await Assert.That(doc.Value.ToArray()).IsEquivalentTo(bytes);
+    }
+
+    [Test]
+    public async Task Bytes_Should_Store_Empty_Array()
+    {
+        var doc = new Document.Bytes(ImmutableArray<byte>.Empty);
+        await Assert.That(doc.Value).IsEmpty();
+    }
+
+    [Test]
+    public async Task Bytes_BytesDoc_Factory_Should_Create_From_ByteArray()
+    {
+        var bytes = new byte[] { 0x01, 0x02, 0x03 };
+        var doc = Document.BytesDoc(bytes);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Bytes>();
+            await Assert.That(doc.Value.ToArray()).IsEquivalentTo(bytes);
+        }
+    }
+
+    [Test]
+    public async Task Bytes_BytesDoc_Factory_Should_Create_From_ImmutableArray()
+    {
+        var bytes = ImmutableArray.Create<byte>(0xAA, 0xBB, 0xCC);
+        var doc = Document.BytesDoc(bytes);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Bytes>();
+            await Assert.That(doc.Value).IsEquivalentTo(bytes);
+        }
+    }
+
+    [Test]
+    public async Task Bytes_BytesFromBase64_Factory_Should_Create_From_Base64()
+    {
+        var base64 = "SGVsbG8="; // "Hello" in base64
+        var doc = Document.BytesFromBase64(base64);
+        var expected = new byte[] { 0x48, 0x65, 0x6C, 0x6C, 0x6F };
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc).IsTypeOf<Document.Bytes>();
+            await Assert.That(doc.Value.ToArray()).IsEquivalentTo(expected);
+        }
+    }
+
+    [Test]
+    public async Task Bytes_BytesFromBase64_Factory_Should_Throw_On_Invalid_Base64()
+    {
+        await Assert.That(() => Document.BytesFromBase64("not valid base64!@#")).Throws<FormatException>();
+    }
+
+    [Test]
+    public async Task Bytes_Should_Support_Equality()
+    {
+        var bytes1 = ImmutableArray.Create<byte>(0x01, 0x02, 0x03);
+        var bytes2 = ImmutableArray.Create<byte>(0x01, 0x02, 0x03);
+        var bytes3 = ImmutableArray.Create<byte>(0x04, 0x05, 0x06);
+        var doc1 = new Document.Bytes(bytes1);
+        var doc2 = new Document.Bytes(bytes2);
+        var doc3 = new Document.Bytes(bytes3);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc1).IsEqualTo(doc2);
+            await Assert.That(doc1).IsNotEqualTo(doc3);
+        }
+    }
+
+    #endregion
+
     #region Integer Tests
 
     [Test]
@@ -950,6 +1032,14 @@ public class DocumentTests
     }
 
     [Test]
+    public async Task Bytes_Should_Be_DocumentValue()
+    {
+        Document.Bytes doc = Document.BytesDoc(new byte[] { 0x01, 0x02 });
+        Document.DocumentValue value = doc;
+        await Assert.That(value).IsNotNull();
+    }
+
+    [Test]
     public async Task Array_Should_Be_Document()
     {
         Document.Array arr = new Document.Array(ImmutableList<Document>.Empty);
@@ -1021,7 +1111,7 @@ public class DocumentTests
     [Test]
     public async Task Should_Create_Mixed_Type_Array()
     {
-        // Create: [null, true, "hello", 'x', uri, uuid, 42, 3.14, [], {}]
+        // Create: [null, true, "hello", 'x', uri, uuid, bytes, 42, 3.14, [], {}]
         var array = new Document.Array(ImmutableList.Create<Document>(
             Document.NullDoc,
             Document.True,
@@ -1029,6 +1119,7 @@ public class DocumentTests
             Document.Chr('x'),
             Document.UriDoc("https://example.com"),
             Document.UuidDoc(Guid.Parse("550e8400-e29b-41d4-a716-446655440000")),
+            Document.BytesDoc(new byte[] { 0x48, 0x65, 0x6C, 0x6C, 0x6F }),
             new Document.Integer(42),
             new Document.Number(3.14m),
             new Document.Array(ImmutableList<Document>.Empty),
@@ -1037,17 +1128,18 @@ public class DocumentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(array.Items.Count).IsEqualTo(10);
+            await Assert.That(array.Items.Count).IsEqualTo(11);
             await Assert.That(array.Items[0]).IsTypeOf<Document.Null>();
             await Assert.That(array.Items[1]).IsTypeOf<Document.Boolean>();
             await Assert.That(array.Items[2]).IsTypeOf<Document.String>();
             await Assert.That(array.Items[3]).IsTypeOf<Document.Char>();
             await Assert.That(array.Items[4]).IsTypeOf<Document.Uri>();
             await Assert.That(array.Items[5]).IsTypeOf<Document.Uuid>();
-            await Assert.That(array.Items[6]).IsTypeOf<Document.Integer>();
-            await Assert.That(array.Items[7]).IsTypeOf<Document.Number>();
-            await Assert.That(array.Items[8]).IsTypeOf<Document.Array>();
-            await Assert.That(array.Items[9]).IsTypeOf<Document.Object>();
+            await Assert.That(array.Items[6]).IsTypeOf<Document.Bytes>();
+            await Assert.That(array.Items[7]).IsTypeOf<Document.Integer>();
+            await Assert.That(array.Items[8]).IsTypeOf<Document.Number>();
+            await Assert.That(array.Items[9]).IsTypeOf<Document.Array>();
+            await Assert.That(array.Items[10]).IsTypeOf<Document.Object>();
         }
     }
 

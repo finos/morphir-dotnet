@@ -14,7 +14,7 @@ namespace Morphir.IR;
 /// <remarks>
 /// The Document type is analogous to JSON's value types and provides a type-safe way to work with
 /// document-like structures in .NET. Unlike JSON, it distinguishes between Integer and Number (decimal) types,
-/// and also provides String, Char, Uri, and Uuid types for various data representations.
+/// and also provides String, Char, Uri, Uuid, and Bytes types for various data representations.
 ///
 /// <para>Available variants:</para>
 /// <list type="bullet">
@@ -24,6 +24,7 @@ namespace Morphir.IR;
 /// <item><description><see cref="Char"/> - Represents single character values</description></item>
 /// <item><description><see cref="Uri"/> - Represents URI values</description></item>
 /// <item><description><see cref="Uuid"/> - Represents UUID values</description></item>
+/// <item><description><see cref="Bytes"/> - Represents binary data</description></item>
 /// <item><description><see cref="Number"/> - Represents decimal numbers</description></item>
 /// <item><description><see cref="Integer"/> - Represents integer values</description></item>
 /// <item><description><see cref="Array"/> - Represents ordered collections of documents</description></item>
@@ -45,7 +46,7 @@ public abstract partial record Document
     public sealed partial record Array([property:OrderedEquality]IImmutableList<Document> Items) : Document;
 
     /// <summary>
-    /// Base type for primitive document values (Null, Boolean, String, Char, Uri, Uuid, Number, Integer).
+    /// Base type for primitive document values (Null, Boolean, String, Char, Uri, Uuid, Bytes, Number, Integer).
     /// </summary>
     public abstract partial record DocumentValue : Document;
 
@@ -99,6 +100,17 @@ public abstract partial record Document
     /// Supports all standard UUID/GUID formats.
     /// </remarks>
     public sealed partial record Uuid(Guid Value) : DocumentValue;
+
+    /// <summary>
+    /// Represents binary data (byte array) in a document.
+    /// </summary>
+    /// <param name="Value">The binary data as an immutable array.</param>
+    /// <remarks>
+    /// This type uses <see cref="ImmutableArray{T}"/> to safely represent binary data.
+    /// Supports base64 encoding/decoding for string conversion.
+    /// </remarks>
+    [Equatable]
+    public sealed partial record Bytes([property:OrderedEquality]ImmutableArray<byte> Value) : DocumentValue;
 
     /// <summary>
     /// Represents a decimal number value in a document.
@@ -229,6 +241,30 @@ public abstract partial record Document
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="value"/> is null.</exception>
     /// <exception cref="FormatException">Thrown when <paramref name="value"/> is not a valid UUID format.</exception>
     public static Uuid UuidDoc(string value) => new(Guid.Parse(value));
+
+    /// <summary>
+    /// Creates a <see cref="Bytes"/> document from a byte array.
+    /// </summary>
+    /// <param name="value">The byte array.</param>
+    /// <returns>A new <see cref="Bytes"/> document with the specified value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="value"/> is null.</exception>
+    public static Bytes BytesDoc(byte[] value) => new((value ?? throw new ArgumentNullException(nameof(value))).ToImmutableArray());
+
+    /// <summary>
+    /// Creates a <see cref="Bytes"/> document from an immutable byte array.
+    /// </summary>
+    /// <param name="value">The immutable byte array.</param>
+    /// <returns>A new <see cref="Bytes"/> document with the specified value.</returns>
+    public static Bytes BytesDoc(ImmutableArray<byte> value) => new(value);
+
+    /// <summary>
+    /// Creates a <see cref="Bytes"/> document from a base64 encoded string.
+    /// </summary>
+    /// <param name="base64">The base64 encoded string.</param>
+    /// <returns>A new <see cref="Bytes"/> document with the decoded binary data.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="base64"/> is null.</exception>
+    /// <exception cref="FormatException">Thrown when <paramref name="base64"/> is not valid base64.</exception>
+    public static Bytes BytesFromBase64(string base64) => new(Convert.FromBase64String(base64).ToImmutableArray());
 
     /// <summary>
     /// Creates an <see cref="Object"/> document from key-value pairs.
