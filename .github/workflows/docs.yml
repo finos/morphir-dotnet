@@ -69,6 +69,7 @@ jobs:
         working-directory: docs
         run: |
           npm ci
+          npm install -D autoprefixer postcss postcss-cli
 
       - name: Build with Hugo
         working-directory: docs

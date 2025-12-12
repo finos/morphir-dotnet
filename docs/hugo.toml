@@ -15,11 +15,6 @@ enableGitInfo = true
 
 # Menu configuration
 [[menu.main]]
-name = "Home"
-weight = 1
-url = "/"
-
-[[menu.main]]
 name = "Getting Started"
 weight = 10
 identifier = "getting-started"
@@ -69,9 +64,11 @@ url = "/contributing/"
     contentLocation = "search-index.json"
     shortFileName = true
   
-  # Versioning (if needed)
-  [params.versions]
-    latest = "main"
+  # Versioning - disabled for now
+  # [params.versions]
+  #   [[params.versions]]
+  #     version = "main"
+  #     url = "/"
   
   # UI theme
   [params.ui]
