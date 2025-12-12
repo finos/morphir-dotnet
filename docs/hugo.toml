@@ -77,10 +77,10 @@ url = "/contributing/"
   [params.ui]
     [params.ui.banner]
       enable = false
-    [params.ui.sidebar_menu_compact] = false
-    [params.ui.sidebar_menu_foldable] = true
-    [params.ui.sidebar_search] = true
-    [params.ui.navbar_logo] = true
+    sidebar_menu_compact = false
+    sidebar_menu_foldable = true
+    sidebar_search = true
+    navbar_logo = true
     [params.ui.feedback]
       enable = true
       "yes" = "https://github.com/finos/morphir-dotnet/discussions"
