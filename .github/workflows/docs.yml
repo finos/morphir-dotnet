@@ -61,9 +61,8 @@ jobs:
       - name: Install Hugo theme dependencies
         working-directory: docs
         run: |
-          hugo mod init -m github.com/finos/morphir-dotnet/docs || true
+          hugo mod init github.com/finos/morphir-dotnet/docs || true
           hugo mod get -u github.com/google/docsy@latest
-          hugo mod get -u github.com/google/docsy/dependencies@latest
           hugo mod tidy
 
       - name: Install npm dependencies
