@@ -27,6 +27,7 @@ Stacks and baselines
 - C# 14, .NET 10 (SDK pinned in global.json).
 - F# for ADT-heavy components where appropriate.
 - TypeScript optional for dev tooling/schema checks.
+- Critter Stack (WolverineFx & Marten) used in development for messaging and persistence.
 
 Principles
 - Immutability-first; push effects to edges.
