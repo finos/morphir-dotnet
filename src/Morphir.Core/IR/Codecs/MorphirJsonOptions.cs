@@ -34,7 +34,7 @@ public record MorphirJsonOptions(MorphirFormatVersion FormatVersion)
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
             Converters =
             {
-                new DocumentJsonConverter(options),
+                new DocumentJsonConverterFactory(options),
                 new NameConverter(options),
                 new TypeJsonConverter(options),
                 new ClassicTypeJsonConverterFactory(options),

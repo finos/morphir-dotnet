@@ -142,8 +142,8 @@ public class MorphirJsonOptionsTests
         {
             await Assert.That(jsonOptions.Converters).IsNotEmpty();
 
-            // Should have DocumentJsonConverter
-            await Assert.That(jsonOptions.Converters.Any(c => c is DocumentJsonConverter)).IsTrue();
+            // Should have DocumentJsonConverterFactory
+            await Assert.That(jsonOptions.Converters.Any(c => c is DocumentJsonConverterFactory)).IsTrue();
         }
     }
 

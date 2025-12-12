@@ -26,6 +26,36 @@ namespace Morphir.IR.Codecs;
 /// <item><description>Bytes → {"$bytes": "SGVsbG8="} (base64)</description></item>
 /// </list>
 /// </remarks>
+public class DocumentJsonConverterFactory : JsonConverterFactory
+{
+    private readonly MorphirJsonOptions _morphirJsonOptions;
+
+    public DocumentJsonConverterFactory(MorphirJsonOptions morphirJsonOptions)
+    {
+        _morphirJsonOptions = morphirJsonOptions;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentJsonConverterFactory"/> class with default options.
+    /// </summary>
+    public DocumentJsonConverterFactory() : this(MorphirJsonOptions.Default)
+    {
+    }
+
+    public override bool CanConvert(System.Type typeToConvert)
+    {
+        return typeof(Document).IsAssignableFrom(typeToConvert);
+    }
+
+    public override JsonConverter? CreateConverter(System.Type typeToConvert, JsonSerializerOptions options)
+    {
+        return new DocumentJsonConverter(_morphirJsonOptions);
+    }
+}
+
+/// <summary>
+/// JSON converter for serializing and deserializing <see cref="Document"/> instances.
+/// </summary>
 public class DocumentJsonConverter : JsonConverter<Document>
 {
     public DocumentJsonConverter(MorphirJsonOptions morphirJsonOptions)
