@@ -1,0 +1,13 @@
+{
+  "name": "morphir-dotnet-docs",
+  "version": "1.0.0",
+  "description": "Documentation site for Morphir .NET",
+  "scripts": {
+    "hugo": "hugo",
+    "hugo:server": "hugo server",
+    "hugo:build": "hugo --minify"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
+
