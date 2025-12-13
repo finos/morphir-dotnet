@@ -58,6 +58,7 @@ $ ./build.sh  <optional buildtarget>// on unix
 
 ### Build Targets
 
+
 - `Clean` - Cleans artifact and temp directories.
 - `DotnetRestore` -
   Runs [dotnet restore](https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-restore?tabs=netcore2x) on
@@ -122,6 +123,8 @@ users goto a Pull Request, it will be clear when and which version those code ch
 `CHANGELOG`, if someone is curious about how or why those changes were made, they can easily discover the work and
 discussions.
 
+
+
 Here's an example of adding an "Unreleased" section to a `CHANGELOG.md` with a `0.1.0` section already released.
 
 ```markdown
@@ -152,6 +155,7 @@ First release
       body
     - push a git tag
     - create a GitHub release for that git tag
+
 
 macOS/Linux Parameter:
 

@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net6.0;netstandard2.0</TargetFrameworks>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.SystemCommandLine" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <Compile Include="Library.fs"/>
+    </ItemGroup>
+
+</Project>
