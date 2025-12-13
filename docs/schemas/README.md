@@ -122,14 +122,15 @@ The schemas are written in YAML format for better readability and include:
 
 When updating the IR format:
 
-1. Update the appropriate schema file(s)
-2. Update the `currentFormatVersion` in `src/Morphir/IR/FormatVersion.elm`
+1. Update the appropriate schema file(s) to match the upstream schemas from the [main Morphir repository](https://github.com/finos/morphir/tree/main/docs/schemas)
+2. Update the format version handling in the .NET codec implementation if needed
 3. Add migration logic in the codec files if needed
 4. Update this README with the changes
 5. Test the schema against example IR files
 
 ## References
 
-- [Morphir IR Specification](../morphir-ir-specification.md)
+- [Morphir Project](https://morphir.finos.org/)
+- [Morphir Repository](https://github.com/finos/morphir)
 - [JSON Schema Specification](https://json-schema.org/)
 - [YAML Format](https://yaml.org/)
