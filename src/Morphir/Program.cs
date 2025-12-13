@@ -39,8 +39,13 @@ internal static class Program
             }
 
             Console.WriteLine("Morphir command line run:");
+            var wasmPluginPath = parseResult.GetValue(wasmPluginPathArgument);
+            if (wasmPluginPath == null)
+            {
+                throw new InvalidOperationException("Wasm plugin path is required");
+            }
             RunWasmPlugin(currentDirOverride ?? new FileInfo(Directory.GetCurrentDirectory()),
-                parseResult.GetValue(wasmPluginPathArgument));
+                wasmPluginPath);
         });
         return rootCommand.Parse(args).Invoke();
     }
