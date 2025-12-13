@@ -20,7 +20,7 @@ Architecture (high-level)
 - domain/: Pure Morphir domain/IR models, types, values, invariants.
 - adapters/: Edges (serialization, CLI integration, file I/O, codegen).
 - app/: Composition root, configuration, hosting/CLI entry points.
-- schemas/: IR/JSON/OpenAPI schemas and samples (if applicable).
+- docs/spec/: IR specification and schemas (JSON/OpenAPI schemas and samples).
 - tests/: Unit (TUnit), property-based (via generators), and BDD/acceptance (Reqnroll).
 
 Stacks and baselines
@@ -55,7 +55,7 @@ Adjust to actual repo layout.
 - src/
     - Morphir: C# CLI/host (.csproj, C# 14)
     - Morphir.Core: Core domain model and IR definition  (.csproj, C# 14)
-- schemas/: JSON/OpenAPI, IR samples/fixtures
+- docs/spec/: IR specification and JSON/OpenAPI schemas, IR samples/fixtures
 - tests/**.csproj: TUnit, Reqnroll, contract tests
 - scripts/: format/test/contract/codegen utilities
 - docs/: ADRs, architecture, contribution notes
@@ -165,7 +165,7 @@ export type TypeExpr =
 - Backward compatibility
     - Additive OK.
     - Breaking changes require ADR, migration notes, and version bump.
-- If OpenAPI/JSON Schemas exist, keep in `schemas/` and validate in CI.
+- If OpenAPI/JSON Schemas exist, keep in `docs/spec/schemas/` and validate in CI.
 
 ## 8) Tooling and Scripts for Agents
 
@@ -250,6 +250,7 @@ Coverage targets
 
 - Small, focused PRs with tests (TUnit and/or Reqnroll).
 - Conventional Commits: feat:, fix:, refactor:, test:, docs:
+- **Do not list Claude (or any AI assistant) as a co-author on commits.** Our CLA does not support AI assistants as co-authors. Note: GitHub Copilot is supported and may be listed as a co-author when it is an actual co-author.
 - PR checklist:
     - [ ] Tests added/updated and passing
     - [ ] IR/JSON compatibility preserved or versioned with ADR

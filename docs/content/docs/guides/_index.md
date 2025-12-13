@@ -9,9 +9,9 @@ Explore our guides to learn how to use Morphir .NET effectively.
 
 ## Available Guides
 
-- [IR Modeling](/guides/ir-modeling/) - Learn how to model Morphir IR in .NET
-- [Serialization](/guides/serialization/) - Working with JSON serialization
-- [Testing](/guides/testing/) - Testing strategies and best practices
+- [IR Modeling](/docs/guides/ir-modeling/) - Learn how to model Morphir IR in .NET
+- [Serialization](/docs/guides/serialization/) - Working with JSON serialization
+- [Testing](/docs/guides/testing/) - Testing strategies and best practices
 
 ## Best Practices
 

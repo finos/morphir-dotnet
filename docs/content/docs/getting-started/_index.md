@@ -47,7 +47,7 @@ dotnet build
 
 ## Next Steps
 
-- Learn about [Morphir IR modeling](/guides/ir-modeling/)
-- Explore the [API Reference](/api/)
-- Check out [examples and guides](/guides/)
+- Learn about [Morphir IR modeling](/docs/guides/ir-modeling/)
+- Explore the [API Reference](/docs/api/)
+- Check out [examples and guides](/docs/guides/)
 
