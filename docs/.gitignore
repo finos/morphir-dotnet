@@ -1,0 +1,14 @@
+# Hugo build output
+/public/
+/resources/_gen/
+
+# Hugo cache
+.hugo_build.lock
+
+# Node modules (if using npm packages)
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+

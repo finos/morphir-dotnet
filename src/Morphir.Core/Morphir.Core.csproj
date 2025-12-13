@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Morphir</RootNamespace>
+    </PropertyGroup>
+
+
+    <ItemGroup>
+        <PackageReference Include="Dunet" />
+        <PackageReference Include="Funcky.DiscriminatedUnion">
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="Generator.Equals" />
+        <PackageReference Include="InlineComposition">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="LanguageExt.Core" />
+        <PackageReference Include="Vogen" />
+        <PackageReference Include="StaticCS">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    
+    <ItemGroup>
+        <InternalsVisibleTo Include="Morphir.Core.Tests" />
+        <Using Include="LanguageExt" />
+        <Using Include="LanguageExt.Common" />
+        <Using Include="LanguageExt.Traits" />
+        <Using Include="LanguageExt.Prelude" Static="True" />
+        <Using Include="LanguageExt.Seq" Static="True" />
+    </ItemGroup>
+</Project>
