@@ -43,6 +43,7 @@
         <PackageVersion Include="Octokit" Version="0.50.0"/>
         <PackageVersion Include="StaticCS" Version="0.3.1" />
         <PackageVersion Include="FluentAssertions" Version="8.7.1"/>
+        <PackageVersion Include="Json.More.Net" Version="2.1.2"/>
         <PackageVersion Include="FSharp.Formatting" Version="4.0.0-rc1"/>
         <PackageVersion Include="FSharp.Literate" Version="4.0.0-rc1"/>
         <PackageVersion Include="FSharp.Control.FusionTasks" Version="2.6.0"/>
@@ -57,6 +58,8 @@
         <PackageVersion Include="Reqnroll" Version="$(ReqnrollVersion)" />
         <PackageVersion Include="Reqnroll.TUnit" Version="$(ReqnrollVersion)" />
         <PackageVersion Include="Serilog" Version="2.12.0"/>
+        <PackageVersion Include="Shouldly" Version="4.3.0"/>
+        <PackageVersion Include="Shouldly.Json" Version="0.6.1"/>
         <PackageVersion Include="Serilog.Extensions.Hosting" Version="5.0.1"/>
         <PackageVersion Include="Serilog.Formatting.Compact" Version="1.1.0"/>
         <PackageVersion Include="Serilog.Sinks.Console" Version="4.1.0"/>

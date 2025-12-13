@@ -1,5 +1,6 @@
 using Morphir.Classic.IR;
 using Morphir.IR;
+using Shouldly;
 
 namespace Morphir.StepDefinitions;
 
@@ -36,6 +37,13 @@ public class MorphirJsonSerializationStepDefinitions(ClassicMorphirIrSerializati
     public async Task ThenTheResultShouldMatchTheOriginalInput()
     {
         await Assert.That(Driver.ExpectedJson).IsEqualTo(Driver.InputJson);
+    }
+
+    [Then("the result should be equivalent to the original input")]
+    public void ThenTheResultShouldBeEquivalentToTheOriginalInput()
+    {
+        // Use Shouldly.Json's semantic JSON comparison
+        Driver.ExpectedJson.ShouldBeSemanticallySameJson(Driver.InputJson);
     }
 
     [Given("a classic Morphir IR Type encoded as JSON text: {string}")]
