@@ -1,0 +1,99 @@
+# Hugo configuration file for Docsy theme
+baseURL = 'https://finos.github.io/morphir-dotnet/'
+title = 'Morphir .NET'
+languageCode = 'en-us'
+defaultContentLanguage = 'en'
+
+# Enable Google Analytics if needed (uncomment and set your tracking ID)
+# googleAnalytics = 'UA-XXXXXXXXX-X'
+
+# Enable git info for "last modified" dates
+enableGitInfo = true
+
+# Configure Docsy theme via Hugo modules
+# Themes are managed via go.mod and hugo mod commands
+
+# Menu configuration
+[[menu.main]]
+name = "Getting Started"
+weight = 10
+identifier = "getting-started"
+hasChildren = true
+
+[[menu.main]]
+name = "Guides"
+weight = 20
+identifier = "guides"
+hasChildren = true
+
+[[menu.main]]
+name = "API Reference"
+weight = 30
+url = "/api/"
+
+[[menu.main]]
+name = "Contributing"
+weight = 40
+url = "/contributing/"
+
+# Markup configuration
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+  [markup.highlight]
+    style = "github"
+    codeFences = true
+    guessSyntax = true
+    lineNos = true
+    noClasses = false
+
+# Parameters for Docsy theme
+[params]
+  # Repository configuration
+  github_repo = "https://github.com/finos/morphir-dotnet"
+  github_subdir = ""
+  github_branch = "main"
+  
+  # UI configuration
+  description = ".NET bindings, libraries, codecs, and tooling for the Morphir ecosystem"
+  
+  # Search configuration
+  [params.search]
+    enable = true
+    contentLocation = "search-index.json"
+    shortFileName = true
+  
+  # Versioning - disabled for now
+  # [params.versions]
+  #   [[params.versions]]
+  #     version = "main"
+  #     url = "/"
+  
+  # UI theme
+  [params.ui]
+    [params.ui.banner]
+      enable = false
+    sidebar_menu_compact = false
+    sidebar_menu_foldable = true
+    sidebar_search = true
+    navbar_logo = true
+    [params.ui.feedback]
+      enable = true
+      "yes" = "https://github.com/finos/morphir-dotnet/discussions"
+      "no" = "https://github.com/finos/morphir-dotnet/issues/new"
+
+# Output formats
+[outputs]
+  home = ["HTML", "RSS", "JSON"]
+
+# Taxonomies
+[taxonomies]
+  category = "categories"
+  tag = "tags"
+
+# Hugo Modules configuration
+[module]
+  [[module.imports]]
+    path = "github.com/google/docsy"
+

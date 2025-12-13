@@ -1,6 +1,5 @@
-# EditorConfig is awesome:
-http://EditorConfig.org
-
+# EditorConfig is awesome: http://EditorConfig.org
+                   
 # top-most EditorConfig file
 root = true
 
@@ -13,16 +12,31 @@ indent_style = space
 indent_size = 4
 end_of_line = lf
 
-[*.{fs,fsi,fsx,config}]
+[*.cs]
+indent_size = 4
+charset = utf-8
+
+# Verify settings
+[*.{received,verified}.{json,txt,xml}]
+end_of_line = lf
+indent_size = unset
+indent_style = unset
+insert_final_newline = false
+tab_width = unset
+trim_trailing_whitespace = false
+
+
+
+[*.{fs, fsi, fsx, config}]
 # https://fsprojects.github.io/fantomas/docs/end-users/Configuration.html
 charset = utf-8
 trim_trailing_whitespace = true
-max_line_length=100
-fsharp_multiline_block_brackets_on_same_column=true
-fsharp_experimental_stroustrup_style=true
-fsharp_keep_max_number_of_blank_lines=2
-fsharp_max_array_or_list_number_of_items=1
-fsharp_max_array_or_list_width=100                                         
-fsharp_array_or_list_multiline_formatter=character_width
-fsharp_max_infix_operator_expression=10
-fsharp_multi_line_lambda_closing_newline=true
+max_line_length = 100
+fsharp_multiline_block_brackets_on_same_column= true
+fsharp_experimental_stroustrup_style = true
+fsharp_keep_max_number_of_blank_lines = 2
+fsharp_max_array_or_list_number_of_items =1
+fsharp_max_array_or_list_width = 100
+fsharp_array_or_list_multiline_formatter = character_width
+fsharp_max_infix_operator_expression = 10
+fsharp_multi_line_lambda_closing_newline = true

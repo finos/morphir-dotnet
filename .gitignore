@@ -272,3 +272,11 @@ coverage.*.xml
 .ionide
 
 docs/coverage/
+
+# Verify
+*.received.*
+
+# Hugo documentation site
+docs/public/
+docs/resources/_gen/
+docs/.hugo_build.lock
