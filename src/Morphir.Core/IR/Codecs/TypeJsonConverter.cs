@@ -5,6 +5,8 @@ namespace Morphir.IR.Codecs;
 
 public class TypeJsonConverter(MorphirJsonOptions morphirJsonOptions) : JsonConverter<Type>
 {
+    private readonly MorphirJsonOptions _morphirJsonOptions = morphirJsonOptions;
+
     public override Type? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
     {
         throw new NotImplementedException();

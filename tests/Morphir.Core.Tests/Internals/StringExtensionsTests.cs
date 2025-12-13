@@ -1,4 +1,5 @@
 namespace Morphir.Internals;
+
 public class StringExtensionsTests
 {
     [Test]

@@ -37,6 +37,33 @@ To create a DCO please follow these steps:
        entirely between you and the copyright holder(s).
 3. Issue a pull request with the DCO.
 
+## Development Setup
+
+### Prerequisites
+
+- .NET SDK 10.0
+
+### Setting up Git Hooks
+
+This project uses [Husky.Net](https://alirezanet.github.io/Husky.Net/) to run pre-commit hooks that ensure code formatting standards are met before commits.
+
+After cloning the repository, run:
+
+```bash
+dotnet tool restore
+dotnet husky install
+```
+
+This will restore the .NET tools (including Husky.Net) and set up the git hooks. The pre-commit hook will run `dotnet format --verify-no-changes` to ensure your code is properly formatted before allowing the commit to proceed.
+
+If the formatting check fails, you can fix it by running:
+
+```bash
+dotnet format
+```
+
+Then stage the formatted files and commit again.
+
 ## Pull request process
 
 When you create a pull request, follow these steps:

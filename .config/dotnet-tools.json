@@ -25,6 +25,12 @@
       "commands": [
         "fantomas"
       ]
+    },
+    "husky": {
+      "version": "0.8.0",
+      "commands": [
+        "husky"
+      ]
     }
   }
 }
