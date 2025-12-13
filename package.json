@@ -1,0 +1,12 @@
+{
+  "name": "morphir-dotnet",
+  "version": "1.0.0",
+  "description": "Morphir .NET bindings and tooling",
+  "private": true,
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.0.11"
+  }
+}
