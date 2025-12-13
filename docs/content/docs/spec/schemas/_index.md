@@ -1,3 +1,10 @@
+---
+title: "JSON Schemas"
+linkTitle: "Schemas"
+weight: 2
+description: "JSON schema definitions for Morphir IR format versions"
+---
+
 # Morphir IR JSON Schemas
 
 This directory contains formal JSON schema specifications for all supported format versions of the Morphir IR (Intermediate Representation).
@@ -134,3 +141,4 @@ When updating the IR format:
 - [Morphir Repository](https://github.com/finos/morphir)
 - [JSON Schema Specification](https://json-schema.org/)
 - [YAML Format](https://yaml.org/)
+

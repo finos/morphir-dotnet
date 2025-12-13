@@ -10,43 +10,33 @@ defaultContentLanguage = 'en'
 # Enable git info for "last modified" dates
 enableGitInfo = true
 
+# Enable robots.txt
+enableRobotsTXT = true
+
+# Enable missing translation placeholders (useful when translating)
+enableMissingTranslationPlaceholders = true
+
 # Configure Docsy theme via Hugo modules
 # Themes are managed via go.mod and hugo mod commands
 
 # Menu configuration
-[[menu.main]]
-name = "Getting Started"
-weight = 10
-identifier = "getting-started"
-hasChildren = true
-
-[[menu.main]]
-name = "Guides"
-weight = 20
-identifier = "guides"
-hasChildren = true
-
-[[menu.main]]
-name = "API Reference"
-weight = 30
-url = "/api/"
-
-[[menu.main]]
-name = "Contributing"
-weight = 40
-url = "/contributing/"
+# Main navigation is now handled by the docs section structure
+# Remove these manual menu entries to let Docsy auto-generate from content
 
 # Markup configuration
 [markup]
   [markup.goldmark]
+    [markup.goldmark.parser]
+      [markup.goldmark.parser.attribute]
+        block = true
     [markup.goldmark.renderer]
       unsafe = true
   [markup.highlight]
-    style = "github"
+    style = "monokai"
     codeFences = true
     guessSyntax = true
-    lineNos = true
-    noClasses = false
+    lineNos = false
+    noClasses = true
 
 # Parameters for Docsy theme
 [params]
@@ -64,6 +54,12 @@ url = "/contributing/"
     contentLocation = "search-index.json"
     shortFileName = true
   
+  # Offline search (Lunr.js)
+  offlineSearch = false
+  
+  # Prism syntax highlighting
+  prism_syntax_highlighting = false
+  
   # Versioning - disabled for now
   # [params.versions]
   #   [[params.versions]]
@@ -72,20 +68,22 @@ url = "/contributing/"
   
   # UI theme
   [params.ui]
-    [params.ui.banner]
-      enable = false
-    sidebar_menu_compact = false
-    sidebar_menu_foldable = true
-    sidebar_search = true
+    breadcrumb_disable = false
     navbar_logo = true
+    navbar_translucent_over_cover_disable = false
+    sidebar_menu_compact = false
+    sidebar_search_disable = false
+    showLightDarkModeMenu = true
     [params.ui.feedback]
       enable = true
-      "yes" = "https://github.com/finos/morphir-dotnet/discussions"
-      "no" = "https://github.com/finos/morphir-dotnet/issues/new"
+      "yes" = "Glad to hear it! Please <a href=\"https://github.com/finos/morphir-dotnet/discussions\">tell us how we can improve</a>."
+      "no" = "Sorry to hear that. Please <a href=\"https://github.com/finos/morphir-dotnet/issues/new\">tell us how we can improve</a>."
+  
 
 # Output formats
 [outputs]
-  home = ["HTML", "RSS", "JSON"]
+  home = ["HTML", "RSS"]
+  section = ["HTML", "print", "RSS"]
 
 # Taxonomies
 [taxonomies]
@@ -96,4 +94,6 @@ url = "/contributing/"
 [module]
   [[module.imports]]
     path = "github.com/google/docsy"
+  [[module.imports]]
+    path = "github.com/google/docsy/dependencies"
 
