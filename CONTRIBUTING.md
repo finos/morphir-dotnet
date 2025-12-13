@@ -42,19 +42,19 @@ To create a DCO please follow these steps:
 ### Prerequisites
 
 - .NET SDK 10.0
-- Node.js and npm (for Husky git hooks)
 
 ### Setting up Git Hooks
 
-This project uses [Husky](https://typicode.github.io/husky/) to run pre-commit hooks that ensure code formatting standards are met before commits.
+This project uses [Husky.Net](https://alirezanet.github.io/Husky.Net/) to run pre-commit hooks that ensure code formatting standards are met before commits.
 
 After cloning the repository, run:
 
 ```bash
-npm install
+dotnet tool restore
+dotnet husky install
 ```
 
-This will automatically set up the Husky git hooks. The pre-commit hook will run `dotnet format --verify-no-changes` to ensure your code is properly formatted before allowing the commit to proceed.
+This will restore the .NET tools (including Husky.Net) and set up the git hooks. The pre-commit hook will run `dotnet format --verify-no-changes` to ensure your code is properly formatted before allowing the commit to proceed.
 
 If the formatting check fails, you can fix it by running:
 
