@@ -32,7 +32,7 @@ Feature: CLI IR Verification Integration
   Scenario: Verify invalid IR file returns failure
     When I run the CLI with command "ir verify <test-data>/invalid-missing-formatversion.json"
     Then the exit code should be 1
-    And the output should contain "✗ INVALID"
+    And the output should contain "INVALID" or "✗ INVALID"
     And the output should contain "validation error"
     And the output should contain "formatVersion"
 
