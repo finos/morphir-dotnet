@@ -7,9 +7,11 @@ description: "Product Requirements Document for Morphir IR JSON schema verificat
 
 # Product Requirements Document: IR JSON Schema Verification
 
-**Status**: Draft
+**Status**: 🚧 In Progress
 **Created**: 2025-12-13
-**Last Updated**: 2025-12-13
+**Last Updated**: 2025-12-15
+**Current Phase**: Phase 1 - Core Verification (MVP)
+**Current Task**: Project setup and WolverineFx integration
 **Author**: Morphir .NET Team
 
 ## Overview
@@ -1110,6 +1112,28 @@ Comprehensive BDD scenarios are defined in Gherkin syntax in a companion documen
 - Phase 3+ or separate enhancement PRD
 - Focus on reusable infrastructure first, then integrate with `verify`
 - Consider FileSystemWatcher (.NET) or libraries like DotNet.Glob + polling
+
+## Implementation Notes
+
+This section captures design decisions, deviations, and insights discovered during implementation. Updated in real-time as work progresses.
+
+### Phase 1: Core Verification (Current - Started 2025-12-15)
+
+#### Initial Setup (2025-12-15)
+- **Task**: Created PRD and set up project structure
+- **Status**: ✅ Complete
+- **Notes**:
+  - PRD created with comprehensive requirements and BDD scenarios
+  - Added PRD management guidance to AGENTS.md for cross-agent collaboration
+  - Created PRD index for quick status lookup
+  - Ready to begin implementation
+
+#### Next Steps
+- Create Morphir.Tooling project
+- Set up WolverineFx host configuration
+- Implement VerifyIR feature slice
+
+---
 
 ## References
 
