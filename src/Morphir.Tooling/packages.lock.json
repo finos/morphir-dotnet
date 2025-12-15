@@ -10,17 +10,17 @@
       },
       "Json.More.Net": {
         "type": "Direct",
-        "requested": "[2.1.2, )",
-        "resolved": "2.1.2",
-        "contentHash": "gMRhJLzUHf1K4wmI3eIx6YxQtBHRfWmgzYo6rU3FDJtHEbbPVFlGBXkm2bbJhdtTVMVMlIdpzYMU4G/o5yXpzw=="
+        "requested": "[2.2.0, )",
+        "resolved": "2.2.0",
+        "contentHash": "fiyEZJNgiCzDa7/N9bZ+CnM5qnawyJ54+CkHNZ2svwxWBWNNFzydJ7RlroqMdOjokGBiLcKIxdajNvOklzlYqQ=="
       },
       "JsonSchema.Net": {
         "type": "Direct",
-        "requested": "[7.3.0, )",
-        "resolved": "7.3.0",
-        "contentHash": "NjVeRnxnU6WMn6kmQ/t/VyfnAVT34wWMw8LmUNE0TgIju2YKWvQWsjWTipUaR1bZJA7b/2brAu+xIleJnGFiPw==",
+        "requested": "[8.0.1, )",
+        "resolved": "8.0.1",
+        "contentHash": "4BkxeM8BNlreCf1sXdlSp68QXs8Odb+1Xu4/+riWhP87PVMS7RquwhQ1ny9RsK03/TPw6iom6ZaIOfmk9C+b+Q==",
         "dependencies": {
-          "JsonPointer.Net": "5.0.0"
+          "JsonPointer.Net": "6.0.0"
         }
       },
       "WolverineFx": {
@@ -47,12 +47,6 @@
           "System.Diagnostics.DiagnosticSource": "[9.0.0, 10.0.0)"
         }
       },
-      "YamlDotNet": {
-        "type": "Direct",
-        "requested": "[16.2.1, )",
-        "resolved": "16.2.1",
-        "contentHash": "im6zTVgesjcfTRfuMpnx51Rg2svWenp/3q5XBfcIzgj8PNIkkSD2xEl9HWcVi2SaJPP9XcXUdzed9gSDEuf1TA=="
-      },
       "FastExpressionCompiler": {
         "type": "Transitive",
         "resolved": "4.2.2",
@@ -68,8 +62,8 @@
       },
       "Humanizer.Core": {
         "type": "Transitive",
-        "resolved": "2.14.1",
-        "contentHash": "lQKvtaTDOXnoVJ20ibTuSIOf2i0uO0MPbDhd1jm238I+U/2ZnRENj0cktKZhtchBMtCUSRQ5v4xBCUbKNmyVMw=="
+        "resolved": "3.0.1",
+        "contentHash": "scB3+KcxNmEjZK5V8rKCW2gIiL8m8KH91w14FuuExyhi9xTyAJ+jr+DDxGdy12mHmioe2uvjxTfMgM7WmSUFlw=="
       },
       "JasperFx.CodeGeneration": {
         "type": "Transitive",
@@ -112,11 +106,11 @@
       },
       "JsonPointer.Net": {
         "type": "Transitive",
-        "resolved": "5.0.0",
-        "contentHash": "fm4T5w20AY6C+p5/pJr0vrXRNGgtSfHl34I1LxC9zdPwS9S3j0GiR1Mz/CVPWKDXXGDpCt1APHpCq7kn5adCfA==",
+        "resolved": "6.0.0",
+        "contentHash": "OOObaRq33mNkoMFM1JfdW3nD6U6xF0MHHxPFAxSpKHNNTK6Zbt8U9grquJ+m2onZ1M7cruho0fWzHjhpjEXjog==",
         "dependencies": {
-          "Humanizer.Core": "2.14.1",
-          "Json.More.Net": "2.0.1.2"
+          "Humanizer.Core": "3.0.1",
+          "Json.More.Net": "2.2.0"
         }
       },
       "Microsoft.Bcl.AsyncInterfaces": {

@@ -280,3 +280,4 @@ docs/coverage/
 docs/public/
 docs/resources/_gen/
 docs/.hugo_build.lock
+test-*.json

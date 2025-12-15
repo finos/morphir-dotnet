@@ -1,8 +1,5 @@
 using System.Collections.Concurrent;
 using System.Reflection;
-using System.Text.Json;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
 
 namespace Morphir.Tooling.Infrastructure.JsonSchema;
 
@@ -14,30 +11,22 @@ public class SchemaLoader
     {
         return Task.FromResult(_cache.GetOrAdd(version, v =>
         {
-            // Load embedded YAML schema
-            var resourceName = $"Morphir.Tooling.Infrastructure.Schemas.morphir-ir-v{v}.yaml";
+            // Load embedded JSON schema
+            var resourceName = $"Morphir.Tooling.Infrastructure.Schemas.morphir-ir-v{v}.json";
             using var stream = Assembly.GetExecutingAssembly()
                 .GetManifestResourceStream(resourceName)
                 ?? throw new FileNotFoundException($"Schema file not found: {resourceName}");
 
             using var reader = new StreamReader(stream);
-            var yamlContent = reader.ReadToEnd();
-
-            // Convert YAML to JSON
-            var deserializer = new DeserializerBuilder()
-                .WithNamingConvention(CamelCaseNamingConvention.Instance)
-                .Build();
-
-            var yamlObject = deserializer.Deserialize(new StringReader(yamlContent));
-
-            var serializer = new SerializerBuilder()
-                .JsonCompatible()
-                .Build();
-
-            var jsonContent = serializer.Serialize(yamlObject);
+            var jsonContent = reader.ReadToEnd();
 
             // Parse as JsonSchema
-            return Json.Schema.JsonSchema.FromText(jsonContent);
+            var schema = Json.Schema.JsonSchema.FromText(jsonContent);
+
+            // Register the schema in the global registry to handle $ref resolution and circular references
+            Json.Schema.SchemaRegistry.Global.Register(schema);
+
+            return schema;
         }));
     }
 }

@@ -24,9 +24,11 @@ public class SchemaValidator
         var jsonDocument = JsonDocument.Parse(jsonContent);
 
         // Validate using json-everything
+        // Note: Morphir schemas contain recursive type definitions which are valid in JSON Schema
         var evaluationResults = schema.Evaluate(jsonDocument.RootElement, new EvaluationOptions
         {
-            OutputFormat = OutputFormat.List
+            OutputFormat = OutputFormat.List,
+            RequireFormatValidation = false  // Don't require format validation
         });
 
         // Convert to our error format

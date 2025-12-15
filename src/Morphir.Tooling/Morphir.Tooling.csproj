@@ -17,16 +17,13 @@
     <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="Json.More.Net" />
 
-    <!-- YAML support for schema files -->
-    <PackageReference Include="YamlDotNet" />
-
     <!-- Validation -->
     <PackageReference Include="FluentValidation" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Embed YAML schema files as resources -->
-    <EmbeddedResource Include="Infrastructure\Schemas\*.yaml" />
+    <!-- Embed JSON schema files as resources -->
+    <EmbeddedResource Include="Infrastructure\Schemas\*.json" />
   </ItemGroup>
 
   <ItemGroup>

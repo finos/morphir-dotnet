@@ -7,14 +7,21 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <PropertyGroup>
-        <PublishTrimmed>true</PublishTrimmed>
-        <PublishAot>true</PublishAot>
+        <!-- AOT disabled for now to support JSON serialization in CLI output -->
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishAot>false</PublishAot>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Extism.runtime.all" />
         <PackageReference Include="Extism.Sdk" />
         <PackageReference Include="System.CommandLine" />
+        <PackageReference Include="WolverineFx" />
+        <PackageReference Include="FluentValidation" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />
     </ItemGroup>
 
 </Project>
