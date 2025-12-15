@@ -70,8 +70,12 @@ jobs:
               run: dotnet restore
             - name: Build
               run: dotnet build --no-restore --configuration ${{ env.CONFIGURATION }}
-            - name: Run tests
+            - name: Run tests (Linux/macOS)
+              if: runner.os != 'Windows'
               run: ./scripts/run-tests.sh ${{ env.CONFIGURATION }}
+            - name: Run tests (Windows)
+              if: runner.os == 'Windows'
+              run: .\scripts\run-tests.ps1 -Configuration ${{ env.CONFIGURATION }}
 
     ci:
         runs-on: ubuntu-latest
