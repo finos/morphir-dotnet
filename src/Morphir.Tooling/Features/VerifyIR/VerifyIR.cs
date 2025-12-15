@@ -61,6 +61,23 @@ public static class VerifyIRHandler
                 Timestamp: DateTime.UtcNow
             );
         }
+        catch (FileNotFoundException)
+        {
+            // Handle file not found
+            return new VerifyIRResult(
+                IsValid: false,
+                SchemaVersion: command.SchemaVersion?.ToString() ?? "unknown",
+                DetectionMethod: command.SchemaVersion.HasValue ? "manual" : "auto",
+                FilePath: command.FilePath,
+                Errors: [new ValidationError(
+                    Path: "$",
+                    Message: $"File does not exist: {command.FilePath}",
+                    Expected: "Existing file",
+                    Found: "File not found"
+                )],
+                Timestamp: DateTime.UtcNow
+            );
+        }
         catch (System.Text.Json.JsonException ex)
         {
             // Handle malformed JSON

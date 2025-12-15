@@ -127,7 +127,7 @@ public class VerifyIRHandlerTests
     }
 
     [Test]
-    public async Task Handle_ShouldThrowFileNotFoundException_WhenFileDoesNotExist()
+    public async Task Handle_ShouldReturnErrorResult_WhenFileDoesNotExist()
     {
         // Arrange
         var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
@@ -136,9 +136,15 @@ public class VerifyIRHandlerTests
         );
 
         // Act
-        var act = () => VerifyIRHandler.Handle(command, _validator, CancellationToken.None);
+        var result = await VerifyIRHandler.Handle(command, _validator, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<FileNotFoundException>();
+        result.IsValid.Should().BeFalse("file not found should result in invalid");
+        result.Errors.Should().NotBeEmpty("file not found should have errors");
+        result.Errors.Should().Contain(e =>
+            e.Message.Contains("does not exist") || e.Message.Contains("not found"),
+            "error message should indicate file not found");
+        result.Errors[0].Expected.Should().Be("Existing file");
+        result.Errors[0].Found.Should().Be("File not found");
     }
 }
