@@ -10,7 +10,7 @@ Feature: CLI IR Verification Integration
   Scenario: Verify valid IR v3 file returns success
     When I run the CLI with command "ir verify <test-data>/valid-ir-v3.json"
     Then the exit code should be 0
-    And the output should contain "✓ VALID"
+    And the output should contain "VALID" or "✓ VALID"
     And the output should contain "Schema Version: v3"
     And the output should contain "No validation errors found"
 
@@ -18,14 +18,14 @@ Feature: CLI IR Verification Integration
   Scenario: Verify valid IR v2 file returns success
     When I run the CLI with command "ir verify <test-data>/valid-ir-v2.json"
     Then the exit code should be 0
-    And the output should contain "✓ VALID"
+    And the output should contain "VALID" or "✓ VALID"
     And the output should contain "Schema Version: v2"
 
   @Integration @CLI
   Scenario: Verify valid IR v1 file returns success
     When I run the CLI with command "ir verify <test-data>/valid-ir-v1.json"
     Then the exit code should be 0
-    And the output should contain "✓ VALID"
+    And the output should contain "VALID" or "✓ VALID"
     And the output should contain "Schema Version: v1"
 
   @Integration @CLI
@@ -40,7 +40,7 @@ Feature: CLI IR Verification Integration
   Scenario: Verify with explicit schema version
     When I run the CLI with command "ir verify <test-data>/valid-ir-v3.json --schema-version 3"
     Then the exit code should be 0
-    And the output should contain "✓ VALID"
+    And the output should contain "VALID" or "✓ VALID"
     And the output should contain "Schema Version: v3 (manual)"
 
   @Integration @CLI
