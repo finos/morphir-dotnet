@@ -77,7 +77,16 @@ public class DocumentJsonEncodingStepDefinitions
     [Scope(Feature = "Document JSON Encoding")]
     public void ThenTheResultShouldBeEquivalentToTheOriginalInput()
     {
-        // Use Shouldly.Json's semantic JSON comparison (ignores whitespace and key order)
-        _driver.ExpectedJson.ShouldBeSemanticallySameJson(_driver.InputJson);
+        // Semantic JSON comparison: parse both strings as JsonNode for deep equality
+        var actual = System.Text.Json.Nodes.JsonNode.Parse(_driver.ExpectedJson);
+        var expected = System.Text.Json.Nodes.JsonNode.Parse(_driver.InputJson);
+
+        // Use DeepEquals for value-based comparison (ignores key order, whitespace)
+        var areEqual = System.Text.Json.Nodes.JsonNode.DeepEquals(actual, expected);
+
+        areEqual.ShouldBeTrue(
+            $"JSON documents should be semantically equivalent.{Environment.NewLine}" +
+            $"Expected: {_driver.InputJson}{Environment.NewLine}" +
+            $"Actual: {_driver.ExpectedJson}");
     }
 }

@@ -104,15 +104,6 @@
           "Microsoft.Extensions.Logging.Abstractions": "[6.0.0, 10.0.0)"
         }
       },
-      "JsonPointer.Net": {
-        "type": "Transitive",
-        "resolved": "6.0.0",
-        "contentHash": "OOObaRq33mNkoMFM1JfdW3nD6U6xF0MHHxPFAxSpKHNNTK6Zbt8U9grquJ+m2onZ1M7cruho0fWzHjhpjEXjog==",
-        "dependencies": {
-          "Humanizer.Core": "3.0.1",
-          "Json.More.Net": "2.2.0"
-        }
-      },
       "Microsoft.Bcl.AsyncInterfaces": {
         "type": "Transitive",
         "resolved": "8.0.0",
@@ -602,6 +593,16 @@
         "contentHash": "tlfnkM1DorGCzPpJ7KQksntRMFWP1dFwoyQyLm8vEP0kzinRtTdpqAb90sJmI8D0zu2LSl2HvtygyzBUFI35ww==",
         "dependencies": {
           "Generator.Equals.Runtime": "3.2.1"
+        }
+      },
+      "JsonPointer.Net": {
+        "type": "CentralTransitive",
+        "requested": "[6.0.0, )",
+        "resolved": "6.0.0",
+        "contentHash": "OOObaRq33mNkoMFM1JfdW3nD6U6xF0MHHxPFAxSpKHNNTK6Zbt8U9grquJ+m2onZ1M7cruho0fWzHjhpjEXjog==",
+        "dependencies": {
+          "Humanizer.Core": "3.0.1",
+          "Json.More.Net": "2.2.0"
         }
       },
       "LanguageExt.Core": {
