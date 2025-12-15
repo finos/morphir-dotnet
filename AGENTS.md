@@ -522,7 +522,256 @@ PRD Index (Markdown)
 | [Migration Tooling](./ir-migration.md) | Draft | - | Design review |
 ```
 
-## 14) Known Issues / TODOs
+## 14) Phase 1 Implementation Patterns (IR Schema Verification)
+
+This section documents architectural patterns and conventions established during Phase 1 implementation that should be followed in future phases.
+
+### Vertical Slice Architecture with WolverineFx
+
+**Structure**: Features organized by use case in `src/Morphir.Tooling/Features/{FeatureName}/`
+
+Example: `Features/VerifyIR/`
+```
+Features/VerifyIR/
+├── VerifyIR.cs              # Command, Result, Handler, Validator (all in one file)
+├── VersionDetector.cs       # Feature-specific logic
+└── VerifyIR.feature         # BDD scenarios (in test project)
+```
+
+**Command Pattern**:
+```csharp
+// Command (immutable record)
+public record VerifyIR(
+    string FilePath,
+    int? SchemaVersion = null,
+    bool JsonOutput = false,
+    bool Quiet = false
+);
+
+// Result (immutable record)
+public record VerifyIRResult(
+    bool IsValid,
+    string SchemaVersion,
+    string DetectionMethod,
+    string FilePath,
+    List<ValidationError> Errors,
+    DateTime Timestamp
+);
+
+// Handler (static class with pure function)
+public static class VerifyIRHandler
+{
+    public static async Task<VerifyIRResult> Handle(
+        VerifyIR command,
+        SchemaValidator validator,  // Injected dependency
+        CancellationToken ct)
+    {
+        // Pure logic, returns result
+    }
+}
+
+// FluentValidation rules
+public class VerifyIRValidator : AbstractValidator<VerifyIR>
+{
+    public VerifyIRValidator()
+    {
+        RuleFor(x => x.FilePath)
+            .NotEmpty()
+            .Must(File.Exists).WithMessage("File does not exist: {PropertyValue}");
+    }
+}
+```
+
+### CLI Integration with System.CommandLine
+
+**Pattern**: CLI in `src/Morphir/Program.cs` invokes WolverineFx message bus
+
+```csharp
+// Create command with options
+var verifyCommand = new Command("verify", "Verify Morphir IR JSON");
+var filePathArgument = new Argument<FileInfo>("file-path");
+var schemaVersionOption = new Option<int?>("--schema-version");
+verifyCommand.Arguments.Add(filePathArgument);
+verifyCommand.Options.Add(schemaVersionOption);
+
+// Set action handler
+verifyCommand.SetAction(async parseResult =>
+{
+    // Create WolverineFx host
+    using var host = Tooling.Program.CreateToolingHost();
+    await host.StartAsync();
+
+    var messageBus = host.Services.GetRequiredService<IMessageBus>();
+
+    // Create command
+    var command = new Tooling.Features.VerifyIR.VerifyIR(
+        FilePath: filePath.FullName,
+        SchemaVersion: schemaVersion,
+        JsonOutput: jsonOutput,
+        Quiet: quiet
+    );
+
+    // Execute via message bus
+    var result = await messageBus.InvokeAsync<VerifyIRResult>(command);
+
+    // Format output
+    FormatOutput(result, jsonOutput, quiet);
+
+    return result.IsValid ? 0 : 1;
+});
+```
+
+### Infrastructure Services
+
+**Location**: `src/Morphir.Tooling/Infrastructure/{ServiceType}/`
+
+**Pattern**: Services registered in WolverineFx host, injected into handlers
+
+```csharp
+// In Morphir.Tooling/Program.cs
+builder.Services.AddWolverine(opts =>
+{
+    // Register infrastructure services
+    opts.Services.AddSingleton<SchemaLoader>();
+    opts.Services.AddSingleton<SchemaValidator>();
+
+    // Auto-discover handlers
+    opts.Discovery.IncludeAssembly(typeof(Program).Assembly);
+});
+```
+
+### Testing Layers
+
+**1. Unit Tests** (`tests/Morphir.Tooling.Tests/{Component}/`)
+- Test individual classes/functions in isolation
+- Use TUnit framework
+- Use FluentAssertions for readable assertions
+- Test file naming: `{ClassName}Tests.cs`
+
+**2. BDD Feature Tests** (`tests/Morphir.Tooling.Tests/Features/{Feature}/`)
+- Gherkin feature files alongside step definitions
+- Test business logic through handler
+- File naming: `{Feature}.feature` and `{Feature}Steps.cs`
+
+**3. Integration Tests** (`tests/Morphir.Tooling.Tests/Integration/`)
+- Test end-to-end CLI execution
+- Actually spawn CLI as subprocess
+- Test all output formats and error scenarios
+- File naming: `{Feature}Integration.feature` and `{Feature}IntegrationSteps.cs`
+
+### Test Data Organization
+
+```
+tests/Morphir.Tooling.Tests/
+├── TestData/                    # Shared test data
+│   ├── valid-ir-v1.json
+│   ├── valid-ir-v2.json
+│   ├── valid-ir-v3.json
+│   ├── invalid-*.json
+│   └── malformed.json
+└── Integration/
+    └── CLI/
+        ├── CliTestHelper.cs     # Reusable CLI execution helper
+        ├── {Feature}.feature
+        └── {Feature}Steps.cs
+```
+
+### Error Handling Pattern
+
+**Domain Errors**: Use Result types in handlers, return structured errors
+```csharp
+try
+{
+    // Business logic
+    return new VerifyIRResult(IsValid: true, ...);
+}
+catch (JsonException ex)
+{
+    // Handle expected errors, return structured result
+    return new VerifyIRResult(
+        IsValid: false,
+        Errors: [new ValidationError(
+            Path: "$",
+            Message: $"Malformed JSON: {ex.Message}",
+            Expected: "Valid JSON",
+            Found: "Invalid JSON syntax"
+        )],
+        ...
+    );
+}
+```
+
+**CLI Errors**: Map to exit codes
+- 0: Success
+- 1: Validation failure (expected/business error)
+- 2: Operational error (file not found, etc.)
+
+### JSON Serialization for AOT
+
+**Pattern**: Use source-generated serialization context
+
+```csharp
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(VerifyIRResult))]
+internal partial class MorphirJsonContext : JsonSerializerContext
+{
+}
+
+// Usage
+var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyIRResult);
+```
+
+### Documentation Requirements
+
+**Each feature must include**:
+1. CLI command reference in `docs/content/docs/cli/{command}.md`
+2. Getting started guide in `docs/content/docs/getting-started/`
+3. Troubleshooting section in `docs/content/docs/cli/troubleshooting.md`
+4. Examples with all output formats
+5. CI/CD integration examples
+
+**Documentation structure**:
+```markdown
+# Command Reference
+- Synopsis
+- Description
+- Arguments
+- Options (with examples)
+- Exit codes
+- Output formats
+- Examples (basic → advanced)
+- Common errors
+- Troubleshooting
+- Related commands
+```
+
+### Test Coverage Requirements
+
+- **Unit tests**: >90% code coverage
+- **BDD tests**: All user stories covered
+- **Integration tests**: End-to-end CLI scenarios
+- **All tests must pass before PR**
+
+### Commit Messages
+
+Follow Conventional Commits with co-author attribution:
+
+```
+feat: add comprehensive BDD integration tests for CLI
+
+- Created CLI integration test infrastructure
+- Added 13 BDD scenarios covering all features
+- Fixed JSON exception handling
+- All 62 tests passing
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+**Note**: Do not list Claude or AI assistants as co-authors in the commit author field.
+
+## 15) Known Issues / TODOs
 
 - Maintain a prioritized list or link GitHub issues:
     - TODO: <short> [link]
