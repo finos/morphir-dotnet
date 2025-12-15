@@ -281,3 +281,10 @@ docs/public/
 docs/resources/_gen/
 docs/.hugo_build.lock
 test-*.json
+
+# moonrepo
+.moon/cache/
+.moon/docker/
+
+# proto
+.proto/

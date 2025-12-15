@@ -51,25 +51,17 @@ jobs:
           cache: 'npm'
           cache-dependency-path: docs/package.json
 
-      - name: Install Hugo theme dependencies
-        working-directory: docs
+      - name: Install proto CLI
         run: |
-          hugo mod init github.com/finos/morphir-dotnet/docs || true
-          hugo mod get -u github.com/google/docsy@latest
-          hugo mod tidy
+          curl -fsSL https://moonrepo.dev/install/proto.sh | bash -s -- --yes
+          echo "$HOME/.proto/bin" >> $GITHUB_PATH
+        shell: bash
 
-      - name: Install npm dependencies
-        working-directory: docs
-        run: |
-          npm ci
-
-      - name: Build with Hugo
-        working-directory: docs
+      - name: Build documentation with moonrepo
         env:
           HUGO_ENVIRONMENT: production
           HUGO_ENV: production
-        run: |
-          hugo --minify --gc
+        run: proto run moonrepo -- run docs:build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4

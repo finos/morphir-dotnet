@@ -35,6 +35,11 @@ jobs:
               uses: actions/setup-dotnet@v5
               with:
                   dotnet-version: "10.0.x"
+            - name: Install proto CLI
+              run: |
+                  curl -fsSL https://moonrepo.dev/install/proto.sh | bash -s -- --yes
+                  echo "$HOME/.proto/bin" >> $GITHUB_PATH
+              shell: bash
             - uses: actions/cache@v4
               with:
                   path: ~/.nuget/packages
@@ -42,10 +47,8 @@ jobs:
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
-            - name: Restore dependencies
-              run: dotnet restore
             - name: Check code formatting
-              run: dotnet format --verify-no-changes
+              run: proto run moonrepo -- run :lint
 
     test:
         strategy:
@@ -59,6 +62,18 @@ jobs:
               uses: actions/setup-dotnet@v5
               with:
                   dotnet-version: "10.0.x"
+            - name: Install proto CLI (Linux/macOS)
+              if: runner.os != 'Windows'
+              run: |
+                  curl -fsSL https://moonrepo.dev/install/proto.sh | bash -s -- --yes
+                  echo "$HOME/.proto/bin" >> $GITHUB_PATH
+              shell: bash
+            - name: Install proto CLI (Windows)
+              if: runner.os == 'Windows'
+              run: |
+                  irm https://moonrepo.dev/install/proto.ps1 | iex
+                  echo "$env:USERPROFILE\.proto\bin" >> $env:GITHUB_PATH
+              shell: pwsh
             - uses: actions/cache@v4
               with:
                   path: ~/.nuget/packages
@@ -66,16 +81,12 @@ jobs:
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
-            - name: Restore dependencies
-              run: dotnet restore
-            - name: Build
-              run: dotnet build --no-restore --configuration ${{ env.CONFIGURATION }}
             - name: Run tests (Linux/macOS)
               if: runner.os != 'Windows'
-              run: ./scripts/run-tests.sh ${{ env.CONFIGURATION }}
+              run: proto run moonrepo -- run :test-all
             - name: Run tests (Windows)
               if: runner.os == 'Windows'
-              run: .\scripts\run-tests.ps1 -Configuration ${{ env.CONFIGURATION }}
+              run: proto run moonrepo -- run :test-all
 
     ci:
         runs-on: ubuntu-latest

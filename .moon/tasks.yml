@@ -1,0 +1,91 @@
+# Workspace-level tasks for morphir-dotnet
+# https://moonrepo.dev/docs/config/tasks
+
+$schema: 'https://moonrepo.dev/schemas/tasks.json'
+
+# Tasks that can be run at the workspace level
+tasks:
+  # Run all tests
+  test-all:
+    command: 'noop'
+    deps:
+      - 'Morphir.Core.Tests:test'
+      - 'Morphir.Tooling.Tests:test'
+    options:
+      cache: false
+      runInCI: true
+      runDepsInParallel: true
+
+  # Format all code
+  format-all:
+    command: 'noop'
+    deps:
+      - 'Morphir.Core:format'
+      - 'Morphir.Tooling:format'
+      - 'Morphir:format'
+      - 'Morphir.Core.Tests:format'
+      - 'Morphir.Tooling.Tests:format'
+    options:
+      cache: false
+      runInCI: false
+      runDepsInParallel: true
+
+  # Verify formatting (for CI)
+  lint:
+    command: 'noop'
+    deps:
+      - 'Morphir.Core:format-check'
+      - 'Morphir.Tooling:format-check'
+      - 'Morphir:format-check'
+      - 'Morphir.Core.Tests:format-check'
+      - 'Morphir.Tooling.Tests:format-check'
+    options:
+      cache: false
+      runInCI: true
+      runDepsInParallel: true
+
+  # Build all .NET projects
+  build-all:
+    command: 'noop'
+    deps:
+      - 'Morphir.Core:build-release'
+      - 'Morphir.Tooling:build-release'
+      - 'Morphir:build-release'
+    options:
+      cache: false
+      runInCI: true
+      runDepsInParallel: false
+
+  # Clean all build outputs
+  clean-all:
+    command: 'noop'
+    deps:
+      - 'Morphir.Core:clean'
+      - 'Morphir.Tooling:clean'
+      - 'Morphir:clean'
+      - 'Morphir.Core.Tests:clean'
+      - 'Morphir.Tooling.Tests:clean'
+      - 'docs:clean'
+    options:
+      cache: false
+      runInCI: false
+      runDepsInParallel: true
+
+  # Quick command to start docs development server
+  docs-dev:
+    command: 'noop'
+    deps:
+      - 'docs:dev'
+    options:
+      cache: false
+      runInCI: false
+      persistent: true
+
+  # Build documentation
+  docs-build:
+    command: 'noop'
+    deps:
+      - 'docs:build'
+    options:
+      cache: true
+      runInCI: true

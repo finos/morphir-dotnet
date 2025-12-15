@@ -1,0 +1,129 @@
+# moonrepo project configuration for Documentation
+# https://moonrepo.dev/docs/config/project
+
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+# Project metadata
+type: 'application'
+language: 'javascript'
+
+# Project dependencies
+dependsOn: []
+
+# File groups for efficient task input configuration
+fileGroups:
+  content:
+    - 'content/**/*.md'
+    - 'content/**/*.html'
+  configs:
+    - '*.toml'
+    - 'go.*'
+    - 'package*.json'
+  assets:
+    - 'assets/**/*'
+    - 'static/**/*'
+  layouts:
+    - 'layouts/**/*'
+  archetypes:
+    - 'archetypes/**/*'
+
+# Tasks for this project
+tasks:
+  # Install npm dependencies
+  install:
+    command: 'npm ci'
+    inputs:
+      - 'package.json'
+      - 'package-lock.json'
+    outputs:
+      - 'node_modules/.package-lock.json'
+    options:
+      cache: true
+      runInCI: true
+
+  # Initialize Hugo module and install theme dependencies
+  setup:
+    command: |
+      hugo mod init github.com/finos/morphir-dotnet || true
+      hugo mod get -u
+      hugo mod tidy
+    deps:
+      - '~:install'
+    inputs:
+      - 'go.mod'
+      - 'go.sum'
+      - 'hugo.toml'
+    outputs:
+      - 'go.mod'
+      - 'go.sum'
+    options:
+      cache: true
+      runInCI: true
+      shell: true
+      outputStyle: 'stream'
+
+  # Run Hugo development server
+  dev:
+    command: 'hugo server --buildDrafts --buildFuture --disableFastRender'
+    deps:
+      - '~:setup'
+    inputs:
+      - '@globs(content)'
+      - '@globs(configs)'
+      - '@globs(assets)'
+      - '@globs(layouts)'
+    options:
+      cache: false
+      runInCI: false
+      persistent: true
+      outputStyle: 'stream'
+
+  # Build production documentation
+  build:
+    command: 'hugo --minify --gc'
+    deps:
+      - '~:setup'
+    inputs:
+      - '@globs(content)'
+      - '@globs(configs)'
+      - '@globs(assets)'
+      - '@globs(layouts)'
+      - '@globs(archetypes)'
+    outputs:
+      - 'public/**'
+    options:
+      cache: true
+      runInCI: true
+      outputStyle: 'stream'
+
+  # Clean generated files
+  clean:
+    command: 'rm -rf public resources'
+    options:
+      cache: false
+      runInCI: false
+      shell: true
+
+  # Verify Hugo installation and configuration
+  check:
+    command: 'hugo version && hugo config'
+    deps:
+      - '~:setup'
+    options:
+      cache: false
+      runInCI: false
+      outputStyle: 'stream'
+
+  # Update Hugo theme to latest version
+  update-theme:
+    command: 'hugo mod get -u github.com/google/docsy@latest && hugo mod tidy'
+    inputs:
+      - 'go.mod'
+    outputs:
+      - 'go.mod'
+      - 'go.sum'
+    options:
+      cache: false
+      runInCI: false
+      shell: true
+      outputStyle: 'stream'

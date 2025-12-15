@@ -19,12 +19,69 @@
 
 ---
 
+## Getting Started with moonrepo
+
+This project uses [moonrepo](https://moonrepo.dev) as a task runner, managed via [proto](https://moonrepo.dev/docs/proto) to orchestrate builds for both .NET projects and documentation.
+
+### Quick Start
+
+**Using proto (recommended):**
+
+```sh
+# Install proto (toolchain manager)
+curl -fsSL https://moonrepo.dev/install/proto.sh | bash
+
+# Run tasks via proto (auto-installs moonrepo from .prototools)
+proto run moonrepo -- run :test-all
+proto run moonrepo -- run :lint
+proto run moonrepo -- run :build-all
+```
+
+**Common Commands:**
+
+```sh
+# Run all tests
+proto run moonrepo -- run :test-all
+
+# Check code formatting
+proto run moonrepo -- run :lint
+
+# Format all code
+proto run moonrepo -- run :format-all
+
+# Build all .NET projects
+proto run moonrepo -- run :build-all
+
+# Start docs development server
+proto run moonrepo -- run :docs-dev
+
+# Build documentation
+proto run moonrepo -- run :docs-build
+
+# Run specific project tasks
+proto run moonrepo -- run Morphir:build
+proto run moonrepo -- run Morphir.Core.Tests:test
+
+# List all available tasks
+proto run moonrepo -- query tasks
+```
+
+**Why proto + moonrepo?**
+
+- proto manages the moonrepo installation based on [.prototools](.prototools)
+- Avoids conflicts with other `moon` tools (like MoonBit's `moon` CLI)
+- Consistent versions across team and CI/CD
+- Auto-installs on first use
+
 ### Developing
 
 Make sure the following **requirements** are installed on your system:
 
-- [dotnet SDK](https://www.microsoft.com/net/download/core) 3.0 or higher
-- [Mono](http://www.mono-project.com/) if you're on Linux or macOS.
+- [dotnet SDK](https://www.microsoft.com/net/download/core) 10.0 or higher
+- [proto](https://moonrepo.dev/docs/proto) for toolchain management
+- [Hugo](https://gohugo.io/) (extended version) for building documentation
+- [Node.js](https://nodejs.org/) 20 or higher for documentation build tools
+- [Go](https://golang.org/) 1.21 or higher for Hugo modules
 
 or
 

@@ -1,0 +1,122 @@
+# moonrepo project configuration for Morphir.Tooling.Tests
+# https://moonrepo.dev/docs/config/project
+
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+# Project metadata
+type: 'application'
+language: 'dotnet'
+
+# Project dependencies (other moon projects this depends on)
+dependsOn:
+  - 'Morphir.Tooling'
+
+# File groups for efficient task input configuration
+fileGroups:
+  sources:
+    - 'src/**/*.cs'
+    - '*.csproj'
+  tests:
+    - '**/*Tests.cs'
+    - '**/*Test.cs'
+  features:
+    - 'Features/**/*.feature'
+    - 'Integration/**/*.feature'
+  testData:
+    - 'TestData/**/*'
+  configs:
+    - '*.csproj'
+
+# Tasks for this project
+tasks:
+  # Restore NuGet dependencies
+  restore:
+    command: 'dotnet restore'
+    inputs:
+      - '@globs(configs)'
+      - 'packages.lock.json'
+    outputs: []
+    options:
+      cache: false
+      runInCI: true
+
+  # Build the test project (Debug configuration)
+  build:
+    command: 'dotnet build --configuration Debug --no-restore'
+    deps:
+      - 'Morphir.Tooling:build'
+      - '~:restore'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(tests)'
+      - '@globs(features)'
+      - '@globs(testData)'
+      - '@globs(configs)'
+    outputs:
+      - 'bin/Debug/**'
+      - 'obj/Debug/**'
+    options:
+      cache: true
+      runInCI: true
+      outputStyle: 'stream'
+
+  # Run tests using TUnit with Microsoft Testing Platform
+  # Note: TUnit requires running the test executable directly via dotnet exec
+  test:
+    command: 'dotnet exec bin/Debug/net10.0/Morphir.Tooling.Tests.dll'
+    deps:
+      - '~:build'
+    inputs:
+      - '@globs(tests)'
+      - '@globs(features)'
+      - '@globs(testData)'
+    outputs: []
+    options:
+      cache: false
+      runInCI: true
+      outputStyle: 'stream'
+      retryCount: 0
+
+  # Run tests with code coverage
+  test-coverage:
+    command: 'dotnet exec bin/Debug/net10.0/Morphir.Tooling.Tests.dll --coverage'
+    deps:
+      - '~:build'
+    inputs:
+      - '@globs(tests)'
+      - '@globs(features)'
+      - '@globs(testData)'
+    outputs:
+      - 'TestResults/**/*.coverage'
+      - 'coverage/**'
+    options:
+      cache: false
+      runInCI: true
+      outputStyle: 'stream'
+
+  # Format code
+  format:
+    command: 'dotnet format'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(tests)'
+    options:
+      cache: false
+      runInCI: false
+
+  # Verify formatting (for CI)
+  format-check:
+    command: 'dotnet format --verify-no-changes'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(tests)'
+    options:
+      cache: true
+      runInCI: true
+
+  # Clean build outputs
+  clean:
+    command: 'dotnet clean'
+    options:
+      cache: false
+      runInCI: false

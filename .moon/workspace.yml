@@ -1,0 +1,86 @@
+# moonrepo workspace configuration for morphir-dotnet
+# https://moonrepo.dev/docs/config/workspace
+
+$schema: 'https://moonrepo.dev/schemas/workspace.json'
+
+# Workspace metadata
+extends: []
+
+# Project discovery patterns
+projects:
+  - 'src/*'
+  - 'tests/*'
+  - 'docs'
+
+# Task runner configuration
+runner:
+  # Enable task output caching for faster rebuilds
+  cacheLifetime: '7 days'
+
+  # Enable logging for debugging
+  logRunningCommand: true
+
+  # Inherit colors from terminal
+  inheritColorsForPipedTasks: true
+
+  # Archive outputs for failed tasks
+  archivableTargets:
+    - ':test-all'
+    - ':lint'
+
+# Version control settings
+vcs:
+  manager: 'git'
+  defaultBranch: 'main'
+
+# Hasher configuration for determining what has changed
+hasher:
+  # Optimize hashing performance
+  optimization: 'performance'
+
+  # Don't warn about missing inputs (some tasks are ephemeral)
+  warnOnMissingInputs: false
+
+# Notifier configuration
+notifier:
+  webhookUrl: null
+
+# Constraints and requirements
+constraints:
+  enforceProjectTypeRelationships: true
+
+  # Tag-based task constraints
+  tagRelationships: {}
+
+# Experiments and feature flags
+experiments: {}
+
+# Extensions for additional languages/tools
+extensions:
+  # .NET support
+  dotnet:
+    plugin: 'source:https://raw.githubusercontent.com/moonrepo/dotnet-plugin/master/crates/warpgate/plugin.wasm'
+    # Let projects specify their own SDK versions via global.json if present
+    # Otherwise use the system default
+    inferTasksFromScripts: false
+
+  # Node.js support (for docs)
+  node:
+    plugin: 'source:https://raw.githubusercontent.com/moonrepo/node-plugin/master/crates/warpgate/plugin.wasm'
+    # Infer tasks from package.json scripts
+    inferTasksFromScripts: true
+
+    # Use npm by default for docs
+    packageManager: 'npm'
+
+    # Version will be detected from .nvmrc or default to LTS
+    version: null
+
+    # Add node binaries to PATH for tasks
+    addEnginesConstraint: true
+
+    # Dedupe dependencies on install
+    dedupeOnLockfileChange: true
+
+    # Sync dependencies when package.json changes
+    syncProjectWorkspaceDependencies: true

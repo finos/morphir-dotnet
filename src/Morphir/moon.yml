@@ -1,0 +1,118 @@
+# moonrepo project configuration for Morphir CLI
+# https://moonrepo.dev/docs/config/project
+
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+# Project metadata
+type: 'application'
+language: 'dotnet'
+
+# Project dependencies (other moon projects this depends on)
+dependsOn:
+  - 'Morphir.Tooling'
+
+# File groups for efficient task input configuration
+fileGroups:
+  sources:
+    - 'src/**/*.cs'
+    - '*.csproj'
+  configs:
+    - '*.csproj'
+
+# Tasks for this project
+tasks:
+  # Restore NuGet dependencies
+  restore:
+    command: 'dotnet restore'
+    inputs:
+      - '@globs(configs)'
+      - 'packages.lock.json'
+    outputs: []
+    options:
+      cache: false
+      runInCI: true
+
+  # Build the CLI (Debug configuration)
+  build:
+    command: 'dotnet build --configuration Debug --no-restore'
+    deps:
+      - 'Morphir.Tooling:build'
+      - '~:restore'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(configs)'
+    outputs:
+      - 'bin/Debug/**'
+      - 'obj/Debug/**'
+    options:
+      cache: true
+      runInCI: true
+      outputStyle: 'stream'
+
+  # Build the CLI (Release configuration)
+  build-release:
+    command: 'dotnet build --configuration Release --no-restore'
+    deps:
+      - 'Morphir.Tooling:build-release'
+      - '~:restore'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(configs)'
+    outputs:
+      - 'bin/Release/**'
+      - 'obj/Release/**'
+    options:
+      cache: true
+      runInCI: true
+      outputStyle: 'stream'
+
+  # Run the CLI (for development/testing)
+  run:
+    command: 'dotnet run --no-build -- $@'
+    deps:
+      - '~:build'
+    options:
+      cache: false
+      runInCI: false
+      shell: true
+      outputStyle: 'stream'
+
+  # Publish the CLI with AOT compilation
+  publish:
+    command: 'dotnet publish --configuration Release --no-build'
+    deps:
+      - '~:build-release'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(configs)'
+    outputs:
+      - 'bin/Release/net10.0/publish/**'
+    options:
+      cache: true
+      runInCI: false
+      outputStyle: 'stream'
+
+  # Format code
+  format:
+    command: 'dotnet format'
+    inputs:
+      - '@globs(sources)'
+    options:
+      cache: false
+      runInCI: false
+
+  # Verify formatting (for CI)
+  format-check:
+    command: 'dotnet format --verify-no-changes'
+    inputs:
+      - '@globs(sources)'
+    options:
+      cache: true
+      runInCI: true
+
+  # Clean build outputs
+  clean:
+    command: 'dotnet clean'
+    options:
+      cache: false
+      runInCI: false

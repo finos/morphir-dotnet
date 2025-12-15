@@ -1,0 +1,7 @@
+# proto toolchain configuration
+# https://moonrepo.dev/docs/proto
+
+moonrepo = "1.41.7"
+
+[plugins]
+moonrepo = "https://github.com/moonrepo/plugins/releases/download/moon_tool-v0.3.3/moon_tool.wasm"

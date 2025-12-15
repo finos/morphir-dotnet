@@ -57,7 +57,12 @@ Before ANY implementation:
 ### 4. Pre-Commit Checklist
 
 ```bash
-# Always run before committing:
+# Always run before committing (using moonrepo via proto):
+proto run moonrepo -- run :format-all              # Format code
+proto run moonrepo -- run :test-all                # Run all tests
+proto run moonrepo -- run :lint                    # Verify formatting
+
+# Or using direct dotnet commands:
 dotnet format                              # Format code
 dotnet test --nologo                       # Run all tests
 dotnet test --collect:"XPlat Code Coverage"  # Verify coverage
@@ -172,6 +177,48 @@ See AGENTS.md Section 2 for what to escalate:
 - **morphir-dotnet (this repo)**: https://github.com/finos/morphir-dotnet
 
 ### 13. Quick Command Reference
+
+**moonrepo via proto (Preferred)**
+
+This project uses moonrepo managed via proto to avoid conflicts with other `moon` tools.
+
+```bash
+# Build all projects
+proto run moonrepo -- run :build-all
+
+# Test all
+proto run moonrepo -- run :test-all
+
+# Test specific project
+proto run moonrepo -- run Morphir.Core.Tests:test
+proto run moonrepo -- run Morphir.Tooling.Tests:test
+
+# Test with coverage
+proto run moonrepo -- run Morphir.Core.Tests:test-coverage
+proto run moonrepo -- run Morphir.Tooling.Tests:test-coverage
+
+# Format all code
+proto run moonrepo -- run :format-all
+
+# Lint (verify formatting)
+proto run moonrepo -- run :lint
+
+# Build and run CLI
+proto run moonrepo -- run Morphir:build
+proto run moonrepo -- run Morphir:run -- [command]
+
+# Documentation
+proto run moonrepo -- run :docs-dev        # Start development server
+proto run moonrepo -- run :docs-build      # Build production docs
+
+# List all available tasks
+proto run moonrepo -- query tasks
+
+# List project dependency graph
+proto run moonrepo -- query projects --graph
+```
+
+**Direct dotnet Commands (Alternative)**
 
 ```bash
 # Build
