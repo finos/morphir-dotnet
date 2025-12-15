@@ -19,6 +19,9 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
+        // Set console encoding to UTF-8 to support Unicode characters (✓, ✗)
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
+
         Option<FileInfo> currentDirectoryOption = new("-C")
         {
             Description = "Override the current directory",
