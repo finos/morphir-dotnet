@@ -11,7 +11,7 @@ description: "Product Requirements Document for Morphir IR JSON schema verificat
 **Created**: 2025-12-13
 **Last Updated**: 2025-12-15
 **Current Phase**: Phase 1 - Core Verification (MVP)
-**Current Task**: Project setup and WolverineFx integration
+**Current Task**: User documentation for Phase 1 features
 **Author**: Morphir .NET Team
 
 ## Overview
@@ -750,13 +750,20 @@ This table tracks implementation status of all features defined in this PRD:
 - ✅ All three schema versions supported (v1, v2, v3)
 - ✅ Human-readable, JSON, and quiet output formats
 - ✅ Comprehensive error messages with JSON paths
-- ✅ BDD test scenarios
+- ✅ BDD test scenarios (unit + integration)
+- ✅ **User Documentation**:
+  - CLI command reference (`morphir ir verify`)
+  - Getting started guide with examples
+  - Error message reference
+  - JSON output format specification
+  - Troubleshooting common issues
 
 **Success Criteria**:
 - All user stories satisfied
 - Performance targets met
 - >90% code coverage
-- Documentation complete
+- **Documentation complete and published to docs site**
+- User can successfully validate IR without external help
 
 **Estimated Duration**: 2-3 sprints
 
@@ -765,15 +772,23 @@ This table tracks implementation status of all features defined in this PRD:
 **Goal**: Flexible input options and standalone version detection
 
 **Deliverables**:
-- ✅ Stdin support for piped input
-- ✅ Multiple file validation
-- ✅ `morphir ir detect-version` command
-- ✅ Confidence reporting for version detection
-- ✅ Performance optimizations for batch processing
+- ⏳ Stdin support for piped input
+- ⏳ Multiple file validation
+- ⏳ `morphir ir detect-version` command
+- ⏳ Confidence reporting for version detection
+- ⏳ Performance optimizations for batch processing
+- ⏳ **User Documentation Updates**:
+  - Batch validation guide
+  - Stdin/pipe usage examples
+  - Version detection command reference
+  - Performance best practices
+  - CI/CD integration examples
 
 **Success Criteria**:
 - Batch validation performs efficiently
 - Version detection accuracy >95%
+- **Documentation updated with Phase 2 features**
+- Users can integrate into CI/CD pipelines
 
 **Estimated Duration**: 1-2 sprints
 
@@ -782,12 +797,20 @@ This table tracks implementation status of all features defined in this PRD:
 **Goal**: Directory validation, watch mode, migration tooling
 
 **Deliverables**:
-- Recursive directory validation
-- Watch mode for continuous validation
-- Migration/upgrade commands (separate PRD)
-- Custom validation rules beyond schema
+- 📋 Recursive directory validation
+- 📋 Watch mode for continuous validation
+- 📋 Migration/upgrade commands (separate PRD)
+- 📋 Custom validation rules beyond schema
+- 📋 **User Documentation Updates**:
+  - Directory validation workflows
+  - Watch mode usage guide
+  - Migration command reference
+  - Custom validation rules guide
+  - Advanced troubleshooting
 
-**Success Criteria**: TBD in future PRD
+**Success Criteria**:
+- TBD in future PRD
+- **Comprehensive documentation for all advanced features**
 
 ## Testing Strategy
 
