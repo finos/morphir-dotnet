@@ -263,25 +263,83 @@ Coverage targets
 - Respect FINOS policies and repository license.
 - Auth/crypto/legal changes require maintainer review.
 
-## 13) Known Issues / TODOs
+## 13) PRD Management and Implementation Tracking
+
+Product Requirements Documents (PRDs)
+- Location: `docs/content/contributing/design/prds/`
+- Each feature starts with a comprehensive PRD before implementation
+- PRDs are living documents updated during implementation
+
+PRD Structure
+- **Status tracking**: PRDs include a "Feature Status Tracking" table with all features and their implementation status
+- **Implementation notes**: Add "Implementation Notes" sections to capture:
+    - Design decisions made during implementation
+    - Deviations from original design with rationale
+    - Architectural insights discovered during development
+    - Dependencies or blockers encountered
+- **Open questions**: Document decisions as they're made in the "Open Questions" section
+
+PRD Status Workflow
+1. **Draft**: Initial PRD being refined
+2. **Approved**: PRD reviewed and ready for implementation
+3. **In Progress**: Active implementation underway
+4. **Completed**: All features implemented, PRD archived
+5. **Deferred**: PRD postponed, marked with reason
+
+Cross-Agent Collaboration
+- When starting work, check the PRD Feature Status Tracking table for current task
+- Update feature status in real-time: ⏳ Planned → 🚧 In Progress → ✅ Implemented
+- Add implementation notes directly in the PRD under relevant sections
+- PRD serves as source of truth for "what's next" across multiple AI agent sessions
+
+Example Implementation Notes Section
+```markdown
+## Implementation Notes
+
+### Phase 1: Core Verification (Current)
+
+#### VerifyIR Command Handler (2025-12-15)
+- **Decision**: Used WolverineFx's `IMessageBus.InvokeAsync<T>()` instead of `IMessageContext.Send()`
+- **Rationale**: InvokeAsync provides request-response pattern needed for CLI
+- **Impact**: Simpler than setting up reply queues
+- **Files**: `src/Morphir/Program.cs:397-401`, `src/Morphir.Tooling/Features/VerifyIR/VerifyIR.cs`
+
+#### Schema Loading (2025-12-15)
+- **Change**: Used `Assembly.GetManifestResourceStream()` instead of `EmbeddedFileProvider`
+- **Rationale**: Simpler, no additional dependencies
+- **Impact**: None, works as designed
+- **Files**: `src/Morphir.Tooling/Infrastructure/JsonSchema/SchemaLoader.cs:15-25`
+```
+
+PRD Index (Markdown)
+- Maintain `docs/content/contributing/design/prds/_index.md` with all PRDs and their status
+- Format:
+```markdown
+| PRD | Status | Phase | Current Task |
+|-----|--------|-------|--------------|
+| [IR Schema Verification](./ir-json-schema-verification.md) | In Progress | Phase 1 | WolverineFx setup |
+| [Migration Tooling](./ir-migration.md) | Draft | - | Design review |
+```
+
+## 14) Known Issues / TODOs
 
 - Maintain a prioritized list or link GitHub issues:
     - TODO: <short> [link]
     - BUG: <short> [link]
     - COMPAT: <short> [link]
 
-## 14) ADRs and Rationale
+## 15) ADRs and Rationale
 
 - docs/adr/*.md — key decisions (IR mapping, codec strategy, versioning).
 - Include ADRs for breaking changes or cross-tool compatibility shifts.
 
-## 15) Maintainers and Ownership
+## 16) Maintainers and Ownership
 
 - CODEOWNERS defines required reviewers.
 - Primary contacts: <handles/emails>
 - Escalation: label `maintainer-attention` or use project channels.
 
-## 16) Agent Execution Rules (Important)
+## 17) Agent Execution Rules (Important)
 
 - Keep diffs minimal; follow existing patterns and style.
 - Update all exhaustive matches and affected tests when changing ADTs.
