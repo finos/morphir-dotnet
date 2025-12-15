@@ -37,27 +37,47 @@ public static class VerifyIRHandler
         Infrastructure.JsonSchema.SchemaValidator validator,
         CancellationToken ct)
     {
-        // 1. Load and parse JSON
-        var jsonContent = await File.ReadAllTextAsync(command.FilePath, ct);
+        try
+        {
+            // 1. Load and parse JSON
+            var jsonContent = await File.ReadAllTextAsync(command.FilePath, ct);
 
-        // 2. Detect or use specified version
-        var version = command.SchemaVersion?.ToString() ?? VersionDetector.DetectVersion(jsonContent);
+            // 2. Detect or use specified version
+            var version = command.SchemaVersion?.ToString() ?? VersionDetector.DetectVersion(jsonContent);
 
-        // 3. Validate against schema
-        var validationResult = await validator.ValidateAsync(
-            jsonContent,
-            version,
-            ct);
+            // 3. Validate against schema
+            var validationResult = await validator.ValidateAsync(
+                jsonContent,
+                version,
+                ct);
 
-        // 4. Return pure result (no side effects)
-        return new VerifyIRResult(
-            IsValid: validationResult.IsValid,
-            SchemaVersion: version,
-            DetectionMethod: command.SchemaVersion.HasValue ? "manual" : "auto",
-            FilePath: command.FilePath,
-            Errors: validationResult.Errors,
-            Timestamp: DateTime.UtcNow
-        );
+            // 4. Return pure result (no side effects)
+            return new VerifyIRResult(
+                IsValid: validationResult.IsValid,
+                SchemaVersion: version,
+                DetectionMethod: command.SchemaVersion.HasValue ? "manual" : "auto",
+                FilePath: command.FilePath,
+                Errors: validationResult.Errors,
+                Timestamp: DateTime.UtcNow
+            );
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            // Handle malformed JSON
+            return new VerifyIRResult(
+                IsValid: false,
+                SchemaVersion: command.SchemaVersion?.ToString() ?? "unknown",
+                DetectionMethod: command.SchemaVersion.HasValue ? "manual" : "auto",
+                FilePath: command.FilePath,
+                Errors: [new ValidationError(
+                    Path: "$",
+                    Message: $"Malformed JSON: {ex.Message}",
+                    Expected: "Valid JSON",
+                    Found: "Invalid JSON syntax"
+                )],
+                Timestamp: DateTime.UtcNow
+            );
+        }
     }
 }
 
