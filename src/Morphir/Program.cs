@@ -1,11 +1,19 @@
 using System.CommandLine;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine;
 
 namespace Morphir;
 
 using Extism.Sdk;
+
+// JSON source generator context for AOT compilation
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(Tooling.Features.VerifyIR.VerifyIRResult))]
+internal partial class MorphirJsonContext : JsonSerializerContext
+{
+}
 
 internal static class Program
 {
@@ -143,11 +151,8 @@ internal static class Program
 
         if (jsonOutput)
         {
-            // JSON output
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
+            // JSON output using source-generated serializer for AOT compatibility
+            var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyIRResult);
             Console.WriteLine(json);
         }
         else

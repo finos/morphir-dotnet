@@ -7,9 +7,9 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <PropertyGroup>
-        <!-- AOT disabled for now to support JSON serialization in CLI output -->
-        <PublishTrimmed>false</PublishTrimmed>
-        <PublishAot>false</PublishAot>
+        <!-- AOT enabled with source-generated JSON serialization -->
+        <PublishTrimmed>true</PublishTrimmed>
+        <PublishAot>true</PublishAot>
     </PropertyGroup>
 
     <ItemGroup>
