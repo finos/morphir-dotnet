@@ -238,6 +238,207 @@ Contract tests
 Coverage targets
 - Maintain or improve coverage (>= 80% overall unless specified).
 
+## 9.1) Test-Driven Development (TDD) - Red, Green, Refactor
+
+**CRITICAL**: This project follows strict Test-Driven Development practices. When implementing new features or fixing bugs, you MUST follow the Red-Green-Refactor cycle:
+
+### Red-Green-Refactor Cycle
+
+1. **RED**: Write a failing test first
+   - Write the test that describes the desired behavior
+   - Run the test to confirm it fails (red)
+   - This ensures the test is actually testing something
+
+2. **GREEN**: Write minimal code to make the test pass
+   - Implement only what's needed to make the test green
+   - Don't worry about perfection yet
+   - Focus on making it work
+
+3. **REFACTOR**: Improve the code while keeping tests green
+   - Clean up the implementation
+   - Remove duplication
+   - Improve naming and structure
+   - Run tests after each refactoring step
+
+### TDD Workflow for Agents
+
+When implementing features:
+
+```bash
+# 1. RED: Write failing unit tests
+# Example: tests/Morphir.Tooling.Tests/Features/VerifyIR/VerifyIRHandlerTests.cs
+[Test]
+public async Task Handle_ShouldReturnValid_WhenIRIsValid()
+{
+    // Arrange
+    var command = new VerifyIR("valid-ir.json");
+
+    // Act
+    var result = await VerifyIRHandler.Handle(command, validator, ct);
+
+    // Assert
+    result.IsValid.Should().BeTrue();
+}
+
+# Run: dotnet test
+# Expect: Test fails because VerifyIRHandler doesn't exist
+
+# 2. GREEN: Implement minimal code
+public static class VerifyIRHandler
+{
+    public static Task<VerifyIRResult> Handle(VerifyIR command, ...)
+    {
+        // Minimal implementation to pass test
+        return Task.FromResult(new VerifyIRResult(IsValid: true, ...));
+    }
+}
+
+# Run: dotnet test
+# Expect: Test passes (green)
+
+# 3. REFACTOR: Improve implementation
+public static class VerifyIRHandler
+{
+    public static async Task<VerifyIRResult> Handle(
+        VerifyIR command,
+        SchemaValidator validator,
+        CancellationToken ct)
+    {
+        var jsonContent = await File.ReadAllTextAsync(command.FilePath, ct);
+        var validationResult = await validator.ValidateAsync(jsonContent, "3", ct);
+
+        return new VerifyIRResult(
+            IsValid: validationResult.IsValid,
+            SchemaVersion: "3",
+            DetectionMethod: "auto",
+            FilePath: command.FilePath,
+            Errors: validationResult.Errors,
+            Timestamp: DateTime.UtcNow
+        );
+    }
+}
+
+# Run: dotnet test
+# Expect: Tests still pass (still green)
+```
+
+### BDD-First for Features
+
+For new features, write BDD scenarios BEFORE implementation:
+
+```gherkin
+# tests/Morphir.Tooling.Tests/Features/VerifyIR/VerifyIR.feature
+Feature: IR Schema Verification
+  As a Morphir developer
+  I want to validate IR JSON files against schemas
+  So that I can ensure IR correctness
+
+  Scenario: Valid IR file passes validation
+    Given a valid IR v3 file "valid-ir-v3.json"
+    When I verify the IR file
+    Then the validation should succeed
+    And no errors should be reported
+```
+
+Then implement step definitions:
+
+```csharp
+[Given(@"a valid IR v3 file ""(.*)""")]
+public void GivenAValidIRV3File(string fileName)
+{
+    _context.FilePath = Path.Combine("TestData", fileName);
+}
+
+[When(@"I verify the IR file")]
+public async Task WhenIVerifyTheIRFile()
+{
+    var command = new VerifyIR(_context.FilePath);
+    _context.Result = await _handler.Handle(command, _validator, CancellationToken.None);
+}
+
+[Then(@"the validation should succeed")]
+public void ThenTheValidationShouldSucceed()
+{
+    _context.Result.IsValid.Should().BeTrue();
+}
+```
+
+### TDD Rules for Agents
+
+1. **Never write production code without a failing test first**
+   - Exception: Simple refactorings that don't change behavior
+
+2. **Write the simplest test that could possibly fail**
+   - Start with happy path
+   - Add edge cases incrementally
+
+3. **Write only enough production code to make the failing test pass**
+   - Don't anticipate future requirements
+   - Keep it simple
+
+4. **Refactor continuously**
+   - After each green test, look for improvements
+   - Keep tests green throughout refactoring
+
+5. **Test behaviors, not implementation details**
+   - Focus on public APIs and observable outcomes
+   - Avoid testing private methods directly
+
+6. **One test, one assertion (when practical)**
+   - Makes failures easier to diagnose
+   - Tests are more focused
+
+### Test Organization
+
+```
+tests/Morphir.Tooling.Tests/
+├── Features/
+│   └── VerifyIR/
+│       ├── VerifyIR.feature          # BDD scenarios
+│       ├── VerifyIRSteps.cs          # Step definitions
+│       └── VerifyIRHandlerTests.cs   # Unit tests
+├── Infrastructure/
+│   └── JsonSchema/
+│       ├── SchemaLoaderTests.cs      # Unit tests
+│       └── SchemaValidatorTests.cs   # Unit tests
+└── TestData/
+    ├── valid-ir-v3.json
+    └── invalid-*.json
+```
+
+### TDD Anti-Patterns to Avoid
+
+❌ **Don't write tests after the code**
+- Defeats the purpose of TDD
+- Tests become implementation-focused instead of behavior-focused
+
+❌ **Don't skip the refactor step**
+- Code quality degrades over time
+- Technical debt accumulates
+
+❌ **Don't write too many tests before implementation**
+- Write one test, implement, refactor, repeat
+- Maintains focus and momentum
+
+❌ **Don't test implementation details**
+- Focus on behavior and contracts
+- Private methods are tested through public APIs
+
+### Verification Before Commit
+
+Always run the full test suite before committing:
+
+```bash
+# Run all tests
+dotnet test --nologo
+
+# Verify coverage hasn't decreased
+dotnet test --collect:"XPlat Code Coverage"
+
+# Format code
+dotnet format
+```
+
 ## 10) Decision Policies
 
 - Favor IR fidelity and correctness.
