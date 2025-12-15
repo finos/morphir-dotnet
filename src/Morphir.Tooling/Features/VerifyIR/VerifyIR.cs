@@ -41,7 +41,7 @@ public static class VerifyIRHandler
         var jsonContent = await File.ReadAllTextAsync(command.FilePath, ct);
 
         // 2. Detect or use specified version
-        var version = command.SchemaVersion?.ToString() ?? DetectVersion(jsonContent);
+        var version = command.SchemaVersion?.ToString() ?? VersionDetector.DetectVersion(jsonContent);
 
         // 3. Validate against schema
         var validationResult = await validator.ValidateAsync(
@@ -58,14 +58,6 @@ public static class VerifyIRHandler
             Errors: validationResult.Errors,
             Timestamp: DateTime.UtcNow
         );
-    }
-
-    // Simple version detection (will be enhanced later)
-    private static string DetectVersion(string jsonContent)
-    {
-        // Default to v3 for now
-        // TODO: Implement proper version detection using formatVersion field and tag analysis
-        return "3";
     }
 }
 
