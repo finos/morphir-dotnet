@@ -77,6 +77,12 @@ refactor: simplify error handling in VerifyIRHandler
 
 **IMPORTANT**: Do not list Claude (or any AI assistant) as a co-author on commits. The CLA does not support AI assistants as co-authors.
 
+**Commit Co-Author Policy**:
+- **Never** add `Co-Authored-By: Claude <noreply@anthropic.com>` or any AI assistant as a co-author
+- Only human contributors who have signed the CLA should be listed as co-authors
+- You may include attribution in the commit message body (e.g., "🤖 Generated with Claude Code")
+- This applies to all commits, including those created by AI coding assistants
+
 ### 6. Working with PRDs
 
 When implementing features from PRDs:
