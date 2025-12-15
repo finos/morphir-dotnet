@@ -5,28 +5,42 @@ namespace Morphir.Tooling.Infrastructure.JsonSchema;
 
 public class SchemaLoader
 {
+    private const string SchemaBaseUri = "https://finos.github.io/morphir/schemas";
     private readonly ConcurrentDictionary<string, Json.Schema.JsonSchema> _cache = new();
 
     public Task<Json.Schema.JsonSchema> LoadSchemaAsync(string version, CancellationToken ct)
     {
-        return Task.FromResult(_cache.GetOrAdd(version, v =>
+        return Task.FromResult(_cache.GetOrAdd(version, LoadSchemaFromEmbeddedResource));
+    }
+
+    private static Json.Schema.JsonSchema LoadSchemaFromEmbeddedResource(string version)
+    {
+        var resourceName = $"Morphir.Tooling.Infrastructure.Schemas.morphir-ir-v{version}.json";
+        using var stream = Assembly.GetExecutingAssembly()
+            .GetManifestResourceStream(resourceName)
+            ?? throw new FileNotFoundException($"Schema file not found: {resourceName}");
+
+        using var reader = new StreamReader(stream);
+        var jsonContent = reader.ReadToEnd();
+
+        // Try to parse and register schema in global registry
+        // If already registered, retrieve from registry instead
+        try
         {
-            // Load embedded JSON schema
-            var resourceName = $"Morphir.Tooling.Infrastructure.Schemas.morphir-ir-v{v}.json";
-            using var stream = Assembly.GetExecutingAssembly()
-                .GetManifestResourceStream(resourceName)
-                ?? throw new FileNotFoundException($"Schema file not found: {resourceName}");
+            return Json.Schema.JsonSchema.FromText(jsonContent);
+        }
+        catch (Json.Schema.JsonSchemaException ex) when (ex.Message.Contains("Overwriting registered schemas"))
+        {
+            return GetSchemaFromGlobalRegistry(version);
+        }
+    }
 
-            using var reader = new StreamReader(stream);
-            var jsonContent = reader.ReadToEnd();
-
-            // Parse as JsonSchema
-            var schema = Json.Schema.JsonSchema.FromText(jsonContent);
-
-            // Register the schema in the global registry to handle $ref resolution and circular references
-            Json.Schema.SchemaRegistry.Global.Register(schema);
-
-            return schema;
-        }));
+    private static Json.Schema.JsonSchema GetSchemaFromGlobalRegistry(string version)
+    {
+        var schemaId = new Uri($"{SchemaBaseUri}/morphir-ir-v{version}.yaml");
+        var schema = Json.Schema.SchemaRegistry.Global.Get(schemaId);
+        if (schema is not Json.Schema.JsonSchema jsonSchema)
+            throw new InvalidOperationException($"Schema {schemaId} not found in global registry");
+        return jsonSchema;
     }
 }

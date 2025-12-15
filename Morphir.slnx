@@ -16,9 +16,10 @@
   <Folder Name="/src/">
     <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
     <Project Path="src/Morphir/Morphir.csproj" />
-    <Project Path="src\Morphir.Core\Morphir.Core.csproj" Type="C#" />
+    <Project Path="src\Morphir.Core\Morphir.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests\Morphir.Core.Tests\Morphir.Core.Tests.csproj" Type="C#" />
+    <Project Path="tests/Morphir.Tooling.Tests/Morphir.Tooling.Tests.csproj" />
+    <Project Path="tests\Morphir.Core.Tests\Morphir.Core.Tests.csproj" />
   </Folder>
 </Solution>

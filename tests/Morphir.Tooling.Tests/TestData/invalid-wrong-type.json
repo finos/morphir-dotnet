@@ -1,0 +1,14 @@
+{
+  "formatVersion": 3,
+  "distribution": [
+    "Library",
+    [
+      ["test"],
+      ["package"]
+    ],
+    {},
+    {
+      "modules": {}
+    }
+  ]
+}
