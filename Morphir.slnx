@@ -14,10 +14,11 @@
     <File Path="AGENTS.md" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
     <Project Path="src/Morphir/Morphir.csproj" />
-    <Project Path="src\Morphir.Core\Morphir.Core.csproj" Type="Classic C#" />
+    <Project Path="src\Morphir.Core\Morphir.Core.csproj" Type="C#" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests\Morphir.Core.Tests\Morphir.Core.Tests.csproj" Type="Classic C#" />
+    <Project Path="tests\Morphir.Core.Tests\Morphir.Core.Tests.csproj" Type="C#" />
   </Folder>
 </Solution>
