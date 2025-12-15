@@ -25,15 +25,15 @@
       },
       "InlineComposition": {
         "type": "Direct",
-        "requested": "[1.4.0, )",
-        "resolved": "1.4.0",
-        "contentHash": "K6cIWjr96hxEsg6POXtfBd9LgYV6+CtVr2GDsA50c9u5Zfv/ZumSp5OUF9OuI/Ll+rCDajnN67bkOvCt8i6yug=="
+        "requested": "[1.5.1, )",
+        "resolved": "1.5.1",
+        "contentHash": "42SW7EZuKpFWHjVzRWUKD7dQhhQgN12DyIkjw/5+0bj8YPDIpzGuo+J7CssP4bRZ/SPgx+UUONK0+UTOQip2Ig=="
       },
       "LanguageExt.Core": {
         "type": "Direct",
-        "requested": "[5.0.0-beta-54, )",
-        "resolved": "5.0.0-beta-54",
-        "contentHash": "hjEB7AbVt5fhjXDHalBwW+gz6cw2PfLT6R20NMUkEnt6Yii74Hdp7TBHjAcLkYNgsrKikk+wuyRTDB426kKmLg=="
+        "requested": "[5.0.0-beta-59, )",
+        "resolved": "5.0.0-beta-59",
+        "contentHash": "qg0M2XuFCp/tIFeycuwstxIHkqOHlXW8wpsTTZiIQF74CdGZTeGQ0e/VqSF6mfLM1t5UM5h7bzSKrwN+p/6sIg=="
       },
       "StaticCS": {
         "type": "Direct",
@@ -43,9 +43,9 @@
       },
       "Vogen": {
         "type": "Direct",
-        "requested": "[8.0.3-beta.2, )",
-        "resolved": "8.0.3-beta.2",
-        "contentHash": "gssrcLDyamrH43vVzBmnCtgrtshEyZyVtceLyRtxBYxRzUPrm7paIPsn3b1mw6qmO/snRHKEmsBQhanV4KSULg=="
+        "requested": "[8.0.3, )",
+        "resolved": "8.0.3",
+        "contentHash": "mWcOP9OazN1pqZTGedVG+7k+mA5gDy5ZVgF7hlIhY+Dt4Ex+oAdU3ktNB8PjIjyf5MC37M/Z5Yv6DdDdldCPqw=="
       },
       "Generator.Equals.Runtime": {
         "type": "Transitive",
