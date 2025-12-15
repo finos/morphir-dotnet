@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Morphir.Tooling</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WolverineFx for messaging -->
+    <PackageReference Include="WolverineFx" />
+
+    <!-- JSON Schema validation -->
+    <PackageReference Include="JsonSchema.Net" />
+    <PackageReference Include="Json.More.Net" />
+
+    <!-- Validation -->
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embed JSON schema files as resources -->
+    <EmbeddedResource Include="Infrastructure\Schemas\*.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference to Morphir.Core for IR types (optional, for future extensibility) -->
+    <ProjectReference Include="..\Morphir.Core\Morphir.Core.csproj" />
+  </ItemGroup>
+
+</Project>

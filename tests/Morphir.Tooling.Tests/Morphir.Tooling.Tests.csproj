@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Morphir.Tooling.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Testing frameworks -->
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="coverlet.collector" />
+
+    <!-- Assertions and verification -->
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Verify.TUnit" />
+
+    <!-- BDD framework -->
+    <PackageReference Include="Reqnroll" />
+    <PackageReference Include="Reqnroll.TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Project under test -->
+    <ProjectReference Include="..\..\src\Morphir.Tooling\Morphir.Tooling.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Test data files -->
+    <None Include="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="**/*.feature"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Reqnroll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- hiding .gitkeep files in Visual Studio; they are only needed to ensure the existence of the empty folders in git -->
+    <None Update="**/.gitkeep" Visible="false" />
+  </ItemGroup>
+
+</Project>

@@ -7,6 +7,7 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <PropertyGroup>
+        <!-- AOT enabled with source-generated JSON serialization -->
         <PublishTrimmed>true</PublishTrimmed>
         <PublishAot>true</PublishAot>
     </PropertyGroup>
@@ -15,6 +16,12 @@
         <PackageReference Include="Extism.runtime.all" />
         <PackageReference Include="Extism.Sdk" />
         <PackageReference Include="System.CommandLine" />
+        <PackageReference Include="WolverineFx" />
+        <PackageReference Include="FluentValidation" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />
     </ItemGroup>
 
 </Project>
