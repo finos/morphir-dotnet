@@ -24,7 +24,7 @@ public class PathTests
         var (head, tail) = Path.Empty;
         using (Assert.Multiple())
         {
-            await Assert.That(head).IsEqualTo(null);
+            await Assert.That(head).IsEqualTo((Name?)null);
             await Assert.That(tail).IsEqualTo(ImmutableList<Name>.Empty);
         }
     }
@@ -203,7 +203,7 @@ public class PathTests
     public async Task Head_Extension_Should_Return_Null_For_Empty_Path()
     {
         var path = Path.Empty;
-        await Assert.That(path.Head).IsEqualTo(null);
+        await Assert.That(path.Head).IsEqualTo((Name?)null);
     }
 
     [Test]

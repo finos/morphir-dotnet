@@ -7,6 +7,7 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <RootNamespace>Morphir.Tooling.Tests</RootNamespace>
+    <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
   </PropertyGroup>
 
   <ItemGroup>

@@ -10,7 +10,7 @@ public class TypeTests
         var actual = Type.Variable("some-attributes", Name.FromString("TResult"));
         using (Assert.Multiple())
         {
-            await Assert.That(actual).HasMember(t => t.Name).EqualTo(Name.FromList("t", "result"));
+            await Assert.That(actual.Name).IsEqualTo(Name.FromList("t", "result"));
         }
     }
 }
