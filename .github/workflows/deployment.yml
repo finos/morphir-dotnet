@@ -219,6 +219,21 @@ jobs:
                   API_KEY: ${{ env.NUGET_TOKEN }}
                   NUGET_SOURCE: https://api.nuget.org/v3/index.json
                   
+            - name: Prepare release assets
+              if: ${{ env.SKIP_GIT_RELEASE != 'true' }}
+              run: |
+                  mkdir -p ./artifacts/release-assets
+                  # Copy executables with RID in filename for install scripts
+                  for dir in ./artifacts/single-file/*/; do
+                      rid=$(basename "$dir")
+                      if [ -f "$dir/morphir" ]; then
+                          cp "$dir/morphir" "./artifacts/release-assets/morphir-$rid"
+                      elif [ -f "$dir/morphir.exe" ]; then
+                          cp "$dir/morphir.exe" "./artifacts/release-assets/morphir-$rid.exe"
+                      fi
+                  done
+                  ls -lh ./artifacts/release-assets/
+                  
             - name: Create GitHub Release
               if: ${{ env.SKIP_GIT_RELEASE != 'true' }}
               uses: softprops/action-gh-release@v1
@@ -244,9 +259,15 @@ jobs:
                       
                       ## Standalone Executables
                       
-                      Download the executable for your platform:
-                  files: |
-                      ./artifacts/single-file/*/morphir*
+                      Download the executable for your platform from the assets below.
+              env:
+                  GITHUB_TOKEN: ${{ env.GH_TOKEN }}
+                  
+            - name: Upload release assets
+              if: ${{ env.SKIP_GIT_RELEASE != 'true' }}
+              uses: softprops/action-gh-release@v1
+              with:
+                  files: ./artifacts/release-assets/*
               env:
                   GITHUB_TOKEN: ${{ env.GH_TOKEN }}
 
