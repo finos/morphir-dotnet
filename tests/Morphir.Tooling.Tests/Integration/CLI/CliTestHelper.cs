@@ -94,6 +94,24 @@ public class CliTestHelper
         if (line.Contains("fail:") || line.Contains("error:") || line.Contains("Error"))
             return false;
 
+        // Filter out Windows .NET runtime DLL file paths (common in self-contained/AOT builds)
+        // These are typically absolute paths ending in .dll
+        if (line.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) &&
+            (line.Contains("\\") || line.Contains("/")) &&
+            (line.Contains("clretwrc.dll", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("clrgc.dll", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("clrgcexp.dll", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("clrjit.dll", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("coreclr.dll", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("hostfxr.dll", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("hostpolicy.dll", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("mscordaccore", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("mscordbi.dll", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("Microsoft.DiaSymReader", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
         return line.Contains("info: Wolverine") ||
                line.Contains("info: Microsoft.Hosting") ||
                line.Contains("Application started") ||

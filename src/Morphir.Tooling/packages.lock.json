@@ -29,18 +29,6 @@
           "JsonPointer.Net": "6.0.0"
         }
       },
-      "Microsoft.DotNet.ILCompiler": {
-        "type": "Direct",
-        "requested": "[10.0.0, )",
-        "resolved": "10.0.0",
-        "contentHash": "f9u8fMRROe2lS5MOOLutK6iSNTK9pC3kqd90FIn8Sk29fbZ0QDjZrBbwUkhouk/8dppC71SIEQaag0lGRTxvfA=="
-      },
-      "Microsoft.NET.ILLink.Tasks": {
-        "type": "Direct",
-        "requested": "[10.0.0, )",
-        "resolved": "10.0.0",
-        "contentHash": "kICGrGYEzCNI3wPzfEXcwNHgTvlvVn9yJDhSdRK+oZQy4jvYH529u7O0xf5ocQKzOMjfS07+3z9PKRIjrFMJDA=="
-      },
       "WolverineFx": {
         "type": "Direct",
         "requested": "[3.13.5, )",
@@ -675,27 +663,6 @@
         "requested": "[8.0.3, )",
         "resolved": "8.0.3",
         "contentHash": "mWcOP9OazN1pqZTGedVG+7k+mA5gDy5ZVgF7hlIhY+Dt4Ex+oAdU3ktNB8PjIjyf5MC37M/Z5Yv6DdDdldCPqw=="
-      }
-    },
-    "net10.0/linux-arm64": {
-      "Microsoft.DotNet.ILCompiler": {
-        "type": "Direct",
-        "requested": "[10.0.0, )",
-        "resolved": "10.0.0",
-        "contentHash": "f9u8fMRROe2lS5MOOLutK6iSNTK9pC3kqd90FIn8Sk29fbZ0QDjZrBbwUkhouk/8dppC71SIEQaag0lGRTxvfA==",
-        "dependencies": {
-          "runtime.linux-arm64.Microsoft.DotNet.ILCompiler": "10.0.0"
-        }
-      },
-      "runtime.linux-arm64.Microsoft.DotNet.ILCompiler": {
-        "type": "Transitive",
-        "resolved": "10.0.0",
-        "contentHash": "cjpHcYiUCjhDUhJT7w2BhqbdIvib8BCYSDXtYbjJ8QyY5bPiUo9jkZ6jfPMC8pqz3uhv0lam74CXW0YzHh0pQw=="
-      },
-      "System.Diagnostics.EventLog": {
-        "type": "Transitive",
-        "resolved": "9.0.0",
-        "contentHash": "qd01+AqPhbAG14KtdtIqFk+cxHQFZ/oqRSCoxU1F+Q6Kv0cl726sl7RzU9yLFGd4BUOKdN4XojXF0pQf/R6YeA=="
       }
     }
   }
