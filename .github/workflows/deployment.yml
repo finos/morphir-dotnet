@@ -56,7 +56,7 @@ jobs:
                     - rid: win-arm64
                       os: windows-11-arm
                     - rid: osx-x64
-                      os: macos-latest
+                      os: macos-15-intel
                     - rid: osx-arm64
                       os: macos-latest
         runs-on: ${{ matrix.os }}
