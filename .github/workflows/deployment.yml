@@ -126,6 +126,8 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   path: ./artifacts/single-file
+                  pattern: morphir-*
+                  merge-multiple: true
                   
             - name: Run E2E tests
               run: just test-e2e EXECUTABLE_TYPE=trimmed
