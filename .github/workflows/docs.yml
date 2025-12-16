@@ -57,6 +57,12 @@ jobs:
           echo "$HOME/.proto/bin" >> $GITHUB_PATH
         shell: bash
 
+      - name: Install moonrepo
+        run: |
+          export PATH="$HOME/.proto/bin:$PATH"
+          proto install moonrepo
+        shell: bash
+
       - name: Build documentation with moonrepo
         env:
           HUGO_ENVIRONMENT: production

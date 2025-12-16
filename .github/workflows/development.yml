@@ -40,6 +40,11 @@ jobs:
                   curl -fsSL https://moonrepo.dev/install/proto.sh | bash -s -- --yes
                   echo "$HOME/.proto/bin" >> $GITHUB_PATH
               shell: bash
+            - name: Install moonrepo
+              run: |
+                  export PATH="$HOME/.proto/bin:$PATH"
+                  proto install moonrepo
+              shell: bash
             - uses: actions/cache@v4
               with:
                   path: ~/.nuget/packages
@@ -73,6 +78,18 @@ jobs:
               run: |
                   irm https://moonrepo.dev/install/proto.ps1 | iex
                   echo "$env:USERPROFILE\.proto\bin" >> $env:GITHUB_PATH
+              shell: pwsh
+            - name: Install moonrepo (Linux/macOS)
+              if: runner.os != 'Windows'
+              run: |
+                  export PATH="$HOME/.proto/bin:$PATH"
+                  proto install moonrepo
+              shell: bash
+            - name: Install moonrepo (Windows)
+              if: runner.os == 'Windows'
+              run: |
+                  $env:PATH = "$env:USERPROFILE\.proto\bin;$env:PATH"
+                  proto install moonrepo
               shell: pwsh
             - uses: actions/cache@v4
               with:
