@@ -83,23 +83,12 @@ jobs:
             - name: Restore dependencies
               run: just restore
               
-            - name: Build executable for ${{ matrix.rid }}
-              run: just publish-single-file ${{ matrix.rid }}
+            - name: Build executable and run E2E tests for ${{ matrix.rid }}
+              run: just build-and-test ${{ matrix.rid }}
               env:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
                   VERSION: ${{ env.RELEASE_VERSION }}
                   OUTPUT_DIR: ./artifacts/single-file
-                  
-            - name: Set executable permissions
-              if: runner.os != 'Windows'
-              run: |
-                  chmod +x ./artifacts/single-file/${{ matrix.rid }}/morphir
-                  echo "Executable permissions set for ${{ matrix.rid }}/morphir"
-                  
-            - name: Run E2E tests
-              run: just test-e2e trimmed
-              env:
-                  CONFIGURATION: ${{ env.CONFIGURATION }}
                   
             - name: Upload executable artifact
               uses: actions/upload-artifact@v4

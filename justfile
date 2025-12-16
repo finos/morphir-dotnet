@@ -202,6 +202,33 @@ test-e2e EXECUTABLE_TYPE="all": build-e2e-tests
     #!/usr/bin/env bash
     dotnet run scripts/run-e2e-tests.cs "${EXECUTABLE_TYPE}" "${CONFIGURATION:-Release}"
 
+# Build and test a single-file executable for a specific platform
+# Usage: just build-and-test <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/single-file]
+#   RID: Runtime Identifier (e.g., linux-x64, win-x64, osx-arm64)
+#   CONFIGURATION: Build configuration (default: Release)
+#   VERSION: Version string for the executable (optional)
+#   OUTPUT_DIR: Output directory for the executable (default: ./artifacts/single-file)
+# This builds the executable and then runs E2E tests against it
+# Dependencies: publish-single-file builds the executable, build-e2e-tests ensures tests are ready
+build-and-test RID: build-e2e-tests
+    #!/usr/bin/env bash
+    CONFIG="${CONFIGURATION:-Release}"
+    VERSION="${VERSION:-}"
+    OUTPUT_DIR="${OUTPUT_DIR:-./artifacts/single-file}"
+    
+    echo "================================================"
+    echo "Building and testing executable for {{RID}}"
+    echo "================================================"
+    echo ""
+    
+    # Build is handled by dependency (publish-single-file)
+    # Now run E2E tests against the trimmed executable
+    echo "Running E2E tests for {{RID}}..."
+    dotnet run scripts/run-e2e-tests.cs "trimmed" "$CONFIG"
+    
+    echo ""
+    echo "✓ Build and test completed successfully for {{RID}}"
+
 # Publish library NuGet packages to NuGet.org
 # Usage: just publish-libs [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
 publish-libs:
