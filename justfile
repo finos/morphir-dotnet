@@ -21,16 +21,11 @@ format:
 
 # Run tests
 # Usage: just test [CONFIGURATION=Release]
-# On Linux/macOS, uses the shell script
-# On Windows, uses the PowerShell script
+# Uses C# script for cross-platform compatibility
 test:
     #!/usr/bin/env bash
     CONFIG="${CONFIGURATION:-Release}"
-    if [ "$(uname)" = "Linux" ] || [ "$(uname)" = "Darwin" ]; then
-        ./scripts/run-tests.sh "$CONFIG"
-    else
-        powershell -ExecutionPolicy Bypass -File ./scripts/run-tests.ps1 -Configuration "$CONFIG"
-    fi
+    dotnet run scripts/run-tests.cs "$CONFIG"
 
 # Check task that runs lint
 check:
@@ -86,15 +81,15 @@ pack-tool:
 # Usage: just build-tool-dll [CONFIGURATION=Release] [OUTPUT_DIR=./artifacts/tool-dll]
 build-tool-dll:
     #!/usr/bin/env bash
-    ./scripts/build-tool-dll.sh "${CONFIGURATION:-Release}" "${OUTPUT_DIR:-./artifacts/tool-dll}"
+    dotnet run scripts/build-tool-dll.cs "${CONFIGURATION:-Release}" "${OUTPUT_DIR:-./artifacts/tool-dll}"
 
-# Pack the Morphir CLI as a dotnet tool with platform-specific executables
-# Usage: just pack-tool-platform [CONFIGURATION=Release] [VERSION=] [EXECUTABLES_DIR=./artifacts/executables] [OUTPUT_DIR=./artifacts/packages]
-# This packages pre-built trimmed (non-AOT) executables from EXECUTABLES_DIR into a NuGet tool package
-# The managed DLL entry point will detect and use the platform-specific executable for the current platform
+# Pack the Morphir CLI as a dotnet tool (managed DLL only)
+# Usage: just pack-tool-platform [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/packages]
+# This packages the managed DLL as a dotnet tool named 'dotnet-morphir'
+# The managed DLL will run on any platform with .NET installed (no platform-specific executables needed)
 pack-tool-platform:
     #!/usr/bin/env bash
-    ./scripts/pack-tool-platform.sh "${CONFIGURATION:-Release}" "${VERSION:-}" "${EXECUTABLES_DIR:-./artifacts/executables}" "${OUTPUT_DIR:-./artifacts/packages}"
+    dotnet run scripts/pack-tool-platform.cs "${CONFIGURATION:-Release}" "${VERSION:-}" "${OUTPUT_DIR:-./artifacts/packages}"
 
 # Pack all projects (libraries and tool)
 # Usage: just pack-all [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/packages]
@@ -177,23 +172,35 @@ publish-executables:
 # Compatible with dependencies that aren't AOT-compatible (e.g., Wolverine)
 publish-single-file RID:
     #!/usr/bin/env bash
-    ./scripts/publish-single-file.sh "{{RID}}" "${CONFIGURATION:-Release}" "${VERSION:-}" "${OUTPUT_DIR:-./artifacts/single-file}"
+    dotnet run scripts/publish-single-file.cs "{{RID}}" "${CONFIGURATION:-Release}" "${VERSION:-}" "${OUTPUT_DIR:-./artifacts/single-file}"
 
 # Publish single-file executable without AOT and without trimming (baseline)
 # Usage: just publish-single-file-untrimmed <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/single-file-untrimmed]
 # This creates a baseline for size comparison
 publish-single-file-untrimmed RID:
     #!/usr/bin/env bash
-    ./scripts/publish-single-file-untrimmed.sh "{{RID}}" "${CONFIGURATION:-Release}" "${VERSION:-}" "${OUTPUT_DIR:-./artifacts/single-file-untrimmed}"
+    dotnet run scripts/publish-single-file-untrimmed.cs "{{RID}}" "${CONFIGURATION:-Release}" "${VERSION:-}" "${OUTPUT_DIR:-./artifacts/single-file-untrimmed}"
+
+# Build the E2E test project
+# Usage: just build-e2e-tests [CONFIGURATION=Release]
+# This restores and builds the E2E test project
+build-e2e-tests:
+    #!/usr/bin/env bash
+    CONFIG="${CONFIGURATION:-Release}"
+    dotnet restore tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj
+    dotnet build tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj \
+        --configuration "$CONFIG" \
+        --no-restore
 
 # Run end-to-end tests against Morphir executables (BDD/Gherkin)
 # Usage: just test-e2e [EXECUTABLE_TYPE=all] [CONFIGURATION=Release]
 #   EXECUTABLE_TYPE: aot, trimmed, untrimmed, or all (default)
 #   CONFIGURATION: Build configuration (default: Release)
 # This builds executables if needed and runs E2E tests
-test-e2e EXECUTABLE_TYPE="all":
+# Dependencies: build-e2e-tests ensures the test project is built
+test-e2e EXECUTABLE_TYPE="all": build-e2e-tests
     #!/usr/bin/env bash
-    ./scripts/run-e2e-tests.sh "${EXECUTABLE_TYPE}" "${CONFIGURATION:-Release}"
+    dotnet run scripts/run-e2e-tests.cs "${EXECUTABLE_TYPE}" "${CONFIGURATION:-Release}"
 
 # Publish library NuGet packages to NuGet.org
 # Usage: just publish-libs [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]

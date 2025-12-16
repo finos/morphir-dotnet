@@ -206,12 +206,11 @@ jobs:
             - name: Restore dependencies for tool DLL build
               run: just restore
               
-            - name: Pack tool package with platform-specific executables
+            - name: Pack tool package (managed DLL)
               run: just pack-tool-platform
               env:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
                   VERSION: ${{ env.RELEASE_VERSION }}
-                  EXECUTABLES_DIR: ./artifacts/single-file
                   
             - name: Publish packages to NuGet
               run: just publish-all
