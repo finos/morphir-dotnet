@@ -34,6 +34,17 @@
         "resolved": "0.3.1",
         "contentHash": "xjLncTEPyaspNrFC5C21xU8QqjXl8KuVE9k/mqmdPEk+dmTY4MR0WMmrUKsY/JfSlnkLuCQDzZhSYAaYEHTvbQ=="
       },
+      "JasperFx.CodeGeneration.Commands": {
+        "type": "Direct",
+        "requested": "[3.7.2, )",
+        "resolved": "3.7.2",
+        "contentHash": "ABhF/u+SU5jMEejuboeW6HBGfsYzxBnKN9jjaXl3fm37so8MMGGm8jxLslgJOdVJSwOzm7nvuz0miMxDZKFXHQ==",
+        "dependencies": {
+          "JasperFx.CodeGeneration": "3.7.2",
+          "JasperFx.RuntimeCompiler": "3.7.2",
+          "Oakton": "6.3.0"
+        }
+      },
       "System.CommandLine": {
         "type": "Direct",
         "requested": "[2.0.1, )",
@@ -119,16 +130,6 @@
         "dependencies": {
           "FastExpressionCompiler": "4.2.2",
           "JasperFx.Core": "1.9.0"
-        }
-      },
-      "JasperFx.CodeGeneration.Commands": {
-        "type": "Transitive",
-        "resolved": "3.7.2",
-        "contentHash": "ABhF/u+SU5jMEejuboeW6HBGfsYzxBnKN9jjaXl3fm37so8MMGGm8jxLslgJOdVJSwOzm7nvuz0miMxDZKFXHQ==",
-        "dependencies": {
-          "JasperFx.CodeGeneration": "3.7.2",
-          "JasperFx.RuntimeCompiler": "3.7.2",
-          "Oakton": "6.3.0"
         }
       },
       "JasperFx.Core": {
@@ -545,16 +546,6 @@
         "resolved": "13.0.3",
         "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
       },
-      "Oakton": {
-        "type": "Transitive",
-        "resolved": "6.3.0",
-        "contentHash": "Kc3clx/R8JM3kXyuS5JpSZ/cKQTzdSB86Fl/Ir4dRh2N/5wNTzv3H/dYDVRooaj0NwxsjngqG6WlpznyiCx+mA==",
-        "dependencies": {
-          "JasperFx.Core": "1.9.0",
-          "Microsoft.Extensions.Hosting": "[6.0.0, 10.0.0)",
-          "Spectre.Console": "0.47.0"
-        }
-      },
       "Spectre.Console": {
         "type": "Transitive",
         "resolved": "0.47.0",
@@ -631,9 +622,11 @@
         "type": "Project",
         "dependencies": {
           "FluentValidation": "[11.12.0, )",
+          "JasperFx.CodeGeneration.Commands": "[3.7.2, )",
           "Json.More.Net": "[2.2.0, )",
           "JsonSchema.Net": "[8.0.3, )",
           "Morphir.Core": "[1.0.0, )",
+          "Oakton": "[6.3.0, )",
           "WolverineFx": "[3.13.5, )"
         }
       },
@@ -722,6 +715,17 @@
           "Microsoft.Extensions.DependencyInjection": "9.0.0",
           "Microsoft.Extensions.Logging.Abstractions": "9.0.0",
           "Microsoft.Extensions.Options": "9.0.0"
+        }
+      },
+      "Oakton": {
+        "type": "CentralTransitive",
+        "requested": "[6.3.0, )",
+        "resolved": "6.3.0",
+        "contentHash": "Kc3clx/R8JM3kXyuS5JpSZ/cKQTzdSB86Fl/Ir4dRh2N/5wNTzv3H/dYDVRooaj0NwxsjngqG6WlpznyiCx+mA==",
+        "dependencies": {
+          "JasperFx.Core": "1.9.0",
+          "Microsoft.Extensions.Hosting": "[6.0.0, 10.0.0)",
+          "Spectre.Console": "0.47.0"
         }
       },
       "Vogen": {

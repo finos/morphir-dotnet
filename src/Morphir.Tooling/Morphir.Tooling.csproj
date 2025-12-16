@@ -7,10 +7,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RootNamespace>Morphir.Tooling</RootNamespace>
+    <!-- Make executable for codegen command when EnableCodegen property is set -->
+    <OutputType Condition="'$(EnableCodegen)' == 'true'">Exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- WolverineFx for messaging -->
+    <PackageReference Include="JasperFx.CodeGeneration.Commands" />
+    <PackageReference Include="Oakton" />
     <PackageReference Include="WolverineFx" />
 
     <!-- JSON Schema validation -->
@@ -33,6 +37,11 @@
 
   <ItemGroup>
     <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Wolverine pre-generated code is automatically included by the SDK -->
+    <!-- Files in Internal/Generated/ will be compiled automatically -->
   </ItemGroup>
 
 </Project>

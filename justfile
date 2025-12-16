@@ -171,6 +171,31 @@ publish-executables:
     echo ""
     echo "All single-file executables published to $OUTPUT_DIR"
 
+# Publish single-file executable without AOT (managed .NET runtime) with trimming
+# Usage: just publish-single-file <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/single-file]
+# This creates a self-contained single-file executable that runs as a managed .NET application
+# Trimming is enabled for size optimization (TrimMode=partial for safety)
+# Compatible with dependencies that aren't AOT-compatible (e.g., Wolverine)
+publish-single-file RID:
+    #!/usr/bin/env bash
+    ./scripts/publish-single-file.sh "{{RID}}" "${CONFIGURATION:-Release}" "${VERSION:-}" "${OUTPUT_DIR:-./artifacts/single-file}"
+
+# Publish single-file executable without AOT and without trimming (baseline)
+# Usage: just publish-single-file-untrimmed <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/single-file-untrimmed]
+# This creates a baseline for size comparison
+publish-single-file-untrimmed RID:
+    #!/usr/bin/env bash
+    ./scripts/publish-single-file-untrimmed.sh "{{RID}}" "${CONFIGURATION:-Release}" "${VERSION:-}" "${OUTPUT_DIR:-./artifacts/single-file-untrimmed}"
+
+# Run end-to-end tests against Morphir executables (BDD/Gherkin)
+# Usage: just test-e2e [EXECUTABLE_TYPE=all] [CONFIGURATION=Release]
+#   EXECUTABLE_TYPE: aot, trimmed, untrimmed, or all (default)
+#   CONFIGURATION: Build configuration (default: Release)
+# This builds executables if needed and runs E2E tests
+test-e2e EXECUTABLE_TYPE="all":
+    #!/usr/bin/env bash
+    ./scripts/run-e2e-tests.sh "${EXECUTABLE_TYPE}" "${CONFIGURATION:-Release}"
+
 # Publish library NuGet packages to NuGet.org
 # Usage: just publish-libs [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
 publish-libs:

@@ -93,13 +93,53 @@ jobs:
                   path: ./artifacts/executables/${{ matrix.rid }}/
                   retention-days: 1
 
-    release:
+    e2e-tests:
         runs-on: ubuntu-latest
         needs: [validate-release-version, build-executables]
+        if: ${{ !failure() }}
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.0.1
+              with:
+                  fetch-depth: 0
+                  
+            - name: Setup just
+              uses: extractions/setup-just@v2
+              
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  dotnet-version: "10.0.x"
+                  
+            - name: Cache Nuget Packages
+              uses: actions/cache@v4
+              with:
+                  path: ~/.nuget/packages
+                  key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-nuget
+                      
+            - name: Restore dependencies
+              run: just restore
+              
+            - name: Download executable artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: ./artifacts/executables
+                  
+            - name: Run E2E tests
+              run: just test-e2e EXECUTABLE_TYPE=aot
+              env:
+                  CONFIGURATION: ${{ env.CONFIGURATION }}
+
+    release:
+        runs-on: ubuntu-latest
+        needs: [validate-release-version, build-executables, e2e-tests]
         # First of all the release job requires a manual trigger
         # Second, the release job will only run if it is provided a valid semantic version
         # Third, the release job will only run if the current repository is the main repository
         # when in main repo: all commits to main branch and all additional tags
+        # Fourth, E2E tests must pass before release
         if: ${{ !failure() }}
 
         steps:
