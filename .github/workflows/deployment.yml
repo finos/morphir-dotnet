@@ -83,8 +83,8 @@ jobs:
             - name: Restore dependencies
               run: just restore
               
-            - name: Build executable for ${{ matrix.rid }}
-              run: just publish-single-file ${{ matrix.rid }}
+            - name: Build executable and run E2E tests for ${{ matrix.rid }}
+              run: just build-and-test ${{ matrix.rid }}
               env:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
                   VERSION: ${{ env.RELEASE_VERSION }}
@@ -98,70 +98,9 @@ jobs:
                   path: ./artifacts/single-file/${{ matrix.rid }}/
                   retention-days: 1
 
-    e2e-tests:
-        runs-on: ubuntu-latest
-        needs: [validate-release-version, build-executables]
-        if: ${{ !failure() }}
-        steps:
-            - name: Fetch Source Code
-              uses: actions/checkout@v6.0.1
-              with:
-                  fetch-depth: 0
-                  
-            - name: Setup just
-              uses: extractions/setup-just@v2
-              
-            - name: Setup .NET SDK
-              uses: actions/setup-dotnet@v5
-              with:
-                  dotnet-version: "10.0.x"
-                  
-            - name: Cache Nuget Packages
-              uses: actions/cache@v4
-              with:
-                  path: ~/.nuget/packages
-                  key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
-                  restore-keys: |
-                      ${{ runner.os }}-nuget
-                      
-            - name: Restore dependencies
-              run: just restore
-              
-            - name: Download executable artifacts
-              uses: actions/download-artifact@v4
-              with:
-                  path: ./artifacts/single-file
-                  pattern: morphir-*
-                  merge-multiple: true
-                  
-            - name: Debug artifact structure
-              run: |
-                  echo "Artifact directory structure:"
-                  find ./artifacts/single-file -type f -o -type d | head -20
-                  echo ""
-                  echo "Looking for linux-x64 executable:"
-                  ls -la ./artifacts/single-file/linux-x64/ 2>&1 || echo "Directory not found"
-                  
-            - name: Set executable permissions
-              run: |
-                  # Make all executables executable (for flattened structure)
-                  find ./artifacts/single-file -type f -name "morphir" -exec chmod +x {} \;
-                  # Also check RID-specific directories (if structure is preserved)
-                  find ./artifacts/single-file -type d -mindepth 1 -maxdepth 1 | while read dir; do
-                      if [ -f "$dir/morphir" ]; then
-                          chmod +x "$dir/morphir"
-                      fi
-                  done
-                  echo "Executable permissions set"
-                  
-            - name: Run E2E tests
-              run: just test-e2e trimmed
-              env:
-                  CONFIGURATION: ${{ env.CONFIGURATION }}
-
     release:
         runs-on: ubuntu-latest
-        needs: [validate-release-version, build-executables, e2e-tests]
+        needs: [validate-release-version, build-executables]
         # First of all the release job requires a manual trigger
         # Second, the release job will only run if it is provided a valid semantic version
         # Third, the release job will only run if the current repository is the main repository
