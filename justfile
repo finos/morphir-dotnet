@@ -101,25 +101,26 @@ publish-libs:
         exit 1
     fi
     
-    # Enable nullglob to handle cases where no files match
-    shopt -s nullglob
-    
-    # Expand glob patterns properly
-    CORE_PACKAGES=("$OUTPUT_DIR"/*.Morphir.Core.*.nupkg)
-    if [ ${#CORE_PACKAGES[@]} -eq 0 ]; then
+    # Use find to locate packages (more reliable than glob patterns)
+    CORE_PACKAGE=$(find "$OUTPUT_DIR" -name "Morphir.Core.*.nupkg" -type f | head -1)
+    if [ -z "$CORE_PACKAGE" ]; then
         echo "Error: Morphir.Core package not found in $OUTPUT_DIR"
+        echo "Contents of $OUTPUT_DIR:"
+        ls -la "$OUTPUT_DIR" 2>/dev/null || echo "Directory does not exist"
         exit 1
     fi
-    echo "Publishing Morphir.Core: ${CORE_PACKAGES[0]}"
-    dotnet nuget push "${CORE_PACKAGES[0]}" --source "$NUGET_SOURCE" --api-key "$API_KEY" --skip-duplicate
+    echo "Publishing Morphir.Core: $CORE_PACKAGE"
+    dotnet nuget push "$CORE_PACKAGE" --source "$NUGET_SOURCE" --api-key "$API_KEY" --skip-duplicate
     
-    TOOLING_PACKAGES=("$OUTPUT_DIR"/*.Morphir.Tooling.*.nupkg)
-    if [ ${#TOOLING_PACKAGES[@]} -eq 0 ]; then
+    TOOLING_PACKAGE=$(find "$OUTPUT_DIR" -name "Morphir.Tooling.*.nupkg" -type f | head -1)
+    if [ -z "$TOOLING_PACKAGE" ]; then
         echo "Error: Morphir.Tooling package not found in $OUTPUT_DIR"
+        echo "Contents of $OUTPUT_DIR:"
+        ls -la "$OUTPUT_DIR" 2>/dev/null || echo "Directory does not exist"
         exit 1
     fi
-    echo "Publishing Morphir.Tooling: ${TOOLING_PACKAGES[0]}"
-    dotnet nuget push "${TOOLING_PACKAGES[0]}" --source "$NUGET_SOURCE" --api-key "$API_KEY" --skip-duplicate
+    echo "Publishing Morphir.Tooling: $TOOLING_PACKAGE"
+    dotnet nuget push "$TOOLING_PACKAGE" --source "$NUGET_SOURCE" --api-key "$API_KEY" --skip-duplicate
 
 # Publish the Morphir CLI tool package to NuGet.org
 # Usage: just publish-tool [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
