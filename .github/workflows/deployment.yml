@@ -129,6 +129,14 @@ jobs:
                   pattern: morphir-*
                   merge-multiple: true
                   
+            - name: Debug artifact structure
+              run: |
+                  echo "Artifact directory structure:"
+                  find ./artifacts/single-file -type f -o -type d | head -20
+                  echo ""
+                  echo "Looking for linux-x64 executable:"
+                  ls -la ./artifacts/single-file/linux-x64/ 2>&1 || echo "Directory not found"
+                  
             - name: Run E2E tests
               run: just test-e2e trimmed
               env:
