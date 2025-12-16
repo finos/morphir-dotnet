@@ -98,6 +98,7 @@ done
 # Build the E2E test project
 echo ""
 echo "Building E2E test project..."
+dotnet restore tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj --configuration "$CONFIG"
 dotnet build tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj \
     --configuration "$CONFIG" \
     --no-restore
