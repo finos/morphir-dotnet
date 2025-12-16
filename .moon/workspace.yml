@@ -28,6 +28,11 @@ runner:
     - ':test-all'
     - ':lint'
 
+  # Limit concurrency to avoid dotnet restore race conditions
+  # https://github.com/dotnet/sdk/issues/8665
+  # Multiple parallel restores can conflict when writing project.assets.json
+  concurrency: 2
+
 # Version control settings
 vcs:
   manager: 'git'

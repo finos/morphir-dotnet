@@ -35,16 +35,10 @@ jobs:
               uses: actions/setup-dotnet@v5
               with:
                   dotnet-version: "10.0.x"
-            - name: Install proto CLI
-              run: |
-                  curl -fsSL https://moonrepo.dev/install/proto.sh | bash -s -- --yes
-                  echo "$HOME/.proto/bin" >> $GITHUB_PATH
-              shell: bash
-            - name: Install moonrepo
-              run: |
-                  export PATH="$HOME/.proto/bin:$PATH"
-                  proto install moonrepo
-              shell: bash
+            - name: Setup moonrepo
+              uses: moonrepo/setup-toolchain@v0
+              with:
+                  auto-install: true
             - uses: actions/cache@v4
               with:
                   path: ~/.nuget/packages
@@ -53,7 +47,7 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-nuget
             - name: Check code formatting
-              run: proto run moonrepo -- run :lint
+              run: moon run :lint
 
     test:
         strategy:
@@ -67,30 +61,10 @@ jobs:
               uses: actions/setup-dotnet@v5
               with:
                   dotnet-version: "10.0.x"
-            - name: Install proto CLI (Linux/macOS)
-              if: runner.os != 'Windows'
-              run: |
-                  curl -fsSL https://moonrepo.dev/install/proto.sh | bash -s -- --yes
-                  echo "$HOME/.proto/bin" >> $GITHUB_PATH
-              shell: bash
-            - name: Install proto CLI (Windows)
-              if: runner.os == 'Windows'
-              run: |
-                  irm https://moonrepo.dev/install/proto.ps1 | iex
-                  echo "$env:USERPROFILE\.proto\bin" >> $env:GITHUB_PATH
-              shell: pwsh
-            - name: Install moonrepo (Linux/macOS)
-              if: runner.os != 'Windows'
-              run: |
-                  export PATH="$HOME/.proto/bin:$PATH"
-                  proto install moonrepo
-              shell: bash
-            - name: Install moonrepo (Windows)
-              if: runner.os == 'Windows'
-              run: |
-                  $env:PATH = "$env:USERPROFILE\.proto\bin;$env:PATH"
-                  proto install moonrepo
-              shell: pwsh
+            - name: Setup moonrepo
+              uses: moonrepo/setup-toolchain@v0
+              with:
+                  auto-install: true
             - uses: actions/cache@v4
               with:
                   path: ~/.nuget/packages
@@ -98,12 +72,8 @@ jobs:
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
-            - name: Run tests (Linux/macOS)
-              if: runner.os != 'Windows'
-              run: proto run moonrepo -- run :test-all
-            - name: Run tests (Windows)
-              if: runner.os == 'Windows'
-              run: proto run moonrepo -- run :test-all
+            - name: Run tests
+              run: moon run :test-all
 
     ci:
         runs-on: ubuntu-latest
