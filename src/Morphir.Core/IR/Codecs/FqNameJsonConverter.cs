@@ -13,14 +13,29 @@ namespace Morphir.IR.Codecs;
 /// </remarks>
 public class FqNameJsonConverter : JsonConverter<FqName>
 {
-    public FqNameJsonConverter(MorphirJsonOptions morphirJsonOptions)
+    private readonly JsonConverter<PackageName> _packagePathConverter;
+    private readonly JsonConverter<ModulePath> _modulePathConverter;
+    private readonly JsonConverter<Name> _nameConverter;
+
+    public FqNameJsonConverter(
+        MorphirJsonOptions morphirJsonOptions,
+        JsonConverter<Name> nameConverter,
+        JsonConverter<ModulePath> modulePathConverter,
+        JsonConverter<PackageName> packageNameConverter)
     {
+        _nameConverter = nameConverter;
+        _modulePathConverter = modulePathConverter;
+        _packagePathConverter = packageNameConverter;
     }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FqNameJsonConverter"/> class with default options.
     /// </summary>
-    public FqNameJsonConverter()
+    public FqNameJsonConverter() : this(
+        MorphirJsonOptions.Default,
+        new NameConverter(),
+        new ModulePathJsonConverter(),
+        new PackageNameJsonConverter())
     {
     }
 
@@ -45,10 +60,6 @@ public class FqNameJsonConverter : JsonConverter<FqName>
         if (reader.TokenType != JsonTokenType.StartArray)
             throw new JsonException($"Unexpected token when parsing FqName, expected StartArray but got: {reader.TokenType}");
 
-        var packagePathConverter = (JsonConverter<PackageName>)options.GetConverter(typeof(PackageName));
-        var modulePathConverter = (JsonConverter<ModulePath>)options.GetConverter(typeof(ModulePath));
-        var nameConverter = (JsonConverter<Name>)options.GetConverter(typeof(Name));
-
         PackageName? packagePath = null;
         ModulePath? modulePath = null;
         Name? localName = null;
@@ -56,7 +67,7 @@ public class FqNameJsonConverter : JsonConverter<FqName>
         // Read PackagePath
         if (reader.Read())
         {
-            packagePath = packagePathConverter.Read(ref reader, typeof(PackageName), options);
+            packagePath = _packagePathConverter.Read(ref reader, typeof(PackageName), options);
             if (packagePath == null)
                 throw new JsonException("Malformed FqName encountered: packagePath cannot be null");
         }
@@ -68,7 +79,7 @@ public class FqNameJsonConverter : JsonConverter<FqName>
         // Read ModulePath
         if (reader.Read())
         {
-            modulePath = modulePathConverter.Read(ref reader, typeof(ModulePath), options);
+            modulePath = _modulePathConverter.Read(ref reader, typeof(ModulePath), options);
             if (modulePath == null)
                 throw new JsonException("Malformed FqName encountered: modulePath cannot be null");
         }
@@ -80,7 +91,7 @@ public class FqNameJsonConverter : JsonConverter<FqName>
         // Read LocalName
         if (reader.Read())
         {
-            localName = nameConverter.Read(ref reader, typeof(Name), options);
+            localName = _nameConverter.Read(ref reader, typeof(Name), options);
             if (localName == null)
                 throw new JsonException("Malformed FqName encountered: localName cannot be null");
         }
@@ -108,15 +119,11 @@ public class FqNameJsonConverter : JsonConverter<FqName>
     /// </remarks>
     public override void Write(Utf8JsonWriter writer, FqName value, JsonSerializerOptions options)
     {
-        var packagePathConverter = (JsonConverter<PackageName>)options.GetConverter(typeof(PackageName));
-        var modulePathConverter = (JsonConverter<ModulePath>)options.GetConverter(typeof(ModulePath));
-        var nameConverter = (JsonConverter<Name>)options.GetConverter(typeof(Name));
-
         writer.WriteStartArray();
 
-        packagePathConverter.Write(writer, value.PackagePath, options);
-        modulePathConverter.Write(writer, value.ModulePath, options);
-        nameConverter.Write(writer, value.LocalName, options);
+        _packagePathConverter.Write(writer, value.PackagePath, options);
+        _modulePathConverter.Write(writer, value.ModulePath, options);
+        _nameConverter.Write(writer, value.LocalName, options);
 
         writer.WriteEndArray();
     }

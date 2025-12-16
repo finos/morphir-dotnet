@@ -17,8 +17,17 @@ namespace Morphir.Classic.IR.Codecs;
 /// </list>
 /// Example JSON: {"name":["field","name"],"tpe":["Unit",{}]}
 /// </remarks>
-public class FieldJsonConverterFactory(MorphirJsonOptions morphirJsonOptions) : JsonConverterFactory
+public class FieldJsonConverterFactory : JsonConverterFactory
 {
+    private readonly MorphirJsonOptions _morphirJsonOptions;
+    private readonly ConverterReferences? _converterRefs;
+
+    public FieldJsonConverterFactory(MorphirJsonOptions morphirJsonOptions, ConverterReferences? converterRefs = null)
+    {
+        _morphirJsonOptions = morphirJsonOptions;
+        _converterRefs = converterRefs;
+    }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="FieldJsonConverterFactory"/> class with default options.
     /// </summary>
@@ -66,31 +75,35 @@ public class FieldJsonConverterFactory(MorphirJsonOptions morphirJsonOptions) : 
 
         var attributeType = attrs[0];
         var converterType = typeof(FieldJsonConverter<>).MakeGenericType(attributeType);
-        return (JsonConverter?)Activator.CreateInstance(converterType, morphirJsonOptions);
+        return (JsonConverter?)Activator.CreateInstance(converterType, _morphirJsonOptions, _converterRefs);
     }
 
     /// <summary>
     /// JSON converter for <see cref="Type.Field{TAttributes}"/> instances.
     /// </summary>
     /// <typeparam name="TAttributes">The type of attributes associated with the field type.</typeparam>
-    private class FieldJsonConverter<TAttributes>(MorphirJsonOptions morphirJsonOptions) : JsonConverter<Type.Field<TAttributes>>
+    private class FieldJsonConverter<TAttributes> : JsonConverter<Type.Field<TAttributes>>
     {
+        private readonly JsonConverter<Name> _nameConverter;
+        private readonly JsonConverter<Type<TAttributes>> _typeConverter;
+
+        public FieldJsonConverter(MorphirJsonOptions morphirJsonOptions, ConverterReferences? converterRefs = null)
+        {
+            if (converterRefs != null)
+            {
+                _nameConverter = converterRefs.NameConverter;
+            }
+            else
+            {
+                _nameConverter = (JsonConverter<Name>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(Name));
+            }
+            _typeConverter = (JsonConverter<Type<TAttributes>>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(Type<TAttributes>));
+        }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="FieldJsonConverter{TAttributes}"/> class with default options.
         /// </summary>
         public FieldJsonConverter() : this(MorphirJsonOptions.Default) { }
-
-        /// <summary>
-        /// Gets the converter for serializing and deserializing field names.
-        /// </summary>
-        private JsonConverter<Name> NameConverter { get; } =
-            (JsonConverter<Name>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(Name));
-
-        /// <summary>
-        /// Gets the converter for serializing and deserializing field types.
-        /// </summary>
-        private JsonConverter<Type<TAttributes>> TypeConverter { get; } =
-            (JsonConverter<Type<TAttributes>>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(Type<TAttributes>));
 
         /// <summary>
         /// Reads and deserializes a Field from JSON.
@@ -134,10 +147,10 @@ public class FieldJsonConverterFactory(MorphirJsonOptions morphirJsonOptions) : 
                     switch (propertyName)
                     {
                         case "name":
-                            name = NameConverter.Read(ref reader, typeof(Name), options);
+                            name = _nameConverter.Read(ref reader, typeof(Name), options);
                             break;
                         case "tpe":
-                            type = TypeConverter.Read(ref reader, typeof(Type<TAttributes>), options);
+                            type = _typeConverter.Read(ref reader, typeof(Type<TAttributes>), options);
                             break;
                         default:
                             throw new JsonException($"Unexpected property '{propertyName}' in Field");
@@ -167,10 +180,10 @@ public class FieldJsonConverterFactory(MorphirJsonOptions morphirJsonOptions) : 
             writer.WriteStartObject();
 
             writer.WritePropertyName("name");
-            NameConverter.Write(writer, value.Name, options);
+            _nameConverter.Write(writer, value.Name, options);
 
             writer.WritePropertyName("tpe");
-            TypeConverter.Write(writer, value.Type, options);
+            _typeConverter.Write(writer, value.Type, options);
 
             writer.WriteEndObject();
         }

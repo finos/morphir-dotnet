@@ -5,9 +5,6 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>Morphir</RootNamespace>
-        <!-- Suppress trimming warnings for System.Text.Json usage with custom converters -->
-        <!-- These warnings are expected when using reflection-based JSON serialization -->
-        <NoWarn>$(NoWarn);IL2026</NoWarn>
     </PropertyGroup>
 
 
