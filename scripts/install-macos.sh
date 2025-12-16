@@ -9,6 +9,7 @@ VERSION="${1:-}"
 INSTALL_DIR="${MORPHIR_INSTALL_DIR:-/usr/local/bin}"
 NUGET_PACKAGE="Morphir"
 NUGET_SOURCE="https://api.nuget.org/v3/index.json"
+TOOL_COMMAND="dotnet-morphir"
 
 # Detect architecture
 ARCH=$(uname -m)
@@ -39,22 +40,24 @@ if command -v dotnet &> /dev/null; then
         dotnet tool update --global "$NUGET_PACKAGE" --add-source "$NUGET_SOURCE"
     fi
     
-    echo "✓ Morphir CLI installed successfully"
+    echo "✓ Morphir CLI installed successfully as $TOOL_COMMAND"
     echo ""
-    echo "To use morphir, ensure ~/.dotnet/tools is in your PATH:"
+    echo "To use morphir, run: $TOOL_COMMAND"
+    echo ""
+    echo "Ensure ~/.dotnet/tools is in your PATH:"
     echo "  export PATH=\"\$PATH:\$HOME/.dotnet/tools\""
     echo ""
     echo "Or add it permanently to your shell profile (~/.zshrc or ~/.bash_profile)"
 else
-    echo "dotnet not found. Installing platform-specific executable..."
+    echo "dotnet not found. Installing standalone executable from GitHub releases..."
     
     # Create install directory
     mkdir -p "$INSTALL_DIR"
     
     # Determine version to download
     if [ -z "$VERSION" ]; then
-        echo "Fetching latest version from NuGet..."
-        VERSION=$(curl -s "https://api.nuget.org/v3-flatcontainer/$NUGET_PACKAGE/index.json" | grep -oP '"versions":\["[^"]*"' | grep -oP '"[0-9]+\.[0-9]+\.[0-9]+[^"]*"' | tail -1 | tr -d '"')
+        echo "Fetching latest version from GitHub releases..."
+        VERSION=$(curl -s "https://api.github.com/repos/finos/morphir-dotnet/releases/latest" | grep -oP '"tag_name":\s*"v?\K[^"]+' | head -1)
         if [ -z "$VERSION" ]; then
             echo "Error: Could not determine latest version"
             exit 1
@@ -62,54 +65,46 @@ else
         echo "Latest version: $VERSION"
     fi
     
-    # Download NuGet package
-    PACKAGE_URL="https://www.nuget.org/api/v2/package/$NUGET_PACKAGE/$VERSION"
+    # Construct download URL for the executable
+    RELEASE_TAG="v${VERSION#v}"  # Ensure v prefix
+    ASSET_NAME="morphir-${RID}"
+    DOWNLOAD_URL="https://github.com/finos/morphir-dotnet/releases/download/$RELEASE_TAG/$ASSET_NAME"
+    
+    echo "Downloading Morphir $VERSION for $RID..."
     TEMP_DIR=$(mktemp -d)
-    PACKAGE_FILE="$TEMP_DIR/morphir.nupkg"
+    EXE_FILE="$TEMP_DIR/morphir"
     
-    echo "Downloading Morphir $VERSION..."
-    curl -L -o "$PACKAGE_FILE" "$PACKAGE_URL" || {
-        echo "Error: Failed to download package"
+    # Download the executable
+    if curl -L -f -o "$EXE_FILE" "$DOWNLOAD_URL"; then
+        chmod +x "$EXE_FILE"
+        cp "$EXE_FILE" "$INSTALL_DIR/morphir"
         rm -rf "$TEMP_DIR"
-        exit 1
-    }
-    
-    # Extract package (NuGet packages are ZIP files)
-    echo "Extracting package..."
-    unzip -q "$PACKAGE_FILE" -d "$TEMP_DIR" || {
-        echo "Error: Failed to extract package (unzip required)"
-        rm -rf "$TEMP_DIR"
-        exit 1
-    }
-    
-    # Find and copy the platform-specific executable
-    EXE_SOURCE="$TEMP_DIR/tools/net10.0/$RID/morphir"
-    if [ ! -f "$EXE_SOURCE" ]; then
-        echo "Error: Platform-specific executable not found for $RID"
-        echo "Available platforms:"
-        find "$TEMP_DIR/tools/net10.0" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;
+        
+        echo "✓ Morphir CLI installed to $INSTALL_DIR/morphir"
+        echo ""
+        echo "To use morphir, ensure $INSTALL_DIR is in your PATH:"
+        echo "  export PATH=\"\$PATH:$INSTALL_DIR\""
+        echo ""
+        echo "Or add it permanently to your shell profile (~/.zshrc or ~/.bash_profile):"
+        echo "  echo 'export PATH=\"\$PATH:$INSTALL_DIR\"' >> ~/.zshrc"
+        echo "  source ~/.zshrc"
+    else
+        echo "Error: Failed to download executable for $RID"
+        echo ""
+        echo "Please download manually from:"
+        echo "  https://github.com/finos/morphir-dotnet/releases/tag/$RELEASE_TAG"
+        echo ""
+        echo "Or install .NET runtime and use: dotnet tool install --global Morphir"
         rm -rf "$TEMP_DIR"
         exit 1
     fi
-    
-    # Copy executable to install directory
-    cp "$EXE_SOURCE" "$INSTALL_DIR/morphir"
-    chmod +x "$INSTALL_DIR/morphir"
-    
-    # Cleanup
-    rm -rf "$TEMP_DIR"
-    
-    echo "✓ Morphir CLI installed to $INSTALL_DIR/morphir"
-    echo ""
-    echo "To use morphir, ensure $INSTALL_DIR is in your PATH:"
-    echo "  export PATH=\"\$PATH:$INSTALL_DIR\""
-    echo ""
-    echo "Or add it permanently to your shell profile (~/.zshrc or ~/.bash_profile):"
-    echo "  echo 'export PATH=\"\$PATH:$INSTALL_DIR\"' >> ~/.zshrc"
-    echo "  source ~/.zshrc"
 fi
 
 echo ""
 echo "Verify installation:"
-echo "  morphir --version"
+if command -v dotnet &> /dev/null; then
+    echo "  $TOOL_COMMAND --version"
+else
+    echo "  morphir --version"
+fi
 

@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 
 $NuGetPackage = "Morphir"
 $NuGetSource = "https://api.nuget.org/v3/index.json"
+$ToolCommand = "dotnet-morphir"
 $InstallDir = if ($env:MORPHIR_INSTALL_DIR) { $env:MORPHIR_INSTALL_DIR } else { "$env:LOCALAPPDATA\morphir\bin" }
 
 # Detect architecture
@@ -40,22 +41,24 @@ if ($dotnetPath) {
         }
     }
     
-    Write-Host "✓ Morphir CLI installed successfully" -ForegroundColor Green
+    Write-Host "✓ Morphir CLI installed successfully as $ToolCommand" -ForegroundColor Green
     Write-Host ""
-    Write-Host "To use morphir, ensure %USERPROFILE%\.dotnet\tools is in your PATH"
+    Write-Host "To use morphir, run: $ToolCommand"
+    Write-Host ""
+    Write-Host "Ensure %USERPROFILE%\.dotnet\tools is in your PATH"
     Write-Host "Or restart your terminal/PowerShell session"
 } else {
-    Write-Host "dotnet not found. Installing platform-specific executable..."
+    Write-Host "dotnet not found. Installing standalone executable from GitHub releases..."
     
     # Create install directory
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
     
     # Determine version to download
     if (-not $Version) {
-        Write-Host "Fetching latest version from NuGet..."
+        Write-Host "Fetching latest version from GitHub releases..."
         try {
-            $indexResponse = Invoke-RestMethod -Uri "https://api.nuget.org/v3-flatcontainer/$NuGetPackage/index.json"
-            $Version = $indexResponse.versions | Select-Object -Last 1
+            $releaseResponse = Invoke-RestMethod -Uri "https://api.github.com/repos/finos/morphir-dotnet/releases/latest"
+            $Version = $releaseResponse.tag_name -replace '^v', ''
             Write-Host "Latest version: $Version"
         } catch {
             Write-Host "Error: Could not determine latest version" -ForegroundColor Red
@@ -64,57 +67,44 @@ if ($dotnetPath) {
         }
     }
     
-    # Download NuGet package
-    $PackageUrl = "https://www.nuget.org/api/v2/package/$NuGetPackage/$Version"
+    # Construct download URL for the executable
+    $ReleaseTag = "v$($Version -replace '^v', '')"
+    $AssetName = "morphir-$RID.exe"
+    $DownloadUrl = "https://github.com/finos/morphir-dotnet/releases/download/$ReleaseTag/$AssetName"
+    
+    Write-Host "Downloading Morphir $Version for $RID..."
     $TempDir = New-TemporaryFile | ForEach-Object { Remove-Item $_; New-Item -ItemType Directory -Path $_ }
-    $PackageFile = Join-Path $TempDir "morphir.nupkg"
+    $ExeFile = Join-Path $TempDir "morphir.exe"
     
-    Write-Host "Downloading Morphir $Version..."
     try {
-        Invoke-WebRequest -Uri $PackageUrl -OutFile $PackageFile -UseBasicParsing
+        Invoke-WebRequest -Uri $DownloadUrl -OutFile $ExeFile -UseBasicParsing
+        Copy-Item -Path $ExeFile -Destination (Join-Path $InstallDir "morphir.exe") -Force
+        Remove-Item -Recurse -Force $TempDir
+        
+        Write-Host "✓ Morphir CLI installed to $InstallDir\morphir.exe" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "To use morphir, add $InstallDir to your PATH:"
+        Write-Host "  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$InstallDir', 'User')"
+        Write-Host ""
+        Write-Host "Or manually add it via System Properties > Environment Variables"
     } catch {
-        Write-Host "Error: Failed to download package" -ForegroundColor Red
+        Write-Host "Error: Failed to download executable for $RID" -ForegroundColor Red
         Write-Host $_.Exception.Message
+        Write-Host ""
+        Write-Host "Please download manually from:"
+        Write-Host "  https://github.com/finos/morphir-dotnet/releases/tag/$ReleaseTag"
+        Write-Host ""
+        Write-Host "Or install .NET runtime and use: dotnet tool install --global Morphir"
         Remove-Item -Recurse -Force $TempDir
         exit 1
     }
-    
-    # Extract package (NuGet packages are ZIP files)
-    Write-Host "Extracting package..."
-    try {
-        Expand-Archive -Path $PackageFile -DestinationPath $TempDir -Force
-    } catch {
-        Write-Host "Error: Failed to extract package" -ForegroundColor Red
-        Write-Host $_.Exception.Message
-        Remove-Item -Recurse -Force $TempDir
-        exit 1
-    }
-    
-    # Find and copy the platform-specific executable
-    $ExeSource = Join-Path $TempDir "tools\net10.0\$RID\morphir.exe"
-    if (-not (Test-Path $ExeSource)) {
-        Write-Host "Error: Platform-specific executable not found for $RID" -ForegroundColor Red
-        Write-Host "Available platforms:"
-        Get-ChildItem (Join-Path $TempDir "tools\net10.0") -Directory | ForEach-Object { Write-Host "  $($_.Name)" }
-        Remove-Item -Recurse -Force $TempDir
-        exit 1
-    }
-    
-    # Copy executable to install directory
-    Copy-Item -Path $ExeSource -Destination (Join-Path $InstallDir "morphir.exe") -Force
-    
-    # Cleanup
-    Remove-Item -Recurse -Force $TempDir
-    
-    Write-Host "✓ Morphir CLI installed to $InstallDir\morphir.exe" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "To use morphir, add $InstallDir to your PATH:"
-    Write-Host "  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$InstallDir', 'User')"
-    Write-Host ""
-    Write-Host "Or manually add it via System Properties > Environment Variables"
 }
 
 Write-Host ""
 Write-Host "Verify installation:"
-Write-Host "  morphir --version"
+if (Get-Command dotnet -ErrorAction SilentlyContinue) {
+    Write-Host "  $ToolCommand --version"
+} else {
+    Write-Host "  morphir --version"
+}
 
