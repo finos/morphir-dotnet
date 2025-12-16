@@ -91,6 +91,7 @@ pack-all: pack-libs pack-tool
 # Usage: just publish-libs [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
 publish-libs:
     #!/usr/bin/env bash
+    set -e
     NUGET_SOURCE="${NUGET_SOURCE:-https://api.nuget.org/v3/index.json}"
     API_KEY="${API_KEY:-}"
     OUTPUT_DIR="${OUTPUT_DIR:-./artifacts/packages}"
@@ -100,11 +101,25 @@ publish-libs:
         exit 1
     fi
     
-    echo "Publishing Morphir.Core..."
-    dotnet nuget push "$OUTPUT_DIR"/*.Morphir.Core.*.nupkg --source "$NUGET_SOURCE" --api-key "$API_KEY" --skip-duplicate
+    # Enable nullglob to handle cases where no files match
+    shopt -s nullglob
     
-    echo "Publishing Morphir.Tooling..."
-    dotnet nuget push "$OUTPUT_DIR"/*.Morphir.Tooling.*.nupkg --source "$NUGET_SOURCE" --api-key "$API_KEY" --skip-duplicate
+    # Expand glob patterns properly
+    CORE_PACKAGES=("$OUTPUT_DIR"/*.Morphir.Core.*.nupkg)
+    if [ ${#CORE_PACKAGES[@]} -eq 0 ]; then
+        echo "Error: Morphir.Core package not found in $OUTPUT_DIR"
+        exit 1
+    fi
+    echo "Publishing Morphir.Core: ${CORE_PACKAGES[0]}"
+    dotnet nuget push "${CORE_PACKAGES[0]}" --source "$NUGET_SOURCE" --api-key "$API_KEY" --skip-duplicate
+    
+    TOOLING_PACKAGES=("$OUTPUT_DIR"/*.Morphir.Tooling.*.nupkg)
+    if [ ${#TOOLING_PACKAGES[@]} -eq 0 ]; then
+        echo "Error: Morphir.Tooling package not found in $OUTPUT_DIR"
+        exit 1
+    fi
+    echo "Publishing Morphir.Tooling: ${TOOLING_PACKAGES[0]}"
+    dotnet nuget push "${TOOLING_PACKAGES[0]}" --source "$NUGET_SOURCE" --api-key "$API_KEY" --skip-duplicate
 
 # Publish the Morphir CLI tool package to NuGet.org
 # Usage: just publish-tool [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
