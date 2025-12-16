@@ -5,6 +5,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <AssemblyName>morphir</AssemblyName>
     </PropertyGroup>
     <!-- AOT and trimming settings are set via command-line arguments during publish -->
     <!-- This prevents them from affecting dotnet run/build operations -->
@@ -13,6 +14,7 @@
     <ItemGroup>
         <PackageReference Include="Extism.runtime.all" />
         <PackageReference Include="Extism.Sdk" />
+        <PackageReference Include="JasperFx.CodeGeneration.Commands" />
         <PackageReference Include="System.CommandLine" />
         <PackageReference Include="WolverineFx" />
         <PackageReference Include="FluentValidation" />

@@ -5,7 +5,7 @@ using Seq = LanguageExt.Seq;
 
 namespace Morphir.IR.Codecs;
 
-internal class NameConverter(MorphirJsonOptions morphirJsonOptions) : JsonConverter<Name>
+public class NameConverter(MorphirJsonOptions morphirJsonOptions) : JsonConverter<Name>
 {
     public NameConverter() : this(MorphirJsonOptions.Default) { }
 

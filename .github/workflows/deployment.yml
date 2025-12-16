@@ -49,10 +49,6 @@ jobs:
                 include:
                     - rid: linux-x64
                       os: ubuntu-latest
-                    - rid: linux-arm64
-                      os: ubuntu-latest
-                    - rid: win-x64
-                      os: windows-latest
                     - rid: osx-x64
                       os: macos-latest
                     - rid: osx-arm64
@@ -84,26 +80,66 @@ jobs:
               run: just restore
               
             - name: Build executable for ${{ matrix.rid }}
-              run: just publish-executable ${{ matrix.rid }}
+              run: just publish-single-file ${{ matrix.rid }}
               env:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
                   VERSION: ${{ env.RELEASE_VERSION }}
-                  OUTPUT_DIR: ./artifacts/executables
+                  OUTPUT_DIR: ./artifacts/single-file
                   
             - name: Upload executable artifact
               uses: actions/upload-artifact@v4
               with:
                   name: morphir-${{ matrix.rid }}
-                  path: ./artifacts/executables/${{ matrix.rid }}/
+                  path: ./artifacts/single-file/${{ matrix.rid }}/
                   retention-days: 1
+
+    e2e-tests:
+        runs-on: ubuntu-latest
+        needs: [validate-release-version, build-executables]
+        if: ${{ !failure() }}
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.0.1
+              with:
+                  fetch-depth: 0
+                  
+            - name: Setup just
+              uses: extractions/setup-just@v2
+              
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  dotnet-version: "10.0.x"
+                  
+            - name: Cache Nuget Packages
+              uses: actions/cache@v4
+              with:
+                  path: ~/.nuget/packages
+                  key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-nuget
+                      
+            - name: Restore dependencies
+              run: just restore
+              
+            - name: Download executable artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: ./artifacts/single-file
+                  
+            - name: Run E2E tests
+              run: just test-e2e EXECUTABLE_TYPE=trimmed
+              env:
+                  CONFIGURATION: ${{ env.CONFIGURATION }}
 
     release:
         runs-on: ubuntu-latest
-        needs: [validate-release-version, build-executables]
+        needs: [validate-release-version, build-executables, e2e-tests]
         # First of all the release job requires a manual trigger
         # Second, the release job will only run if it is provided a valid semantic version
         # Third, the release job will only run if the current repository is the main repository
         # when in main repo: all commits to main branch and all additional tags
+        # Fourth, E2E tests must pass before release
         if: ${{ !failure() }}
 
         steps:
@@ -155,7 +191,7 @@ jobs:
             - name: Download all executable artifacts
               uses: actions/download-artifact@v4
               with:
-                  path: ./artifacts/executables
+                  path: ./artifacts/single-file
                   pattern: morphir-*
                   merge-multiple: true
                   
@@ -173,7 +209,7 @@ jobs:
               env:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
                   VERSION: ${{ env.RELEASE_VERSION }}
-                  EXECUTABLES_DIR: ./artifacts/executables
+                  EXECUTABLES_DIR: ./artifacts/single-file
                   
             - name: Publish packages to NuGet
               run: just publish-all

@@ -15,14 +15,22 @@ namespace Morphir.IR.Codecs;
 /// </remarks>
 public class PathJsonConverter : JsonConverter<Path>
 {
+    private readonly JsonConverter<Name> _nameConverter;
+
     public PathJsonConverter(MorphirJsonOptions morphirJsonOptions)
     {
+        _nameConverter = new NameConverter(morphirJsonOptions);
+    }
+
+    public PathJsonConverter(JsonConverter<Name> nameConverter)
+    {
+        _nameConverter = nameConverter;
     }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PathJsonConverter"/> class with default options.
     /// </summary>
-    public PathJsonConverter() { }
+    public PathJsonConverter() : this(new NameConverter()) { }
 
     /// <summary>
     /// Reads and deserializes a Path from JSON.
@@ -45,12 +53,11 @@ public class PathJsonConverter : JsonConverter<Path>
         if (reader.TokenType != JsonTokenType.StartArray)
             throw new JsonException($"Unexpected token when parsing Path, expected StartArray but got: {reader.TokenType}");
 
-        var nameConverter = (JsonConverter<Name>)options.GetConverter(typeof(Name));
         var names = ImmutableList.CreateBuilder<Name>();
 
         while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
         {
-            var name = nameConverter.Read(ref reader, typeof(Name), options);
+            var name = _nameConverter.Read(ref reader, typeof(Name), options);
             if (name == null)
                 throw new JsonException("Malformed Path encountered: name cannot be null");
             names.Add(name);
@@ -79,12 +86,11 @@ public class PathJsonConverter : JsonConverter<Path>
     /// </remarks>
     public override void Write(Utf8JsonWriter writer, Path value, JsonSerializerOptions options)
     {
-        var nameConverter = (JsonConverter<Name>)options.GetConverter(typeof(Name));
         writer.WriteStartArray();
 
         foreach (var name in value.Names)
         {
-            nameConverter.Write(writer, name, options);
+            _nameConverter.Write(writer, name, options);
         }
 
         writer.WriteEndArray();
@@ -100,10 +106,15 @@ public class ModulePathJsonConverter : JsonConverter<ModulePath>
 
     public ModulePathJsonConverter(MorphirJsonOptions morphirJsonOptions)
     {
-        _pathConverter = new PathJsonConverter(morphirJsonOptions);
+        _pathConverter = new PathJsonConverter(new NameConverter(morphirJsonOptions));
     }
 
-    public ModulePathJsonConverter() : this(MorphirJsonOptions.Default) { }
+    public ModulePathJsonConverter(JsonConverter<Name> nameConverter)
+    {
+        _pathConverter = new PathJsonConverter(nameConverter);
+    }
+
+    public ModulePathJsonConverter() : this(new NameConverter()) { }
 
     public override ModulePath? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
     {
@@ -126,10 +137,15 @@ public class PackageNameJsonConverter : JsonConverter<PackageName>
 
     public PackageNameJsonConverter(MorphirJsonOptions morphirJsonOptions)
     {
-        _pathConverter = new PathJsonConverter(morphirJsonOptions);
+        _pathConverter = new PathJsonConverter(new NameConverter(morphirJsonOptions));
     }
 
-    public PackageNameJsonConverter() : this(MorphirJsonOptions.Default) { }
+    public PackageNameJsonConverter(JsonConverter<Name> nameConverter)
+    {
+        _pathConverter = new PathJsonConverter(nameConverter);
+    }
+
+    public PackageNameJsonConverter() : this(new NameConverter()) { }
 
     public override PackageName? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
     {

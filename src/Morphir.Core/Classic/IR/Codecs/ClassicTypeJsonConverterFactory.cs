@@ -5,8 +5,17 @@ using Morphir.IR.Codecs;
 
 namespace Morphir.Classic.IR.Codecs;
 
-public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptions) : JsonConverterFactory
+public class ClassicTypeJsonConverterFactory : JsonConverterFactory
 {
+    private readonly MorphirJsonOptions _morphirJsonOptions;
+    private readonly ConverterReferences? _converterRefs;
+
+    public ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptions, ConverterReferences? converterRefs = null)
+    {
+        _morphirJsonOptions = morphirJsonOptions;
+        _converterRefs = converterRefs;
+    }
+
     public ClassicTypeJsonConverterFactory() : this(MorphirJsonOptions.Default) { }
 
     public override bool CanConvert(System.Type typeToConvert)
@@ -33,21 +42,33 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
 
         var attributeType = attrs[0];
         var converterType = typeof(ClassicTypeJsonConverter<>).MakeGenericType(attributeType);
-        return (JsonConverter?)Activator.CreateInstance(converterType, morphirJsonOptions);
+        return (JsonConverter?)Activator.CreateInstance(converterType, _morphirJsonOptions, _converterRefs);
     }
 
-    private class ClassicTypeJsonConverter<TAttributes>(MorphirJsonOptions morphirJsonOptions) : JsonConverter<Type<TAttributes>>
+    private class ClassicTypeJsonConverter<TAttributes> : JsonConverter<Type<TAttributes>>
     {
+        private readonly MorphirJsonOptions _morphirJsonOptions;
+        private readonly JsonConverter<Name> _nameConverter;
+        private readonly JsonConverter<TAttributes> _attributeConverter;
+        private readonly JsonConverter<FqName> _fqNameConverter;
+
+        public ClassicTypeJsonConverter(MorphirJsonOptions morphirJsonOptions, ConverterReferences? converterRefs = null)
+        {
+            _morphirJsonOptions = morphirJsonOptions;
+            if (converterRefs != null)
+            {
+                _nameConverter = converterRefs.NameConverter;
+                _fqNameConverter = converterRefs.FqNameConverter;
+            }
+            else
+            {
+                _nameConverter = (JsonConverter<Name>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(Name));
+                _fqNameConverter = (JsonConverter<FqName>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(FqName));
+            }
+            _attributeConverter = (JsonConverter<TAttributes>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(TAttributes));
+        }
+
         public ClassicTypeJsonConverter() : this(MorphirJsonOptions.Default) { }
-
-        private JsonConverter<Name> NameConverter { get; } =
-            (JsonConverter<Name>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(Name));
-
-        private JsonConverter<TAttributes> AttributeConverter { get; } =
-            (JsonConverter<TAttributes>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(TAttributes));
-
-        private JsonConverter<FqName> FqNameConverter { get; } =
-            (JsonConverter<FqName>)morphirJsonOptions.JsonSerializerOptions.GetConverter(typeof(FqName));
 
         public override bool CanConvert(System.Type typeToConvert)
         {
@@ -136,7 +157,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             // Read attributes
             if (reader.Read())
             {
-                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                attributes = _attributeConverter.Read(ref reader, typeof(TAttributes), options);
                 if (attributes == null)
                     throw new JsonException("Malformed \"Reference\" encountered: attributes cannot be null");
             }
@@ -144,7 +165,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             // Read FqName
             if (reader.Read())
             {
-                typeName = FqNameConverter.Read(ref reader, typeof(FqName), options);
+                typeName = _fqNameConverter.Read(ref reader, typeof(FqName), options);
                 if (typeName == null)
                     throw new JsonException("Malformed \"Reference\" encountered: typeName cannot be null");
             }
@@ -179,7 +200,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             // Read attributes
             if (reader.Read())
             {
-                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                attributes = _attributeConverter.Read(ref reader, typeof(TAttributes), options);
                 if (attributes == null)
                     throw new JsonException("Malformed \"Record\" encountered: attributes cannot be null");
             }
@@ -216,7 +237,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             // Read attributes
             if (reader.Read())
             {
-                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                attributes = _attributeConverter.Read(ref reader, typeof(TAttributes), options);
                 if (attributes == null)
                     throw new JsonException("Malformed \"ExtensibleRecord\" encountered: attributes cannot be null");
             }
@@ -224,7 +245,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             // Read variable name
             if (reader.Read())
             {
-                variableName = NameConverter.Read(ref reader, typeof(Name), options);
+                variableName = _nameConverter.Read(ref reader, typeof(Name), options);
                 if (variableName == null)
                     throw new JsonException("Malformed \"ExtensibleRecord\" encountered: variableName cannot be null");
             }
@@ -261,7 +282,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             // Read attributes
             if (reader.Read())
             {
-                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                attributes = _attributeConverter.Read(ref reader, typeof(TAttributes), options);
                 if (attributes == null)
                     throw new JsonException("Malformed \"Function\" encountered: attributes cannot be null");
             }
@@ -295,7 +316,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         {
             if (reader.Read())
             {
-                var attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                var attributes = _attributeConverter.Read(ref reader, typeof(TAttributes), options);
                 if (attributes == null)
                     throw new JsonException("Malformed \"Unit\" encountered: attributes cannot be null");
 
@@ -313,12 +334,12 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
 
             if (reader.Read())
             {
-                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                attributes = _attributeConverter.Read(ref reader, typeof(TAttributes), options);
             }
 
             if (reader.Read())
             {
-                name = NameConverter.Read(ref reader, typeToConvert, options);
+                name = _nameConverter.Read(ref reader, typeToConvert, options);
             }
 
             if (reader.Read() && reader.TokenType == JsonTokenType.EndArray)
@@ -341,7 +362,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             // Read attributes
             if (reader.Read())
             {
-                attributes = AttributeConverter.Read(ref reader, typeof(TAttributes), options);
+                attributes = _attributeConverter.Read(ref reader, typeof(TAttributes), options);
                 if (attributes == null)
                     throw new JsonException("Malformed \"Tuple\" encountered: attributes cannot be null");
             }
@@ -375,9 +396,9 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             writer.WriteStartArray();
             writer.WriteStringValue("Variable");
             // Attributes
-            AttributeConverter.Write(writer, variable.Attributes, options);
+            _attributeConverter.Write(writer, variable.Attributes, options);
             // Name
-            NameConverter.Write(writer, variable.Name, options);
+            _nameConverter.Write(writer, variable.Name, options);
             writer.WriteEndArray();
         }
 
@@ -385,7 +406,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
         {
             writer.WriteStartArray();
             writer.WriteStringValue("Unit");
-            AttributeConverter.Write(writer, unit.Attributes, options);
+            _attributeConverter.Write(writer, unit.Attributes, options);
             writer.WriteEndArray();
         }
 
@@ -394,7 +415,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             writer.WriteStartArray();
             writer.WriteStringValue("Tuple");
             // Attributes
-            AttributeConverter.Write(writer, tuple.Attributes, options);
+            _attributeConverter.Write(writer, tuple.Attributes, options);
             // Write the sequence of element types as a JSON array
             writer.WriteStartArray();
             foreach (var elem in tuple.ElementTypes)
@@ -410,9 +431,9 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             writer.WriteStartArray();
             writer.WriteStringValue("Reference");
             // Attributes
-            AttributeConverter.Write(writer, reference.Attributes, options);
+            _attributeConverter.Write(writer, reference.Attributes, options);
             // FqName
-            FqNameConverter.Write(writer, reference.TypeName, options);
+            _fqNameConverter.Write(writer, reference.TypeName, options);
             // Type parameters
             writer.WriteStartArray();
             foreach (var typeParam in reference.TypeParameters)
@@ -428,7 +449,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             writer.WriteStartArray();
             writer.WriteStringValue("Record");
             // Attributes
-            AttributeConverter.Write(writer, record.Attributes, options);
+            _attributeConverter.Write(writer, record.Attributes, options);
             // Field types
             writer.WriteStartArray();
             var fieldConverter = (JsonConverter<Type.Field<TAttributes>>)options.GetConverter(typeof(Type.Field<TAttributes>));
@@ -445,9 +466,9 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             writer.WriteStartArray();
             writer.WriteStringValue("ExtensibleRecord");
             // Attributes
-            AttributeConverter.Write(writer, extensibleRecord.Attributes, options);
+            _attributeConverter.Write(writer, extensibleRecord.Attributes, options);
             // Variable name
-            NameConverter.Write(writer, extensibleRecord.VariableName, options);
+            _nameConverter.Write(writer, extensibleRecord.VariableName, options);
             // Field types
             writer.WriteStartArray();
             var fieldConverter = (JsonConverter<Type.Field<TAttributes>>)options.GetConverter(typeof(Type.Field<TAttributes>));
@@ -464,7 +485,7 @@ public class ClassicTypeJsonConverterFactory(MorphirJsonOptions morphirJsonOptio
             writer.WriteStartArray();
             writer.WriteStringValue("Function");
             // Attributes
-            AttributeConverter.Write(writer, function.Attributes, options);
+            _attributeConverter.Write(writer, function.Attributes, options);
             // Parameter type
             Write(writer, function.ParameterType, options);
             // Return type
