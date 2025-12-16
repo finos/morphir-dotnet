@@ -62,37 +62,50 @@ jobs:
                   fetch-depth: 0
                   token: ${{ env.GH_TOKEN }}
                   
-            - name: Setup .NET Core SDK
+            - name: Setup just
+              uses: extractions/setup-just@v2
+              
+            - name: Setup .NET SDK
               uses: actions/setup-dotnet@v5
               with:
-                  dotnet-version: "7.0.x"
+                  dotnet-version: "10.0.x"
             # Not specifying a version will attempt to install via global.json
             - name: Use .NET Core global.json
               uses: actions/setup-dotnet@v5
+              
             - name: Cache Nuget Packages
-              uses: actions/cache@v3
+              uses: actions/cache@v4
               with:
                   path: ~/.nuget/packages
                   # Look to see if there is a cache hit for the corresponding requirements file
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
-            - name: Publish (non-Windows)
-              if: runner.os != 'Windows'
-              run: |
-                  chmod +x ./build.sh
-                  ./build.sh Release
+                      
+            - name: Restore dependencies
+              run: just restore
+              
+            - name: Build
+              run: just build
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  GIT_USER_NAME: ${{ github.actor }}
-                  CI: true
-            - name: Publish (Windows)
-              if: runner.os == 'Windows'
-              run: ./build.cmd Release
+                  CONFIGURATION: ${{ env.CONFIGURATION }}
+                  
+            - name: Run tests
+              run: just test
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  GIT_USER_NAME: ${{ github.actor }}
-                  CI: true
+                  CONFIGURATION: ${{ env.CONFIGURATION }}
+                  
+            - name: Pack all packages
+              run: just pack-all
+              env:
+                  CONFIGURATION: ${{ env.CONFIGURATION }}
+                  
+            - name: Publish packages to NuGet
+              run: just publish-all
+              env:
+                  CONFIGURATION: ${{ env.CONFIGURATION }}
+                  API_KEY: ${{ env.NUGET_TOKEN }}
+                  NUGET_SOURCE: https://api.nuget.org/v3/index.json
 
     cd:
         runs-on: ubuntu-latest
