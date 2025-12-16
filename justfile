@@ -115,9 +115,9 @@ publish-executable RID:
     RID_OUTPUT_DIR="$OUTPUT_DIR/{{RID}}"
     mkdir -p "$RID_OUTPUT_DIR"
     
-    PUBLISH_ARGS=("--configuration" "$CONFIG" "--self-contained" "true" "/p:PublishSingleFile=true" "/p:PublishTrimmed=true" "/p:PublishAot=true")
+    PUBLISH_ARGS=("--configuration" "$CONFIG" "--self-contained" "true" "--property:PublishSingleFile=true" "--property:PublishTrimmed=true" "--property:PublishAot=true")
     if [ -n "$VERSION" ]; then
-        PUBLISH_ARGS+=("/p:Version=$VERSION")
+        PUBLISH_ARGS+=("--property:Version=$VERSION")
     fi
     
     echo "Publishing single-file executable for {{RID}}..."
