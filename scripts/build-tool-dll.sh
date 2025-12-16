@@ -20,10 +20,10 @@ dotnet build src/Morphir/Morphir.csproj \
     /p:OutputPath="$OUTPUT_DIR"
 
 # Copy the DLL to the expected location
-if [ -f "$OUTPUT_DIR/Morphir.dll" ]; then
-    echo "✓ Managed DLL created: $OUTPUT_DIR/Morphir.dll"
+if [ -f "$OUTPUT_DIR/morphir.dll" ]; then
+    echo "✓ Managed DLL created: $OUTPUT_DIR/morphir.dll"
 else
-    echo "✗ Error: Morphir.dll not found in $OUTPUT_DIR"
+    echo "✗ Error: morphir.dll not found in $OUTPUT_DIR"
     exit 1
 fi
 

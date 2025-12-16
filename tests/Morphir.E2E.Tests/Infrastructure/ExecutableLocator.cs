@@ -33,8 +33,8 @@ public class ExecutableLocator
         // Determine executable type from environment or parameter
         var type = executableType ?? Environment.GetEnvironmentVariable("MORPHIR_EXECUTABLE_TYPE") ?? "aot";
 
-        // AOT executables use "Morphir" (capital M), single-file use "morphir" (lowercase)
-        var aotExecutableName = GetExecutableName(isAot: true);
+        // All executables use lowercase "morphir" (consistent naming)
+        var aotExecutableName = GetExecutableName(isAot: false);
         var singleFileExecutableName = GetExecutableName(isAot: false);
 
         // If specific type requested, prioritize that location
@@ -57,10 +57,10 @@ public class ExecutableLocator
                 return aotPath;
         }
 
-        // Try all paths in order (check both naming conventions)
+        // Try all paths in order (all use lowercase naming)
         var paths = new[]
         {
-            // AOT executables (capital M)
+            // AOT executables (lowercase)
             Path.Combine(_repositoryRoot, "artifacts", "executables", _currentRid, aotExecutableName),
             // Single-file trimmed executables (lowercase)
             Path.Combine(_repositoryRoot, "artifacts", "single-file", _currentRid, singleFileExecutableName),
@@ -78,11 +78,11 @@ public class ExecutableLocator
     }
 
     /// <summary>
-    /// Get the executable name based on platform and type
+    /// Get the executable name based on platform (all use lowercase)
     /// </summary>
     private string GetExecutableName(bool isAot = false)
     {
-        var baseName = isAot ? "Morphir" : "morphir";
+        var baseName = "morphir";
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             return $"{baseName}.exe";

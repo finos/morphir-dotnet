@@ -34,11 +34,11 @@ TOOLS_DIR="$PACKAGE_ROOT/tools/net10.0"
 mkdir -p "$TOOLS_DIR/any"
 
 # Copy the managed DLL to the 'any' folder (entry point for all platforms)
-if [ -f "$DLL_DIR/Morphir.dll" ]; then
-    cp "$DLL_DIR/Morphir.dll" "$TOOLS_DIR/any/morphir.dll"
+if [ -f "$DLL_DIR/morphir.dll" ]; then
+    cp "$DLL_DIR/morphir.dll" "$TOOLS_DIR/any/morphir.dll"
     echo "✓ Copied managed DLL entry point"
 else
-    echo "✗ Error: Managed DLL not found at $DLL_DIR/Morphir.dll"
+    echo "✗ Error: Managed DLL not found at $DLL_DIR/morphir.dll"
     rm -rf "$PACKAGE_ROOT"
     exit 1
 fi
@@ -59,7 +59,7 @@ for RID in "${!RID_EXECUTABLES[@]}"; do
     mkdir -p "$RID_DIR"
     
     # Find the executable in the artifacts directory
-    # Handle both direct structure (linux-x64/Morphir) and artifact structure (morphir-linux-x64/linux-x64/Morphir)
+    # Handle both direct structure (linux-x64/morphir) and artifact structure (morphir-linux-x64/linux-x64/morphir)
     EXE_PATH=$(find "$EXECUTABLES_DIR" -path "*/$RID/$EXE_NAME" -type f | head -1)
     
     if [ -z "$EXE_PATH" ]; then
