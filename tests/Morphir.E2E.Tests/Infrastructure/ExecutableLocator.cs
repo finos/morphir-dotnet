@@ -40,9 +40,15 @@ public class ExecutableLocator
         // If specific type requested, prioritize that location
         if (type == "trimmed")
         {
+            // First try RID-specific path (when artifacts preserve structure)
             var trimmedPath = Path.Combine(_repositoryRoot, "artifacts", "single-file", _currentRid, singleFileExecutableName);
             if (File.Exists(trimmedPath))
                 return trimmedPath;
+            
+            // Fallback: Check flat structure (when merge-multiple flattens artifacts)
+            var flatPath = Path.Combine(_repositoryRoot, "artifacts", "single-file", singleFileExecutableName);
+            if (File.Exists(flatPath))
+                return flatPath;
         }
         else if (type == "untrimmed")
         {
