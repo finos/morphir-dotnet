@@ -80,17 +80,17 @@ jobs:
               run: just restore
               
             - name: Build executable for ${{ matrix.rid }}
-              run: just publish-executable ${{ matrix.rid }}
+              run: just publish-single-file ${{ matrix.rid }}
               env:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
                   VERSION: ${{ env.RELEASE_VERSION }}
-                  OUTPUT_DIR: ./artifacts/executables
+                  OUTPUT_DIR: ./artifacts/single-file
                   
             - name: Upload executable artifact
               uses: actions/upload-artifact@v4
               with:
                   name: morphir-${{ matrix.rid }}
-                  path: ./artifacts/executables/${{ matrix.rid }}/
+                  path: ./artifacts/single-file/${{ matrix.rid }}/
                   retention-days: 1
 
     e2e-tests:
@@ -125,10 +125,10 @@ jobs:
             - name: Download executable artifacts
               uses: actions/download-artifact@v4
               with:
-                  path: ./artifacts/executables
+                  path: ./artifacts/single-file
                   
             - name: Run E2E tests
-              run: just test-e2e EXECUTABLE_TYPE=aot
+              run: just test-e2e EXECUTABLE_TYPE=trimmed
               env:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
 
@@ -191,7 +191,7 @@ jobs:
             - name: Download all executable artifacts
               uses: actions/download-artifact@v4
               with:
-                  path: ./artifacts/executables
+                  path: ./artifacts/single-file
                   pattern: morphir-*
                   merge-multiple: true
                   
@@ -209,7 +209,7 @@ jobs:
               env:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
                   VERSION: ${{ env.RELEASE_VERSION }}
-                  EXECUTABLES_DIR: ./artifacts/executables
+                  EXECUTABLES_DIR: ./artifacts/single-file
                   
             - name: Publish packages to NuGet
               run: just publish-all

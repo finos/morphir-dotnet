@@ -8,8 +8,8 @@ set -e
 #   EXECUTABLES_DIR: Directory containing platform-specific executables (default: ./artifacts/executables)
 #   OUTPUT_DIR: Output directory for the package (default: ./artifacts/packages)
 #
-# This packages pre-built AOT executables from EXECUTABLES_DIR into a NuGet tool package
-# The managed DLL entry point will detect and use the native executable for the current platform
+# This packages pre-built trimmed (non-AOT) executables from EXECUTABLES_DIR into a NuGet tool package
+# The managed DLL entry point will detect and use the platform-specific executable for the current platform
 
 CONFIG="${1:-Release}"
 VERSION="${2:-}"
@@ -43,13 +43,13 @@ else
     exit 1
 fi
 
-# Map of RIDs to their executable names
+# Map of RIDs to their executable names (trimmed executables use lowercase)
 declare -A RID_EXECUTABLES=(
-    ["linux-x64"]="Morphir"
-    ["linux-arm64"]="Morphir"
-    ["win-x64"]="Morphir.exe"
-    ["osx-x64"]="Morphir"
-    ["osx-arm64"]="Morphir"
+    ["linux-x64"]="morphir"
+    ["linux-arm64"]="morphir"
+    ["win-x64"]="morphir.exe"
+    ["osx-x64"]="morphir"
+    ["osx-arm64"]="morphir"
 )
 
 # Copy executables to the correct RID folders
@@ -79,7 +79,7 @@ for RID in "${!RID_EXECUTABLES[@]}"; do
     else
         echo "⚠ Warning: Executable not found for $RID (looking for $EXE_NAME)"
         echo "Searched in: $EXECUTABLES_DIR"
-        find "$EXECUTABLES_DIR" -type f -name "*Morphir*" 2>/dev/null | head -5 || true
+        find "$EXECUTABLES_DIR" -type f -name "*morphir*" 2>/dev/null | head -5 || true
     fi
 done
 

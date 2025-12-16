@@ -90,8 +90,8 @@ build-tool-dll:
 
 # Pack the Morphir CLI as a dotnet tool with platform-specific executables
 # Usage: just pack-tool-platform [CONFIGURATION=Release] [VERSION=] [EXECUTABLES_DIR=./artifacts/executables] [OUTPUT_DIR=./artifacts/packages]
-# This packages pre-built AOT executables from EXECUTABLES_DIR into a NuGet tool package
-# The managed DLL entry point will detect and use the native executable for the current platform
+# This packages pre-built trimmed (non-AOT) executables from EXECUTABLES_DIR into a NuGet tool package
+# The managed DLL entry point will detect and use the platform-specific executable for the current platform
 pack-tool-platform:
     #!/usr/bin/env bash
     ./scripts/pack-tool-platform.sh "${CONFIGURATION:-Release}" "${VERSION:-}" "${EXECUTABLES_DIR:-./artifacts/executables}" "${OUTPUT_DIR:-./artifacts/packages}"
