@@ -130,7 +130,7 @@ jobs:
                   merge-multiple: true
                   
             - name: Run E2E tests
-              run: just test-e2e EXECUTABLE_TYPE=trimmed
+              run: just test-e2e trimmed
               env:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
 
