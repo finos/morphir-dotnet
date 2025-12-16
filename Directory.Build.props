@@ -9,5 +9,8 @@
         <Authors>finos</Authors>
         <RepositoryUrl>https://github.com/finos/morphir-dotnet</RepositoryUrl>
         <!-- owners is not supported in MSBuild -->
+        
+        <!-- KeepAChangelog configuration -->
+        <ChangelogFile>$(MSBuildThisFileDirectory)CHANGELOG.md</ChangelogFile>
     </PropertyGroup>
 </Project>

@@ -31,4 +31,9 @@
     <ProjectReference Include="..\Morphir.Core\Morphir.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
+  </ItemGroup>
+
 </Project>
+

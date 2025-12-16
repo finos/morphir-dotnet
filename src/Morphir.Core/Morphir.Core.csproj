@@ -28,6 +28,10 @@
 
     
     <ItemGroup>
+        <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Core.Tests" />
         <Using Include="LanguageExt" />
         <Using Include="LanguageExt.Common" />
