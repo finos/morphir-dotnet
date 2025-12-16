@@ -95,19 +95,11 @@ public class CliTestHelper
             return false;
 
         // Filter out Windows .NET runtime DLL file paths (common in self-contained/AOT builds)
-        // These are typically absolute paths ending in .dll
+        // These are typically absolute Windows paths (containing backslashes) ending in .dll
+        // Pattern: D:\path\to\file.dll or similar Windows absolute paths
         if (line.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) &&
-            (line.Contains("\\") || line.Contains("/")) &&
-            (line.Contains("clretwrc.dll", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("clrgc.dll", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("clrgcexp.dll", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("clrjit.dll", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("coreclr.dll", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("hostfxr.dll", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("hostpolicy.dll", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("mscordaccore", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("mscordbi.dll", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("Microsoft.DiaSymReader", StringComparison.OrdinalIgnoreCase)))
+            line.Contains("\\") &&
+            (line.Length > 3 && char.IsLetter(line[0]) && line[1] == ':'))
         {
             return true;
         }
