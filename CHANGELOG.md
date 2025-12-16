@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0-alpha-003] - 2025-12-16
+
+### Added
+- Platform-specific install scripts for Linux, macOS, and Windows that download from NuGet
+- Support for installing Morphir without .NET SDK using platform-specific trimmed executables
+
+### Changed
+- Switched from AOT-compiled executables to trimmed (non-AOT) executables for publishing
+- Updated deployment workflow to build trimmed single-file executables instead of AOT executables
+- Updated pack-tool-platform script to handle trimmed executables with lowercase naming
+- Updated installation documentation with platform-specific install script instructions
+
 ## [0.2.0-alpha-002] - 2025-12-16
 
 ### Added
@@ -33,7 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-002...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-003...HEAD
+[0.2.0-alpha-003]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-002...v0.2.0-alpha-003
 [0.2.0-alpha-002]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-001...v0.2.0-alpha-002
 [0.2.0-alpha-001]: https://github.com/finos/morphir-dotnet/releases/tag/v0.2.0-alpha-001
 
