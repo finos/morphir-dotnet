@@ -10,6 +10,11 @@
         <!-- AOT enabled with source-generated JSON serialization -->
         <PublishTrimmed>true</PublishTrimmed>
         <PublishAot>true</PublishAot>
+        <!-- Single-file executable that doesn't require .NET runtime -->
+        <PublishSingleFile>true</PublishSingleFile>
+        <SelfContained>true</SelfContained>
+        <!-- Enable compression for smaller executables -->
+        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     </PropertyGroup>
 
     <ItemGroup>

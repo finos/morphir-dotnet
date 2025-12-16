@@ -87,6 +87,76 @@ pack-tool:
 pack-all: pack-libs pack-tool
     @echo "All packages created successfully"
 
+# Publish single-file executable for a specific platform
+# Usage: just publish-executable <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/executables]
+# This creates a self-contained executable that doesn't require .NET to be installed
+# Common RIDs: linux-x64, linux-arm64, win-x64, osx-x64, osx-arm64
+publish-executable RID:
+    #!/usr/bin/env bash
+    set -e
+    CONFIG="${CONFIGURATION:-Release}"
+    VERSION="${VERSION:-}"
+    OUTPUT_DIR="${OUTPUT_DIR:-./artifacts/executables}"
+    
+    RID_OUTPUT_DIR="$OUTPUT_DIR/{{RID}}"
+    mkdir -p "$RID_OUTPUT_DIR"
+    
+    PUBLISH_ARGS=("--configuration" "$CONFIG" "--self-contained" "true" "/p:PublishSingleFile=true" "/p:PublishTrimmed=true" "/p:PublishAot=true")
+    if [ -n "$VERSION" ]; then
+        PUBLISH_ARGS+=("/p:Version=$VERSION")
+    fi
+    
+    echo "Publishing single-file executable for {{RID}}..."
+    dotnet publish src/Morphir/Morphir.csproj \
+        "${PUBLISH_ARGS[@]}" \
+        --runtime "{{RID}}" \
+        --output "$RID_OUTPUT_DIR"
+    
+    # Find the executable (name varies by platform and AOT uses project name)
+    if [[ "{{RID}}" == win-* ]]; then
+        EXE_NAME="Morphir.exe"
+    else
+        # AOT produces executable with project name (Morphir), not lowercase
+        EXE_NAME="Morphir"
+    fi
+    
+    if [ -f "$RID_OUTPUT_DIR/$EXE_NAME" ]; then
+        echo "✓ Created: $RID_OUTPUT_DIR/$EXE_NAME"
+        ls -lh "$RID_OUTPUT_DIR/$EXE_NAME"
+        file "$RID_OUTPUT_DIR/$EXE_NAME"
+    else
+        echo "✗ Error: Executable not found at $RID_OUTPUT_DIR/$EXE_NAME"
+        echo "Contents of $RID_OUTPUT_DIR:"
+        ls -la "$RID_OUTPUT_DIR" 2>/dev/null || echo "Directory does not exist"
+        exit 1
+    fi
+
+# Publish single-file executables for all platforms
+# Usage: just publish-executables [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/executables]
+# This creates self-contained executables that don't require .NET to be installed
+# Note: Cross-compilation may not work on all systems. Use publish-executable for a specific platform.
+publish-executables:
+    #!/usr/bin/env bash
+    set -e
+    CONFIG="${CONFIGURATION:-Release}"
+    VERSION="${VERSION:-}"
+    OUTPUT_DIR="${OUTPUT_DIR:-./artifacts/executables}"
+    
+    # Runtime Identifiers for different platforms
+    RIDS=("linux-x64" "linux-arm64" "win-x64" "osx-x64" "osx-arm64")
+    
+    for RID in "${RIDS[@]}"; do
+        echo ""
+        echo "=== Publishing for $RID ==="
+        OUTPUT_DIR="$OUTPUT_DIR" CONFIGURATION="$CONFIG" VERSION="$VERSION" just publish-executable "$RID" || {
+            echo "⚠ Warning: Failed to publish for $RID (cross-compilation may not be supported)"
+            continue
+        }
+    done
+    
+    echo ""
+    echo "All single-file executables published to $OUTPUT_DIR"
+
 # Publish library NuGet packages to NuGet.org
 # Usage: just publish-libs [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
 publish-libs:
