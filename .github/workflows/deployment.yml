@@ -218,6 +218,37 @@ jobs:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
                   API_KEY: ${{ env.NUGET_TOKEN }}
                   NUGET_SOURCE: https://api.nuget.org/v3/index.json
+                  
+            - name: Create GitHub Release
+              if: ${{ env.SKIP_GIT_RELEASE != 'true' }}
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: v${{ env.RELEASE_VERSION }}
+                  name: Release v${{ env.RELEASE_VERSION }}
+                  body: |
+                      Release v${{ env.RELEASE_VERSION }}
+                      
+                      ## Installation
+                      
+                      ### Using dotnet tool (requires .NET SDK):
+                      ```bash
+                      dotnet tool install --global Morphir
+                      ```
+                      
+                      Then use: `dotnet-morphir`
+                      
+                      ### Using install scripts:
+                      - Linux: `curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-linux.sh | bash`
+                      - macOS: `curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-macos.sh | bash`
+                      - Windows: Run `install-windows.ps1` from PowerShell
+                      
+                      ## Standalone Executables
+                      
+                      Download the executable for your platform:
+                  files: |
+                      ./artifacts/single-file/*/morphir*
+              env:
+                  GITHUB_TOKEN: ${{ env.GH_TOKEN }}
 
     cd:
         runs-on: ubuntu-latest
