@@ -51,6 +51,10 @@ jobs:
                       os: ubuntu-latest
                     - rid: linux-arm64
                       os: ubuntu-24.04-arm
+                    - rid: win-x64
+                      os: windows-latest
+                    - rid: win-arm64
+                      os: windows-11-arm
                     - rid: osx-x64
                       os: macos-latest
                     - rid: osx-arm64
