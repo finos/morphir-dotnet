@@ -76,5 +76,6 @@
         <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)"/>
         <PackageVersion Include="Vogen" Version="8.0.3"/>
         <PackageVersion Include="TickSpec" Version="2.0.2"/>
+        <PackageVersion Include="Ionide.KeepAChangelog.Tasks" Version="0.3.1"/>
     </ItemGroup>
 </Project>
