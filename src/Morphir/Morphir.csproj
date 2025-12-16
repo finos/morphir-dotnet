@@ -6,11 +6,9 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
-    <PropertyGroup>
-        <!-- AOT enabled with source-generated JSON serialization -->
-        <PublishTrimmed>true</PublishTrimmed>
-        <PublishAot>true</PublishAot>
-    </PropertyGroup>
+    <!-- AOT and trimming settings are set via command-line arguments during publish -->
+    <!-- This prevents them from affecting dotnet run/build operations -->
+    <!-- See justfile publish-executable task for publish-time settings -->
 
     <ItemGroup>
         <PackageReference Include="Extism.runtime.all" />

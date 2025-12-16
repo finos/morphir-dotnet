@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0-alpha-002] - 2025-12-16
+
 ### Added
-- Integration of just command runner for build orchestration
-- Packaging and publishing tasks for NuGet packages and dotnet tools
-- Local publishing workflow for testing packages
-- KeepAChangelog integration for automatic versioning
+- Single-file executable support for Morphir CLI (AOT-compiled, no .NET runtime required)
+- Matrix build workflow for cross-platform executable generation (linux-x64, linux-arm64, win-x64, osx-x64, osx-arm64)
+- Platform-specific NuGet tool package that automatically selects the correct executable
+- Build scripts for tool DLL and platform packaging (`scripts/build-tool-dll.sh`, `scripts/pack-tool-platform.sh`)
+- `publish-executable` and `publish-executables` tasks for building platform-specific executables
+- `pack-tool-platform` task for packaging platform-specific executables into NuGet tool package
+
+### Changed
+- Refactored complex build logic from justfile to dedicated scripts for better maintainability
+- Updated deployment workflow to use matrix builds for platform-specific executables
 
 ## [0.2.0-alpha-001] - 2025-12-16
 
@@ -20,7 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Morphir.Core library with IR types
 - Morphir.Tooling library with tooling infrastructure
 - Morphir CLI as a dotnet tool
+- Integration of just command runner for build orchestration
+- Packaging and publishing tasks for NuGet packages and dotnet tools
+- Local publishing workflow for testing packages
+- KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-001...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-002...HEAD
+[0.2.0-alpha-002]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-001...v0.2.0-alpha-002
 [0.2.0-alpha-001]: https://github.com/finos/morphir-dotnet/releases/tag/v0.2.0-alpha-001
 

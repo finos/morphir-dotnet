@@ -28,6 +28,12 @@
         "resolved": "11.12.0",
         "contentHash": "Wim3rI1nGZKO5S/lgJ0ZpD3W/uu1CECoJ8pETzC8av34ejr+jCDr4paKhSJRG0Ltcv8UjdxtYCynG+RUEfEUDA=="
       },
+      "Ionide.KeepAChangelog.Tasks": {
+        "type": "Direct",
+        "requested": "[0.3.1, )",
+        "resolved": "0.3.1",
+        "contentHash": "xjLncTEPyaspNrFC5C21xU8QqjXl8KuVE9k/mqmdPEk+dmTY4MR0WMmrUKsY/JfSlnkLuCQDzZhSYAaYEHTvbQ=="
+      },
       "Microsoft.DotNet.ILCompiler": {
         "type": "Direct",
         "requested": "[10.0.0, )",
@@ -735,6 +741,57 @@
         "requested": "[8.0.3, )",
         "resolved": "8.0.3",
         "contentHash": "mWcOP9OazN1pqZTGedVG+7k+mA5gDy5ZVgF7hlIhY+Dt4Ex+oAdU3ktNB8PjIjyf5MC37M/Z5Yv6DdDdldCPqw=="
+      }
+    },
+    "net10.0/linux-arm64": {
+      "Microsoft.DotNet.ILCompiler": {
+        "type": "Direct",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "f9u8fMRROe2lS5MOOLutK6iSNTK9pC3kqd90FIn8Sk29fbZ0QDjZrBbwUkhouk/8dppC71SIEQaag0lGRTxvfA==",
+        "dependencies": {
+          "runtime.linux-arm64.Microsoft.DotNet.ILCompiler": "10.0.0"
+        }
+      },
+      "Extism.runtime.linux-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "JKTbKrJ9zqxfKaYBEJQX1bBky6kug/i+uU462Etu9MrnC00t6+FsNzW+lg8O6kqZIZIw+k/QSzQJTbE9+ACoXQ=="
+      },
+      "Extism.runtime.linux-musl-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "a2PUlV8dc9kgUZa8PBb6VuEo8tioX0wQnU0Rn8J5ZGBECoC68VayBmIfdx+OmR9pzpN6IsorjTPlBoRvGHhy3w=="
+      },
+      "Extism.runtime.linux-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "/WEePguMvmRn/IY34iFuFNOS28RCKBPBKKG3xpUfpZ7bcnj80e/NPyyMRQQLaZSBJkiDvn7hJwJvt+n3cPF7rA=="
+      },
+      "Extism.runtime.osx-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "L19ANqXBgEZHDrWiQGRz+BGi8N7Rqirw7QTbEKFyJEutEfO25IafOQgr+UAk7/fXCRgUEz55KlBDhMETlEZeVg=="
+      },
+      "Extism.runtime.osx-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "BJawGsM0VP2uUf0X4J4wVer9k7G7dmDmMGDWjC21nmVFsfkswWsYmM8SkB9S98rAofni6yvNwT23MOSfu8RGPw=="
+      },
+      "Extism.runtime.win-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "tezN2DRh8PWrKHZiP8fDqnFRASGyxL2lVeDVDPV8YqHVGzqAl1POzYUvxkNkGeozHSrCWJ4ZCTJg4TmG6GQdwg=="
+      },
+      "runtime.linux-arm64.Microsoft.DotNet.ILCompiler": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "cjpHcYiUCjhDUhJT7w2BhqbdIvib8BCYSDXtYbjJ8QyY5bPiUo9jkZ6jfPMC8pqz3uhv0lam74CXW0YzHh0pQw=="
+      },
+      "System.Diagnostics.EventLog": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "qd01+AqPhbAG14KtdtIqFk+cxHQFZ/oqRSCoxU1F+Q6Kv0cl726sl7RzU9yLFGd4BUOKdN4XojXF0pQf/R6YeA=="
       }
     }
   }

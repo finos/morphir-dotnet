@@ -29,6 +29,12 @@
         "resolved": "1.5.1",
         "contentHash": "42SW7EZuKpFWHjVzRWUKD7dQhhQgN12DyIkjw/5+0bj8YPDIpzGuo+J7CssP4bRZ/SPgx+UUONK0+UTOQip2Ig=="
       },
+      "Ionide.KeepAChangelog.Tasks": {
+        "type": "Direct",
+        "requested": "[0.3.1, )",
+        "resolved": "0.3.1",
+        "contentHash": "xjLncTEPyaspNrFC5C21xU8QqjXl8KuVE9k/mqmdPEk+dmTY4MR0WMmrUKsY/JfSlnkLuCQDzZhSYAaYEHTvbQ=="
+      },
       "LanguageExt.Core": {
         "type": "Direct",
         "requested": "[5.0.0-beta-59, )",
