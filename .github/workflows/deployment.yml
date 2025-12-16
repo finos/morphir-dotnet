@@ -142,6 +142,18 @@ jobs:
                   echo "Looking for linux-x64 executable:"
                   ls -la ./artifacts/single-file/linux-x64/ 2>&1 || echo "Directory not found"
                   
+            - name: Set executable permissions
+              run: |
+                  # Make all executables executable (for flattened structure)
+                  find ./artifacts/single-file -type f -name "morphir" -exec chmod +x {} \;
+                  # Also check RID-specific directories (if structure is preserved)
+                  find ./artifacts/single-file -type d -mindepth 1 -maxdepth 1 | while read dir; do
+                      if [ -f "$dir/morphir" ]; then
+                          chmod +x "$dir/morphir"
+                      fi
+                  done
+                  echo "Executable permissions set"
+                  
             - name: Run E2E tests
               run: just test-e2e trimmed
               env:
