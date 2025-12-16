@@ -65,7 +65,7 @@ pack-libs:
     echo "Packing Morphir.Tooling..."
     dotnet pack src/Morphir.Tooling/Morphir.Tooling.csproj "${PACK_ARGS[@]}"
 
-# Pack the Morphir CLI as a dotnet tool
+# Pack the Morphir CLI as a dotnet tool (standard managed tool)
 # Usage: just pack-tool [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/packages]
 pack-tool:
     #!/usr/bin/env bash
@@ -81,6 +81,137 @@ pack-tool:
     
     echo "Packing Morphir CLI as dotnet tool..."
     dotnet pack src/Morphir/Morphir.csproj "${PACK_ARGS[@]}" /p:PackAsTool=true /p:ToolCommandName=morphir
+
+# Build managed DLL for tool entry point (without AOT)
+# Usage: just build-tool-dll [CONFIGURATION=Release] [OUTPUT_DIR=./artifacts/tool-dll]
+build-tool-dll:
+    #!/usr/bin/env bash
+    set -e
+    CONFIG="${CONFIGURATION:-Release}"
+    OUTPUT_DIR="${OUTPUT_DIR:-./artifacts/tool-dll}"
+    mkdir -p "$OUTPUT_DIR"
+    
+    echo "Building managed DLL for tool entry point (without AOT)..."
+    # Build without AOT by temporarily disabling it
+    dotnet build src/Morphir/Morphir.csproj \
+        --configuration "$CONFIG" \
+        --no-restore \
+        /p:PublishAot=false \
+        /p:OutputPath="$OUTPUT_DIR"
+    
+    # Copy the DLL to the expected location
+    if [ -f "$OUTPUT_DIR/Morphir.dll" ]; then
+        echo "✓ Managed DLL created: $OUTPUT_DIR/Morphir.dll"
+    else
+        echo "✗ Error: Morphir.dll not found in $OUTPUT_DIR"
+        exit 1
+    fi
+
+# Pack the Morphir CLI as a dotnet tool with platform-specific executables
+# Usage: just pack-tool-platform [CONFIGURATION=Release] [VERSION=] [EXECUTABLES_DIR=./artifacts/executables] [OUTPUT_DIR=./artifacts/packages]
+# This packages pre-built AOT executables from EXECUTABLES_DIR into a NuGet tool package
+# The managed DLL entry point will detect and use the native executable for the current platform
+pack-tool-platform:
+    #!/usr/bin/env bash
+    set -e
+    CONFIG="${CONFIGURATION:-Release}"
+    VERSION="${VERSION:-}"
+    EXECUTABLES_DIR="${EXECUTABLES_DIR:-./artifacts/executables}"
+    OUTPUT_DIR="${OUTPUT_DIR:-./artifacts/packages}"
+    
+    mkdir -p "$OUTPUT_DIR"
+    
+    # First, build the managed DLL entry point
+    echo "Building managed DLL entry point..."
+    just build-tool-dll CONFIGURATION="$CONFIG"
+    DLL_DIR="./artifacts/tool-dll"
+    
+    # Create temporary directory for package structure
+    PACKAGE_ROOT=$(mktemp -d)
+    TOOLS_DIR="$PACKAGE_ROOT/tools/net10.0"
+    mkdir -p "$TOOLS_DIR/any"
+    
+    # Copy the managed DLL to the 'any' folder (entry point for all platforms)
+    if [ -f "$DLL_DIR/Morphir.dll" ]; then
+        cp "$DLL_DIR/Morphir.dll" "$TOOLS_DIR/any/morphir.dll"
+        echo "✓ Copied managed DLL entry point"
+    else
+        echo "✗ Error: Managed DLL not found at $DLL_DIR/Morphir.dll"
+        exit 1
+    fi
+    
+    # Map of RIDs to their executable names
+    declare -A RID_EXECUTABLES=(
+        ["linux-x64"]="Morphir"
+        ["linux-arm64"]="Morphir"
+        ["win-x64"]="Morphir.exe"
+        ["osx-x64"]="Morphir"
+        ["osx-arm64"]="Morphir"
+    )
+    
+    # Copy executables to the correct RID folders
+    for RID in "${!RID_EXECUTABLES[@]}"; do
+        EXE_NAME="${RID_EXECUTABLES[$RID]}"
+        RID_DIR="$TOOLS_DIR/$RID"
+        mkdir -p "$RID_DIR"
+        
+        # Find the executable in the artifacts directory
+        # Handle both direct structure (linux-x64/Morphir) and artifact structure (morphir-linux-x64/linux-x64/Morphir)
+        EXE_PATH=$(find "$EXECUTABLES_DIR" -path "*/$RID/$EXE_NAME" -type f | head -1)
+        
+        if [ -z "$EXE_PATH" ]; then
+            # Try alternative paths (artifact might be in a different structure)
+            EXE_PATH=$(find "$EXECUTABLES_DIR" -name "$EXE_NAME" -path "*$RID*" -type f | head -1)
+        fi
+        
+        if [ -n "$EXE_PATH" ] && [ -f "$EXE_PATH" ]; then
+            # For Windows, keep .exe extension; for others, use 'morphir'
+            if [[ "$RID" == win-* ]]; then
+                cp "$EXE_PATH" "$RID_DIR/morphir.exe"
+            else
+                cp "$EXE_PATH" "$RID_DIR/morphir"
+                chmod +x "$RID_DIR/morphir"
+            fi
+            echo "✓ Copied $RID executable: $EXE_PATH"
+        else
+            echo "⚠ Warning: Executable not found for $RID (looking for $EXE_NAME)"
+            echo "Searched in: $EXECUTABLES_DIR"
+            find "$EXECUTABLES_DIR" -type f -name "*Morphir*" 2>/dev/null | head -5 || true
+        fi
+    done
+    
+    # Create a minimal .csproj for packaging
+    PACK_PROJ="$PACKAGE_ROOT/Morphir.Tool.Pack.csproj"
+    printf '%s\n' \
+        '<Project Sdk="Microsoft.NET.Sdk">' \
+        '    <PropertyGroup>' \
+        '        <TargetFramework>net10.0</TargetFramework>' \
+        '        <PackageId>Morphir</PackageId>' \
+        '        <PackageType>DotnetTool</PackageType>' \
+        '        <ToolCommandName>morphir</ToolCommandName>' \
+        '        <PackAsTool>true</PackAsTool>' \
+        '        <NoBuild>true</NoBuild>' \
+        '        <IncludeBuildOutput>false</IncludeBuildOutput>' \
+        '    </PropertyGroup>' \
+        '    <ItemGroup>' \
+        '        <None Include="tools/**/*" Pack="true" PackagePath="tools/" />' \
+        '    </ItemGroup>' \
+        '</Project>' > "$PACK_PROJ"
+    
+    # Set version if provided
+    PACK_ARGS=("--output" "$OUTPUT_DIR" "--no-build" "--no-restore")
+    if [ -n "$VERSION" ]; then
+        PACK_ARGS+=("/p:Version=$VERSION")
+    fi
+    
+    echo "Packing Morphir CLI tool with platform-specific executables..."
+    cd "$PACKAGE_ROOT"
+    dotnet pack "$PACK_PROJ" "${PACK_ARGS[@]}"
+    
+    # Cleanup
+    rm -rf "$PACKAGE_ROOT"
+    
+    echo "✓ Tool package created in $OUTPUT_DIR"
 
 # Pack all projects (libraries and tool)
 # Usage: just pack-all [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/packages]

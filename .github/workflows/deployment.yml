@@ -40,9 +40,65 @@ jobs:
                         core.setFailed(`Invalid semantic version: ${version}`);             
                       }
 
+    build-executables:
+        needs: [validate-release-version]
+        if: ${{ !failure() }}
+        strategy:
+            matrix:
+                include:
+                    - rid: linux-x64
+                      os: ubuntu-latest
+                    - rid: linux-arm64
+                      os: ubuntu-latest
+                    - rid: win-x64
+                      os: windows-latest
+                    - rid: osx-x64
+                      os: macos-latest
+                    - rid: osx-arm64
+                      os: macos-latest
+        runs-on: ${{ matrix.os }}
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.0.1
+              with:
+                  fetch-depth: 0
+                  
+            - name: Setup just
+              uses: extractions/setup-just@v2
+              
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  dotnet-version: "10.0.x"
+                  
+            - name: Cache Nuget Packages
+              uses: actions/cache@v4
+              with:
+                  path: ~/.nuget/packages
+                  key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-nuget
+                      
+            - name: Restore dependencies
+              run: just restore
+              
+            - name: Build executable for ${{ matrix.rid }}
+              run: just publish-executable ${{ matrix.rid }}
+              env:
+                  CONFIGURATION: ${{ env.CONFIGURATION }}
+                  VERSION: ${{ env.RELEASE_VERSION }}
+                  OUTPUT_DIR: ./artifacts/executables
+                  
+            - name: Upload executable artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: morphir-${{ matrix.rid }}
+                  path: ./artifacts/executables/${{ matrix.rid }}/
+                  retention-days: 1
+
     release:
         runs-on: ubuntu-latest
-        needs: [validate-release-version]
+        needs: [validate-release-version, build-executables]
         # First of all the release job requires a manual trigger
         # Second, the release job will only run if it is provided a valid semantic version
         # Third, the release job will only run if the current repository is the main repository
@@ -95,10 +151,28 @@ jobs:
               env:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
                   
-            - name: Pack all packages
-              run: just pack-all
+            - name: Download all executable artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: ./artifacts/executables
+                  pattern: morphir-*
+                  merge-multiple: true
+                  
+            - name: Pack library packages
+              run: just pack-libs
               env:
                   CONFIGURATION: ${{ env.CONFIGURATION }}
+                  VERSION: ${{ env.RELEASE_VERSION }}
+                  
+            - name: Restore dependencies for tool DLL build
+              run: just restore
+              
+            - name: Pack tool package with platform-specific executables
+              run: just pack-tool-platform
+              env:
+                  CONFIGURATION: ${{ env.CONFIGURATION }}
+                  VERSION: ${{ env.RELEASE_VERSION }}
+                  EXECUTABLES_DIR: ./artifacts/executables
                   
             - name: Publish packages to NuGet
               run: just publish-all
