@@ -221,8 +221,20 @@ build-and-test RID: build-e2e-tests
     echo "================================================"
     echo ""
     
-    # Build is handled by dependency (publish-single-file)
-    # Now run E2E tests against the trimmed executable
+    # Build the executable
+    echo "Building executable for {{RID}}..."
+    just publish-single-file "{{RID}}"
+    
+    # Set executable permissions for Unix platforms
+    if [[ "{{RID}}" != win-* ]]; then
+        EXE_PATH="$OUTPUT_DIR/{{RID}}/morphir"
+        if [ -f "$EXE_PATH" ]; then
+            chmod +x "$EXE_PATH"
+            echo "✓ Executable permissions set for {{RID}}/morphir"
+        fi
+    fi
+    
+    # Run E2E tests against the trimmed executable
     echo "Running E2E tests for {{RID}}..."
     dotnet run scripts/run-e2e-tests.cs "trimmed" "$CONFIG"
     
