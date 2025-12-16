@@ -187,12 +187,23 @@ publish-single-file-untrimmed RID:
     #!/usr/bin/env bash
     ./scripts/publish-single-file-untrimmed.sh "{{RID}}" "${CONFIGURATION:-Release}" "${VERSION:-}" "${OUTPUT_DIR:-./artifacts/single-file-untrimmed}"
 
+# Build the E2E test project
+# Usage: just build-e2e-tests [CONFIGURATION=Release]
+# This restores and builds the E2E test project
+build-e2e-tests restore:
+    #!/usr/bin/env bash
+    CONFIG="${CONFIGURATION:-Release}"
+    dotnet build tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj \
+        --configuration "$CONFIG" \
+        --no-restore
+
 # Run end-to-end tests against Morphir executables (BDD/Gherkin)
 # Usage: just test-e2e [EXECUTABLE_TYPE=all] [CONFIGURATION=Release]
 #   EXECUTABLE_TYPE: aot, trimmed, untrimmed, or all (default)
 #   CONFIGURATION: Build configuration (default: Release)
 # This builds executables if needed and runs E2E tests
-test-e2e EXECUTABLE_TYPE="all":
+# Dependencies: build-e2e-tests ensures the test project is built
+test-e2e build-e2e-tests EXECUTABLE_TYPE="all":
     #!/usr/bin/env bash
     ./scripts/run-e2e-tests.sh "${EXECUTABLE_TYPE}" "${CONFIGURATION:-Release}"
 

@@ -95,13 +95,15 @@ for TYPE in "${EXECUTABLE_TYPES[@]}"; do
     fi
 done
 
-# Build the E2E test project
+# E2E test project should already be built via just build-e2e-tests dependency
+# Just verify it exists
 echo ""
-echo "Building E2E test project..."
-dotnet restore tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj --configuration "$CONFIG"
-dotnet build tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj \
-    --configuration "$CONFIG" \
-    --no-restore
+echo "Verifying E2E test project is built..."
+if [ ! -f "tests/Morphir.E2E.Tests/bin/$CONFIG/net10.0/Morphir.E2E.Tests.dll" ]; then
+    echo "✗ Error: E2E test project not built. Run 'just build-e2e-tests' first."
+    exit 1
+fi
+echo "✓ E2E test project is built"
 
 # Track results for each executable type
 FAILED_TYPES=()
