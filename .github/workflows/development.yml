@@ -72,6 +72,8 @@ jobs:
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
+            - name: Restore dependencies
+              run: dotnet restore Morphir.slnx
             - name: Run tests
               run: moon run :test-all
 
