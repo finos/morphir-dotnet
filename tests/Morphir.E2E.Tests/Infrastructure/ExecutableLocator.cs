@@ -43,6 +43,27 @@ public class ExecutableLocator
             var trimmedPath = Path.Combine(_repositoryRoot, "artifacts", "single-file", _currentRid, singleFileExecutableName);
             if (File.Exists(trimmedPath))
                 return trimmedPath;
+            
+            // Debug: Log what we're looking for and what exists
+            var trimmedDir = Path.Combine(_repositoryRoot, "artifacts", "single-file", _currentRid);
+            if (Directory.Exists(trimmedDir))
+            {
+                var files = Directory.GetFiles(trimmedDir);
+                Console.WriteLine($"DEBUG: Looking for {trimmedPath}");
+                Console.WriteLine($"DEBUG: Directory exists: {trimmedDir}");
+                Console.WriteLine($"DEBUG: Files in directory: {string.Join(", ", files)}");
+            }
+            else
+            {
+                var parentDir = Path.Combine(_repositoryRoot, "artifacts", "single-file");
+                if (Directory.Exists(parentDir))
+                {
+                    var subdirs = Directory.GetDirectories(parentDir);
+                    Console.WriteLine($"DEBUG: Looking for {trimmedPath}");
+                    Console.WriteLine($"DEBUG: Parent directory exists: {parentDir}");
+                    Console.WriteLine($"DEBUG: Subdirectories: {string.Join(", ", subdirs)}");
+                }
+            }
         }
         else if (type == "untrimmed")
         {
