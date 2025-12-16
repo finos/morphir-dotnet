@@ -40,6 +40,7 @@ public class ExecutableLocator
         // If specific type requested, prioritize that location
         if (type == "trimmed")
         {
+            // First try RID-specific path (when artifacts preserve structure)
             var trimmedPath = Path.Combine(_repositoryRoot, "artifacts", "single-file", _currentRid, singleFileExecutableName);
             if (File.Exists(trimmedPath))
                 return trimmedPath;
@@ -64,6 +65,11 @@ public class ExecutableLocator
                     Console.WriteLine($"DEBUG: Subdirectories: {string.Join(", ", subdirs)}");
                 }
             }
+            
+            // Fallback: Check flat structure (when merge-multiple flattens artifacts)
+            var flatPath = Path.Combine(_repositoryRoot, "artifacts", "single-file", singleFileExecutableName);
+            if (File.Exists(flatPath))
+                return flatPath;
         }
         else if (type == "untrimmed")
         {
@@ -81,12 +87,14 @@ public class ExecutableLocator
         // Try all paths in order (all use lowercase naming)
         var paths = new[]
         {
-            // AOT executables (lowercase)
+            // AOT executables (lowercase) - RID-specific
             Path.Combine(_repositoryRoot, "artifacts", "executables", _currentRid, aotExecutableName),
-            // Single-file trimmed executables (lowercase)
+            // Single-file trimmed executables - try RID-specific first, then flat
             Path.Combine(_repositoryRoot, "artifacts", "single-file", _currentRid, singleFileExecutableName),
-            // Single-file untrimmed executables (lowercase)
+            Path.Combine(_repositoryRoot, "artifacts", "single-file", singleFileExecutableName), // Flat structure fallback
+            // Single-file untrimmed executables - try RID-specific first, then flat
             Path.Combine(_repositoryRoot, "artifacts", "single-file-untrimmed", _currentRid, singleFileExecutableName),
+            Path.Combine(_repositoryRoot, "artifacts", "single-file-untrimmed", singleFileExecutableName), // Flat structure fallback
         };
 
         foreach (var path in paths)

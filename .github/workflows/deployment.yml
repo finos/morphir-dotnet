@@ -49,6 +49,12 @@ jobs:
                 include:
                     - rid: linux-x64
                       os: ubuntu-latest
+                    - rid: linux-arm64
+                      os: ubuntu-24.04-arm
+                    - rid: win-x64
+                      os: windows-latest
+                    - rid: win-arm64
+                      os: windows-11-arm
                     - rid: osx-x64
                       os: macos-latest
                     - rid: osx-arm64
@@ -90,6 +96,7 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                   name: morphir-${{ matrix.rid }}
+                  # Upload the RID directory to preserve structure when merged
                   path: ./artifacts/single-file/${{ matrix.rid }}/
                   retention-days: 1
 
