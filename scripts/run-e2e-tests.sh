@@ -49,9 +49,9 @@ fi
 # Build all executables that will be tested
 for TYPE in "${EXECUTABLE_TYPES[@]}"; do
     if [[ "$TYPE" == "aot" ]]; then
-        EXE_PATH="$PROJECT_ROOT/artifacts/executables/$RID/Morphir"
+        EXE_PATH="$PROJECT_ROOT/artifacts/executables/$RID/morphir"
         if [[ "$RID" == win-* ]]; then
-            EXE_PATH="$PROJECT_ROOT/artifacts/executables/$RID/Morphir.exe"
+            EXE_PATH="$PROJECT_ROOT/artifacts/executables/$RID/morphir.exe"
         fi
         
         if [ ! -f "$EXE_PATH" ]; then

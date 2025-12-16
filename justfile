@@ -126,12 +126,11 @@ publish-executable RID:
         --runtime "{{RID}}" \
         --output "$RID_OUTPUT_DIR"
     
-    # Find the executable (name varies by platform and AOT uses project name)
+    # Find the executable (uses lowercase assembly name)
     if [[ "{{RID}}" == win-* ]]; then
-        EXE_NAME="Morphir.exe"
+        EXE_NAME="morphir.exe"
     else
-        # AOT produces executable with project name (Morphir), not lowercase
-        EXE_NAME="Morphir"
+        EXE_NAME="morphir"
     fi
     
     if [ -f "$RID_OUTPUT_DIR/$EXE_NAME" ]; then
