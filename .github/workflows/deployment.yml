@@ -43,6 +43,7 @@ jobs:
     build-executables:
         needs: [validate-release-version]
         if: ${{ !failure() }}
+        timeout-minutes: 60
         strategy:
             matrix:
                 include:
