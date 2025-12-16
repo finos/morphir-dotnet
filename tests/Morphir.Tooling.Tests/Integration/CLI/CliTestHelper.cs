@@ -94,16 +94,6 @@ public class CliTestHelper
         if (line.Contains("fail:") || line.Contains("error:") || line.Contains("Error"))
             return false;
 
-        // Filter out Windows .NET runtime DLL file paths (common in self-contained/AOT builds)
-        // These are typically absolute Windows paths (containing backslashes) ending in .dll
-        // Pattern: D:\path\to\file.dll or similar Windows absolute paths
-        if (line.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) &&
-            line.Contains("\\") &&
-            (line.Length > 3 && char.IsLetter(line[0]) && line[1] == ':'))
-        {
-            return true;
-        }
-
         return line.Contains("info: Wolverine") ||
                line.Contains("info: Microsoft.Hosting") ||
                line.Contains("Application started") ||
