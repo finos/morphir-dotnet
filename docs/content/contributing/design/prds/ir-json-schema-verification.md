@@ -697,21 +697,21 @@ This table tracks implementation status of all features defined in this PRD:
 
 | Feature | Status | Target Phase | Notes |
 |---------|--------|--------------|-------|
-| **Core Verification** | ⏳ Planned | Phase 1 | |
-| File path input | ⏳ Planned | Phase 1 | Basic file validation |
-| Auto-detect schema version | ⏳ Planned | Phase 1 | Using formatVersion + tag analysis |
-| Manual schema version override | ⏳ Planned | Phase 1 | `--schema-version` option |
-| Human-readable output | ⏳ Planned | Phase 1 | Colored terminal output |
-| JSON output format | ⏳ Planned | Phase 1 | `--json` flag |
-| Quiet mode | ⏳ Planned | Phase 1 | `--quiet` flag |
-| Schema v1 support | ⏳ Planned | Phase 1 | Lowercase tags |
-| Schema v2 support | ⏳ Planned | Phase 1 | Mixed capitalization |
-| Schema v3 support | ⏳ Planned | Phase 1 | Capitalized tags |
-| Detailed error messages | ⏳ Planned | Phase 1 | JSON paths, line numbers |
-| **WolverineFx Integration** | ⏳ Planned | Phase 1 | |
-| Host configuration | ⏳ Planned | Phase 1 | Basic setup |
-| Message bus integration | ⏳ Planned | Phase 1 | CLI to handler dispatch |
-| Handler auto-discovery | ⏳ Planned | Phase 1 | Convention-based |
+| **Core Verification** | ✅ Implemented | Phase 1 | Complete - 62 tests passing |
+| File path input | ✅ Implemented | Phase 1 | Basic file validation |
+| Auto-detect schema version | ✅ Implemented | Phase 1 | Using formatVersion + tag analysis |
+| Manual schema version override | ✅ Implemented | Phase 1 | `--schema-version` option |
+| Human-readable output | ✅ Implemented | Phase 1 | Terminal output with error details |
+| JSON output format | ✅ Implemented | Phase 1 | `--json` flag |
+| Quiet mode | ✅ Implemented | Phase 1 | `--quiet` flag |
+| Schema v1 support | ✅ Implemented | Phase 1 | Lowercase tags |
+| Schema v2 support | ✅ Implemented | Phase 1 | Mixed capitalization |
+| Schema v3 support | ✅ Implemented | Phase 1 | Capitalized tags |
+| Detailed error messages | ✅ Implemented | Phase 1 | JSON paths with expected/found values |
+| **WolverineFx Integration** | ✅ Implemented | Phase 1 | Vertical Slice Architecture |
+| Host configuration | ✅ Implemented | Phase 1 | WolverineFx host setup |
+| Message bus integration | ✅ Implemented | Phase 1 | CLI to handler dispatch |
+| Handler auto-discovery | ✅ Implemented | Phase 1 | Convention-based discovery |
 | **Extended Input** | ⏳ Planned | Phase 2 | |
 | Stdin support | ⏳ Planned | Phase 2 | `morphir ir verify -` |
 | Multiple files | ⏳ Planned | Phase 2 | Batch validation |
