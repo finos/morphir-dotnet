@@ -5,16 +5,32 @@ $schema: 'https://moonrepo.dev/schemas/tasks.json'
 
 # Tasks that can be run at the workspace level
 tasks:
+  # Restore all NuGet dependencies (run sequentially to avoid conflicts)
+  restore-all:
+    command: 'dotnet restore Morphir.slnx'
+    inputs:
+      - '**/*.csproj'
+      - '**/*.fsproj'
+      - 'Morphir.slnx'
+      - 'Directory.Packages.props'
+      - 'Directory.Build.props'
+      - '**/packages.lock.json'
+    outputs: []
+    options:
+      cache: false
+      runInCI: true
+
   # Run all tests
   test-all:
     command: 'noop'
     deps:
+      - '~:restore-all'
       - 'Morphir.Core.Tests:test'
       - 'Morphir.Tooling.Tests:test'
     options:
       cache: false
       runInCI: true
-      runDepsInParallel: true
+      runDepsInParallel: false
 
   # Format all code
   format-all:
