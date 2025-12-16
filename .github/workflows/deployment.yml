@@ -21,7 +21,7 @@ on:
 env:
     CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
     RELEASE_VERSION: ${{ github.event.inputs.release-version }}
-    NUGET_TOKEN: ${{ secrets.NUGET_TOKEN }}
+    NUGET_TOKEN: ${{ secrets.NUGET_KEY }}
     SKIP_GIT_RELEASE: ${{ github.event.inputs.skip-git-release }}
     GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
