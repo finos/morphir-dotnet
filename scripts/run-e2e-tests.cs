@@ -141,12 +141,14 @@ foreach (var type in executableTypes)
     {
         var exeName = GetExecutableName(rid, isAot: true);
         exePath = Path.Combine(projectRoot, "artifacts", "executables", rid, exeName);
-        
+
         if (!File.Exists(exePath))
         {
             Console.WriteLine($"Building AOT executable for {rid}...");
-            var envVars = new Dictionary<string, string> { { "CONFIGURATION", config } };
-            var exitCode = RunCommandWithEnv("just", envVars, "publish-executable", rid);
+            var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? Path.Combine(projectRoot, "build.cmd")
+                : Path.Combine(projectRoot, "build.sh");
+            var exitCode = RunCommand(buildScript, "--target", "PublishExecutable", "--configuration", config, "--rid", rid);
             if (exitCode != 0)
             {
                 Console.Error.WriteLine($"✗ Error: Failed to build AOT executable");
@@ -162,23 +164,17 @@ foreach (var type in executableTypes)
     {
         var exeName = GetExecutableName(rid, isAot: false);
         exePath = Path.Combine(projectRoot, "artifacts", "single-file", rid, exeName);
-        
+
         if (!File.Exists(exePath))
         {
             Console.WriteLine($"Building trimmed single-file executable for {rid}...");
-            var listExitCode = RunCommand("just", "--list");
-            if (listExitCode == 0)
+            var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? Path.Combine(projectRoot, "build.cmd")
+                : Path.Combine(projectRoot, "build.sh");
+            var exitCode = RunCommand(buildScript, "--target", "PublishSingleFile", "--configuration", config, "--rid", rid);
+            if (exitCode != 0)
             {
-                var envVars = new Dictionary<string, string> { { "CONFIGURATION", config } };
-                var exitCode = RunCommandWithEnv("just", envVars, "publish-single-file", rid);
-                if (exitCode != 0)
-                {
-                    Console.WriteLine("⚠ Warning: Failed to build trimmed executable");
-                }
-            }
-            else
-            {
-                Console.WriteLine("⚠ Warning: publish-single-file task not found, skipping trimmed executable build");
+                Console.WriteLine("⚠ Warning: Failed to build trimmed executable");
             }
         }
         else
@@ -190,23 +186,17 @@ foreach (var type in executableTypes)
     {
         var exeName = GetExecutableName(rid, isAot: false);
         exePath = Path.Combine(projectRoot, "artifacts", "single-file-untrimmed", rid, exeName);
-        
+
         if (!File.Exists(exePath))
         {
             Console.WriteLine($"Building untrimmed single-file executable for {rid}...");
-            var listExitCode = RunCommand("just", "--list");
-            if (listExitCode == 0)
+            var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? Path.Combine(projectRoot, "build.cmd")
+                : Path.Combine(projectRoot, "build.sh");
+            var exitCode = RunCommand(buildScript, "--target", "PublishSingleFileUntrimmed", "--configuration", config, "--rid", rid);
+            if (exitCode != 0)
             {
-                var envVars = new Dictionary<string, string> { { "CONFIGURATION", config } };
-                var exitCode = RunCommandWithEnv("just", envVars, "publish-single-file-untrimmed", rid);
-                if (exitCode != 0)
-                {
-                    Console.WriteLine("⚠ Warning: Failed to build untrimmed executable");
-                }
-            }
-            else
-            {
-                Console.WriteLine("⚠ Warning: publish-single-file-untrimmed task not found, skipping untrimmed executable build");
+                Console.WriteLine("⚠ Warning: Failed to build untrimmed executable");
             }
         }
         else
@@ -216,13 +206,13 @@ foreach (var type in executableTypes)
     }
 }
 
-// E2E test project should already be built via just build-e2e-tests dependency
+// E2E test project should already be built via BuildE2ETests target
 Console.WriteLine("");
 Console.WriteLine("Verifying E2E test project is built...");
 var testDllPath = Path.Combine(projectRoot, "tests", "Morphir.E2E.Tests", "bin", config, "net10.0", "Morphir.E2E.Tests.dll");
 if (!File.Exists(testDllPath))
 {
-    Console.Error.WriteLine("✗ Error: E2E test project not built. Run 'just build-e2e-tests' first.");
+    Console.Error.WriteLine("✗ Error: E2E test project not built. Run 'build.cmd --target BuildE2ETests' first.");
     Environment.Exit(1);
 }
 Console.WriteLine("✓ E2E test project is built");

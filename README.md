@@ -187,7 +187,13 @@ morphir-dotnet/
 
 5. **Format code (if needed):**
    ```bash
-   just format
+   # Unix/macOS
+   ./build.sh --target Format
+
+   # Windows
+   build.cmd --target Format
+   # or
+   ./build.ps1 --target Format
    ```
 
 ### Scripts
@@ -204,89 +210,150 @@ The project uses C# scripts (`.cs` files) for build automation, leveraging .NET 
 
 ### Build Commands
 
+All Nuke build commands support both Unix/macOS (`./build.sh`) and Windows (`build.cmd` or `./build.ps1`) bootstrap scripts. Examples below show both formats.
+
 #### Building Libraries
 
 ```bash
-# Pack library projects as NuGet packages
-just pack-libs [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/packages]
+# Unix/macOS: Pack library projects as NuGet packages
+./build.sh --target PackLibs
+
+# Windows
+build.cmd --target PackLibs
+# or
+./build.ps1 --target PackLibs
 
 # Pack all projects (libraries and tool)
-just pack-all [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/packages]
+./build.sh --target PackAll                  # Unix/macOS
+build.cmd --target PackAll                   # Windows
+
+# Specify configuration and version
+./build.sh --target PackLibs --configuration Debug --version 1.2.3
+build.cmd --target PackLibs --configuration Debug --version 1.2.3
+
+# Custom output directory
+./build.sh --target PackLibs --output-dir ./my-packages
+build.cmd --target PackLibs --output-dir ./my-packages
 ```
 
 #### Building Executables
 
 ```bash
-# Build a single-file executable for a specific platform
-just publish-single-file <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/single-file]
+# Build a trimmed single-file executable for a specific platform
+./build.sh --target PublishSingleFile --rid linux-x64        # Unix/macOS
+build.cmd --target PublishSingleFile --rid linux-x64         # Windows
+
+# Build an AOT (ahead-of-time compiled) executable
+./build.sh --target PublishExecutable --rid linux-x64
+build.cmd --target PublishExecutable --rid linux-x64
+
+# Build an untrimmed executable (larger, better for debugging)
+./build.sh --target PublishSingleFileUntrimmed --rid win-x64
+build.cmd --target PublishSingleFileUntrimmed --rid win-x64
 
 # Common RIDs: linux-x64, linux-arm64, win-x64, osx-x64, osx-arm64
-# Example:
-just publish-single-file linux-x64
+
+# With custom configuration and output directory
+./build.sh --target PublishSingleFile --rid linux-x64 --configuration Debug --output-dir ./bin
+build.cmd --target PublishSingleFile --rid linux-x64 --configuration Debug --output-dir ./bin
 ```
 
 #### Building the Dotnet Tool
 
 ```bash
-# Build the managed DLL for the tool
-just build-tool-dll [CONFIGURATION=Release] [OUTPUT_DIR=./artifacts/tool-dll]
+# Pack the Morphir CLI as a dotnet tool
+./build.sh --target PackTool                                  # Unix/macOS
+build.cmd --target PackTool                                   # Windows
 
-# Pack the Morphir CLI as a dotnet tool (named 'dotnet-morphir')
-just pack-tool-platform [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/packages]
+# With version and output directory
+./build.sh --target PackTool --version 2.0.0 --output-dir ./packages
+build.cmd --target PackTool --version 2.0.0 --output-dir ./packages
 ```
 
 #### Testing
 
 ```bash
 # Run unit tests
-just test [CONFIGURATION=Release]
+./build.sh --target Test                                      # Unix/macOS
+build.cmd --target Test                                       # Windows
+
+# Run tests in Debug configuration
+./build.sh --target Test --configuration Debug
+build.cmd --target Test --configuration Debug
 
 # Build E2E test project
-just build-e2e-tests [CONFIGURATION=Release]
+./build.sh --target BuildE2ETests
+build.cmd --target BuildE2ETests
 
 # Run end-to-end tests
-just test-e2e [EXECUTABLE_TYPE=all] [CONFIGURATION=Release]
-# EXECUTABLE_TYPE: aot, trimmed, untrimmed, or all (default)
+./build.sh --target TestE2E                                   # Unix/macOS
+build.cmd --target TestE2E                                    # Windows
 
-# Build and test a single-file executable for a specific platform
-just build-and-test <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/single-file]
+# Run E2E tests for specific executable type (aot, trimmed, untrimmed, or all)
+./build.sh --target TestE2E --executable-type trimmed
+build.cmd --target TestE2E --executable-type trimmed
 ```
 
-#### Publishing
+#### Publishing to NuGet
 
 ```bash
 # Publish library packages to NuGet.org
-just publish-libs [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
+./build.sh --target PublishLibs --api-key YOUR_API_KEY       # Unix/macOS
+build.cmd --target PublishLibs --api-key YOUR_API_KEY        # Windows
 
 # Publish the Morphir CLI tool package to NuGet.org
-just publish-tool [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
+./build.sh --target PublishTool --api-key YOUR_API_KEY
+build.cmd --target PublishTool --api-key YOUR_API_KEY
 
 # Publish all packages
-just publish-all [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
+./build.sh --target PublishAll --api-key YOUR_API_KEY
+build.cmd --target PublishAll --api-key YOUR_API_KEY
+
+# Publish to custom NuGet source
+./build.sh --target PublishLibs --nuget-source https://custom-feed.com --api-key YOUR_KEY
+build.cmd --target PublishLibs --nuget-source https://custom-feed.com --api-key YOUR_KEY
 
 # Publish to local NuGet feed (for testing)
-just publish-local-libs [LOCAL_SOURCE=./artifacts/local-feed] [OUTPUT_DIR=./artifacts/packages]
+./build.sh --target PublishLocalLibs                          # Unix/macOS
+build.cmd --target PublishLocalLibs                           # Windows
+
+# With custom local source
+./build.sh --target PublishLocalLibs --local-source ./my-local-feed
+build.cmd --target PublishLocalLibs --local-source ./my-local-feed
 
 # Install tool locally from package
-just publish-local-tool [OUTPUT_DIR=./artifacts/packages] [GLOBAL=false]
+./build.sh --target PublishLocalTool
+build.cmd --target PublishLocalTool
+
+# Install globally
+./build.sh --target PublishLocalTool --global true
+build.cmd --target PublishLocalTool --global true
 ```
 
-### Available Just Commands
+### Available Nuke Targets
 
-Run `just` (without arguments) to see all available commands with descriptions.
+Run `./build.sh --help` (Unix/macOS) or `build.cmd --help` (Windows) to see all available targets with descriptions and parameters.
 
-Key commands:
-- `restore` - Restore .NET dependencies
-- `build` - Build the solution
-- `test` - Run unit tests
-- `lint` - Check code formatting
-- `format` - Format code
-- `ci` - Run full CI pipeline
-- `pack-libs` - Pack library projects as NuGet packages
-- `pack-tool-platform` - Pack the Morphir CLI as a dotnet tool
-- `publish-single-file <RID>` - Publish trimmed single-file executable
-- `test-e2e` - Run end-to-end tests
-- `build-and-test <RID>` - Build and test executable for a platform
+Key targets:
+- `Restore` - Restore .NET dependencies
+- `Compile` - Build the solution (default target)
+- `Test` - Run unit tests
+- `Lint` - Check code formatting
+- `Format` - Format code
+- `CI` - Run full CI pipeline (restore, build, test, lint)
+- `PackLibs` - Pack library projects as NuGet packages
+- `PackTool` - Pack the Morphir CLI as a dotnet tool
+- `PackAll` - Pack all projects (libraries and tool)
+- `PublishSingleFile` - Publish trimmed single-file executable (requires `--rid`)
+- `PublishExecutable` - Publish AOT executable (requires `--rid`)
+- `PublishSingleFileUntrimmed` - Publish untrimmed single-file executable (requires `--rid`)
+- `TestE2E` - Run end-to-end tests
+- `PublishLibs` - Publish library packages to NuGet
+- `PublishTool` - Publish tool package to NuGet
+- `PublishAll` - Publish all packages to NuGet
+- `PublishLocalLibs` - Publish libraries to local feed
+- `PublishLocalTool` - Install tool locally from package
+- `PublishLocalAll` - Publish all to local feed
 
 ## Contributing
 

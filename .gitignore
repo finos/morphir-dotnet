@@ -281,3 +281,6 @@ docs/public/
 docs/resources/_gen/
 docs/.hugo_build.lock
 test-*.json
+
+# Morphir generated files
+.morphir/out/

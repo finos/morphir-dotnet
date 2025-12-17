@@ -2,9 +2,8 @@ using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Oakton;
 using Serilog;
-using Serilog.Extensions.Logging;
+using Serilog.Events;
 using Wolverine;
 
 namespace Morphir.Tooling;
@@ -15,17 +14,31 @@ public static class Program
     {
         var builder = Host.CreateApplicationBuilder();
 
-        // When JSON output is requested, redirect all logs to stderr to keep stdout clean
+        // CRITICAL: Clear default logging providers FIRST to prevent stdout contamination
+        // The default Console logger writes to stdout, which breaks JSON output and scriptability
+        builder.Logging.ClearProviders();
+
+        // Configure Serilog to write ALL logs to stderr only
+        // This keeps stdout clean for command output (JSON, formatted results, etc.)
         if (logToStdErr)
         {
-            builder.Logging.ClearProviders();
-
-            var logger = new LoggerConfiguration()
-                .WriteTo.Console(standardErrorFromLevel: Serilog.Events.LogEventLevel.Verbose)
+            // Write ALL log levels to stderr (not stdout)
+            // This is critical for CLI tools: stdout = data, stderr = diagnostics
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Information()
+                .WriteTo.Console(
+                    standardErrorFromLevel: LogEventLevel.Verbose,
+                    outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
+                )
                 .CreateLogger();
 
-            builder.Logging.AddSerilog(logger, dispose: true);
+            // Add Serilog to the logging builder (not services)
+            builder.Logging.AddSerilog(Log.Logger, dispose: true);
         }
+        // If not logToStdErr, logging stays disabled (default providers cleared above)
+
+        // Now configure Wolverine - it will use our Serilog configuration
+        // This ensures WolverineFx messages also go to stderr, not stdout
 
         builder.Services.AddWolverine(opts =>
         {

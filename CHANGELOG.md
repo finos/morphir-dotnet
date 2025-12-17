@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Serilog logging infrastructure for CLI tools (Serilog, Serilog.Extensions.Hosting, Serilog.Sinks.Console)
+- CLI logging standards documentation in AGENTS.md and CLAUDE.md
+- `.morphir/out/` directory to .gitignore
+
+### Changed
+- Configured all logging to write to stderr instead of stdout to preserve stdout for command output
+- Updated E2E test runner script to use Nuke build commands instead of deprecated `just` commands
+- Updated README.md with Nuke build command examples
+
+### Fixed
+- Fixed JSON output contamination issue where log messages were being written to stdout
+- CLI tools now properly separate data (stdout) and diagnostics (stderr) following Unix conventions
+- E2E tests for JSON output format now pass (12/13 tests passing, up from 10/13)
+
 ## [0.2.0-alpha-010] - 2025-12-16
 
 ### Changed

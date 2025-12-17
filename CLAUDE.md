@@ -122,7 +122,49 @@ See AGENTS.md Section 6 for detailed Morphir IR modeling:
 - Follow naming conventions (segments, paths, qualified names)
 - Model ADTs explicitly (custom types, records, tuples, functions)
 
-### 9. Testing Strategy Summary
+### 9. CLI Logging Standards
+
+**CRITICAL Requirement**: CLI tools must never write log messages to stdout.
+
+- **All logging goes to stderr**: Use Serilog configured with `standardErrorFromLevel: LogEventLevel.Verbose`
+- **Stdout is for output only**: JSON results, formatted output, command results
+- **Configuration order matters**:
+  1. Clear default providers with `builder.Logging.ClearProviders()`
+  2. Add Serilog with stderr configuration
+  3. Then configure Wolverine (it will use the Serilog configuration)
+
+**Testing**: Always test commands with `--json` flag and verify stdout contains only valid JSON:
+
+```bash
+./morphir ir verify test.json --json | jq .
+```
+
+If this fails, logging is leaking to stdout.
+
+**Why**: CLI tools that write to stdout break:
+- Scriptability (cannot pipe output to jq, grep, etc.)
+- JSON parsing (log lines contaminate structured output)
+- Unix conventions (stdout = data, stderr = diagnostics)
+
+**Example configuration** (see `Morphir.Tooling/Program.cs:13-46`):
+
+```csharp
+// CRITICAL: Clear default providers FIRST
+builder.Logging.ClearProviders();
+
+// Configure Serilog to write ALL logs to stderr
+var loggerConfig = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .WriteTo.Console(
+        standardErrorFromLevel: LogEventLevel.Verbose,
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
+    );
+
+Log.Logger = loggerConfig.CreateLogger();
+builder.Services.AddSerilog();
+```
+
+### 10. Testing Strategy Summary
 
 From AGENTS.md Section 9:
 
@@ -145,7 +187,7 @@ From AGENTS.md Section 9:
 - Maintain >= 80% code coverage
 - Coverage must not decrease with new changes
 
-### 10. Decision-Making Framework
+### 11. Decision-Making Framework
 
 From AGENTS.md Section 10:
 
@@ -155,7 +197,7 @@ From AGENTS.md Section 10:
 4. **Keep effects at edges** - domain remains pure
 5. **Prefer explicit ADTs** over booleans/flags
 
-### 11. When to Escalate
+### 12. When to Escalate
 
 See AGENTS.md Section 2 for what to escalate:
 
@@ -164,14 +206,14 @@ See AGENTS.md Section 2 for what to escalate:
 - Security/auth/crypto changes
 - Destructive migrations
 
-### 12. Resources and References
+### 13. Resources and References
 
 - **Morphir Homepage**: https://morphir.finos.org/
 - **morphir-elm**: https://github.com/finos/morphir-elm
 - **morphir (core)**: https://github.com/finos/morphir
 - **morphir-dotnet (this repo)**: https://github.com/finos/morphir-dotnet
 
-### 13. Quick Command Reference
+### 14. Quick Command Reference
 
 **Build System (Nuke):**
 ```bash
@@ -216,7 +258,7 @@ dotnet run --project src/Morphir/Morphir.csproj -- ir verify test.json
 
 **Migration Note:** This project migrated from `just` to Nuke build. See [NUKE_MIGRATION.md](NUKE_MIGRATION.md) for complete command mappings.
 
-### 14. File Structure Reference
+### 15. File Structure Reference
 
 ```
 morphir-dotnet/

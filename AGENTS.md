@@ -108,6 +108,19 @@ C# 14 / .NET 10 specifics
 - Use file‑scoped namespaces, primary constructors, and newer pattern features.
 - Favor spans and efficient collections only with benchmarks backing changes.
 
+CLI Tool Logging Requirements
+- **CRITICAL**: CLI tools MUST NOT write log messages to stdout
+- All logging output MUST be directed to stderr only
+- Stdout is reserved exclusively for command output (JSON, formatted results, etc.)
+- Use Serilog configured with `standardErrorFromLevel: LogEventLevel.Verbose`
+- Clear default logging providers before configuring Serilog to avoid double logging
+- Test all commands with `--json` flag to ensure stdout contains only valid JSON
+
+Rationale: CLI tools that write to stdout break scriptability and JSON parsing.
+Users expect to pipe command output (e.g., `morphir ir verify file.json --json | jq`)
+without log noise contaminating the structured output. Following Unix philosophy:
+stdout = data, stderr = diagnostics.
+
 ## 6) Morphir-Specific Modeling
 
 Model Morphir IR precisely:
