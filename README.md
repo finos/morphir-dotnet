@@ -2,6 +2,15 @@
 
 Morphir .NET is a .NET implementation of the Morphir project, providing tools and libraries for working with Morphir IR (Intermediate Representation) in .NET applications.
 
+## Status
+
+![Development Workflow](https://github.com/finos/morphir-dotnet/actions/workflows/development.yml/badge.svg)
+![Deployment Workflow](https://github.com/finos/morphir-dotnet/actions/workflows/deployment.yml/badge.svg)
+![FINOS Project Maturity](https://img.shields.io/badge/FINOS-Incubating-blue)
+![NuGet Version](https://img.shields.io/nuget/v/Morphir?label=NuGet%20Morphir)
+![NuGet Core](https://img.shields.io/nuget/v/Morphir.Core?label=NuGet%20Core)
+![NuGet Tooling](https://img.shields.io/nuget/v/Morphir.Tooling?label=NuGet%20Tooling)
+
 ## Getting Started
 
 ### Quick Start
