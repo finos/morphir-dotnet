@@ -15,17 +15,18 @@
             <MorphirVersionString Condition="'$(InformationalVersion)' != ''">$(InformationalVersion)</MorphirVersionString>
             <MorphirVersionString Condition="'$(MorphirVersionString)' == '' AND '$(Version)' != ''">$(Version)</MorphirVersionString>
             <MorphirVersionString Condition="'$(MorphirVersionString)' == ''">0.0.0-dev</MorphirVersionString>
-            <VersionFileContent>
-// &lt;auto-generated/&gt;
-namespace Morphir%3B
-
-internal static class VersionInfo
-{
-    public const string Version = "$(MorphirVersionString)"%3B
-}
-            </VersionFileContent>
         </PropertyGroup>
-        <WriteLinesToFile File="$(IntermediateOutputPath)VersionInfo.g.cs" Lines="$(VersionFileContent)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+        <ItemGroup>
+            <VersionFileLines Include="// &lt;auto-generated/&gt;" />
+            <VersionFileLines Include="namespace Morphir%3B" />
+            <VersionFileLines Include=" " />
+            <VersionFileLines Include="internal static class VersionInfo" />
+            <VersionFileLines Include="{" />
+            <VersionFileLines Include="    public const string Version = &quot;$(MorphirVersionString)&quot;%3B" />
+            <VersionFileLines Include="}" />
+            <VersionFileLines Include=" " />
+        </ItemGroup>
+        <WriteLinesToFile File="$(IntermediateOutputPath)VersionInfo.g.cs" Lines="@(VersionFileLines)" Overwrite="true" WriteOnlyWhenDifferent="true" />
         <ItemGroup>
             <Compile Include="$(IntermediateOutputPath)VersionInfo.g.cs" />
         </ItemGroup>
