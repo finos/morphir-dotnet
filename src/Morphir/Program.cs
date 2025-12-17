@@ -24,6 +24,13 @@ internal static class Program
         // Set console encoding to UTF-8 to support Unicode characters (✓, ✗)
         Console.OutputEncoding = System.Text.Encoding.UTF8;
 
+        // Handle --version flag explicitly to output only the version string
+        if (args.Length == 1 && (args[0] == "--version" || args[0] == "-v"))
+        {
+            Console.WriteLine(VersionInfo.Version);
+            return 0;
+        }
+
         Option<FileInfo> currentDirectoryOption = new("-C")
         {
             Description = "Override the current directory",
