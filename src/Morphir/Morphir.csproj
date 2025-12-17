@@ -47,6 +47,11 @@
         <PackageReference Include="System.CommandLine" />
         <PackageReference Include="WolverineFx" />
         <PackageReference Include="FluentValidation" />
+
+        <!-- Logging -->
+        <PackageReference Include="Serilog" />
+        <PackageReference Include="Serilog.Extensions.Hosting" />
+        <PackageReference Include="Serilog.Sinks.Console" />
     </ItemGroup>
 
     <ItemGroup>
