@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Trimming descriptor to preserve generated VersionInfo class for --version flag.
+  Trimming descriptor to preserve generated VersionInfo class for version flag.
   The VersionInfo class is generated at build time and needs to be preserved
   during trimming for the version command to work correctly.
 -->
