@@ -1,0 +1,139 @@
+name: "Manual E2E Testing"
+
+on:
+    workflow_dispatch:
+        inputs:
+            configuration:
+                description: "Configuration to build"
+                required: true
+                default: "Release"
+                type: choice
+                options:
+                    - Release
+                    - Debug
+            test-version:
+                description: "Test version for executables"
+                required: true
+                default: "0.0.0-test"
+                type: string
+            platforms:
+                description: "Platforms to test (comma-separated: linux-x64,linux-arm64,osx-arm64,osx-x64,win-x64)"
+                required: true
+                default: "linux-x64,osx-arm64"
+                type: string
+
+env:
+    CONFIGURATION: ${{ github.event.inputs.configuration }}
+    TEST_VERSION: ${{ github.event.inputs.test-version }}
+
+jobs:
+    setup:
+        runs-on: ubuntu-latest
+        outputs:
+            matrix: ${{ steps.set-matrix.outputs.matrix }}
+        steps:
+            - name: Parse platform matrix
+              id: set-matrix
+              run: |
+                  # Parse comma-separated platforms into JSON matrix
+                  PLATFORMS="${{ github.event.inputs.platforms }}"
+
+                  # Build matrix JSON
+                  MATRIX_JSON='{"include":['
+
+                  IFS=',' read -ra PLATFORM_ARRAY <<< "$PLATFORMS"
+                  FIRST=true
+
+                  for PLATFORM in "${PLATFORM_ARRAY[@]}"; do
+                      PLATFORM=$(echo "$PLATFORM" | xargs) # trim whitespace
+
+                      case "$PLATFORM" in
+                          linux-x64)
+                              OS="ubuntu-latest"
+                              ;;
+                          linux-arm64)
+                              OS="ubuntu-24.04-arm"
+                              ;;
+                          osx-x64)
+                              OS="macos-15-intel"
+                              ;;
+                          osx-arm64)
+                              OS="macos-latest"
+                              ;;
+                          win-x64)
+                              OS="windows-latest"
+                              ;;
+                          *)
+                              echo "Unknown platform: $PLATFORM"
+                              continue
+                              ;;
+                      esac
+
+                      if [ "$FIRST" = false ]; then
+                          MATRIX_JSON="${MATRIX_JSON},"
+                      fi
+                      FIRST=false
+
+                      MATRIX_JSON="${MATRIX_JSON}{\"rid\":\"${PLATFORM}\",\"os\":\"${OS}\"}"
+                  done
+
+                  MATRIX_JSON="${MATRIX_JSON}]}"
+
+                  echo "matrix=${MATRIX_JSON}" >> $GITHUB_OUTPUT
+                  echo "Generated matrix: ${MATRIX_JSON}"
+
+    test-executables:
+        needs: [setup]
+        timeout-minutes: 30
+        strategy:
+            fail-fast: false
+            matrix: ${{fromJson(needs.setup.outputs.matrix)}}
+        runs-on: ${{ matrix.os }}
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.0.1
+              with:
+                  fetch-depth: 0
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  dotnet-version: "10.0.x"
+
+            - name: Cache Nuget Packages
+              uses: actions/cache@v4
+              with:
+                  path: ~/.nuget/packages
+                  key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-nuget
+
+            - name: Restore dependencies
+              shell: bash
+              run: ./build.sh --target Restore
+
+            - name: Build single-file executable for ${{ matrix.rid }}
+              shell: bash
+              run: ./build.sh --target PublishSingleFile --rid ${{ matrix.rid }} --configuration ${{ env.CONFIGURATION }} --version ${{ env.TEST_VERSION }} --single-file-dir ./artifacts/single-file
+
+            - name: Run E2E tests for ${{ matrix.rid }}
+              shell: bash
+              run: ./build.sh --target TestE2E --executable-type trimmed --configuration ${{ env.CONFIGURATION }}
+
+            - name: Upload executable artifact (on failure)
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: failed-executable-${{ matrix.rid }}
+                  path: ./artifacts/single-file/${{ matrix.rid }}/
+                  retention-days: 7
+
+            - name: Upload test results (on failure)
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: test-results-${{ matrix.rid }}
+                  path: |
+                      **/TestResults/**/*
+                      tests/**/bin/${{ env.CONFIGURATION }}/net10.0/*.dll
+                  retention-days: 7
