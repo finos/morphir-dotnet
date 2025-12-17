@@ -43,11 +43,6 @@
     <!-- Wolverine pre-generated code is automatically included by the SDK -->
     <!-- Files in Internal/Generated/ will be compiled automatically -->
   </ItemGroup>
-  
-  <!-- Include LICENSE file in package -->
-  <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)../../LICENSE" Pack="true" PackagePath="LICENSE.txt" />
-  </ItemGroup>
 
 </Project>
 

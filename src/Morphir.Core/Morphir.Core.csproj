@@ -39,9 +39,4 @@
         <Using Include="LanguageExt.Prelude" Static="True" />
         <Using Include="LanguageExt.Seq" Static="True" />
     </ItemGroup>
-    
-    <!-- Include LICENSE file in package -->
-    <ItemGroup>
-        <None Include="$(MSBuildThisFileDirectory)../../LICENSE" Pack="true" PackagePath="LICENSE.txt" />
-    </ItemGroup>
 </Project>

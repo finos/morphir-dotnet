@@ -213,6 +213,31 @@ else
 // The managed DLL will run on any platform with .NET installed
 // Standalone executables are still built for direct download/installation, but not packaged here
 
+// Copy LICENSE.md and README.md to package root
+Console.WriteLine("Copying LICENSE.md and README.md...");
+var licensePath = Path.Combine(projectRoot, "LICENSE.md");
+var readmePath = Path.Combine(projectRoot, "README.md");
+
+if (File.Exists(licensePath))
+{
+    File.Copy(licensePath, Path.Combine(packageRoot, "LICENSE.md"), overwrite: true);
+    Console.WriteLine("✓ Copied LICENSE.md");
+}
+else
+{
+    Console.Error.WriteLine($"✗ Warning: LICENSE.md not found at {licensePath}");
+}
+
+if (File.Exists(readmePath))
+{
+    File.Copy(readmePath, Path.Combine(packageRoot, "README.md"), overwrite: true);
+    Console.WriteLine("✓ Copied README.md");
+}
+else
+{
+    Console.Error.WriteLine($"✗ Warning: README.md not found at {readmePath}");
+}
+
 // Create a minimal .csproj for packaging
 var packProjPath = Path.Combine(packageRoot, "Morphir.Tool.Pack.csproj");
 var csprojContent = @"<Project Sdk=""Microsoft.NET.Sdk"">
@@ -227,9 +252,17 @@ var csprojContent = @"<Project Sdk=""Microsoft.NET.Sdk"">
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
         <GenerateDependencyFile>false</GenerateDependencyFile>
         <ToolEntryPoint>dotnet-morphir.dll</ToolEntryPoint>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <Authors>finos</Authors>
+        <PackageProjectUrl>https://finos.github.io/morphir-dotnet</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/finos/morphir-dotnet</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
     </PropertyGroup>
     <ItemGroup>
         <None Include=""tools/**/*"" Pack=""true"" PackagePath=""tools/"" />
+        <None Include=""LICENSE.md"" Pack=""true"" PackagePath=""\"" />
+        <None Include=""README.md"" Pack=""true"" PackagePath=""\"" />
     </ItemGroup>
 </Project>";
 
