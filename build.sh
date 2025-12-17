@@ -40,7 +40,7 @@ fi
 
 # If dotnet CLI is installed globally and it matches requested version, use for execution
 if [ -x "$(command -v dotnet)" ] && dotnet --version &>/dev/null; then
-    export DOTNET_EXE="$(command -v dotnet)"
+    DOTNET_EXE="$(command -v dotnet)"
 else
     # Download install script
     DOTNET_INSTALL_FILE="$TEMP_DIRECTORY/dotnet-install.sh"
@@ -63,7 +63,7 @@ else
     else
         "$DOTNET_INSTALL_FILE" --install-dir "$DOTNET_DIRECTORY" --version "$DOTNET_VERSION" --no-path
     fi
-    export DOTNET_EXE="$DOTNET_DIRECTORY/dotnet"
+    DOTNET_EXE="$DOTNET_DIRECTORY/dotnet"
     export PATH="$DOTNET_DIRECTORY:$PATH"
 fi
 
