@@ -1,170 +1,245 @@
-# Morphir
+# Morphir .NET
 
-[Enter useful description for Morphir]
+Morphir .NET is a .NET implementation of the Morphir project, providing tools and libraries for working with Morphir IR (Intermediate Representation) in .NET applications.
 
----
+## Getting Started
 
-## Builds
+### Quick Start
 
-                                                                      GitHub Actions                                                                      |
-:--------------------------------------------------------------------------------------------------------------------------------------------------------:|
- [![GitHub Actions](https://github.com/finos/Morphir/workflows/Build%20master/badge.svg)](https://github.com/finos/Morphir/actions?query=branch%3Amaster) |
-          [![Build History](https://buildstats.info/github/chart/finos/Morphir)](https://github.com/finos/Morphir/actions?query=branch%3Amaster)          |
+Install Morphir using one of the following methods:
 
-## NuGet
+**Using Platform-Specific Install Scripts (Recommended):**
 
- Package | Stable                                                                                           | Prerelease                                                                                                               
----------|--------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------
- Morphir | [![NuGet Badge](https://buildstats.info/nuget/Morphir)](https://www.nuget.org/packages/Morphir/) | [![NuGet Badge](https://buildstats.info/nuget/Morphir?includePreReleases=true)](https://www.nuget.org/packages/Morphir/) 
+```bash
+# Linux
+curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-linux.sh | bash
 
----
+# macOS
+curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-macos.sh | bash
 
-### Developing
-
-Make sure the following **requirements** are installed on your system:
-
-- [dotnet SDK](https://www.microsoft.com/net/download/core) 3.0 or higher
-- [Mono](http://www.mono-project.com/) if you're on Linux or macOS.
-
-or
-
-- [VSCode Dev Container](https://code.visualstudio.com/docs/remote/containers)
-
----
-
-### Environment Variables
-
-- `CONFIGURATION` will set
-  the [configuration](https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-build?tabs=netcore2x#options) of the
-  dotnet commands. If not set, it will default to Release.
-    - `CONFIGURATION=Debug ./build.sh` will result in `-c` additions to commands such as in `dotnet build -c Debug`
-- `GITHUB_TOKEN` will be used to upload release notes and NuGet packages to GitHub.
-    - Be sure to set this before releasing
-- `DISABLE_COVERAGE` Will disable running code coverage metrics. AltCover can
-  have [severe performance degradation](https://github.com/SteveGilham/altcover/issues/57) so it's worth disabling when
-  looking to do a quicker feedback loop.
-    - `DISABLE_COVERAGE=1 ./build.sh`
-
----
-
-### Building
-
-```sh
-> build.cmd <optional buildtarget> // on windows
-$ ./build.sh  <optional buildtarget>// on unix
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-windows.ps1 | iex
 ```
 
----
+**Using .NET Tool (requires .NET SDK):**
 
-### Build Targets
-
-
-- `Clean` - Cleans artifact and temp directories.
-- `DotnetRestore` -
-  Runs [dotnet restore](https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-restore?tabs=netcore2x) on
-  the [solution file](https://docs.microsoft.com/en-us/visualstudio/extensibility/internals/solution-dot-sln-file?view=vs-2019).
-- [`DotnetBuild`](#Building) -
-  Runs [dotnet build](https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-build?tabs=netcore2x) on
-  the [solution file](https://docs.microsoft.com/en-us/visualstudio/extensibility/internals/solution-dot-sln-file?view=vs-2019).
-- `DotnetTest` - Runs [dotnet test](https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-test?tabs=netcore21) on
-  the [solution file](https://docs.microsoft.com/en-us/visualstudio/extensibility/internals/solution-dot-sln-file?view=vs-2019.).
-- `GenerateCoverageReport` - Code coverage is run during `DotnetTest` and this generates a report
-  via [ReportGenerator](https://github.com/danielpalme/ReportGenerator).
-- `WatchApp` -
-  Runs [dotnet watch](https://docs.microsoft.com/en-us/aspnet/core/tutorials/dotnet-watch?view=aspnetcore-3.0) on the
-  application. Useful for rapid feedback loops.
-- `WatchTests` -
-  Runs [dotnet watch](https://docs.microsoft.com/en-us/aspnet/core/tutorials/dotnet-watch?view=aspnetcore-3.0) with the
-  test projects. Useful for rapid feedback loops.
-- `GenerateAssemblyInfo` -
-  Generates [AssemblyInfo](https://docs.microsoft.com/en-us/dotnet/api/microsoft.visualbasic.applicationservices.assemblyinfo?view=netframework-4.8)
-  for libraries.
-- `CreatePackages` - Runs the packaging task from [dotnet-packaging](https://github.com/qmfrederik/dotnet-packaging).
-  This creates applications for `win-x64`, `osx-x64` and
-  `linux-x64` - [Runtime Identifiers](https://docs.microsoft.com/en-us/dotnet/core/rid-catalog).
-    - Bundles the `win-x64` application in a .zip file.
-    - Bundles the `osx-x64` application in a .tar.gz file.
-    - Bundles the `linux-x64` application in a .tar.gz file.
-- `GitRelease` - Creates a commit message with
-  the [Release Notes](https://fake.build/apidocs/v5/fake-core-releasenotes.html) and a git tag via the version in the
-  `Release Notes`.
-- `GitHubRelease` - Publishes a [GitHub Release](https://help.github.com/en/articles/creating-releases) with the Release
-  Notes and any NuGet packages.
-- `FormatCode` - Runs [Fantomas](https://github.com/fsprojects/fantomas) on the solution file.
-- [`Release`](#Releasing) - Task that runs all release type tasks such as `GitRelease` and `GitHubRelease`. Make sure to
-  read [Releasing](#Releasing) to setup your environment correctly for releases.
-
----
-
-### Releasing
-
-- [Start a git repo with a remote](https://help.github.com/articles/adding-an-existing-project-to-github-using-the-command-line/)
-
-```sh
-git add .
-git commit -m "Scaffold"
-git remote add origin https://github.com/user/MyCoolNewApp.git
-git push -u origin master
+```bash
+dotnet tool install -g Morphir
 ```
 
-- [Create a GitHub OAuth Token](https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/)
-    - You can then set the `GITHUB_TOKEN` to upload release notes and artifacts to github
-    - Otherwise it will fallback to username/password
+**Verify Installation:**
 
-- Then update the `CHANGELOG.md` with an "Unreleased" section containing release notes for this version,
-  in [KeepAChangelog](https://keepachangelog.com/en/1.1.0/) format.
-
-NOTE: Its highly recommend to add a link to the Pull Request next to the release note that it affects. The reason for
-this is when the `RELEASE` target is run, it will add these new notes into the body of git commit. GitHub will notice
-the links and will update the Pull Request with what commit referenced it
-saying ["added a commit that referenced this pull request"](https://github.com/TheAngryByrd/MiniScaffold/pull/179#ref-commit-837ad59).
-Since the build script automates the commit message, it will say "Bump Version to x.y.z". The benefit of this is when
-users goto a Pull Request, it will be clear when and which version those code changes released. Also when reading the
-`CHANGELOG`, if someone is curious about how or why those changes were made, they can easily discover the work and
-discussions.
-
-
-
-Here's an example of adding an "Unreleased" section to a `CHANGELOG.md` with a `0.1.0` section already released.
-
-```markdown
-## [Unreleased]
-
-### Added
-- Does cool stuff!
-
-### Fixed
-- Fixes that silly oversight
-
-## [0.1.0] - 2017-03-17
-First release
-
-### Added
-- This release already has lots of features
-
-[Unreleased]: https://github.com/user/MyCoolNewApp.git/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/user/MyCoolNewApp.git/releases/tag/v0.1.0
+```bash
+morphir --version
 ```
 
-- You can then use the `Release` target, specifying the version number either in the `RELEASE_VERSION` environment
-  variable, or else as a parameter after the target name. This will:
-    - update `CHANGELOG.md`, moving changes from the `Unreleased` section into a new `0.2.0` section
-        - if there were any prerelease versions of 0.2.0 in the changelog, it will also collect their changes into the
-          final 0.2.0 entry
-    - make a commit bumping the version:  `Bump version to 0.2.0` and adds the new changelog section to the commit's
-      body
-    - push a git tag
-    - create a GitHub release for that git tag
+For detailed installation instructions and troubleshooting, see the [Installation Guide](https://finos.github.io/morphir-dotnet/getting-started/installation/).
 
+### Documentation
 
-macOS/Linux Parameter:
+- [Installation Guide](https://finos.github.io/morphir-dotnet/getting-started/installation/)
+- [Getting Started](https://finos.github.io/morphir-dotnet/getting-started/)
+- [API Documentation](https://finos.github.io/morphir-dotnet/api/)
 
-```sh
-./build.sh Release 0.2.0
+## Building
+
+This project uses [`just`](https://github.com/casey/just) as the command orchestrator. All build commands are run through `just`.
+
+### Requirements
+
+- [.NET SDK 10.0](https://dotnet.microsoft.com/download) or higher
+- [`just`](https://github.com/casey/just) command runner
+
+### Basic Commands
+
+```bash
+# Restore dependencies
+just restore
+
+# Build the solution
+just build
+
+# Run tests
+just test
+
+# Run linting/formatting checks
+just lint
+
+# Format code
+just format
+
+# Run full CI pipeline (restore, build, test, lint)
+just ci
 ```
 
-macOS/Linux Environment Variable:
+### Configuration
 
-```sh
-RELEASE_VERSION=0.2.0 ./build.sh Release
+You can set the build configuration using the `CONFIGURATION` environment variable:
+
+```bash
+# Build in Debug mode
+CONFIGURATION=Debug just build
+
+# Run tests in Debug mode
+CONFIGURATION=Debug just test
 ```
+
+By default, commands use `Release` configuration.
+
+## Developing
+
+### Project Structure
+
+```
+morphir-dotnet/
+├── src/
+│   ├── Morphir.Core/          # Core IR types and utilities
+│   ├── Morphir.Tooling/       # Tooling infrastructure
+│   └── Morphir/               # CLI application
+├── tests/
+│   ├── Morphir.Core.Tests/    # Unit tests for Core
+│   ├── Morphir.Tooling.Tests/ # Unit tests for Tooling
+│   └── Morphir.E2E.Tests/     # End-to-end tests (BDD/Gherkin)
+├── scripts/                   # Build and utility scripts (C# scripts)
+└── justfile                   # Build orchestration commands
+```
+
+### Development Workflow
+
+1. **Restore dependencies:**
+   ```bash
+   just restore
+   ```
+
+2. **Build the solution:**
+   ```bash
+   just build
+   ```
+
+3. **Run tests:**
+   ```bash
+   just test
+   ```
+
+4. **Check code formatting:**
+   ```bash
+   just lint
+   ```
+
+5. **Format code (if needed):**
+   ```bash
+   just format
+   ```
+
+### Scripts
+
+The project uses C# scripts (`.cs` files) for build automation, leveraging .NET 10's direct C# file execution. These scripts are located in the `scripts/` directory:
+
+- `build-tool-dll.cs` - Builds the managed DLL for the dotnet tool
+- `pack-tool-platform.cs` - Packages the Morphir CLI as a dotnet tool
+- `publish-single-file.cs` - Publishes trimmed single-file executables
+- `publish-single-file-untrimmed.cs` - Publishes untrimmed single-file executables
+- `run-tests.cs` - Runs unit tests
+- `run-e2e-tests.cs` - Runs end-to-end tests
+- `generate-wolverine-code.cs` - Generates Wolverine code
+
+### Build Commands
+
+#### Building Libraries
+
+```bash
+# Pack library projects as NuGet packages
+just pack-libs [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/packages]
+
+# Pack all projects (libraries and tool)
+just pack-all [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/packages]
+```
+
+#### Building Executables
+
+```bash
+# Build a single-file executable for a specific platform
+just publish-single-file <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/single-file]
+
+# Common RIDs: linux-x64, linux-arm64, win-x64, osx-x64, osx-arm64
+# Example:
+just publish-single-file linux-x64
+```
+
+#### Building the Dotnet Tool
+
+```bash
+# Build the managed DLL for the tool
+just build-tool-dll [CONFIGURATION=Release] [OUTPUT_DIR=./artifacts/tool-dll]
+
+# Pack the Morphir CLI as a dotnet tool (named 'dotnet-morphir')
+just pack-tool-platform [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/packages]
+```
+
+#### Testing
+
+```bash
+# Run unit tests
+just test [CONFIGURATION=Release]
+
+# Build E2E test project
+just build-e2e-tests [CONFIGURATION=Release]
+
+# Run end-to-end tests
+just test-e2e [EXECUTABLE_TYPE=all] [CONFIGURATION=Release]
+# EXECUTABLE_TYPE: aot, trimmed, untrimmed, or all (default)
+
+# Build and test a single-file executable for a specific platform
+just build-and-test <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/single-file]
+```
+
+#### Publishing
+
+```bash
+# Publish library packages to NuGet.org
+just publish-libs [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
+
+# Publish the Morphir CLI tool package to NuGet.org
+just publish-tool [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
+
+# Publish all packages
+just publish-all [NUGET_SOURCE=https://api.nuget.org/v3/index.json] [API_KEY=] [OUTPUT_DIR=./artifacts/packages]
+
+# Publish to local NuGet feed (for testing)
+just publish-local-libs [LOCAL_SOURCE=./artifacts/local-feed] [OUTPUT_DIR=./artifacts/packages]
+
+# Install tool locally from package
+just publish-local-tool [OUTPUT_DIR=./artifacts/packages] [GLOBAL=false]
+```
+
+### Available Just Commands
+
+Run `just` (without arguments) to see all available commands with descriptions.
+
+Key commands:
+- `restore` - Restore .NET dependencies
+- `build` - Build the solution
+- `test` - Run unit tests
+- `lint` - Check code formatting
+- `format` - Format code
+- `ci` - Run full CI pipeline
+- `pack-libs` - Pack library projects as NuGet packages
+- `pack-tool-platform` - Pack the Morphir CLI as a dotnet tool
+- `publish-single-file <RID>` - Publish trimmed single-file executable
+- `test-e2e` - Run end-to-end tests
+- `build-and-test <RID>` - Build and test executable for a platform
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](https://finos.github.io/morphir-dotnet/contributing/) for details.
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## Links
+
+- [Documentation](https://finos.github.io/morphir-dotnet/)
+- [GitHub Repository](https://github.com/finos/morphir-dotnet)
+- [NuGet Packages](https://www.nuget.org/packages?q=morphir)
+- [Morphir Project](https://github.com/finos/morphir)
