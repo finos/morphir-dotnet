@@ -40,12 +40,6 @@
           "JsonPointer.Net": "6.0.0"
         }
       },
-      "Microsoft.NET.ILLink.Tasks": {
-        "type": "Direct",
-        "requested": "[10.0.1, )",
-        "resolved": "10.0.1",
-        "contentHash": "ISahzLHsHY7vrwqr2p1YWZ+gsxoBRtH7gWRDK8fDUst9pp2He0GiesaqEfeX0V8QMCJM3eNEHGGpnIcPjFo2NQ=="
-      },
       "Oakton": {
         "type": "Direct",
         "requested": "[6.3.0, )",
@@ -708,13 +702,6 @@
         "requested": "[8.0.3, )",
         "resolved": "8.0.3",
         "contentHash": "mWcOP9OazN1pqZTGedVG+7k+mA5gDy5ZVgF7hlIhY+Dt4Ex+oAdU3ktNB8PjIjyf5MC37M/Z5Yv6DdDdldCPqw=="
-      }
-    },
-    "net10.0/linux-arm64": {
-      "System.Diagnostics.EventLog": {
-        "type": "Transitive",
-        "resolved": "9.0.0",
-        "contentHash": "qd01+AqPhbAG14KtdtIqFk+cxHQFZ/oqRSCoxU1F+Q6Kv0cl726sl7RzU9yLFGd4BUOKdN4XojXF0pQf/R6YeA=="
       }
     }
   }
