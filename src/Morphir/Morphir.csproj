@@ -36,6 +36,11 @@
     <!-- See justfile publish-executable task for publish-time settings -->
 
     <ItemGroup>
+        <!-- Preserve generated VersionInfo during trimming -->
+        <TrimmerRootDescriptor Include="ILLink.Descriptors.xml" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Extism.runtime.all" />
         <PackageReference Include="Extism.Sdk" />
         <PackageReference Include="JasperFx.CodeGeneration.Commands" />
