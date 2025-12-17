@@ -90,48 +90,56 @@ For detailed installation instructions and troubleshooting, see the [Installatio
 
 ## Building
 
-This project uses [`just`](https://github.com/casey/just) as the command orchestrator. All build commands are run through `just`.
+This project uses [Nuke](https://nuke.build/) for build orchestration, providing a strongly-typed, cross-platform build system written in C#.
 
 ### Requirements
 
 - [.NET SDK 10.0](https://dotnet.microsoft.com/download) or higher
-- [`just`](https://github.com/casey/just) command runner
 
 ### Basic Commands
 
 ```bash
-# Restore dependencies
-just restore
+# Build the solution (default target)
+./build.sh
 
-# Build the solution
-just build
+# Restore dependencies
+./build.sh --target Restore
 
 # Run tests
-just test
+./build.sh --target Test
 
 # Run linting/formatting checks
-just lint
+./build.sh --target Lint
 
 # Format code
-just format
+./build.sh --target Format
 
 # Run full CI pipeline (restore, build, test, lint)
-just ci
+./build.sh --target CI
+
+# Show all available targets
+./build.sh --help
 ```
+
+**Windows users:** Use `build.cmd` or `build.ps1` instead of `./build.sh`
 
 ### Configuration
 
-You can set the build configuration using the `CONFIGURATION` environment variable:
+You can set the build configuration using the `--configuration` parameter:
 
 ```bash
 # Build in Debug mode
-CONFIGURATION=Debug just build
+./build.sh --configuration Debug
 
 # Run tests in Debug mode
-CONFIGURATION=Debug just test
+./build.sh --target Test --configuration Debug
 ```
 
 By default, commands use `Release` configuration.
+
+### Migration from Just
+
+This project was recently migrated from Just to Nuke. See [NUKE_MIGRATION.md](NUKE_MIGRATION.md) for the complete migration guide and command mappings. The old `justfile` is preserved for reference.
 
 ## Developing
 
@@ -147,30 +155,34 @@ morphir-dotnet/
 │   ├── Morphir.Core.Tests/    # Unit tests for Core
 │   ├── Morphir.Tooling.Tests/ # Unit tests for Tooling
 │   └── Morphir.E2E.Tests/     # End-to-end tests (BDD/Gherkin)
+├── build/
+│   ├── _build.csproj          # Nuke build project
+│   └── Build.cs               # Build orchestration (strongly-typed)
 ├── scripts/                   # Build and utility scripts (C# scripts)
-└── justfile                   # Build orchestration commands
+├── build.sh/cmd/ps1           # Nuke bootstrap scripts
+└── justfile                   # Legacy build commands (preserved for reference)
 ```
 
 ### Development Workflow
 
 1. **Restore dependencies:**
    ```bash
-   just restore
+   ./build.sh --target Restore
    ```
 
 2. **Build the solution:**
    ```bash
-   just build
+   ./build.sh --target Compile
    ```
 
 3. **Run tests:**
    ```bash
-   just test
+   ./build.sh --target Test
    ```
 
 4. **Check code formatting:**
    ```bash
-   just lint
+   ./build.sh --target Lint
    ```
 
 5. **Format code (if needed):**

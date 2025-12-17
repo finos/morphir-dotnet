@@ -3,8 +3,12 @@
    "tasks": [
       {
          "name": "format-check",
-         "command": "just",
-         "args": [ "precommit" ]
+         "command": "bash",
+         "args": [ "build.sh", "--target", "Precommit" ],
+         "windows": {
+            "command": "cmd",
+            "args": [ "/c", "build.cmd", "--target", "Precommit" ]
+         }
       }
    ]
 }

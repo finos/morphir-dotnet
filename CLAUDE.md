@@ -173,17 +173,35 @@ See AGENTS.md Section 2 for what to escalate:
 
 ### 13. Quick Command Reference
 
+**Build System (Nuke):**
 ```bash
-# Build
-dotnet build
+# Build (default target)
+./build.sh
 
-# Test (all)
-dotnet test --nologo
+# Restore dependencies
+./build.sh --target Restore
 
-# Test (specific project)
-dotnet test tests/Morphir.Tooling.Tests --nologo
+# Run tests
+./build.sh --target Test
 
-# Test (with coverage)
+# Format code
+./build.sh --target Format
+
+# Lint code
+./build.sh --target Lint
+
+# Full CI pipeline
+./build.sh --target CI
+
+# Show all available targets and parameters
+./build.sh --help
+```
+
+**Windows:** Use `build.cmd` or `build.ps1` instead of `./build.sh`
+
+**Direct .NET Commands:**
+```bash
+# Test with coverage
 dotnet test --collect:"XPlat Code Coverage"
 
 # Format
@@ -195,6 +213,8 @@ dotnet run --project src/Morphir/Morphir.csproj -- [command]
 # Example: Verify IR file
 dotnet run --project src/Morphir/Morphir.csproj -- ir verify test.json
 ```
+
+**Migration Note:** This project migrated from `just` to Nuke build. See [NUKE_MIGRATION.md](NUKE_MIGRATION.md) for complete command mappings.
 
 ### 14. File Structure Reference
 
@@ -210,11 +230,18 @@ morphir-dotnet/
 │       ├── Features/         # BDD feature files + step definitions
 │       ├── Infrastructure/   # Unit tests for infrastructure
 │       └── TestData/         # Test fixtures
+├── build/
+│   ├── _build.csproj         # Nuke build project
+│   └── Build.cs              # Build orchestration (strongly-typed C#)
+├── scripts/                  # Build and utility C# scripts
 ├── docs/
 │   ├── content/contributing/design/prds/  # PRDs
 │   └── spec/                 # IR specifications and schemas
+├── build.sh/cmd/ps1          # Nuke bootstrap scripts
 ├── AGENTS.md                 # Primary agent guidance (READ THIS!)
 ├── CLAUDE.md                 # This file
+├── NUKE_MIGRATION.md         # Nuke migration guide
+├── justfile                  # Legacy build commands (preserved for reference)
 └── README.md                 # Project README
 ```
 
