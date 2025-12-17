@@ -2,7 +2,7 @@
     <PropertyGroup>
         <!-- summary is not migrated from project.json, but you can use the <Description> property for that if needed. -->
         <PackageTags>f#, fsharp, finos</PackageTags>
-        <PackageProjectUrl>https://github.com/finos/morphir-dotnet</PackageProjectUrl>
+        <PackageProjectUrl>https://finos.github.io/morphir-dotnet</PackageProjectUrl>
         <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
         <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
         <RepositoryType>git</RepositoryType>
@@ -13,4 +13,9 @@
         <!-- KeepAChangelog configuration -->
         <ChangelogFile>$(MSBuildThisFileDirectory)CHANGELOG.md</ChangelogFile>
     </PropertyGroup>
+    
+    <!-- Include LICENSE file in all NuGet packages (included separately from license expression) -->
+    <ItemGroup>
+        <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="LICENSE.txt" />
+    </ItemGroup>
 </Project>
