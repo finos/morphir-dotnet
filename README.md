@@ -4,9 +4,10 @@ Morphir .NET is a .NET implementation of the Morphir project, providing tools an
 
 ## Status
 
+[![FINOS - Incubating](https://img.shields.io/badge/FINOS-Incubating-blue.svg)](https://finos.org)
+[![Slack](https://img.shields.io/badge/Slack-morphir-blue.svg?logo=slack)](https://finos-lf.slack.com/messages/morphir)
 ![Development Workflow](https://github.com/finos/morphir-dotnet/actions/workflows/development.yml/badge.svg)
 ![Deployment Workflow](https://github.com/finos/morphir-dotnet/actions/workflows/deployment.yml/badge.svg)
-![FINOS Project Maturity](https://img.shields.io/badge/FINOS-Incubating-blue)
 ![NuGet Version](https://img.shields.io/nuget/v/Morphir?label=NuGet%20Morphir)
 ![NuGet Core](https://img.shields.io/nuget/v/Morphir.Core?label=NuGet%20Core)
 ![NuGet Tooling](https://img.shields.io/nuget/v/Morphir.Tooling?label=NuGet%20Tooling)
