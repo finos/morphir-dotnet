@@ -9,12 +9,13 @@
     <RootNamespace>Morphir.Tooling</RootNamespace>
     <!-- Make executable for codegen command when EnableCodegen property is set -->
     <OutputType Condition="'$(EnableCodegen)' == 'true'">Exe</OutputType>
+    <!-- Suppress NU1608 for Oakton transitive dependency until it's updated for .NET 10 -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1608</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- WolverineFx for messaging -->
     <PackageReference Include="JasperFx.CodeGeneration.Commands" />
-    <PackageReference Include="Oakton" />
     <PackageReference Include="WolverineFx" />
 
     <!-- JSON Schema validation -->

@@ -32,9 +32,9 @@
     <PackageVersion Include="FSharp.SystemCommandLine" Version="0.17.0-beta4" />
     <PackageVersion Include="Generator.Equals" Version="3.2.1" />
     <PackageVersion Include="InlineComposition" Version="1.5.1" />
+    <PackageVersion Include="JasperFx" Version="1.11.3" />
     <PackageVersion Include="JasperFx.CodeGeneration.Commands" Version="3.7.2" />
     <PackageVersion Include="Nuke.Common" Version="10.1.0" />
-    <PackageVersion Include="Oakton" Version="6.3.0" />
     <PackageVersion Include="Packaging.Targets" Version="0.1.208" PrivateAssets="All" />
     <PackageVersion Include="LightBDD.Framework" Version="$(LightBDDVersion)" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.0.2" />
@@ -50,7 +50,7 @@
     <PackageVersion Include="Json.More.Net" Version="2.2.0" />
     <PackageVersion Include="JsonSchema.Net" Version="8.0.3" />
     <PackageVersion Include="JsonPointer.Net" Version="6.0.0" />
-    <PackageVersion Include="WolverineFx" Version="3.13.5" />
+    <PackageVersion Include="WolverineFx" Version="5.8.0" />
     <PackageVersion Include="YamlDotNet" Version="16.3.0" />
     <PackageVersion Include="FSharp.Formatting" Version="4.0.0-rc1" />
     <PackageVersion Include="FSharp.Literate" Version="4.0.0-rc1" />
@@ -59,8 +59,8 @@
     <PackageVersion Include="Dotnet.ProjInfo.Workspace.FCS" Version="0.39" />
     <PackageVersion Include="FSharp.Compiler.Service" Version="34.1.1" />
     <PackageVersion Include="LanguageExt.Core" Version="$(LanguageExtVersion)" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.1.0" />
     <PackageVersion Include="Reqnroll" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Reqnroll.TUnit" Version="$(ReqnrollVersion)" />

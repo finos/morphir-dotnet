@@ -43,6 +43,7 @@
     <ItemGroup>
         <PackageReference Include="Extism.runtime.all" />
         <PackageReference Include="Extism.Sdk" />
+        <PackageReference Include="JasperFx" />
         <PackageReference Include="JasperFx.CodeGeneration.Commands" />
         <PackageReference Include="System.CommandLine" />
         <PackageReference Include="WolverineFx" />
