@@ -1,18 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ILLink descriptor file to preserve embedded resources during trimming.
-  This prevents the .NET trimmer from removing JSON schema files that are
-  loaded at runtime via Assembly.GetManifestResourceStream().
+  Trimming descriptor to ensure JsonSchema.Net validation works correctly
+  in trimmed applications. The library uses reflection for schema validation
+  which requires preservation of certain types and resources.
 -->
 <linker>
+    <!-- Preserve embedded schema resources -->
     <assembly fullname="Morphir.Tooling">
-        <!-- Preserve all embedded resources -->
-        <resource>Infrastructure/Schemas/morphir-ir-v1.json</resource>
-        <resource>Infrastructure/Schemas/morphir-ir-v2.json</resource>
-        <resource>Infrastructure/Schemas/morphir-ir-v3.json</resource>
-
-        <!-- Preserve the SchemaLoader class and its dependencies -->
-        <type fullname="Morphir.Tooling.Infrastructure.JsonSchema.SchemaLoader" preserve="all" />
-        <type fullname="Morphir.Tooling.Infrastructure.JsonSchema.SchemaValidator" preserve="all" />
+        <resource>Morphir.Tooling.Infrastructure.Schemas.morphir-ir-v1.json</resource>
+        <resource>Morphir.Tooling.Infrastructure.Schemas.morphir-ir-v2.json</resource>
+        <resource>Morphir.Tooling.Infrastructure.Schemas.morphir-ir-v3.json</resource>
     </assembly>
+
+    <!-- Preserve JsonSchema.Net types for reflection-based validation -->
+    <assembly fullname="JsonSchema.Net" preserve="all" />
 </linker>
