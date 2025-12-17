@@ -72,6 +72,7 @@
         "resolved": "1.1.1",
         "contentHash": "MalY0Y/uM/LjXtHfX/26l2VtN4LDNZ2OE3aumNOHDLsT4fNYy2hiHXI4CXCqKpNUNm7iJ2brrc4J89UdaL56FA=="
       }
-    }
+    },
+    "net10.0/linux-arm64": {}
   }
 }

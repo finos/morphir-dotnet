@@ -640,7 +640,7 @@
           "JasperFx.CodeGeneration.Commands": "[3.7.2, )",
           "Json.More.Net": "[2.2.0, )",
           "JsonSchema.Net": "[8.0.3, )",
-          "Morphir.Core": "[1.0.0, )",
+          "Morphir.Core": "[0.0.0-local-test2, )",
           "Oakton": "[6.3.0, )",
           "Serilog": "[4.3.0, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
