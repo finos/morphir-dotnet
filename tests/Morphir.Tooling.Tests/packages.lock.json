@@ -600,6 +600,15 @@
         "resolved": "3.2.1",
         "contentHash": "u7bhTmXpQXSB594JJ/+ybOBMzB9APkz4uYUFFN52xhdB9hDVWwQ5uII6SHLkZ8mLQkW+8W7Mgxcz6cMcwY4ZyA=="
       },
+      "Serilog.Extensions.Logging": {
+        "type": "Transitive",
+        "resolved": "3.1.0",
+        "contentHash": "IWfem7wfrFbB3iw1OikqPFNPEzfayvDuN4WP7Ue1AVFskalMByeWk3QbtUXQR34SBkv1EbZ3AySHda/ErDgpcg==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging": "2.0.0",
+          "Serilog": "2.9.0"
+        }
+      },
       "SimpleInfoName": {
         "type": "Transitive",
         "resolved": "3.1.2",
@@ -731,6 +740,9 @@
           "JsonSchema.Net": "[8.0.3, )",
           "Morphir.Core": "[1.0.0, )",
           "Oakton": "[6.3.0, )",
+          "Serilog": "[4.3.0, )",
+          "Serilog.Extensions.Hosting": "[5.0.1, )",
+          "Serilog.Sinks.Console": "[6.1.1, )",
           "WolverineFx": "[3.13.5, )"
         }
       },
@@ -858,6 +870,34 @@
           "JasperFx.Core": "1.9.0",
           "Microsoft.Extensions.Hosting": "[6.0.0, 10.0.0)",
           "Spectre.Console": "0.47.0"
+        }
+      },
+      "Serilog": {
+        "type": "CentralTransitive",
+        "requested": "[4.3.0, )",
+        "resolved": "4.3.0",
+        "contentHash": "+cDryFR0GRhsGOnZSKwaDzRRl4MupvJ42FhCE4zhQRVanX0Jpg6WuCBk59OVhVDPmab1bB+nRykAnykYELA9qQ=="
+      },
+      "Serilog.Extensions.Hosting": {
+        "type": "CentralTransitive",
+        "requested": "[5.0.1, )",
+        "resolved": "5.0.1",
+        "contentHash": "o0VUyt3npAqOJaZ6CiWLFeLYs3CYJwfcAqaUqprzsmj7qYIvorcn8cZLVR8AQX6vzX7gee2bD0sQeA17iO2/Aw==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "3.1.8",
+          "Microsoft.Extensions.Hosting.Abstractions": "3.1.8",
+          "Microsoft.Extensions.Logging.Abstractions": "3.1.8",
+          "Serilog": "2.10.0",
+          "Serilog.Extensions.Logging": "3.1.0"
+        }
+      },
+      "Serilog.Sinks.Console": {
+        "type": "CentralTransitive",
+        "requested": "[6.1.1, )",
+        "resolved": "6.1.1",
+        "contentHash": "8jbqgjUyZlfCuSTaJk6lOca465OndqOz3KZP6Cryt/IqZYybyBu7GP0fE/AXBzrrQB3EBmQntBFAvMVz1COvAA==",
+        "dependencies": {
+          "Serilog": "4.0.0"
         }
       },
       "Vogen": {

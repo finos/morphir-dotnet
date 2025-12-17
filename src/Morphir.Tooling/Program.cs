@@ -1,16 +1,31 @@
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Oakton;
+using Serilog;
+using Serilog.Extensions.Logging;
 using Wolverine;
 
 namespace Morphir.Tooling;
 
 public static class Program
 {
-    public static IHost CreateToolingHost()
+    public static IHost CreateToolingHost(bool logToStdErr = false)
     {
         var builder = Host.CreateApplicationBuilder();
+
+        // When JSON output is requested, redirect all logs to stderr to keep stdout clean
+        if (logToStdErr)
+        {
+            builder.Logging.ClearProviders();
+
+            var logger = new LoggerConfiguration()
+                .WriteTo.Console(standardErrorFromLevel: Serilog.Events.LogEventLevel.Verbose)
+                .CreateLogger();
+
+            builder.Logging.AddSerilog(logger, dispose: true);
+        }
 
         builder.Services.AddWolverine(opts =>
         {

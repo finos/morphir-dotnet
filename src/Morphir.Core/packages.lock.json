@@ -41,6 +41,12 @@
         "resolved": "5.0.0-beta-59",
         "contentHash": "qg0M2XuFCp/tIFeycuwstxIHkqOHlXW8wpsTTZiIQF74CdGZTeGQ0e/VqSF6mfLM1t5UM5h7bzSKrwN+p/6sIg=="
       },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.1, )",
+        "resolved": "10.0.1",
+        "contentHash": "ISahzLHsHY7vrwqr2p1YWZ+gsxoBRtH7gWRDK8fDUst9pp2He0GiesaqEfeX0V8QMCJM3eNEHGGpnIcPjFo2NQ=="
+      },
       "StaticCS": {
         "type": "Direct",
         "requested": "[0.3.1, )",

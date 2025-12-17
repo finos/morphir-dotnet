@@ -45,6 +45,12 @@
           "Oakton": "6.3.0"
         }
       },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.1, )",
+        "resolved": "10.0.1",
+        "contentHash": "ISahzLHsHY7vrwqr2p1YWZ+gsxoBRtH7gWRDK8fDUst9pp2He0GiesaqEfeX0V8QMCJM3eNEHGGpnIcPjFo2NQ=="
+      },
       "System.CommandLine": {
         "type": "Direct",
         "requested": "[2.0.1, )",
@@ -546,6 +552,15 @@
         "resolved": "13.0.3",
         "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
       },
+      "Serilog.Extensions.Logging": {
+        "type": "Transitive",
+        "resolved": "3.1.0",
+        "contentHash": "IWfem7wfrFbB3iw1OikqPFNPEzfayvDuN4WP7Ue1AVFskalMByeWk3QbtUXQR34SBkv1EbZ3AySHda/ErDgpcg==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging": "2.0.0",
+          "Serilog": "2.9.0"
+        }
+      },
       "Spectre.Console": {
         "type": "Transitive",
         "resolved": "0.47.0",
@@ -627,6 +642,9 @@
           "JsonSchema.Net": "[8.0.3, )",
           "Morphir.Core": "[1.0.0, )",
           "Oakton": "[6.3.0, )",
+          "Serilog": "[4.3.0, )",
+          "Serilog.Extensions.Hosting": "[5.0.1, )",
+          "Serilog.Sinks.Console": "[6.1.1, )",
           "WolverineFx": "[3.13.5, )"
         }
       },
@@ -728,11 +746,76 @@
           "Spectre.Console": "0.47.0"
         }
       },
+      "Serilog": {
+        "type": "CentralTransitive",
+        "requested": "[4.3.0, )",
+        "resolved": "4.3.0",
+        "contentHash": "+cDryFR0GRhsGOnZSKwaDzRRl4MupvJ42FhCE4zhQRVanX0Jpg6WuCBk59OVhVDPmab1bB+nRykAnykYELA9qQ=="
+      },
+      "Serilog.Extensions.Hosting": {
+        "type": "CentralTransitive",
+        "requested": "[5.0.1, )",
+        "resolved": "5.0.1",
+        "contentHash": "o0VUyt3npAqOJaZ6CiWLFeLYs3CYJwfcAqaUqprzsmj7qYIvorcn8cZLVR8AQX6vzX7gee2bD0sQeA17iO2/Aw==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "3.1.8",
+          "Microsoft.Extensions.Hosting.Abstractions": "3.1.8",
+          "Microsoft.Extensions.Logging.Abstractions": "3.1.8",
+          "Serilog": "2.10.0",
+          "Serilog.Extensions.Logging": "3.1.0"
+        }
+      },
+      "Serilog.Sinks.Console": {
+        "type": "CentralTransitive",
+        "requested": "[6.1.1, )",
+        "resolved": "6.1.1",
+        "contentHash": "8jbqgjUyZlfCuSTaJk6lOca465OndqOz3KZP6Cryt/IqZYybyBu7GP0fE/AXBzrrQB3EBmQntBFAvMVz1COvAA==",
+        "dependencies": {
+          "Serilog": "4.0.0"
+        }
+      },
       "Vogen": {
         "type": "CentralTransitive",
         "requested": "[8.0.3, )",
         "resolved": "8.0.3",
         "contentHash": "mWcOP9OazN1pqZTGedVG+7k+mA5gDy5ZVgF7hlIhY+Dt4Ex+oAdU3ktNB8PjIjyf5MC37M/Z5Yv6DdDdldCPqw=="
+      }
+    },
+    "net10.0/linux-arm64": {
+      "Extism.runtime.linux-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "JKTbKrJ9zqxfKaYBEJQX1bBky6kug/i+uU462Etu9MrnC00t6+FsNzW+lg8O6kqZIZIw+k/QSzQJTbE9+ACoXQ=="
+      },
+      "Extism.runtime.linux-musl-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "a2PUlV8dc9kgUZa8PBb6VuEo8tioX0wQnU0Rn8J5ZGBECoC68VayBmIfdx+OmR9pzpN6IsorjTPlBoRvGHhy3w=="
+      },
+      "Extism.runtime.linux-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "/WEePguMvmRn/IY34iFuFNOS28RCKBPBKKG3xpUfpZ7bcnj80e/NPyyMRQQLaZSBJkiDvn7hJwJvt+n3cPF7rA=="
+      },
+      "Extism.runtime.osx-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "L19ANqXBgEZHDrWiQGRz+BGi8N7Rqirw7QTbEKFyJEutEfO25IafOQgr+UAk7/fXCRgUEz55KlBDhMETlEZeVg=="
+      },
+      "Extism.runtime.osx-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "BJawGsM0VP2uUf0X4J4wVer9k7G7dmDmMGDWjC21nmVFsfkswWsYmM8SkB9S98rAofni6yvNwT23MOSfu8RGPw=="
+      },
+      "Extism.runtime.win-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.0",
+        "contentHash": "tezN2DRh8PWrKHZiP8fDqnFRASGyxL2lVeDVDPV8YqHVGzqAl1POzYUvxkNkGeozHSrCWJ4ZCTJg4TmG6GQdwg=="
+      },
+      "System.Diagnostics.EventLog": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "qd01+AqPhbAG14KtdtIqFk+cxHQFZ/oqRSCoxU1F+Q6Kv0cl726sl7RzU9yLFGd4BUOKdN4XojXF0pQf/R6YeA=="
       }
     }
   }
