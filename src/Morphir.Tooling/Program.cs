@@ -1,4 +1,4 @@
-using JasperFx.CodeGeneration;
+using JasperFx;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -10,7 +10,7 @@ namespace Morphir.Tooling;
 
 public static class Program
 {
-    public static IHost CreateToolingHost(bool logToStdErr = false)
+    public static IHost CreateToolingHost()
     {
         var builder = Host.CreateApplicationBuilder();
 
@@ -20,22 +20,18 @@ public static class Program
 
         // Configure Serilog to write ALL logs to stderr only
         // This keeps stdout clean for command output (JSON, formatted results, etc.)
-        if (logToStdErr)
-        {
-            // Write ALL log levels to stderr (not stdout)
-            // This is critical for CLI tools: stdout = data, stderr = diagnostics
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Information()
-                .WriteTo.Console(
-                    standardErrorFromLevel: LogEventLevel.Verbose,
-                    outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
-                )
-                .CreateLogger();
+        // Write ALL log levels to stderr (not stdout)
+        // This is critical for CLI tools: stdout = data, stderr = diagnostics
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .WriteTo.Console(
+                standardErrorFromLevel: LogEventLevel.Verbose,
+                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
+            )
+            .CreateLogger();
 
-            // Add Serilog to the logging builder (not services)
-            builder.Logging.AddSerilog(Log.Logger, dispose: true);
-        }
-        // If not logToStdErr, logging stays disabled (default providers cleared above)
+        // Add Serilog to the logging builder (not services)
+        builder.Logging.AddSerilog(Log.Logger, dispose: true);
 
         // Now configure Wolverine - it will use our Serilog configuration
         // This ensures WolverineFx messages also go to stderr, not stdout
@@ -57,18 +53,17 @@ public static class Program
             // Use Auto mode: tries to locate pre-generated types from assembly,
             // but falls back to generating code dynamically and writes source to disk
             // This allows codegen write to work, and Static mode will be used when code exists
-            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            // Note: TypeLoadMode.Auto is the default, so we don't need to set it explicitly
+            // opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
         });
 
         return builder.Build();
     }
 
     // Entry point for codegen command when Morphir.Tooling is built as executable
-    // UseWolverine automatically adds Oakton command-line support
+    // Wolverine 5.8.0 uses JasperFX CommandLine integration
     public static async Task<int> Main(string[] args)
     {
-        // UseWolverine adds Oakton integration automatically
-        // The codegen command will be available via Oakton
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -82,14 +77,11 @@ public static class Program
                 // Configure code generation for single-file executables
                 opts.CodeGeneration.GeneratedCodeOutputPath = "Internal/Generated";
 
-                // Use Auto mode: tries to locate pre-generated types from assembly,
-                // but falls back to generating code dynamically and writes source to disk
-                opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+                // TypeLoadMode.Auto is the default, no need to set explicitly
             })
             .StartAsync();
 
-        // UseWolverine should have registered Oakton commands
-        // Return success - Oakton integration handles command execution
-        return 0;
+        // Use JasperFX CommandLine integration (built into Wolverine 5.8.0)
+        return await host.RunJasperFxCommands(args);
     }
 }

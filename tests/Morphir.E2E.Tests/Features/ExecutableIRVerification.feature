@@ -41,11 +41,13 @@ Feature: Morphir Executable IR Verification
     Then the exit code should be 0
     And the output should be empty
 
-  Scenario: Verify with explicit schema version
-    When I run the command "ir verify <test-data>/valid-ir-v3.json --schema-version 3"
+  Scenario: Verify with explicit schema version and JSON output
+    When I run the command "ir verify <test-data>/valid-ir-v3.json --schema-version 3 --json"
     Then the exit code should be 0
-    And the output should contain "VALID" or "✓ VALID"
-    And the output should contain "Schema Version: v3 (manual)"
+    And the output should be valid JSON
+    And the JSON output should have field "IsValid" with value "true"
+    And the JSON output should have field "SchemaVersion" with value "3"
+    And the JSON output should have field "DetectionMethod" with value "manual"
 
   Scenario: Verify JSON output for invalid file includes errors
     When I run the command "ir verify <test-data>/invalid-missing-formatversion.json --json"

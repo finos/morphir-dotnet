@@ -192,8 +192,8 @@ internal static class Program
             }
 
             // Create WolverineFx host
-            // Always redirect logs to stderr to keep stdout clean for command output
-            using var host = Tooling.Program.CreateToolingHost(logToStdErr: true);
+            // Logging is always redirected to stderr to keep stdout clean for command output
+            using var host = Tooling.Program.CreateToolingHost();
             await host.StartAsync();
 
             var messageBus = host.Services.GetRequiredService<IMessageBus>();
