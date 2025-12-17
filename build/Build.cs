@@ -381,7 +381,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             Serilog.Log.Information($"Running E2E tests for executable type: {ExecutableType}");
-            var exitCode = RunCommand("dotnet", "run", "--project",
+            var exitCode = RunCommand("dotnet",
                 ScriptsDirectory / "run-e2e-tests.cs", ExecutableType, Configuration);
 
             if (exitCode != 0)
