@@ -33,6 +33,9 @@
   <ItemGroup>
     <!-- Embed JSON schema files as resources -->
     <EmbeddedResource Include="Infrastructure\Schemas\*.json" />
+
+    <!-- Preserve embedded resources during trimming -->
+    <TrimmerRootDescriptor Include="ILLink.Descriptors.xml" />
   </ItemGroup>
 
   <ItemGroup>
