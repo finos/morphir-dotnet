@@ -53,8 +53,6 @@ jobs:
                       os: ubuntu-24.04-arm
                     - rid: win-x64
                       os: windows-latest
-                    - rid: osx-x64
-                      os: macos-15-intel
                     - rid: osx-arm64
                       os: macos-latest
         runs-on: ${{ matrix.os }}
