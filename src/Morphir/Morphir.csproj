@@ -7,6 +7,29 @@
         <Nullable>enable</Nullable>
         <AssemblyName>morphir</AssemblyName>
     </PropertyGroup>
+
+    <!-- Generate version constant file at build time -->
+    <Target Name="GenerateVersionFile" BeforeTargets="CoreCompile">
+        <PropertyGroup>
+            <!-- Use AssemblyInformationalVersion if set, otherwise Version, otherwise default -->
+            <MorphirVersionString Condition="'$(InformationalVersion)' != ''">$(InformationalVersion)</MorphirVersionString>
+            <MorphirVersionString Condition="'$(MorphirVersionString)' == '' AND '$(Version)' != ''">$(Version)</MorphirVersionString>
+            <MorphirVersionString Condition="'$(MorphirVersionString)' == ''">0.0.0-dev</MorphirVersionString>
+            <VersionFileContent>
+// &lt;auto-generated/&gt;
+namespace Morphir%3B
+
+internal static class VersionInfo
+{
+    public const string Version = "$(MorphirVersionString)"%3B
+}
+            </VersionFileContent>
+        </PropertyGroup>
+        <WriteLinesToFile File="$(IntermediateOutputPath)VersionInfo.g.cs" Lines="$(VersionFileContent)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+        <ItemGroup>
+            <Compile Include="$(IntermediateOutputPath)VersionInfo.g.cs" />
+        </ItemGroup>
+    </Target>
     <!-- AOT and trimming settings are set via command-line arguments during publish -->
     <!-- This prevents them from affecting dotnet run/build operations -->
     <!-- See justfile publish-executable task for publish-time settings -->
