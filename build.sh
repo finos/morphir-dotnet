@@ -69,5 +69,6 @@ fi
 
 echo "Microsoft (R) .NET SDK version $("$DOTNET_EXE" --version)"
 
-"$DOTNET_EXE" build "$BUILD_PROJECT_FILE" /nodeReuse:false /p:UseSharedCompilation=false -nologo -clp:NoSummary
+# Use --property instead of /p: to avoid Git Bash path translation on Windows
+"$DOTNET_EXE" build "$BUILD_PROJECT_FILE" --property:nodeReuse=false --property:UseSharedCompilation=false -nologo -clp:NoSummary --verbosity quiet
 "$DOTNET_EXE" run --project "$BUILD_PROJECT_FILE" --no-build -- "$@"
