@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0-alpha-009] - 2025-12-17
+
+### Fixed
+- NuGet packages now include LICENSE file and correct metadata (repository URL, project URL)
+
 ## [0.2.0-alpha-003] - 2025-12-16
 
 ### Added
@@ -45,7 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-003...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-009...HEAD
+[0.2.0-alpha-009]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-008...v0.2.0-alpha-009
 [0.2.0-alpha-003]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-002...v0.2.0-alpha-003
 [0.2.0-alpha-002]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-001...v0.2.0-alpha-002
 [0.2.0-alpha-001]: https://github.com/finos/morphir-dotnet/releases/tag/v0.2.0-alpha-001
