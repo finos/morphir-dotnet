@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0-alpha-010] - 2025-12-16
+
+### Changed
+- Updated NuGet packages to use LICENSE.md instead of LICENSE file
+- Added README.md to all NuGet packages (Morphir.Core, Morphir.Tooling, and Morphir CLI tool)
+- Enhanced CLI tool package metadata with complete NuGet properties (license, authors, URLs, repository info)
+
+### Fixed
+- Fixed LICENSE file path issue in NuGet packages (now correctly placed at package root)
+- Removed redundant LICENSE configuration from individual project files
+
 ## [0.2.0-alpha-009] - 2025-12-17
 
 ### Fixed
