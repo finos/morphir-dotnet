@@ -491,6 +491,18 @@ dotnet format
 - Keep effects at the edges; domain remains pure.
 - Prefer explicit ADTs over booleans/flags; update exhaustive matches on change.
 
+### User Interaction Policies
+
+**CRITICAL - Always Require User Confirmation for Destructive Actions:**
+
+- **Auto-merging PRs**: NEVER auto-merge PRs without explicit user confirmation. Always prompt: "Do you want to auto-merge this PR when all checks pass?"
+- **Deleting branches**: Always confirm before deleting remote or local branches
+- **Force pushing**: Always confirm before force-pushing to any branch
+- **Publishing releases**: Always confirm before triggering deployment workflows
+- **Modifying production**: Always confirm before making changes that affect production systems
+
+**Guiding Principle**: When in doubt, ask. It's better to prompt for confirmation than to perform an unwanted action.
+
 ## 11) Review and Contribution Rules
 
 - Small, focused PRs with tests (TUnit and/or Reqnroll).
