@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.0] - 2025-12-18
+## [0.3.0-rc.1] - 2025-12-18
+
+**Note**: This is a release candidate. The stable v0.3.0 release is pending LanguageExt.Core stable dependency.
 
 ### Added
 - Serilog logging infrastructure for CLI tools (Serilog, Serilog.Extensions.Hosting, Serilog.Sinks.Console)
@@ -126,8 +128,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-010...v0.3.0
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.1...HEAD
+[0.3.0-rc.1]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-010...v0.3.0-rc.1
 [0.2.0-alpha-010]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-009...v0.2.0-alpha-010
 [0.2.0-alpha-009]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-008...v0.2.0-alpha-009
 [0.2.0-alpha-003]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-002...v0.2.0-alpha-003
