@@ -128,6 +128,30 @@ All scripts use:
 
 Dependencies are automatically downloaded via NuGet when scripts run.
 
+### Troubleshooting Script Dependencies
+
+If you encounter errors about missing packages when running scripts:
+
+```bash
+# Option 1: Let F# Interactive download packages (usually automatic)
+dotnet fsi .claude/skills/qa-tester/smoke-test.fsx
+
+# Option 2: Pre-restore NuGet packages
+dotnet tool restore
+dotnet restore
+
+# Option 3: Manually restore F# script packages
+dotnet fsi --langversion:preview --define:SCRIPTING \
+  .claude/skills/qa-tester/smoke-test.fsx
+```
+
+**Note for Claude Code Users**: Claude skills may have limitations installing packages during execution. If scripts fail with package errors:
+1. Run `dotnet tool restore` in the project root first
+2. Run `dotnet restore` to cache NuGet packages locally
+3. Then retry the script
+
+**Note for Other AI Agents**: These scripts use standard F# scripting with NuGet package references (`#r "nuget: ..."`), which should work in most AI coding environments that support F# script execution.
+
 ## Integration with Build System
 
 The QA scripts complement the Nuke build system:

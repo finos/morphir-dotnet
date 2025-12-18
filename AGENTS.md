@@ -80,11 +80,16 @@ External touchpoints
 Environment
 - Required env vars documented in .env.example. Do not commit secrets.
 
+First-time Setup
+- Restore tools: `dotnet tool restore`
+- Restore dependencies: `dotnet restore` or `./build.sh --target Restore`
+- Install git hooks: `dotnet husky install`
+
 Commands
 - .NET (C# 14 / F#, .NET 10)
-    - Build: `dotnet build`
-    - Test (TUnit + Reqnroll): `dotnet test --nologo`
-    - Format: `dotnet format`
+    - Build: `dotnet build` or `./build.sh`
+    - Test (TUnit + Reqnroll): `dotnet test --nologo` or `./build.sh --target Test`
+    - Format: `dotnet format` or `./build.sh --target Format`
 - TypeScript (if present)
     - Install: `npm ci`
     - Build: `npm run build`
