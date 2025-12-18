@@ -37,10 +37,15 @@ partial class Build
 
     Target PackTool => _ => _
         .DependsOn(Compile)
+        .After(PackLibs)  // Run after PackLibs to avoid directory cleaning conflicts
         .Description("Pack the Morphir CLI as a dotnet tool (standard managed tool)")
         .Executes(() =>
         {
-            OutputDir.CreateOrCleanDirectory();
+            // Don't clean directory if PackLibs already ran - just ensure it exists
+            if (!OutputDir.DirectoryExists())
+            {
+                OutputDir.CreateDirectory();
+            }
 
             var packSettings = new DotNetPackSettings()
                 .SetConfiguration(Configuration)
