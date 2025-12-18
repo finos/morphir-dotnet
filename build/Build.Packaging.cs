@@ -10,6 +10,11 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 /// </summary>
 partial class Build
 {
+    /// <summary>
+    /// Pack library projects as NuGet packages (Morphir.Core, Morphir.Tooling, Morphir)
+    /// Output: artifacts/packages/
+    /// Parameters: --version (optional)
+    /// </summary>
     Target PackLibs => _ => _
         .DependsOn(Compile)
         .Description("Pack library projects as NuGet packages")
@@ -39,6 +44,12 @@ partial class Build
                 .SetProject(MorphirProject));
         });
 
+    /// <summary>
+    /// Pack the Morphir CLI as a dotnet tool (standard managed tool)
+    /// Output: artifacts/packages/Morphir.Tool.{version}.nupkg
+    /// Tool command name: dotnet-morphir
+    /// Parameters: --version (optional)
+    /// </summary>
     Target PackTool => _ => _
         .DependsOn(Compile)
         .After(PackLibs)  // Run after PackLibs to avoid directory cleaning conflicts
@@ -68,6 +79,11 @@ partial class Build
                 .SetProject(MorphirToolProject));
         });
 
+    /// <summary>
+    /// Pack all projects (libraries and tool)
+    /// Equivalent to running PackLibs and PackTool
+    /// Output: artifacts/packages/
+    /// </summary>
     Target PackAll => _ => _
         .DependsOn(PackLibs, PackTool)
         .Description("Pack all projects (libraries and tool)")

@@ -33,6 +33,7 @@
         "Compile",
         "DevWorkflow",
         "Format",
+        "GenerateWolverineCode",
         "Lint",
         "PackAll",
         "PackLibs",

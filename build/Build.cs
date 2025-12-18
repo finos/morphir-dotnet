@@ -79,6 +79,10 @@ partial class Build : NukeBuild
     AbsolutePath MorphirToolingTestsProject => TestsDirectory / "Morphir.Tooling.Tests" / "Morphir.Tooling.Tests.csproj";
     AbsolutePath MorphirE2ETestsProject => TestsDirectory / "Morphir.E2E.Tests" / "Morphir.E2E.Tests.csproj";
 
+    /// <summary>
+    /// Clean build artifacts and output directories
+    /// Removes all bin/ and obj/ folders and recreates output directories
+    /// </summary>
     Target Clean => _ => _
         .Before(Restore)
         .Executes(() =>
@@ -91,6 +95,10 @@ partial class Build : NukeBuild
             SingleFileUntrimmedDir.CreateOrCleanDirectory();
         });
 
+    /// <summary>
+    /// Restore NuGet packages for the solution
+    /// Uses the .slnx solution file
+    /// </summary>
     Target Restore => _ => _
         .Executes(() =>
         {
@@ -99,6 +107,11 @@ partial class Build : NukeBuild
                 .SetProjectFile(SolutionFile));
         });
 
+    /// <summary>
+    /// Compile all projects in the solution
+    /// Note: VBCSCompiler processes are cleaned up on Windows before build to prevent file locking issues.
+    /// Parallel builds are now enabled since the GenerateWolverineCode MSBuild target was removed.
+    /// </summary>
     Target Compile => _ => _
         .DependsOn(Restore)
         .Executes(() =>
@@ -130,14 +143,16 @@ partial class Build : NukeBuild
             }
 
             // Build using .slnx solution file
-            // Use /p:BuildInParallel=false to prevent file locking issues on Windows
+            // Parallel builds now enabled after removing GenerateWolverineCode MSBuild target
             DotNetBuild(s => s
                 .SetProjectFile(SolutionFile)
                 .SetConfiguration(Configuration)
-                .SetNoRestore(true)
-                .SetProperty("BuildInParallel", "false"));
+                .SetNoRestore(true));
         });
 
+    /// <summary>
+    /// Format code using dotnet format (applies formatting changes)
+    /// </summary>
     Target Format => _ => _
         .Description("Format code (applies formatting changes)")
         .Executes(() =>
@@ -145,6 +160,9 @@ partial class Build : NukeBuild
             DotNet($"format");
         });
 
+    /// <summary>
+    /// Verify code formatting without making changes (linting)
+    /// </summary>
     Target Lint => _ => _
         .Description("Run linting/formatting checks (verifies without making changes)")
         .Executes(() =>
@@ -152,14 +170,23 @@ partial class Build : NukeBuild
             DotNet($"format --verify-no-changes");
         });
 
+    /// <summary>
+    /// Run pre-commit checks (lint)
+    /// </summary>
     Target Check => _ => _
         .DependsOn(Lint)
         .Description("Check task that runs lint");
 
+    /// <summary>
+    /// Alias for Check target (pre-commit hook)
+    /// </summary>
     Target Precommit => _ => _
         .DependsOn(Lint)
         .Description("Pre-commit hook task (runs lint)");
 
+    /// <summary>
+    /// Complete CI pipeline: restore, compile, test, and check
+    /// </summary>
     Target CI => _ => _
         .DependsOn(Restore, Compile, Test, Check)
         .Description("Full CI pipeline: restore, build, test, and check")
@@ -171,6 +198,11 @@ partial class Build : NukeBuild
     // Publishing targets for executables (AOT, single-file, etc.)
     // Note: Packaging and publishing for NuGet packages are in Build.Packaging.cs and Build.Publishing.cs
 
+    /// <summary>
+    /// Publish platform-specific executable for the specified runtime identifier (RID)
+    /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
+    /// Output: artifacts/executables/{rid}/
+    /// </summary>
     Target PublishExecutable => _ => _
         .Description("Publish single-file executable for a specific platform (requires --rid parameter)")
         .Executes(() =>
@@ -216,29 +248,20 @@ partial class Build : NukeBuild
             }
         });
 
+    /// <summary>
+    /// Publish single-file executable without AOT (managed .NET runtime) with trimming
+    /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
+    /// Output: artifacts/single-file/{rid}/
+    /// Note: Generates Wolverine code before publishing
+    /// </summary>
     Target PublishSingleFile => _ => _
-        .DependsOn(Compile)
+        .DependsOn(GenerateWolverineCode)
         .Description("Publish single-file executable without AOT (managed .NET runtime) with trimming (requires --rid parameter)")
         .Executes(() =>
         {
             if (string.IsNullOrEmpty(Rid))
             {
                 throw new Exception("RID parameter is required. Use --rid <rid> (e.g., --rid linux-x64)");
-            }
-
-            // Generate Wolverine code before publishing
-            Serilog.Log.Information("Generating Wolverine code...");
-            DotNet($"run --project {MorphirProject} --configuration {Configuration} --no-build -- codegen write");
-
-            var generatedDir = SourceDirectory / "Morphir.Tooling" / "Internal" / "Generated";
-            if (Directory.Exists(generatedDir))
-            {
-                var fileCount = Directory.GetFiles(generatedDir, "*.cs", SearchOption.AllDirectories).Length;
-                Serilog.Log.Information($"✓ Found generated code directory with {fileCount} files");
-            }
-            else
-            {
-                Serilog.Log.Warning("⚠ Warning: Generated code directory not found");
             }
 
             var ridOutputDir = SingleFileDir / Rid;
@@ -278,8 +301,14 @@ partial class Build : NukeBuild
             }
         });
 
+    /// <summary>
+    /// Publish single-file executable without AOT and without trimming
+    /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
+    /// Output: artifacts/single-file-untrimmed/{rid}/
+    /// Note: Generates Wolverine code before publishing
+    /// </summary>
     Target PublishSingleFileUntrimmed => _ => _
-        .DependsOn(Compile)
+        .DependsOn(GenerateWolverineCode)
         .Description("Publish single-file executable without AOT and without trimming (requires --rid parameter)")
         .Executes(() =>
         {
@@ -287,10 +316,6 @@ partial class Build : NukeBuild
             {
                 throw new Exception("RID parameter is required. Use --rid <rid> (e.g., --rid linux-x64)");
             }
-
-            // Generate Wolverine code before publishing
-            Serilog.Log.Information("Generating Wolverine code...");
-            DotNet($"run --project {MorphirProject} --configuration {Configuration} --no-build -- codegen write");
 
             var ridOutputDir = SingleFileUntrimmedDir / Rid;
             ridOutputDir.CreateOrCleanDirectory();

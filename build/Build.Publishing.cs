@@ -12,6 +12,12 @@ partial class Build
 {
     // NuGet Publishing targets
 
+    /// <summary>
+    /// Publish library NuGet packages to NuGet.org
+    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir
+    /// Requires: --api-key parameter
+    /// Parameters: --nuget-source (default: https://api.nuget.org/v3/index.json)
+    /// </summary>
     Target PublishLibs => _ => _
         .DependsOn(PackLibs)
         .Description("Publish library NuGet packages to NuGet.org")
@@ -73,6 +79,12 @@ partial class Build
             }
         });
 
+    /// <summary>
+    /// Publish the Morphir CLI tool package to NuGet.org
+    /// Publishes: Morphir.Tool (dotnet tool package)
+    /// Requires: --api-key parameter
+    /// Parameters: --nuget-source (default: https://api.nuget.org/v3/index.json)
+    /// </summary>
     Target PublishTool => _ => _
         .DependsOn(PackTool)
         .Description("Publish the Morphir CLI tool package to NuGet.org")
@@ -101,6 +113,11 @@ partial class Build
             }
         });
 
+    /// <summary>
+    /// Publish all packages to NuGet.org (libraries and tool)
+    /// Equivalent to running PublishLibs and PublishTool
+    /// Requires: --api-key parameter
+    /// </summary>
     Target PublishAll => _ => _
         .DependsOn(PublishLibs, PublishTool)
         .Description("Publish all packages (libraries and tool)")
@@ -111,6 +128,12 @@ partial class Build
 
     // Local Publishing targets
 
+    /// <summary>
+    /// Publish library NuGet packages to local feed for testing
+    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir
+    /// Output: artifacts/local-feed/
+    /// Parameters: --local-source (default: artifacts/local-feed)
+    /// </summary>
     Target PublishLocalLibs => _ => _
         .DependsOn(PackLibs)
         .Description("Publish library packages to a local NuGet source")
@@ -166,6 +189,12 @@ partial class Build
             Serilog.Log.Information($"Libraries published to local feed: {LocalSource}");
         });
 
+    /// <summary>
+    /// Install Morphir CLI tool locally from the local feed for testing
+    /// Installs the dotnet tool globally or locally based on --global parameter
+    /// Parameters: --global (default: false), --local-source (default: artifacts/local-feed)
+    /// Usage after install: dotnet-morphir [command]
+    /// </summary>
     Target PublishLocalTool => _ => _
         .DependsOn(PackTool)
         .Description("Install the Morphir CLI tool locally from the package")
@@ -201,6 +230,11 @@ partial class Build
             Serilog.Log.Information("Morphir CLI tool installed successfully");
         });
 
+    /// <summary>
+    /// Publish all packages to local feed and install tool locally for testing
+    /// Equivalent to running PublishLocalLibs and PublishLocalTool
+    /// Output: artifacts/local-feed/
+    /// </summary>
     Target PublishLocalAll => _ => _
         .DependsOn(PublishLocalLibs, PublishLocalTool)
         .Description("Publish all packages locally (libraries to local feed, tool installed locally)")

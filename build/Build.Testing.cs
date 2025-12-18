@@ -11,6 +11,10 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 /// </summary>
 partial class Build
 {
+    /// <summary>
+    /// Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests)
+    /// Tests are run using TUnit test framework
+    /// </summary>
     Target Test => _ => _
         .DependsOn(Compile)
         .Description("Run all tests")
@@ -19,6 +23,10 @@ partial class Build
             RunTests(Configuration);
         });
 
+    /// <summary>
+    /// Build the E2E test project (Morphir.E2E.Tests)
+    /// E2E tests use Reqnroll (BDD/Gherkin) to test executables
+    /// </summary>
     Target BuildE2ETests => _ => _
         .DependsOn(Compile)
         .Description("Build the E2E test project")
@@ -30,6 +38,50 @@ partial class Build
                 .SetNoRestore(false));
         });
 
+    /// <summary>
+    /// Generate Wolverine code for Morphir.Tooling
+    /// This target replaces the GenerateWolverineCode MSBuild target that was removed from Directory.Build.targets
+    /// Run this before publishing trimmed executables to ensure generated code is included
+    /// </summary>
+    Target GenerateWolverineCode => _ => _
+        .DependsOn(Compile)
+        .Description("Generate Wolverine code for Morphir.Tooling (run before trimmed publishes)")
+        .Executes(() =>
+        {
+            Serilog.Log.Information("Generating Wolverine code...");
+            
+            // Run codegen write command using the compiled Morphir CLI
+            var morphirDll = SourceDirectory / "Morphir" / "bin" / Configuration / "net10.0" / "morphir.dll";
+            
+            if (!File.Exists(morphirDll))
+            {
+                throw new Exception($"Morphir CLI not found at {morphirDll}. Run Compile target first.");
+            }
+            
+            var exitCode = RunCommand("dotnet", "exec", morphirDll, "codegen", "write");
+            
+            if (exitCode != 0)
+            {
+                throw new Exception($"Wolverine code generation failed with exit code {exitCode}");
+            }
+            
+            var generatedDir = SourceDirectory / "Morphir.Tooling" / "Internal" / "Generated";
+            if (Directory.Exists(generatedDir))
+            {
+                var fileCount = Directory.GetFiles(generatedDir, "*.cs", System.IO.SearchOption.AllDirectories).Length;
+                Serilog.Log.Information($"✓ Generated {fileCount} files in {generatedDir}");
+            }
+            else
+            {
+                Serilog.Log.Warning("⚠ Warning: Generated code directory not found");
+            }
+        });
+
+    /// <summary>
+    /// Run end-to-end tests against Morphir executables (BDD/Gherkin using Reqnroll)
+    /// Parameters: --executable-type (aot, trimmed, untrimmed, or all - default: all)
+    /// Note: Requires executables to be published first (PublishExecutable, PublishSingleFile, etc.)
+    /// </summary>
     Target TestE2E => _ => _
         .DependsOn(BuildE2ETests)
         .Description("Run end-to-end tests against Morphir executables (BDD/Gherkin)")
