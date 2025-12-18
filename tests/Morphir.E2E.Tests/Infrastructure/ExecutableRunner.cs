@@ -101,9 +101,12 @@ public class ExecutableRunner
 
         // Filter Wolverine and hosting INFO logs only (keep errors/failures)
         // Check for error/fail patterns case-insensitively
-        if (line.Contains("fail:", StringComparison.OrdinalIgnoreCase) || 
-            line.Contains("error:", StringComparison.OrdinalIgnoreCase) || 
-            line.Contains("Error", StringComparison.OrdinalIgnoreCase))
+        // But be careful: JSON output may contain "Errors" field which is valid output
+        if ((line.Contains("fail:", StringComparison.OrdinalIgnoreCase) || 
+            line.Contains("error:", StringComparison.OrdinalIgnoreCase)) &&
+            !line.TrimStart().StartsWith("\"Errors", StringComparison.OrdinalIgnoreCase) &&
+            !line.TrimStart().StartsWith("{", StringComparison.OrdinalIgnoreCase) &&
+            !line.TrimStart().StartsWith("[", StringComparison.OrdinalIgnoreCase))
             return false;
 
         // Filter infrastructure log messages, but be careful not to filter actual command output
@@ -124,7 +127,13 @@ public class ExecutableRunner
                line.Contains("Wolverine assigned node id", StringComparison.OrdinalIgnoreCase) ||
                line.Contains("Searching assembly", StringComparison.OrdinalIgnoreCase) ||
                line.Contains("wolverine.netlify.app", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("suitable for development", StringComparison.OrdinalIgnoreCase);
+               line.Contains("suitable for development", StringComparison.OrdinalIgnoreCase) ||
+               line.Contains("disable automatic Wolverine extension finding", StringComparison.OrdinalIgnoreCase) ||
+               line.Contains("disabling-assembly-scanning", StringComparison.OrdinalIgnoreCase) ||
+               line.Contains("Started message listening", StringComparison.OrdinalIgnoreCase) ||
+               line.Contains("Stopped message listener", StringComparison.OrdinalIgnoreCase) ||
+               line.Contains("pre-generated types being loaded", StringComparison.OrdinalIgnoreCase) ||
+               line.Contains("debugging static type loading", StringComparison.OrdinalIgnoreCase);
     }
 }
 

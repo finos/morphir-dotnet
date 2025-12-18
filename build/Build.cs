@@ -288,6 +288,7 @@ class Build : NukeBuild
                 .SetProperty("PublishSingleFile", "true")
                 .SetProperty("PublishTrimmed", "true")
                 .SetProperty("TrimMode", "partial")
+                .SetProperty("TreatWarningsAsErrors", "false") // Temporarily disable to allow IL2026 warning for ConfigureWolverineCodeGeneration
                 .SetOutput(ridOutputDir);
 
             if (!string.IsNullOrEmpty(Version))

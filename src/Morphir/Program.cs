@@ -21,13 +21,17 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
+        // FIRST: Redirect Console.Out to stderr before ANY code runs
+        // This catches direct Console.WriteLine from Wolverine/JasperFx extension scanning
+        Tooling.Infrastructure.ConsoleOutputHelper.RedirectConsoleToStderr();
+
         // Set console encoding to UTF-8 to support Unicode characters (✓, ✗)
         Console.OutputEncoding = System.Text.Encoding.UTF8;
 
         // Handle --version flag explicitly to output only the version string
         if (args.Length == 1 && (args[0] == "--version" || args[0] == "-v"))
         {
-            Console.WriteLine(VersionInfo.Version);
+            Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout(VersionInfo.Version);
             return 0;
         }
 
@@ -100,42 +104,42 @@ internal static class Program
                 var files = Directory.GetFiles(fullOutputPath, "*.cs", SearchOption.AllDirectories);
                 if (files.Length > 0)
                 {
-                    Console.WriteLine($"✓ Wolverine code generated: {files.Length} files in {fullOutputPath}");
+                    Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"✓ Wolverine code generated: {files.Length} files in {fullOutputPath}");
                 }
                 else
                 {
-                    Console.WriteLine($"⚠ Warning: Code generation directory exists but is empty at {fullOutputPath}");
+                    Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"⚠ Warning: Code generation directory exists but is empty at {fullOutputPath}");
                 }
             }
             else
             {
-                Console.WriteLine($"⚠ Warning: Code generation directory not found at {fullOutputPath}");
-                Console.WriteLine($"  Output path configured: {outputPath}");
+                Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"⚠ Warning: Code generation directory not found at {fullOutputPath}");
+                Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"  Output path configured: {outputPath}");
             }
 
-            Console.WriteLine($"✓ Wolverine code written to {outputPath}");
+            Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"✓ Wolverine code written to {outputPath}");
 
             if (Directory.Exists(outputPath))
             {
                 var files = Directory.GetFiles(outputPath, "*.cs", SearchOption.AllDirectories);
-                Console.WriteLine($"  Generated {files.Length} files");
+                Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"  Generated {files.Length} files");
             }
 
             await host.StopAsync();
             return 0;
         });
 
-        infoCommand.SetAction(parseResult => { Console.WriteLine("Morphir command line info:"); });
+        infoCommand.SetAction(parseResult => { Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout("Morphir command line info:"); });
         runCommand.SetAction(parseResult =>
         {
             var currentDirOverride = parseResult.GetValue(currentDirectoryOption);
             if (currentDirOverride != null)
             {
-                Console.WriteLine($"Current directory override: {currentDirOverride.FullName}");
-                Console.WriteLine($"Current directory override exists: {currentDirOverride.Exists}");
+                Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Current directory override: {currentDirOverride.FullName}");
+                Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Current directory override exists: {currentDirOverride.Exists}");
             }
 
-            Console.WriteLine("Morphir command line run:");
+            Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout("Morphir command line run:");
             var wasmPluginPath = parseResult.GetValue(wasmPluginPathArgument);
             if (wasmPluginPath == null)
             {
@@ -192,8 +196,8 @@ internal static class Program
             }
 
             // Create WolverineFx host
-            // Always redirect logs to stderr to keep stdout clean for command output
-            using var host = Tooling.Program.CreateToolingHost(logToStdErr: true);
+            // Logging is always redirected to stderr to keep stdout clean for command output
+            using var host = Tooling.Program.CreateToolingHost();
             await host.StartAsync();
 
             var messageBus = host.Services.GetRequiredService<IMessageBus>();
@@ -236,43 +240,43 @@ internal static class Program
         {
             // JSON output using source-generated serializer for AOT compatibility
             var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyIRResult);
-            Console.WriteLine(json);
+            Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout(json);
         }
         else
         {
             // Human-readable output
-            Console.WriteLine($"Validation Result: {(result.IsValid ? "✓ VALID" : "✗ INVALID")}");
-            Console.WriteLine($"File: {result.FilePath}");
-            Console.WriteLine($"Schema Version: v{result.SchemaVersion} ({result.DetectionMethod})");
-            Console.WriteLine($"Timestamp: {result.Timestamp:yyyy-MM-dd HH:mm:ss UTC}");
+            Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Validation Result: {(result.IsValid ? "✓ VALID" : "✗ INVALID")}");
+            Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"File: {result.FilePath}");
+            Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Schema Version: v{result.SchemaVersion} ({result.DetectionMethod})");
+            Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Timestamp: {result.Timestamp:yyyy-MM-dd HH:mm:ss UTC}");
 
             if (!result.IsValid && result.Errors.Count > 0)
             {
-                Console.WriteLine();
-                Console.WriteLine($"Found {result.Errors.Count} validation error(s):");
-                Console.WriteLine();
+                Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout("");
+                Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Found {result.Errors.Count} validation error(s):");
+                Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout("");
 
                 foreach (var error in result.Errors)
                 {
-                    Console.WriteLine($"  Path: {error.Path}");
-                    Console.WriteLine($"  Message: {error.Message}");
+                    Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"  Path: {error.Path}");
+                    Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"  Message: {error.Message}");
 
                     if (error.Expected != null)
-                        Console.WriteLine($"  Expected: {error.Expected}");
+                        Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"  Expected: {error.Expected}");
 
                     if (error.Found != null)
-                        Console.WriteLine($"  Found: {error.Found}");
+                        Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"  Found: {error.Found}");
 
                     if (error.Line.HasValue)
-                        Console.WriteLine($"  Line: {error.Line}, Column: {error.Column}");
+                        Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"  Line: {error.Line}, Column: {error.Column}");
 
-                    Console.WriteLine();
+                    Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout("");
                 }
             }
             else if (result.IsValid)
             {
-                Console.WriteLine();
-                Console.WriteLine("No validation errors found.");
+                Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout("");
+                Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout("No validation errors found.");
             }
         }
     }
@@ -280,13 +284,11 @@ internal static class Program
     private static void RunWasmPlugin(FileInfo currentDirectory, FileInfo wasmPluginPath)
     {
         // Placeholder for the actual implementation of the Wasm plugin
-        Console.WriteLine($"Running Wasm plugin in directory: {currentDirectory.FullName}");
-        Console.WriteLine($"Using Wasm plugin at path: {wasmPluginPath.FullName}");
+        Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Running Wasm plugin in directory: {currentDirectory.FullName}");
+        Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Using Wasm plugin at path: {wasmPluginPath.FullName}");
         var manifest = new Manifest(new UrlWasmSource("https://github.com/extism/plugins/releases/latest/download/count_vowels.wasm"));
         using var plugin = new Plugin(manifest, new HostFunction[] { }, withWasi: true);
         var output = plugin.Call("count_vowels", "Hello, World!");
-        Console.WriteLine(output);
-
-
+        Tooling.Infrastructure.ConsoleOutputHelper.WriteLineToStdout(output);
     }
 }

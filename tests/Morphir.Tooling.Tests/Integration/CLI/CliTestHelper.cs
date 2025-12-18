@@ -107,7 +107,11 @@ public class CliTestHelper
                line.Contains("Wolverine assigned node id") ||
                line.Contains("Searching assembly") ||
                line.Contains("wolverine.netlify.app") ||
-               line.Contains("suitable for development");
+               line.Contains("suitable for development") ||
+               line.Contains("disable automatic Wolverine extension finding") ||
+               line.Contains("disabling-assembly-scanning") ||
+               line.Contains("Started message listening") ||
+               line.Contains("Stopped message listener");
     }
 
     /// <summary>

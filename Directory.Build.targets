@@ -1,0 +1,53 @@
+<Project>
+  <!-- Build-time code generation target: runs Wolverine code generation before compilation -->
+  <!-- This target runs when EnableWolverineCodeGeneration is true (defaults to true for Release builds) -->
+  <!-- It generates Wolverine code before compilation so it can be included in the build -->
+  <Target Name="GenerateWolverineCode" 
+          BeforeTargets="BeforeBuild" 
+          Condition="'$(EnableWolverineCodeGeneration)' == 'true' And '$(GeneratingWolverineCode)' != 'true' And '$(MSBuildProjectName)' == 'Morphir.Tooling'">
+    <PropertyGroup>
+      <ToolingProjectPath>$(MSBuildProjectDirectory)/$(MSBuildProjectName).csproj</ToolingProjectPath>
+      <ProjectRootDir>$(MSBuildProjectDirectory)/../..</ProjectRootDir>
+      <MorphirProjectPath>$(ProjectRootDir)/src/Morphir/Morphir.csproj</MorphirProjectPath>
+    </PropertyGroup>
+    
+    <Message Text="Generating Wolverine code (EnableWolverineCodeGeneration=true)..." Importance="high" />
+    
+    <!-- Build Morphir project first (needed for codegen command) -->
+    <!-- Pass GeneratingWolverineCode=true to prevent recursive codegen target execution -->
+    <!-- Disable shared compilation to avoid VBCSCompiler file locking issues on Windows -->
+    <MSBuild Projects="$(MorphirProjectPath)" 
+             Targets="Build" 
+             Properties="Configuration=$(Configuration);GeneratingWolverineCode=true;EnableWolverineCodeGeneration=false;UseSharedCompilation=false" />
+    
+    <!-- Run codegen write command from the project root using the Morphir CLI -->
+    <!-- The Morphir project has the codegen command that uses Morphir.Tooling -->
+    <!-- Use dotnet exec with the built DLL to avoid file locking issues and ensure process completes -->
+    <PropertyGroup>
+      <MorphirDllPath>$(ProjectRootDir)/src/Morphir/bin/$(Configuration)/net10.0/morphir.dll</MorphirDllPath>
+    </PropertyGroup>
+    <!-- Use dotnet exec which ensures the process fully completes and releases file handles -->
+    <Exec Command="dotnet exec &quot;$(MorphirDllPath)&quot; codegen write" 
+          WorkingDirectory="$(ProjectRootDir)" 
+          ContinueOnError="false"
+          Timeout="300000"
+          Condition="Exists('$(MorphirDllPath)')" />
+    <!-- Fallback to dotnet run if DLL doesn't exist (shouldn't happen after build above) -->
+    <Exec Command="dotnet run --project $(MorphirProjectPath) --configuration $(Configuration) --no-build -- codegen write" 
+          WorkingDirectory="$(ProjectRootDir)" 
+          ContinueOnError="false"
+          Timeout="300000"
+          Condition="!Exists('$(MorphirDllPath)')" />
+    
+    <!-- Wait a moment to ensure all file handles are released (especially on Windows where VBCSCompiler may hold locks) -->
+    <Exec Command="timeout /t 2 /nobreak" 
+          Condition="'$(OS)' == 'Windows_NT'"
+          ContinueOnError="true" />
+    <Exec Command="sleep 2" 
+          Condition="'$(OS)' != 'Windows_NT'"
+          ContinueOnError="true" />
+    
+    <Message Text="Wolverine code generation completed." Importance="high" />
+  </Target>
+</Project>
+
