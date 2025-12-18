@@ -323,6 +323,75 @@ type Config = {
 }
 ```
 
+### C# Interop: Nullable Reference Types (F# 9+)
+
+When writing F# code that interoperates with C# (especially in mixed C#/F# projects), use F# 9's nullable reference types feature for better C# interop:
+
+```fsharp
+// Enable nullable reference types in .fsproj:
+// <Nullable>enable</Nullable>
+
+// ✅ Good: Explicit nullability for C# consumers
+type IUserService =
+    abstract member GetUserById: userId: string -> string | null
+    abstract member GetUserName: userId: string -> string  // Non-nullable
+
+// ✅ Good: Clear null handling in public API
+let tryGetValue (key: string) : string | null =
+    if cache.ContainsKey(key) then
+        cache.[key]
+    else
+        null
+
+// ✅ Good: Guard against nulls from C# code
+let processName (name: string | null) : string =
+    match name with
+    | null -> "Unknown"
+    | value -> value.Trim()
+
+// ✅ Good: F# Option for internal code, nullable for C# boundary
+type UserRepository() =
+    // Internal: use Option
+    let findUserInternal (id: string) : User option =
+        // ... implementation
+        None
+
+    // Public API for C#: use nullable reference types
+    member this.FindUser(id: string) : User | null =
+        findUserInternal id |> Option.toObj
+```
+
+**When to use nullable reference types:**
+- Public APIs consumed by C# code
+- Implementing C# interfaces
+- Interacting with C# libraries that use nullable annotations
+- Converting between F# Option and C# nullable types
+
+**Pattern: Converting between Option and nullable**
+```fsharp
+// Option to nullable (for C# API)
+let toNullable (opt: 'T option) : 'T | null =
+    opt |> Option.toObj
+
+// Nullable to Option (from C# API)
+let fromNullable (value: 'T | null) : 'T option =
+    value |> Option.ofObj
+
+// Example usage
+type MorphirService() =
+    // Internal F# code uses Option
+    let loadPackage (name: string) : Package option =
+        // ... implementation
+        None
+
+    // C# API uses nullable reference types
+    interface IMorphirService with
+        member this.LoadPackage(name: string) : Package | null =
+            loadPackage name |> toNullable
+```
+
+**Important**: Even with nullable reference types enabled, prefer `Option<'T>` for F#-only code. Only use nullable reference types at C# interop boundaries.
+
 ---
 
 ## Async and Task Workflows
@@ -591,8 +660,9 @@ Key F# principles for morphir-dotnet:
 6. ✅ **Separate stdout/stderr** in CLI scripts
 7. ✅ **Use Argu** for CLI argument parsing
 8. ✅ **Write exhaustive pattern matches** - handle all cases
-9. ✅ **Prefer Option<'T>** over null
-10. ✅ **Follow railway-oriented programming** for error handling
+9. ✅ **Prefer Option<'T>** over null in F# code
+10. ✅ **Use nullable reference types (F# 9)** for C# interop boundaries
+11. ✅ **Follow railway-oriented programming** for error handling
 
 ---
 
@@ -600,6 +670,7 @@ Key F# principles for morphir-dotnet:
 
 - [F# Style Guide](https://docs.microsoft.com/en-us/dotnet/fsharp/style-guide/)
 - [F# Design Guidelines](https://docs.microsoft.com/en-us/dotnet/fsharp/style-guide/conventions)
+- [F# 9 Nullable Reference Types](https://learn.microsoft.com/en-us/dotnet/fsharp/whats-new/fsharp-9#nullable-reference-types)
 - [Domain Modeling Made Functional](https://fsharpforfunandprofit.com/books/)
 - [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/)
 - [AGENTS.md](../../AGENTS.md) - Project-wide agent guidance
