@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-12-18
+
 ### Added
 - Serilog logging infrastructure for CLI tools (Serilog, Serilog.Extensions.Hosting, Serilog.Sinks.Console)
 - CLI logging standards documentation in AGENTS.md and CLAUDE.md
@@ -20,8 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - smoke-test.fsx - Quick 2-minute smoke test
   - regression-test.fsx - Full 10-15 minute regression suite
   - validate-packages.fsx - NuGet package structure validation
+- **Release Management Framework**: Claude Code skill with F# automation scripts (#220)
+  - prepare-release.fsx - Automated pre-flight checks and version suggestion
+  - monitor-release.fsx - Real-time workflow monitoring with issue updates
+  - validate-release.fsx - Post-release package and installation validation
+  - resume-release.fsx - Recovery from failed releases
+  - Comprehensive release playbook and tracking templates
 - **Cross-Agent Guidance**: `.agents/` directory for specialized topics
   - .agents/qa-testing.md - Comprehensive QA testing guidance for all AI agents
+  - .agents/release-management.md - Release workflow and automation guidance
   - .agents/README.md - Navigation and contribution guidelines
 - **Multi-Agent Pointer Files**: Configuration for all major AI coding assistants
   - .cursorrules - Cursor AI pointer file
@@ -32,9 +41,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Quick Navigation section (links to .agents/, CLAUDE.md, docs/)
   - Section 18: Specialized Guidance (detailed links to .agents/ topics)
   - Section 19: Resources and References (comprehensive resource index)
+- **Comprehensive Developer Documentation**:
+  - F# Coding Guide with active patterns, railway-oriented programming, and best practices
+  - Native AOT, trimming, and size optimization guide
+  - System.Text.Json guidance for F# with common gotchas
+  - F# 9 nullable reference types guidance for C# interop
 
 ### Changed
-- Configured all logging to write to stderr instead of stdout to preserve stdout for command output
+- **BREAKING**: Configured all logging to write to stderr instead of stdout to preserve stdout for command output. Scripts parsing stdout may need updates.
 - Updated E2E test runner script to use Nuke build commands instead of deprecated `just` commands
 - Updated README.md with Nuke build command examples
 - Split monolithic Build.cs into 5 partial classes: Packaging, Publishing, Testing, CI (#214)
@@ -51,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows build file locking issues by removing problematic MSBuild target (#214)
 - Circular build dependencies causing CS2012 errors on Windows (#214)
 - Directory cleaning conflicts in PackAll target (#214)
+- Resolved prepare-release.fsx issues with Spectre.Console markup and Int64 (#220)
 
 ### Removed
 - Deprecated scripts: pack-tool-platform.cs, build-tool-dll.cs (#214)
@@ -111,7 +126,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-009...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-010...v0.3.0
+[0.2.0-alpha-010]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-009...v0.2.0-alpha-010
 [0.2.0-alpha-009]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-008...v0.2.0-alpha-009
 [0.2.0-alpha-003]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-002...v0.2.0-alpha-003
 [0.2.0-alpha-002]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-001...v0.2.0-alpha-002
