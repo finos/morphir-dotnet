@@ -7,6 +7,18 @@
 
 ---
 
+## 🔄 Automated Retrospective System
+
+This release tracking issue integrates with the automated retrospective and feedback system:
+
+- **Failure Feedback**: If the release fails, `monitor-release.fsx` will prompt for retrospective feedback and add it to this issue
+- **Success Feedback**: After 3+ consecutive successful releases, `validate-release.fsx` will prompt for improvement ideas
+- **Process Changes**: `prepare-release.fsx` detects changes to release processes and prompts for playbook updates
+
+**Release History**: This release will be tracked in `.release-history.json` to enable pattern detection and consecutive success/failure counting.
+
+---
+
 ## Release Information
 
 - **Version**: `{VERSION}`
@@ -211,18 +223,48 @@
 
 ### What Went Well ✅
 
-{List things that went smoothly}
+{Automatically collected via validation success feedback after 3+ consecutive releases}
+
+{List things that went smoothly during this release}
 
 ### What Could Be Improved 📈
 
-{List areas for improvement}
+{Automatically collected via monitor failure feedback when releases fail}
+
+{List areas for improvement discovered during this release}
+
+### Process Changes Detected 🔄
+
+{Automatically detected via prepare-release.fsx}
+
+{List any changes to release processes, workflows, or scripts}
+
+### Feedback Summary 💬
+
+**Failure Retrospective** (if applicable):
+{Feedback collected by monitor-release.fsx on failure}
+
+**Success Improvement Ideas** (if applicable):
+{Feedback collected by validate-release.fsx after consecutive successes}
+
+**Process Update Suggestions** (if applicable):
+{Feedback collected by prepare-release.fsx when process changes detected}
 
 ### Action Items 🎯
 
-{List concrete action items to improve future releases}
+{Convert feedback into concrete action items for future releases}
 
-- [ ] Action item 1
-- [ ] Action item 2
+- [ ] Action item 1 (from failure feedback)
+- [ ] Action item 2 (from success feedback)
+- [ ] Action item 3 (from process changes)
+
+### Lessons Learned 📖
+
+{High-level takeaways to inform future releases}
+
+1. **What we learned about [topic]:** {insight}
+2. **How we can prevent [issue]:** {solution}
+3. **How we can replicate [success]:** {approach}
 
 ---
 

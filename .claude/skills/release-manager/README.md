@@ -11,16 +11,30 @@ This skill provides comprehensive release lifecycle management capabilities incl
 - Documentation generation ("What's New", release notes)
 - Failed release recovery
 - Release playbook maintenance
+- **Automated retrospective and feedback collection**
+
+## Features
+
+### 🔄 Automated Retrospective System (NEW)
+
+The release manager now includes automated prompts to capture feedback at critical moments:
+
+1. **Failure Retrospective** - When a release fails, `monitor-release.fsx` prompts for feedback about what went wrong and how to improve
+2. **Success Feedback** - After 3+ consecutive successful releases, `validate-release.fsx` prompts for improvement ideas
+3. **Process Change Detection** - `prepare-release.fsx` detects changes to release processes and prompts for playbook updates
+
+All feedback is automatically recorded in release tracking issues and used to improve future releases.
 
 ## Files
 
 - **skill.md** - Main skill prompt with release playbooks and guidance
 - **README.md** - This file
-- **templates/release-tracking.md** - GitHub issue template for tracking releases
-- **prepare-release.fsx** - F# script: Pre-release validation and preparation
-- **monitor-release.fsx** - F# script: Monitor GitHub Actions deployment workflow
-- **validate-release.fsx** - F# script: Post-release verification
+- **templates/release-tracking.md** - GitHub issue template for tracking releases (includes retrospective sections)
+- **prepare-release.fsx** - F# script: Pre-release validation and preparation (with process change detection)
+- **monitor-release.fsx** - F# script: Monitor GitHub Actions deployment workflow (with failure retrospective)
+- **validate-release.fsx** - F# script: Post-release verification (with success feedback)
 - **resume-release.fsx** - F# script: Resume failed releases from checkpoint
+- **release-history.fsx** - F# module: Release history tracking and feedback utilities
 
 ## Quick Start
 
@@ -857,6 +871,114 @@ QA Tester adds results to tracking issue, Release Manager:
 - Document process improvements
 - Share with team
 - Continuous improvement
+
+### 7. Leverage Automated Retrospective System
+- **Respond to prompts** when they appear
+  - Failure retrospective: Explain what went wrong and how to prevent it
+  - Success feedback: Share improvement ideas after consecutive successes
+  - Process changes: Note why release process files changed
+- **Be specific and actionable** in feedback
+  - Good: "E2E test timeout could be prevented by increasing timeout from 30s to 60s"
+  - Poor: "Tests failed"
+- **Review feedback in tracking issues** to inform future improvements
+- **Update documentation** when prompted about process changes
+- **Track patterns** using release history to identify recurring issues
+
+---
+
+## Retrospective and Feedback System
+
+### Overview
+
+The release manager includes an automated retrospective system that captures feedback at three critical moments:
+
+1. **On Release Failure** - Immediate retrospective to understand what went wrong
+2. **After Consecutive Successes** - Proactive improvement ideas when things are working well
+3. **On Process Changes** - Documentation prompts when release processes evolve
+
+### How It Works
+
+**Release History Tracking:**
+- All releases are tracked in `.release-history.json`
+- Consecutive successes and failures are counted automatically
+- Historical data enables pattern detection
+
+**Feedback Collection:**
+- Scripts prompt for feedback at appropriate moments
+- Responses are collected interactively (can be skipped)
+- Feedback is automatically added to release tracking issues
+- Enables data-driven continuous improvement
+
+### Usage Examples
+
+**Example 1: Failure Retrospective**
+```bash
+# During monitoring, if workflow fails:
+$ dotnet fsi monitor-release.fsx --version 1.0.0 --issue 219
+
+# Script detects failure and prompts:
+[FEEDBACK REQUEST]
+We noticed the release failed. Are there any changes we could make 
+to the release process to ensure future success?
+
+Enter your feedback (or press Enter to skip):
+> The E2E tests timed out on osx-arm64. We should increase the timeout 
+> in the deployment workflow from 30 minutes to 45 minutes for that platform.
+
+# Feedback is automatically added to issue #219
+```
+
+**Example 2: Success Feedback**
+```bash
+# After 3rd consecutive successful release:
+$ dotnet fsi validate-release.fsx --version 1.3.0 --issue 225
+
+# Script prompts:
+[FEEDBACK REQUEST]
+You've had 3 successful releases in a row! 🎉 Would you like to provide 
+feedback on how we can further improve the release process?
+
+Enter your feedback (or press Enter to skip):
+> The monitoring script works great. Consider adding Slack notifications 
+> for workflow completion so we don't have to watch it continuously.
+
+# Feedback is added to issue #225
+```
+
+**Example 3: Process Change Detection**
+```bash
+# Before release, if workflow files changed:
+$ dotnet fsi prepare-release.fsx
+
+# Script detects changes and prompts:
+[FEEDBACK REQUEST]
+We see changes to 2 release process files. Would you like to update 
+or add to our release playbooks based on these changes?
+
+Enter your feedback (or press Enter to skip):
+> Updated deployment.yml to use .NET 10. Updated skill.md to reflect 
+> new version. No other playbook changes needed.
+
+# Guidance is displayed for updating documentation
+```
+
+### Benefits
+
+- **Captures insights when they're fresh** - Right after events happen
+- **Builds institutional knowledge** - Feedback preserved in tracking issues
+- **Identifies patterns** - Historical tracking reveals recurring issues
+- **Drives improvement** - Actionable feedback leads to concrete changes
+- **No extra effort** - Integrated into existing workflow
+- **Skippable** - Press Enter to skip if no feedback at the moment
+
+### Best Practices
+
+1. **Be specific** - Include details about what/why/how
+2. **Be actionable** - Suggest concrete improvements
+3. **Be honest** - Note both successes and failures
+4. **Be timely** - Provide feedback when prompted
+5. **Follow up** - Convert feedback into action items
+6. **Share widely** - Reference feedback in retrospectives and planning
 
 ---
 

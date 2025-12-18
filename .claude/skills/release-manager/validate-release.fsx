@@ -16,6 +16,46 @@ open Argu
 open Spectre.Console
 
 // ============================================================================
+// Release History Tracking (inlined for simplicity)
+// ============================================================================
+
+let historyFile =
+    let scriptDir = __SOURCE_DIRECTORY__
+    let projectRoot = Path.GetFullPath(Path.Combine(scriptDir, "..", "..", ".."))
+    Path.Combine(projectRoot, ".claude", "skills", "release-manager", ".release-history.json")
+
+let getConsecutiveSuccesses () : int =
+    if File.Exists(historyFile) then
+        try
+            let json = File.ReadAllText(historyFile)
+            use doc = JsonDocument.Parse(json)
+            let root = doc.RootElement
+            if root.TryGetProperty("ConsecutiveSuccesses", &_) then
+                root.GetProperty("ConsecutiveSuccesses").GetInt32()
+            else
+                0
+        with _ -> 0
+    else
+        0
+
+let promptForFeedback (question: string) : string option =
+    eprintfn ""
+    eprintfn "[FEEDBACK REQUEST]"
+    eprintfn "%s" question
+    eprintfn ""
+    eprintfn "Enter your feedback (or press Enter to skip):"
+    eprintfn "> "
+    
+    let response = Console.ReadLine()
+    if String.IsNullOrWhiteSpace(response) then
+        None
+    else
+        Some response
+
+let shouldPromptForSuccessFeedback () : bool =
+    getConsecutiveSuccesses() >= 3
+
+// ============================================================================
 // CLI Arguments
 // ============================================================================
 
@@ -520,10 +560,48 @@ let validateAsync (results: ParseResults<ValidateArguments>) (ct: CancellationTo
                     | _ -> return false
                 }
 
+            // Prompt for continuous improvement feedback after consecutive successes
+            let feedbackGiven =
+                if success && not jsonOutput && not ct.IsCancellationRequested && shouldPromptForSuccessFeedback() then
+                    let consecutiveSuccesses = getConsecutiveSuccesses()
+                    let promptText = sprintf "You've had %d successful releases in a row! 🎉 Would you like to provide feedback on how we can further improve the release process?" consecutiveSuccesses
+                    let feedback = promptForFeedback promptText
+                    
+                    match feedback, issueNumber with
+                    | Some fb, Some issueNum when not (String.IsNullOrWhiteSpace(fb)) ->
+                        // Add feedback to issue
+                        let feedbackComment = sprintf """## 📈 Release Success Feedback
+
+**After %d consecutive successful releases:**
+
+%s
+
+---
+*Collected by validate-release.fsx after consecutive successful releases*
+""" consecutiveSuccesses fb
+                        let escapedFeedback = feedbackComment.Replace("\"", "\\\"").Replace("\n", "\\n")
+                        let feedbackResult = 
+                            Async.RunSynchronously(
+                                runCommandAsync "gh" (sprintf "issue comment %d --body \"%s\"" issueNum escapedFeedback) ct,
+                                cancellationToken = ct
+                            )
+                        match feedbackResult with
+                        | Ok _ -> 
+                            logInfo "Success feedback added to issue"
+                            true
+                        | Error err ->
+                            logWarn (sprintf "Failed to add feedback to issue: %s" err)
+                            false
+                    | _ -> false
+                else
+                    false
+
             if not jsonOutput then
                 AnsiConsole.WriteLine()
                 if success then
                     AnsiConsole.MarkupLine("[green]✅ All validations passed[/]")
+                    if feedbackGiven then
+                        AnsiConsole.MarkupLine("[green]📈 Continuous improvement feedback recorded[/]")
                 else
                     AnsiConsole.MarkupLine("[red]❌ Some validations failed[/]")
 

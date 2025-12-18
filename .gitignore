@@ -284,3 +284,6 @@ test-*.json
 
 # Morphir generated files
 .morphir/out/
+
+# Release management history (local state)
+.claude/skills/release-manager/.release-history.json

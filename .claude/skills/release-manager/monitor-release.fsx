@@ -16,6 +16,117 @@ open Argu
 open Spectre.Console
 
 // ============================================================================
+// Release History Tracking (inlined for simplicity)
+// ============================================================================
+
+[<JsonConverter(typeof<JsonStringEnumConverter>)>]
+type ReleaseStatus =
+    | Success
+    | Failure
+    | Cancelled
+
+type ReleaseRecord = {
+    Version: string
+    Date: DateTime
+    Status: ReleaseStatus
+    IssueNumber: int option
+    Notes: string option
+}
+
+type ReleaseHistory = {
+    Releases: ReleaseRecord list
+    ConsecutiveSuccesses: int
+    ConsecutiveFailures: int
+    LastUpdated: DateTime
+}
+
+let historyFile =
+    let scriptDir = __SOURCE_DIRECTORY__
+    let projectRoot = Path.GetFullPath(Path.Combine(scriptDir, "..", "..", ".."))
+    Path.Combine(projectRoot, ".claude", "skills", "release-manager", ".release-history.json")
+
+let serializerOptions =
+    let options = JsonSerializerOptions(WriteIndented = true)
+    options.Converters.Add(JsonStringEnumConverter())
+    options
+
+let loadHistory () : ReleaseHistory =
+    if File.Exists(historyFile) then
+        try
+            let json = File.ReadAllText(historyFile)
+            JsonSerializer.Deserialize<ReleaseHistory>(json, serializerOptions)
+        with _ ->
+            {
+                Releases = []
+                ConsecutiveSuccesses = 0
+                ConsecutiveFailures = 0
+                LastUpdated = DateTime.UtcNow
+            }
+    else
+        {
+            Releases = []
+            ConsecutiveSuccesses = 0
+            ConsecutiveFailures = 0
+            LastUpdated = DateTime.UtcNow
+        }
+
+let saveHistory (history: ReleaseHistory) : unit =
+    try
+        let dir = Path.GetDirectoryName(historyFile)
+        if not (Directory.Exists(dir)) then
+            Directory.CreateDirectory(dir) |> ignore
+        
+        let json = JsonSerializer.Serialize(history, serializerOptions)
+        File.WriteAllText(historyFile, json)
+    with ex ->
+        eprintfn "[ERROR] Failed to save release history: %s" ex.Message
+
+let addRelease (version: string) (status: ReleaseStatus) (issueNumber: int option) (notes: string option) : ReleaseHistory =
+    let history = loadHistory()
+    
+    let newRecord = {
+        Version = version
+        Date = DateTime.UtcNow
+        Status = status
+        IssueNumber = issueNumber
+        Notes = notes
+    }
+    
+    let consecutiveSuccesses =
+        match status with
+        | Success -> history.ConsecutiveSuccesses + 1
+        | _ -> 0
+    
+    let consecutiveFailures =
+        match status with
+        | Failure -> history.ConsecutiveFailures + 1
+        | _ -> 0
+    
+    let updatedHistory = {
+        Releases = newRecord :: history.Releases
+        ConsecutiveSuccesses = consecutiveSuccesses
+        ConsecutiveFailures = consecutiveFailures
+        LastUpdated = DateTime.UtcNow
+    }
+    
+    saveHistory updatedHistory
+    updatedHistory
+
+let promptForFeedback (question: string) : string option =
+    eprintfn ""
+    eprintfn "[FEEDBACK REQUEST]"
+    eprintfn "%s" question
+    eprintfn ""
+    eprintfn "Enter your feedback (or press Enter to skip):"
+    eprintfn "> "
+    
+    let response = Console.ReadLine()
+    if String.IsNullOrWhiteSpace(response) then
+        None
+    else
+        Some response
+
+// ============================================================================
 // CLI Arguments
 // ============================================================================
 
@@ -468,11 +579,51 @@ let monitorAsync (results: ParseResults<MonitorArguments>) (ct: CancellationToke
                     let success = run.Conclusion = Some "success"
                     let duration = Some (run.UpdatedAt - run.StartedAt)
 
+                    // Track release in history and prompt for retrospective feedback on failure
+                    let releaseStatus = if success then Success else Failure
+                    let _ = addRelease version releaseStatus issueNumber None
+                    
+                    // Prompt for retrospective feedback if failed
+                    let feedbackGiven =
+                        if not success && not jsonOutput && not ct.IsCancellationRequested then
+                            let feedback = promptForFeedback "We noticed the release failed. Are there any changes we could make to the release process to ensure future success?"
+                            
+                            match feedback, issueNumber with
+                            | Some fb, Some issueNum when not (String.IsNullOrWhiteSpace(fb)) ->
+                                // Add feedback to issue
+                                let feedbackComment = sprintf """## 📝 Release Failure Retrospective
+
+**Feedback from Release Manager:**
+
+%s
+
+---
+*Collected by monitor-release.fsx after release failure*
+""" fb
+                                let escapedFeedback = feedbackComment.Replace("\"", "\\\"").Replace("\n", "\\n")
+                                let feedbackResult = 
+                                    Async.RunSynchronously(
+                                        runCommandAsync "gh" (sprintf "issue comment %d --body \"%s\"" issueNum escapedFeedback) ct,
+                                        cancellationToken = ct
+                                    )
+                                match feedbackResult with
+                                | Ok _ -> 
+                                    logInfo "Retrospective feedback added to issue"
+                                    true
+                                | Error err ->
+                                    logWarn (sprintf "Failed to add feedback to issue: %s" err)
+                                    false
+                            | _ -> false
+                        else
+                            false
+
                     if not jsonOutput then
                         if success then
                             AnsiConsole.MarkupLine("[green]✅ Workflow completed successfully[/]")
                         else
                             AnsiConsole.MarkupLine(sprintf "[red]❌ Workflow %s[/]" (run.Conclusion |> Option.defaultValue "incomplete"))
+                            if feedbackGiven then
+                                AnsiConsole.MarkupLine("[green]📝 Retrospective feedback recorded[/]")
 
                     return {
                         Success = success
