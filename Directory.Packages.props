@@ -10,12 +10,12 @@
   <PropertyGroup>
     <BunsenBurnerVersion>6.2.1</BunsenBurnerVersion>
     <FakeVersion>6.0.0</FakeVersion>
-    <LanguageExtVersion>5.0.0-beta-59</LanguageExtVersion>
+    <LanguageExtVersion>5.0.0-beta-61</LanguageExtVersion>
     <LightBDDVersion>3.6.1</LightBDDVersion>
     <SystemCommandLineVersion>2.0.0-beta4.22272.1</SystemCommandLineVersion>
-    <ReqnrollVersion>3.2.1</ReqnrollVersion>
+    <ReqnrollVersion>3.3.0</ReqnrollVersion>
     <TickSpecVersion>2.0.2</TickSpecVersion>
-    <VerifyVersion>31.8.0</VerifyVersion>
+    <VerifyVersion>31.9.0</VerifyVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Autofac" Version="7.0.0" />
@@ -73,7 +73,7 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
-    <PackageVersion Include="TUnit" Version="1.5.60" />
+    <PackageVersion Include="TUnit" Version="1.5.70" />
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.TUnit" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
