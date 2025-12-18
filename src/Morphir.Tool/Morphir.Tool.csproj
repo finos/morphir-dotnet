@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
@@ -7,11 +7,43 @@
         <Nullable>enable</Nullable>
         <AssemblyName>morphir</AssemblyName>
         
-        <!-- Not packaged as NuGet package - only used for AOT executables -->
+        <!-- Package as dotnet tool -->
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>morphir</ToolCommandName>
+        <PackageId>Morphir.Tool</PackageId>
+        
+        <!-- Do not pack this from standard build, only via PackTool target -->
         <IsPackable>false</IsPackable>
+        
+        <!-- Tool package metadata -->
+        <Description>Morphir CLI tool for working with Morphir IR</Description>
+        <PackageTags>morphir;cli;dotnet-tool</PackageTags>
     </PropertyGroup>
 
-    <!-- Generate version constant file at build time -->
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Core\Morphir.Core.csproj" />
+        <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="System.CommandLine" />
+        <PackageReference Include="WolverineFx" />
+        <PackageReference Include="FluentValidation" />
+        <PackageReference Include="Extism.runtime.all" />
+        <PackageReference Include="Extism.Sdk" />
+        <PackageReference Include="JasperFx.CodeGeneration.Commands" />
+
+        <!-- Logging -->
+        <PackageReference Include="Serilog" />
+        <PackageReference Include="Serilog.Extensions.Hosting" />
+        <PackageReference Include="Serilog.Sinks.Console" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- Generate version constant file at build time (same as Morphir project) -->
     <Target Name="GenerateVersionFile" BeforeTargets="CoreCompile">
         <PropertyGroup>
             <!-- Use AssemblyInformationalVersion if set, otherwise Version, otherwise default -->
@@ -21,7 +53,7 @@
         </PropertyGroup>
         <ItemGroup>
             <VersionFileLines Include="// &lt;auto-generated/&gt;" />
-            <VersionFileLines Include="namespace Morphir%3B" />
+            <VersionFileLines Include="namespace Morphir.Tool%3B" />
             <VersionFileLines Include=" " />
             <VersionFileLines Include="internal static class VersionInfo" />
             <VersionFileLines Include="{" />
@@ -34,35 +66,5 @@
             <Compile Include="$(IntermediateOutputPath)VersionInfo.g.cs" />
         </ItemGroup>
     </Target>
-    <!-- AOT and trimming settings are set via command-line arguments during publish -->
-    <!-- This prevents them from affecting dotnet run/build operations -->
-    <!-- See justfile publish-executable task for publish-time settings -->
-
-    <ItemGroup>
-        <!-- Preserve generated VersionInfo during trimming -->
-        <TrimmerRootDescriptor Include="ILLink.Descriptors.xml" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Extism.runtime.all" />
-        <PackageReference Include="Extism.Sdk" />
-        <PackageReference Include="JasperFx.CodeGeneration.Commands" />
-        <PackageReference Include="System.CommandLine" />
-        <PackageReference Include="WolverineFx" />
-        <PackageReference Include="FluentValidation" />
-
-        <!-- Logging -->
-        <PackageReference Include="Serilog" />
-        <PackageReference Include="Serilog.Extensions.Hosting" />
-        <PackageReference Include="Serilog.Sinks.Console" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
-    </ItemGroup>
 
 </Project>

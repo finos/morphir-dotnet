@@ -16,7 +16,7 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 /// Morphir .NET build orchestration using Nuke
 /// Migrated from justfile + C# scripts to provide strongly-typed, cross-platform build automation
 /// </summary>
-class Build : NukeBuild
+partial class Build : NukeBuild
 {
     /// Support plugins are available for:
     ///   - JetBrains ReSharper        https://nuke.build/resharper
@@ -74,6 +74,7 @@ class Build : NukeBuild
     AbsolutePath MorphirCoreProject => SourceDirectory / "Morphir.Core" / "Morphir.Core.csproj";
     AbsolutePath MorphirToolingProject => SourceDirectory / "Morphir.Tooling" / "Morphir.Tooling.csproj";
     AbsolutePath MorphirProject => SourceDirectory / "Morphir" / "Morphir.csproj";
+    AbsolutePath MorphirToolProject => SourceDirectory / "Morphir.Tool" / "Morphir.Tool.csproj";
     AbsolutePath MorphirCoreTestsProject => TestsDirectory / "Morphir.Core.Tests" / "Morphir.Core.Tests.csproj";
     AbsolutePath MorphirToolingTestsProject => TestsDirectory / "Morphir.Tooling.Tests" / "Morphir.Tooling.Tests.csproj";
     AbsolutePath MorphirE2ETestsProject => TestsDirectory / "Morphir.E2E.Tests" / "Morphir.E2E.Tests.csproj";
@@ -185,16 +186,17 @@ class Build : NukeBuild
                 .SetConfiguration(Configuration)
                 .SetOutputDirectory(OutputDir)
                 .SetProperty("PackAsTool", "true")
-                .SetProperty("ToolCommandName", "morphir");
+                .SetProperty("ToolCommandName", "morphir")
+                .SetProperty("IsPackable", "true");
 
             if (!string.IsNullOrEmpty(Version))
             {
                 packSettings = packSettings.SetProperty("Version", Version);
             }
 
-            Serilog.Log.Information("Packing Morphir CLI as dotnet tool...");
+            Serilog.Log.Information("Packing Morphir.Tool CLI as dotnet tool...");
             DotNetPack(s => packSettings
-                .SetProject(MorphirProject));
+                .SetProject(MorphirToolProject));
         });
 
     Target PackAll => _ => _
@@ -444,13 +446,12 @@ class Build : NukeBuild
                 throw new Exception("API_KEY is required for publishing. Use --api-key parameter.");
             }
 
-            var toolPackage = OutputDir.GlobFiles("Morphir.*.nupkg")
-                .Where(p => !p.ToString().Contains("Morphir.Core") && !p.ToString().Contains("Morphir.Tooling"))
+            var toolPackage = OutputDir.GlobFiles("Morphir.Tool.*.nupkg")
                 .FirstOrDefault();
 
             if (toolPackage != null)
             {
-                Serilog.Log.Information($"Publishing Morphir CLI tool: {toolPackage}");
+                Serilog.Log.Information($"Publishing Morphir.Tool CLI tool: {toolPackage}");
                 DotNetNuGetPush(s => s
                     .SetTargetPath(toolPackage)
                     .SetSource(NuGetSource)
@@ -459,7 +460,7 @@ class Build : NukeBuild
             }
             else
             {
-                throw new Exception($"Morphir tool package not found in {OutputDir}");
+                throw new Exception($"Morphir.Tool package not found in {OutputDir}");
             }
         });
 
@@ -519,13 +520,12 @@ class Build : NukeBuild
         .Description("Install the Morphir CLI tool locally from the package")
         .Executes(() =>
         {
-            var toolPackage = OutputDir.GlobFiles("Morphir.*.nupkg")
-                .Where(p => !p.ToString().Contains("Morphir.Core") && !p.ToString().Contains("Morphir.Tooling"))
+            var toolPackage = OutputDir.GlobFiles("Morphir.Tool.*.nupkg")
                 .FirstOrDefault();
 
             if (toolPackage == null)
             {
-                throw new Exception($"Morphir tool package not found in {OutputDir}. Please run PackTool first.");
+                throw new Exception($"Morphir.Tool package not found in {OutputDir}. Please run PackTool first.");
             }
 
             var installCommand = Global
@@ -539,12 +539,12 @@ class Build : NukeBuild
             try
             {
                 Serilog.Log.Information($"Installing Morphir CLI tool {(Global ? "globally" : "locally")} from: {toolPackage}");
-                DotNet($"tool install {(Global ? "--global" : "")} --add-source {OutputDir} Morphir");
+                DotNet($"tool install {(Global ? "--global" : "")} --add-source {OutputDir} Morphir.Tool");
             }
             catch
             {
                 Serilog.Log.Information("Tool already installed, updating...");
-                DotNet($"tool update {(Global ? "--global" : "")} --add-source {OutputDir} Morphir");
+                DotNet($"tool update {(Global ? "--global" : "")} --add-source {OutputDir} Morphir.Tool");
             }
 
             Serilog.Log.Information("Morphir CLI tool installed successfully");
