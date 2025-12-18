@@ -5,7 +5,6 @@
 #r "nuget: Spectre.Console, 0.53.0"
 #r "nuget: System.Text.Json, 9.0.0"
 #r "nuget: Argu, 6.2.4"
-#r "nuget: FSharp.SystemTextJson, 1.3.13"
 
 open System
 open System.IO
@@ -16,9 +15,45 @@ open System.Threading
 open Argu
 open Spectre.Console
 
-// Load release history utilities
-#load "release-history.fsx"
-open ReleaseHistory
+// ============================================================================
+// Release History Tracking (inlined for simplicity)
+// ============================================================================
+
+let historyFile =
+    let scriptDir = __SOURCE_DIRECTORY__
+    let projectRoot = Path.GetFullPath(Path.Combine(scriptDir, "..", "..", ".."))
+    Path.Combine(projectRoot, ".claude", "skills", "release-manager", ".release-history.json")
+
+let getConsecutiveSuccesses () : int =
+    if File.Exists(historyFile) then
+        try
+            let json = File.ReadAllText(historyFile)
+            use doc = JsonDocument.Parse(json)
+            let root = doc.RootElement
+            if root.TryGetProperty("ConsecutiveSuccesses", &_) then
+                root.GetProperty("ConsecutiveSuccesses").GetInt32()
+            else
+                0
+        with _ -> 0
+    else
+        0
+
+let promptForFeedback (question: string) : string option =
+    eprintfn ""
+    eprintfn "[FEEDBACK REQUEST]"
+    eprintfn "%s" question
+    eprintfn ""
+    eprintfn "Enter your feedback (or press Enter to skip):"
+    eprintfn "> "
+    
+    let response = Console.ReadLine()
+    if String.IsNullOrWhiteSpace(response) then
+        None
+    else
+        Some response
+
+let shouldPromptForSuccessFeedback () : bool =
+    getConsecutiveSuccesses() >= 3
 
 // ============================================================================
 // CLI Arguments
@@ -527,10 +562,10 @@ let validateAsync (results: ParseResults<ValidateArguments>) (ct: CancellationTo
 
             // Prompt for continuous improvement feedback after consecutive successes
             let feedbackGiven =
-                if success && not jsonOutput && not ct.IsCancellationRequested && ReleaseHistory.shouldPromptForSuccessFeedback() then
-                    let consecutiveSuccesses = ReleaseHistory.getConsecutiveSuccesses()
-                    let feedback = ReleaseHistory.promptForFeedback 
-                        (sprintf "You've had %d successful releases in a row! 🎉 Would you like to provide feedback on how we can further improve the release process?" consecutiveSuccesses)
+                if success && not jsonOutput && not ct.IsCancellationRequested && shouldPromptForSuccessFeedback() then
+                    let consecutiveSuccesses = getConsecutiveSuccesses()
+                    let promptText = sprintf "You've had %d successful releases in a row! 🎉 Would you like to provide feedback on how we can further improve the release process?" consecutiveSuccesses
+                    let feedback = promptForFeedback promptText
                     
                     match feedback, issueNumber with
                     | Some fb, Some issueNum when not (String.IsNullOrWhiteSpace(fb)) ->

@@ -4,7 +4,6 @@
 
 #r "nuget: Spectre.Console, 0.53.0"
 #r "nuget: System.Text.Json, 9.0.0"
-#r "nuget: FSharp.SystemTextJson, 1.3.13"
 
 open System
 open System.IO
@@ -13,9 +12,75 @@ open System.Text.Json
 open System.Text.Json.Serialization
 open Spectre.Console
 
-// Load release history utilities
-#load "release-history.fsx"
-open ReleaseHistory
+// ============================================================================
+// Release History Tracking (inlined for simplicity)
+// ============================================================================
+
+[<JsonConverter(typeof<JsonStringEnumConverter>)>]
+type ReleaseStatus =
+    | Success
+    | Failure
+    | Cancelled
+
+type ReleaseRecord = {
+    Version: string
+    Date: DateTime
+    Status: ReleaseStatus
+    IssueNumber: int option
+    Notes: string option
+}
+
+type ReleaseHistory = {
+    Releases: ReleaseRecord list
+    ConsecutiveSuccesses: int
+    ConsecutiveFailures: int
+    LastUpdated: DateTime
+}
+
+let projectRoot =
+    let scriptDir = __SOURCE_DIRECTORY__
+    Path.GetFullPath(Path.Combine(scriptDir, "..", "..", ".."))
+
+let historyFile = Path.Combine(projectRoot, ".claude", "skills", "release-manager", ".release-history.json")
+
+let serializerOptions =
+    let options = JsonSerializerOptions(WriteIndented = true)
+    options.Converters.Add(JsonStringEnumConverter())
+    options
+
+let loadHistory () : ReleaseHistory =
+    if File.Exists(historyFile) then
+        try
+            let json = File.ReadAllText(historyFile)
+            JsonSerializer.Deserialize<ReleaseHistory>(json, serializerOptions)
+        with _ ->
+            {
+                Releases = []
+                ConsecutiveSuccesses = 0
+                ConsecutiveFailures = 0
+                LastUpdated = DateTime.UtcNow
+            }
+    else
+        {
+            Releases = []
+            ConsecutiveSuccesses = 0
+            ConsecutiveFailures = 0
+            LastUpdated = DateTime.UtcNow
+        }
+
+let promptForFeedback (question: string) : string option =
+    eprintfn ""
+    eprintfn "[FEEDBACK REQUEST]"
+    eprintfn "%s" question
+    eprintfn ""
+    eprintfn "Enter your feedback (or press Enter to skip):"
+    eprintfn "> "
+    
+    let response = Console.ReadLine()
+    if String.IsNullOrWhiteSpace(response) then
+        None
+    else
+        Some response
 
 // ============================================================================
 // Types
@@ -79,12 +144,8 @@ type PrepareResult = {
 }
 
 // ============================================================================
-// Configuration
+// Configuration (projectRoot already defined above for historyFile)
 // ============================================================================
-
-let projectRoot =
-    let scriptDir = __SOURCE_DIRECTORY__
-    Path.GetFullPath(Path.Combine(scriptDir, "..", "..", ".."))
 
 let changelogPath = Path.Combine(projectRoot, "CHANGELOG.md")
 
@@ -479,8 +540,8 @@ let prepare () : PrepareResult =
     
     // Prompt for playbook update if process changes detected
     if not jsonOutput && processChanges.IsSome && processChanges.Value.ShouldPromptForPlaybookUpdate then
-        let feedback = ReleaseHistory.promptForFeedback 
-            (sprintf "We see changes to %d release process files. Would you like to update or add to our release playbooks based on these changes?" processChanges.Value.ChangedFiles.Length)
+        let promptText = sprintf "We see changes to %d release process files. Would you like to update or add to our release playbooks based on these changes?" processChanges.Value.ChangedFiles.Length
+        let feedback = promptForFeedback promptText
         
         match feedback with
         | Some fb when not (String.IsNullOrWhiteSpace(fb)) ->

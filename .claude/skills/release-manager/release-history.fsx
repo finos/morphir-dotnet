@@ -13,6 +13,7 @@ open System.Text.Json.Serialization
 // Types
 // ============================================================================
 
+[<JsonConverter(typeof<JsonStringEnumConverter>)>]
 type ReleaseStatus =
     | Success
     | Failure
@@ -49,7 +50,7 @@ let historyFile = Path.Combine(projectRoot, ".claude", "skills", "release-manage
 
 let serializerOptions =
     let options = JsonSerializerOptions(WriteIndented = true)
-    options.Converters.Add(JsonFSharpConverter.Default())
+    options.Converters.Add(JsonStringEnumConverter())
     options
 
 // ============================================================================
