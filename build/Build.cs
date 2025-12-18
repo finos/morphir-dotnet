@@ -103,11 +103,39 @@ partial class Build : NukeBuild
         .DependsOn(Restore)
         .Executes(() =>
         {
+            // Kill VBCSCompiler on Windows to prevent file locking issues
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                try
+                {
+                    // Kill any lingering VBCSCompiler processes that might lock DLLs
+                    Process.GetProcessesByName("VBCSCompiler").ForEach(p =>
+                    {
+                        try
+                        {
+                            Serilog.Log.Debug($"Killing VBCSCompiler process {p.Id}");
+                            p.Kill();
+                            p.WaitForExit();
+                        }
+                        catch
+                        {
+                            // Ignore if process already terminated
+                        }
+                    });
+                }
+                catch
+                {
+                    // Ignore if no processes found
+                }
+            }
+
             // Build using .slnx solution file
+            // Use /p:BuildInParallel=false to prevent file locking issues on Windows
             DotNetBuild(s => s
                 .SetProjectFile(SolutionFile)
                 .SetConfiguration(Configuration)
-                .SetNoRestore(true));
+                .SetNoRestore(true)
+                .SetProperty("BuildInParallel", "false"));
         });
 
     Target Format => _ => _
