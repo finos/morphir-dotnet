@@ -16,6 +16,7 @@
   <Folder Name="/src/">
     <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
     <Project Path="src/Morphir/Morphir.csproj" />
+    <Project Path="src/Morphir.Tool/Morphir.Tool.csproj" />
     <Project Path="src\Morphir.Core\Morphir.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">

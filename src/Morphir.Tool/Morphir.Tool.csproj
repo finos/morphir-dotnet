@@ -1,0 +1,71 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AssemblyName>dotnet-morphir</AssemblyName>
+        
+        <!-- Package as dotnet tool -->
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>dotnet-morphir</ToolCommandName>
+        <PackageId>Morphir.Tool</PackageId>
+        
+        <!-- Do not pack this from standard build, only via PackTool target -->
+        <IsPackable>false</IsPackable>
+        
+        <!-- Tool package metadata -->
+        <Description>Morphir CLI tool for working with Morphir IR</Description>
+        <PackageTags>morphir;cli;dotnet-tool</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir\Morphir.csproj" />
+        <ProjectReference Include="..\Morphir.Core\Morphir.Core.csproj" />
+        <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="System.CommandLine" />
+        <PackageReference Include="WolverineFx" />
+        <PackageReference Include="FluentValidation" />
+        <PackageReference Include="Extism.runtime.all" />
+        <PackageReference Include="Extism.Sdk" />
+        <PackageReference Include="JasperFx.CodeGeneration.Commands" />
+
+        <!-- Logging -->
+        <PackageReference Include="Serilog" />
+        <PackageReference Include="Serilog.Extensions.Hosting" />
+        <PackageReference Include="Serilog.Sinks.Console" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- Generate version constant file at build time (same as Morphir project) -->
+    <Target Name="GenerateVersionFile" BeforeTargets="CoreCompile">
+        <PropertyGroup>
+            <!-- Use AssemblyInformationalVersion if set, otherwise Version, otherwise default -->
+            <MorphirVersionString Condition="'$(InformationalVersion)' != ''">$(InformationalVersion)</MorphirVersionString>
+            <MorphirVersionString Condition="'$(MorphirVersionString)' == '' AND '$(Version)' != ''">$(Version)</MorphirVersionString>
+            <MorphirVersionString Condition="'$(MorphirVersionString)' == ''">0.0.0-dev</MorphirVersionString>
+        </PropertyGroup>
+        <ItemGroup>
+            <VersionFileLines Include="// &lt;auto-generated/&gt;" />
+            <VersionFileLines Include="namespace Morphir.Tool%3B" />
+            <VersionFileLines Include=" " />
+            <VersionFileLines Include="internal static class VersionInfo" />
+            <VersionFileLines Include="{" />
+            <VersionFileLines Include="    public const string Version = &quot;$(MorphirVersionString)&quot;%3B" />
+            <VersionFileLines Include="}" />
+            <VersionFileLines Include=" " />
+        </ItemGroup>
+        <WriteLinesToFile File="$(IntermediateOutputPath)VersionInfo.g.cs" Lines="@(VersionFileLines)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+        <ItemGroup>
+            <Compile Include="$(IntermediateOutputPath)VersionInfo.g.cs" />
+        </ItemGroup>
+    </Target>
+
+</Project>
