@@ -2,6 +2,11 @@
    "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
    "tasks": [
       {
+         "name": "validate-changelog",
+         "command": "dotnet",
+         "args": [ "fsi", "scripts/validate-changelog.fsx" ]
+      },
+      {
          "name": "format-check",
          "command": "bash",
          "args": [ "build.sh", "--target", "Precommit" ],

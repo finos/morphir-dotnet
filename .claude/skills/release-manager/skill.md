@@ -694,6 +694,46 @@ dotnet fsi .claude/skills/release-manager/prepare-release.fsx --skip-local-check
 
 ---
 
+### monitor-pr.fsx
+
+**Purpose**: Monitor GitHub pull request checks until completion
+
+**Features:**
+- Poll PR check status at configurable intervals
+- Live progress display with Spectre.Console
+- Colorized check status indicators
+- Optional auto-merge when checks pass
+- Detailed failure reporting with check URLs
+
+**Usage:**
+```bash
+# Monitor PR (no auto-merge)
+dotnet fsi .claude/skills/release-manager/monitor-pr.fsx --pr 123
+
+# Monitor and auto-merge when all checks pass
+dotnet fsi .claude/skills/release-manager/monitor-pr.fsx --pr 123 --auto-merge
+
+# Custom polling interval and timeout
+dotnet fsi .claude/skills/release-manager/monitor-pr.fsx --pr 123 --interval 15 --timeout 30
+
+# Verbose mode
+dotnet fsi .claude/skills/release-manager/monitor-pr.fsx --pr 123 --verbose
+```
+
+**Output:**
+- ✅/❌/⏳ live check status table
+- 📊 progress summary (total, completed, running, queued)
+- 🔗 URLs for failed checks
+- Exit code: 0 (success), 1 (failure), 2 (timeout)
+
+**IMPORTANT - Auto-Merge Behavior:**
+- **NEVER use `--auto-merge` flag without explicit user confirmation**
+- **ALWAYS prompt the user before enabling auto-merge**: "Do you want to auto-merge this PR when all checks pass?"
+- Only pass `--auto-merge` if user explicitly confirms
+- Default behavior (no flag) is to monitor only
+
+---
+
 ### monitor-release.fsx
 
 **Purpose**: Monitor GitHub Actions deployment workflow
