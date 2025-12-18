@@ -2,7 +2,7 @@
 // Validate a morphir-dotnet release on NuGet
 // Usage: dotnet fsi validate-release.fsx --version 1.2.0 [--smoke-tests] [--issue <number>] [--update-issue] [--json] [--timeout <minutes>]
 
-#r "nuget: Spectre.Console, 0.49.1"
+#r "nuget: Spectre.Console, 0.53.0"
 #r "nuget: System.Text.Json, 9.0.0"
 #r "nuget: Argu, 6.2.4"
 

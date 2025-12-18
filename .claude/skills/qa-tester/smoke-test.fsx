@@ -2,7 +2,7 @@
 // Quick smoke test for morphir-dotnet
 // Usage: dotnet fsi smoke-test.fsx
 
-#r "nuget: Spectre.Console, 0.49.1"
+#r "nuget: Spectre.Console, 0.53.0"
 
 open System
 open System.IO

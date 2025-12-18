@@ -2,7 +2,7 @@
 // Release preparation and pre-flight validation
 // Usage: dotnet fsi prepare-release.fsx [--version VERSION] [--json] [--dry-run] [--skip-local-check]
 
-#r "nuget: Spectre.Console, 0.49.1"
+#r "nuget: Spectre.Console, 0.53.0"
 #r "nuget: System.Text.Json, 9.0.0"
 
 open System
