@@ -17,9 +17,9 @@ internal partial class MorphirJsonContext : JsonSerializerContext
 {
 }
 
-internal static class Program
+public static class Program
 {
-    private static int Main(string[] args)
+    public static int Main(string[] args)
     {
         // FIRST: Redirect Console.Out to stderr before ANY code runs
         // This catches direct Console.WriteLine from Wolverine/JasperFx extension scanning

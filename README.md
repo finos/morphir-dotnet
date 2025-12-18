@@ -200,13 +200,13 @@ morphir-dotnet/
 
 The project uses C# scripts (`.cs` files) for build automation, leveraging .NET 10's direct C# file execution. These scripts are located in the `scripts/` directory:
 
-- `build-tool-dll.cs` - Builds the managed DLL for the dotnet tool
-- `pack-tool-platform.cs` - Packages the Morphir CLI as a dotnet tool
 - `publish-single-file.cs` - Publishes trimmed single-file executables
 - `publish-single-file-untrimmed.cs` - Publishes untrimmed single-file executables
 - `run-tests.cs` - Runs unit tests
 - `run-e2e-tests.cs` - Runs end-to-end tests
 - `generate-wolverine-code.cs` - Generates Wolverine code
+
+**Note**: The deprecated `build-tool-dll.cs` and `pack-tool-platform.cs` scripts have been removed. Use the Nuke build targets (`PackTool`, `PublishTool`) instead.
 
 ### Build Commands
 

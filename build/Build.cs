@@ -16,7 +16,7 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 /// Morphir .NET build orchestration using Nuke
 /// Migrated from justfile + C# scripts to provide strongly-typed, cross-platform build automation
 /// </summary>
-class Build : NukeBuild
+partial class Build : NukeBuild
 {
     /// Support plugins are available for:
     ///   - JetBrains ReSharper        https://nuke.build/resharper
@@ -74,10 +74,15 @@ class Build : NukeBuild
     AbsolutePath MorphirCoreProject => SourceDirectory / "Morphir.Core" / "Morphir.Core.csproj";
     AbsolutePath MorphirToolingProject => SourceDirectory / "Morphir.Tooling" / "Morphir.Tooling.csproj";
     AbsolutePath MorphirProject => SourceDirectory / "Morphir" / "Morphir.csproj";
+    AbsolutePath MorphirToolProject => SourceDirectory / "Morphir.Tool" / "Morphir.Tool.csproj";
     AbsolutePath MorphirCoreTestsProject => TestsDirectory / "Morphir.Core.Tests" / "Morphir.Core.Tests.csproj";
     AbsolutePath MorphirToolingTestsProject => TestsDirectory / "Morphir.Tooling.Tests" / "Morphir.Tooling.Tests.csproj";
     AbsolutePath MorphirE2ETestsProject => TestsDirectory / "Morphir.E2E.Tests" / "Morphir.E2E.Tests.csproj";
 
+    /// <summary>
+    /// Clean build artifacts and output directories
+    /// Removes all bin/ and obj/ folders and recreates output directories
+    /// </summary>
     Target Clean => _ => _
         .Before(Restore)
         .Executes(() =>
@@ -90,6 +95,10 @@ class Build : NukeBuild
             SingleFileUntrimmedDir.CreateOrCleanDirectory();
         });
 
+    /// <summary>
+    /// Restore NuGet packages for the solution
+    /// Uses the .slnx solution file
+    /// </summary>
     Target Restore => _ => _
         .Executes(() =>
         {
@@ -98,17 +107,52 @@ class Build : NukeBuild
                 .SetProjectFile(SolutionFile));
         });
 
+    /// <summary>
+    /// Compile all projects in the solution
+    /// Note: VBCSCompiler processes are cleaned up on Windows before build to prevent file locking issues.
+    /// Parallel builds are now enabled since the GenerateWolverineCode MSBuild target was removed.
+    /// </summary>
     Target Compile => _ => _
         .DependsOn(Restore)
         .Executes(() =>
         {
+            // Kill VBCSCompiler on Windows to prevent file locking issues
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                try
+                {
+                    // Kill any lingering VBCSCompiler processes that might lock DLLs
+                    Process.GetProcessesByName("VBCSCompiler").ForEach(p =>
+                    {
+                        try
+                        {
+                            Serilog.Log.Debug($"Killing VBCSCompiler process {p.Id}");
+                            p.Kill();
+                            p.WaitForExit();
+                        }
+                        catch
+                        {
+                            // Ignore if process already terminated
+                        }
+                    });
+                }
+                catch
+                {
+                    // Ignore if no processes found
+                }
+            }
+
             // Build using .slnx solution file
+            // Parallel builds now enabled after removing GenerateWolverineCode MSBuild target
             DotNetBuild(s => s
                 .SetProjectFile(SolutionFile)
                 .SetConfiguration(Configuration)
                 .SetNoRestore(true));
         });
 
+    /// <summary>
+    /// Format code using dotnet format (applies formatting changes)
+    /// </summary>
     Target Format => _ => _
         .Description("Format code (applies formatting changes)")
         .Executes(() =>
@@ -116,6 +160,9 @@ class Build : NukeBuild
             DotNet($"format");
         });
 
+    /// <summary>
+    /// Verify code formatting without making changes (linting)
+    /// </summary>
     Target Lint => _ => _
         .Description("Run linting/formatting checks (verifies without making changes)")
         .Executes(() =>
@@ -123,22 +170,23 @@ class Build : NukeBuild
             DotNet($"format --verify-no-changes");
         });
 
-    Target Test => _ => _
-        .DependsOn(Compile)
-        .Description("Run all tests")
-        .Executes(() =>
-        {
-            RunTests(Configuration);
-        });
-
+    /// <summary>
+    /// Run pre-commit checks (lint)
+    /// </summary>
     Target Check => _ => _
         .DependsOn(Lint)
         .Description("Check task that runs lint");
 
+    /// <summary>
+    /// Alias for Check target (pre-commit hook)
+    /// </summary>
     Target Precommit => _ => _
         .DependsOn(Lint)
         .Description("Pre-commit hook task (runs lint)");
 
+    /// <summary>
+    /// Complete CI pipeline: restore, compile, test, and check
+    /// </summary>
     Target CI => _ => _
         .DependsOn(Restore, Compile, Test, Check)
         .Description("Full CI pipeline: restore, build, test, and check")
@@ -147,66 +195,14 @@ class Build : NukeBuild
             Serilog.Log.Information("CI pipeline completed successfully");
         });
 
-    // Packaging targets
+    // Publishing targets for executables (AOT, single-file, etc.)
+    // Note: Packaging and publishing for NuGet packages are in Build.Packaging.cs and Build.Publishing.cs
 
-    Target PackLibs => _ => _
-        .DependsOn(Compile)
-        .Description("Pack library projects as NuGet packages")
-        .Executes(() =>
-        {
-            OutputDir.CreateOrCleanDirectory();
-
-            var packSettings = new DotNetPackSettings()
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(OutputDir);
-
-            if (!string.IsNullOrEmpty(Version))
-            {
-                packSettings = packSettings.SetProperty("Version", Version);
-            }
-
-            Serilog.Log.Information("Packing Morphir.Core...");
-            DotNetPack(s => packSettings
-                .SetProject(MorphirCoreProject));
-
-            Serilog.Log.Information("Packing Morphir.Tooling...");
-            DotNetPack(s => packSettings
-                .SetProject(MorphirToolingProject));
-        });
-
-    Target PackTool => _ => _
-        .DependsOn(Compile)
-        .Description("Pack the Morphir CLI as a dotnet tool (standard managed tool)")
-        .Executes(() =>
-        {
-            OutputDir.CreateOrCleanDirectory();
-
-            var packSettings = new DotNetPackSettings()
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(OutputDir)
-                .SetProperty("PackAsTool", "true")
-                .SetProperty("ToolCommandName", "morphir");
-
-            if (!string.IsNullOrEmpty(Version))
-            {
-                packSettings = packSettings.SetProperty("Version", Version);
-            }
-
-            Serilog.Log.Information("Packing Morphir CLI as dotnet tool...");
-            DotNetPack(s => packSettings
-                .SetProject(MorphirProject));
-        });
-
-    Target PackAll => _ => _
-        .DependsOn(PackLibs, PackTool)
-        .Description("Pack all projects (libraries and tool)")
-        .Executes(() =>
-        {
-            Serilog.Log.Information("All packages created successfully");
-        });
-
-    // Publishing targets
-
+    /// <summary>
+    /// Publish platform-specific executable for the specified runtime identifier (RID)
+    /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
+    /// Output: artifacts/executables/{rid}/
+    /// </summary>
     Target PublishExecutable => _ => _
         .Description("Publish single-file executable for a specific platform (requires --rid parameter)")
         .Executes(() =>
@@ -252,29 +248,20 @@ class Build : NukeBuild
             }
         });
 
+    /// <summary>
+    /// Publish single-file executable without AOT (managed .NET runtime) with trimming
+    /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
+    /// Output: artifacts/single-file/{rid}/
+    /// Note: Generates Wolverine code before publishing
+    /// </summary>
     Target PublishSingleFile => _ => _
-        .DependsOn(Compile)
+        .DependsOn(GenerateWolverineCode)
         .Description("Publish single-file executable without AOT (managed .NET runtime) with trimming (requires --rid parameter)")
         .Executes(() =>
         {
             if (string.IsNullOrEmpty(Rid))
             {
                 throw new Exception("RID parameter is required. Use --rid <rid> (e.g., --rid linux-x64)");
-            }
-
-            // Generate Wolverine code before publishing
-            Serilog.Log.Information("Generating Wolverine code...");
-            DotNet($"run --project {MorphirProject} --configuration {Configuration} --no-build -- codegen write");
-
-            var generatedDir = SourceDirectory / "Morphir.Tooling" / "Internal" / "Generated";
-            if (Directory.Exists(generatedDir))
-            {
-                var fileCount = Directory.GetFiles(generatedDir, "*.cs", SearchOption.AllDirectories).Length;
-                Serilog.Log.Information($"✓ Found generated code directory with {fileCount} files");
-            }
-            else
-            {
-                Serilog.Log.Warning("⚠ Warning: Generated code directory not found");
             }
 
             var ridOutputDir = SingleFileDir / Rid;
@@ -314,8 +301,14 @@ class Build : NukeBuild
             }
         });
 
+    /// <summary>
+    /// Publish single-file executable without AOT and without trimming
+    /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
+    /// Output: artifacts/single-file-untrimmed/{rid}/
+    /// Note: Generates Wolverine code before publishing
+    /// </summary>
     Target PublishSingleFileUntrimmed => _ => _
-        .DependsOn(Compile)
+        .DependsOn(GenerateWolverineCode)
         .Description("Publish single-file executable without AOT and without trimming (requires --rid parameter)")
         .Executes(() =>
         {
@@ -323,10 +316,6 @@ class Build : NukeBuild
             {
                 throw new Exception("RID parameter is required. Use --rid <rid> (e.g., --rid linux-x64)");
             }
-
-            // Generate Wolverine code before publishing
-            Serilog.Log.Information("Generating Wolverine code...");
-            DotNet($"run --project {MorphirProject} --configuration {Configuration} --no-build -- codegen write");
 
             var ridOutputDir = SingleFileUntrimmedDir / Rid;
             ridOutputDir.CreateOrCleanDirectory();
@@ -363,235 +352,7 @@ class Build : NukeBuild
             }
         });
 
-    // E2E Test targets
-
-    Target BuildE2ETests => _ => _
-        .DependsOn(Compile)
-        .Description("Build the E2E test project")
-        .Executes(() =>
-        {
-            DotNetBuild(s => s
-                .SetProjectFile(MorphirE2ETestsProject)
-                .SetConfiguration(Configuration)
-                .SetNoRestore(false));
-        });
-
-    Target TestE2E => _ => _
-        .DependsOn(BuildE2ETests)
-        .Description("Run end-to-end tests against Morphir executables (BDD/Gherkin)")
-        .Executes(() =>
-        {
-            Serilog.Log.Information($"Running E2E tests for executable type: {ExecutableType}");
-            var exitCode = RunCommand("dotnet",
-                ScriptsDirectory / "run-e2e-tests.cs", ExecutableType, Configuration);
-
-            if (exitCode != 0)
-            {
-                throw new Exception($"E2E tests failed with exit code {exitCode}");
-            }
-        });
-
-    // NuGet Publishing targets
-
-    Target PublishLibs => _ => _
-        .DependsOn(PackLibs)
-        .Description("Publish library NuGet packages to NuGet.org")
-        .Executes(() =>
-        {
-            if (string.IsNullOrEmpty(ApiKey))
-            {
-                throw new Exception("API_KEY is required for publishing. Use --api-key parameter.");
-            }
-
-            var corePackage = OutputDir.GlobFiles("Morphir.Core.*.nupkg").FirstOrDefault();
-            if (corePackage != null)
-            {
-                Serilog.Log.Information($"Publishing Morphir.Core: {corePackage}");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(corePackage)
-                    .SetSource(NuGetSource)
-                    .SetApiKey(ApiKey)
-                    .SetSkipDuplicate(true));
-            }
-            else
-            {
-                throw new Exception($"Morphir.Core package not found in {OutputDir}");
-            }
-
-            var toolingPackage = OutputDir.GlobFiles("Morphir.Tooling.*.nupkg").FirstOrDefault();
-            if (toolingPackage != null)
-            {
-                Serilog.Log.Information($"Publishing Morphir.Tooling: {toolingPackage}");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(toolingPackage)
-                    .SetSource(NuGetSource)
-                    .SetApiKey(ApiKey)
-                    .SetSkipDuplicate(true));
-            }
-            else
-            {
-                throw new Exception($"Morphir.Tooling package not found in {OutputDir}");
-            }
-        });
-
-    Target PublishTool => _ => _
-        .DependsOn(PackTool)
-        .Description("Publish the Morphir CLI tool package to NuGet.org")
-        .Executes(() =>
-        {
-            if (string.IsNullOrEmpty(ApiKey))
-            {
-                throw new Exception("API_KEY is required for publishing. Use --api-key parameter.");
-            }
-
-            var toolPackage = OutputDir.GlobFiles("Morphir.*.nupkg")
-                .Where(p => !p.ToString().Contains("Morphir.Core") && !p.ToString().Contains("Morphir.Tooling"))
-                .FirstOrDefault();
-
-            if (toolPackage != null)
-            {
-                Serilog.Log.Information($"Publishing Morphir CLI tool: {toolPackage}");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(toolPackage)
-                    .SetSource(NuGetSource)
-                    .SetApiKey(ApiKey)
-                    .SetSkipDuplicate(true));
-            }
-            else
-            {
-                throw new Exception($"Morphir tool package not found in {OutputDir}");
-            }
-        });
-
-    Target PublishAll => _ => _
-        .DependsOn(PublishLibs, PublishTool)
-        .Description("Publish all packages (libraries and tool)")
-        .Executes(() =>
-        {
-            Serilog.Log.Information("All packages published successfully");
-        });
-
-    // Local Publishing targets
-
-    Target PublishLocalLibs => _ => _
-        .DependsOn(PackLibs)
-        .Description("Publish library packages to a local NuGet source")
-        .Executes(() =>
-        {
-            LocalSource.CreateOrCleanDirectory();
-
-            // Add local source if it doesn't exist
-            try
-            {
-                DotNet($"nuget list source | grep {LocalSource}");
-            }
-            catch
-            {
-                Serilog.Log.Information($"Adding local NuGet source: {LocalSource}");
-                DotNet($"nuget add source {LocalSource} --name local-feed");
-            }
-
-            var corePackage = OutputDir.GlobFiles("Morphir.Core.*.nupkg").FirstOrDefault();
-            if (corePackage != null)
-            {
-                Serilog.Log.Information("Publishing Morphir.Core to local feed...");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(corePackage)
-                    .SetSource(LocalSource)
-                    .SetSkipDuplicate(true));
-            }
-
-            var toolingPackage = OutputDir.GlobFiles("Morphir.Tooling.*.nupkg").FirstOrDefault();
-            if (toolingPackage != null)
-            {
-                Serilog.Log.Information("Publishing Morphir.Tooling to local feed...");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(toolingPackage)
-                    .SetSource(LocalSource)
-                    .SetSkipDuplicate(true));
-            }
-
-            Serilog.Log.Information($"Libraries published to local feed: {LocalSource}");
-        });
-
-    Target PublishLocalTool => _ => _
-        .DependsOn(PackTool)
-        .Description("Install the Morphir CLI tool locally from the package")
-        .Executes(() =>
-        {
-            var toolPackage = OutputDir.GlobFiles("Morphir.*.nupkg")
-                .Where(p => !p.ToString().Contains("Morphir.Core") && !p.ToString().Contains("Morphir.Tooling"))
-                .FirstOrDefault();
-
-            if (toolPackage == null)
-            {
-                throw new Exception($"Morphir tool package not found in {OutputDir}. Please run PackTool first.");
-            }
-
-            var installCommand = Global
-                ? "dotnet tool install --global --add-source"
-                : "dotnet tool install --add-source";
-
-            var updateCommand = Global
-                ? "dotnet tool update --global --add-source"
-                : "dotnet tool update --add-source";
-
-            try
-            {
-                Serilog.Log.Information($"Installing Morphir CLI tool {(Global ? "globally" : "locally")} from: {toolPackage}");
-                DotNet($"tool install {(Global ? "--global" : "")} --add-source {OutputDir} Morphir");
-            }
-            catch
-            {
-                Serilog.Log.Information("Tool already installed, updating...");
-                DotNet($"tool update {(Global ? "--global" : "")} --add-source {OutputDir} Morphir");
-            }
-
-            Serilog.Log.Information("Morphir CLI tool installed successfully");
-        });
-
-    Target PublishLocalAll => _ => _
-        .DependsOn(PublishLocalLibs, PublishLocalTool)
-        .Description("Publish all packages locally (libraries to local feed, tool installed locally)")
-        .Executes(() =>
-        {
-            Serilog.Log.Information("All packages published locally successfully");
-        });
-
     // Helper methods
-
-    void RunTests(string configuration)
-    {
-        Serilog.Log.Information($"Running tests with configuration: {configuration}");
-        Serilog.Log.Information("================================================");
-
-        // Run Morphir.Core.Tests
-        Serilog.Log.Information("");
-        Serilog.Log.Information("Running Morphir.Core.Tests...");
-        var coreTestDll = TestsDirectory / "Morphir.Core.Tests" / "bin" / configuration / "net10.0" / "Morphir.Core.Tests.dll";
-        var coreExitCode = RunCommand("dotnet", "exec", coreTestDll);
-
-        // Run Morphir.Tooling.Tests
-        Serilog.Log.Information("");
-        Serilog.Log.Information("Running Morphir.Tooling.Tests...");
-        var toolingTestDll = TestsDirectory / "Morphir.Tooling.Tests" / "bin" / configuration / "net10.0" / "Morphir.Tooling.Tests.dll";
-        var toolingExitCode = RunCommand("dotnet", "exec", toolingTestDll);
-
-        // Check if any tests failed
-        if (coreExitCode != 0 || toolingExitCode != 0)
-        {
-            Serilog.Log.Error("");
-            Serilog.Log.Error("================================================");
-            Serilog.Log.Error("Tests FAILED");
-            Serilog.Log.Error($"  Morphir.Core.Tests: exit code {coreExitCode}");
-            Serilog.Log.Error($"  Morphir.Tooling.Tests: exit code {toolingExitCode}");
-            throw new Exception("Tests failed");
-        }
-
-        Serilog.Log.Information("");
-        Serilog.Log.Information("================================================");
-        Serilog.Log.Information("All tests PASSED");
-    }
 
     int RunCommand(string command, params string[] args)
     {

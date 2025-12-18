@@ -6,6 +6,12 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AssemblyName>morphir</AssemblyName>
+        
+        <!-- Package for NuGet and GitHub Releases (standard library package, not a tool) -->
+        <IsPackable>true</IsPackable>
+        <PackageId>Morphir</PackageId>
+        <Description>Morphir executable package for AOT and single-file deployments</Description>
+        <PackageTags>morphir;executable</PackageTags>
     </PropertyGroup>
 
     <!-- Generate version constant file at build time -->
