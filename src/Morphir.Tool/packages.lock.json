@@ -668,6 +668,21 @@
         "resolved": "10.0.0",
         "contentHash": "uaFRda9NjtbJRkdx311eXlAA3n2em7223c1A8d1VWyl+4FL9vkG7y2lpPfBU9HYdj/9KgdRNdn1vFK8ZYCYT/A=="
       },
+      "morphir": {
+        "type": "Project",
+        "dependencies": {
+          "Extism.Sdk": "[1.10.0, )",
+          "Extism.runtime.all": "[1.13.0, )",
+          "FluentValidation": "[11.12.0, )",
+          "JasperFx.CodeGeneration.Commands": "[3.7.2, )",
+          "Morphir.Tooling": "[1.0.0, )",
+          "Serilog": "[4.3.0, )",
+          "Serilog.Extensions.Hosting": "[5.0.1, )",
+          "Serilog.Sinks.Console": "[6.1.1, )",
+          "System.CommandLine": "[2.0.1, )",
+          "WolverineFx": "[5.8.0, )"
+        }
+      },
       "morphir.core": {
         "type": "Project",
         "dependencies": {

@@ -5,7 +5,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <AssemblyName>morphir</AssemblyName>
+        <AssemblyName>morphir-tool</AssemblyName>
         
         <!-- Package as dotnet tool -->
         <PackAsTool>true</PackAsTool>
@@ -21,6 +21,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Morphir\Morphir.csproj" />
         <ProjectReference Include="..\Morphir.Core\Morphir.Core.csproj" />
         <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />
     </ItemGroup>

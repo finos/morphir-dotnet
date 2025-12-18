@@ -33,6 +33,10 @@ partial class Build
             Serilog.Log.Information("Packing Morphir.Tooling...");
             DotNetPack(s => packSettings
                 .SetProject(MorphirToolingProject));
+
+            Serilog.Log.Information("Packing Morphir...");
+            DotNetPack(s => packSettings
+                .SetProject(MorphirProject));
         });
 
     Target PackTool => _ => _

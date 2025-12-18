@@ -51,6 +51,26 @@ partial class Build
             {
                 throw new Exception($"Morphir.Tooling package not found in {OutputDir}");
             }
+
+            // Publish Morphir executable package (not the Tool package)
+            var morphirPackage = OutputDir.GlobFiles("Morphir.0.*.nupkg")
+                .Where(p => !p.ToString().Contains("Morphir.Core") && 
+                           !p.ToString().Contains("Morphir.Tooling") && 
+                           !p.ToString().Contains("Morphir.Tool"))
+                .FirstOrDefault();
+            if (morphirPackage != null)
+            {
+                Serilog.Log.Information($"Publishing Morphir: {morphirPackage}");
+                DotNetNuGetPush(s => s
+                    .SetTargetPath(morphirPackage)
+                    .SetSource(NuGetSource)
+                    .SetApiKey(ApiKey)
+                    .SetSkipDuplicate(true));
+            }
+            else
+            {
+                throw new Exception($"Morphir package not found in {OutputDir}");
+            }
         });
 
     Target PublishTool => _ => _
@@ -125,6 +145,20 @@ partial class Build
                 Serilog.Log.Information("Publishing Morphir.Tooling to local feed...");
                 DotNetNuGetPush(s => s
                     .SetTargetPath(toolingPackage)
+                    .SetSource(LocalSource)
+                    .SetSkipDuplicate(true));
+            }
+
+            var morphirPackage = OutputDir.GlobFiles("Morphir.0.*.nupkg")
+                .Where(p => !p.ToString().Contains("Morphir.Core") && 
+                           !p.ToString().Contains("Morphir.Tooling") && 
+                           !p.ToString().Contains("Morphir.Tool"))
+                .FirstOrDefault();
+            if (morphirPackage != null)
+            {
+                Serilog.Log.Information("Publishing Morphir to local feed...");
+                DotNetNuGetPush(s => s
+                    .SetTargetPath(morphirPackage)
                     .SetSource(LocalSource)
                     .SetSkipDuplicate(true));
             }
