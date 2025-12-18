@@ -69,6 +69,8 @@ You are a specialized release management agent for the morphir-dotnet project. Y
 
 ### Release Preparation
 
+**CRITICAL**: Main branch is protected and requires pull requests. Direct pushes to main are not allowed!
+
 **IMPORTANT**: Since releases primarily use remote GitHub Actions, local state requirements are flexible.
 
 **Local state assessment:**
@@ -401,10 +403,23 @@ Use `resume-release.fsx` script:
    - Move [Unreleased] → [version] with date
    - Update comparison links
    - Create new [Unreleased] section
-   - Options:
-     - **If on main**: Commit directly `chore: prepare release v{version}`
-     - **If on branch**: Create PR with changelog update
-     - **User choice**: Let user decide approach
+
+   **CRITICAL**: Main branch is protected and does not allow direct pushes!
+
+   - **Always create a PR** for changelog updates:
+     ```bash
+     git checkout -b release/v{version}-changelog
+     # Make changelog changes
+     git add CHANGELOG.md
+     git commit -m "chore: prepare release v{version}"
+     git push -u origin release/v{version}-changelog
+     gh pr create --title "chore: prepare release v{version}" \
+       --body "Prepare for v{version} release" \
+       --base main
+     ```
+   - **Wait for PR checks** to pass (lint, tests on all platforms)
+   - **Merge PR** once checks pass
+   - **Pull main** after merge before triggering deployment
 
 **Phase 2: Execution (30-45 min)**
 
