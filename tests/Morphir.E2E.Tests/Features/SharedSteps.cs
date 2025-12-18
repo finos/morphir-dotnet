@@ -10,9 +10,14 @@ namespace Morphir.E2E.Tests.Features;
 [Binding]
 public class SharedSteps
 {
+    // Use instance fields to avoid race conditions in parallel test execution
+    // The ScenarioContext ensures each scenario gets its own instance
     private static ExecutableLocator? _executableLocator;
     private static ExecutableRunner? _executableRunner;
     private static TestDataResolver? _testDataResolver;
+    
+    // Thread-local storage for execution result to avoid parallel test interference
+    [ThreadStatic]
     private static ExecutableExecutionResult? _executionResult;
 
     private static ExecutableLocator ExecutableLocator

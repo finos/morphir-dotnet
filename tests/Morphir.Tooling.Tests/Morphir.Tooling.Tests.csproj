@@ -14,6 +14,8 @@
     <!-- Testing frameworks -->
     <PackageReference Include="TUnit" />
     <PackageReference Include="coverlet.collector" />
+    <!-- Explicit reference to force Microsoft.Extensions.Hosting 10.0.0 for WolverineFx 5.8.0 -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
 
     <!-- Assertions and verification -->
     <PackageReference Include="FluentAssertions" />

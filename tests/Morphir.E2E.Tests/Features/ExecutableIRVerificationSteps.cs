@@ -20,17 +20,19 @@ public class ExecutableIRVerificationSteps
     public void ThenTheOutputShouldBeValidJson()
     {
         SharedSteps.ExecutionResult.Should().NotBeNull("command should have been executed");
-        var output = SharedSteps.ExecutionResult!.CombinedOutput.Trim();
+        // Use StandardOutput only - stderr contains logging which would break JSON parsing
+        var output = SharedSteps.ExecutionResult!.StandardOutput.Trim();
         
         Action parseJson = () => JsonDocument.Parse(output);
-        parseJson.Should().NotThrow("output should be valid JSON");
+        parseJson.Should().NotThrow($"output should be valid JSON. Actual output: {output}");
     }
 
     [Then("the JSON output should have field \"(.*)\" with value \"(.*)\"")]
     public void ThenTheJsonOutputShouldHaveFieldWithValue(string fieldPath, string expectedValue)
     {
         SharedSteps.ExecutionResult.Should().NotBeNull("command should have been executed");
-        var output = SharedSteps.ExecutionResult!.CombinedOutput.Trim();
+        // Use StandardOutput only - stderr contains logging which would break JSON parsing
+        var output = SharedSteps.ExecutionResult!.StandardOutput.Trim();
         
         using var doc = JsonDocument.Parse(output);
         var current = doc.RootElement;
@@ -59,7 +61,8 @@ public class ExecutableIRVerificationSteps
     public void ThenTheJsonOutputShouldHaveFieldThatIsNotEmpty(string fieldPath)
     {
         SharedSteps.ExecutionResult.Should().NotBeNull("command should have been executed");
-        var output = SharedSteps.ExecutionResult!.CombinedOutput.Trim();
+        // Use StandardOutput only - stderr contains logging which would break JSON parsing
+        var output = SharedSteps.ExecutionResult!.StandardOutput.Trim();
         
         using var doc = JsonDocument.Parse(output);
         var current = doc.RootElement;
@@ -87,8 +90,9 @@ public class ExecutableIRVerificationSteps
     public void ThenTheOutputShouldBeEmpty()
     {
         SharedSteps.ExecutionResult.Should().NotBeNull("command should have been executed");
-        SharedSteps.ExecutionResult!.CombinedOutput.Should().BeEmpty(
-            "output should be empty in quiet mode");
+        // Use StandardOutput only for empty check - stderr may contain logging
+        SharedSteps.ExecutionResult!.StandardOutput.Should().BeEmpty(
+            "stdout should be empty in quiet mode (logging goes to stderr)");
     }
 }
 
