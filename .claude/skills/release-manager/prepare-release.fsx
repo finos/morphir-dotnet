@@ -27,7 +27,7 @@ type VersionInfo = {
 
 type RemoteState = {
     CiPassing: bool
-    LatestRun: int option
+    LatestRun: int64 option
     LatestCommit: string
     CommitMessage: string
 }
@@ -141,34 +141,47 @@ let checkRemoteCI () : Result<RemoteState, string> =
     logInfo "Checking remote CI status on main branch..."
 
     // Check latest GitHub Actions run on main
-    let (code, output, error) = runCommand "gh" "run list --branch main --limit 1 --json conclusion,databaseId,headCommit,headSha --jq '.[0]'"
+    let (code, output, error) = runCommand "gh" "run list --branch main --limit 1 --json conclusion,databaseId,headSha"
 
     if code <> 0 then
         Error $"Failed to query GitHub Actions: {error}"
     else
         try
+            logInfo $"Parsing GitHub response (length: {output.Length})"
             let doc = JsonDocument.Parse(output)
-            let root = doc.RootElement
+            let runs = doc.RootElement.EnumerateArray() |> Seq.toList
 
-            let conclusion = root.GetProperty("conclusion").GetString()
-            let runId = root.GetProperty("databaseId").GetInt32()
-            let sha = root.GetProperty("headSha").GetString()
-            let commitMsg =
-                try root.GetProperty("headCommit").GetProperty("message").GetString()
-                with _ -> ""
+            if runs.IsEmpty then
+                Error "No workflow runs found on main branch"
+            else
+                let root = runs.[0]
 
-            let ciPassing = conclusion = "success"
+                let conclusionProp = root.GetProperty("conclusion")
+                let conclusion = if conclusionProp.ValueKind = JsonValueKind.Null then "in_progress" else conclusionProp.GetString()
+                let runId = root.GetProperty("databaseId").GetInt64()
+                let sha = root.GetProperty("headSha").GetString()
 
-            if not ciPassing then
-                logWarning $"Latest CI run #{runId} has conclusion: {conclusion}"
+                // Get commit message from git log
+                let shortSha = if sha.Length > 7 then sha.Substring(0, 7) else sha
+                let commitMsg =
+                    try
+                        let (gitCode, gitOutput, _) = runCommand "git" (sprintf "log -1 --pretty=format:%%s %s" shortSha)
+                        if gitCode = 0 then gitOutput.Trim() else ""
+                    with _ -> ""
 
-            Ok {
-                CiPassing = ciPassing
-                LatestRun = Some runId
-                LatestCommit = sha.[0..6]
-                CommitMessage = commitMsg.Split('\n').[0] // First line only
-            }
+                let ciPassing = conclusion = "success"
+
+                if not ciPassing then
+                    logWarning $"Latest CI run #{runId} has conclusion: {conclusion}"
+
+                Ok {
+                    CiPassing = ciPassing
+                    LatestRun = Some runId
+                    LatestCommit = shortSha
+                    CommitMessage = commitMsg
+                }
         with ex ->
+            logError $"Exception details: {ex}"
             Error $"Failed to parse CI response: {ex.Message}"
 
 // ============================================================================
@@ -458,7 +471,7 @@ let outputHuman (result: PrepareResult) =
     // Changelog Analysis
     AnsiConsole.MarkupLine("[bold]Changelog Analysis:[/]")
     if result.Changelog.HasUnreleased then
-        let changelogMsg = sprintf "[green]📝 [Unreleased] section found with %d changes[/]" result.Changelog.ChangeCount
+        let changelogMsg = sprintf "[green]📝 [[Unreleased]] section found with %d changes[/]" result.Changelog.ChangeCount
         AnsiConsole.MarkupLine(changelogMsg)
         if result.Changelog.Added > 0 then
             let addedMsg = sprintf "[dim]   - Added: %d features[/]" result.Changelog.Added
@@ -473,7 +486,7 @@ let outputHuman (result: PrepareResult) =
             let breakingMsg = sprintf "[red]   - Breaking changes: %d[/]" result.Changelog.BreakingChanges
             AnsiConsole.MarkupLine(breakingMsg)
     else
-        AnsiConsole.MarkupLine("[red]❌ No [Unreleased] section found[/]")
+        AnsiConsole.MarkupLine("[red]❌ No [[Unreleased]] section found[/]")
     AnsiConsole.WriteLine()
 
     // Version Suggestion
