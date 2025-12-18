@@ -15,9 +15,10 @@
     
     <!-- Build Morphir project first (needed for codegen command) -->
     <!-- Pass GeneratingWolverineCode=true to prevent recursive codegen target execution -->
+    <!-- Disable shared compilation to avoid VBCSCompiler file locking issues on Windows -->
     <MSBuild Projects="$(MorphirProjectPath)" 
              Targets="Build" 
-             Properties="Configuration=$(Configuration);GeneratingWolverineCode=true;EnableWolverineCodeGeneration=false" />
+             Properties="Configuration=$(Configuration);GeneratingWolverineCode=true;EnableWolverineCodeGeneration=false;UseSharedCompilation=false" />
     
     <!-- Run codegen write command from the project root using the Morphir CLI -->
     <!-- The Morphir project has the codegen command that uses Morphir.Tooling -->
@@ -37,6 +38,14 @@
           ContinueOnError="false"
           Timeout="300000"
           Condition="!Exists('$(MorphirDllPath)')" />
+    
+    <!-- Wait a moment to ensure all file handles are released (especially on Windows where VBCSCompiler may hold locks) -->
+    <Exec Command="timeout /t 2 /nobreak" 
+          Condition="'$(OS)' == 'Windows_NT'"
+          ContinueOnError="true" />
+    <Exec Command="sleep 2" 
+          Condition="'$(OS)' != 'Windows_NT'"
+          ContinueOnError="true" />
     
     <Message Text="Wolverine code generation completed." Importance="high" />
   </Target>
