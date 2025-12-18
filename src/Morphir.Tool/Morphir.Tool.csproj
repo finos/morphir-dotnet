@@ -5,11 +5,11 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <AssemblyName>morphir-tool</AssemblyName>
+        <AssemblyName>dotnet-morphir</AssemblyName>
         
         <!-- Package as dotnet tool -->
         <PackAsTool>true</PackAsTool>
-        <ToolCommandName>morphir</ToolCommandName>
+        <ToolCommandName>dotnet-morphir</ToolCommandName>
         <PackageId>Morphir.Tool</PackageId>
         
         <!-- Do not pack this from standard build, only via PackTool target -->

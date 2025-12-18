@@ -55,7 +55,7 @@ partial class Build
                 .SetConfiguration(Configuration)
                 .SetOutputDirectory(OutputDir)
                 .SetProperty("PackAsTool", "true")
-                .SetProperty("ToolCommandName", "morphir")
+                .SetProperty("ToolCommandName", "dotnet-morphir")
                 .SetProperty("IsPackable", "true");
 
             if (!string.IsNullOrEmpty(Version))
