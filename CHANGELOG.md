@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-**NOTE**: This is a pre-release version. Stable v0.3.0 pending LanguageExt.Core 5.0 stable release.
+- **NOTE**: This is a pre-release version. Stable v0.3.0 pending LanguageExt.Core 5.0 stable release.
 - Serilog logging infrastructure for CLI tools (Serilog, Serilog.Extensions.Hosting, Serilog.Sinks.Console)
 - CLI logging standards documentation in AGENTS.md and CLAUDE.md
 - `.morphir/out/` directory to .gitignore
