@@ -1033,23 +1033,118 @@ Please update tracking issue with results.
 
 ## Continuous Improvement
 
-**After each release:**
+**Automated Retrospective and Feedback System:**
+
+The release management skill now includes automated prompts to capture feedback at critical moments:
+
+### 1. Failure Retrospective (monitor-release.fsx)
+
+When a release fails, the monitoring script automatically:
+- Detects the failure
+- Prompts: *"We noticed the release failed. Are there any changes we could make to the release process to ensure future success?"*
+- Records feedback in the release tracking issue
+- Tracks consecutive failures to identify patterns
+
+**How to use:**
+- Run `monitor-release.fsx` as normal
+- When failure is detected, you'll be prompted for feedback
+- Provide specific, actionable insights about what went wrong
+- Feedback is automatically added to the tracking issue
+
+### 2. Success Feedback (validate-release.fsx)
+
+After **three or more consecutive successful releases**, the validation script:
+- Prompts: *"You've had [N] successful releases in a row! 🎉 Would you like to provide feedback on how we can further improve the release process?"*
+- Records improvement suggestions in the tracking issue
+- Resets the counter on any failure
+
+**How to use:**
+- Run `validate-release.fsx` after successful releases
+- After 3+ consecutive successes, you'll be prompted
+- Share what's working well and ideas for further improvement
+- Helps identify best practices to formalize
+
+### 3. Process Change Detection (prepare-release.fsx)
+
+During release preparation, the script analyzes changes since the last release:
+- Detects modifications to:
+  - `.github/workflows/deployment.yml`
+  - `.claude/skills/release-manager/` scripts
+  - `AGENTS.md` and `.agents/release-management.md`
+- Prompts: *"We see changes to [N] release process files. Would you like to update or add to our release playbooks based on these changes?"*
+- Guides you to update relevant documentation
+
+**How to use:**
+- Run `prepare-release.fsx` before starting a release
+- Review detected changes to release process files
+- If prompted, provide context about why changes were made
+- Update documentation: skill.md, README.md, AGENTS.md
+
+### Release History Tracking
+
+The system maintains a release history file (`.release-history.json`) to:
+- Track consecutive successes and failures
+- Store release metadata (version, date, status)
+- Enable pattern detection across releases
+- Support retrospective analysis
+
+**Manual history queries** (via release-history.fsx):
+```fsharp
+#load "release-history.fsx"
+open ReleaseHistory
+
+// Check consecutive successes
+let successes = getConsecutiveSuccesses()
+
+// Get last N releases
+let recent = getLastNReleases 5
+
+// Add custom release record
+addRelease "1.0.0" Success (Some 219) (Some "Smooth release, no issues")
+```
+
+### Best Practices for Feedback
+
+**When providing failure feedback:**
+- Be specific about what failed and why
+- Suggest concrete improvements
+- Reference specific steps or tools
+- Consider both technical and process issues
+
+**When providing success feedback:**
+- Highlight what's working well
+- Suggest incremental improvements
+- Share efficiency gains discovered
+- Identify reusable patterns
+
+**When noting process changes:**
+- Explain the motivation for changes
+- Document expected benefits
+- Note any risks or tradeoffs
+- Update playbooks immediately
+
+### After Each Release
+
 1. Review what went well
-2. Document what went wrong
+2. Document what went wrong (automated prompt on failure)
 3. Update automation scripts
-4. Enhance playbook
-5. Share learnings with team
+4. Enhance playbook with new learnings
+5. Share learnings with team (via feedback in issues)
 6. Update AGENTS.md if needed
 
 **Metrics to track:**
 - Time to release
-- Failed releases (count and reasons)
+- Failed releases (count and reasons) - *automatically tracked*
+- Consecutive successes - *automatically tracked*
 - Manual interventions needed
 - Documentation completeness
 - QA issues found post-release
+- Feedback response rate
 
-**Goal**: Fully automated, reliable, repeatable releases with flexible workflows.
+**Goal**: Fully automated, reliable, repeatable releases with flexible workflows and continuous improvement driven by real-world feedback.
 
 ---
 
 **Remember**: Releases represent the project's quality and professionalism. Take your time, follow the process, document everything, and continuously improve. Be flexible with local state while maintaining strict standards for remote execution. Users depend on reliable releases.
+
+The retrospective system helps build a culture of continuous improvement by capturing insights at the moments they matter most.

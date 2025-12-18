@@ -5,6 +5,7 @@
 #r "nuget: Spectre.Console, 0.53.0"
 #r "nuget: System.Text.Json, 9.0.0"
 #r "nuget: Argu, 6.2.4"
+#r "nuget: FSharp.SystemTextJson, 1.3.13"
 
 open System
 open System.IO
@@ -14,6 +15,10 @@ open System.Text.Json.Serialization
 open System.Threading
 open Argu
 open Spectre.Console
+
+// Load release history utilities
+#load "release-history.fsx"
+open ReleaseHistory
 
 // ============================================================================
 // CLI Arguments
@@ -468,11 +473,52 @@ let monitorAsync (results: ParseResults<MonitorArguments>) (ct: CancellationToke
                     let success = run.Conclusion = Some "success"
                     let duration = Some (run.UpdatedAt - run.StartedAt)
 
+                    // Track release in history and prompt for retrospective feedback on failure
+                    let releaseStatus = if success then ReleaseHistory.Success else ReleaseHistory.Failure
+                    let _ = ReleaseHistory.addRelease version releaseStatus issueNumber None
+                    
+                    // Prompt for retrospective feedback if failed
+                    let feedbackGiven =
+                        if not success && not jsonOutput && not ct.IsCancellationRequested then
+                            let feedback = ReleaseHistory.promptForFeedback 
+                                "We noticed the release failed. Are there any changes we could make to the release process to ensure future success?"
+                            
+                            match feedback, issueNumber with
+                            | Some fb, Some issueNum when not (String.IsNullOrWhiteSpace(fb)) ->
+                                // Add feedback to issue
+                                let feedbackComment = sprintf """## 📝 Release Failure Retrospective
+
+**Feedback from Release Manager:**
+
+%s
+
+---
+*Collected by monitor-release.fsx after release failure*
+""" fb
+                                let escapedFeedback = feedbackComment.Replace("\"", "\\\"").Replace("\n", "\\n")
+                                let feedbackResult = 
+                                    Async.RunSynchronously(
+                                        runCommandAsync "gh" (sprintf "issue comment %d --body \"%s\"" issueNum escapedFeedback) ct,
+                                        cancellationToken = ct
+                                    )
+                                match feedbackResult with
+                                | Ok _ -> 
+                                    logInfo "Retrospective feedback added to issue"
+                                    true
+                                | Error err ->
+                                    logWarn (sprintf "Failed to add feedback to issue: %s" err)
+                                    false
+                            | _ -> false
+                        else
+                            false
+
                     if not jsonOutput then
                         if success then
                             AnsiConsole.MarkupLine("[green]✅ Workflow completed successfully[/]")
                         else
                             AnsiConsole.MarkupLine(sprintf "[red]❌ Workflow %s[/]" (run.Conclusion |> Option.defaultValue "incomplete"))
+                            if feedbackGiven then
+                                AnsiConsole.MarkupLine("[green]📝 Retrospective feedback recorded[/]")
 
                     return {
                         Success = success

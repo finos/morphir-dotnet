@@ -5,6 +5,7 @@
 #r "nuget: Spectre.Console, 0.53.0"
 #r "nuget: System.Text.Json, 9.0.0"
 #r "nuget: Argu, 6.2.4"
+#r "nuget: FSharp.SystemTextJson, 1.3.13"
 
 open System
 open System.IO
@@ -14,6 +15,10 @@ open System.Text.Json.Serialization
 open System.Threading
 open Argu
 open Spectre.Console
+
+// Load release history utilities
+#load "release-history.fsx"
+open ReleaseHistory
 
 // ============================================================================
 // CLI Arguments
@@ -520,10 +525,48 @@ let validateAsync (results: ParseResults<ValidateArguments>) (ct: CancellationTo
                     | _ -> return false
                 }
 
+            // Prompt for continuous improvement feedback after consecutive successes
+            let feedbackGiven =
+                if success && not jsonOutput && not ct.IsCancellationRequested && ReleaseHistory.shouldPromptForSuccessFeedback() then
+                    let consecutiveSuccesses = ReleaseHistory.getConsecutiveSuccesses()
+                    let feedback = ReleaseHistory.promptForFeedback 
+                        (sprintf "You've had %d successful releases in a row! 🎉 Would you like to provide feedback on how we can further improve the release process?" consecutiveSuccesses)
+                    
+                    match feedback, issueNumber with
+                    | Some fb, Some issueNum when not (String.IsNullOrWhiteSpace(fb)) ->
+                        // Add feedback to issue
+                        let feedbackComment = sprintf """## 📈 Release Success Feedback
+
+**After %d consecutive successful releases:**
+
+%s
+
+---
+*Collected by validate-release.fsx after consecutive successful releases*
+""" consecutiveSuccesses fb
+                        let escapedFeedback = feedbackComment.Replace("\"", "\\\"").Replace("\n", "\\n")
+                        let feedbackResult = 
+                            Async.RunSynchronously(
+                                runCommandAsync "gh" (sprintf "issue comment %d --body \"%s\"" issueNum escapedFeedback) ct,
+                                cancellationToken = ct
+                            )
+                        match feedbackResult with
+                        | Ok _ -> 
+                            logInfo "Success feedback added to issue"
+                            true
+                        | Error err ->
+                            logWarn (sprintf "Failed to add feedback to issue: %s" err)
+                            false
+                    | _ -> false
+                else
+                    false
+
             if not jsonOutput then
                 AnsiConsole.WriteLine()
                 if success then
                     AnsiConsole.MarkupLine("[green]✅ All validations passed[/]")
+                    if feedbackGiven then
+                        AnsiConsole.MarkupLine("[green]📈 Continuous improvement feedback recorded[/]")
                 else
                     AnsiConsole.MarkupLine("[red]❌ Some validations failed[/]")
 

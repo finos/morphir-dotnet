@@ -4,6 +4,7 @@
 
 #r "nuget: Spectre.Console, 0.53.0"
 #r "nuget: System.Text.Json, 9.0.0"
+#r "nuget: FSharp.SystemTextJson, 1.3.13"
 
 open System
 open System.IO
@@ -11,6 +12,10 @@ open System.Diagnostics
 open System.Text.Json
 open System.Text.Json.Serialization
 open Spectre.Console
+
+// Load release history utilities
+#load "release-history.fsx"
+open ReleaseHistory
 
 // ============================================================================
 // Types
@@ -54,6 +59,12 @@ type LocalState = {
     Blocking: bool
 }
 
+type ProcessChanges = {
+    HasReleaseProcessChanges: bool
+    ChangedFiles: string list
+    ShouldPromptForPlaybookUpdate: bool
+}
+
 type PrepareResult = {
     Ready: bool
     Version: VersionInfo
@@ -61,6 +72,7 @@ type PrepareResult = {
     Changelog: ChangelogInfo
     VersionValidation: VersionValidation
     LocalState: LocalState option
+    ProcessChanges: ProcessChanges option
     Warnings: string list
     Errors: string list
     ExitCode: int
@@ -346,6 +358,54 @@ let checkLocalState () : LocalState =
     }
 
 // ============================================================================
+// Process Change Detection
+// ============================================================================
+
+let checkForProcessChanges () : ProcessChanges =
+    logInfo "Checking for release process changes since last release..."
+    
+    // Get the last release tag
+    let (tagCode, lastTag, _) = runCommand "git" "describe --tags --abbrev=0"
+    
+    if tagCode <> 0 || String.IsNullOrWhiteSpace(lastTag) then
+        logInfo "No previous release tag found, skipping process change detection"
+        {
+            HasReleaseProcessChanges = false
+            ChangedFiles = []
+            ShouldPromptForPlaybookUpdate = false
+        }
+    else
+        // Check for changes to release-related files
+        let releaseProcessPaths = [
+            ".github/workflows/deployment.yml"
+            ".github/workflows/"
+            ".claude/skills/release-manager/"
+            "AGENTS.md"
+            ".agents/release-management.md"
+        ]
+        
+        let changedFiles = 
+            releaseProcessPaths
+            |> List.collect (fun path ->
+                let (code, output, _) = runCommand "git" (sprintf "diff --name-only %s HEAD -- %s" lastTag path)
+                if code = 0 && not (String.IsNullOrWhiteSpace(output)) then
+                    output.Split('\n') |> Array.filter (fun s -> not (String.IsNullOrWhiteSpace(s))) |> Array.toList
+                else
+                    []
+            )
+        
+        let hasChanges = not (List.isEmpty changedFiles)
+        
+        if hasChanges then
+            logInfo (sprintf "Detected %d release process files changed since %s" changedFiles.Length lastTag)
+        
+        {
+            HasReleaseProcessChanges = hasChanges
+            ChangedFiles = changedFiles
+            ShouldPromptForPlaybookUpdate = hasChanges
+        }
+
+// ============================================================================
 // Main Logic
 // ============================================================================
 
@@ -414,6 +474,28 @@ let prepare () : PrepareResult =
         else
             Some (checkLocalState())
 
+    // 6. Check for process changes
+    let processChanges = Some (checkForProcessChanges())
+    
+    // Prompt for playbook update if process changes detected
+    if not jsonOutput && processChanges.IsSome && processChanges.Value.ShouldPromptForPlaybookUpdate then
+        let feedback = ReleaseHistory.promptForFeedback 
+            (sprintf "We see changes to %d release process files. Would you like to update or add to our release playbooks based on these changes?" processChanges.Value.ChangedFiles.Length)
+        
+        match feedback with
+        | Some fb when not (String.IsNullOrWhiteSpace(fb)) ->
+            logInfo "Process change feedback captured"
+            eprintfn ""
+            eprintfn "📝 Feedback for process changes:"
+            eprintfn "%s" fb
+            eprintfn ""
+            eprintfn "Consider updating:"
+            eprintfn "  - .claude/skills/release-manager/skill.md"
+            eprintfn "  - .agents/release-management.md"
+            eprintfn "  - .claude/skills/release-manager/README.md"
+            eprintfn ""
+        | _ -> ()
+
     // Determine readiness
     let ready = errors.IsEmpty
     let exitCode =
@@ -428,6 +510,7 @@ let prepare () : PrepareResult =
         Changelog = changelog
         VersionValidation = versionValidation
         LocalState = localState
+        ProcessChanges = processChanges
         Warnings = List.rev warnings
         Errors = List.rev errors
         ExitCode = exitCode
@@ -536,6 +619,19 @@ let outputHuman (result: PrepareResult) =
     | None ->
         AnsiConsole.MarkupLine("[dim]Local state check skipped[/]")
         AnsiConsole.WriteLine()
+
+    // Process Changes (if checked)
+    match result.ProcessChanges with
+    | Some changes when changes.HasReleaseProcessChanges ->
+        AnsiConsole.MarkupLine("[bold]Release Process Changes Detected:[/]")
+        AnsiConsole.MarkupLine(sprintf "[yellow]📋 %d release process files changed since last release[/]" changes.ChangedFiles.Length)
+        if changes.ChangedFiles.Length <= 10 then
+            for file in changes.ChangedFiles do
+                AnsiConsole.MarkupLine(sprintf "[dim]   - %s[/]" file)
+        if changes.ShouldPromptForPlaybookUpdate then
+            AnsiConsole.MarkupLine("[yellow]💡 Consider updating release playbooks and documentation[/]")
+        AnsiConsole.WriteLine()
+    | _ -> ()
 
     // Warnings
     if not result.Warnings.IsEmpty then
