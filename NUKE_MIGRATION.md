@@ -37,8 +37,8 @@ All justfile targets have been migrated to Nuke. Below is the mapping:
 
 The following targets from justfile are not migrated as they are complex edge cases or superseded:
 
-- `pack-tool-platform` - Complex manual packaging, superseded by `PackTool`
-- `build-tool-dll` - Internal helper, not needed in Nuke
+- `pack-tool-platform` - **REMOVED** - Deprecated script, superseded by `PackTool` target (now uses Morphir.Tool project)
+- `build-tool-dll` - **REMOVED** - Deprecated internal helper, not needed in Nuke
 - `publish-executables` - Multi-RID loop, use `PublishExecutable` with `--rid` instead
 - `build-and-test` - Combination target, compose from `PublishSingleFile` + `TestE2E`
 
