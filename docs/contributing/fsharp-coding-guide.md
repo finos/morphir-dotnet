@@ -10,8 +10,9 @@ This guide provides F#-specific coding standards and best practices for the morp
 4. [Immutability and Data Structures](#immutability-and-data-structures)
 5. [Async and Task Workflows](#async-and-task-workflows)
 6. [Type Design](#type-design)
-7. [CLI Scripts (.fsx)](#cli-scripts-fsx)
-8. [Testing](#testing)
+7. [JSON Serialization with System.Text.Json](#json-serialization-with-systemtextjson)
+8. [CLI Scripts (.fsx)](#cli-scripts-fsx)
+9. [Testing](#testing)
 
 ---
 
@@ -506,6 +507,298 @@ let toSeconds (mins: float<minutes>) : float<seconds> =
 
 ---
 
+## JSON Serialization with System.Text.Json
+
+System.Text.Json is the recommended JSON library for .NET. When working with F# types, there are specific patterns and gotchas to be aware of.
+
+**See also**: [Serialization Guide](./serialization-guide.md) for comprehensive serialization patterns across the project.
+
+### Basic Serialization
+
+```fsharp
+#r "nuget: System.Text.Json, 9.0.0"
+
+open System.Text.Json
+open System.Text.Json.Serialization
+
+// ✅ Good: Simple record type
+type Config = {
+    Port: int
+    Host: string
+    Timeout: int
+}
+
+let config = { Port = 8080; Host = "localhost"; Timeout = 30 }
+
+// Serialize with options
+let options = JsonSerializerOptions()
+options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+options.WriteIndented <- true
+
+let json = JsonSerializer.Serialize(config, options)
+// Output: { "port": 8080, "host": "localhost", "timeout": 30 }
+```
+
+### Common Gotchas
+
+#### 1. F# Records Require Mutable Setters (By Default)
+
+**Problem**: System.Text.Json by default requires mutable properties for deserialization.
+
+```fsharp
+// ❌ This will FAIL during deserialization
+type User = {
+    Name: string
+    Age: int
+}
+
+let json = """{"name": "Alice", "age": 30}"""
+let user = JsonSerializer.Deserialize<User>(json)
+// Error: Cannot deserialize - no parameterless constructor or mutable properties
+```
+
+**Solution**: Use `FSharpJsonConverter` or enable record deserialization:
+
+```fsharp
+// ✅ Good: Use FSharp.SystemTextJson package
+#r "nuget: FSharp.SystemTextJson, 1.3.13"
+
+open System.Text.Json
+open System.Text.Json.Serialization
+
+let options = JsonSerializerOptions()
+options.Converters.Add(JsonFSharpConverter())
+
+let user = JsonSerializer.Deserialize<User>(json, options)
+// Works correctly with immutable F# records
+```
+
+#### 2. Discriminated Unions Are Not Supported (By Default)
+
+**Problem**: System.Text.Json doesn't understand F# discriminated unions out of the box.
+
+```fsharp
+// ❌ This will NOT serialize as expected
+type Status =
+    | Pending
+    | InProgress of startTime: DateTime
+    | Completed of result: string
+
+let status = InProgress DateTime.Now
+let json = JsonSerializer.Serialize(status)
+// Output: {} or error
+```
+
+**Solution**: Use `FSharp.SystemTextJson` which handles unions properly:
+
+```fsharp
+// ✅ Good: Use FSharp.SystemTextJson
+let options = JsonSerializerOptions()
+options.Converters.Add(JsonFSharpConverter())
+
+let json = JsonSerializer.Serialize(status, options)
+// Output: {"Case":"InProgress","Fields":["2025-12-18T15:30:00Z"]}
+```
+
+#### 3. Option Types Serialize as Objects
+
+**Problem**: F# `option` types don't serialize as null/value by default.
+
+```fsharp
+// ❌ Without FSharp.SystemTextJson
+type Config = {
+    Port: int option
+    Host: string
+}
+
+let config = { Port = None; Host = "localhost" }
+let json = JsonSerializer.Serialize(config)
+// Output: {"Port":{},"Host":"localhost"} - Port is empty object, not null
+```
+
+**Solution**: Use `FSharp.SystemTextJson` or configure options:
+
+```fsharp
+// ✅ Good: Use FSharp.SystemTextJson
+let options = JsonSerializerOptions()
+options.Converters.Add(JsonFSharpConverter(
+    unionEncoding = JsonUnionEncoding.Default,
+    unionTagNamingPolicy = JsonNamingPolicy.CamelCase
+))
+
+let json = JsonSerializer.Serialize(config, options)
+// Output: {"port":null,"host":"localhost"} - Port is null as expected
+```
+
+#### 4. JsonElement Reading for Dynamic JSON
+
+When reading JSON with unknown structure, use `JsonElement`:
+
+```fsharp
+// ✅ Good: Active pattern for JsonElement property access
+let (|JsonProperty|_|) (propertyName: string) (element: JsonElement) =
+    let mutable prop = Unchecked.defaultof<JsonElement>
+    if element.TryGetProperty(propertyName, &prop) then
+        Some prop
+    else
+        None
+
+// ✅ Good: Active pattern for JsonValueKind
+let (|JsonString|JsonNumber|JsonBool|JsonNull|JsonArray|JsonObject|) (element: JsonElement) =
+    match element.ValueKind with
+    | JsonValueKind.String -> JsonString (element.GetString())
+    | JsonValueKind.Number -> JsonNumber (element.GetInt64())
+    | JsonValueKind.True -> JsonBool true
+    | JsonValueKind.False -> JsonBool false
+    | JsonValueKind.Null -> JsonNull
+    | JsonValueKind.Array -> JsonArray (element.EnumerateArray() |> Seq.toList)
+    | JsonValueKind.Object -> JsonObject element
+    | _ -> JsonNull
+
+// Usage
+let doc = JsonDocument.Parse(json)
+match doc.RootElement with
+| JsonProperty "version" (JsonString version) -> printfn "Version: %s" version
+| JsonProperty "count" (JsonNumber count) -> printfn "Count: %d" count
+| _ -> printfn "Unknown structure"
+```
+
+#### 5. Null vs Option<T> in JSON
+
+When working with C# APIs that use nullable reference types:
+
+```fsharp
+// ✅ Good: Handling nulls from JSON
+type ApiResponse = {
+    Data: string | null  // For C# interop
+    Error: string option // For F# code
+}
+
+let parseResponse (json: string) : Result<ApiResponse, string> =
+    try
+        let response = JsonSerializer.Deserialize<ApiResponse>(json)
+        // Convert null to Option
+        let error = response.Error
+        Ok response
+    with ex ->
+        Error ex.Message
+```
+
+### Best Practices for JSON in F# Scripts
+
+```fsharp
+// ✅ Good: Configure options once and reuse
+let jsonOptions =
+    let options = JsonSerializerOptions()
+    options.PropertyNamingPolicy <- JsonNamingPolicy.CamelCase
+    options.WriteIndented <- true
+    options.Converters.Add(JsonFSharpConverter())
+    options
+
+// ✅ Good: Type-safe result serialization
+type ScriptResult = {
+    Success: bool
+    Version: string option
+    Errors: string list
+    ExitCode: int
+}
+
+let serializeResult (result: ScriptResult) : string =
+    JsonSerializer.Serialize(result, jsonOptions)
+
+// ✅ Good: Safe deserialization with error handling
+let deserializeConfig (json: string) : Result<Config, string> =
+    try
+        let config = JsonSerializer.Deserialize<Config>(json, jsonOptions)
+        Ok config
+    with
+    | :? JsonException as ex -> Error $"Invalid JSON: {ex.Message}"
+    | ex -> Error $"Deserialization error: {ex.Message}"
+```
+
+### CLI JSON Output Pattern
+
+For CLI scripts that support `--json` output:
+
+```fsharp
+// ✅ Good: Separate human-readable and JSON output
+let outputResult (result: ScriptResult) (jsonOutput: bool) =
+    if jsonOutput then
+        // ONLY JSON to stdout
+        let json = JsonSerializer.Serialize(result, jsonOptions)
+        printfn "%s" json
+    else
+        // Human-readable to stdout
+        printfn "=== Results ==="
+        printfn "Success: %b" result.Success
+        result.Version |> Option.iter (printfn "Version: %s")
+        if not result.Errors.IsEmpty then
+            printfn "Errors:"
+            result.Errors |> List.iter (printfn "  - %s")
+
+// ✅ Good: Test JSON output is valid
+// Test command: dotnet fsi script.fsx --json | jq .
+```
+
+### Common Patterns from prepare-release.fsx
+
+```fsharp
+// ✅ Pattern: Parse GitHub API response (JSON array)
+let parseGitHubRuns (json: string) : Result<WorkflowRun list, string> =
+    try
+        let doc = JsonDocument.Parse(json)
+        let runs =
+            doc.RootElement.EnumerateArray()
+            |> Seq.map (fun element ->
+                {
+                    Conclusion = element.GetProperty("conclusion").GetString()
+                    DatabaseId = element.GetProperty("databaseId").GetInt64()
+                    HeadSha = element.GetProperty("headSha").GetString()
+                }
+            )
+            |> Seq.toList
+        Ok runs
+    with ex ->
+        Error $"Failed to parse JSON: {ex.Message}"
+
+// ✅ Pattern: Handle nullable JSON properties
+let getConclusion (element: JsonElement) : string =
+    let conclusionProp = element.GetProperty("conclusion")
+    if conclusionProp.ValueKind = JsonValueKind.Null then
+        "in_progress"
+    else
+        conclusionProp.GetString()
+```
+
+### Source Generators for AOT Compatibility
+
+For Native AOT compilation, use source-generated serialization contexts:
+
+```fsharp
+// ✅ Good: Source-generated context for AOT
+[<JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)>]
+[<JsonSerializable(typeof<ScriptResult>)>]
+[<JsonSerializable(typeof<Config>)>]
+type MorphirJsonContext =
+    inherit JsonSerializerContext
+
+// Usage with AOT
+let json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.ScriptResult)
+```
+
+### Summary: JSON Serialization Checklist
+
+- ✅ Use `FSharp.SystemTextJson` for F# types (records, unions, options)
+- ✅ Configure `JsonSerializerOptions` once and reuse
+- ✅ Use active patterns for reading `JsonElement` dynamically
+- ✅ Handle `JsonValueKind.Null` explicitly
+- ✅ Test `--json` output with `jq` to ensure valid JSON
+- ✅ Separate logs (stderr) from JSON output (stdout)
+- ✅ Use source generators for Native AOT scenarios
+- ✅ Prefer `option` for F# code, nullable types for C# interop boundaries
+
+---
+
 ## CLI Scripts (.fsx)
 
 ### Script Structure
@@ -662,7 +955,8 @@ Key F# principles for morphir-dotnet:
 8. ✅ **Write exhaustive pattern matches** - handle all cases
 9. ✅ **Prefer Option<'T>** over null in F# code
 10. ✅ **Use nullable reference types (F# 9)** for C# interop boundaries
-11. ✅ **Follow railway-oriented programming** for error handling
+11. ✅ **Use FSharp.SystemTextJson** for JSON serialization with F# types
+12. ✅ **Follow railway-oriented programming** for error handling
 
 ---
 
@@ -671,6 +965,9 @@ Key F# principles for morphir-dotnet:
 - [F# Style Guide](https://docs.microsoft.com/en-us/dotnet/fsharp/style-guide/)
 - [F# Design Guidelines](https://docs.microsoft.com/en-us/dotnet/fsharp/style-guide/conventions)
 - [F# 9 Nullable Reference Types](https://learn.microsoft.com/en-us/dotnet/fsharp/whats-new/fsharp-9#nullable-reference-types)
+- [FSharp.SystemTextJson](https://github.com/Tarmil/FSharp.SystemTextJson) - F# support for System.Text.Json
+- [System.Text.Json Documentation](https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/overview)
 - [Domain Modeling Made Functional](https://fsharpforfunandprofit.com/books/)
 - [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/)
+- [Serialization Guide](./serialization-guide.md) - Comprehensive serialization patterns (cross-language)
 - [AGENTS.md](../../AGENTS.md) - Project-wide agent guidance
