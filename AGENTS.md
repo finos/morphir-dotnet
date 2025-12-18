@@ -131,6 +131,14 @@ F# specifics
 - Use Result types for railway-oriented programming
 - Maintain immutability with records and immutable collections
 
+Native AOT, Trimming, and Size Optimization
+- See [AOT/Trimming Guide](./docs/contributing/aot-trimming-guide.md) for comprehensive AOT/trimming guidance
+- Use source generators for JSON serialization (not reflection)
+- Design for trimming from the start (avoid reflection and dynamic code)
+- Test with `PublishAot=true` and `PublishTrimmed=true`
+- Target sizes: 5-8 MB (minimal), 8-12 MB (feature-rich), 10-15 MB (with UI)
+- See [Issue #221](https://github.com/finos/morphir-dotnet/issues/221) for implementation tracking
+
 CLI Tool Logging Requirements
 - **CRITICAL**: CLI tools MUST NOT write log messages to stdout
 - All logging output MUST be directed to stderr only
