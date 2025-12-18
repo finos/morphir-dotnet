@@ -2,7 +2,7 @@
 // Validate NuGet package structure and metadata
 // Usage: dotnet fsi validate-packages.fsx
 
-#r "nuget: Spectre.Console, 0.49.1"
+#r "nuget: Spectre.Console, 0.53.0"
 #r "nuget: System.IO.Compression.ZipFile, 4.3.0"
 
 open System

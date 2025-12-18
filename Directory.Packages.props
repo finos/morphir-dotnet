@@ -80,5 +80,9 @@
     <PackageVersion Include="Vogen" Version="8.0.3" />
     <PackageVersion Include="TickSpec" Version="2.0.2" />
     <PackageVersion Include="Ionide.KeepAChangelog.Tasks" Version="0.3.1" />
+    <!-- F# Script Dependencies (for .claude/skills) -->
+    <PackageVersion Include="Argu" Version="6.2.4" />
+    <PackageVersion Include="Spectre.Console" Version="0.53.0" />
+    <PackageVersion Include="System.Text.Json" Version="9.0.0" />
   </ItemGroup>
 </Project>

@@ -673,11 +673,6 @@
         "resolved": "3.1.2",
         "contentHash": "/OoEZQxSW6DeTJ9nfrg8BLCOCWpxBiWHV4NkG3t+Xpe8tvzm7yCwKwxkhpauMl3fg9OjlIjJMKX61H6VavLkrw=="
       },
-      "Spectre.Console": {
-        "type": "Transitive",
-        "resolved": "0.53.0",
-        "contentHash": "m2iv8Egfywp7FaNLKCmCFHbSf36D4ctzZKvlAK9NXMyGLh6L+CnrZWK8o+LOYsoAS1jtoHn0W1BT0W8vuq/FUw=="
-      },
       "System.Composition": {
         "type": "Transitive",
         "resolved": "9.0.0",
@@ -776,7 +771,6 @@
         "type": "Project",
         "dependencies": {
           "FluentValidation": "[11.12.0, )",
-          "JasperFx.CodeGeneration": "[3.7.2, )",
           "JasperFx.CodeGeneration.Commands": "[3.7.2, )",
           "Json.More.Net": "[2.2.0, )",
           "JsonSchema.Net": "[8.0.3, )",
@@ -921,6 +915,12 @@
         "dependencies": {
           "Serilog": "4.0.0"
         }
+      },
+      "Spectre.Console": {
+        "type": "CentralTransitive",
+        "requested": "[0.53.0, )",
+        "resolved": "0.53.0",
+        "contentHash": "m2iv8Egfywp7FaNLKCmCFHbSf36D4ctzZKvlAK9NXMyGLh6L+CnrZWK8o+LOYsoAS1jtoHn0W1BT0W8vuq/FUw=="
       },
       "Vogen": {
         "type": "CentralTransitive",
