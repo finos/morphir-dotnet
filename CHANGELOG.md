@@ -11,16 +11,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Serilog logging infrastructure for CLI tools (Serilog, Serilog.Extensions.Hosting, Serilog.Sinks.Console)
 - CLI logging standards documentation in AGENTS.md and CLAUDE.md
 - `.morphir/out/` directory to .gitignore
+- New Morphir.Tool project as dedicated dotnet tool package (#214)
+- Build.CI.cs with DevWorkflow, CILint, CITest targets for local CI simulation (#214)
+- Comprehensive XML documentation for all 23+ build targets (#214)
+- Morphir package now published to NuGet/GitHub releases (#214)
+- Comprehensive Phase 1 test plan in docs/content/contributing/qa/
+- **QA Testing Framework**: Claude Code skill with F# automation scripts
+  - smoke-test.fsx - Quick 2-minute smoke test
+  - regression-test.fsx - Full 10-15 minute regression suite
+  - validate-packages.fsx - NuGet package structure validation
+- **Cross-Agent Guidance**: `.agents/` directory for specialized topics
+  - .agents/qa-testing.md - Comprehensive QA testing guidance for all AI agents
+  - .agents/README.md - Navigation and contribution guidelines
+- **Multi-Agent Pointer Files**: Configuration for all major AI coding assistants
+  - .cursorrules - Cursor AI pointer file
+  - .github/copilot-instructions.md - GitHub Copilot instructions
+  - .windsurf/rules/morphir.md - Windsurf AI rules and workflows
+  - .idea/ai-assistant-rules.md - JetBrains AI Assistant configuration
+- **AGENTS.md Enhancements**:
+  - Quick Navigation section (links to .agents/, CLAUDE.md, docs/)
+  - Section 18: Specialized Guidance (detailed links to .agents/ topics)
+  - Section 19: Resources and References (comprehensive resource index)
 
 ### Changed
 - Configured all logging to write to stderr instead of stdout to preserve stdout for command output
 - Updated E2E test runner script to use Nuke build commands instead of deprecated `just` commands
 - Updated README.md with Nuke build command examples
+- Split monolithic Build.cs into 5 partial classes: Packaging, Publishing, Testing, CI (#214)
+- Tool command name follows dotnet convention: `dotnet-morphir` (was `morphir`) (#214)
+- Morphir.Tool delegates to public Morphir.Program.Main() eliminating code duplication (#214)
+- Morphir project now packable (IsPackable=true, was false) (#214)
+- PackAll now builds 4 packages: Core, Tooling, Morphir, Tool (#214)
+- **AGENTS.md**: Enhanced with navigation sections for better discoverability across AI tools
 
 ### Fixed
 - Fixed JSON output contamination issue where log messages were being written to stdout
 - CLI tools now properly separate data (stdout) and diagnostics (stderr) following Unix conventions
 - E2E tests for JSON output format now pass (12/13 tests passing, up from 10/13)
+- Windows build file locking issues by removing problematic MSBuild target (#214)
+- Circular build dependencies causing CS2012 errors on Windows (#214)
+- Directory cleaning conflicts in PackAll target (#214)
+
+### Removed
+- Deprecated scripts: pack-tool-platform.cs, build-tool-dll.cs (#214)
+- Problematic GenerateWolverineCode MSBuild target, moved to Nuke (#214)
+- BuildInParallel=false workaround after fixing root cause (#214)
 
 ## [0.2.0-alpha-010] - 2025-12-16
 

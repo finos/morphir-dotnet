@@ -1,0 +1,94 @@
+# Cursor Rules for morphir-dotnet
+
+This project uses **AGENTS.md** as the primary guidance file for all AI coding agents.
+
+## 📚 Required Reading (in order)
+
+1. **[AGENTS.md](./AGENTS.md)** - Primary guidance (START HERE)
+   - Sections 1-17: Universal guidance for all agents
+   - Section 18: Links to specialized topics
+   - Section 19: Resources and references
+
+2. **[.agents/qa-testing.md](./.agents/qa-testing.md)** - For QA and testing tasks
+   - Test plans, playbooks, checklists
+   - BDD and unit testing guides
+   - Test scripts and automation
+
+3. **[CLAUDE.md](./CLAUDE.md)** - For Claude Code-specific features (if using Claude)
+   - Also useful for understanding project patterns
+
+## 🎯 Quick Reference
+
+### Before Any Code Change
+```bash
+# 1. Format code
+./build.sh Format
+
+# 2. Run tests
+./build.sh Test
+
+# 3. Run full CI simulation
+./build.sh DevWorkflow
+```
+
+### For Testing Tasks
+- See `.agents/qa-testing.md` for comprehensive testing guidance
+- Run smoke test: `dotnet fsi .claude/skills/qa-tester/smoke-test.fsx`
+- Run regression test: `dotnet fsi .claude/skills/qa-tester/regression-test.fsx`
+
+### For New Features
+- Follow TDD: RED → GREEN → REFACTOR (see AGENTS.md Section 9.1)
+- Write BDD scenarios first (Reqnroll/Gherkin)
+- Maintain >= 80% code coverage
+
+## 🔧 Cursor-Specific Notes
+
+When using Cursor with this project:
+- **Agent Mode**: Best for multi-file changes
+- **Ask Mode**: Best for questions and exploration
+- **Manual Mode**: Best for precise, single-file edits
+
+The guidance in AGENTS.md is tool-agnostic and works equally well with Cursor, Claude Code, GitHub Copilot, Windsurf, Aider, and other AI assistants.
+
+## 📁 Project Structure
+
+```
+morphir-dotnet/
+├── AGENTS.md              # ← Start here
+├── .agents/               # ← Specialized topics
+│   ├── qa-testing.md      # QA guidance
+│   └── README.md          # Navigation
+├── .claude/               # Claude Code-specific
+│   └── skills/qa-tester/  # F# test scripts
+├── CLAUDE.md              # Claude-specific features
+├── src/                   # Source code
+├── tests/                 # Tests
+├── build/                 # Nuke build system
+└── docs/                  # Documentation
+```
+
+## 🚀 Key Principles
+
+From AGENTS.md:
+- Immutability first
+- ADTs: make illegal states unrepresentable
+- Pure domain, effects at edges
+- Strong testing: TUnit + Reqnroll
+- TDD: Test first, then implement
+
+## ⚠️ Escalate to Humans
+
+Do NOT make these changes without human approval:
+- Breaking public API changes
+- IR/JSON compatibility changes
+- Security/auth/crypto changes
+- Destructive migrations
+
+See AGENTS.md Section 2 for complete escalation rules.
+
+---
+
+**Navigation**:
+- Questions about this project? Read [AGENTS.md](./AGENTS.md)
+- QA or testing task? Read [.agents/qa-testing.md](./.agents/qa-testing.md)
+- Using Claude Code? Also read [CLAUDE.md](./CLAUDE.md)

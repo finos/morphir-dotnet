@@ -99,11 +99,12 @@ This project uses [Nuke](https://nuke.build/) for build orchestration, providing
 ### Basic Commands
 
 ```bash
+# First-time setup: Restore tools and dependencies
+dotnet tool restore
+./build.sh --target Restore
+
 # Build the solution (default target)
 ./build.sh
-
-# Restore dependencies
-./build.sh --target Restore
 
 # Run tests
 ./build.sh --target Test

@@ -1,5 +1,7 @@
 # GitHub Copilot Instructions for morphir-dotnet
 
+> **Primary Guidance**: This project uses [AGENTS.md](../AGENTS.md) as the primary guidance file for all AI coding agents. For specialized topics like QA testing, see the [.agents/](./.agents/) directory.
+
 ## Project Overview
 
 Morphir .NET provides .NET bindings, libraries, codecs, and tooling for the Morphir ecosystem. Morphir is a library of tools that captures business logic as data, making it portable, shareable, and translatable across languages and platforms.
@@ -315,6 +317,15 @@ Product Requirements Documents (PRDs) in `docs/content/contributing/design/prds/
 - Update status: ⏳ Planned → 🚧 In Progress → ✅ Implemented
 
 ## Additional Resources
+
+### Agent Guidance
+- **AGENTS.md**: [../AGENTS.md](../AGENTS.md) - Comprehensive guidance for all AI agents
+- **QA Testing**: [.agents/qa-testing.md](./.agents/qa-testing.md) - Testing practices, playbooks, templates
+
+### Morphir Resources
+- **Morphir Homepage**: https://morphir.finos.org/
+- **morphir-elm**: https://github.com/finos/morphir-elm
+- **morphir (core)**: https://github.com/finos/morphir
 
 For comprehensive agent guidance, see [AGENTS.md](../AGENTS.md), which includes:
 - Detailed Morphir IR modeling examples

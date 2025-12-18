@@ -4,7 +4,17 @@ Guidance for AI coding agents contributing to finos/morphir-dotnet (a .NET
 binding for the Morphir ecosystem). Produce correct, minimal, and well‑tested
 changes aligned with Morphir IR and tooling.
 
-Project links
+## Quick Navigation
+
+- **This file (AGENTS.md)**: Primary guidance for all AI agents
+- **Specialized Topics**: See [.agents/](./.agents/) directory for domain-specific guides
+  - [QA Testing](./.agents/qa-testing.md) - Test plans, playbooks, scripts
+  - _(More topics coming)_
+- **Claude Code Users**: See [CLAUDE.md](./CLAUDE.md) for Claude-specific features
+- **Documentation**: See [docs/](./docs/) for user-facing docs
+
+## Project Links
+
 - Morphir: https://morphir.finos.org/
 - morphir (core/tooling): https://github.com/finos/morphir
 - morphir-elm: https://github.com/finos/morphir-elm
@@ -70,11 +80,16 @@ External touchpoints
 Environment
 - Required env vars documented in .env.example. Do not commit secrets.
 
+First-time Setup
+- Restore tools: `dotnet tool restore`
+- Restore dependencies: `dotnet restore` or `./build.sh --target Restore`
+- Install git hooks: `dotnet husky install`
+
 Commands
 - .NET (C# 14 / F#, .NET 10)
-    - Build: `dotnet build`
-    - Test (TUnit + Reqnroll): `dotnet test --nologo`
-    - Format: `dotnet format`
+    - Build: `dotnet build` or `./build.sh`
+    - Test (TUnit + Reqnroll): `dotnet test --nologo` or `./build.sh --target Test`
+    - Format: `dotnet format` or `./build.sh --target Format`
 - TypeScript (if present)
     - Install: `npm ci`
     - Build: `npm run build`
@@ -809,3 +824,61 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - Always run formatters, TUnit, and Reqnroll suites; run contract/roundtrip checks.
 - If uncertain about Morphir compatibility, add a TODO with a question and take
   the conservative path.
+
+## 18) Specialized Guidance
+
+This repository provides specialized, domain-specific guidance in the [.agents/](./.agents/) directory:
+
+### Available Topics
+
+- **[QA Testing](./.agents/qa-testing.md)** - Comprehensive QA guidance
+  - Test plan templates
+  - Pre-commit and PR verification checklists
+  - Regression, feature, build, and package testing playbooks
+  - Bug report templates
+  - Test scripts (F#): smoke tests, regression tests, package validation
+  - BDD and unit testing guides
+  - Coverage requirements and best practices
+
+### Tool-Specific Guidance
+
+- **Claude Code**: [CLAUDE.md](./CLAUDE.md) + [.claude/skills/](./.claude/skills/)
+  - QA Tester skill with F# automation scripts
+  - TDD workflow guidance
+  - CLI logging standards
+
+### Future Topics
+
+The `.agents/` directory will expand to include:
+- Deployment and release management
+- Documentation and ADR writing
+- Security testing and compliance
+- Performance testing and benchmarking
+
+See [.agents/README.md](./.agents/README.md) for navigation and contribution guidelines.
+
+## 19) Resources and References
+
+### Primary Documentation
+- This file (AGENTS.md) - Start here for all agents
+- [.agents/](./.agents/) - Specialized topic guides
+- [CLAUDE.md](./CLAUDE.md) - Claude Code-specific features
+- [README.md](./README.md) - Project README for humans
+
+### Testing Resources
+- [Phase 1 Test Plan](./docs/content/contributing/qa/phase-1-test-plan.md) - Example comprehensive test plan
+- [QA Testing Guide](./.agents/qa-testing.md) - Cross-agent QA practices
+- [QA Skill](./.claude/skills/qa-tester/) - Claude Code QA automation
+
+### Morphir Resources
+- Morphir Homepage: https://morphir.finos.org/
+- morphir-elm: https://github.com/finos/morphir-elm
+- morphir (core): https://github.com/finos/morphir
+- IR Specification: [docs/spec/](./docs/spec/)
+
+### Standards and Tools
+- AGENTS.md Standard: https://agents.md
+- Reqnroll (BDD): https://docs.reqnroll.net/
+- TUnit (Testing): https://thomhurst.github.io/TUnit/
+- Nuke (Build): https://nuke.build/
+- WolverineFx: https://wolverine.netlify.app/
