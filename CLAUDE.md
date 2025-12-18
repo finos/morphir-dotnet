@@ -113,6 +113,12 @@ From AGENTS.md Section 5:
 - **Pure functions**: Push side effects to edges
 - **Exhaustive pattern matching**: Update all matches when changing ADTs
 
+**F# Coding Standards**: See [F# Coding Guide](docs/contributing/fsharp-coding-guide.md) for comprehensive F# best practices:
+- Use active patterns instead of complex if-then chains
+- Railway-oriented programming with Result types
+- Immutable records and collections
+- CLI script standards with proper stdout/stderr separation
+
 ### 8. Morphir-Specific Guidelines
 
 See AGENTS.md Section 6 for detailed Morphir IR modeling:

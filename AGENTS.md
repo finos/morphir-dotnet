@@ -123,6 +123,14 @@ C# 14 / .NET 10 specifics
 - Use file‑scoped namespaces, primary constructors, and newer pattern features.
 - Favor spans and efficient collections only with benchmarks backing changes.
 
+F# specifics
+- See [F# Coding Guide](./docs/contributing/fsharp-coding-guide.md) for comprehensive F# standards
+- **Prefer active patterns** over complex if-then chains for value extraction
+- Use discriminated unions to make illegal states unrepresentable
+- Follow CLI logging standards (stdout for data, stderr for diagnostics)
+- Use Result types for railway-oriented programming
+- Maintain immutability with records and immutable collections
+
 CLI Tool Logging Requirements
 - **CRITICAL**: CLI tools MUST NOT write log messages to stdout
 - All logging output MUST be directed to stderr only
