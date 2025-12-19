@@ -7,10 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-rc.2] - 2025-12-18
+
 ### Added
 - Ionide.KeepAChangelog integration for changelog-driven versioning
 - ChangelogHelper class for parsing and manipulating CHANGELOG.md
 - PrepareRelease target for automated release preparation
+- **Proto WASM Plugin**: Tool manager plugin for proto (moonrepo.dev/proto)
+  - Enables `proto install morphir` for cross-platform installation
+  - Platform support: Linux (x64, arm64), macOS (x64, arm64), Windows (x64)
+  - Automatic version detection and platform-specific executable downloads
+  - Released as separate plugin-v0.1.0 on GitHub
+- **GitHub Release Automation**: Deployment workflow now creates GitHub releases
+  - PackPlatformTarballs Nuke target for creating platform-specific tarballs
+  - CreateGitHubRelease Nuke target for automated release publishing
+  - Release notes with proto installation instructions
+  - Platform-specific executable tarballs as release assets
+- **Build System Improvements**:
+  - RunRustCommand helper with intelligent stderr categorization
+  - Proper log levels for Rust/Cargo output (info, warning, error)
+  - PluginVersion parameter for proto plugin versioning
 
 ## [0.3.0-rc.1] - 2025-12-18
 
@@ -133,7 +149,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.1...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.2...HEAD
+[0.3.0-rc.2]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.1...v0.3.0-rc.2
 [0.3.0-rc.1]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-010...v0.3.0-rc.1
 [0.2.0-alpha-010]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-009...v0.2.0-alpha-010
 [0.2.0-alpha-009]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-008...v0.2.0-alpha-009
