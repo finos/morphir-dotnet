@@ -11,7 +11,7 @@ This directory contains a complete template for creating new guru skills in the 
    - Defines identity, triggers, competencies, review capability, coordination
    - Used by Claude Code for skill invocation
 
-2. **skill.md** - Main skill documentation
+2. **SKILL.md** - Main skill documentation
    - 285 placeholders to fill in
    - ~1000-1200 lines target
    - Comprehensive guidance for using the skill
@@ -64,15 +64,15 @@ All placeholders follow the pattern `{description}`. Search for `{` to find them
 
 ```bash
 # Find all placeholders in a file
-grep -n "{" skill.md
+grep -n "{" SKILL.md
 
 # Count placeholders
-grep -c "{" skill.md
+grep -c "{" SKILL.md
 ```
 
 **Recommended order:**
 1. Start with `metadata.yaml` (defines structure)
-2. Then `skill.md` (main content)
+2. Then `SKILL.md` (main content)
 3. Then `README.md` (user-friendly summary)
 4. Then `MAINTENANCE.md` (evolution process)
 5. Implement scripts in `scripts/`

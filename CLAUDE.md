@@ -71,11 +71,38 @@ Before ANY implementation:
 **Conventional Commits** (See [AGENTS.md Section 11](./AGENTS.md#11-review-and-contribution-rules)):
 ```
 feat: add IR schema validation for v3 format
-fix: resolve circular reference in schema loading
-test: add unit tests for SchemaValidator
+
+- Implemented SchemaValidator for v3 IR format
+- Added comprehensive unit tests
+- All tests passing
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
-**IMPORTANT**: Do NOT list Claude or AI assistants as co-authors (CLA limitation). Attribution in commit body is OK: "🤖 Generated with Claude Code"
+**CRITICAL - CLA COMPLIANCE**:
+
+⚠️ **NEVER include `Co-Authored-By: Claude <noreply@anthropic.com>` in commits**
+
+**Why**: Our Contributor License Agreement (CLA) does NOT support AI assistants as co-authors. AI cannot sign legal agreements. Violations will block PR merges and fail CI checks.
+
+**Correct Attribution**:
+- ✅ **In commit body**: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+- ✅ Human co-authors with signed CLAs
+- ✅ GitHub Copilot as co-author (when actual co-author)
+
+**NEVER Include**:
+- ❌ `Co-Authored-By: Claude <noreply@anthropic.com>`
+- ❌ Any AI assistant as co-author
+
+**If You Added Claude as Co-Author by Mistake**:
+
+See [AGENTS.md Commit Messages section](./AGENTS.md#commit-messages) for detailed remediation steps, or use the automated F# script below to clean commit history.
+
+**Quick Fix** (if not pushed yet):
+```bash
+git commit --amend
+# Remove the "Co-Authored-By: Claude" line and save
+```
 
 **If you accidentally added Claude as a co-author**, use the automated script to fix it:
 ```bash

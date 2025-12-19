@@ -1,6 +1,8 @@
 ---
 name: {guru-id}
 description: {Brief description for Claude Code skill invocation. Include primary triggers and capabilities.}
+# Optional: Document common aliases (NOT a supported feature - documentation only)
+# Common short forms: {alias1}, {alias2}  # Example: qa, tester
 ---
 
 # {Guru Name} Skill

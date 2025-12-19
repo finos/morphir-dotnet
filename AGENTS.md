@@ -514,7 +514,7 @@ dotnet format
 
 - Small, focused PRs with tests (TUnit and/or Reqnroll).
 - Conventional Commits: feat:, fix:, refactor:, test:, docs:
-- **Do not list Claude (or any AI assistant) as a co-author on commits.** Our CLA does not support AI assistants as co-authors. Note: GitHub Copilot is supported and may be listed as a co-author when it is an actual co-author.
+- **CRITICAL**: **Do NOT include `Co-Authored-By: Claude` or any AI assistant as co-author on commits.** Our CLA does NOT support AI assistants as co-authors. Violations will block PR merges. See [Commit Messages section](#commit-messages) for details and remediation steps. Note: GitHub Copilot may be listed as co-author when it is an actual co-author.
   - **If you accidentally included Claude as a co-author**, use the [remove-claude-coauthor.fsx](scripts/remove-claude-coauthor.fsx) script to fix it:
     ```bash
     # Preview changes
@@ -529,6 +529,7 @@ dotnet format
     - [ ] IR/JSON compatibility preserved or versioned with ADR
     - [ ] Formatters/lints run
     - [ ] Docs/ADR updated if behavior changed
+    - [ ] **No AI assistants listed as co-authors** (CLA compliance)
 
 ## 12) Security and Compliance
 
@@ -826,7 +827,7 @@ var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyIRR
 
 ### Commit Messages
 
-Follow Conventional Commits with attribution in the commit body (NOT as co-author):
+Follow Conventional Commits format:
 
 ```
 feat: add comprehensive BDD integration tests for CLI
@@ -839,11 +840,54 @@ feat: add comprehensive BDD integration tests for CLI
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
-**Important**: 
-- ✅ **DO**: Include AI attribution in the commit body (e.g., "🤖 Generated with [Claude Code]")
-- ❌ **DON'T**: List Claude or AI assistants as co-authors (`Co-Authored-By: Claude <...>`)
-- Our CLA does not support AI assistants as co-authors
-- If you accidentally added Claude as a co-author, use [remove-claude-coauthor.fsx](scripts/remove-claude-coauthor.fsx) to fix it
+**CRITICAL - CLA COMPLIANCE**:
+
+⚠️ **DO NOT include `Co-Authored-By: Claude` or any AI assistant as a co-author in commits.**
+
+Our Contributor License Agreement (CLA) does NOT support AI assistants as co-authors. Including AI as co-author violates CLA requirements and will block PR merges.
+
+**Allowed**:
+- ✅ Attribution in commit body: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+- ✅ GitHub Copilot as co-author (when it is an actual co-author)
+- ✅ Human co-authors with signed CLAs
+
+**NOT Allowed**:
+- ❌ `Co-Authored-By: Claude <noreply@anthropic.com>`
+- ❌ Any AI assistant listed as co-author
+
+**If you accidentally added Claude as co-author:**
+
+1. **Amend the last commit** (if not pushed):
+   ```bash
+   git commit --amend
+   # Remove the Co-Authored-By line from the commit message
+   ```
+
+2. **Rewrite commit history** (if already pushed):
+   ```bash
+   # Interactive rebase to edit commits
+   git rebase -i HEAD~N  # where N is number of commits to review
+   # Mark commits with 'edit', then amend each one
+   git commit --amend    # Remove Co-Authored-By line
+   git rebase --continue
+   git push --force-with-lease
+   ```
+
+3. **Use automated script** (recommended - available in this PR):
+   ```bash
+   # Preview what will be changed
+   dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5
+   
+   # Apply the fix (creates backup automatically)
+   dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5 --yes
+   ```
+   See [scripts/README.md](scripts/README.md) for complete documentation.
+
+**Why this matters:**
+- CLA requires all contributors to be identifiable humans with signed agreements
+- AI assistants cannot sign legal agreements
+- GitHub uses Co-Authored-By for CLA verification
+- Violations will fail CI checks and block merges
 
 ## 15) Known Issues / TODOs
 
@@ -910,24 +954,35 @@ This repository provides specialized, domain-specific guidance in the [.agents/]
   - Known issues database and continuous improvement
   - Integration with CI/CD pipelines
 
-### Agent-Specific Guidance
+### How to Use Skills with Different AI Agents
 
-- **Claude Code**: [CLAUDE.md](./CLAUDE.md) + [.claude/skills/](./.claude/skills/)
-  - Interactive skills: `@skill qa-tester`, `@skill aot-guru`, `@skill release-manager`
-  - Automation scripts run automatically via skills
-  - Review capabilities trigger on appropriate actions
-  - TDD workflow guidance and CLI logging standards
+morphir-dotnet provides specialized expert skills that work across all AI coding agents, though with different invocation methods.
 
-- **GitHub Copilot**: [.github/copilot-instructions.md](./.github/copilot-instructions.md)
-  - References AGENTS.md and .agents/ guides
-  - Run automation scripts manually: `dotnet fsi .claude/skills/{skill}/scripts/{script}.fsx`
-  - Follow playbooks and decision trees for complex workflows
+**Quick Reference:**
 
-- **Other Agents** (Cursor, Windsurf, Aider):
-  - Access via configuration files (.cursorrules, .windsurf/rules.md, .aider.conf.yml)
-  - All reference AGENTS.md and .agents/ directory
-  - Use automation scripts directly for token efficiency
-  - See capabilities-matrix.md for agent-specific features
+| Agent | Invocation Method | Example |
+|-------|------------------|---------|
+| **Claude Code** | `@skill {skill-name}` | `@skill qa-tester` |
+| **GitHub Copilot** | Natural language + skill name | "Use QA Tester skill to create test plan" |
+| **Cursor** | `.cursorrules` auto-trigger or `@file` mention | `@.claude/skills/qa-tester/SKILL.md` |
+| **Windsurf** | Natural language (auto-discovery) | "Use QA Tester to validate this PR" |
+| **JetBrains AI** | Custom prompts or natural language | "Use QA Tester skill..." |
+
+**Key Points:**
+- **Claude Code**: Native `@skill` command with interactive assistance
+- **Other Agents**: Documentation-based emulation via natural language or file references
+- **All Agents**: Can run automation scripts directly: `dotnet fsi .claude/skills/{skill}/scripts/{script}.fsx`
+- **Skill Aliases**: Some skills document short forms (e.g., "qa", "tester") but these are **NOT functional** - use official names only
+
+**Detailed Platform-Specific Guidance:**
+- See [.agents/skills-reference.md](./.agents/skills-reference.md#cross-platform-skill-invocation) for comprehensive invocation patterns for each platform
+- See [capabilities-matrix.md](./.agents/capabilities-matrix.md) for feature comparison table
+
+**Cross-Platform Testing:**
+- Issue #266: GitHub Copilot skill emulation tests
+- Issue #267: Cursor skill emulation tests
+- Issue #268: Windsurf skill emulation tests
+- Issue #269: JetBrains AI skill emulation tests
 
 ### Future Topics
 

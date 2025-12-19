@@ -46,7 +46,7 @@
 
 ### Directory Structure
 - [ ] `.claude/skills/{guru-id}/` created
-- [ ] `skill.md` created (1000+ lines target)
+- [ ] `SKILL.md` created (1000+ lines target)
 - [ ] `README.md` created (300-400 lines target)
 - [ ] `MAINTENANCE.md` created
 - [ ] `metadata.yaml` created with all required fields
@@ -54,7 +54,7 @@
 - [ ] `templates/` directory created
 - [ ] `patterns/` directory created
 
-### skill.md Content
+### SKILL.md Content
 - [ ] Frontmatter complete (name, description)
 - [ ] Overview section clear and comprehensive
 - [ ] Primary responsibilities listed (5-7)
@@ -145,9 +145,9 @@
 ## Phase 2: Validation (Beta)
 
 ### Quality Checks
-- [ ] skill.md reviewed for clarity
-- [ ] skill.md reviewed for completeness
-- [ ] skill.md reviewed for consistency
+- [ ] SKILL.md reviewed for clarity
+- [ ] SKILL.md reviewed for completeness
+- [ ] SKILL.md reviewed for consistency
 - [ ] All scripts tested and working
 - [ ] All decision trees validated with real scenarios
 - [ ] All playbooks verified (complete steps, no gaps)

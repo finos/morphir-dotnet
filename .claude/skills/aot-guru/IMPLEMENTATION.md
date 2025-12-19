@@ -18,7 +18,7 @@ A comprehensive Claude Code skill that provides expert guidance on:
 
 #### Files Created:
 
-1. **skill.md** (17.5 KB)
+1. **SKILL.md** (17.5 KB)
    - Complete agent persona and responsibilities
    - Core competencies (diagnostics, workarounds, optimization)
    - Decision trees for common scenarios
@@ -233,7 +233,7 @@ While the current implementation is comprehensive, potential future additions in
 
 The skill has been tested with:
 
-- ✅ Comprehensive skill definition (skill.md, README.md)
+- ✅ Comprehensive skill definition (SKILL.md, README.md)
 - ✅ Three working F# diagnostic scripts
 - ✅ Issue and workaround templates
 - ✅ Agent guidance document
@@ -253,7 +253,7 @@ Agent Guidance:
 ├── AGENTS.md                                    # Main agent guidance
 ├── .agents/aot-optimization.md                 # Agent-specific AOT guidance
 └── .claude/skills/aot-guru/                    # Claude Code skill
-    ├── skill.md                                 # Agent persona
+    ├── SKILL.md                                 # Agent persona
     ├── README.md                                # User guide
     ├── aot-diagnostics.fsx                      # Diagnostics
     ├── aot-analyzer.fsx                         # Analysis
