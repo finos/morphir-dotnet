@@ -1,8 +1,12 @@
-@slow
+@slow @manual-only @aot
 Feature: Native AOT Compilation
   As a CLI developer
   I want to compile morphir-dotnet to Native AOT
   So that users get fast startup times and small binaries
+
+  # These tests run in the manual-aot-test workflow
+  # They build executables during test execution (1-5 min per scenario)
+  # Use for awareness/preparation before releasing AOT executables
 
   Background:
     Given a morphir-dotnet CLI project
