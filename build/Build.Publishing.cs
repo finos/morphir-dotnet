@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using Nuke.Common;
 using Nuke.Common.IO;
@@ -294,5 +295,112 @@ partial class Build
             Serilog.Log.Information($"  4. Create PR: gh pr create --title \"chore: prepare release {ReleaseVersion}\"");
             Serilog.Log.Information($"  5. After merge, tag: git tag -a v{ReleaseVersion} -m \"Release {ReleaseVersion}\"");
             Serilog.Log.Information($"  6. Push tag: git push origin v{ReleaseVersion}");
+        });
+
+    /// <summary>
+    /// Create a GitHub release with platform-specific executable tarballs
+    /// Requires: Platform tarballs created by PackPlatformTarballs target
+    /// Input: artifacts/morphir-{rid}-v{version}.tar.gz
+    /// Output: GitHub release at https://github.com/finos/morphir-dotnet/releases/tag/v{version}
+    /// Parameters: --version (required)
+    /// </summary>
+    Target CreateGitHubRelease => _ => _
+        .DependsOn(PackPlatformTarballs)
+        .Description("Create a GitHub release with platform-specific executables")
+        .Executes(() =>
+        {
+            var versionString = Version.ToString();
+            var releaseTag = $"v{versionString}";
+            var artifactsDir = RootDirectory / "artifacts";
+
+            Serilog.Log.Information($"Creating GitHub release for {releaseTag}...");
+
+            // Find all platform tarballs
+            var tarballs = Directory.GetFiles(artifactsDir, $"morphir-*-v{versionString}.tar.gz")
+                .ToList();
+
+            if (!tarballs.Any())
+            {
+                throw new Exception($"No platform tarballs found in {artifactsDir}. Run PackPlatformTarballs first.");
+            }
+
+            Serilog.Log.Information($"Found {tarballs.Count} platform tarballs");
+
+            // Create release notes file
+            var releaseNotesPath = artifactsDir / "release-notes.md";
+            var releaseNotes = $@"# Morphir .NET v{versionString}
+
+Platform-specific executables for the Morphir CLI.
+
+## Installation
+
+### Using proto (recommended)
+
+```bash
+# Install proto plugin
+proto plugin add morphir ""source:https://github.com/finos/morphir-dotnet/releases/download/plugin-v0.1.0/morphir_plugin.wasm""
+
+# Install Morphir
+proto install morphir {versionString}
+```
+
+### Manual installation
+
+Download the appropriate tarball for your platform and extract it:
+
+```bash
+# Linux x64
+wget https://github.com/finos/morphir-dotnet/releases/download/v{versionString}/morphir-linux-x64-v{versionString}.tar.gz
+tar -xzf morphir-linux-x64-v{versionString}.tar.gz
+
+# macOS ARM64 (Apple Silicon)
+wget https://github.com/finos/morphir-dotnet/releases/download/v{versionString}/morphir-osx-arm64-v{versionString}.tar.gz
+tar -xzf morphir-osx-arm64-v{versionString}.tar.gz
+
+# Windows x64
+wget https://github.com/finos/morphir-dotnet/releases/download/v{versionString}/morphir-win-x64-v{versionString}.tar.gz
+tar -xzf morphir-win-x64-v{versionString}.tar.gz
+```
+
+## Supported Platforms
+
+- Linux (x64, arm64)
+- macOS (x64, arm64/Apple Silicon)
+- Windows (x64)
+
+## NuGet Packages
+
+This release is also available on NuGet:
+- [Morphir](https://www.nuget.org/packages/Morphir/{versionString}) - CLI tool
+- [Morphir.Core](https://www.nuget.org/packages/Morphir.Core/{versionString}) - Core library
+- [dotnet-morphir](https://www.nuget.org/packages/dotnet-morphir/{versionString}) - .NET global tool
+
+## Resources
+
+- [Morphir Documentation](https://morphir.finos.org/)
+- [GitHub Repository](https://github.com/finos/morphir-dotnet)
+- [FINOS Morphir](https://github.com/finos/morphir)
+";
+
+            File.WriteAllText(releaseNotesPath, releaseNotes);
+            Serilog.Log.Information($"✓ Created release notes: {releaseNotesPath}");
+
+            // Build gh release create command with all tarballs
+            var tarballArgs = string.Join(" ", tarballs.Select(t => $"\"{t}\""));
+            var ghCommand = $"release create \"{releaseTag}\" " +
+                           $"--title \"Morphir .NET v{versionString}\" " +
+                           $"--notes-file \"{releaseNotesPath}\" " +
+                           tarballArgs;
+
+            Serilog.Log.Information("Creating GitHub release...");
+            var exitCode = RunCommand("gh", ghCommand.Split(' '));
+
+            if (exitCode != 0)
+            {
+                throw new Exception($"Failed to create GitHub release (exit code: {exitCode})");
+            }
+
+            Serilog.Log.Information($"✓ GitHub release created successfully");
+            Serilog.Log.Information($"  View at: https://github.com/finos/morphir-dotnet/releases/tag/{releaseTag}");
         });
 }

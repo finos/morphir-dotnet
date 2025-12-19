@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Nuke.Common;
 using Nuke.Common.IO;
 using Nuke.Common.Tools.DotNet;
@@ -90,5 +92,66 @@ partial class Build
         .Executes(() =>
         {
             Serilog.Log.Information("All packages created successfully");
+        });
+
+    /// <summary>
+    /// Create platform-specific tarballs from single-file executables
+    /// Input: artifacts/single-file/{rid}/morphir[.exe]
+    /// Output: artifacts/morphir-{rid}-v{version}.tar.gz
+    /// Used by deployment workflow to create GitHub release assets
+    /// </summary>
+    Target PackPlatformTarballs => _ => _
+        .Description("Create platform-specific tarballs for GitHub releases")
+        .Executes(() =>
+        {
+            var singleFileDir = RootDirectory / "artifacts" / "single-file";
+            var artifactsDir = RootDirectory / "artifacts";
+
+            if (!Directory.Exists(singleFileDir))
+            {
+                throw new Exception($"Single-file directory not found: {singleFileDir}. Run build-executables job first.");
+            }
+
+            var versionString = Version.ToString();
+            Serilog.Log.Information($"Creating platform tarballs for version {versionString}...");
+
+            // Find all RID directories
+            var ridDirs = Directory.GetDirectories(singleFileDir)
+                .Select(d => new DirectoryInfo(d).Name)
+                .Where(name => !name.Equals("staging", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (!ridDirs.Any())
+            {
+                throw new Exception($"No RID directories found in {singleFileDir}");
+            }
+
+            foreach (var rid in ridDirs)
+            {
+                var ridDir = singleFileDir / rid;
+                var tarballName = $"morphir-{rid}-v{versionString}.tar.gz";
+                var tarballPath = artifactsDir / tarballName;
+
+                Serilog.Log.Information($"Creating tarball for {rid}...");
+
+                // Create tarball using cross-platform tar
+                var tarExitCode = RunCommand(
+                    "tar",
+                    "-czf",
+                    tarballPath,
+                    "-C", ridDir,
+                    "."
+                );
+
+                if (tarExitCode != 0)
+                {
+                    throw new Exception($"Failed to create tarball for {rid} (exit code: {tarExitCode})");
+                }
+
+                var size = GetFileSize(tarballPath);
+                Serilog.Log.Information($"✓ Created {tarballName} ({size})");
+            }
+
+            Serilog.Log.Information($"✓ All platform tarballs created successfully");
         });
 }
