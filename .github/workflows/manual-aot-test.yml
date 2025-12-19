@@ -1,0 +1,129 @@
+name: "Manual AOT Testing"
+
+on:
+    workflow_dispatch:
+        inputs:
+            configuration:
+                description: "Configuration to build"
+                required: true
+                default: "Release"
+                type: choice
+                options:
+                    - Release
+                    - Debug
+            test-version:
+                description: "Test version for executables"
+                required: true
+                default: "0.0.0-test"
+                type: string
+            platform:
+                description: "Platform to test"
+                required: true
+                default: "linux-x64"
+                type: choice
+                options:
+                    - linux-x64
+                    - linux-arm64
+                    - osx-arm64
+                    - osx-x64
+                    - win-x64
+            test-suite:
+                description: "AOT test suite to run"
+                required: true
+                default: "both"
+                type: choice
+                options:
+                    - both
+                    - trimming
+                    - aot-compilation
+
+env:
+    CONFIGURATION: ${{ github.event.inputs.configuration }}
+    TEST_VERSION: ${{ github.event.inputs.test-version }}
+
+jobs:
+    aot-tests:
+        timeout-minutes: 90
+        runs-on: ${{ (github.event.inputs.platform == 'linux-x64' && 'ubuntu-latest') || (github.event.inputs.platform == 'linux-arm64' && 'ubuntu-24.04-arm') || (github.event.inputs.platform == 'osx-x64' && 'macos-15-intel') || (github.event.inputs.platform == 'osx-arm64' && 'macos-latest') || (github.event.inputs.platform == 'win-x64' && 'windows-latest') || 'ubuntu-latest' }}
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.0.1
+              with:
+                  fetch-depth: 0
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  dotnet-version: "10.0.x"
+
+            - name: Cache Nuget Packages
+              uses: actions/cache@v4
+              with:
+                  path: ~/.nuget/packages
+                  key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-nuget
+
+            - name: Restore dependencies
+              shell: bash
+              run: ./build.sh --target Restore
+
+            - name: Build E2E test project
+              shell: bash
+              run: ./build.sh --target BuildE2ETests --configuration ${{ env.CONFIGURATION }}
+
+            - name: Build trimmed single-file executable
+              if: github.event.inputs.test-suite == 'both' || github.event.inputs.test-suite == 'trimming'
+              shell: bash
+              run: ./build.sh --target PublishSingleFile --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }} --version ${{ env.TEST_VERSION }}
+
+            - name: Build untrimmed single-file executable (for baseline comparison)
+              if: github.event.inputs.test-suite == 'both' || github.event.inputs.test-suite == 'trimming'
+              shell: bash
+              run: ./build.sh --target PublishSingleFileUntrimmed --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }} --version ${{ env.TEST_VERSION }}
+
+            - name: Build AOT executable
+              if: github.event.inputs.test-suite == 'both' || github.event.inputs.test-suite == 'aot-compilation'
+              shell: bash
+              run: ./build.sh --target PublishExecutable --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }} --version ${{ env.TEST_VERSION }}
+
+            - name: Run Assembly Trimming Tests
+              if: github.event.inputs.test-suite == 'both' || github.event.inputs.test-suite == 'trimming'
+              shell: bash
+              env:
+                  MORPHIR_EXECUTABLE_TYPE: trimmed
+                  INCLUDE_MANUAL_TESTS: "true"
+              run: |
+                  cd tests/Morphir.E2E.Tests
+                  dotnet run --no-build --configuration ${{ env.CONFIGURATION }} -- --treenode-filter "*/Trimming*"
+
+            - name: Run Native AOT Compilation Tests
+              if: github.event.inputs.test-suite == 'both' || github.event.inputs.test-suite == 'aot-compilation'
+              shell: bash
+              env:
+                  MORPHIR_EXECUTABLE_TYPE: aot
+                  INCLUDE_MANUAL_TESTS: "true"
+              run: |
+                  cd tests/Morphir.E2E.Tests
+                  dotnet run --no-build --configuration ${{ env.CONFIGURATION }} -- --treenode-filter "*/AOT*"
+
+            - name: Upload test results (on failure)
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: aot-test-results-${{ github.event.inputs.platform }}
+                  path: |
+                      **/TestResults/**/*
+                      tests/**/bin/${{ env.CONFIGURATION }}/net10.0/*.dll
+                  retention-days: 7
+
+            - name: Upload executables (on failure)
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: aot-executables-${{ github.event.inputs.platform }}
+                  path: |
+                      ./artifacts/executables/${{ github.event.inputs.platform }}/
+                      ./artifacts/single-file/${{ github.event.inputs.platform }}/
+                      ./artifacts/single-file-untrimmed/${{ github.event.inputs.platform }}/
+                  retention-days: 7

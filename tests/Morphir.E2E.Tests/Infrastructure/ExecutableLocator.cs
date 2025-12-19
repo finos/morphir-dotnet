@@ -44,7 +44,7 @@ public class ExecutableLocator
             var trimmedPath = Path.Combine(_repositoryRoot, "artifacts", "single-file", _currentRid, singleFileExecutableName);
             if (File.Exists(trimmedPath))
                 return trimmedPath;
-            
+
             // Debug: Log what we're looking for and what exists
             var trimmedDir = Path.Combine(_repositoryRoot, "artifacts", "single-file", _currentRid);
             if (Directory.Exists(trimmedDir))
@@ -65,7 +65,7 @@ public class ExecutableLocator
                     Console.WriteLine($"DEBUG: Subdirectories: {string.Join(", ", subdirs)}");
                 }
             }
-            
+
             // Fallback: Check flat structure (when merge-multiple flattens artifacts)
             var flatPath = Path.Combine(_repositoryRoot, "artifacts", "single-file", singleFileExecutableName);
             if (File.Exists(flatPath))

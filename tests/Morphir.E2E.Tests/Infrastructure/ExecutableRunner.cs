@@ -66,7 +66,7 @@ public class ExecutableRunner
         var actualTimeout = timeout ?? _defaultTimeout;
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(actualTimeout);
-        
+
         try
         {
             await process.WaitForExitAsync(timeoutCts.Token);

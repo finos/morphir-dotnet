@@ -217,6 +217,14 @@ if (!File.Exists(testDllPath))
 }
 Console.WriteLine("✓ E2E test project is built");
 
+// Check if we should exclude manual-only tests (AOT tests)
+// These should only run in the manual-aot-test workflow
+var includeManualTests = Environment.GetEnvironmentVariable("INCLUDE_MANUAL_TESTS") == "true";
+if (!includeManualTests)
+{
+    Console.WriteLine("ℹ Excluding @manual-only tests (use INCLUDE_MANUAL_TESTS=true to include them)");
+}
+
 // Track results for each executable type
 var failedTypes = new List<string>();
 var passedTypes = new List<string>();
@@ -232,8 +240,17 @@ foreach (var type in executableTypes)
     // Set environment variable for executable type
     Environment.SetEnvironmentVariable("MORPHIR_EXECUTABLE_TYPE", type);
     
-    // Run tests
-    var exitCode = RunCommand("dotnet", "exec", testDllPath);
+    // Run tests (exclude manual-only tests unless explicitly included)
+    var testArgs = new List<string> { "exec", testDllPath };
+    if (!includeManualTests)
+    {
+        // Exclude AOT tests by filtering out tests that contain "Trimming" or "AOT" in their names
+        // These are the manual-only tests that should run in the dedicated workflow
+        testArgs.Add("--treenode-filter");
+        testArgs.Add("*/!(Trimming*|*AOT*)");
+    }
+    
+    var exitCode = RunCommand("dotnet", testArgs.ToArray());
     
     if (exitCode == 0)
     {
