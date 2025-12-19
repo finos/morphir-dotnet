@@ -8,7 +8,7 @@ using SemVersion;
 using Microsoft.FSharp.Collections;
 
 /// <summary>
-/// Helper class for working with CHANGELOG.md using Keep a Changelog format
+/// Extension methods for working with CHANGELOG.md using Keep a Changelog format
 /// </summary>
 public static class ChangelogHelper
 {
@@ -18,7 +18,7 @@ public static class ChangelogHelper
     /// <param name="changelogFile">Path to CHANGELOG.md file</param>
     /// <returns>Latest release version as SemanticVersion</returns>
     /// <exception cref="Exception">Thrown when changelog cannot be parsed or has no releases</exception>
-    public static SemanticVersion GetVersionFromChangelog(FileInfo changelogFile)
+    public static SemanticVersion GetVersionFromChangelog(this FileInfo changelogFile)
     {
         if (!changelogFile.Exists)
         {
@@ -61,7 +61,7 @@ public static class ChangelogHelper
     /// </summary>
     /// <param name="changelogFile">Path to CHANGELOG.md file</param>
     /// <returns>Formatted markdown release notes</returns>
-    public static string GetReleaseNotes(FileInfo changelogFile)
+    public static string GetReleaseNotes(this FileInfo changelogFile)
     {
         if (!changelogFile.Exists)
         {
@@ -161,7 +161,7 @@ public static class ChangelogHelper
     /// </summary>
     /// <param name="changelogFile">Path to CHANGELOG.md file</param>
     /// <returns>True if [Unreleased] has content, false otherwise</returns>
-    public static bool HasUnreleasedContent(FileInfo changelogFile)
+    public static bool HasUnreleasedContent(this FileInfo changelogFile)
     {
         if (!changelogFile.Exists)
         {
@@ -190,7 +190,7 @@ public static class ChangelogHelper
     /// <param name="changelogFile">Path to CHANGELOG.md file</param>
     /// <param name="version">Version string for the new release</param>
     /// <exception cref="Exception">Thrown when validation fails or file cannot be written</exception>
-    public static void PrepareRelease(FileInfo changelogFile, string version)
+    public static void PrepareRelease(this FileInfo changelogFile, string version)
     {
         if (!changelogFile.Exists)
         {
@@ -265,7 +265,7 @@ public static class ChangelogHelper
     /// </summary>
     /// <param name="changelogFile">Path to CHANGELOG.md file</param>
     /// <returns>Next pre-release version string</returns>
-    public static string GetNextPreReleaseVersion(FileInfo changelogFile)
+    public static string GetNextPreReleaseVersion(this FileInfo changelogFile)
     {
         var currentVersion = GetVersionFromChangelog(changelogFile);
         

@@ -268,13 +268,13 @@ partial class Build
             var changelogFile = new FileInfo(ChangelogFile);
             
             // Validate [Unreleased] has content
-            if (!ChangelogHelper.HasUnreleasedContent(changelogFile))
+            if (!changelogFile.HasUnreleasedContent())
             {
                 throw new Exception("[Unreleased] section is empty. Add changes to CHANGELOG.md before preparing a release.");
             }
             
             // Prepare the release (updates CHANGELOG.md)
-            ChangelogHelper.PrepareRelease(changelogFile, ReleaseVersion);
+            changelogFile.PrepareRelease(ReleaseVersion);
             
             Serilog.Log.Information("✓ CHANGELOG.md updated successfully");
             Serilog.Log.Information($"  - Created new [{ReleaseVersion}] section");

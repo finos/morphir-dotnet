@@ -77,12 +77,12 @@ partial class Build : NukeBuild
     /// </summary>
     SemanticVersion Version => VersionOverride != null 
         ? SemanticVersion.Parse(VersionOverride) 
-        : ChangelogHelper.GetVersionFromChangelog(new FileInfo(ChangelogFile));
+        : new FileInfo(ChangelogFile).GetVersionFromChangelog();
 
     /// <summary>
     /// Gets the release notes for the latest release from CHANGELOG.md
     /// </summary>
-    string ReleaseNotes => ChangelogHelper.GetReleaseNotes(new FileInfo(ChangelogFile));
+    string ReleaseNotes => new FileInfo(ChangelogFile).GetReleaseNotes();
 
     // Project paths
     AbsolutePath MorphirCoreProject => SourceDirectory / "Morphir.Core" / "Morphir.Core.csproj";
