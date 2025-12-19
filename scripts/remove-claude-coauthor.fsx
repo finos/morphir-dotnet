@@ -266,10 +266,8 @@ let createBackupBranch (verbose: bool) : Result<string, string> =
 
 let rewriteCommitHistory (commits: CommitInfo list) (verbose: bool) : Result<unit, string> =
     // Use git filter-branch to rewrite commit messages
-    // We'll create a sed script that removes the Claude co-author line
-    let sedScript = claudeCoAuthorPatterns
-                    |> List.map (fun _ -> "/Co-[Aa]uthored-[Bb]y:.*Claude.*<noreply@anthropic\\.com>/d")
-                    |> String.concat "; "
+    // Create a simple sed script that removes the Claude co-author line (case-insensitive)
+    let sedScript = "/Co-[Aa]uthored-[Bb]y:.*Claude.*<noreply@anthropic\\.com>/d"
 
     let oldestCommit = commits |> List.last
     
@@ -285,7 +283,7 @@ let rewriteCommitHistory (commits: CommitInfo list) (verbose: bool) : Result<uni
         // Use git filter-branch with msg-filter
         // Syntax: git filter-branch [options] -- [rev-list-options]
         // We want to rewrite from parent..HEAD
-        let filterCommand = sprintf "filter-branch -f --msg-filter 'sed \"%s\"' -- %s..HEAD" sedScript parentHash
+        let filterCommand = sprintf "filter-branch -f --msg-filter \"sed '%s'\" -- %s..HEAD" sedScript parentHash
 
         match runGitCommand filterCommand verbose with
         | Ok _ ->
@@ -453,7 +451,9 @@ let main (args: ParseResults<CliArguments>) =
                 | Ok () ->
                     AnsiConsole.MarkupLine("[green]✅ Commits rewritten successfully![/]")
                 | Error msg ->
-                    AnsiConsole.MarkupLine(sprintf "[red]✗ Error rewriting commits: %s[/]" msg)
+                    // Escape square brackets in error messages to avoid markup interpretation
+                    let escapedMsg = msg.Replace("[", "[[").Replace("]", "]]")
+                    AnsiConsole.MarkupLine(sprintf "[red]✗ Error rewriting commits: %s[/]" escapedMsg)
                     AnsiConsole.MarkupLine(sprintf "[yellow]You can restore from backup branch: %s[/]" backupBranch)
                     exit 1
             )
