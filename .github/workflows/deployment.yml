@@ -122,7 +122,7 @@ jobs:
             - name: Run E2E tests for ${{ matrix.rid }}
               shell: bash
               run: ./build.sh --target TestE2E --executable-type trimmed --configuration ${{ env.CONFIGURATION }}
-                  
+
             - name: Upload executable artifact
               uses: actions/upload-artifact@v4
               with:
@@ -145,9 +145,9 @@ jobs:
             - name: 🔍 GH_TOKEN
               if: env.GH_TOKEN == ''
               env:
-                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: echo "GH_TOKEN=${GITHUB_TOKEN}" >> $GITHUB_ENV  
-              
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: echo "GH_TOKEN=${GITHUB_TOKEN}" >> $GITHUB_ENV
+
             - name: Fetch Source Code
               uses: actions/checkout@v6.0.1
               with:
@@ -189,7 +189,7 @@ jobs:
 
             - name: Pack tool package
               run: ./build.sh --target PackTool --configuration ${{ env.CONFIGURATION }} --version ${{ needs.validate-version.outputs.version }}
-            
+
             - name: Run all tests (includes build tests)
               run: ./build.sh --target TestAll --configuration ${{ env.CONFIGURATION }}
 
@@ -225,13 +225,13 @@ jobs:
             - name: Prepare executables for release
               run: |
                   mkdir -p ./artifacts/release-assets
-                  
+
                   # Copy and rename executables for each platform
                   for rid in linux-x64 linux-arm64 win-x64 osx-arm64; do
                     artifact_dir="./artifacts/executables/morphir-$rid"
                     if [ -d "$artifact_dir" ]; then
                       echo "Processing $rid..."
-                      
+
                       # Find the executable (morphir or morphir.exe)
                       if [ -f "$artifact_dir/morphir" ]; then
                         cp "$artifact_dir/morphir" "./artifacts/release-assets/morphir-$rid"
@@ -246,7 +246,7 @@ jobs:
                       echo "⚠ Warning: Artifact directory not found: $artifact_dir"
                     fi
                   done
-                  
+
                   echo ""
                   echo "Release assets prepared:"
                   ls -lh ./artifacts/release-assets/
@@ -255,17 +255,17 @@ jobs:
               id: extract-notes
               run: |
                   VERSION=${{ needs.validate-version.outputs.version }}
-                  
+
                   # Extract release notes for this version from CHANGELOG.md
                   # Find the section between [VERSION] and the next [VERSION] or end of file
                   awk "/^## \[$VERSION\]/{flag=1;next}/^## \[/{flag=0}flag" CHANGELOG.md > release-notes.md
-                  
+
                   # Check if we got any content
                   if [ ! -s release-notes.md ]; then
                     echo "Warning: No release notes found for version $VERSION"
                     echo "Release $VERSION" > release-notes.md
                   fi
-                  
+
                   echo "Release notes:"
                   cat release-notes.md
 
