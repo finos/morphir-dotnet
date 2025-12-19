@@ -18,6 +18,15 @@ The morphir-dotnet project uses a sophisticated AI skill framework (gurus) for c
 | [Guru Creation Guide](guru-creation-guide) | Step-by-step guide for creating new AI gurus |
 | [Technical Writer Skill](technical-writer-skill-requirements) | Requirements for the Technical Writer skill |
 
+### Guru Specifications & Enhancements
+
+| Document | Description |
+|----------|-------------|
+| [Issue #240 Enhancement Summary](issue-240-summary) | Quick reference for Elm-to-F# Guru enhancement with guru framework principles |
+| [Issue #240 Enhanced Specification](issue-240-enhanced) | Complete specification for Elm-to-F# Guru with proactive review, token efficiency, and maturity phases |
+| [Issue #240 Navigation Guide](ISSUE-240-README) | Navigation guide for all Issue #240 enhancement documents |
+
+
 ## Product Requirements Documents
 
 PRDs track feature requirements, design decisions, and implementation status:
