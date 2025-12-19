@@ -50,3 +50,4 @@ morphir run <wasm-plugin-path>
 
 
 
+
