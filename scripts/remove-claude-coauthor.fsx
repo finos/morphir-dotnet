@@ -272,20 +272,26 @@ let rewriteCommitHistory (commits: CommitInfo list) (verbose: bool) : Result<uni
                     |> String.concat "; "
 
     let oldestCommit = commits |> List.last
-    let commitRange = sprintf "%s^..HEAD" oldestCommit.Hash
+    
+    // Get the parent of the oldest commit to rewrite
+    match runGitCommand (sprintf "rev-parse %s^" oldestCommit.Hash) verbose with
+    | Ok parent ->
+        let commitRange = sprintf "%s..HEAD" (parent.Trim())
 
-    if verbose then
-        eprintfn "[VERBOSE] Rewriting commits in range: %s" commitRange
-        eprintfn "[VERBOSE] Using sed script: %s" sedScript
+        if verbose then
+            eprintfn "[VERBOSE] Rewriting commits from %s to HEAD" parent
+            eprintfn "[VERBOSE] Using sed script: %s" sedScript
 
-    // Use git filter-branch with msg-filter
-    let filterCommand = sprintf "filter-branch -f --msg-filter 'sed \"%s\"' %s" sedScript commitRange
+        // Use git filter-branch with msg-filter
+        let filterCommand = sprintf "filter-branch -f --msg-filter 'sed \"%s\"' %s" sedScript commitRange
 
-    match runGitCommand filterCommand verbose with
-    | Ok _ ->
-        Ok ()
+        match runGitCommand filterCommand verbose with
+        | Ok _ ->
+            Ok ()
+        | Error msg ->
+            Error msg
     | Error msg ->
-        Error msg
+        Error (sprintf "Could not find parent commit: %s" msg)
 
 // ============================================================================
 // Display Functions
