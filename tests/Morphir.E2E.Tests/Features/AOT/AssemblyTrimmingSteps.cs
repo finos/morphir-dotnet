@@ -341,7 +341,7 @@ public class AssemblyTrimmingSteps
         var currentSize = new FileInfo(_executablePath!).Length;
         var reductionPercent = (1.0 - (double)currentSize / baseline) * 100;
         
-        reductionPercent.Should().BeGreaterOrEqualTo(50, 
+        reductionPercent.Should().BeGreaterThanOrEqualTo(50, 
             $"Size reduction should be at least 50% (baseline: {baseline:N0} bytes, current: {currentSize:N0} bytes, reduction: {reductionPercent:F1}%)");
     }
 
