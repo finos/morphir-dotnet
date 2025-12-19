@@ -26,7 +26,7 @@
     The vulnerable version detection is based on CPE matching against the assembly's
     internal version number, not the NuGet package version.
   -->
-  <suppress until="2025-06-30">
+  <suppress until="2026-03-31">
     <notes><![CDATA[
       False positive: Version misidentification in binary scanning.
 
@@ -39,7 +39,8 @@
 
       Verified by: @copilot (PR #276)
       Date: 2024-12-19
-      Review: Quarterly (next: 2025-03-31)
+      Updated: 2025-12-19 (extended expiration)
+      Review: Quarterly (next: 2026-03-31)
       Reference: https://github.com/Azure/azure-sdk-for-net/blob/main/sdk/identity/Azure.Identity/CHANGELOG.md
     ]]></notes>
     <cve>CVE-2023-36415</cve>
@@ -109,6 +110,43 @@
       Reference: https://nvd.nist.gov/vuln/detail/CVE-2012-2055
     ]]></notes>
     <cve>CVE-2012-2055</cve>
+  </suppress>
+
+  <!--
+    JsonPointer.Net - False Positive (Package Name Confusion)
+    Detected: CVE-2022-4742 (CVSS 9.8)
+
+    This is a false positive caused by CPE matching confusion between:
+    - json-pointer (npm package) - VULNERABLE to CVE-2022-4742
+    - JsonPointer.Net (.NET library) - NOT AFFECTED
+
+    The CVE specifically targets the JavaScript json-pointer npm package,
+    which has a prototype pollution vulnerability in its set() function.
+    JsonPointer.Net is a completely different .NET implementation.
+  -->
+  <suppress>
+    <notes><![CDATA[
+      False positive: Package name confusion between JavaScript and .NET libraries.
+
+      Detected package: JsonPointer.Net.dll@6.0.1 (cpe:2.3:a:json-pointer_project:json-pointer)
+      Actual vulnerability: CVE-2022-4742 affects json-pointer npm package (JavaScript)
+
+      The CVE targets "json-pointer" - a JavaScript npm package with prototype pollution.
+      JsonPointer.Net is an unrelated .NET library implementing RFC 6901 JSON Pointer.
+      These are completely different projects in different ecosystems:
+
+      - json-pointer (vulnerable): https://www.npmjs.com/package/json-pointer - JavaScript
+      - JsonPointer.Net (not affected): https://www.nuget.org/packages/JsonPointer.Net - .NET
+
+      The vulnerability (CWE-1321: Prototype Pollution) is JavaScript-specific and
+      cannot affect .NET code which doesn't have prototype-based inheritance.
+
+      Verified by: Claude Code (PR #282)
+      Date: 2025-12-19
+      Review: No expiration - permanent false positive (different ecosystem)
+      Reference: https://nvd.nist.gov/vuln/detail/CVE-2022-4742
+    ]]></notes>
+    <cve>CVE-2022-4742</cve>
   </suppress>
 
 </suppressions>
