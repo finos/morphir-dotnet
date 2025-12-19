@@ -97,4 +97,28 @@ public static class TestFixture
         return Directory.Exists(packagesDir) &&
                Directory.GetFiles(packagesDir, "*.nupkg").Any();
     }
+
+    /// <summary>
+    /// Extract version from package filename
+    /// </summary>
+    /// <param name="packagePath">Full path to .nupkg file like "/path/Morphir.Tool.0.3.0-rc.2.nupkg"</param>
+    /// <returns>Version string like "0.3.0-rc.2"</returns>
+    public static string GetPackageVersion(string packagePath)
+    {
+        var filename = Path.GetFileNameWithoutExtension(packagePath);
+        // Format: PackageName.Version.nupkg
+        // Example: Morphir.Tool.0.3.0-rc.2.nupkg -> extract "0.3.0-rc.2"
+
+        // Use regex to match semantic version pattern: starts with digit.digit.digit
+        // This handles: major.minor.patch[-prerelease][+build]
+        var versionPattern = @"\.(\d+\.\d+\.\d+(?:-[\w\d\.-]+)?(?:\+[\w\d\.-]+)?)$";
+        var match = System.Text.RegularExpressions.Regex.Match(filename, versionPattern);
+
+        if (match.Success)
+        {
+            return match.Groups[1].Value;
+        }
+
+        throw new ArgumentException($"Could not extract semantic version from package filename: {filename}");
+    }
 }

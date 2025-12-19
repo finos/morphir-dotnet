@@ -1,7 +1,12 @@
+@ignore
 Feature: Assembly Trimming
   As a CLI developer
   I want trimmed assemblies
   So that I reduce deployment size
+
+  # TODO: Implement step definitions for these scenarios
+  # These tests were added in PR #229 but step definitions were never implemented
+  # See issue #246 for implementation tracking
 
   Background:
     Given a morphir-dotnet CLI project
