@@ -418,9 +418,10 @@ This is not a future state. It's what morphir-dotnet is building now.
 
 ## References
 
-- **[Guru Creation Guide](./.agents/guru-creation-guide.md)** - Step-by-step guide for creating new gurus
-- **[Skills Reference](./.agents/skills-reference.md)** - Documentation of all available gurus
-- **[Skill Matrix](./.agents/skill-matrix.md)** - Maturity tracking for all gurus
+- **[Guru Creation Guide](./guru-creation-guide.md)** - Step-by-step guide for creating new gurus
+- **[Skills Reference](./skills-reference.md)** - Documentation of all available gurus
+- **[Skill Matrix](./skill-matrix.md)** - Maturity tracking for all gurus
+- **[Template](./../.claude/skills/template/)** - Starter template for new gurus
 - **[Design Documents](../docs/content/contributing/design/)** - Original design documents
 
 ---

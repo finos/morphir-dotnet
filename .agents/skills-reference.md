@@ -725,7 +725,7 @@ Savings: ~500-700 tokens (60-70% reduction)
 
 ### Adding a New Skill
 
-See [guru creation guide](https://github.com/finos/morphir-dotnet/issues/255) for comprehensive instructions on creating new skills.
+See [Guru Creation Guide](./guru-creation-guide.md) for comprehensive step-by-step instructions on creating new skills. A complete [skill template](./../.claude/skills/template/) is available to accelerate new guru development.
 
 ### Updating Existing Skills
 
@@ -747,10 +747,14 @@ Found an issue or have a suggestion? Please:
 ## References
 
 - **[AGENTS.md](../AGENTS.md)**: Primary guidance for all AI agents
+- **[Guru Philosophy](./guru-philosophy.md)**: Core philosophy behind gurus
+- **[Guru Creation Guide](./guru-creation-guide.md)**: Step-by-step guide for creating new gurus
+- **[Skill Matrix](./skill-matrix.md)**: Maturity tracking for all gurus
 - **[Capabilities Matrix](./capabilities-matrix.md)**: Cross-agent compatibility details
 - **[QA Testing Guide](./qa-testing.md)**: Cross-agent QA practices
 - **[AOT Optimization Guide](./aot-optimization.md)**: Cross-agent AOT guidance
 - **[Claude Skills Directory](../.claude/skills/)**: Full skill implementations
+- **[Skill Template](../.claude/skills/template/)**: Template for creating new gurus
 
 ---
 
