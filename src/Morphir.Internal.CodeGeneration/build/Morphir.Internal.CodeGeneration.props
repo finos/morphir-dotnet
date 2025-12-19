@@ -1,0 +1,6 @@
+<Project>
+  <ItemGroup>
+    <!-- Register all generators with Myriad -->
+    <MyriadSdkGenerator Include="$(MSBuildThisFileDirectory)../lib/net10.0/Morphir.Internal.CodeGeneration.dll" />
+  </ItemGroup>
+</Project>
