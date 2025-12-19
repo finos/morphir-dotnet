@@ -78,7 +78,7 @@ dotnet fsi .claude/skills/{guru-id}/scripts/{relevant-script}.fsx
 2. {Step 2}
 3. {Step 3}
 
-**Decision Tree:** See [skill.md - Decision Tree {N}](./skill.md#{anchor})
+**Decision Tree:** See [SKILL.md - Decision Tree {N}](./SKILL.md#{anchor})
 
 ---
 
@@ -89,7 +89,7 @@ dotnet fsi .claude/skills/{guru-id}/scripts/{relevant-script}.fsx
 2. {Step 2}
 3. {Step 3}
 
-**Playbook:** See [skill.md - Playbook {N}](./skill.md#{anchor})
+**Playbook:** See [SKILL.md - Playbook {N}](./SKILL.md#{anchor})
 
 ---
 
@@ -204,7 +204,7 @@ dotnet fsi .claude/skills/{guru-id}/scripts/{script}.fsx {args}
 
 **Task:** {What needed to be done}
 
-**Approach:** Followed [Playbook {N}](./skill.md#{anchor})
+**Approach:** Followed [Playbook {N}](./SKILL.md#{anchor})
 
 **Result:** {Outcome}
 
@@ -244,11 +244,11 @@ Complete
 ### GitHub Copilot
 1. Read `.agents/{guru-id}.md` for guidance
 2. Run scripts: `dotnet fsi .claude/skills/{guru-id}/scripts/{script}.fsx`
-3. Follow playbooks in `skill.md`
+3. Follow playbooks in `SKILL.md`
 
 ### Other Agents (Cursor, Windsurf, Aider)
 1. Read this README for quick reference
-2. Read `skill.md` for comprehensive guidance
+2. Read `SKILL.md` for comprehensive guidance
 3. Run scripts directly
 4. Use templates from `templates/`
 
@@ -263,12 +263,12 @@ Complete
   └─ {Option C} → {Action C}
 ```
 
-See [skill.md](./skill.md) for complete decision trees.
+See [SKILL.md](./SKILL.md) for complete decision trees.
 
 ## Getting Help
 
 ### Built-in Resources
-- **[skill.md](./skill.md)** - Comprehensive documentation
+- **[SKILL.md](./SKILL.md)** - Comprehensive documentation
 - **[MAINTENANCE.md](./MAINTENANCE.md)** - Evolution and improvement guide
 - **[metadata.yaml](./metadata.yaml)** - Skill configuration
 - **[scripts/](./scripts/)** - Automation scripts
