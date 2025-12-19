@@ -33,6 +33,7 @@
         "Clean",
         "CleanProtoPlugin",
         "Compile",
+        "CreateGitHubRelease",
         "DevWorkflow",
         "Format",
         "GenerateWolverineCode",
@@ -40,6 +41,7 @@
         "PackageProtoPlugin",
         "PackAll",
         "PackLibs",
+        "PackPlatformTarballs",
         "PackTool",
         "Precommit",
         "PrepareRelease",
@@ -54,6 +56,7 @@
         "PublishTool",
         "Restore",
         "Test",
+        "TestBuild",
         "TestE2E",
         "TestProtoPlugin"
       ]
@@ -160,6 +163,10 @@
         "OutputDir": {
           "type": "string",
           "description": "Output directory for packages"
+        },
+        "PluginVersion": {
+          "type": "string",
+          "description": "Version for the proto plugin release (e.g., 0.1.0)"
         },
         "ProtoPluginDir": {
           "type": "string",

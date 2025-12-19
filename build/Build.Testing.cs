@@ -17,10 +17,47 @@ partial class Build
     /// </summary>
     Target Test => _ => _
         .DependsOn(Compile)
-        .Description("Run all tests")
+        .Description("Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests)")
         .Executes(() =>
         {
             RunTests(Configuration);
+        });
+    
+    /// <summary>
+    /// Run build tests (Morphir.Build.Tests)
+    /// Validates package structure, metadata, and local installation
+    /// NOTE: Requires packages to be built first (run PackAll target)
+    /// </summary>
+    Target TestBuild => _ => _
+        .DependsOn(Compile)
+        .Description("Run build/package validation tests (requires packages to be built)")
+        .Executes(() =>
+        {
+            Serilog.Log.Information("Running build/package validation tests...");
+            
+            // Check if packages exist
+            var packagesDir = OutputDir;
+            if (!System.IO.Directory.Exists(packagesDir) || 
+                !System.IO.Directory.GetFiles(packagesDir, "*.nupkg").Any())
+            {
+                Serilog.Log.Warning("⚠ No packages found in {0}", packagesDir);
+                Serilog.Log.Warning("⚠ Build tests require packages to be built first");
+                Serilog.Log.Warning("⚠ Run: ./build.sh PackAll --configuration {0}", Configuration);
+                Serilog.Log.Warning("⚠ Skipping build tests");
+                return;
+            }
+            
+            Serilog.Log.Information("Running Morphir.Build.Tests...");
+            var buildTestDll = TestsDirectory / "Morphir.Build.Tests" / "bin" / Configuration / "net10.0" / "Morphir.Build.Tests.dll";
+            var exitCode = RunCommand("dotnet", "exec", buildTestDll);
+            
+            if (exitCode != 0)
+            {
+                Serilog.Log.Error("Build tests FAILED");
+                throw new Exception($"Build tests failed with exit code {exitCode}");
+            }
+            
+            Serilog.Log.Information("✓ Build tests PASSED");
         });
 
     /// <summary>
