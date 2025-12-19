@@ -5,7 +5,7 @@
 ## Quick Start
 
 **Always read first**: [AGENTS.md](../AGENTS.md) - Complete project guidance
-**Specialized skills**: [.agents/skills-reference.md](./.agents/skills-reference.md) - QA Tester, AOT Guru, Release Manager
+**Specialized skills**: [.agents/skills-reference.md](./.agents/skills-reference.md) - QA Tester, AOT Guru, Release Manager, Technical Writer
 **Cross-agent compatibility**: [.agents/capabilities-matrix.md](./.agents/capabilities-matrix.md)
 
 **Purpose**: Morphir .NET provides .NET tooling and libraries for Morphir IR (Intermediate Representation).
@@ -107,6 +107,12 @@ public abstract record TypeExpr
 - **Scripts**: `prepare-release.fsx`, `monitor-release.fsx`, `monitor-pr.fsx`, `validate-release.fsx`
 - **Access**: Documentation + run scripts directly
 
+**Technical Writer** - Documentation, Hugo/Docsy, diagrams, visual communication
+- **Review Capability**: Link validation, Hugo build health, diagram syntax, style compliance
+- **Scripts**: `link-validator.fsx`, `hugo-doctor.fsx`, `diagram-validator.fsx`, `content-auditor.fsx`
+- **Access**: Documentation + run scripts directly
+- **Expertise**: Hugo troubleshooting, Docsy customization, Mermaid/PlantUML diagrams
+
 **For Copilot users**:
 - Read skill documentation: [.agents/skills-reference.md](./.agents/skills-reference.md)
 - Run automation scripts: `dotnet fsi .claude/skills/{skill}/scripts/{script}.fsx`
@@ -145,7 +151,7 @@ public abstract record TypeExpr
 
 **Essential Reading**:
 - [AGENTS.md](../AGENTS.md) - Primary guidance (READ THIS FIRST)
-- [.agents/skills-reference.md](./.agents/skills-reference.md) - Expert skills (QA, AOT, Release)
+- [.agents/skills-reference.md](./.agents/skills-reference.md) - Expert skills (QA, AOT, Release, Technical Writer)
 - [.agents/capabilities-matrix.md](./.agents/capabilities-matrix.md) - Cross-agent features
 - [.agents/qa-testing.md](./.agents/qa-testing.md) - QA practices
 - [.agents/aot-optimization.md](./.agents/aot-optimization.md) - AOT guidance

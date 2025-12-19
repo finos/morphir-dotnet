@@ -10,6 +10,7 @@ This file provides Claude Code-specific guidance for the morphir-dotnet reposito
 - `@skill qa-tester` - Test plans, regression testing, coverage monitoring
 - `@skill aot-guru` - AOT/trimming diagnostics, size optimization
 - `@skill release-manager` - Release lifecycle, changelog, version management
+- `@skill technical-writer` - Documentation, Hugo/Docsy, diagrams, style guide
 
 See [.agents/skills-reference.md](./.agents/skills-reference.md) for complete skill documentation.
 
@@ -38,6 +39,15 @@ See [.agents/skills-reference.md](./.agents/skills-reference.md) for complete sk
 - **Review capability**: Process consistency, changelog quality, version verification
 - **Scripts**: `prepare-release.fsx`, `monitor-release.fsx`, `monitor-pr.fsx`, `validate-release.fsx`
 
+**Technical Writer** ([.claude/skills/technical-writer/](./.claude/skills/technical-writer/))
+- Expert communication craftsperson for documentation
+- Hugo static site generator and Docsy theme mastery
+- Mermaid and PlantUML diagram creation
+- API documentation, tutorials, style guide enforcement
+- **Review capability**: Link validation, example freshness, documentation coverage
+- **Scripts**: `link-validator.fsx`, `hugo-doctor.fsx`, `diagram-validator.fsx`
+- **Playwright MCP**: Use for live documentation verification when available
+
 **When to use skills**:
 ```
 User: "Create a test plan for PR #123"
@@ -51,6 +61,14 @@ You: @skill aot-guru
 User: "Prepare release 1.0.0"
 You: @skill release-manager
      Prepare release for version 1.0.0
+
+User: "Hugo isn't building"
+You: @skill technical-writer
+     Help diagnose the Hugo build failure
+
+User: "Create a diagram of the validation flow"
+You: @skill technical-writer
+     Create a sequence diagram showing IR validation
 ```
 
 ### 2. TDD Workflow (Required)

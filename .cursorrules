@@ -14,7 +14,12 @@ This project uses **AGENTS.md** as the primary guidance file for all AI coding a
    - BDD and unit testing guides
    - Test scripts and automation
 
-3. **[CLAUDE.md](./CLAUDE.md)** - For Claude Code-specific features (if using Claude)
+3. **[.agents/skills-reference.md](./.agents/skills-reference.md)** - For all specialized skills
+   - QA Tester, AOT Guru, Release Manager, Technical Writer
+   - Automation scripts and playbooks
+   - Decision trees and patterns
+
+4. **[CLAUDE.md](./CLAUDE.md)** - For Claude Code-specific features (if using Claude)
    - Also useful for understanding project patterns
 
 ## 🎯 Quick Reference
@@ -36,6 +41,11 @@ This project uses **AGENTS.md** as the primary guidance file for all AI coding a
 - Run smoke test: `dotnet fsi .claude/skills/qa-tester/smoke-test.fsx`
 - Run regression test: `dotnet fsi .claude/skills/qa-tester/regression-test.fsx`
 
+### For Documentation Tasks
+- See `.claude/skills/technical-writer/SKILL.md` for documentation guidance
+- Hugo troubleshooting, Docsy customization, Mermaid diagrams
+- Link validation, style guide enforcement, API docs
+
 ### For New Features
 - Follow TDD: RED → GREEN → REFACTOR (see AGENTS.md Section 9.1)
 - Write BDD scenarios first (Reqnroll/Gherkin)
@@ -56,10 +66,15 @@ The guidance in AGENTS.md is tool-agnostic and works equally well with Cursor, C
 morphir-dotnet/
 ├── AGENTS.md              # ← Start here
 ├── .agents/               # ← Specialized topics
+│   ├── skills-reference.md # All skills documented
 │   ├── qa-testing.md      # QA guidance
 │   └── README.md          # Navigation
 ├── .claude/               # Claude Code-specific
-│   └── skills/qa-tester/  # F# test scripts
+│   └── skills/            # Skill implementations
+│       ├── qa-tester/     # QA testing
+│       ├── aot-guru/      # AOT optimization
+│       ├── release-manager/ # Release lifecycle
+│       └── technical-writer/ # Documentation
 ├── CLAUDE.md              # Claude-specific features
 ├── src/                   # Source code
 ├── tests/                 # Tests

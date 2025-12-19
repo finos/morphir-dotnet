@@ -190,7 +190,57 @@ Gurus progress through four maturity phases:
 
 ---
 
-### 4. Elm-to-F# Guru
+### 4. Technical Writer
+
+**Maturity Phase:** Alpha (Phase 1)
+**Location:** `.claude/skills/technical-writer/`
+**Domain:** Documentation, Hugo/Docsy, diagrams, and visual communication
+
+**Capabilities:**
+- ✅ Hugo static site generator mastery
+- ✅ Docsy theme expertise
+- ✅ Mermaid diagram creation
+- ✅ PlantUML expertise
+- ✅ Markdown mastery
+- ✅ API documentation
+- ✅ Style guide enforcement
+
+**Review Capability:**
+- **Status:** Defined, implementation pending
+- **Scope:** Link validation, Hugo build health, diagram syntax, style compliance, content freshness
+- **Frequency:** Pre-release + Quarterly audit + PR reviews
+- **Triggers:** Pre-release validation, quarterly audit, docs PR reviews
+- **Output:** Link report, build diagnostics, diagram validation, style score, content gaps
+- **Integration:** Pre-release checklist, documentation quality gates
+
+**Automation Scripts (Defined):**
+- `link-validator.fsx` - Link validation (saves ~800 tokens)
+- `hugo-doctor.fsx` - Hugo diagnostics (saves ~600 tokens)
+- `diagram-validator.fsx` - Mermaid/PlantUML validation (saves ~400 tokens)
+- `content-auditor.fsx` - Content coverage analysis (saves ~700 tokens)
+- `style-checker.fsx` - Style guide enforcement (saves ~500 tokens)
+- `release-notes-generator.fsx` - Release documentation (saves ~600 tokens)
+- `screenshot-taker.fsx` - Visual documentation (saves ~900 tokens)
+
+**Coordination Dependencies:**
+- **→ Release Manager:** Create release notes and What's New documents (Technical Writer → Release)
+- **→ QA Tester:** Document test procedures and results (Technical Writer → QA)
+- **→ AOT Guru:** Document AOT patterns and troubleshooting (Technical Writer → AOT)
+- **← All gurus:** Documentation support for domain-specific docs
+
+**Alpha Status:**
+- [x] Directory structure created
+- [x] SKILL.md complete (~800 lines)
+- [x] README.md created
+- [x] MAINTENANCE.md documented
+- [ ] 7 automation scripts defined (implementation pending)
+- [x] 11 seed patterns documented
+- [ ] Initial templates created
+- [ ] Team feedback collected
+
+---
+
+### 5. Elm-to-F# Guru
 
 **Maturity Phase:** Candidate (Phase 0)  
 **Location:** Planned at `.claude/skills/elm-to-fsharp/`  
@@ -233,12 +283,13 @@ Gurus progress through four maturity phases:
 
 This matrix shows how gurus interact:
 
-| From ↓ / To → | QA Tester | AOT Guru | Release Manager | Elm-to-F# |
-|---------------|-----------|----------|-----------------|-----------|
-| **QA Tester** | - | Test AOT builds | Post-release validation | Verify test coverage |
-| **AOT Guru** | - | - | Version compatibility | Review generated code |
-| **Release Manager** | Request verification | Request AOT check | - | Track milestones |
-| **Elm-to-F#** | Request testing | Request review | Report progress | - |
+| From ↓ / To → | QA Tester | AOT Guru | Release Manager | Technical Writer | Elm-to-F# |
+|---------------|-----------|----------|-----------------|------------------|-----------|
+| **QA Tester** | - | Test AOT builds | Post-release validation | Document test results | Verify test coverage |
+| **AOT Guru** | - | - | Version compatibility | Document AOT patterns | Review generated code |
+| **Release Manager** | Request verification | Request AOT check | - | Release notes/What's New | Track milestones |
+| **Technical Writer** | Document procedures | Document troubleshooting | Create release docs | - | - |
+| **Elm-to-F#** | Request testing | Request review | Report progress | - | - |
 
 ## Review Capability Status
 
@@ -247,6 +298,7 @@ This matrix shows how gurus interact:
 | **QA Tester** | ✅ Implemented | Continuous + Manual | Coverage, ignored tests, BDD | CI/CD integrated |
 | **AOT Guru** | ✅ Implemented | Quarterly + On-demand | Reflection, size, patterns | Quarterly reports |
 | **Release Manager** | ✅ Implemented | Per-release + Quarterly | Process, changelog, version | Retrospectives |
+| **Technical Writer** | 🔄 Defined | Pre-release + Quarterly | Links, Hugo, diagrams, style | Quality gates |
 | **Elm-to-F#** | 🔄 Planned | Per-session + Quarterly | Patterns, idioms, safety | Pattern automation |
 
 **Legend:**
@@ -259,14 +311,15 @@ This matrix shows how gurus interact:
 ### Token Efficiency
 Total estimated token savings across all gurus:
 - **QA Tester:** ~1800 tokens per release cycle
-- **AOT Guru:** ~2600 tokens per quarter  
+- **AOT Guru:** ~2600 tokens per quarter
 - **Release Manager:** ~3200 tokens per release
-- **Total (3 gurus):** ~7600 tokens per release cycle
+- **Technical Writer:** ~5200 tokens per audit cycle
+- **Total (4 gurus):** ~12800 tokens per release cycle
 
 ### Maturity Distribution
 - **Phase 3 (Stable):** 3 gurus (QA, AOT, Release)
 - **Phase 2 (Beta):** 0 gurus
-- **Phase 1 (Alpha):** 0 gurus
+- **Phase 1 (Alpha):** 1 guru (Technical Writer)
 - **Phase 0 (Candidate):** 1 guru (Elm-to-F#)
 
 ### Coordination Health
@@ -277,12 +330,12 @@ Total estimated token savings across all gurus:
 
 ## Quarterly Review Schedule
 
-| Quarter | QA Tester | AOT Guru | Release Manager | Elm-to-F# |
-|---------|-----------|----------|-----------------|-----------|
-| **Q1 2025** | ✅ Complete | ✅ Complete | ✅ Complete | - |
-| **Q2 2025** | ✅ Complete | ✅ Complete | ✅ Complete | - |
-| **Q3 2025** | ✅ Complete | ✅ Complete | ✅ Complete | - |
-| **Q4 2025** | ✅ Complete | ✅ Complete | ✅ Complete | 🔄 Candidate |
+| Quarter | QA Tester | AOT Guru | Release Manager | Technical Writer | Elm-to-F# |
+|---------|-----------|----------|-----------------|------------------|-----------|
+| **Q1 2025** | ✅ Complete | ✅ Complete | ✅ Complete | - | - |
+| **Q2 2025** | ✅ Complete | ✅ Complete | ✅ Complete | - | - |
+| **Q3 2025** | ✅ Complete | ✅ Complete | ✅ Complete | - | - |
+| **Q4 2025** | ✅ Complete | ✅ Complete | ✅ Complete | 🆕 Alpha | 🔄 Candidate |
 
 ## Adding New Gurus
 
@@ -300,7 +353,6 @@ When proposing a new guru:
 
 Ideas for future gurus (not yet candidates):
 
-- **Documentation Guru** - Technical writing, API docs, example maintenance
 - **Security Guru** - Vulnerability scanning, dependency audits, security best practices
 - **Performance Guru** - Profiling, benchmarking, optimization recommendations
 - **Deployment Guru** - Container packaging, cloud deployment, infrastructure as code
