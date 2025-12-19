@@ -2,6 +2,7 @@
 [![Slack](https://img.shields.io/badge/Slack-morphir-blue.svg?logo=slack)](https://finos-lf.slack.com/messages/morphir)
 ![Development Workflow](https://github.com/finos/morphir-dotnet/actions/workflows/development.yml/badge.svg)
 ![Deployment Workflow](https://github.com/finos/morphir-dotnet/actions/workflows/deployment.yml/badge.svg)
+![CVE Scanning](https://github.com/finos/morphir-dotnet/actions/workflows/cve-scanning.yml/badge.svg)
 ![NuGet Version](https://img.shields.io/nuget/v/Morphir?label=NuGet%20Morphir)
 ![NuGet Core](https://img.shields.io/nuget/v/Morphir.Core?label=NuGet%20Core)
 ![NuGet Tooling](https://img.shields.io/nuget/v/Morphir.Tooling?label=NuGet%20Tooling)
