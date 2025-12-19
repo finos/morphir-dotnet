@@ -36,10 +36,10 @@ partial class Build
             // Note: wasm32-wasip1 is the current WASI preview 1 target in Rust
             // (wasm32-wasi was deprecated in favor of wasm32-wasip1)
             Serilog.Log.Information("Ensuring wasm32-wasip1 target is installed...");
-            RunCommand("rustup", "target", "add", "wasm32-wasip1");
+            RunRustCommand("rustup", "target", "add", "wasm32-wasip1");
 
             // Build the WASM plugin
-            var buildExitCode = RunCommand(
+            var buildExitCode = RunRustCommand(
                 "cargo",
                 "build",
                 "--release",
@@ -202,4 +202,67 @@ partial class Build
 
             Serilog.Log.Information("✓ Proto plugin artifacts cleaned");
         });
+
+    /// <summary>
+    /// Run a Rust toolchain command (rustup, cargo) with intelligent stderr categorization
+    /// Rust tools write messages to stderr with prefixes like "info:", "warning:", "error:"
+    /// We parse these prefixes to log at the appropriate level
+    /// </summary>
+    int RunRustCommand(string command, params string[] args)
+    {
+        var process = new System.Diagnostics.Process
+        {
+            StartInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = command,
+                Arguments = string.Join(" ", args.Select(a => a.Contains(" ") ? $"\"{a}\"" : a)),
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            }
+        };
+
+        process.OutputDataReceived += (sender, e) =>
+        {
+            if (e.Data != null) Serilog.Log.Information(e.Data);
+        };
+
+        process.ErrorDataReceived += (sender, e) =>
+        {
+            if (e.Data == null) return;
+
+            // Categorize based on common Rust/Cargo/Rustup prefixes
+            var message = e.Data.TrimStart();
+            if (message.StartsWith("error:", StringComparison.OrdinalIgnoreCase))
+            {
+                Serilog.Log.Error(e.Data);
+            }
+            else if (message.StartsWith("warning:", StringComparison.OrdinalIgnoreCase))
+            {
+                Serilog.Log.Warning(e.Data);
+            }
+            else if (message.StartsWith("info:", StringComparison.OrdinalIgnoreCase) ||
+                     message.StartsWith("Updating", StringComparison.OrdinalIgnoreCase) ||
+                     message.StartsWith("Downloading", StringComparison.OrdinalIgnoreCase) ||
+                     message.StartsWith("Downloaded", StringComparison.OrdinalIgnoreCase) ||
+                     message.StartsWith("Compiling", StringComparison.OrdinalIgnoreCase) ||
+                     message.StartsWith("Finished", StringComparison.OrdinalIgnoreCase) ||
+                     message.StartsWith("Locking", StringComparison.OrdinalIgnoreCase))
+            {
+                Serilog.Log.Information(e.Data);
+            }
+            else
+            {
+                // Unknown message format - log as warning to be safe
+                Serilog.Log.Warning(e.Data);
+            }
+        };
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        process.WaitForExit();
+
+        return process.ExitCode;
+    }
 }
