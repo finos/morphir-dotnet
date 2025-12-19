@@ -61,8 +61,8 @@ partial class Build
 
             // Publish Morphir executable package (not the Tool package)
             var morphirPackage = OutputDir.GlobFiles("Morphir.0.*.nupkg")
-                .Where(p => !p.ToString().Contains("Morphir.Core") && 
-                           !p.ToString().Contains("Morphir.Tooling") && 
+                .Where(p => !p.ToString().Contains("Morphir.Core") &&
+                           !p.ToString().Contains("Morphir.Tooling") &&
                            !p.ToString().Contains("Morphir.Tool"))
                 .FirstOrDefault();
             if (morphirPackage != null)
@@ -174,8 +174,8 @@ partial class Build
             }
 
             var morphirPackage = OutputDir.GlobFiles("Morphir.0.*.nupkg")
-                .Where(p => !p.ToString().Contains("Morphir.Core") && 
-                           !p.ToString().Contains("Morphir.Tooling") && 
+                .Where(p => !p.ToString().Contains("Morphir.Core") &&
+                           !p.ToString().Contains("Morphir.Tooling") &&
                            !p.ToString().Contains("Morphir.Tool"))
                 .FirstOrDefault();
             if (morphirPackage != null)
@@ -265,27 +265,27 @@ partial class Build
             }
 
             Serilog.Log.Information($"Preparing release: {ReleaseVersion}");
-            
+
             var changelogFile = new FileInfo(ChangelogFile);
-            
+
             // Validate [Unreleased] has content
             if (!changelogFile.HasUnreleasedContent())
             {
                 throw new Exception("[Unreleased] section is empty. Add changes to CHANGELOG.md before preparing a release.");
             }
-            
+
             // Prepare the release (updates CHANGELOG.md)
             changelogFile.PrepareRelease(ReleaseVersion);
-            
+
             Serilog.Log.Information("✓ CHANGELOG.md updated successfully");
             Serilog.Log.Information($"  - Created new [{ReleaseVersion}] section");
             Serilog.Log.Information($"  - Reset [Unreleased] section");
             Serilog.Log.Information($"  - Updated comparison links");
-            
+
             // Stage the changes
             RunCommand("git", "add", ChangelogFile);
             Serilog.Log.Information($"✓ Staged CHANGELOG.md");
-            
+
             // Display next steps
             Serilog.Log.Information("");
             Serilog.Log.Information("Next steps:");

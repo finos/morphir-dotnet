@@ -98,7 +98,7 @@ public static class ChangelogHelper
         {
             throw new Exception("Failed to access get_IsSome method on FSharpOption");
         }
-        
+
         var isSome = (bool)isSomeMethod.Invoke(null, new[] { changelogDataOption })!;
         if (!isSome)
         {
@@ -111,7 +111,7 @@ public static class ChangelogHelper
         {
             throw new Exception("Failed to access get_Value method on FSharpOption");
         }
-        
+
         dynamic data = valueMethod.Invoke(changelogDataOption, Array.Empty<object>())!;
 
         // Build formatted release notes
@@ -169,17 +169,17 @@ public static class ChangelogHelper
         }
 
         var content = File.ReadAllText(changelogFile.FullName);
-        
+
         // Find the [Unreleased] section
         var unreleasedMatch = Regex.Match(content, @"##\s*\[Unreleased\](.*?)(?=##\s*\[|\z)", RegexOptions.Singleline);
-        
+
         if (!unreleasedMatch.Success)
         {
             return false;
         }
 
         var unreleasedContent = unreleasedMatch.Groups[1].Value;
-        
+
         // Check if there are any bullet points (lines starting with -)
         return Regex.IsMatch(unreleasedContent, @"^\s*-\s+", RegexOptions.Multiline);
     }
@@ -204,17 +204,17 @@ public static class ChangelogHelper
         }
 
         var content = File.ReadAllText(changelogFile.FullName);
-        
+
         // Extract [Unreleased] section content
         var unreleasedMatch = Regex.Match(content, @"##\s*\[Unreleased\]\s*\n(.*?)(?=##\s*\[|\z)", RegexOptions.Singleline);
-        
+
         if (!unreleasedMatch.Success)
         {
             throw new Exception("Could not find [Unreleased] section in CHANGELOG.md");
         }
 
         var unreleasedContent = unreleasedMatch.Groups[1].Value.Trim();
-        
+
         // Check if there's actual content (not just empty lines)
         if (string.IsNullOrWhiteSpace(unreleasedContent) || !Regex.IsMatch(unreleasedContent, @"^\s*-\s+", RegexOptions.Multiline))
         {
@@ -223,7 +223,7 @@ public static class ChangelogHelper
 
         var today = DateTime.Now.ToString("yyyy-MM-dd");
         var newReleaseSection = $"## [{version}] - {today}\n\n{unreleasedContent}";
-        
+
         // Replace [Unreleased] section with empty one and add new release section
         var newContent = Regex.Replace(
             content,
@@ -236,19 +236,19 @@ public static class ChangelogHelper
         // Find the [Unreleased] link and update it
         var linkPattern = @"\[Unreleased\]:\s*https://github\.com/([^/]+)/([^/]+)/compare/v([^.]+\.[^.]+\.[^\s]+)\.\.\.HEAD";
         var linkMatch = Regex.Match(newContent, linkPattern);
-        
+
         if (linkMatch.Success)
         {
             var owner = linkMatch.Groups[1].Value;
             var repo = linkMatch.Groups[2].Value;
             var previousVersion = linkMatch.Groups[3].Value;
-            
+
             // Update [Unreleased] link to compare new version with HEAD
             var updatedUnreleasedLink = $"[Unreleased]: https://github.com/{owner}/{repo}/compare/v{version}...HEAD";
-            
+
             // Add new version comparison link
             var newVersionLink = $"[{version}]: https://github.com/{owner}/{repo}/compare/v{previousVersion}...v{version}";
-            
+
             newContent = Regex.Replace(
                 newContent,
                 linkPattern,
@@ -268,7 +268,7 @@ public static class ChangelogHelper
     public static string GetNextPreReleaseVersion(this FileInfo changelogFile)
     {
         var currentVersion = GetVersionFromChangelog(changelogFile);
-        
+
         if (string.IsNullOrEmpty(currentVersion.Prerelease))
         {
             throw new Exception($"Current version {currentVersion} is not a pre-release. Cannot auto-bump.");
@@ -276,7 +276,7 @@ public static class ChangelogHelper
 
         // Parse pre-release identifier (e.g., "beta.2" -> type: "beta", number: 2)
         var match = Regex.Match(currentVersion.Prerelease, @"^([a-z]+)\.(\d+)$");
-        
+
         if (!match.Success)
         {
             throw new Exception($"Pre-release version format not recognized: {currentVersion.Prerelease}. Expected format: type.number (e.g., beta.2)");

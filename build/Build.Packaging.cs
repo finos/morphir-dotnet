@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Morphir.Build.Helpers;
 using Nuke.Common;
 using Nuke.Common.IO;
 using Nuke.Common.Tools.DotNet;
@@ -47,6 +48,28 @@ partial class Build
                 .SetConfiguration(Configuration)
                 .SetOutputDirectory(OutputDir)
                 .SetProperty("Version", versionString));
+
+            // Validate library packages
+            Serilog.Log.Information("Validating library packages...");
+            var libraryProjects = new[] { "Morphir.Core", "Morphir.Tooling", "Morphir" };
+            foreach (var project in libraryProjects)
+            {
+                var packagePath = PathHelper.GetLibraryPackagePath(project, versionString, OutputDir);
+                if (File.Exists(packagePath))
+                {
+                    var validation = PackageValidator.ValidateLibraryPackage(packagePath);
+                    if (!validation.IsValid)
+                    {
+                        Serilog.Log.Error($"{project} package validation failed:");
+                        foreach (var error in validation.Errors)
+                        {
+                            Serilog.Log.Error($"  - {error}");
+                        }
+                        throw new Exception($"{project} package validation failed. See errors above.");
+                    }
+                    Serilog.Log.Information($"✓ {project} package validated successfully");
+                }
+            }
         });
 
     /// <summary>
@@ -81,6 +104,26 @@ partial class Build
                 .SetProperty("Version", versionString)
                 .SetProperty("DebugType", "none")  // Don't include PDB files in tool package
                 .SetProperty("IncludeSymbols", "false"));
+
+            // Validate the tool package structure
+            var toolPackagePath = PathHelper.GetToolPackagePath(versionString, OutputDir);
+            if (File.Exists(toolPackagePath))
+            {
+                Serilog.Log.Information("Validating tool package structure...");
+                var validation = PackageValidator.ValidateToolPackage(toolPackagePath);
+
+                if (!validation.IsValid)
+                {
+                    Serilog.Log.Error("Tool package validation failed:");
+                    foreach (var error in validation.Errors)
+                    {
+                        Serilog.Log.Error($"  - {error}");
+                    }
+                    throw new Exception("Tool package validation failed. See errors above.");
+                }
+
+                Serilog.Log.Information("✓ Tool package structure validated successfully");
+            }
         });
 
     /// <summary>

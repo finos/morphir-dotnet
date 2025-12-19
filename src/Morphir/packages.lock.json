@@ -45,12 +45,6 @@
           "Oakton": "6.3.0"
         }
       },
-      "Microsoft.NET.ILLink.Tasks": {
-        "type": "Direct",
-        "requested": "[10.0.1, )",
-        "resolved": "10.0.1",
-        "contentHash": "ISahzLHsHY7vrwqr2p1YWZ+gsxoBRtH7gWRDK8fDUst9pp2He0GiesaqEfeX0V8QMCJM3eNEHGGpnIcPjFo2NQ=="
-      },
       "Serilog": {
         "type": "Direct",
         "requested": "[4.3.0, )",
@@ -686,7 +680,7 @@
           "Json.More.Net": "[2.2.0, )",
           "JsonSchema.Net": "[8.0.3, )",
           "Microsoft.Extensions.Hosting": "[10.0.0, )",
-          "Morphir.Core": "[0.3.0-rc.2, )",
+          "Morphir.Core": "[1.0.0, )",
           "Serilog": "[4.3.0, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
@@ -812,43 +806,6 @@
         "requested": "[8.0.4, )",
         "resolved": "8.0.4",
         "contentHash": "pBrE2re4pjuvOJTsnApY2calA2VXEfk+GSXigCVvLpD3PL19a5NzhB4a//IlVtaL31jcY30WI8WDDHqhCaKxvw=="
-      }
-    },
-    "net10.0/linux-x64": {
-      "Extism.runtime.linux-arm64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "JKTbKrJ9zqxfKaYBEJQX1bBky6kug/i+uU462Etu9MrnC00t6+FsNzW+lg8O6kqZIZIw+k/QSzQJTbE9+ACoXQ=="
-      },
-      "Extism.runtime.linux-musl-arm64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "a2PUlV8dc9kgUZa8PBb6VuEo8tioX0wQnU0Rn8J5ZGBECoC68VayBmIfdx+OmR9pzpN6IsorjTPlBoRvGHhy3w=="
-      },
-      "Extism.runtime.linux-x64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "/WEePguMvmRn/IY34iFuFNOS28RCKBPBKKG3xpUfpZ7bcnj80e/NPyyMRQQLaZSBJkiDvn7hJwJvt+n3cPF7rA=="
-      },
-      "Extism.runtime.osx-arm64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "L19ANqXBgEZHDrWiQGRz+BGi8N7Rqirw7QTbEKFyJEutEfO25IafOQgr+UAk7/fXCRgUEz55KlBDhMETlEZeVg=="
-      },
-      "Extism.runtime.osx-x64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "BJawGsM0VP2uUf0X4J4wVer9k7G7dmDmMGDWjC21nmVFsfkswWsYmM8SkB9S98rAofni6yvNwT23MOSfu8RGPw=="
-      },
-      "Extism.runtime.win-x64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "tezN2DRh8PWrKHZiP8fDqnFRASGyxL2lVeDVDPV8YqHVGzqAl1POzYUvxkNkGeozHSrCWJ4ZCTJg4TmG6GQdwg=="
-      },
-      "System.Diagnostics.EventLog": {
-        "type": "Transitive",
-        "resolved": "10.0.0",
-        "contentHash": "uaFRda9NjtbJRkdx311eXlAA3n2em7223c1A8d1VWyl+4FL9vkG7y2lpPfBU9HYdj/9KgdRNdn1vFK8ZYCYT/A=="
       }
     }
   }

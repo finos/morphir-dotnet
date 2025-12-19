@@ -75,8 +75,8 @@ partial class Build : NukeBuild
     /// <summary>
     /// Gets the version from CHANGELOG.md (or uses VersionOverride if provided)
     /// </summary>
-    SemanticVersion Version => VersionOverride != null 
-        ? SemanticVersion.Parse(VersionOverride) 
+    SemanticVersion Version => VersionOverride != null
+        ? SemanticVersion.Parse(VersionOverride)
         : new FileInfo(ChangelogFile).GetVersionFromChangelog();
 
     /// <summary>

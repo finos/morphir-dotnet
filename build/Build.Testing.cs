@@ -22,7 +22,7 @@ partial class Build
         {
             RunTests(Configuration);
         });
-    
+
     /// <summary>
     /// Run build tests (Morphir.Build.Tests)
     /// Validates package structure, metadata, and local installation
@@ -108,22 +108,22 @@ partial class Build
         .Executes(() =>
         {
             Serilog.Log.Information("Generating Wolverine code...");
-            
+
             // Run codegen write command using the compiled Morphir CLI
             var morphirDll = SourceDirectory / "Morphir" / "bin" / Configuration / "net10.0" / "morphir.dll";
-            
+
             if (!File.Exists(morphirDll))
             {
                 throw new Exception($"Morphir CLI not found at {morphirDll}. Run Compile target first.");
             }
-            
+
             var exitCode = RunCommand("dotnet", "exec", morphirDll, "codegen", "write");
-            
+
             if (exitCode != 0)
             {
                 throw new Exception($"Wolverine code generation failed with exit code {exitCode}");
             }
-            
+
             var generatedDir = SourceDirectory / "Morphir.Tooling" / "Internal" / "Generated";
             if (Directory.Exists(generatedDir))
             {
