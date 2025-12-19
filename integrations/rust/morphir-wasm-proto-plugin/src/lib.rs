@@ -2,6 +2,9 @@ use extism_pdk::*;
 use proto_pdk::*;
 use std::collections::HashMap;
 
+#[cfg(test)]
+mod tests;
+
 static NAME: &str = "Morphir";
 
 /// Register the Morphir tool with proto
