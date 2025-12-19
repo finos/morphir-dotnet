@@ -899,24 +899,35 @@ This repository provides specialized, domain-specific guidance in the [.agents/]
   - Known issues database and continuous improvement
   - Integration with CI/CD pipelines
 
-### Agent-Specific Guidance
+### How to Use Skills with Different AI Agents
 
-- **Claude Code**: [CLAUDE.md](./CLAUDE.md) + [.claude/skills/](./.claude/skills/)
-  - Interactive skills: `@skill qa-tester`, `@skill aot-guru`, `@skill release-manager`
-  - Automation scripts run automatically via skills
-  - Review capabilities trigger on appropriate actions
-  - TDD workflow guidance and CLI logging standards
+morphir-dotnet provides specialized expert skills that work across all AI coding agents, though with different invocation methods.
 
-- **GitHub Copilot**: [.github/copilot-instructions.md](./.github/copilot-instructions.md)
-  - References AGENTS.md and .agents/ guides
-  - Run automation scripts manually: `dotnet fsi .claude/skills/{skill}/scripts/{script}.fsx`
-  - Follow playbooks and decision trees for complex workflows
+**Quick Reference:**
 
-- **Other Agents** (Cursor, Windsurf, Aider):
-  - Access via configuration files (.cursorrules, .windsurf/rules.md, .aider.conf.yml)
-  - All reference AGENTS.md and .agents/ directory
-  - Use automation scripts directly for token efficiency
-  - See capabilities-matrix.md for agent-specific features
+| Agent | Invocation Method | Example |
+|-------|------------------|---------|
+| **Claude Code** | `@skill {skill-name}` | `@skill qa-tester` |
+| **GitHub Copilot** | Natural language + skill name | "Use QA Tester skill to create test plan" |
+| **Cursor** | `.cursorrules` auto-trigger or `@file` mention | `@.claude/skills/qa-tester/SKILL.md` |
+| **Windsurf** | Natural language (auto-discovery) | "Use QA Tester to validate this PR" |
+| **JetBrains AI** | Custom prompts or natural language | "Use QA Tester skill..." |
+
+**Key Points:**
+- **Claude Code**: Native `@skill` command with interactive assistance
+- **Other Agents**: Documentation-based emulation via natural language or file references
+- **All Agents**: Can run automation scripts directly: `dotnet fsi .claude/skills/{skill}/scripts/{script}.fsx`
+- **Skill Aliases**: Some skills document short forms (e.g., "qa", "tester") but these are **NOT functional** - use official names only
+
+**Detailed Platform-Specific Guidance:**
+- See [.agents/skills-reference.md](./.agents/skills-reference.md#cross-platform-skill-invocation) for comprehensive invocation patterns for each platform
+- See [capabilities-matrix.md](./.agents/capabilities-matrix.md) for feature comparison table
+
+**Cross-Platform Testing:**
+- Issue #266: GitHub Copilot skill emulation tests
+- Issue #267: Cursor skill emulation tests
+- Issue #268: Windsurf skill emulation tests
+- Issue #269: JetBrains AI skill emulation tests
 
 ### Future Topics
 

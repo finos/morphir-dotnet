@@ -1,6 +1,7 @@
 ---
 name: qa-tester
 description: Specialized QA testing for morphir-dotnet. Use when user asks to create test plans, run tests, validate packages, report bugs, perform regression testing, or verify PR completion. Triggers include "test plan", "QA", "regression", "validate", "bug report", "test this", "verify implementation".
+# Common short forms: qa, test, tester, qa-tester
 ---
 
 # QA Tester Skill
@@ -47,6 +48,12 @@ When performing regression tests:
 When executing E2E tests:
 1. Test complete user workflows
 2. Verify all components integrate correctly
+
+**Note:** Cross-platform E2E verification workflow is planned (see issue #265):
+- Interactive E2E verification script (`e2e-verify.fsx`)
+- Local-only or remote matrix testing options
+- Platform-aware executable type selection
+- Integration with GitHub Actions for multi-platform verification
 3. Test with real data and scenarios
 4. Validate output formats
 5. Check error handling

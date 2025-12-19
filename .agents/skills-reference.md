@@ -18,12 +18,181 @@ The morphir-dotnet project provides specialized expert skills for domain-specifi
 - Skills are available as interactive tools via `@skill {skill-name}`
 - Examples: `@skill qa-tester`, `@skill aot-guru`, `@skill release-manager`
 - Skills can run automation scripts and provide guided assistance
+- **Note**: Some skills document common aliases, but these are **not supported** by Claude Code (documentation only)
 
 **For Other Agents (Copilot, Cursor, Windsurf, Aider):**
 - Read skill descriptions to understand capabilities
 - Run automation scripts directly: `dotnet fsi .claude/skills/{skill}/scripts/{script-name}.fsx`
 - Follow decision trees and playbooks for guided workflows
 - Reference review capabilities for quality assurance
+
+## Cross-Platform Skill Invocation
+
+Skills work across all AI coding agents, though invocation methods differ. This section provides detailed guidance for each platform.
+
+### Claude Code (Native `@skill` Support)
+
+**Configuration**: [CLAUDE.md](../CLAUDE.md) + [.claude/skills/](./.claude/skills/)
+
+**Invocation**: Use `@skill {skill-name}` command
+```
+@skill qa-tester
+Create a test plan for PR #123
+
+@skill aot-guru
+Diagnose trimming warnings in src/Morphir.Tool
+
+@skill release-manager
+Prepare release for version 1.0.0
+```
+
+**Features**:
+- Interactive skills run automatically
+- Automation scripts executed by skills
+- Review capabilities trigger on appropriate actions
+- Alias documentation: Skills may document common short forms (e.g., "qa", "tester") but these are **not functional** - only `@skill {official-name}` works
+
+**Testing**: Skills native to Claude Code (no emulation testing needed)
+
+---
+
+### GitHub Copilot (Documentation-Based Emulation)
+
+**Configuration**: [.github/copilot-instructions.md](../.github/copilot-instructions.md)
+
+**Invocation**: Use natural language referencing skills
+```
+"Use the QA Tester skill to create a test plan for PR #123"
+"Apply AOT Guru guidance to optimize this code"
+"Follow Release Manager playbook for version 1.0.0"
+```
+
+**How It Works**:
+1. Ask Copilot to use a specific skill
+2. Copilot reads `.claude/skills/{skill-name}/SKILL.md`
+3. Copilot applies skill guidance manually
+4. Run automation scripts: `dotnet fsi .claude/skills/{skill}/scripts/{script}.fsx`
+
+**Discovering Skills**:
+Ask: "What skills are available?" → Copilot reads `.agents/skills-reference.md`
+
+**Testing**: See issue #266 for comprehensive Copilot skill emulation tests
+
+---
+
+### Cursor (`.cursorrules` + @-Mentions)
+
+**Configuration**: [.cursorrules](../.cursorrules) file references skills
+
+**Invocation Method 1 - Automatic (via .cursorrules)**:
+```
+"Help me with testing"  → Cursor recognizes "testing" trigger, applies QA Tester
+"Optimize binary size"  → Cursor applies AOT Guru guidance
+```
+
+**Invocation Method 2 - @-Mention**:
+```
+@.claude/skills/qa-tester/SKILL.md Create test plan for PR #123
+@.agents/skills-reference.md What skills are available?
+```
+
+**Invocation Method 3 - Composer Mode**:
+Add multiple skill files to Composer for multi-skill workflows
+
+**Testing**: See issue #267 for comprehensive Cursor skill emulation tests
+
+---
+
+### Windsurf (Cascade AI Auto-Discovery)
+
+**Configuration**: [.windsurf/rules.md](../.windsurf/rules.md) (if present)
+
+**Invocation**: Natural language - Cascade discovers skills automatically
+```
+"Use QA Tester to validate this PR"
+"Apply AOT Guru best practices to this code"
+"Prepare release with Release Manager"
+```
+
+**How It Works**:
+- Cascade AI indexes codebase and discovers skills automatically
+- Context-aware questions trigger relevant skills
+- Multi-file editing coordinates multiple skills
+
+**Features**:
+- **Automatic discovery**: Ask domain questions, Cascade finds skills
+- **Inline edit**: Select code → "Apply {skill} best practices"
+- **Multi-skill coordination**: Complex tasks engage multiple skills
+
+**Testing**: See issue #268 for comprehensive Windsurf skill emulation tests
+
+---
+
+### JetBrains AI Assistant (Custom Prompts)
+
+**Configuration**: Custom prompts in `.jetbrains/prompts/` (to be created)
+
+**Invocation Method 1 - Custom Prompts (Recommended)**:
+Create custom prompts that reference skill files:
+```
+Name: "QA Tester - Create Test Plan"
+Prompt: Read .claude/skills/qa-tester/SKILL.md and create test plan for $SELECTION
+```
+
+**Invocation Method 2 - AI Chat**:
+```
+"Use QA Tester skill to create test plan for PR #123"
+```
+
+**Invocation Method 3 - Context Actions**:
+Select code → Invoke context action → AI may reference skills
+
+**Features**:
+- Custom prompts library for each skill
+- F1 for quick documentation
+- Multi-turn chat maintains context
+
+**Testing**: See issue #269 for comprehensive JetBrains AI skill emulation tests
+
+---
+
+### Universal Skill Access Patterns
+
+**For All Agents**:
+
+1. **Skill Discovery**:
+   - Read `.agents/skills-reference.md` for complete skill list
+   - Each skill has: description, capabilities, scripts, playbooks
+
+2. **Skill Documentation**:
+   - Primary: `.claude/skills/{skill-name}/SKILL.md`
+   - Includes: responsibilities, competencies, playbooks, decision trees, patterns
+
+3. **Automation Scripts**:
+   - Location: `.claude/skills/{skill-name}/scripts/`
+   - Run directly: `dotnet fsi {script-path}`
+   - Token efficient alternative to manual steps
+
+4. **Skill Aliases** (Documentation Only):
+   - Skills may document common short forms in YAML frontmatter
+   - Example: `# Common short forms: qa, test, tester`
+   - **Not functional** - only for user understanding
+   - Only Claude Code's `@skill` command works; alternatives must reference full skill name
+
+### Agent Capabilities Comparison
+
+| Feature                    | Claude Code | Copilot | Cursor | Windsurf | JetBrains |
+|---------------------------|-------------|---------|---------|----------|-----------|
+| Native skill invocation   | ✅ `@skill`  | ❌      | ❌      | ❌       | ❌        |
+| Documentation-based       | ✅          | ✅      | ✅      | ✅       | ✅        |
+| Automation scripts        | ✅ (auto)    | ✅ (manual) | ✅ (manual) | ✅ (manual) | ✅ (manual) |
+| Automatic skill discovery | ✅          | ❌      | ⚠️ (.cursorrules) | ✅ (Cascade) | ⚠️ (custom prompts) |
+| Multi-skill coordination  | ✅          | ⚠️      | ✅ (Composer) | ✅ (Cascade) | ⚠️        |
+| Review capabilities       | ✅          | ❌      | ❌      | ❌       | ❌        |
+
+**Legend**: ✅ Full support | ⚠️ Partial/requires setup | ❌ Not available
+
+See [capabilities-matrix.md](./capabilities-matrix.md) for detailed comparison.
 
 ## Available Skills
 
@@ -744,6 +913,35 @@ Found an issue or have a suggestion? Please:
 3. Describe the problem or suggestion
 4. Provide examples if possible
 
+## Skill Aliases (Documentation Only)
+
+**IMPORTANT**: Skill aliases are **NOT a supported feature** of Claude Code. Some skills document commonly used short forms in their YAML frontmatter, but these are purely informational.
+
+### What This Means
+
+Skills may include alias documentation like:
+```yaml
+---
+name: qa-tester
+# Common short forms: qa, test, tester
+---
+```
+
+**Reality:**
+- Only `@skill qa-tester` works (the official `name` field)
+- `@skill qa` will **NOT** work
+- Aliases are documentation to help users understand alternative names
+- This is our workaround/convention, not an official feature
+
+### Why We Document Aliases
+
+1. **User expectations**: Shows what short forms users might naturally expect
+2. **Discoverability**: Makes skills easier to understand
+3. **Consistency**: Teams can agree on common terminology
+4. **Future-proofing**: If Claude Code adds alias support later, we're ready
+
+**Full details**: See [TROUBLESHOOTING.md - Skill Aliases](../.claude/skills/TROUBLESHOOTING.md#skill-aliases-documentation-only)
+
 ## References
 
 - **[AGENTS.md](../AGENTS.md)**: Primary guidance for all AI agents
@@ -753,6 +951,7 @@ Found an issue or have a suggestion? Please:
 - **[Capabilities Matrix](./capabilities-matrix.md)**: Cross-agent compatibility details
 - **[QA Testing Guide](./qa-testing.md)**: Cross-agent QA practices
 - **[AOT Optimization Guide](./aot-optimization.md)**: Cross-agent AOT guidance
+- **[Skills Troubleshooting](../.claude/skills/TROUBLESHOOTING.md)**: Common issues and solutions (including aliases)
 - **[Claude Skills Directory](../.claude/skills/)**: Full skill implementations
 - **[Skill Template](../.claude/skills/template/)**: Template for creating new gurus
 

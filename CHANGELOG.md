@@ -13,10 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Comprehensive skills troubleshooting guide (`.claude/skills/TROUBLESHOOTING.md`)
+- Cross-platform skill invocation documentation in `.agents/skills-reference.md` with platform-specific guidance for Claude Code, GitHub Copilot, Cursor, Windsurf, and JetBrains AI
+- Skill alias documentation (documentation-only feature, not functionally supported)
+- Session restart requirements documentation for Claude Code skills
+- Agent capabilities comparison table showing feature support across platforms
 
 ### Changed
 - Ignore Reqnroll-generated `*.feature.cs` files per Reqnroll best practices
 - Configure `ReqnrollUseIntermediateOutputPathForCodeBehind` in test projects to generate code-behind files to obj/ directory
+- Refactored AGENTS.md skill invocation section - replaced verbose content (155 lines) with concise summary (29 lines) and link to detailed guide in skills-reference.md
+- Enhanced skill template (`.claude/skills/template/SKILL.md`) with optional alias documentation in YAML frontmatter
 
 ## [0.3.0-rc.2] - 2025-12-18
 
