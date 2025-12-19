@@ -20,6 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Reference to build project for helper classes -->
+    <ProjectReference Include="../../build/_build.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- hiding .gitkeep files in Visual Studio; they are only needed to ensure the existence of the empty folders in git -->
     <None Update="**/.gitkeep" Visible="false" />
   </ItemGroup>
