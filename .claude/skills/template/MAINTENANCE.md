@@ -50,7 +50,7 @@ Run this checklist every quarter (Q1: Jan-Mar, Q2: Apr-Jun, Q3: Jul-Sep, Q4: Oct
 
 ### 4. Update Guidance
 
-- [ ] Update skill.md:
+- [ ] Update SKILL.md:
   - New patterns documented: {N}
   - Decision trees updated: {List}
   - Playbooks updated: {List}
@@ -95,7 +95,7 @@ Run this checklist every quarter (Q1: Jan-Mar, Q2: Apr-Jun, Q3: Jul-Sep, Q4: Oct
   - **Patch** (x.y.Z): Bug fixes, clarifications, minor updates
 - [ ] Version updated in:
   - [ ] metadata.yaml
-  - [ ] skill.md footer
+  - [ ] SKILL.md footer
   - [ ] README.md footer
   - [ ] This file (MAINTENANCE.md)
 - [ ] Git tag created: `{guru-id}-v{version}`
@@ -241,7 +241,7 @@ Update review criteria when:
 **Process:**
 1. Document why criteria changed
 2. Update metadata.yaml review section
-3. Update skill.md review capability section
+3. Update SKILL.md review capability section
 4. Test updated criteria on historical data
 5. Validate findings are still relevant
 
@@ -279,7 +279,7 @@ Update review criteria when:
 ### Version 0.1.0 (YYYY-MM-DD)
 
 **Initial Release**
-- skill.md complete (1000+ lines)
+- SKILL.md complete (1000+ lines)
 - {N} automation scripts
 - {N} seed patterns
 - {N} playbooks
@@ -428,7 +428,7 @@ To use this guru in another project:
 
 ## References
 
-- **[skill.md](./skill.md)** - Main skill documentation
+- **[SKILL.md](./SKILL.md)** - Main skill documentation
 - **[README.md](./README.md)** - Quick reference guide
 - **[metadata.yaml](./metadata.yaml)** - Skill configuration
 - **[Guru Philosophy](../../../.agents/guru-philosophy.md)** - Core principles

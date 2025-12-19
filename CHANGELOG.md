@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Claude Code skills now load correctly - renamed all `skill.md` files to `SKILL.md` (uppercase, case-sensitive requirement)
+- Updated all skill documentation references to use correct `SKILL.md` filename
+
+### Added
+- Comprehensive skills troubleshooting guide (`.claude/skills/TROUBLESHOOTING.md`)
+
 ### Changed
 - Ignore Reqnroll-generated `*.feature.cs` files per Reqnroll best practices
 - Configure `ReqnrollUseIntermediateOutputPathForCodeBehind` in test projects to generate code-behind files to obj/ directory

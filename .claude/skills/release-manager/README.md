@@ -27,7 +27,7 @@ All feedback is automatically recorded in release tracking issues and used to im
 
 ## Files
 
-- **skill.md** - Main skill prompt with release playbooks and guidance
+- **SKILL.md** - Main skill prompt with release playbooks and guidance
 - **README.md** - This file
 - **templates/release-tracking.md** - GitHub issue template for tracking releases (includes retrospective sections)
 - **prepare-release.fsx** - F# script: Pre-release validation and preparation (with process change detection)
@@ -956,7 +956,7 @@ We see changes to 2 release process files. Would you like to update
 or add to our release playbooks based on these changes?
 
 Enter your feedback (or press Enter to skip):
-> Updated deployment.yml to use .NET 10. Updated skill.md to reflect 
+> Updated deployment.yml to use .NET 10. Updated SKILL.md to reflect 
 > new version. No other playbook changes needed.
 
 # Guidance is displayed for updating documentation
@@ -1146,7 +1146,7 @@ This allows consumers to verify success without checking shell exit code.
 
 ```
 .claude/skills/release-manager/
-├── skill.md                         # Main skill prompt
+├── SKILL.md                         # Main skill prompt
 ├── README.md                        # This file
 ├── prepare-release.fsx              # Pre-flight checks (~200 lines)
 ├── monitor-release.fsx              # Workflow monitoring (~400 lines)
@@ -1185,7 +1185,7 @@ Planned improvements:
 
 ## References
 
-- **Skill Prompt**: [skill.md](./skill.md)
+- **Skill Prompt**: [SKILL.md](./SKILL.md)
 - **QA Tester Skill**: [../qa-tester/](../qa-tester/)
 - **Deployment Workflow**: [.github/workflows/deployment.yml](../../../.github/workflows/deployment.yml)
 - **AGENTS.md**: [../../../AGENTS.md](../../../AGENTS.md)

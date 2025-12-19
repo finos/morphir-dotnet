@@ -14,7 +14,7 @@ This skill provides comprehensive QA testing capabilities including:
 
 ## Files
 
-- **skill.md** - Main skill prompt with testing guidelines and playbooks
+- **SKILL.md** - Main skill prompt with testing guidelines and playbooks
 - **smoke-test.fsx** - Quick smoke test (F# script)
 - **regression-test.fsx** - Full regression test suite (F# script)
 - **validate-packages.fsx** - NuGet package structure validation (F# script)
@@ -174,7 +174,7 @@ The QA scripts complement the Nuke build system:
 
 To add new test scenarios:
 
-1. Add playbook to **skill.md**
+1. Add playbook to **SKILL.md**
 2. Create new F# script if needed
 3. Update this README
 4. Document in test plan template
