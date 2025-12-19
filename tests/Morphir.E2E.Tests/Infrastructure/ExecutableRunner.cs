@@ -102,19 +102,25 @@ public class ExecutableRunner
         // Filter Wolverine and hosting INFO logs only (keep errors/failures)
         // Check for error/fail patterns case-insensitively
         // But be careful: JSON output may contain "Errors" field which is valid output
-        if ((line.Contains("fail:", StringComparison.OrdinalIgnoreCase) || 
+        if ((line.Contains("fail:", StringComparison.OrdinalIgnoreCase) ||
             line.Contains("error:", StringComparison.OrdinalIgnoreCase)) &&
             !line.TrimStart().StartsWith("\"Errors", StringComparison.OrdinalIgnoreCase) &&
             !line.TrimStart().StartsWith("{", StringComparison.OrdinalIgnoreCase) &&
             !line.TrimStart().StartsWith("[", StringComparison.OrdinalIgnoreCase))
             return false;
 
+        // Filter Serilog formatted log messages: [HH:mm:ss INF] or [HH:mm:ss WRN] etc
+        // These are infrastructure logs from Wolverine/hosting that we want to suppress
+        // Pattern: [XX:XX:XX INF] or [XX:XX:XX WRN] or [XX:XX:XX DBG]
+        if (System.Text.RegularExpressions.Regex.IsMatch(line, @"^\[\d{2}:\d{2}:\d{2}\s+(INF|WRN|DBG)\]"))
+            return true;
+
         // Filter infrastructure log messages, but be careful not to filter actual command output
         // Check for specific log prefixes first
         if (line.StartsWith("info: Wolverine", StringComparison.OrdinalIgnoreCase) ||
             line.StartsWith("info: Microsoft.Hosting", StringComparison.OrdinalIgnoreCase))
             return true;
-            
+
         return line.Contains("Application started", StringComparison.OrdinalIgnoreCase) ||
                line.Contains("Application is shutting down", StringComparison.OrdinalIgnoreCase) ||
                line.Contains("Hosting environment:", StringComparison.OrdinalIgnoreCase) ||
@@ -122,7 +128,7 @@ public class ExecutableRunner
                line.Contains("extism.dll", StringComparison.OrdinalIgnoreCase) ||
                line.Contains("Open Telemetry metrics", StringComparison.OrdinalIgnoreCase) ||
                line.Contains("Starting Wolverine messaging", StringComparison.OrdinalIgnoreCase) ||
-               (line.Contains("Wolverine code generation mode", StringComparison.OrdinalIgnoreCase) && 
+               (line.Contains("Wolverine code generation mode", StringComparison.OrdinalIgnoreCase) &&
                 !line.Contains("Commands:", StringComparison.OrdinalIgnoreCase)) ||
                line.Contains("Wolverine assigned node id", StringComparison.OrdinalIgnoreCase) ||
                line.Contains("Searching assembly", StringComparison.OrdinalIgnoreCase) ||
