@@ -28,7 +28,7 @@ public class ExecutableRunnerTests
 
         foreach (var log in wolverine58Logs)
         {
-            IsInfrastructureLogMessage(log).Should().BeTrue($"'{log}' should be filtered");
+            ExecutableRunner.IsInfrastructureLogMessage(log).Should().BeTrue($"'{log}' should be filtered");
         }
     }
 
@@ -54,7 +54,7 @@ public class ExecutableRunnerTests
 
         foreach (var log in wolverine59Logs)
         {
-            IsInfrastructureLogMessage(log).Should().BeTrue($"'{log}' should be filtered");
+            ExecutableRunner.IsInfrastructureLogMessage(log).Should().BeTrue($"'{log}' should be filtered");
         }
     }
 
@@ -79,7 +79,7 @@ public class ExecutableRunnerTests
 
         foreach (var output in commandOutputs)
         {
-            IsInfrastructureLogMessage(output).Should().BeFalse($"'{output}' should NOT be filtered");
+            ExecutableRunner.IsInfrastructureLogMessage(output).Should().BeFalse($"'{output}' should NOT be filtered");
         }
     }
 
@@ -96,12 +96,12 @@ public class ExecutableRunnerTests
 
         foreach (var error in errorMessages)
         {
-            IsInfrastructureLogMessage(error).Should().BeFalse($"'{error}' should NOT be filtered");
+            ExecutableRunner.IsInfrastructureLogMessage(error).Should().BeFalse($"'{error}' should NOT be filtered");
         }
     }
 
     [Test]
-    public void IsInfrastructureLogMessage_ShouldFilter_JsonOutputErrorsField()
+    public void IsInfrastructureLogMessage_ShouldNotFilter_JsonOutputErrorsField()
     {
         // JSON output with "Errors" field should NOT be filtered
         var jsonOutputs = new[]
@@ -110,10 +110,10 @@ public class ExecutableRunnerTests
             "{\"IsValid\":false,\"Errors\":[{\"Path\":\"$.formatVersion\"}]}"
         };
 
-        // The current implementation filters these correctly by checking for JSON start characters
+        // These should NOT be filtered because they are valid JSON output
         foreach (var json in jsonOutputs)
         {
-            IsInfrastructureLogMessage(json).Should().BeFalse($"'{json}' should NOT be filtered (valid JSON output)");
+            ExecutableRunner.IsInfrastructureLogMessage(json).Should().BeFalse($"'{json}' should NOT be filtered (valid JSON output)");
         }
     }
 
@@ -129,51 +129,7 @@ public class ExecutableRunnerTests
 
         foreach (var log in infoPrefixedLogs)
         {
-            IsInfrastructureLogMessage(log).Should().BeTrue($"'{log}' should be filtered");
+            ExecutableRunner.IsInfrastructureLogMessage(log).Should().BeTrue($"'{log}' should be filtered");
         }
-    }
-
-    // Helper method that replicates the private IsInfrastructureLogMessage logic
-    // This is needed because the actual method is private in ExecutableRunner
-    private static bool IsInfrastructureLogMessage(string line)
-    {
-        if (string.IsNullOrWhiteSpace(line))
-            return true;
-
-        // Filter Wolverine and hosting INFO logs only (keep errors/failures)
-        // Check for error/fail patterns case-insensitively
-        // But be careful: JSON output may contain "Errors" field which is valid output
-        if ((line.Contains("fail:", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("error:", StringComparison.OrdinalIgnoreCase)) &&
-            !line.TrimStart().StartsWith("\"Errors", StringComparison.OrdinalIgnoreCase) &&
-            !line.TrimStart().StartsWith("{", StringComparison.OrdinalIgnoreCase) &&
-            !line.TrimStart().StartsWith("[", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        // Filter infrastructure log messages, but be careful not to filter actual command output
-        // Check for specific log prefixes first
-        if (line.StartsWith("info: Wolverine", StringComparison.OrdinalIgnoreCase) ||
-            line.StartsWith("info: Microsoft.Hosting", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        return line.Contains("Application started", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("Application is shutting down", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("Hosting environment:", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("Content root path:", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("extism.dll", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("Open Telemetry metrics", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("Starting Wolverine messaging", StringComparison.OrdinalIgnoreCase) ||
-               (line.Contains("Wolverine code generation mode", StringComparison.OrdinalIgnoreCase) &&
-                !line.Contains("Commands:", StringComparison.OrdinalIgnoreCase)) ||
-               line.Contains("Wolverine assigned node id", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("Searching assembly", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("wolverine.netlify.app", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("suitable for development", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("disable automatic Wolverine extension finding", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("disabling-assembly-scanning", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("Started message listening", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("Stopped message listener", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("pre-generated types being loaded", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("debugging static type loading", StringComparison.OrdinalIgnoreCase);
     }
 }

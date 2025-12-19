@@ -94,7 +94,7 @@ public class ExecutableRunner
     /// <summary>
     /// Check if a line is an infrastructure log message that should be filtered
     /// </summary>
-    private static bool IsInfrastructureLogMessage(string line)
+    internal static bool IsInfrastructureLogMessage(string line)
     {
         if (string.IsNullOrWhiteSpace(line))
             return true;
