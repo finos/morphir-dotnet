@@ -519,7 +519,7 @@ dotnet format
     ```bash
     # Preview changes
     dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5
-    
+
     # Apply fixes (creates backup automatically)
     dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5 --yes
     ```
@@ -873,11 +873,11 @@ Our Contributor License Agreement (CLA) does NOT support AI assistants as co-aut
    git push --force-with-lease
    ```
 
-3. **Use automated script** (recommended - available in this PR):
+3. **Use automated script** (recommended):
    ```bash
    # Preview what will be changed
    dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5
-   
+
    # Apply the fix (creates backup automatically)
    dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5 --yes
    ```
@@ -983,6 +983,16 @@ morphir-dotnet provides specialized expert skills that work across all AI coding
 - Issue #267: Cursor skill emulation tests
 - Issue #268: Windsurf skill emulation tests
 - Issue #269: JetBrains AI skill emulation tests
+
+#### GitHub Copilot Usage Guide (Skill Emulation)
+
+- **Discover skills**: Ask "What skills are available in this project?" → Copilot should read [.agents/skills-reference.md](./.agents/skills-reference.md) and list QA Tester, AOT Guru, Release Manager with links.
+- **Invoke guidance**: Use natural language, e.g., "Use the QA Tester skill to create a test plan for PR #123" → Copilot should read `.claude/skills/qa-tester/skill.md` and follow the "Test Plan Development" section.
+- **Run scripts**: Provide exact commands, e.g., `dotnet fsi .claude/skills/qa-tester/scripts/smoke-test.fsx` and explain expected outcomes.
+- **Follow playbooks**: Ask "Walk me through the regression testing playbook" → Copilot should enumerate steps with commands and validation criteria.
+- **Aliases note**: `@skill` is Claude Code-only; aliases are documentation-only. In Copilot, reference full skill names and SKILL.md files directly.
+
+See the dedicated Copilot test plan: [docs/content/contributing/qa/copilot-skill-emulation-test-plan.md](./docs/content/contributing/qa/copilot-skill-emulation-test-plan.md).
 
 ### Future Topics
 

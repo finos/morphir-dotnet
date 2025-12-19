@@ -17,6 +17,7 @@ Thank you for your interest in contributing to Morphir .NET! This section provid
 - **[Contribution Workflow](#pull-request-process)**: How to submit changes
 - **[Code Standards](#coding-standards)**: What we expect
 - **[QA & Testing](./qa/)**: Testing practices and playbooks
+- **[Copilot Skill Emulation Test Plan](./qa/copilot-skill-emulation-test-plan/)**: Execute BDD scenarios for GitHub Copilot skill emulation (Issue #266)
 
 ## Getting Started
 
