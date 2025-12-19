@@ -96,6 +96,7 @@ dotnet fsi .claude/skills/release-manager/scripts/prepare-release.fsx
 - Record pass/fail per scenario and any limitations
 - Capture Copilot transcripts where feasible
 - Propose documentation improvements based on gaps
+- See the live execution status: [Execution Report](./copilot-skill-emulation-execution-report.md)
 
 ## References
 
