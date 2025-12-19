@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Ignore Reqnroll-generated `*.feature.cs` files per Reqnroll best practices
+- Configure `ReqnrollUseIntermediateOutputPathForCodeBehind` in test projects to generate code-behind files to obj/ directory
+
 ## [0.3.0-rc.2] - 2025-12-18
 
 ### Added
