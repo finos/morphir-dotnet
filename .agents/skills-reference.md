@@ -78,6 +78,16 @@ Ask: "What skills are available?" → Copilot reads `.agents/skills-reference.md
 
 **Testing**: See issue #266 for comprehensive Copilot skill emulation tests
 
+#### Copilot Usage Guide
+
+- **Discover skills**: Ask "What skills are available in this project?" → Copilot should reference this file and list QA Tester, AOT Guru, Release Manager with SKILL.md paths.
+- **Invoke guidance**: Use natural language, e.g., "Use the QA Tester skill to create a test plan for PR #123" → Copilot reads `.claude/skills/qa-tester/skill.md` and follows the Test Plan playbook.
+- **Run scripts**: Provide and run commands, e.g., `dotnet fsi .claude/skills/qa-tester/scripts/smoke-test.fsx`, `dotnet fsi .claude/skills/aot-guru/scripts/aot-diagnostics.fsx`.
+- **Follow playbooks**: Ask "Walk me through the regression testing playbook" → Copilot enumerates steps with commands and validation criteria.
+- **Aliases**: `@skill` and aliases are Claude-specific. In Copilot, reference full skill names and SKILL.md files.
+
+See the test plan for BDD scenarios and acceptance criteria: [docs/content/contributing/qa/copilot-skill-emulation-test-plan.md](../docs/content/contributing/qa/copilot-skill-emulation-test-plan.md).
+
 ---
 
 ### Cursor (`.cursorrules` + @-Mentions)

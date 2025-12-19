@@ -205,7 +205,93 @@ dotnet test --collect:"XPlat Code Coverage"
 
 ---
 
-### 5. Package Testing Playbook
+### 5. Skill Emulation Test Plan Playbook
+
+**When**: Testing cross-agent skill emulation (e.g., Copilot skill emulation)
+
+**Purpose**: Validate that specialized skills (QA Tester, AOT Guru, Release Manager) are discoverable and functional in agent environments that don't natively support skill invocation.
+
+**Steps**:
+
+1. **Prepare Test Environment**
+   - Ensure target agent is available (e.g., GitHub Copilot in VS Code)
+   - Open the morphir-dotnet repository
+   - Access the relevant test plan document (e.g., `docs/content/contributing/qa/copilot-skill-emulation-test-plan.md`)
+
+2. **Discover Skills**
+   - Ask agent: "What skills are available in this project?"
+   - Verify agent lists all available skills with descriptions and locations
+   - Confirm references to `.agents/skills-reference.md` and SKILL.md files
+
+3. **Understand Invocation Patterns**
+   - Ask agent: "Can I use @skill qa instead of @skill qa-tester?"
+   - Verify agent explains native vs emulation invocation differences
+   - Confirm agent suggests documentation-based alternatives
+
+4. **Test Skill-Specific Guidance**
+   - For each skill (QA Tester, AOT Guru, Release Manager):
+     - Ask agent to apply skill guidance to a concrete task
+     - Verify agent reads relevant SKILL.md file
+     - Confirm agent follows documented playbooks and decision trees
+
+5. **Execute Scenario Tests** (from scenarios runner guide)
+   - Follow step-by-step prompts in test plan document
+   - Copy-paste exact prompts into agent chat
+   - Record agent responses with screenshots or transcripts
+   - Compare against expected outputs and acceptance criteria
+   - Mark pass/fail for each scenario
+
+6. **Test Automation Script Access**
+   - Ask agent: "How do I run [skill-name] automation scripts?"
+   - Verify agent provides correct paths and commands
+   - Confirm agent explains script purpose and expected outcomes
+   - Test script execution: `dotnet fsi .claude/skills/{skill}/scripts/{script}.fsx`
+
+7. **Validate Playbook Navigation**
+   - Ask agent to walk through a playbook step-by-step
+   - Verify agent references correct SKILL.md sections
+   - Confirm commands and validation criteria are accurate
+   - Check agent can explain decision tree logic
+
+8. **Document Results**
+   - Update execution report with pass/fail for each scenario
+   - Capture transcripts or screenshots of key interactions
+   - Note any gaps or limitations discovered
+   - Document workarounds if needed
+
+9. **Report Issues**
+   - If scenarios fail, file detailed issue with:
+     - Exact prompt used
+     - Agent response received
+     - Expected vs actual output
+     - Screenshots or transcript
+     - Suggested remediation
+   - Link to test plan and execution report
+
+10. **Propose Documentation Updates**
+    - If gaps found, suggest improvements to:
+      - AGENTS.md (agent-specific guidance)
+      - `.agents/skills-reference.md` (skill invocation patterns)
+      - SKILL.md files (playbooks or decision trees)
+    - Create PR with documentation improvements
+
+**Output**: Skill Emulation Test Report including:
+- Scenarios executed with pass/fail status
+- Agent transcripts/screenshots
+- Acceptance criteria met/unmet
+- Issues discovered with reproduction steps
+- Documentation improvements needed
+- Recommendations for follow-up testing
+
+**Related**:
+- Test Plan: [docs/content/contributing/qa/copilot-skill-emulation-test-plan.md](../../../docs/content/contributing/qa/copilot-skill-emulation-test-plan.md)
+- Scenarios Runner: [docs/content/contributing/qa/copilot-scenarios-runner.md](../../../docs/content/contributing/qa/copilot-scenarios-runner.md)
+- Execution Report: [docs/content/contributing/qa/copilot-skill-emulation-execution-report.md](../../../docs/content/contributing/qa/copilot-skill-emulation-execution-report.md)
+- GitHub Issues: #266 (Copilot), #267 (Cursor), #268 (Windsurf), #269 (JetBrains AI)
+
+---
+
+### 6. Package Testing Playbook
 
 **When**: Package structure or metadata changes
 
