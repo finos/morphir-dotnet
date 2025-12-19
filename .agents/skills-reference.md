@@ -7,7 +7,7 @@
 The morphir-dotnet project provides specialized expert skills for domain-specific tasks. Each skill combines deep domain knowledge, automation scripts, and review capabilities to help agents deliver higher quality results more efficiently.
 
 **Key Features:**
-- **Domain Expertise**: Specialized knowledge in QA testing, AOT optimization, release management, and technical documentation
+- **Domain Expertise**: Specialized knowledge in QA testing, AOT optimization, release management, technical documentation, and vulnerability management
 - **Automation Scripts**: F# scripts that save agent tokens and accelerate common tasks
 - **Review Capabilities**: Built-in quality checks and continuous monitoring
 - **Cross-Agent Compatible**: Accessible via documentation and scripts regardless of your agent
@@ -16,7 +16,7 @@ The morphir-dotnet project provides specialized expert skills for domain-specifi
 
 **For Claude Code Users:**
 - Skills are available as interactive tools via `@skill {skill-name}`
-- Examples: `@skill qa-tester`, `@skill aot-guru`, `@skill release-manager`, `@skill technical-writer`
+- Examples: `@skill qa-tester`, `@skill aot-guru`, `@skill release-manager`, `@skill technical-writer`, `@skill vulnerability-resolver`
 - Skills can run automation scripts and provide guided assistance
 - **Note**: Some skills document common aliases, but these are **not supported** by Claude Code (documentation only)
 
@@ -47,6 +47,9 @@ Prepare release for version 1.0.0
 
 @skill technical-writer
 Audit documentation for consistency and completeness
+
+@skill vulnerability-resolver
+Scan for CVEs and help resolve security vulnerabilities
 ```
 
 **Features**:
@@ -1076,6 +1079,191 @@ Important content here
 
 ---
 
+### 5. Vulnerability Resolver
+
+**Full Documentation**: [.claude/skills/vulnerability-resolver/SKILL.md](../.claude/skills/vulnerability-resolver/SKILL.md)
+
+#### Scope and Purpose
+Specialized security vulnerability management for morphir-dotnet. Helps developers efficiently triage, fix, and document security vulnerabilities detected by OWASP Dependency-Check, maintaining a clear audit trail of all security decisions.
+
+#### Core Competencies
+
+1. **Vulnerability Scanning**
+   - Trigger dependency-check scans on any branch
+   - Configure CVSS thresholds
+   - Monitor workflow progress
+   - Download and analyze reports
+
+2. **Vulnerability Analysis**
+   - Parse dependency-check reports (HTML, JSON, XML)
+   - Categorize by severity (Critical, High, Medium, Low)
+   - Assess fix availability and false positive likelihood
+   - Identify transitive dependency issues
+
+3. **Resolution Guidance**
+   - Interactive fix vs. suppress decision prompts
+   - Evidence-based false positive detection
+   - Clear resolution options with trade-offs
+   - Research assistance with NVD links
+
+4. **Suppression Management**
+   - Create documented suppressions for false positives
+   - Follow OWASP suppression file schema
+   - Required metadata (reason, reviewer, date, review date)
+   - Support for expiration dates
+
+5. **Fix Automation**
+   - Generate package update commands
+   - Verify fix effectiveness with re-scan
+   - Handle transitive dependency upgrades
+   - Detect breaking changes
+
+6. **Security Documentation**
+   - Resolution summaries for audit trail
+   - Suppression rationale with evidence
+   - Quarterly review reminders
+   - PR descriptions for security fixes
+
+#### Review Capability
+
+**Suppression Review**
+- Quarterly review of all active suppressions
+- Check if fixes have become available
+- Validate suppression rationale still applies
+- Update expiration dates
+
+**Security Posture Assessment**
+- Unresolved vulnerability tracking
+- Suppression quality checks
+- New fix availability detection
+- Documentation completeness
+
+**Review Triggers:**
+- Quarterly scheduled review
+- Before releases (pre-release gate)
+- After dependency updates
+- Manual via `@skill vulnerability-resolver review`
+
+#### Automation Scripts
+
+Location: `.claude/skills/vulnerability-resolver/scripts/` (to be created)
+
+**scan-branch.fsx**
+- Trigger CVE scan on specified branch
+- Configure CVSS threshold and suppression settings
+- **Token Savings**: ~500 tokens (vs manual workflow triggering)
+
+**parse-report.fsx**
+- Parse dependency-check HTML/JSON report
+- Extract CVE details and categorize
+- **Token Savings**: ~2000 tokens (vs manual report reading)
+
+**create-suppression.fsx**
+- Generate properly formatted suppression XML
+- Include required metadata
+- **Token Savings**: ~300 tokens (vs manual XML creation)
+
+**verify-fixes.fsx**
+- Verify package updates resolve CVEs
+- Re-run scan after fix
+- **Token Savings**: ~400 tokens (vs manual verification)
+
+#### Manual Workflow for Non-Claude Agents
+
+**To scan for vulnerabilities:**
+```bash
+# Option 1: Use automation script
+dotnet fsi .claude/skills/vulnerability-resolver/scripts/scan-branch.fsx [branch]
+
+# Option 2: Manual trigger
+gh workflow run cve-scanning.yml
+gh workflow run cve-scanning.yml --ref feature/my-branch
+gh workflow run cve-scanning.yml -f fail-cvss=9
+```
+
+**To monitor a scan:**
+```bash
+gh run list --workflow=cve-scanning.yml --limit 3
+gh run watch <run-id>
+gh run download <run-id> -n "Depcheck report"
+```
+
+**To create a suppression:**
+```bash
+# Option 1: Use automation script
+dotnet fsi .claude/skills/vulnerability-resolver/scripts/create-suppression.fsx \
+  --cve CVE-2023-4914 --reason "Package name confusion"
+
+# Option 2: Use template
+cp .claude/skills/vulnerability-resolver/templates/suppression-entry.xml .
+# Fill in template and add to dependency-check-suppressions.xml
+```
+
+#### Decision Trees
+
+**"A CVE scan failed, what do I do?"**
+```
+1. Download the report artifact
+   gh run download <run-id> -n "Depcheck report"
+
+2. For each vulnerability:
+   A. Is CVSS >= 7 (High/Critical)?
+      YES → Prioritize resolution
+      NO → Can address in normal sprint
+
+   B. Is update available?
+      YES → Check if breaking change, apply update
+      NO → Investigate if false positive
+
+   C. False positive indicators present?
+      - Version mismatch (assembly vs package)
+      - Package name confusion
+      - Stale CVE (age > 5 years)
+      - CVE targets different technology
+
+      YES → Create documented suppression with evidence
+      NO → Track upstream, document workaround
+```
+
+**"Should I suppress or fix?"**
+```
+Can I update the package?
+├─ YES, minor/patch update → FIX (preferred)
+├─ YES, but major update
+│  └─ CVSS >= 9? → FIX with migration
+│  └─ CVSS < 9 → Suppress temporarily + plan upgrade
+└─ NO, no fix available
+   └─ False positive?
+      ├─ YES → SUPPRESS with documentation
+      └─ NO → Document risk, track upstream
+```
+
+#### Pattern Catalog
+
+**False Positive Patterns:**
+
+| Pattern | Detection | Example |
+|---------|-----------|---------|
+| Version Misidentification | Unusual version format | Azure.Identity@1.1700.x (assembly version, not package) |
+| Package Name Confusion | CVE mentions different tech | Cecil (SSG) vs Mono.Cecil (.NET library) |
+| Stale CVE | CVE date >> package date | CVE-2012-2055 for Octokit@14.0.0 |
+| Already Fixed Transitive | Lock file shows newer version | Transitive at 1.17.1 but reported as 1.10.0 |
+
+**Suppression Best Practices:**
+- Always include detailed rationale
+- Provide evidence for false positive claim
+- Set expiration dates for time-limited suppressions
+- Review suppressions quarterly
+- Never suppress without documentation
+
+#### Integration with Other Skills
+
+- **QA Tester**: Run regression tests after dependency updates
+- **Release Manager**: Pre-release security verification gate
+- **AOT Guru**: Verify dependency updates don't break AOT compatibility
+
+---
+
 ## Cross-Agent Compatibility
 
 See [capabilities-matrix.md](./capabilities-matrix.md) for detailed cross-agent compatibility information.
@@ -1145,6 +1333,7 @@ Savings: ~500-700 tokens (60-70% reduction)
    - [AOT Guru](../.claude/skills/aot-guru/skill.md)
    - [Release Manager](../.claude/skills/release-manager/skill.md)
    - [Technical Writer](../.claude/skills/technical-writer/SKILL.md)
+   - [Vulnerability Resolver](../.claude/skills/vulnerability-resolver/SKILL.md)
 
 2. **Run automation scripts directly**:
    ```bash
