@@ -1,0 +1,24 @@
+[package]
+name = "morphir-wasm-proto-plugin"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Proto WASM plugin for deploying platform-specific Morphir executables"
+repository = "https://github.com/finos/morphir-dotnet"
+authors = ["FINOS Morphir Contributors"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+proto_pdk = "0.32"
+extism-pdk = "1.0"
+
+[dev-dependencies]
+semver = "1.0"
+
+[profile.release]
+opt-level = "z"     # Optimize for size
+lto = true          # Enable Link Time Optimization
+codegen-units = 1   # Better optimization with single codegen unit
+strip = true        # Strip symbols

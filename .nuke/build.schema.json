@@ -25,16 +25,19 @@
       "type": "string",
       "enum": [
         "BuildE2ETests",
+        "BuildProtoPlugin",
         "Check",
         "CI",
         "CILint",
         "CITest",
         "Clean",
+        "CleanProtoPlugin",
         "Compile",
         "DevWorkflow",
         "Format",
         "GenerateWolverineCode",
         "Lint",
+        "PackageProtoPlugin",
         "PackAll",
         "PackLibs",
         "PackTool",
@@ -51,7 +54,8 @@
         "PublishTool",
         "Restore",
         "Test",
-        "TestE2E"
+        "TestE2E",
+        "TestProtoPlugin"
       ]
     },
     "Verbosity": {
@@ -156,6 +160,10 @@
         "OutputDir": {
           "type": "string",
           "description": "Output directory for packages"
+        },
+        "ProtoPluginDir": {
+          "type": "string",
+          "description": "Output directory for proto plugin WASM"
         },
         "ReleaseVersion": {
           "type": "string",

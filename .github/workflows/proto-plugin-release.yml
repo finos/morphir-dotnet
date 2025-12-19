@@ -1,0 +1,165 @@
+name: "Proto Plugin Release"
+
+on:
+  workflow_dispatch:
+    inputs:
+      plugin-version:
+        description: "Plugin version (e.g., 0.1.0)"
+        required: true
+        type: string
+      skip-git-release:
+        description: "Skip creating GitHub release"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PLUGIN_VERSION: ${{ github.event.inputs.plugin-version }}
+  SKIP_GIT_RELEASE: ${{ github.event.inputs.skip-git-release }}
+
+jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if plugin version is valid
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$/;
+            const version = process.env.PLUGIN_VERSION;
+            if (!semverPattern.test(version)) {
+              core.setFailed(`Invalid semantic version: ${version}`);             
+            }
+
+  build-plugin:
+    needs: [validate-version]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Source Code
+        uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: wasm32-wasip1
+
+      - name: Cache Cargo Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            integrations/rust/morphir-wasm-proto-plugin/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('integrations/rust/morphir-wasm-proto-plugin/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build Proto Plugin
+        run: ./build.sh --target BuildProtoPlugin
+
+      - name: Package Proto Plugin
+        run: ./build.sh --target PackageProtoPlugin --version ${{ env.PLUGIN_VERSION }}
+
+      - name: Upload Plugin Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphir-proto-plugin
+          path: |
+            ./artifacts/proto-plugin/morphir_plugin.wasm
+            ./artifacts/proto-plugin/morphir-proto-plugin-v${{ env.PLUGIN_VERSION }}.tar.gz
+          retention-days: 7
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [validate-version, build-plugin]
+    if: ${{ !failure() }}
+    steps:
+      - name: 🔍 GH_TOKEN
+        if: env.GH_TOKEN == ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "GH_TOKEN=${GITHUB_TOKEN}" >> $GITHUB_ENV
+
+      - name: Fetch Source Code
+        uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ env.GH_TOKEN }}
+
+      - name: Download Plugin Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: morphir-proto-plugin
+          path: ./artifacts/proto-plugin
+
+      - name: Create GitHub Release
+        if: ${{ env.SKIP_GIT_RELEASE != 'true' }}
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN }}
+        run: |
+          # Create release notes
+          cat > release-notes.md << 'EOF'
+          # Morphir Proto Plugin v${{ env.PLUGIN_VERSION }}
+
+          A [proto](https://moonrepo.dev/proto) WASM plugin for managing Morphir CLI installations.
+
+          ## Installation
+
+          Add the plugin to your proto configuration:
+
+          ```bash
+          proto plugin add morphir "source:https://github.com/finos/morphir-dotnet/releases/download/plugin-v${{ env.PLUGIN_VERSION }}/morphir_plugin.wasm"
+          ```
+
+          Then install Morphir:
+
+          ```bash
+          proto install morphir
+          ```
+
+          ## What's Changed
+
+          See the [plugin README](https://github.com/finos/morphir-dotnet/blob/main/integrations/rust/morphir-wasm-proto-plugin/README.md) for details.
+
+          ## Supported Platforms
+
+          - Linux (x64, arm64)
+          - macOS (x64, arm64)
+          - Windows (x64)
+
+          ## Plugin Details
+
+          - **Plugin Version**: ${{ env.PLUGIN_VERSION }}
+          - **Minimum Proto Version**: 0.32.0
+          - **Size**: ~836KB (WASM), ~295KB (tarball)
+
+          ## Resources
+
+          - [Proto Documentation](https://moonrepo.dev/docs/proto)
+          - [Morphir Documentation](https://morphir.finos.org/)
+          - [Plugin Source Code](https://github.com/finos/morphir-dotnet/tree/main/integrations/rust/morphir-wasm-proto-plugin)
+          EOF
+
+          # Create GitHub release
+          gh release create "plugin-v${{ env.PLUGIN_VERSION }}" \
+            --title "Proto Plugin v${{ env.PLUGIN_VERSION }}" \
+            --notes-file release-notes.md \
+            ./artifacts/proto-plugin/morphir_plugin.wasm \
+            ./artifacts/proto-plugin/morphir-proto-plugin-v${{ env.PLUGIN_VERSION }}.tar.gz
+
+  cd:
+    runs-on: ubuntu-latest
+    needs: [validate-version, release]
+    steps:
+      - name: Aggregate of release jobs
+        run: echo "Proto plugin release completed"

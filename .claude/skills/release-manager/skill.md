@@ -295,6 +295,89 @@ dotnet add package Morphir.Core --version {version}
 See [CHANGELOG.md](../../CHANGELOG.md#v{version}) for complete details.
 ```
 
+### Proto Plugin Release Management
+
+**IMPORTANT**: The proto WASM plugin has its own independent release cycle from Morphir itself.
+
+**When to release the proto plugin:**
+1. **Structural changes** to Morphir release artifacts (archive format, naming, etc.)
+2. **Platform additions** (new RIDs added to Morphir deployment)
+3. **Plugin improvements** (bug fixes, feature additions to the plugin itself)
+4. **Proto PDK updates** (when updating to a new proto_pdk version)
+
+**When NOT to release the plugin:**
+- New Morphir versions (plugin downloads from GitHub Releases dynamically)
+- Bug fixes to Morphir that don't affect deployment
+- Documentation-only changes to Morphir
+
+**Plugin Release Workflow:**
+
+1. **Determine if plugin update is needed** during Morphir release:
+   - Check if any changes affect plugin compatibility:
+     - Changes to executable packaging format
+     - Changes to GitHub Release artifact naming
+     - Changes to supported platforms (RIDs)
+   - If yes, prompt user: "Proto plugin may need updating due to [reason]. Release new plugin version?"
+
+2. **Prepare plugin release:**
+   ```bash
+   # Update plugin version in Cargo.toml
+   cd integrations/rust/morphir-wasm-proto-plugin
+   # Edit Cargo.toml version field
+   
+   # Test plugin build
+   cd ../../../
+   ./build.sh --target BuildProtoPlugin
+   ./build.sh --target PackageProtoPlugin
+   ```
+
+3. **Trigger plugin release workflow:**
+   ```bash
+   gh workflow run proto-plugin-release.yml \
+     --ref main \
+     --field plugin-version={version}
+   ```
+
+4. **Monitor plugin release:**
+   - Workflow builds WASM plugin
+   - Creates GitHub release with tag `plugin-v{version}`
+   - Uploads `morphir_plugin.wasm` and tarball
+   - Release notes include installation instructions
+
+5. **Update documentation:**
+   - Verify README.md has latest plugin installation instructions
+   - Update any proto-specific documentation
+
+6. **Test plugin release:**
+   ```bash
+   # Remove old plugin
+   proto plugin remove morphir
+   
+   # Add new plugin version
+   proto plugin add morphir "source:https://github.com/finos/morphir-dotnet/releases/download/plugin-v{version}/morphir_plugin.wasm"
+   
+   # Install and test Morphir via proto
+   proto install morphir latest
+   morphir --version
+   ```
+
+**Plugin versioning:**
+- Use semantic versioning independent of Morphir versions
+- Plugin v0.1.0 might work with Morphir v1.0.0, v1.1.0, etc.
+- Only bump plugin version when plugin code changes
+- Document compatibility in plugin README
+
+**Coordination points:**
+- During Morphir release preparation: Assess if plugin needs update
+- After Morphir release: Test that existing plugin still works
+- When breaking changes to deployment: Release plugin first, then Morphir
+
+**Tracking:**
+- Plugin releases use tag format: `plugin-v{version}` (e.g., `plugin-v0.1.0`)
+- Morphir releases use tag format: `v{version}` (e.g., `v1.0.0`)
+- Keep separate release notes for plugin vs. Morphir
+- Track plugin compatibility in plugin README
+
 ### Release Recovery
 
 **When a release fails:**
