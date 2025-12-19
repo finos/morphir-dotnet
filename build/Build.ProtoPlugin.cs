@@ -30,6 +30,8 @@ partial class Build
             Serilog.Log.Information("Building Proto WASM plugin...");
 
             // Ensure wasm32-wasip1 target is installed
+            // Note: wasm32-wasip1 is the current WASI preview 1 target in Rust
+            // (wasm32-wasi was deprecated in favor of wasm32-wasip1)
             Serilog.Log.Information("Ensuring wasm32-wasip1 target is installed...");
             RunCommand("rustup", "target", "add", "wasm32-wasip1");
 
