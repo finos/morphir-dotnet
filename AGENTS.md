@@ -514,12 +514,13 @@ dotnet format
 
 - Small, focused PRs with tests (TUnit and/or Reqnroll).
 - Conventional Commits: feat:, fix:, refactor:, test:, docs:
-- **Do not list Claude (or any AI assistant) as a co-author on commits.** Our CLA does not support AI assistants as co-authors. Note: GitHub Copilot is supported and may be listed as a co-author when it is an actual co-author.
+- **CRITICAL**: **Do NOT include `Co-Authored-By: Claude` or any AI assistant as co-author on commits.** Our CLA does NOT support AI assistants as co-authors. Violations will block PR merges. See [Commit Messages section](#commit-messages) for details and remediation steps. Note: GitHub Copilot may be listed as co-author when it is an actual co-author.
 - PR checklist:
     - [ ] Tests added/updated and passing
     - [ ] IR/JSON compatibility preserved or versioned with ADR
     - [ ] Formatters/lints run
     - [ ] Docs/ADR updated if behavior changed
+    - [ ] **No AI assistants listed as co-authors** (CLA compliance)
 
 ## 12) Security and Compliance
 
@@ -817,7 +818,7 @@ var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyIRR
 
 ### Commit Messages
 
-Follow Conventional Commits with co-author attribution:
+Follow Conventional Commits format:
 
 ```
 feat: add comprehensive BDD integration tests for CLI
@@ -828,11 +829,49 @@ feat: add comprehensive BDD integration tests for CLI
 - All 62 tests passing
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-**Note**: Do not list Claude or AI assistants as co-authors in the commit author field.
+**CRITICAL - CLA COMPLIANCE**:
+
+⚠️ **DO NOT include `Co-Authored-By: Claude` or any AI assistant as a co-author in commits.**
+
+Our Contributor License Agreement (CLA) does NOT support AI assistants as co-authors. Including AI as co-author violates CLA requirements and will block PR merges.
+
+**Allowed**:
+- ✅ Attribution in commit body: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+- ✅ GitHub Copilot as co-author (when it is an actual co-author)
+- ✅ Human co-authors with signed CLAs
+
+**NOT Allowed**:
+- ❌ `Co-Authored-By: Claude <noreply@anthropic.com>`
+- ❌ Any AI assistant listed as co-author
+
+**If you accidentally added Claude as co-author:**
+
+1. **Amend the last commit** (if not pushed):
+   ```bash
+   git commit --amend
+   # Remove the Co-Authored-By line from the commit message
+   ```
+
+2. **Rewrite commit history** (if already pushed):
+   ```bash
+   # Interactive rebase to edit commits
+   git rebase -i HEAD~N  # where N is number of commits to review
+   # Mark commits with 'edit', then amend each one
+   git commit --amend    # Remove Co-Authored-By line
+   git rebase --continue
+   git push --force-with-lease
+   ```
+
+3. **Use automated script** (recommended):
+   See issue #270 for an F# script that removes Claude co-author from commit history automatically.
+
+**Why this matters:**
+- CLA requires all contributors to be identifiable humans with signed agreements
+- AI assistants cannot sign legal agreements
+- GitHub uses Co-Authored-By for CLA verification
+- Violations will fail CI checks and block merges
 
 ## 15) Known Issues / TODOs
 

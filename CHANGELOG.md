@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Claude Code skills now load correctly - renamed all `skill.md` files to `SKILL.md` (uppercase, case-sensitive requirement)
 - Updated all skill documentation references to use correct `SKILL.md` filename
+- **CRITICAL**: Removed contradictory Claude co-author example from AGENTS.md and strengthened CLA compliance warnings in both AGENTS.md and CLAUDE.md (issue #270)
 
 ### Added
 - Comprehensive skills troubleshooting guide (`.claude/skills/TROUBLESHOOTING.md`)
@@ -17,12 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Skill alias documentation (documentation-only feature, not functionally supported)
 - Session restart requirements documentation for Claude Code skills
 - Agent capabilities comparison table showing feature support across platforms
+- **CLA compliance guidance** in AGENTS.md with remediation steps for accidental Claude co-author inclusion
+- **GitHub issue #270** for F# script to automatically remove Claude co-author from commit history
 
 ### Changed
 - Ignore Reqnroll-generated `*.feature.cs` files per Reqnroll best practices
 - Configure `ReqnrollUseIntermediateOutputPathForCodeBehind` in test projects to generate code-behind files to obj/ directory
 - Refactored AGENTS.md skill invocation section - replaced verbose content (155 lines) with concise summary (29 lines) and link to detailed guide in skills-reference.md
 - Enhanced skill template (`.claude/skills/template/SKILL.md`) with optional alias documentation in YAML frontmatter
+- **Strengthened CLA warnings** in AGENTS.md and CLAUDE.md - made CRITICAL sections highly visible with remediation steps and reference to automated script (issue #270)
 
 ## [0.3.0-rc.2] - 2025-12-18
 
