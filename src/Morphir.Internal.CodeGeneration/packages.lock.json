@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "Fabulous.AST": {
+        "type": "Direct",
+        "requested": "[1.9.0, )",
+        "resolved": "1.9.0",
+        "contentHash": "lDk3+0KEPTCkbL/sd6WslO9kCuarXVdl0pTh9yW+YAk5MdEWLJv2DmrbQ66ui9TlXEg3REITafpj4BlUQN3trQ==",
+        "dependencies": {
+          "Fantomas.Core": "[7.0.1]"
+        }
+      },
+      "Fantomas.Core": {
+        "type": "Direct",
+        "requested": "[6.3.0, )",
+        "resolved": "6.3.0",
+        "contentHash": "sJW/mzDBdwybxZ9K6Tqv35r8d3310l8Srp3slZXJRa4g9tzszGBf6qFrSVVSFjG/PM5ksPXrM/z8ROEhQFpMfw==",
+        "dependencies": {
+          "FSharp.Core": "6.0.1",
+          "Fantomas.FCS": "6.3.0"
+        }
+      },
+      "FSharp.Compiler.Service": {
+        "type": "Direct",
+        "requested": "[34.1.1, )",
+        "resolved": "34.1.1",
+        "contentHash": "9Q8sgl3XR41eeIBoaxQEG2NQzn0JjWBf+MUvLO8aCTYFZeaPezNTvHvv8+CLHUEeih/fllEFGQM1efkeOA9rUw==",
+        "dependencies": {
+          "FSharp.Core": "4.6.2"
+        }
+      },
+      "FSharp.Core": {
+        "type": "Direct",
+        "requested": "[7.0.200, )",
+        "resolved": "7.0.200",
+        "contentHash": "NmgUnpNH6Zu9B0SPIhojyo38gnPdkdYFYQfbd6zosEH32kbGY/g/Klk7PfOWe1NAe/O1YOMmK9KhwQ2OWsWEbg=="
+      },
+      "Myriad.Core": {
+        "type": "Direct",
+        "requested": "[0.8.3, )",
+        "resolved": "0.8.3",
+        "contentHash": "KwCIC8PH6pd7Dcyso/b/U/rl80AeOV7g8hvs4cjokfzutnVMXgtL3rqNG8moXaBnmdTpE33AZSlVjo+gHLqe8A==",
+        "dependencies": {
+          "Fantomas.Core": "6.1.1"
+        }
+      },
+      "Fantomas.FCS": {
+        "type": "Transitive",
+        "resolved": "6.3.0",
+        "contentHash": "opGfH46BBIyo4WYTp5lFdbRL6UNNeAbjasbHc6bJ6W6rz71p8qGa7lPhBL/XgNA4CrX1ax8e/91nsnQYBoIpdg==",
+        "dependencies": {
+          "FSharp.Core": "6.0.1"
+        }
+      }
+    }
+  }
+}

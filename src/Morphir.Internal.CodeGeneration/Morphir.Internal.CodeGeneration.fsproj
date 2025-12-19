@@ -1,0 +1,54 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <RootNamespace>Morphir.Internal.CodeGeneration</RootNamespace>
+        
+        <!-- Package Configuration -->
+        <Description>Myriad code generation utilities for morphir-dotnet development</Description>
+        <PackageTags>$(PackageTags);morphir;myriad;codegen;fsharp</PackageTags>
+        
+        <!-- Myriad Plugin Configuration -->
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+        <DevelopmentDependency>true</DevelopmentDependency>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Dependencies -->
+        <PackageReference Include="Myriad.Core" />
+        <PackageReference Include="Fabulous.AST" />
+        <PackageReference Include="Fantomas.Core" />
+        <PackageReference Include="FSharp.Compiler.Service" />
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Source files -->
+        <Compile Include="Core/AstHelpers.fs" />
+        <Compile Include="Core/TypeHelpers.fs" />
+        <Compile Include="Core/CodeGenHelpers.fs" />
+        <Compile Include="Attributes/Attributes.fs" />
+        <Compile Include="Attributes/ConfigurationAttributes.fs" />
+        <Compile Include="Generators/JsonCodecGenerator.fs" />
+        <Compile Include="Generators/VisitorGenerator.fs" />
+        <Compile Include="Generators/LensGenerator.fs" />
+        <Compile Include="Generators/ActivePatternGenerator.fs" />
+        <Compile Include="Generators/BuilderGenerator.fs" />
+        <Compile Include="Plugin/MyriadPlugin.fs" />
+    </ItemGroup>
+
+    <!-- Package content -->
+    <ItemGroup>
+        <Content Include="build/Morphir.Internal.CodeGeneration.props">
+            <PackagePath>build</PackagePath>
+            <Pack>true</Pack>
+        </Content>
+        <Content Include="$(OutputPath)/Morphir.Internal.CodeGeneration.dll">
+            <PackagePath>lib/net10.0</PackagePath>
+            <Pack>true</Pack>
+        </Content>
+    </ItemGroup>
+
+</Project>

@@ -85,5 +85,9 @@
     <PackageVersion Include="Argu" Version="6.2.4" />
     <PackageVersion Include="Spectre.Console" Version="0.53.0" />
     <PackageVersion Include="System.Text.Json" Version="9.0.0" />
+    <!-- Code Generation Dependencies -->
+    <PackageVersion Include="Myriad.Core" Version="0.8.3" />
+    <PackageVersion Include="Fabulous.AST" Version="1.9.0" />
+    <PackageVersion Include="Fantomas.Core" Version="6.3.0" />
   </ItemGroup>
 </Project>
