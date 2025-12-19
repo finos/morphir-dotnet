@@ -56,19 +56,19 @@ gantt
     axisFormat %H:%M
 
     section Discovery
-    Scenario 1: Skill Discovery        :done, s1, 09:00, 5m
+    Skill Discovery        :done, s1, 09:00, 5m
 
     section Understanding
-    Scenario 2: Alias Understanding    :done, s2, 09:05, 5m
+    Alias Understanding    :done, s2, 09:05, 5m
 
     section QA Skill
-    Scenario 3: Create Test Plan       :done, s3, 09:10, 10m
+    Create Test Plan       :done, s3, 09:10, 10m
 
     section Execution
-    Scenario 4: Script Execution       :done, s4, 09:20, 5m
+    Script Execution       :done, s4, 09:20, 5m
 
     section Playbook
-    Scenario 5: Regression Testing     :done, s5, 09:25, 10m
+    Regression Testing     :done, s5, 09:25, 10m
 ```
 
 ### Detailed Results
