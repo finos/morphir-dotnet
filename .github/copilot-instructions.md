@@ -1,101 +1,54 @@
 # GitHub Copilot Instructions for morphir-dotnet
 
-> **Primary Guidance**: This project uses [AGENTS.md](../AGENTS.md) as the primary guidance file for all AI coding agents. For specialized topics like QA testing, see the [.agents/](./.agents/) directory.
+> **Primary Guidance**: This project uses [AGENTS.md](../AGENTS.md) as the primary guidance file. See [.agents/](./.agents/) for specialized topics.
 
-## Project Overview
+## Quick Start
 
-Morphir .NET provides .NET bindings, libraries, codecs, and tooling for the Morphir ecosystem. Morphir is a library of tools that captures business logic as data, making it portable, shareable, and translatable across languages and platforms.
+**Always read first**: [AGENTS.md](../AGENTS.md) - Complete project guidance
+**Specialized skills**: [.agents/skills-reference.md](./.agents/skills-reference.md) - QA Tester, AOT Guru, Release Manager
+**Cross-agent compatibility**: [.agents/capabilities-matrix.md](./.agents/capabilities-matrix.md)
 
-**Purpose**: Provide .NET tooling and libraries interoperable with Morphir IR (Intermediate Representation) and developer workflows.
+**Purpose**: Morphir .NET provides .NET tooling and libraries for Morphir IR (Intermediate Representation).
 
-**Key Links**:
-- [Morphir Documentation](https://morphir.finos.org/)
-- [Core Morphir Tooling](https://github.com/finos/morphir)
-- [Morphir Elm](https://github.com/finos/morphir-elm)
-- [This Repository](https://github.com/finos/morphir-dotnet)
+**Links**: [Morphir Docs](https://morphir.finos.org/) | [morphir](https://github.com/finos/morphir) | [morphir-elm](https://github.com/finos/morphir-elm)
 
-## Tech Stack
+## Tech Stack & Structure
 
-- **Languages**: C# 14, F# (for ADT-heavy components), TypeScript (optional dev tooling)
-- **.NET**: .NET 10 SDK (see `build/global.json`)
-- **Testing**: TUnit (unit tests), Reqnroll (BDD/acceptance), FsCheck (property-based)
-- **Infrastructure**: WolverineFx (messaging), Marten (persistence), System.CommandLine (CLI)
-- **Build Tools**: NUKE build system, Husky.Net (pre-commit hooks)
+**Stack**: C# 14, F# (ADTs), .NET 10, TUnit/Reqnroll/FsCheck, WolverineFx, System.CommandLine, NUKE build
 
-## Repository Structure
+**Key Directories**:
+- `src/Morphir/` - CLI host
+- `src/Morphir.Core/` - Domain model
+- `src/Morphir.Tooling/` - Features (vertical slices)
+- `tests/` - TUnit, Reqnroll, E2E
+- `docs/` - Content, specs, schemas
+- `.agents/` - Specialized guidance (QA, AOT, Release)
+- `.claude/skills/` - Interactive skills (Claude Code)
 
-```
-src/
-├── Morphir/              # CLI/host application (.csproj)
-├── Morphir.Core/         # Core domain model and IR definition
-└── Morphir.Tooling/      # Tooling features (vertical slices)
-    ├── Features/         # Feature folders (commands, handlers, validators)
-    └── Infrastructure/   # Shared services (schema, validation, etc.)
-
-tests/
-├── Morphir.Tooling.Tests/  # Unit and BDD tests
-├── TestData/                # Shared test fixtures
-└── Integration/             # End-to-end tests
-
-docs/
-├── content/              # Documentation content
-└── spec/                 # IR specification, JSON schemas, samples
-
-.github/
-├── workflows/            # CI/CD workflows
-├── ISSUE_TEMPLATE/       # Issue templates
-└── copilot-instructions.md  # This file
-```
-
-## Core Commands
-
-### Build and Test
+**Commands**:
 ```bash
-# Build
-dotnet build
-
-# Run tests
-dotnet test --nologo
-
-# Format code (required before commit)
-dotnet format
-
-# Setup git hooks
-dotnet tool restore
-dotnet husky install
+dotnet build              # Build
+dotnet test --nologo      # Run tests
+dotnet format             # Format (required before commit)
+./build.sh --help         # NUKE build targets
 ```
 
-### Documentation
-```bash
-cd docs
-npm ci
-npm run dev        # Local preview
-npm run build      # Build static site
-```
+See [AGENTS.md Section 4](../AGENTS.md#4-build-run-test) for complete build instructions.
 
-## Coding Conventions
+## Coding Standards (Summary)
 
-### General Principles
-- **Immutability first**: Pure domain logic, push side effects to edges (adapters)
-- **Make illegal states unrepresentable**: Use ADTs (Algebraic Data Types) and avoid nulls
-- **Exhaustive pattern matching**: Always handle all cases; avoid default fall-throughs
-- **Value types over primitives**: Use strongly-typed IDs and quantities
+**Core Principles** (See [AGENTS.md Section 5](../AGENTS.md#5-coding-conventions)):
+- Immutability first, effects at edges
+- ADTs: Make illegal states unrepresentable
+- Exhaustive pattern matching, no nulls
+- Value types for IDs/quantities
 
-### C# 14 / .NET 10 Style
-- Use **file-scoped namespaces**
-- Use **primary constructors** where appropriate
-- Prefer `record` and `record struct` for immutable data
-- Use **newer pattern matching** features
-- Avoid spans/efficient collections without benchmarks
+**C# 14 Style**:
+- File-scoped namespaces, primary constructors
+- `record` and `record struct` for immutable data
+- Modern pattern matching
 
-### Morphir-Specific Modeling
-Model Morphir IR precisely:
-- **Names**: Validated segments, non-empty paths, canonical casing
-- **Types**: Aliases, custom (union) types, records, tuples, functions
-- **Values/Expressions**: Literals, lambdas, application, pattern matching
-- **IR Fidelity**: Avoid lossy representations
-
-Example C# ADT:
+**Morphir IR Modeling** (See [AGENTS.md Section 6](../AGENTS.md#6-morphir-specific-modeling)):
 ```csharp
 public abstract record TypeExpr
 {
@@ -106,247 +59,104 @@ public abstract record TypeExpr
 }
 ```
 
-### CLI Tool Logging (CRITICAL)
-- **CLI tools MUST NOT write log messages to stdout**
-- All logging output MUST be directed to **stderr only**
-- Stdout is reserved exclusively for command output (JSON, formatted results)
-- Use Serilog configured with `standardErrorFromLevel: LogEventLevel.Verbose`
-- Test all commands with `--json` flag to ensure stdout contains only valid JSON
+**CLI Logging (CRITICAL)**:
+- **NO log messages to stdout** - stderr only!
+- Use Serilog: `standardErrorFromLevel: LogEventLevel.Verbose`
+- Test with `--json` flag: stdout must be valid JSON only
+- Rationale: Scriptability (`morphir verify file.json --json | jq`)
 
-Rationale: Preserve Unix philosophy (stdout = data, stderr = diagnostics) and scriptability (e.g., `morphir ir verify file.json --json | jq`)
+## Architecture & Testing
 
-### Error Handling
-- Use typed domain errors (sum types)
-- Map boundary errors at edges and log once
-- Return Result types; avoid exceptions for expected flows
-- CLI exit codes: 0 = success, 1 = validation failure, 2 = operational error
+**Vertical Slice Architecture** (See [AGENTS.md Section 14](../AGENTS.md#14-phase-1-implementation-patterns-ir-schema-verification)):
+- Features in `src/Morphir.Tooling/Features/{Name}/`
+- Immutable command/result records
+- Static handler with pure functions
+- FluentValidation for input validation
+- CLI invokes via WolverineFx `IMessageBus.InvokeAsync<T>()`
 
-### Formatting
-- Follow `.editorconfig` settings (4 spaces, LF line endings, UTF-8)
-- Run `dotnet format` before committing (enforced by Husky pre-commit hook)
-- F# files: Follow Fantomas configuration in `.editorconfig`
+**TDD Required** (See [AGENTS.md Section 9.1](../AGENTS.md#91-test-driven-development-tdd---red-green-refactor)):
+1. **RED**: Write failing test
+2. **GREEN**: Minimal code to pass
+3. **REFACTOR**: Improve while staying green
 
-## Architecture Patterns
+**Testing Layers**:
+- **Unit**: TUnit, `tests/*/`, `{ClassName}Tests.cs`
+- **BDD**: Reqnroll, `tests/*/Features/*.feature`
+- **Integration**: E2E CLI execution
 
-### Vertical Slice Architecture (WolverineFx)
-Features organized by use case in `src/Morphir.Tooling/Features/{FeatureName}/`:
+**Coverage**: >= 80% required
 
-```
-Features/VerifyIR/
-├── VerifyIR.cs              # Command, Result, Handler, Validator
-├── VersionDetector.cs       # Feature-specific logic
-└── (tests in test project)
-```
+## Expert Skills & Review Capabilities
 
-Example command pattern:
-```csharp
-// Immutable command
-public record VerifyIR(string FilePath, int? SchemaVersion = null, bool JsonOutput = false);
+**NEW**: morphir-dotnet provides specialized expert skills accessible to all agents. See [.agents/skills-reference.md](./.agents/skills-reference.md).
 
-// Immutable result
-public record VerifyIRResult(bool IsValid, string SchemaVersion, List<ValidationError> Errors);
+### Available Skills
 
-// Static handler with pure function
-public static class VerifyIRHandler
-{
-    public static async Task<VerifyIRResult> Handle(
-        VerifyIR command,
-        SchemaValidator validator,  // Dependency injection
-        CancellationToken ct)
-    {
-        // Pure logic, returns result
-    }
-}
+**QA Tester** - Test plan design, regression testing, coverage monitoring
+- **Review Capability**: Continuous coverage scanning, ignored test detection, BDD compliance
+- **Scripts**: `smoke-test.fsx`, `regression-test.fsx`, `validate-packages.fsx`
+- **Access**: Documentation + run scripts directly
 
-// FluentValidation rules
-public class VerifyIRValidator : AbstractValidator<VerifyIR>
-{
-    public VerifyIRValidator()
-    {
-        RuleFor(x => x.FilePath).NotEmpty().Must(File.Exists);
-    }
-}
-```
+**AOT Guru** - Single-file trimmed executables, AOT readiness, size optimization
+- **Review Capability**: Quarterly project review for reflection usage, size trends, IL warnings
+- **Scripts**: `aot-diagnostics.fsx`, `aot-analyzer.fsx`, `aot-test-runner.fsx`
+- **Access**: Documentation + run scripts directly
 
-### CLI Integration
-CLI in `src/Morphir/Program.cs` invokes WolverineFx message bus:
+**Release Manager** - Release lifecycle, changelog, version management
+- **Review Capability**: Process consistency checks, changelog quality, version verification
+- **Scripts**: `prepare-release.fsx`, `monitor-release.fsx`, `monitor-pr.fsx`, `validate-release.fsx`
+- **Access**: Documentation + run scripts directly
 
-```csharp
-var command = new Tooling.Features.VerifyIR.VerifyIR(FilePath: path, ...);
-var result = await messageBus.InvokeAsync<VerifyIRResult>(command);
-```
+**For Copilot users**:
+- Read skill documentation: [.agents/skills-reference.md](./.agents/skills-reference.md)
+- Run automation scripts: `dotnet fsi .claude/skills/{skill}/scripts/{script}.fsx`
+- Follow decision trees and playbooks
+- Cross-agent compatibility: [.agents/capabilities-matrix.md](./.agents/capabilities-matrix.md)
 
-### Infrastructure Services
-- Location: `src/Morphir.Tooling/Infrastructure/{ServiceType}/`
-- Registered in WolverineFx host, injected into handlers
-- Examples: SchemaLoader, SchemaValidator
-
-## Testing Strategy
-
-### Test-Driven Development (TDD) - CRITICAL
-**ALWAYS follow Red-Green-Refactor cycle**:
-
-1. **RED**: Write a failing test first
-2. **GREEN**: Write minimal code to make it pass
-3. **REFACTOR**: Improve code while keeping tests green
-
-### Testing Layers
-1. **Unit Tests** (`tests/Morphir.Tooling.Tests/{Component}/`):
-   - Test individual classes/functions in isolation
-   - Use TUnit framework, FluentAssertions
-   - File naming: `{ClassName}Tests.cs`
-
-2. **BDD Feature Tests** (`tests/Morphir.Tooling.Tests/Features/{Feature}/`):
-   - Gherkin `.feature` files alongside step definitions
-   - Test business logic through handlers
-   - File naming: `{Feature}.feature` and `{Feature}Steps.cs`
-
-3. **Integration Tests** (`tests/Morphir.Tooling.Tests/Integration/`):
-   - End-to-end CLI execution (spawn subprocess)
-   - Test all output formats and error scenarios
-
-### Test Coverage Requirements
-- Unit tests: **>90% code coverage**
-- BDD tests: All user stories covered
-- Integration tests: End-to-end CLI scenarios
-- **All tests must pass before PR**
-
-### BDD-First for Features
-Write BDD scenarios BEFORE implementation:
-```gherkin
-Feature: IR Schema Verification
-  Scenario: Valid IR file passes validation
-    Given a valid IR v3 file "valid-ir-v3.json"
-    When I verify the IR file
-    Then the validation should succeed
-```
+**Token savings**: Scripts save ~300-1000 tokens per invocation vs manual workflows.
 
 ## Contribution Workflow
 
-### Before Making Changes
-1. Read existing code to understand patterns
-2. Run existing tests to understand any pre-existing issues
-3. Create focused tests for your changes (TDD approach)
-4. Make minimal, surgical changes
+**Before committing**: `dotnet format && dotnet test --nologo`
 
-### Before Committing
-```bash
-# Run formatters (automatic via Husky)
-dotnet format
+**PR Requirements** (See [AGENTS.md Section 11](../AGENTS.md#11-review-and-contribution-rules)):
+- Small, focused PRs with tests
+- Conventional Commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`
+- **DO NOT list AI assistants as co-authors** (CLA limitation, except Copilot when actual co-author)
+- Tests passing, coverage >= 80%, formatters run
+- IR/JSON compatibility preserved or versioned with ADR
 
-# Run all tests
-dotnet test --nologo
-
-# Verify coverage hasn't decreased
-dotnet test --collect:"XPlat Code Coverage"
-```
-
-### Pull Request Guidelines
-- **Small, focused PRs** with tests (TUnit and/or Reqnroll)
-- **Conventional Commits**: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`
-- **DO NOT list Claude or AI assistants as co-authors** (CLA limitation)
-- Note: GitHub Copilot may be listed as co-author when it is an actual co-author
-
-#### PR Checklist
-- [ ] Tests added/updated and passing
-- [ ] IR/JSON compatibility preserved or versioned with ADR
-- [ ] Formatters/lints run (`dotnet format`)
-- [ ] Documentation updated if behavior changed
-- [ ] Coverage maintained or improved (>= 80%)
-
-### DCO Requirement
-All contributors must sign a Developer Certificate of Origin (DCO):
-1. Create DCO file in `dco/<your-name>`
-2. Include `Covered by <dco>` in commit messages
-3. Update `NOTICE.txt` with copyright details
-
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for complete DCO instructions.
+**DCO Required**: See [CONTRIBUTING.md](../CONTRIBUTING.md)
 
 ## Important Constraints
 
-### What to Avoid
-- Breaking public API changes without coordination
-- IR/JSON compatibility changes without ADR and version bump
+**Avoid** (See [AGENTS.md Section 2](../AGENTS.md#2-agent-scope)):
+- Breaking API changes without coordination
+- IR/JSON compatibility changes without ADR + version bump
 - Security/auth/crypto changes without maintainer review
-- Destructive migrations without explicit approval
-- Removing or editing unrelated tests
-- Force pushes (`git reset`, `git rebase` not allowed in this workflow)
+- Removing/editing unrelated tests
 
-### Scope of Changes
-- Implement small features end-to-end (domain → adapter → tests)
-- Fix bugs with minimal diffs and add regression tests
-- Improve domain types to encode Morphir invariants
-- Keep docs and scripts consistent with code
-- Ignore unrelated bugs or broken tests (not your responsibility)
-
-## IR Compatibility and Contracts
-
-- **IR JSON compatibility with Morphir toolchains is mandatory**
-- Roundtrip codec tests: serialize → deserialize → equals
-- Backward compatibility:
-  - Additive changes: OK
-  - Breaking changes: Require ADR, migration notes, version bump
-- JSON Schemas in `docs/spec/schemas/` validated in CI
-
-### JSON Serialization for AOT
-Use source-generated serialization contexts:
-```csharp
-[JsonSourceGenerationOptions(WriteIndented = true)]
-[JsonSerializable(typeof(VerifyIRResult))]
-internal partial class MorphirJsonContext : JsonSerializerContext { }
-
-// Usage
-var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyIRResult);
-```
-
-## Documentation Requirements
-
-Each feature must include:
-1. CLI command reference in `docs/content/docs/cli/{command}.md`
-2. Getting started guide in `docs/content/docs/getting-started/`
-3. Troubleshooting section in `docs/content/docs/cli/troubleshooting.md`
-4. Examples with all output formats
-5. CI/CD integration examples
-
-## PRD Management
-
-Product Requirements Documents (PRDs) in `docs/content/contributing/design/prds/`:
-- Each feature starts with comprehensive PRD
-- PRDs are living documents updated during implementation
-- Include "Feature Status Tracking" table and "Implementation Notes"
-- Update status: ⏳ Planned → 🚧 In Progress → ✅ Implemented
+**IR Compatibility** (See [AGENTS.md Section 7](../AGENTS.md#7-interfaces-and-contracts)):
+- JSON roundtrip tests mandatory
+- Schemas in `docs/spec/schemas/` validated in CI
+- Backward compatibility: additive OK, breaking needs ADR
 
 ## Additional Resources
 
-### Agent Guidance
-- **AGENTS.md**: [../AGENTS.md](../AGENTS.md) - Comprehensive guidance for all AI agents
-- **QA Testing**: [.agents/qa-testing.md](./.agents/qa-testing.md) - Testing practices, playbooks, templates
+**Essential Reading**:
+- [AGENTS.md](../AGENTS.md) - Primary guidance (READ THIS FIRST)
+- [.agents/skills-reference.md](./.agents/skills-reference.md) - Expert skills (QA, AOT, Release)
+- [.agents/capabilities-matrix.md](./.agents/capabilities-matrix.md) - Cross-agent features
+- [.agents/qa-testing.md](./.agents/qa-testing.md) - QA practices
+- [.agents/aot-optimization.md](./.agents/aot-optimization.md) - AOT guidance
 
-### Morphir Resources
-- **Morphir Homepage**: https://morphir.finos.org/
-- **morphir-elm**: https://github.com/finos/morphir-elm
-- **morphir (core)**: https://github.com/finos/morphir
+**Morphir Resources**:
+- [Morphir Homepage](https://morphir.finos.org/)
+- [morphir-elm](https://github.com/finos/morphir-elm)
+- [morphir (core)](https://github.com/finos/morphir)
 
-For comprehensive agent guidance, see [AGENTS.md](../AGENTS.md), which includes:
-- Detailed Morphir IR modeling examples
-- Tooling and script implementations
-- Property-based testing strategies
-- Phase 1 implementation patterns
-- ADR (Architecture Decision Records) guidance
-- Complete TDD workflow examples
-
-## Security and Compliance
-
-- No secrets in code or tests
-- Respect FINOS policies and repository license (Apache 2.0)
-- Auth/crypto/legal changes require maintainer review
-
-## Maintainers
-
-- See `.github/CODEOWNERS` for required reviewers
-- Label `maintainer-attention` for escalation
-- Join [#morphir on FINOS Slack](https://finos-lf.slack.com/messages/morphir)
+**Maintainers**: See `.github/CODEOWNERS` | Escalate with label `maintainer-attention` | [#morphir on FINOS Slack](https://finos-lf.slack.com/messages/morphir)
 
 ---
 
-**Remember**: Keep diffs minimal, follow existing patterns, run formatters and tests, and when uncertain about Morphir compatibility, take the conservative path and add a TODO with a question.
+**Remember**: Keep diffs minimal, follow TDD, use expert skills/scripts, run formatters and tests. When uncertain about Morphir compatibility, be conservative and add a TODO with a question.

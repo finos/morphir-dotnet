@@ -8,9 +8,16 @@ changes aligned with Morphir IR and tooling.
 
 - **This file (AGENTS.md)**: Primary guidance for all AI agents
 - **Specialized Topics**: See [.agents/](./.agents/) directory for domain-specific guides
+  - [Skills Reference](./.agents/skills-reference.md) - QA Tester, AOT Guru, Release Manager
+  - [Capabilities Matrix](./.agents/capabilities-matrix.md) - Cross-agent feature availability
   - [QA Testing](./.agents/qa-testing.md) - Test plans, playbooks, scripts
-  - _(More topics coming)_
-- **Claude Code Users**: See [CLAUDE.md](./CLAUDE.md) for Claude-specific features
+  - [AOT Optimization](./.agents/aot-optimization.md) - Trimming, AOT guidance
+- **Agent-Specific Instructions**:
+  - **Claude Code**: [CLAUDE.md](./CLAUDE.md) + [.claude/skills/](./.claude/skills/)
+  - **GitHub Copilot**: [.github/copilot-instructions.md](./.github/copilot-instructions.md)
+  - **Cursor**: [.cursorrules](./.cursorrules)
+  - **Windsurf**: [.windsurf/rules.md](./.windsurf/rules.md) (if present)
+  - **Aider**: [.aider.conf.yml](./.aider.conf.yml) (if present)
 - **Documentation**: See [docs/](./docs/) for user-facing docs
 
 ## Project Links
@@ -857,7 +864,23 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 This repository provides specialized, domain-specific guidance in the [.agents/](./.agents/) directory:
 
-### Available Topics
+### Skills Reference
+
+**NEW**: [Skills Reference](./.agents/skills-reference.md) - Comprehensive documentation of all expert skills (gurus):
+- **QA Tester** - Test plan design, regression testing, coverage monitoring, issue reporting
+- **AOT Guru** - Single-file trimmed executables, AOT readiness, trimming diagnostics, size optimization
+- **Release Manager** - Release lifecycle, changelog management, version selection, workflow monitoring
+- Each skill includes: scope, competencies, review capabilities, automation scripts, manual workflows
+- Decision trees and pattern catalogs for common scenarios
+- Cross-agent accessibility information
+
+**NEW**: [Capabilities Matrix](./.agents/capabilities-matrix.md) - Cross-agent feature availability:
+- Which skills work with which agents (Claude, Copilot, Cursor, Windsurf, Aider)
+- How to invoke reviews in each agent
+- Script portability notes and token usage comparisons
+- Agent-specific workflows and troubleshooting
+
+### Domain-Specific Guides
 
 - **[QA Testing](./.agents/qa-testing.md)** - Comprehensive QA guidance
   - Test plan templates
@@ -876,14 +899,24 @@ This repository provides specialized, domain-specific guidance in the [.agents/]
   - Known issues database and continuous improvement
   - Integration with CI/CD pipelines
 
-### Tool-Specific Guidance
+### Agent-Specific Guidance
 
 - **Claude Code**: [CLAUDE.md](./CLAUDE.md) + [.claude/skills/](./.claude/skills/)
-  - **QA Tester** - Testing and quality assurance with F# automation scripts
-  - **Release Manager** - Release lifecycle management and deployment
-  - **AOT Guru** - Native AOT, trimming, diagnostics, and optimization
-  - TDD workflow guidance
-  - CLI logging standards
+  - Interactive skills: `@skill qa-tester`, `@skill aot-guru`, `@skill release-manager`
+  - Automation scripts run automatically via skills
+  - Review capabilities trigger on appropriate actions
+  - TDD workflow guidance and CLI logging standards
+
+- **GitHub Copilot**: [.github/copilot-instructions.md](./.github/copilot-instructions.md)
+  - References AGENTS.md and .agents/ guides
+  - Run automation scripts manually: `dotnet fsi .claude/skills/{skill}/scripts/{script}.fsx`
+  - Follow playbooks and decision trees for complex workflows
+
+- **Other Agents** (Cursor, Windsurf, Aider):
+  - Access via configuration files (.cursorrules, .windsurf/rules.md, .aider.conf.yml)
+  - All reference AGENTS.md and .agents/ directory
+  - Use automation scripts directly for token efficiency
+  - See capabilities-matrix.md for agent-specific features
 
 ### Future Topics
 
