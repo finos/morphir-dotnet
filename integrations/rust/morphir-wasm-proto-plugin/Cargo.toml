@@ -1,6 +1,6 @@
 [package]
 name = "morphir-wasm-proto-plugin"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "Proto WASM plugin for deploying platform-specific Morphir executables"
