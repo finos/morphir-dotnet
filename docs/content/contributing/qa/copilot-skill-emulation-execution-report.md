@@ -23,12 +23,26 @@ Follow the [Scenarios Runner Guide](./copilot-scenarios-runner.md) to execute ea
 
 ## Scenario Status
 
-- [x] Skill Discovery in GitHub Copilot — Passed
-  - Rationale: `.agents/skills-reference.md` correctly lists QA Tester, AOT Guru, Release Manager and documents locations and usage. Copilot can reference and summarize these.
-- [ ] Skill Alias Understanding — Pending
-- [ ] QA Tester Skill Emulation (Create test plan for a PR) — Pending
-- [ ] Skill Script Execution (smoke-test.fsx) — Pending
-- [ ] Playbook Navigation (Regression testing) — Pending
+- [x] **Scenario 1: Skill Discovery** — ✅ PASSED
+  - Copilot successfully listed all 3 skills with descriptions and file paths
+  - Referenced `.agents/skills-reference.md` correctly
+  
+- [x] **Scenario 2: Skill Alias Understanding** — ✅ PASSED
+  - Explained `@skill` is Claude-specific, aliases documentation-only
+  - Suggested natural language alternative for Copilot
+  
+- [x] **Scenario 3: QA Tester Skill (Create Test Plan)** — ✅ PASSED
+  - Generated comprehensive test plan covering happy paths, edge cases, errors
+  - Included priorities and automation script references
+  - Followed QA Tester skill guidance structure
+  
+- [x] **Scenario 4: Skill Script Execution** — ✅ PASSED
+  - Provided exact command: `dotnet fsi .claude/skills/qa-tester/scripts/smoke-test.fsx`
+  - Explained script purpose, duration, and expected output
+  
+- [x] **Scenario 5: Playbook Navigation (Regression Testing)** — ✅ PASSED
+  - Outlined regression testing playbook step-by-step
+  - Included commands and validation criteria for each step
 
 ## Notes
 
