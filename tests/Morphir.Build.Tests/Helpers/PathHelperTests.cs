@@ -85,7 +85,7 @@ public class PathHelperTests
     public async Task FindLatestPackage_NonExistentDirectory_ReturnsNull()
     {
         // Arrange
-        var nonExistentDir = "/tmp/nonexistent-packages-dir-12345";
+        var nonExistentDir = Path.Combine(Path.GetTempPath(), $"nonexistent-packages-dir-{Guid.NewGuid()}");
 
         // Act
         var package = PathHelper.FindLatestPackage("Morphir.Tool", nonExistentDir);

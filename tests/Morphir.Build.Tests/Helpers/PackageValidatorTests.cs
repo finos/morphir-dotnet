@@ -30,7 +30,7 @@ public class PackageValidatorTests
     public async Task ValidateToolPackage_NonExistentPackage_ThrowsFileNotFoundException()
     {
         // Arrange
-        var nonExistentPath = "/tmp/nonexistent-package.nupkg";
+        var nonExistentPath = Path.Combine(Path.GetTempPath(), "nonexistent-package.nupkg");
 
         // Act & Assert
         var act = () => PackageValidator.ValidateToolPackage(nonExistentPath);
@@ -61,7 +61,7 @@ public class PackageValidatorTests
     public async Task ValidateLibraryPackage_NonExistentPackage_ThrowsFileNotFoundException()
     {
         // Arrange
-        var nonExistentPath = "/tmp/nonexistent-library.nupkg";
+        var nonExistentPath = Path.Combine(Path.GetTempPath(), "nonexistent-library.nupkg");
 
         // Act & Assert
         var act = () => PackageValidator.ValidateLibraryPackage(nonExistentPath);

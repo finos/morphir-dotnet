@@ -13,6 +13,21 @@ namespace Morphir.Build.Helpers;
 public static class PathHelper
 {
     /// <summary>
+    /// Regular expression pattern for matching semantic versions in package filenames
+    /// </summary>
+    private const string VersionPattern = @"\.(\d+\.\d+\.\d+(?:-[\w\d\.-]+)?(?:\+[\w\d\.-]+)?)$";
+
+    /// <summary>
+    /// Gets the default artifacts directory
+    /// </summary>
+    private static string GetDefaultArtifactsDirectory() => Path.Combine(GetRepositoryRoot(), "artifacts");
+
+    /// <summary>
+    /// Gets the default packages directory
+    /// </summary>
+    private static string GetDefaultPackagesDirectory() => Path.Combine(GetDefaultArtifactsDirectory(), "packages");
+
+    /// <summary>
     /// Finds the latest package matching the given package ID
     /// Searches in the artifacts/packages directory by default
     /// </summary>
@@ -21,7 +36,7 @@ public static class PathHelper
     /// <returns>Full path to the latest package, or null if not found</returns>
     public static string? FindLatestPackage(string packageId, string? packagesDirectory = null)
     {
-        var searchDir = packagesDirectory ?? Path.Combine(GetRepositoryRoot(), "artifacts", "packages");
+        var searchDir = packagesDirectory ?? GetDefaultPackagesDirectory();
 
         if (!Directory.Exists(searchDir))
         {
@@ -59,7 +74,7 @@ public static class PathHelper
     /// <returns>Expected full path to the tool package</returns>
     public static string GetToolPackagePath(string version, string? packagesDirectory = null)
     {
-        var searchDir = packagesDirectory ?? Path.Combine(GetRepositoryRoot(), "artifacts", "packages");
+        var searchDir = packagesDirectory ?? GetDefaultPackagesDirectory();
         return Path.Combine(searchDir, $"Morphir.Tool.{version}.nupkg");
     }
 
@@ -72,7 +87,7 @@ public static class PathHelper
     /// <returns>Expected full path to the library package</returns>
     public static string GetLibraryPackagePath(string projectName, string version, string? packagesDirectory = null)
     {
-        var searchDir = packagesDirectory ?? Path.Combine(GetRepositoryRoot(), "artifacts", "packages");
+        var searchDir = packagesDirectory ?? GetDefaultPackagesDirectory();
         return Path.Combine(searchDir, $"{projectName}.{version}.nupkg");
     }
 
@@ -85,7 +100,7 @@ public static class PathHelper
     /// <returns>List of full paths to executables found for the given RID</returns>
     public static List<string> FindGeneratedExecutables(string rid, string? artifactsDirectory = null)
     {
-        var baseDir = artifactsDirectory ?? Path.Combine(GetRepositoryRoot(), "artifacts");
+        var baseDir = artifactsDirectory ?? GetDefaultArtifactsDirectory();
         var singleFileDir = Path.Combine(baseDir, "single-file", rid);
 
         if (!Directory.Exists(singleFileDir))
@@ -160,8 +175,7 @@ public static class PathHelper
             var filename = Path.GetFileNameWithoutExtension(packagePath);
             // Pattern: PackageName.Version.nupkg
             // Example: Morphir.Tool.0.3.0-rc.2.nupkg -> extract "0.3.0-rc.2"
-            var versionPattern = @"\.(\d+\.\d+\.\d+(?:-[\w\d\.-]+)?(?:\+[\w\d\.-]+)?)$";
-            var match = Regex.Match(filename, versionPattern);
+            var match = Regex.Match(filename, VersionPattern);
 
             if (match.Success && SemanticVersion.TryParse(match.Groups[1].Value, out var version))
             {
