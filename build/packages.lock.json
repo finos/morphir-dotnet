@@ -2,6 +2,17 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
+      "Ionide.KeepAChangelog": {
+        "type": "Direct",
+        "requested": "[0.2.0, )",
+        "resolved": "0.2.0",
+        "contentHash": "xNHfGGCVvtL0FH4J3EL3UZqBDz1TUCRwYgV4aEFHtG08NtW6raWZ+3eUPlelXX973l94E0FRx/pT/A7qiEEHjQ==",
+        "dependencies": {
+          "FParsec": "1.1.1",
+          "FSharp.Core": "6.0.5",
+          "SemanticVersion": "2.1.0"
+        }
+      },
       "Nuke.Common": {
         "type": "Direct",
         "requested": "[10.1.0, )",
@@ -67,6 +78,14 @@
         "contentHash": "tmcIgo+de2K5+PTBRNlnFLQFbmSoyuT9RpDr5MwKS6mIfNxLPQpARkRAP91r3tmeiJ9j/UCO0F+hTlk1Bk7HNQ==",
         "dependencies": {
           "Azure.Core": "1.46.2"
+        }
+      },
+      "FParsec": {
+        "type": "Transitive",
+        "resolved": "1.1.1",
+        "contentHash": "Wdjf/gCNLEwd+0nUCDh9jAIIcKGwfhRramySTnTcVVgNC6i4Vp5aJklUJJfvFkEZMYNZEDGcI8pCa36/TmwmSg==",
+        "dependencies": {
+          "FSharp.Core": "4.3.4"
         }
       },
       "Glob": {
@@ -373,6 +392,11 @@
           "YamlDotNet": "16.3.0"
         }
       },
+      "SemanticVersion": {
+        "type": "Transitive",
+        "resolved": "2.1.0",
+        "contentHash": "Iu2aBSZ+WQPMjNAP9FzVum7IjkOZrq6Vqsn78c6IVi1Mpna4WKue2stmuVPqBB5aPcZciuHPPp343/fCY9ONMw=="
+      },
       "Serilog.Formatting.Compact.Reader": {
         "type": "Transitive",
         "resolved": "4.0.0",
@@ -463,6 +487,12 @@
         "dependencies": {
           "System.Security.Cryptography.Pkcs": "9.0.0"
         }
+      },
+      "FSharp.Core": {
+        "type": "CentralTransitive",
+        "requested": "[7.0.200, )",
+        "resolved": "7.0.200",
+        "contentHash": "NmgUnpNH6Zu9B0SPIhojyo38gnPdkdYFYQfbd6zosEH32kbGY/g/Klk7PfOWe1NAe/O1YOMmK9KhwQ2OWsWEbg=="
       },
       "Microsoft.Build.Utilities.Core": {
         "type": "CentralTransitive",

@@ -13,7 +13,7 @@ partial class Build
     /// <summary>
     /// Pack library projects as NuGet packages (Morphir.Core, Morphir.Tooling, Morphir)
     /// Output: artifacts/packages/
-    /// Parameters: --version (optional)
+    /// Parameters: --version-override (optional, overrides CHANGELOG.md version)
     /// </summary>
     Target PackLibs => _ => _
         .DependsOn(Compile)
@@ -22,33 +22,36 @@ partial class Build
         {
             OutputDir.CreateOrCleanDirectory();
 
-            var packSettings = new DotNetPackSettings()
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(OutputDir);
-
-            if (!string.IsNullOrEmpty(Version))
-            {
-                packSettings = packSettings.SetProperty("Version", Version);
-            }
+            var versionString = Version.ToString();
+            Serilog.Log.Information($"Packing with version: {versionString}");
 
             Serilog.Log.Information("Packing Morphir.Core...");
-            DotNetPack(s => packSettings
-                .SetProject(MorphirCoreProject));
+            DotNetPack(s => s
+                .SetProject(MorphirCoreProject)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(OutputDir)
+                .SetProperty("Version", versionString));
 
             Serilog.Log.Information("Packing Morphir.Tooling...");
-            DotNetPack(s => packSettings
-                .SetProject(MorphirToolingProject));
+            DotNetPack(s => s
+                .SetProject(MorphirToolingProject)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(OutputDir)
+                .SetProperty("Version", versionString));
 
             Serilog.Log.Information("Packing Morphir...");
-            DotNetPack(s => packSettings
-                .SetProject(MorphirProject));
+            DotNetPack(s => s
+                .SetProject(MorphirProject)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(OutputDir)
+                .SetProperty("Version", versionString));
         });
 
     /// <summary>
     /// Pack the Morphir CLI as a dotnet tool (standard managed tool)
     /// Output: artifacts/packages/Morphir.Tool.{version}.nupkg
     /// Tool command name: dotnet-morphir
-    /// Parameters: --version (optional)
+    /// Parameters: --version-override (optional, overrides CHANGELOG.md version)
     /// </summary>
     Target PackTool => _ => _
         .DependsOn(Compile)
@@ -62,21 +65,18 @@ partial class Build
                 OutputDir.CreateDirectory();
             }
 
-            var packSettings = new DotNetPackSettings()
+            var versionString = Version.ToString();
+            Serilog.Log.Information($"Packing tool with version: {versionString}");
+
+            Serilog.Log.Information("Packing Morphir.Tool CLI as dotnet tool...");
+            DotNetPack(s => s
+                .SetProject(MorphirToolProject)
                 .SetConfiguration(Configuration)
                 .SetOutputDirectory(OutputDir)
                 .SetProperty("PackAsTool", "true")
                 .SetProperty("ToolCommandName", "dotnet-morphir")
-                .SetProperty("IsPackable", "true");
-
-            if (!string.IsNullOrEmpty(Version))
-            {
-                packSettings = packSettings.SetProperty("Version", Version);
-            }
-
-            Serilog.Log.Information("Packing Morphir.Tool CLI as dotnet tool...");
-            DotNetPack(s => packSettings
-                .SetProject(MorphirToolProject));
+                .SetProperty("IsPackable", "true")
+                .SetProperty("Version", versionString));
         });
 
     /// <summary>
