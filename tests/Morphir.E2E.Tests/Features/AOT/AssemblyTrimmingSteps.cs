@@ -199,7 +199,7 @@ public class AssemblyTrimmingSteps
     {
         _publishTrimmed = false;
         await PublishWithSettings();
-        
+
         // Record baseline size
         if (!string.IsNullOrEmpty(_executablePath) && File.Exists(_executablePath))
         {
@@ -215,7 +215,7 @@ public class AssemblyTrimmingSteps
         // This is validated by checking that the output size is reduced
         _outputPath.Should().NotBeNullOrEmpty("Output path should be set after publishing");
         Directory.Exists(_outputPath).Should().BeTrue($"Output directory should exist at {_outputPath}");
-        
+
         // Check that the output directory has fewer assemblies than untrimmed
         var files = Directory.GetFiles(_outputPath!);
         files.Should().NotBeEmpty("Output directory should contain files");
@@ -235,14 +235,14 @@ public class AssemblyTrimmingSteps
     {
         _executablePath.Should().NotBeNullOrEmpty("Executable path should be set after publishing");
         File.Exists(_executablePath).Should().BeTrue($"Executable should exist at {_executablePath}");
-        
+
         var currentSize = new FileInfo(_executablePath!).Length;
-        
+
         // If we have a baseline, compare to it
         if (_scenarioContext.ContainsKey("BaselineSize"))
         {
             var baseline = _scenarioContext.Get<long>("BaselineSize");
-            currentSize.Should().BeLessThan(baseline, 
+            currentSize.Should().BeLessThan(baseline,
                 $"Trimmed size ({currentSize:N0} bytes) should be less than untrimmed baseline ({baseline:N0} bytes)");
         }
     }
@@ -273,7 +273,7 @@ public class AssemblyTrimmingSteps
         // This is validated by checking build output
         _scenarioContext.ContainsKey("BuildOutput").Should().BeTrue("Build output should be captured");
         var output = _scenarioContext.Get<string>("BuildOutput");
-        
+
         // In the current implementation, we suppress some warnings
         // This step validates that the trimming analysis runs
         output.Should().NotBeNull();
@@ -324,7 +324,7 @@ public class AssemblyTrimmingSteps
     {
         _executablePath.Should().NotBeNullOrEmpty("Executable path should be set after publishing");
         File.Exists(_executablePath).Should().BeTrue($"Executable should exist at {_executablePath}");
-        
+
         _baselineSize = new FileInfo(_executablePath!).Length;
         _scenarioContext["BaselineSize"] = _baselineSize;
     }
@@ -334,14 +334,14 @@ public class AssemblyTrimmingSteps
     {
         _scenarioContext.ContainsKey("BaselineSize").Should().BeTrue("Baseline size should be recorded");
         var baseline = _scenarioContext.Get<long>("BaselineSize");
-        
+
         _executablePath.Should().NotBeNullOrEmpty("Executable path should be set after publishing");
         File.Exists(_executablePath).Should().BeTrue($"Executable should exist at {_executablePath}");
-        
+
         var currentSize = new FileInfo(_executablePath!).Length;
         var reductionPercent = (1.0 - (double)currentSize / baseline) * 100;
-        
-        reductionPercent.Should().BeGreaterThanOrEqualTo(50, 
+
+        reductionPercent.Should().BeGreaterThanOrEqualTo(50,
             $"Size reduction should be at least 50% (baseline: {baseline:N0} bytes, current: {currentSize:N0} bytes, reduction: {reductionPercent:F1}%)");
     }
 
@@ -369,7 +369,7 @@ public class AssemblyTrimmingSteps
         // This is validated by checking that the executable exists and is smaller
         _executablePath.Should().NotBeNullOrEmpty("Executable path should be set after publishing");
         File.Exists(_executablePath).Should().BeTrue($"Executable should exist at {_executablePath}");
-        
+
         var currentSize = new FileInfo(_executablePath!).Length;
         currentSize.Should().BeLessThan(100 * 1024 * 1024, "Size should be reasonable with feature switches");
     }
@@ -429,7 +429,7 @@ public class AssemblyTrimmingSteps
     private async Task PublishWithSettings()
     {
         _projectPath.Should().NotBeNullOrEmpty("Project path should be set");
-        
+
         var repoRoot = FindRepositoryRoot(Directory.GetCurrentDirectory());
         var tempDir = Path.Combine(repoRoot, "artifacts", "test-builds", Guid.NewGuid().ToString());
         _outputPath = Path.Combine(tempDir, _rid!);
@@ -498,7 +498,7 @@ public class AssemblyTrimmingSteps
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
-        
+
         await process.WaitForExitAsync();
 
         _scenarioContext["BuildExitCode"] = process.ExitCode;

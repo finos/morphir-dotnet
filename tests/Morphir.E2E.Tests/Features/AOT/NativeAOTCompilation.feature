@@ -1,3 +1,4 @@
+@slow
 Feature: Native AOT Compilation
   As a CLI developer
   I want to compile morphir-dotnet to Native AOT

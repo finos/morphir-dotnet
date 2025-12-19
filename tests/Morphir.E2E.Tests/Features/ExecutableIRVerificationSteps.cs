@@ -22,7 +22,7 @@ public class ExecutableIRVerificationSteps
         SharedSteps.ExecutionResult.Should().NotBeNull("command should have been executed");
         // Use StandardOutput only - stderr contains logging which would break JSON parsing
         var output = SharedSteps.ExecutionResult!.StandardOutput.Trim();
-        
+
         Action parseJson = () => JsonDocument.Parse(output);
         parseJson.Should().NotThrow($"output should be valid JSON. Actual output: {output}");
     }
@@ -33,7 +33,7 @@ public class ExecutableIRVerificationSteps
         SharedSteps.ExecutionResult.Should().NotBeNull("command should have been executed");
         // Use StandardOutput only - stderr contains logging which would break JSON parsing
         var output = SharedSteps.ExecutionResult!.StandardOutput.Trim();
-        
+
         using var doc = JsonDocument.Parse(output);
         var current = doc.RootElement;
 
@@ -63,7 +63,7 @@ public class ExecutableIRVerificationSteps
         SharedSteps.ExecutionResult.Should().NotBeNull("command should have been executed");
         // Use StandardOutput only - stderr contains logging which would break JSON parsing
         var output = SharedSteps.ExecutionResult!.StandardOutput.Trim();
-        
+
         using var doc = JsonDocument.Parse(output);
         var current = doc.RootElement;
 

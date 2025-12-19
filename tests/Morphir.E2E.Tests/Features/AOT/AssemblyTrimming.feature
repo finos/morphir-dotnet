@@ -1,3 +1,4 @@
+@slow
 Feature: Assembly Trimming
   As a CLI developer
   I want trimmed assemblies

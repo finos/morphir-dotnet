@@ -189,11 +189,11 @@ public class NativeAOTCompilationSteps
     public async Task WhenIRunTheIrVerifyCommandWithAValidIrFile()
     {
         _executableRunner.Should().NotBeNull("Executable runner should be initialized");
-        
+
         // Use a test IR file
         var repoRoot = FindRepositoryRoot(Directory.GetCurrentDirectory());
         var testDataDir = Path.Combine(repoRoot, "tests", "TestData", "IR");
-        
+
         // Find a valid IR file
         var irFile = Directory.GetFiles(testDataDir, "*.json", SearchOption.AllDirectories).FirstOrDefault();
         if (irFile == null)
@@ -211,11 +211,11 @@ public class NativeAOTCompilationSteps
     public async Task WhenIRunIrVerifyWithJsonFlag()
     {
         _executableRunner.Should().NotBeNull("Executable runner should be initialized");
-        
+
         // Use a test IR file
         var repoRoot = FindRepositoryRoot(Directory.GetCurrentDirectory());
         var testDataDir = Path.Combine(repoRoot, "tests", "TestData", "IR");
-        
+
         // Find a valid IR file
         var irFile = Directory.GetFiles(testDataDir, "*.json", SearchOption.AllDirectories).FirstOrDefault();
         if (irFile == null)
@@ -233,11 +233,11 @@ public class NativeAOTCompilationSteps
     public async Task WhenIMeasureStartupTimeForVersionCommand()
     {
         _executableRunner.Should().NotBeNull("Executable runner should be initialized");
-        
+
         var stopwatch = Stopwatch.StartNew();
         var result = await _executableRunner!.ExecuteCommandAsync("--version");
         stopwatch.Stop();
-        
+
         _scenarioContext["LastExecutionResult"] = result;
         _scenarioContext["StartupTime"] = stopwatch.ElapsedMilliseconds;
     }
@@ -260,7 +260,7 @@ public class NativeAOTCompilationSteps
     {
         _executablePath.Should().NotBeNullOrEmpty("Executable path should be set after build");
         File.Exists(_executablePath).Should().BeTrue($"Executable should exist at {_executablePath}");
-        
+
         // Native AOT executables are typically smaller and don't have .deps.json
         var depsJsonPath = Path.ChangeExtension(_executablePath, ".deps.json");
         File.Exists(depsJsonPath).Should().BeFalse("Native AOT executable should not have .deps.json");
@@ -271,7 +271,7 @@ public class NativeAOTCompilationSteps
     {
         _scenarioContext.ContainsKey("BuildOutput").Should().BeTrue("Build output should be captured");
         var output = _scenarioContext.Get<string>("BuildOutput");
-        
+
         // Check for IL2XXX warnings
         output.Should().NotContain("IL2026", "Build should not have IL2026 warnings");
         output.Should().NotContain("IL2060", "Build should not have IL2060 warnings");
@@ -282,13 +282,13 @@ public class NativeAOTCompilationSteps
     public void ThenTheExecutableSizeShouldBeLessThan12MbForLinuxX64()
     {
         if (_rid != "linux-x64") return;
-        
+
         _executablePath.Should().NotBeNullOrEmpty("Executable path should be set after build");
         File.Exists(_executablePath).Should().BeTrue($"Executable should exist at {_executablePath}");
-        
+
         var size = new FileInfo(_executablePath!).Length;
         var sizeMB = size / (1024.0 * 1024.0);
-        
+
         sizeMB.Should().BeLessThan(12, $"Executable size should be less than 12 MB (actual: {sizeMB:F2} MB)");
     }
 
@@ -296,13 +296,13 @@ public class NativeAOTCompilationSteps
     public void ThenTheExecutableSizeShouldBeLessThan15MbForWinX64()
     {
         if (_rid != "win-x64") return;
-        
+
         _executablePath.Should().NotBeNullOrEmpty("Executable path should be set after build");
         File.Exists(_executablePath).Should().BeTrue($"Executable should exist at {_executablePath}");
-        
+
         var size = new FileInfo(_executablePath!).Length;
         var sizeMB = size / (1024.0 * 1024.0);
-        
+
         sizeMB.Should().BeLessThan(15, $"Executable size should be less than 15 MB (actual: {sizeMB:F2} MB)");
     }
 
@@ -325,7 +325,7 @@ public class NativeAOTCompilationSteps
     {
         _scenarioContext.ContainsKey("LastExecutionResult").Should().BeTrue("Command should have been executed");
         var result = _scenarioContext.Get<ExecutableExecutionResult>("LastExecutionResult");
-        
+
         result.CombinedOutput.Should().NotBeNullOrWhiteSpace("Version output should not be empty");
         result.CombinedOutput.Should().MatchRegex(@"\d+\.\d+\.\d+", "Output should contain version number");
     }
@@ -335,7 +335,7 @@ public class NativeAOTCompilationSteps
     {
         _scenarioContext.ContainsKey("LastExecutionResult").Should().BeTrue("Command should have been executed");
         var result = _scenarioContext.Get<ExecutableExecutionResult>("LastExecutionResult");
-        
+
         result.CombinedOutput.Should().NotBeNullOrWhiteSpace("Help output should not be empty");
         result.CombinedOutput.Should().Contain("morphir", "Help text should mention morphir");
     }
@@ -351,7 +351,7 @@ public class NativeAOTCompilationSteps
 
         _scenarioContext.ContainsKey("LastExecutionResult").Should().BeTrue("Command should have been executed");
         var result = _scenarioContext.Get<ExecutableExecutionResult>("LastExecutionResult");
-        
+
         // The verification result should be meaningful
         result.CombinedOutput.Should().NotBeNullOrWhiteSpace("Verification output should not be empty");
     }
@@ -367,10 +367,10 @@ public class NativeAOTCompilationSteps
 
         _scenarioContext.ContainsKey("LastExecutionResult").Should().BeTrue("Command should have been executed");
         var result = _scenarioContext.Get<ExecutableExecutionResult>("LastExecutionResult");
-        
+
         // Use StandardOutput only - stderr contains logging
         var output = result.StandardOutput.Trim();
-        
+
         Action parseJson = () => JsonDocument.Parse(output);
         parseJson.Should().NotThrow($"output should be valid JSON. Actual output: {output}");
     }
@@ -386,7 +386,7 @@ public class NativeAOTCompilationSteps
     {
         _scenarioContext.ContainsKey("BuildOutput").Should().BeTrue("Build output should be captured");
         var output = _scenarioContext.Get<string>("BuildOutput");
-        
+
         // When reflection is used with AOT, IL2026 warnings should be present
         // Note: The project may suppress these warnings, so we check that the build runs
         output.Should().NotBeNull();
@@ -404,10 +404,10 @@ public class NativeAOTCompilationSteps
     {
         _executablePath.Should().NotBeNullOrEmpty("Executable path should be set after build");
         File.Exists(_executablePath).Should().BeTrue($"Executable should exist at {_executablePath}");
-        
+
         var size = new FileInfo(_executablePath!).Length;
         var sizeMB = size / (1024.0 * 1024.0);
-        
+
         sizeMB.Should().BeInRange(5, 8, $"Executable size should be between 5 and 8 MB (actual: {sizeMB:F2} MB)");
     }
 
@@ -416,10 +416,10 @@ public class NativeAOTCompilationSteps
     {
         _executablePath.Should().NotBeNullOrEmpty("Executable path should be set after build");
         File.Exists(_executablePath).Should().BeTrue($"Executable should exist at {_executablePath}");
-        
+
         var size = new FileInfo(_executablePath!).Length;
         var sizeMB = size / (1024.0 * 1024.0);
-        
+
         sizeMB.Should().BeInRange(8, 12, $"Executable size should be between 8 and 12 MB (actual: {sizeMB:F2} MB)");
     }
 
@@ -428,7 +428,7 @@ public class NativeAOTCompilationSteps
     {
         _scenarioContext.ContainsKey("StartupTime").Should().BeTrue("Startup time should be measured");
         var startupTime = _scenarioContext.Get<long>("StartupTime");
-        
+
         startupTime.Should().BeLessThan(100, $"Startup time should be less than 100ms (actual: {startupTime}ms)");
     }
 
@@ -445,7 +445,7 @@ public class NativeAOTCompilationSteps
     private async Task BuildWithSettings()
     {
         _projectPath.Should().NotBeNullOrEmpty("Project path should be set");
-        
+
         var repoRoot = FindRepositoryRoot(Directory.GetCurrentDirectory());
         var tempDir = Path.Combine(repoRoot, "artifacts", "test-builds", Guid.NewGuid().ToString());
         _outputPath = Path.Combine(tempDir, _rid!);
@@ -510,7 +510,7 @@ public class NativeAOTCompilationSteps
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
-        
+
         await process.WaitForExitAsync();
 
         _scenarioContext["BuildExitCode"] = process.ExitCode;
@@ -518,11 +518,11 @@ public class NativeAOTCompilationSteps
 
         // Note: AOT builds may fail on platforms without AOT support
         // We store the exit code but don't assert here
-        
+
         // Find the executable
         var exeName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "morphir.exe" : "morphir";
         _executablePath = Path.Combine(_outputPath, exeName);
-        
+
         if (File.Exists(_executablePath))
         {
             _executableRunner = new ExecutableRunner(_executablePath);

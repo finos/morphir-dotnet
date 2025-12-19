@@ -15,7 +15,7 @@ public class SharedSteps
     private static ExecutableLocator? _executableLocator;
     private static ExecutableRunner? _executableRunner;
     private static TestDataResolver? _testDataResolver;
-    
+
     // Thread-local storage for execution result to avoid parallel test interference
     [ThreadStatic]
     private static ExecutableExecutionResult? _executionResult;
