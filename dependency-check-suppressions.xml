@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OWASP Dependency-Check Suppression File
+
+  This file contains suppressions for known false positives detected by OWASP Dependency-Check.
+  Each suppression must include documented rationale, reviewer, and review date.
+
+  Guidelines:
+  - Only suppress verified false positives
+  - Include detailed notes explaining why the CVE doesn't apply
+  - Set expiration dates (until attribute) for suppressions that should be reviewed
+  - Review suppressions quarterly
+
+  Reference: https://dependency-check.github.io/DependencyCheck/general/suppression.html
+-->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+
+  <!--
+    Azure.Identity - False Positive (Version Misidentification)
+    Detected: CVE-2023-36415 (CVSS 8.8)
+
+    This is a false positive caused by binary scanning misidentifying the assembly version
+    (1.1700.125.56903) as the package version. The actual package version is 1.17.1,
+    which already contains the fix for CVE-2023-36415 (fixed in >= 1.10.2).
+
+    The vulnerable version detection is based on CPE matching against the assembly's
+    internal version number, not the NuGet package version.
+  -->
+  <suppress until="2025-06-30">
+    <notes><![CDATA[
+      False positive: Version misidentification in binary scanning.
+
+      Detected version: 1.1700.125.56903 (assembly version)
+      Actual package version: 1.17.1 (via Nuke.Common transitive dependency)
+      Fix available in: >= 1.10.2
+
+      The assembly version format (1.1700.x) represents internal Microsoft versioning,
+      not the public NuGet package version. Package 1.17.1 already includes the fix.
+
+      Verified by: @copilot (PR #276)
+      Date: 2024-12-19
+      Review: Quarterly (next: 2025-03-31)
+      Reference: https://github.com/Azure/azure-sdk-for-net/blob/main/sdk/identity/Azure.Identity/CHANGELOG.md
+    ]]></notes>
+    <cve>CVE-2023-36415</cve>
+  </suppress>
+
+  <!--
+    Mono.Cecil - False Positive (Package Name Confusion)
+    Detected: CVE-2023-4914 (CVSS 7.5)
+
+    This is a false positive caused by CPE matching confusion between:
+    - Cecil (static site generator) - VULNERABLE to CVE-2023-4914
+    - Mono.Cecil (.NET library for reading/writing IL) - NOT AFFECTED
+
+    The CVE specifically targets the Cecil static site generator (written in Ruby),
+    not the Mono.Cecil .NET library which is a completely different project.
+  -->
+  <suppress>
+    <notes><![CDATA[
+      False positive: Package name confusion.
+
+      Detected package: Mono.Cecil.Mdb (cpe:2.3:a:cecil:cecil:0.11.5.0)
+      Actual vulnerability: CVE-2023-4914 affects Cecil static site generator
+
+      The CVE targets "Cecil" - a Ruby-based static site generator.
+      Mono.Cecil is an unrelated .NET library for reading/writing ECMA CIL.
+      These are completely different projects by different maintainers.
+
+      - Cecil (vulnerable): https://github.com/bensheldon/cecil - Ruby static site generator
+      - Mono.Cecil (not affected): https://github.com/jbevain/cecil - .NET IL manipulation library
+
+      Verified by: @copilot (PR #276)
+      Date: 2024-12-19
+      Review: No expiration - permanent false positive
+      Reference: https://nvd.nist.gov/vuln/detail/CVE-2023-4914
+    ]]></notes>
+    <cve>CVE-2023-4914</cve>
+  </suppress>
+
+  <!--
+    Octokit - False Positive (Stale CVE / Not Applicable)
+    Detected: CVE-2012-2055 (CVSS 7.5)
+
+    This is a false positive. CVE-2012-2055 is a 12+ year old vulnerability that:
+    1. Affected GitHub Enterprise Server, not the Octokit client library
+    2. Was fixed in GitHub Enterprise 2.x (ancient version)
+    3. Does not apply to the Octokit NuGet package at all
+
+    The CPE matching is too broad, matching any "github:github" product.
+  -->
+  <suppress>
+    <notes><![CDATA[
+      False positive: Stale CVE not applicable to this package.
+
+      Detected: CVE-2012-2055 in Octokit.dll@14.0.0
+
+      This CVE from 2012 affected GitHub Enterprise Server's web interface,
+      specifically a CSRF vulnerability in the repository deletion feature.
+      It has nothing to do with the Octokit client library.
+
+      The Octokit NuGet package is a REST API client for GitHub.
+      It does not include any server-side functionality that could be
+      affected by this vulnerability.
+
+      Verified by: @copilot (PR #276)
+      Date: 2024-12-19
+      Review: No expiration - permanent false positive
+      Reference: https://nvd.nist.gov/vuln/detail/CVE-2012-2055
+    ]]></notes>
+    <cve>CVE-2012-2055</cve>
+  </suppress>
+
+</suppressions>
