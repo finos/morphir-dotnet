@@ -10,7 +10,6 @@ namespace Morphir.Build.Tests;
 public class LocalInstallationTests
 {
     [Test]
-    [Skip("Requires packages to be built first and is a potentially destructive test")]
     public async Task ToolPackage_InstallsFromLocalFolder()
     {
         // Arrange
@@ -29,15 +28,18 @@ public class LocalInstallationTests
             var packageName = Path.GetFileName(toolPackage!);
             File.Copy(toolPackage, Path.Combine(localSource, packageName));
 
-            // Act - Install tool from local source
+            // Extract version from package filename
+            var version = TestFixture.GetPackageVersion(toolPackage);
+
+            // Act - Install tool from local source (version is required for local feeds)
             var installResult = await RunDotnetCommand(
-                $"tool install Morphir.Tool --tool-path {tempDir} --add-source {localSource}");
+                $"tool install Morphir.Tool --version {version} --tool-path {tempDir} --add-source {localSource}");
 
             // Assert
             installResult.ExitCode.Should().Be(0,
                 $"Tool installation should succeed. Output: {installResult.Output}");
 
-            var toolPath = Path.Combine(tempDir, "morphir");
+            var toolPath = Path.Combine(tempDir, "dotnet-morphir");
             if (OperatingSystem.IsWindows())
             {
                 toolPath += ".exe";
@@ -56,7 +58,6 @@ public class LocalInstallationTests
     }
 
     [Test]
-    [Skip("Requires packages to be built first and is a potentially destructive test")]
     public async Task ToolCommand_AvailableAfterInstall()
     {
         // Arrange
@@ -75,12 +76,15 @@ public class LocalInstallationTests
             var packageName = Path.GetFileName(toolPackage!);
             File.Copy(toolPackage, Path.Combine(localSource, packageName));
 
-            // Install tool
+            // Extract version from package filename
+            var version = TestFixture.GetPackageVersion(toolPackage);
+
+            // Install tool (version is required for local feeds)
             await RunDotnetCommand(
-                $"tool install Morphir.Tool --tool-path {tempDir} --add-source {localSource}");
+                $"tool install Morphir.Tool --version {version} --tool-path {tempDir} --add-source {localSource}");
 
             // Act - Run the tool command
-            var toolPath = Path.Combine(tempDir, "morphir");
+            var toolPath = Path.Combine(tempDir, "dotnet-morphir");
             if (OperatingSystem.IsWindows())
             {
                 toolPath += ".exe";
@@ -105,7 +109,6 @@ public class LocalInstallationTests
     }
 
     [Test]
-    [Skip("Requires packages to be built first and is a potentially destructive test")]
     public async Task ToolPackage_UninstallsSuccessfully()
     {
         // Arrange
@@ -123,8 +126,13 @@ public class LocalInstallationTests
             // Copy package and install
             var packageName = Path.GetFileName(toolPackage!);
             File.Copy(toolPackage, Path.Combine(localSource, packageName));
+
+            // Extract version from package filename
+            var version = TestFixture.GetPackageVersion(toolPackage);
+
+            // Install tool (version is required for local feeds)
             await RunDotnetCommand(
-                $"tool install Morphir.Tool --tool-path {tempDir} --add-source {localSource}");
+                $"tool install Morphir.Tool --version {version} --tool-path {tempDir} --add-source {localSource}");
 
             // Act - Uninstall tool
             var uninstallResult = await RunDotnetCommand(
@@ -134,7 +142,7 @@ public class LocalInstallationTests
             uninstallResult.ExitCode.Should().Be(0,
                 $"Tool uninstallation should succeed. Output: {uninstallResult.Output}");
 
-            var toolPath = Path.Combine(tempDir, "morphir");
+            var toolPath = Path.Combine(tempDir, "dotnet-morphir");
             if (OperatingSystem.IsWindows())
             {
                 toolPath += ".exe";

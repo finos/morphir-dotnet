@@ -10,7 +10,6 @@ namespace Morphir.Build.Tests;
 public class PackageMetadataTests
 {
     [Test]
-    [Skip("Requires packages to be built first - run after PackAll target")]
     public async Task AllPackages_HaveSameVersion()
     {
         // Arrange
@@ -37,7 +36,6 @@ public class PackageMetadataTests
     }
 
     [Test]
-    [Skip("Requires packages to be built first - run after PackAll target")]
     public async Task PackageVersions_MatchChangelogVersion()
     {
         // Arrange
@@ -56,7 +54,6 @@ public class PackageMetadataTests
     }
 
     [Test]
-    [Skip("Requires packages to be built first - run after PackAll target")]
     public async Task ToolPackage_HasCorrectMetadata()
     {
         // Arrange
@@ -75,7 +72,6 @@ public class PackageMetadataTests
     }
 
     [Test]
-    [Skip("Requires packages to be built first - run after PackAll target")]
     public async Task AllPackages_HaveReleaseNotes()
     {
         // Arrange

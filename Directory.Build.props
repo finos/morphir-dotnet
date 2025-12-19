@@ -6,7 +6,7 @@
         <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
         <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
         <RepositoryType>git</RepositoryType>
-        <Authors>finos</Authors>
+        <Authors>FINOS</Authors>
         <RepositoryUrl>https://github.com/finos/morphir-dotnet</RepositoryUrl>
         <!-- owners is not supported in MSBuild -->
 
