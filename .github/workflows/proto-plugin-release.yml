@@ -68,7 +68,7 @@ jobs:
         run: ./build.sh --target BuildProtoPlugin
 
       - name: Package Proto Plugin
-        run: ./build.sh --target PackageProtoPlugin --version ${{ env.PLUGIN_VERSION }}
+        run: ./build.sh --target PackageProtoPlugin --plugin-version ${{ env.PLUGIN_VERSION }}
 
       - name: Upload Plugin Artifact
         uses: actions/upload-artifact@v4
