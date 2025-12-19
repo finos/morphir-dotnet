@@ -1,4 +1,9 @@
 name: "Deployment"
+
+# Workflow-level permissions (minimal by default)
+permissions:
+    contents: read
+
 on:
     push:
         tags:
@@ -200,6 +205,9 @@ jobs:
         runs-on: ubuntu-latest
         needs: [validate-version, build-executables, release]
         if: ${{ !failure() && needs.validate-version.outputs.skip-git-release != 'true' }}
+        # This job needs write permissions to create releases
+        permissions:
+            contents: write
         steps:
             - name: Fetch Source Code
               uses: actions/checkout@v6.0.1
