@@ -48,14 +48,11 @@ partial class Build
             }
             
             Serilog.Log.Information("Running Morphir.Build.Tests...");
-            var buildTestDll = TestsDirectory / "Morphir.Build.Tests" / "bin" / Configuration / "net10.0" / "Morphir.Build.Tests.dll";
-            var exitCode = RunCommand("dotnet", "exec", buildTestDll);
             
-            if (exitCode != 0)
-            {
-                Serilog.Log.Error("Build tests FAILED");
-                throw new Exception($"Build tests failed with exit code {exitCode}");
-            }
+            DotNetTest(s => s
+                .SetProjectFile(MorphirBuildTestsProject)
+                .SetConfiguration(Configuration)
+                .SetNoBuild(false));
             
             Serilog.Log.Information("✓ Build tests PASSED");
         });

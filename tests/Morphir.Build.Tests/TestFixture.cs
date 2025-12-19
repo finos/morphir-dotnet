@@ -50,9 +50,8 @@ public static class TestFixture
             return null;
         }
         
-        // Convert glob pattern to regex-like search
-        var searchPattern = pattern.Replace("*", "*");
-        var files = Directory.GetFiles(packagesDir, searchPattern);
+        // Directory.GetFiles supports * and ? wildcards directly
+        var files = Directory.GetFiles(packagesDir, pattern);
         
         // Return the most recently created file
         return files

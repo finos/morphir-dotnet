@@ -84,12 +84,11 @@ public class PackageStructureTests
     [Skip("Requires packages to be built first - run after PackAll target")]
     public async Task Packages_DoNotContainUnnecessaryFiles()
     {
-        // Arrange
+        // Arrange - Find specific packages to avoid ambiguity
         var packages = new[]
         {
             TestFixture.FindLatestPackage("Morphir.Core.*.nupkg"),
             TestFixture.FindLatestPackage("Morphir.Tooling.*.nupkg"),
-            TestFixture.FindLatestPackage("Morphir.*.nupkg"), // Morphir main library
             TestFixture.FindLatestPackage("Morphir.Tool.*.nupkg"),
         }.Where(p => p != null).ToList();
         

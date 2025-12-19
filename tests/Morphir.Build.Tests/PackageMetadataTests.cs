@@ -127,11 +127,19 @@ public class PackageMetadataTests
             Id = metadata.Element(ns + "id")?.Value ?? string.Empty,
             Version = metadata.Element(ns + "version")?.Value ?? string.Empty,
             Authors = metadata.Element(ns + "authors")?.Value ?? string.Empty,
-            License = metadata.Element(ns + "license")?.Value ?? metadata.Element(ns + "licenseUrl")?.Value ?? string.Empty,
+            License = GetLicenseValue(metadata, ns),
             ProjectUrl = metadata.Element(ns + "projectUrl")?.Value ?? string.Empty,
             ReleaseNotes = metadata.Element(ns + "releaseNotes")?.Value ?? string.Empty,
             PackageType = metadata.Element(ns + "packageTypes")?.Element(ns + "packageType")?.Attribute("name")?.Value ?? string.Empty
         };
+    }
+    
+    private string GetLicenseValue(XElement metadata, XNamespace ns)
+    {
+        // Try license element first, then fall back to licenseUrl for older packages
+        return metadata.Element(ns + "license")?.Value 
+               ?? metadata.Element(ns + "licenseUrl")?.Value 
+               ?? string.Empty;
     }
     
     private async Task<string> GetNuspecContent(string packagePath)
