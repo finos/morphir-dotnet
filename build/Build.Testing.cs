@@ -70,6 +70,19 @@ partial class Build
         });
 
     /// <summary>
+    /// Run all tests (unit tests and build tests)
+    /// Equivalent to running Test and TestBuild targets
+    /// NOTE: TestBuild requires packages to be built first (run PackAll target)
+    /// </summary>
+    Target TestAll => _ => _
+        .DependsOn(Test, TestBuild)
+        .Description("Run all tests (unit tests and build tests)")
+        .Executes(() =>
+        {
+            Serilog.Log.Information("All tests completed successfully");
+        });
+
+    /// <summary>
     /// Build the E2E test project (Morphir.E2E.Tests)
     /// E2E tests use Reqnroll (BDD/Gherkin) to test executables
     /// </summary>
