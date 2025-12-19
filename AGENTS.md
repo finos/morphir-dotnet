@@ -515,6 +515,15 @@ dotnet format
 - Small, focused PRs with tests (TUnit and/or Reqnroll).
 - Conventional Commits: feat:, fix:, refactor:, test:, docs:
 - **CRITICAL**: **Do NOT include `Co-Authored-By: Claude` or any AI assistant as co-author on commits.** Our CLA does NOT support AI assistants as co-authors. Violations will block PR merges. See [Commit Messages section](#commit-messages) for details and remediation steps. Note: GitHub Copilot may be listed as co-author when it is an actual co-author.
+  - **If you accidentally included Claude as a co-author**, use the [remove-claude-coauthor.fsx](scripts/remove-claude-coauthor.fsx) script to fix it:
+    ```bash
+    # Preview changes
+    dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5
+
+    # Apply fixes (creates backup automatically)
+    dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5 --yes
+    ```
+  - See [scripts/README.md](scripts/README.md) for complete usage and options.
 - PR checklist:
     - [ ] Tests added/updated and passing
     - [ ] IR/JSON compatibility preserved or versioned with ADR
@@ -865,7 +874,14 @@ Our Contributor License Agreement (CLA) does NOT support AI assistants as co-aut
    ```
 
 3. **Use automated script** (recommended):
-   See issue #270 for an F# script that removes Claude co-author from commit history automatically.
+   ```bash
+   # Preview what will be changed
+   dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5
+
+   # Apply the fix (creates backup automatically)
+   dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5 --yes
+   ```
+   See [scripts/README.md](scripts/README.md) for complete documentation.
 
 **Why this matters:**
 - CLA requires all contributors to be identifiable humans with signed agreements

@@ -96,13 +96,23 @@ feat: add IR schema validation for v3 format
 
 **If You Added Claude as Co-Author by Mistake**:
 
-See [AGENTS.md Commit Messages section](./AGENTS.md#commit-messages) for remediation steps, or use the automated F# script (issue #270) to clean commit history.
+See [AGENTS.md Commit Messages section](./AGENTS.md#commit-messages) for detailed remediation steps, or use the automated F# script below to clean commit history.
 
 **Quick Fix** (if not pushed yet):
 ```bash
 git commit --amend
 # Remove the "Co-Authored-By: Claude" line and save
 ```
+
+**If you accidentally added Claude as a co-author**, use the automated script to fix it:
+```bash
+# Preview what will be changed
+dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5
+
+# Apply the fix (creates backup automatically)
+dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5 --yes
+```
+See [scripts/README.md](scripts/README.md#remove-claude-coauthorfsx) for complete documentation.
 
 ### 4. CLI Logging (CRITICAL)
 
