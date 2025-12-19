@@ -540,7 +540,7 @@ Hugo build failing?
 │       ├── Check: Shortcode exists in layouts/shortcodes/
 │       ├── Check: Docsy shortcode name (alert vs warning)
 │       ├── Verify: Closing tags match opening tags
-│       └── Look for: Unclosed {{ }} or {{% %}}
+│       └── Look for: Unclosed shortcode delimiters
 │
 ├── Error mentions "frontmatter" or "YAML"
 │   └── Frontmatter issue
@@ -937,8 +937,8 @@ Is the documentation outdated?
 6. **Common fixes**
    - Frontmatter: Use `title:` not `Title:`
    - Navigation: Ensure `_index.md` in each section
-   - Links: Use `{{< ref "path/to/page.md" >}}` or relative paths
-   - Shortcodes: Use `{{% shortcode %}}` for markdown, `{{< shortcode >}}` for HTML
+   - Links: Use Hugo ref shortcode or relative paths
+   - Shortcodes: Use percent-delimiters for markdown processing, angle-bracket delimiters for HTML output
 
 7. **Document the fix**
    - Add to patterns/hugo-docsy/troubleshooting-hugo.md
@@ -1052,7 +1052,7 @@ Is the documentation outdated?
 5. **For new shortcodes**
    - Create in `layouts/shortcodes/`
    - Name file `shortcodename.html`
-   - Use with `{{< shortcodename >}}` in content
+   - Reference in content using angle-bracket shortcode syntax
 
 6. **Test changes**
    ```bash
