@@ -11,6 +11,30 @@ weight: 20
 
 A **guru** is not a tool. It's not a utility function or a helpful prompt. A guru is a **knowledge stewardship system**—a specialized AI team member who owns a domain, improves continuously, and acts as a collaborative partner in advancing project health, maintainability, and velocity.
 
+```mermaid
+graph LR
+    subgraph "Traditional AI Helper"
+        Q1[Question] --> A1[Answer]
+        Q2[Question] --> A2[Answer]
+        Q3[Question] --> A3[Answer]
+    end
+
+    subgraph "Guru Philosophy"
+        I[Interaction] --> L[Learning]
+        L --> K[Knowledge Base]
+        K --> G[Better Guidance]
+        G --> I
+    end
+
+    style Q1 fill:#ffcdd2
+    style Q2 fill:#ffcdd2
+    style Q3 fill:#ffcdd2
+    style I fill:#c8e6c9
+    style L fill:#c8e6c9
+    style K fill:#c8e6c9
+    style G fill:#c8e6c9
+```
+
 This philosophy distinguishes morphir-dotnet's approach to AI collaboration from the typical "ask the AI for help with X" pattern.
 
 ## The Guru is Not...
@@ -51,6 +75,31 @@ A guru **owns** a specific area of the project:
 ### A Learning System
 A guru **improves over time** through automated feedback:
 
+```mermaid
+flowchart TD
+    subgraph "Continuous Learning Cycle"
+        A[Session/Interaction] --> B{New Pattern<br/>Discovered?}
+        B -->|Yes| C[Document Pattern]
+        B -->|No| D[Apply Existing<br/>Patterns]
+        C --> E[Update Playbooks]
+        D --> F[Track Effectiveness]
+        E --> G[Quarterly Review]
+        F --> G
+        G --> H{Pattern Repeated<br/>3+ Times?}
+        H -->|Yes| I[Create Automation<br/>Script]
+        H -->|No| J[Continue Monitoring]
+        I --> K[Permanent<br/>Improvement]
+        J --> A
+        K --> A
+    end
+
+    style A fill:#e3f2fd
+    style C fill:#c8e6c9
+    style E fill:#c8e6c9
+    style I fill:#fff9c4
+    style K fill:#c8e6c9
+```
+
 **Release Manager Example (Proof):**
 - After every release failure → Automated retrospective captures "What went wrong?" and "How to prevent?"
 - After 3+ consecutive successes → Prompts for improvement ideas
@@ -89,17 +138,26 @@ A guru **identifies high-token-cost repetitive work** and automates it:
 ### A Collaborator
 A guru **coordinates transparently** with other gurus:
 
-**Example: Elm-to-F# Migration**
-```
-Elm-to-F# Guru: "I'm generating AOT-compatible code"
-        ↓ (passes generated code to)
-   AOT Guru: "Verify this is AOT-safe"
-        ↓ (returns verdict + improvement suggestions)
-Elm-to-F# Guru: "Applied your recommendations"
-        ↓ (passes code to)
-   QA Tester: "Verify coverage >= 80%"
-        ↓ (returns test results)
-Release Manager: "Ready to include in release?"
+```mermaid
+sequenceDiagram
+    participant ELM as Elm-to-F# Guru
+    participant AOT as AOT Guru
+    participant QA as QA Tester
+    participant RM as Release Manager
+
+    ELM->>AOT: Generated code for review
+    Note over AOT: Verify AOT compatibility
+    AOT-->>ELM: ✓ AOT-safe + suggestions
+
+    ELM->>ELM: Apply recommendations
+
+    ELM->>QA: Code ready for testing
+    Note over QA: Run test suite
+    QA-->>ELM: ✓ Coverage 85%
+
+    ELM->>RM: Feature complete
+    Note over RM: Include in release
+    RM-->>ELM: ✓ Scheduled for v1.2.0
 ```
 
 **Collaboration principles:**
@@ -324,6 +382,37 @@ When creating a new guru, embody these principles:
    - [ ] Templates provided
 
 ### The Guru Creation Phases
+
+```mermaid
+graph LR
+    subgraph "Phase 1"
+        P1[Definition]
+    end
+    subgraph "Phase 2"
+        P2[Implementation]
+    end
+    subgraph "Phase 3"
+        P3[Learning<br/>Integration]
+    end
+    subgraph "Phase 4"
+        P4[Review<br/>Implementation]
+    end
+    subgraph "Phase 5"
+        P5[Collaboration]
+    end
+    subgraph "Phase 6"
+        P6[Teaching]
+    end
+
+    P1 --> P2 --> P3 --> P4 --> P5 --> P6
+
+    style P1 fill:#e3f2fd,stroke:#1565c0
+    style P2 fill:#e8f5e9,stroke:#2e7d32
+    style P3 fill:#fff3e0,stroke:#e65100
+    style P4 fill:#fce4ec,stroke:#c2185b
+    style P5 fill:#f3e5f5,stroke:#7b1fa2
+    style P6 fill:#e0f2f1,stroke:#00695c
+```
 
 **Phase 1: Definition**
 - Define domain and scope

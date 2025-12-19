@@ -31,6 +31,31 @@ As the project plans to add more gurus (Elm-to-F# Guru, Documentation Guru, Secu
 
 A **guru** is not a tool or a prompt. It's a **knowledge stewardship system** with these characteristics:
 
+```mermaid
+mindmap
+  root((Guru))
+    Stewardship
+      Owns a domain
+      Accountable for quality
+      Quality gate
+    Continuous Improvement
+      Learns from interactions
+      Quarterly reviews
+      Feedback loops
+    Proactive Review
+      Scans for issues
+      Detects problems early
+      Captures patterns
+    Automation-First
+      F# scripts
+      Reduces token cost
+      Improves with scale
+    Collaboration
+      Clear hand-offs
+      Escalation paths
+      Shared patterns
+```
+
 ### Stewardship
 - **Owns a domain** (Quality, Optimization, Releases, Migration, etc.)
 - **Accountable** for quality, velocity, and responsibility in that domain
@@ -76,6 +101,39 @@ The Release Manager guru exemplifies this philosophy:
 - **Collaboration:** Hands off to QA Tester for verification; coordinates with Elm-to-F# on version tracking
 
 ## Architecture
+
+The skill framework is organized in layers, from universal guidance accessible to all agents down to Claude-specific enhancements.
+
+```mermaid
+graph TB
+    subgraph "Layer 4: Meta-Guidance"
+        META[".agents/guru-*.md<br/>Philosophy & Creation Guide"]
+    end
+
+    subgraph "Layer 3: Claude Enhancement"
+        SKILLS[".claude/skills/<br/>QA Tester | AOT Guru | Release Manager"]
+    end
+
+    subgraph "Layer 2: Agent Bridging"
+        COPILOT["copilot-instructions.md"]
+        CLAUDEMD["CLAUDE.md"]
+    end
+
+    subgraph "Layer 1: Universal Guidance"
+        AGENTS["AGENTS.md + .agents/"]
+    end
+
+    META --> SKILLS
+    SKILLS --> CLAUDEMD
+    AGENTS --> COPILOT
+    AGENTS --> CLAUDEMD
+
+    style META fill:#e1f5fe,stroke:#01579b
+    style SKILLS fill:#fff3e0,stroke:#e65100
+    style COPILOT fill:#f3e5f5,stroke:#7b1fa2
+    style CLAUDEMD fill:#f3e5f5,stroke:#7b1fa2
+    style AGENTS fill:#e8f5e9,stroke:#2e7d32
+```
 
 ### Layer 1: Universal Guidance (All Agents)
 
@@ -134,6 +192,43 @@ This layer guides the creation and evolution of gurus:
 **Audience:** Future skill creators, maintainers, all agents
 
 ## Skill Anatomy
+
+Each guru skill follows a standard structure with well-defined components:
+
+```mermaid
+graph LR
+    subgraph "Skill Directory"
+        direction TB
+        SKILL["skill.md<br/>Main Persona"]
+        README["README.md<br/>Quick Start"]
+        MAINT["MAINTENANCE.md<br/>Review Process"]
+    end
+
+    subgraph "Scripts/"
+        S1["automation-1.fsx"]
+        S2["automation-2.fsx"]
+        S3["common.fsx"]
+    end
+
+    subgraph "Templates/"
+        T1["decision-template.md"]
+        T2["workflow-template.md"]
+    end
+
+    subgraph "Patterns/"
+        P1["pattern-1.md"]
+        P2["pattern-2.md"]
+        P3["...discovered over time"]
+    end
+
+    SKILL --> Scripts/
+    SKILL --> Templates/
+    SKILL --> Patterns/
+
+    style SKILL fill:#fff3e0,stroke:#e65100
+    style README fill:#e8f5e9,stroke:#2e7d32
+    style MAINT fill:#e1f5fe,stroke:#01579b
+```
 
 ### Standard Components
 
@@ -265,6 +360,39 @@ F# scripts should identify and automate high-token-cost repetitive work:
 | Context budget | 100K+ | 8K | 4-20K | 4-20K |
 
 ## Related Skills
+
+The following diagram shows the current and planned guru ecosystem with their coordination relationships:
+
+```mermaid
+graph TB
+    subgraph "Current Gurus"
+        QA["🧪 QA Tester<br/>Testing & Validation"]
+        AOT["⚡ AOT Guru<br/>Optimization"]
+        RM["📦 Release Manager<br/>Deployment"]
+    end
+
+    subgraph "Planned Gurus"
+        ELM["🔄 Elm-to-F# Guru<br/>Migration"]
+        DOC["📚 Documentation Guru<br/>Docs Quality"]
+        SEC["🔒 Security Guru<br/>Security Reviews"]
+    end
+
+    QA <-->|"Post-release<br/>verification"| RM
+    AOT <-->|"AOT-compatible<br/>tests"| QA
+    ELM -->|"Verify AOT<br/>compatibility"| AOT
+    ELM -->|"Verify test<br/>coverage"| QA
+    DOC -.->|"Pattern<br/>documentation"| ELM
+    SEC -.->|"Cross-cuts all"| QA
+    SEC -.->|"Cross-cuts all"| AOT
+    SEC -.->|"Cross-cuts all"| RM
+
+    style QA fill:#e8f5e9,stroke:#2e7d32
+    style AOT fill:#fff3e0,stroke:#e65100
+    style RM fill:#e1f5fe,stroke:#01579b
+    style ELM fill:#fce4ec,stroke:#c2185b
+    style DOC fill:#f3e5f5,stroke:#7b1fa2
+    style SEC fill:#ffebee,stroke:#c62828
+```
 
 ### Current Gurus
 
@@ -414,6 +542,27 @@ Effort: 2-4 hours to adapt and test
 ## Future Expansion
 
 ### Roadmap
+
+```mermaid
+timeline
+    title Guru Framework Roadmap
+    section Phase 1 - Now
+        3 stable gurus proven : QA Tester, AOT Guru, Release Manager
+        Framework documented : Skill Framework Design
+        Cross-agent accessibility : In progress
+    section Phase 2 - Q1 2026
+        Elm-to-F# Guru : Issue #240
+        Code generation project : Issue #241
+        Quarterly reviews : Established
+    section Phase 3 - Q2-Q3 2026
+        Documentation Guru : Planned
+        Security Guru : Planned
+        Cross-project reuse : QA Tester → morphir-elm
+    section Phase 4 - Future
+        5-10+ gurus : Actively maintained
+        Skill marketplace : Envisioned
+        Continuous improvement : Culture embedded
+```
 
 **Phase 1 (Now):**
 - ✅ 3 stable gurus proven effective
