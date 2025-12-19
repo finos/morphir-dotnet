@@ -6,6 +6,7 @@
         <TargetFramework>net6.0</TargetFramework>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
         <RootNamespace>Morphir.IR.Tests</RootNamespace>
+        <ReqnrollUseIntermediateOutputPathForCodeBehind>true</ReqnrollUseIntermediateOutputPathForCodeBehind>
     </PropertyGroup>
 
     <ItemGroup>

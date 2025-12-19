@@ -8,6 +8,7 @@
     <IsPackable>false</IsPackable>
     <RootNamespace>Morphir.Tooling.Tests</RootNamespace>
     <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
+    <ReqnrollUseIntermediateOutputPathForCodeBehind>true</ReqnrollUseIntermediateOutputPathForCodeBehind>
   </PropertyGroup>
 
   <ItemGroup>

@@ -276,6 +276,9 @@ docs/coverage/
 # Verify
 *.received.*
 
+# Reqnroll/SpecFlow generated files
+*.feature.cs
+
 # Hugo documentation site
 docs/public/
 docs/resources/_gen/
