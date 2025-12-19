@@ -826,7 +826,7 @@ var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyIRR
 
 ### Commit Messages
 
-Follow Conventional Commits with co-author attribution:
+Follow Conventional Commits with attribution in the commit body (NOT as co-author):
 
 ```
 feat: add comprehensive BDD integration tests for CLI
@@ -837,11 +837,13 @@ feat: add comprehensive BDD integration tests for CLI
 - All 62 tests passing
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-**Note**: Do not list Claude or AI assistants as co-authors in the commit author field.
+**Important**: 
+- ✅ **DO**: Include AI attribution in the commit body (e.g., "🤖 Generated with [Claude Code]")
+- ❌ **DON'T**: List Claude or AI assistants as co-authors (`Co-Authored-By: Claude <...>`)
+- Our CLA does not support AI assistants as co-authors
+- If you accidentally added Claude as a co-author, use [remove-claude-coauthor.fsx](scripts/remove-claude-coauthor.fsx) to fix it
 
 ## 15) Known Issues / TODOs
 

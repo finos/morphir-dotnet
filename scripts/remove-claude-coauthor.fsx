@@ -149,20 +149,24 @@ let claudeCoAuthorPatterns = [
     Regex(@"Coauthored-by:\s*Claude\s*<noreply@anthropic\.com>", RegexOptions.IgnoreCase)
 ]
 
+// Sed pattern for git filter-branch (must match the F# patterns above)
+let sedPattern = "/Co-[Aa]uthored-[Bb]y:.*Claude.*<noreply@anthropic\\.com>/d"
+
 let containsClaudeCoAuthor (message: string) : bool =
     claudeCoAuthorPatterns |> List.exists (fun pattern -> pattern.IsMatch(message))
 
 let removeClaudeCoAuthor (message: string) : string =
-    let mutable result = message
-    for pattern in claudeCoAuthorPatterns do
-        result <- pattern.Replace(result, "")
+    // Use functional fold instead of mutable variable
+    let withoutClaudeCoAuthor =
+        claudeCoAuthorPatterns
+        |> List.fold (fun acc pattern -> pattern.Replace(acc, "")) message
     
     // Clean up extra blank lines (max 2 consecutive newlines)
     let multipleNewlines = Regex(@"\n{3,}")
-    result <- multipleNewlines.Replace(result, "\n\n")
+    let withCleanedNewlines = multipleNewlines.Replace(withoutClaudeCoAuthor, "\n\n")
     
     // Trim trailing whitespace
-    result.TrimEnd()
+    withCleanedNewlines.TrimEnd()
 
 let getCommitRange (args: ParseResults<CliArguments>) (verbose: bool) : Result<string, string> =
     if args.Contains Since_Main then
@@ -265,10 +269,7 @@ let createBackupBranch (verbose: bool) : Result<string, string> =
 // ============================================================================
 
 let rewriteCommitHistory (commits: CommitInfo list) (verbose: bool) : Result<unit, string> =
-    // Use git filter-branch to rewrite commit messages
-    // Create a simple sed script that removes the Claude co-author line (case-insensitive)
-    let sedScript = "/Co-[Aa]uthored-[Bb]y:.*Claude.*<noreply@anthropic\\.com>/d"
-
+    // Use the shared sed pattern constant (defined at top of file)
     let oldestCommit = commits |> List.last
     
     // Get the parent of the oldest commit to rewrite
@@ -278,12 +279,12 @@ let rewriteCommitHistory (commits: CommitInfo list) (verbose: bool) : Result<uni
 
         if verbose then
             eprintfn "[VERBOSE] Rewriting commits from %s (parent) to HEAD" parentHash
-            eprintfn "[VERBOSE] Using sed script: %s" sedScript
+            eprintfn "[VERBOSE] Using sed script: %s" sedPattern
 
         // Use git filter-branch with msg-filter
         // Syntax: git filter-branch [options] -- [rev-list-options]
         // We want to rewrite from parent..HEAD
-        let filterCommand = sprintf "filter-branch -f --msg-filter \"sed '%s'\" -- %s..HEAD" sedScript parentHash
+        let filterCommand = sprintf "filter-branch -f --msg-filter \"sed '%s'\" -- %s..HEAD" sedPattern parentHash
 
         match runGitCommand filterCommand verbose with
         | Ok _ ->
