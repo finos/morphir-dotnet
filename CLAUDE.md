@@ -1,306 +1,162 @@
 # Claude Code Instructions for morphir-dotnet
 
-This file provides guidance specifically for Claude Code (Anthropic's AI coding assistant) when working on the morphir-dotnet repository.
+This file provides Claude Code-specific guidance for the morphir-dotnet repository.
 
-## Primary Guidance Source
+## Primary Guidance
 
-**IMPORTANT**: Before proceeding with any task, you MUST read and incorporate the comprehensive agent guidance from [AGENTS.md](./AGENTS.md).
+**CRITICAL**: Read [AGENTS.md](./AGENTS.md) first - contains complete project guidance (architecture, Morphir modeling, TDD practices, conventions).
 
-The AGENTS.md file contains:
-- Project overview and architecture
-- Morphir-specific modeling guidelines
-- Coding conventions and standards
-- **Test-Driven Development (TDD) practices** - Section 9.1
-- Testing strategy and requirements
-- PRD management and cross-agent collaboration
-- Build, test, and deployment procedures
+**Specialized Skills**: Use `@skill {skill-name}` to invoke expert skills:
+- `@skill qa-tester` - Test plans, regression testing, coverage monitoring
+- `@skill aot-guru` - AOT/trimming diagnostics, size optimization
+- `@skill release-manager` - Release lifecycle, changelog, version management
 
-## Claude Code-Specific Workflow
+See [.agents/skills-reference.md](./.agents/skills-reference.md) for complete skill documentation.
 
-### 1. Always Start by Reading AGENTS.md
+## Claude Code-Specific Features
 
-```bash
-# Before implementing any feature or fix:
-1. Read AGENTS.md thoroughly
-2. Check for relevant PRDs in docs/content/contributing/design/prds/
-3. Review the Feature Status Tracking table in active PRDs
-4. Understand the TDD requirements (Section 9.1)
+### 1. Interactive Skills
+
+**QA Tester** ([.claude/skills/qa-tester/](./. claude/skills/qa-tester/))
+- Creates comprehensive test plans from issues/PRs
+- Runs automated smoke and regression tests
+- Monitors coverage trends and detects ignored tests
+- **Review capability**: Continuous coverage scanning, BDD compliance checks
+- **Scripts**: `smoke-test.fsx`, `regression-test.fsx`, `validate-packages.fsx`
+
+**AOT Guru** ([.claude/skills/aot-guru/](./.claude/skills/aot-guru/))
+- Diagnoses trimming and AOT compilation issues
+- Analyzes binary size and optimizations
+- Recommends source generators (C#) or Myriad (F#)
+- **Review capability**: Quarterly project scan for reflection, size trends
+- **Scripts**: `aot-diagnostics.fsx`, `aot-analyzer.fsx`, `aot-test-runner.fsx`
+
+**Release Manager** ([.claude/skills/release-manager/](./.claude/skills/release-manager/))
+- Orchestrates complete release lifecycle
+- Manages changelog and version selection
+- Monitors GitHub Actions workflows
+- **Review capability**: Process consistency, changelog quality, version verification
+- **Scripts**: `prepare-release.fsx`, `monitor-release.fsx`, `monitor-pr.fsx`, `validate-release.fsx`
+
+**When to use skills**:
+```
+User: "Create a test plan for PR #123"
+You: @skill qa-tester
+     Please create a test plan for PR #123
+
+User: "Help me fix these trimming warnings"
+You: @skill aot-guru
+     Diagnose trimming warnings in src/Morphir
+
+User: "Prepare release 1.0.0"
+You: @skill release-manager
+     Prepare release for version 1.0.0
 ```
 
-### 2. Follow TDD Red-Green-Refactor Cycle
+### 2. TDD Workflow (Required)
 
-**CRITICAL**: All feature development must follow Test-Driven Development:
+**CRITICAL**: Follow Test-Driven Development (See [AGENTS.md Section 9.1](./AGENTS.md#91-test-driven-development-tdd---red-green-refactor)):
 
-1. **RED**: Write failing tests first
-   - Unit tests for new functionality
-   - BDD scenarios for new features
-   - Run `dotnet test` to confirm they fail
-
-2. **GREEN**: Implement minimal code to pass tests
-   - Focus on making tests pass
-   - Don't over-engineer
-
-3. **REFACTOR**: Clean up while keeping tests green
-   - Improve design
-   - Remove duplication
-   - Run `dotnet test` after each change
-
-### 3. Testing Requirements
+1. **RED**: Write failing test first (unit or BDD)
+2. **GREEN**: Minimal code to pass test  
+3. **REFACTOR**: Improve while keeping tests green
 
 Before ANY implementation:
-- Write BDD scenarios if implementing a new feature
+- Write BDD scenarios for new features
 - Write unit tests for new code
-- Ensure tests fail (RED phase)
-- Then implement (GREEN phase)
-- Then refactor (REFACTOR phase)
+- Confirm tests fail → implement → refactor
 
-### 4. Pre-Commit Checklist
+### 3. Commit Standards
 
-```bash
-# Always run before committing:
-dotnet format                              # Format code
-dotnet test --nologo                       # Run all tests
-dotnet test --collect:"XPlat Code Coverage"  # Verify coverage
-```
-
-### 5. Commit Message Format
-
-Follow Conventional Commits as specified in AGENTS.md Section 11:
-
+**Conventional Commits** (See [AGENTS.md Section 11](./AGENTS.md#11-review-and-contribution-rules)):
 ```
 feat: add IR schema validation for v3 format
 fix: resolve circular reference in schema loading
 test: add unit tests for SchemaValidator
-docs: update TDD guidance in AGENTS.md
-refactor: simplify error handling in VerifyIRHandler
 ```
 
-**IMPORTANT**: Do not list Claude (or any AI assistant) as a co-author on commits. The CLA does not support AI assistants as co-authors.
+**IMPORTANT**: Do NOT list Claude or AI assistants as co-authors (CLA limitation). Attribution in commit body is OK: "🤖 Generated with Claude Code"
 
-**Commit Co-Author Policy**:
-- **Never** add `Co-Authored-By: Claude <noreply@anthropic.com>` or any AI assistant as a co-author
-- Only human contributors who have signed the CLA should be listed as co-authors
-- You may include attribution in the commit message body (e.g., "🤖 Generated with Claude Code")
-- This applies to all commits, including those created by AI coding assistants
+### 4. CLI Logging (CRITICAL)
 
-### 6. Working with PRDs
+**CLI tools MUST NOT write log messages to stdout** (See [AGENTS.md CLI Logging](./AGENTS.md#5-coding-conventions)):
+- All logging → **stderr only**
+- Stdout → command output (JSON, results) only
+- Use Serilog: `standardErrorFromLevel: LogEventLevel.Verbose`
+- Test: `morphir verify file.json --json | jq` must work
 
-When implementing features from PRDs:
+Rationale: Scriptability and Unix philosophy (stdout = data, stderr = diagnostics)
 
-1. Check the Feature Status Tracking table for current tasks
-2. Update status as you progress: ⏳ Planned → 🚧 In Progress → ✅ Implemented
-3. Add Implementation Notes to the PRD as you make decisions
-4. Document any deviations from the original design
+### 5. Key Commands
 
-Example:
-```markdown
-## Implementation Notes
+```bash
+# Build and test
+./build.sh                # Default build
+./build.sh --target Test  # Run tests
+dotnet format             # Format (required pre-commit)
 
-### SchemaLoader (2025-12-15)
-- **Decision**: Used embedded resources instead of file system
-- **Rationale**: Simpler deployment, no external dependencies
-- **Impact**: Schemas bundled with assembly
-- **Files**: SchemaLoader.cs:15-30
+# Use skills
+@skill qa-tester     # Test plans, coverage
+@skill aot-guru      # AOT diagnostics, optimization
+@skill release-manager  # Release lifecycle
 ```
+## Code Quality Standards
 
-### 7. Code Quality Standards
+**From [AGENTS.md Section 5](./AGENTS.md#5-coding-conventions)**:
+- Immutability first, effects at edges
+- ADTs: Make illegal states unrepresentable
+- Exhaustive pattern matching, no nulls
+- Value types for IDs/quantities
 
-From AGENTS.md Section 5:
-
-- **Immutability first**: Prefer `readonly record` and immutable collections
-- **No nulls**: Use `Option<T>` or nullable reference types
-- **ADTs**: Make illegal states unrepresentable
-- **Pure functions**: Push side effects to edges
-- **Exhaustive pattern matching**: Update all matches when changing ADTs
-
-**F# Coding Standards**: See [F# Coding Guide](docs/contributing/fsharp-coding-guide.md) for comprehensive F# best practices:
-- Use active patterns instead of complex if-then chains
+**F# Standards** (See [F# Coding Guide](./docs/contributing/fsharp-coding-guide.md)):
+- Use active patterns over complex if-then chains
 - Railway-oriented programming with Result types
 - Immutable records and collections
-- CLI script standards with proper stdout/stderr separation
+- CLI script standards (stdout/stderr separation)
 
-### 8. Morphir-Specific Guidelines
-
-See AGENTS.md Section 6 for detailed Morphir IR modeling:
-
-- Use Morphir terminology consistently (Package, Module, Type, Value)
-- Maintain IR fidelity - no lossy representations
-- Follow naming conventions (segments, paths, qualified names)
-- Model ADTs explicitly (custom types, records, tuples, functions)
-
-### 9. CLI Logging Standards
-
-**CRITICAL Requirement**: CLI tools must never write log messages to stdout.
-
-- **All logging goes to stderr**: Use Serilog configured with `standardErrorFromLevel: LogEventLevel.Verbose`
-- **Stdout is for output only**: JSON results, formatted output, command results
-- **Configuration order matters**:
-  1. Clear default providers with `builder.Logging.ClearProviders()`
-  2. Add Serilog with stderr configuration
-  3. Then configure Wolverine (it will use the Serilog configuration)
-
-**Testing**: Always test commands with `--json` flag and verify stdout contains only valid JSON:
-
-```bash
-./morphir ir verify test.json --json | jq .
-```
-
-If this fails, logging is leaking to stdout.
-
-**Why**: CLI tools that write to stdout break:
-- Scriptability (cannot pipe output to jq, grep, etc.)
-- JSON parsing (log lines contaminate structured output)
-- Unix conventions (stdout = data, stderr = diagnostics)
-
-**Example configuration** (see `Morphir.Tooling/Program.cs:13-46`):
-
+**Morphir IR Modeling** (See [AGENTS.md Section 6](./AGENTS.md#6-morphir-specific-modeling)):
 ```csharp
-// CRITICAL: Clear default providers FIRST
-builder.Logging.ClearProviders();
-
-// Configure Serilog to write ALL logs to stderr
-var loggerConfig = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .WriteTo.Console(
-        standardErrorFromLevel: LogEventLevel.Verbose,
-        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
-    );
-
-Log.Logger = loggerConfig.CreateLogger();
-builder.Services.AddSerilog();
+public abstract record TypeExpr
+{
+    public sealed record TInt() : TypeExpr;
+    public sealed record TTuple(IReadOnlyList<TypeExpr> Items) : TypeExpr;
+    public sealed record TFunc(TypeExpr Input, TypeExpr Output) : TypeExpr;
+}
 ```
 
-### 10. Testing Strategy Summary
+## Resources
 
-From AGENTS.md Section 9:
+**Essential Documentation**:
+- [AGENTS.md](./AGENTS.md) - Primary guidance (READ FIRST)
+- [.agents/skills-reference.md](./.agents/skills-reference.md) - All skills documented
+- [.agents/capabilities-matrix.md](./.agents/capabilities-matrix.md) - Cross-agent features
+- [.agents/qa-testing.md](./.agents/qa-testing.md) - QA practices
+- [.agents/aot-optimization.md](./.agents/aot-optimization.md) - AOT guidance
+- [docs/contributing/fsharp-coding-guide.md](./docs/contributing/fsharp-coding-guide.md) - F# best practices
+- [docs/contributing/aot-trimming-guide.md](./docs/contributing/aot-trimming-guide.md) - User-facing AOT docs
 
-**Unit Testing (TUnit)**
-- Cover smart constructors, ADT exhaustiveness, edge cases
-- Place in `tests/Morphir.*.Tests/`
-- Use FluentAssertions for readable assertions
+**Skill Documentation**:
+- [.claude/skills/qa-tester/skill.md](./.claude/skills/qa-tester/skill.md)
+- [.claude/skills/aot-guru/skill.md](./.claude/skills/aot-guru/skill.md)
+- [.claude/skills/release-manager/skill.md](./.claude/skills/release-manager/skill.md)
 
-**BDD/Acceptance (Reqnroll)**
-- Feature files in `tests/*/Features/*.feature`
-- Step definitions in `tests/*/Steps/`
-- Use Gherkin syntax: Given-When-Then
-
-**Contract Tests**
-- JSON roundtrip validation
-- Cross-validate with morphir-elm samples
-- Ensure compatibility with Morphir CLI
-
-**Coverage Targets**
-- Maintain >= 80% code coverage
-- Coverage must not decrease with new changes
-
-### 11. Decision-Making Framework
-
-From AGENTS.md Section 10:
-
-1. **Favor IR fidelity and correctness** over convenience
-2. **Minimize dependencies** - justify new packages
-3. **Performance changes require benchmarks**
-4. **Keep effects at edges** - domain remains pure
-5. **Prefer explicit ADTs** over booleans/flags
-
-### 12. When to Escalate
-
-See AGENTS.md Section 2 for what to escalate:
-
-- Breaking public API changes
-- IR/JSON compatibility changes without ADR
-- Security/auth/crypto changes
-- Destructive migrations
-
-### 13. Resources and References
-
-- **Morphir Homepage**: https://morphir.finos.org/
-- **morphir-elm**: https://github.com/finos/morphir-elm
-- **morphir (core)**: https://github.com/finos/morphir
-- **morphir-dotnet (this repo)**: https://github.com/finos/morphir-dotnet
-
-### 14. Quick Command Reference
-
-**Build System (Nuke):**
-```bash
-# Build (default target)
-./build.sh
-
-# Restore dependencies
-./build.sh --target Restore
-
-# Run tests
-./build.sh --target Test
-
-# Format code
-./build.sh --target Format
-
-# Lint code
-./build.sh --target Lint
-
-# Full CI pipeline
-./build.sh --target CI
-
-# Show all available targets and parameters
-./build.sh --help
-```
-
-**Windows:** Use `build.cmd` or `build.ps1` instead of `./build.sh`
-
-**Direct .NET Commands:**
-```bash
-# Test with coverage
-dotnet test --collect:"XPlat Code Coverage"
-
-# Format
-dotnet format
-
-# Run CLI
-dotnet run --project src/Morphir/Morphir.csproj -- [command]
-
-# Example: Verify IR file
-dotnet run --project src/Morphir/Morphir.csproj -- ir verify test.json
-```
-
-**Migration Note:** This project migrated from `just` to Nuke build. See [NUKE_MIGRATION.md](NUKE_MIGRATION.md) for complete command mappings.
-
-### 15. File Structure Reference
-
-```
-morphir-dotnet/
-├── src/
-│   ├── Morphir/              # CLI/host application
-│   ├── Morphir.Core/         # Core domain model
-│   └── Morphir.Tooling/      # Tooling services (WolverineFx)
-├── tests/
-│   ├── Morphir.Core.Tests/
-│   └── Morphir.Tooling.Tests/
-│       ├── Features/         # BDD feature files + step definitions
-│       ├── Infrastructure/   # Unit tests for infrastructure
-│       └── TestData/         # Test fixtures
-├── build/
-│   ├── _build.csproj         # Nuke build project
-│   └── Build.cs              # Build orchestration (strongly-typed C#)
-├── scripts/                  # Build and utility C# scripts
-├── docs/
-│   ├── content/contributing/design/prds/  # PRDs
-│   └── spec/                 # IR specifications and schemas
-├── build.sh/cmd/ps1          # Nuke bootstrap scripts
-├── AGENTS.md                 # Primary agent guidance (READ THIS!)
-├── CLAUDE.md                 # This file
-├── NUKE_MIGRATION.md         # Nuke migration guide
-├── justfile                  # Legacy build commands (preserved for reference)
-└── README.md                 # Project README
-```
+**Morphir Resources**:
+- [Morphir Homepage](https://morphir.finos.org/)
+- [morphir-elm](https://github.com/finos/morphir-elm)
+- [morphir (core)](https://github.com/finos/morphir)
 
 ## Summary
 
-1. **Always read AGENTS.md first** - It's your primary source of truth
-2. **Follow TDD strictly** - Red, Green, Refactor (Section 9.1)
-3. **Test before code** - BDD scenarios and unit tests come first
-4. **Maintain quality** - >= 80% coverage, formatters, linters
-5. **Update PRDs** - Track status and add implementation notes
-6. **Commit properly** - Conventional commits, no AI co-authors
-7. **Run full test suite** - Before every commit
+1. **Read AGENTS.md first** - Primary source of truth
+2. **Use skills** - `@skill {skill-name}` for specialized tasks
+3. **Follow TDD strictly** - Red, Green, Refactor
+4. **CLI logging** - stderr only, never stdout
+5. **Test before commit** - `dotnet format && dotnet test`
+6. **Coverage >= 80%** - Maintain or improve
+7. **No AI co-authors** - Attribution in commit body OK
 
-**Remember**: AGENTS.md contains the complete, authoritative guidance. This file is just a quick reference to remind you to consult AGENTS.md and highlights the critical TDD workflow.
+**Workflow**: AGENTS.md → Use appropriate skill → Follow TDD → Run tests → Commit with conventional format
+
+---
+
+**Remember**: Skills exist to help you deliver better results faster. Use them liberally. They embody project expertise and best practices.
