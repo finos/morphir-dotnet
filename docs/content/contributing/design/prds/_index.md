@@ -14,6 +14,7 @@ This directory contains comprehensive Product Requirements Documents (PRDs) for 
 | PRD | Status | Current Phase | Current Task | Last Updated |
 |-----|--------|---------------|--------------|--------------|
 | [IR JSON Schema Verification](./ir-json-schema-verification.md) | 🚧 In Progress | Phase 1 | Setup | 2025-12-15 |
+| [Product Manager Skill](./product-manager-skill.md) | 📋 Draft | Phase 1 | Planning | 2025-12-18 |
 
 ## PRD Status Legend
 
@@ -76,4 +77,4 @@ Each PRD includes:
 
 ---
 
-**Last Updated**: 2025-12-15
+**Last Updated**: 2025-12-18
