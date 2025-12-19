@@ -196,10 +196,6 @@ jobs:
             - name: Publish packages to NuGet
               run: ./build.sh --target PublishAll --api-key ${{ env.NUGET_TOKEN }} --nuget-source https://api.nuget.org/v3/index.json
 
-            - name: Create GitHub Release (legacy)
-              if: needs.validate-version.outputs.skip-git-release != 'true'
-              run: ./build.sh --target CreateGitHubRelease --version ${{ needs.validate-version.outputs.version }}
-
     create-github-release:
         runs-on: ubuntu-latest
         needs: [validate-version, build-executables, release]
