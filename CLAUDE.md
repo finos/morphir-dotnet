@@ -77,6 +77,16 @@ test: add unit tests for SchemaValidator
 
 **IMPORTANT**: Do NOT list Claude or AI assistants as co-authors (CLA limitation). Attribution in commit body is OK: "🤖 Generated with Claude Code"
 
+**If you accidentally added Claude as a co-author**, use the automated script to fix it:
+```bash
+# Preview what will be changed
+dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5
+
+# Apply the fix (creates backup automatically)
+dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5 --yes
+```
+See [scripts/README.md](scripts/README.md#remove-claude-coauthorfsx) for complete documentation.
+
 ### 4. CLI Logging (CRITICAL)
 
 **CLI tools MUST NOT write log messages to stdout** (See [AGENTS.md CLI Logging](./AGENTS.md#5-coding-conventions)):

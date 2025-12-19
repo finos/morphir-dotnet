@@ -515,6 +515,15 @@ dotnet format
 - Small, focused PRs with tests (TUnit and/or Reqnroll).
 - Conventional Commits: feat:, fix:, refactor:, test:, docs:
 - **Do not list Claude (or any AI assistant) as a co-author on commits.** Our CLA does not support AI assistants as co-authors. Note: GitHub Copilot is supported and may be listed as a co-author when it is an actual co-author.
+  - **If you accidentally included Claude as a co-author**, use the [remove-claude-coauthor.fsx](scripts/remove-claude-coauthor.fsx) script to fix it:
+    ```bash
+    # Preview changes
+    dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5
+    
+    # Apply fixes (creates backup automatically)
+    dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5 --yes
+    ```
+  - See [scripts/README.md](scripts/README.md) for complete usage and options.
 - PR checklist:
     - [ ] Tests added/updated and passing
     - [ ] IR/JSON compatibility preserved or versioned with ADR
