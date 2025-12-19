@@ -78,7 +78,9 @@ partial class Build
                 .SetProperty("PackAsTool", "true")
                 .SetProperty("ToolCommandName", "dotnet-morphir")
                 .SetProperty("IsPackable", "true")
-                .SetProperty("Version", versionString));
+                .SetProperty("Version", versionString)
+                .SetProperty("DebugType", "none")  // Don't include PDB files in tool package
+                .SetProperty("IncludeSymbols", "false"));
         });
 
     /// <summary>

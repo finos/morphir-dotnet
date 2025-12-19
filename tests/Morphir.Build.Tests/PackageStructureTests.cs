@@ -9,7 +9,6 @@ namespace Morphir.Build.Tests;
 public class PackageStructureTests
 {
     [Test]
-    [Skip("Requires packages to be built first - run after PackAll target")]
     public async Task ToolPackage_HasCorrectStructure()
     {
         // Arrange
@@ -24,8 +23,8 @@ public class PackageStructureTests
             "Tool package must have tools/net10.0/any/ directory");
 
         // Check for required tool files
-        entries.Should().Contain("tools/net10.0/any/morphir.dll",
-            "Tool package must contain morphir.dll in tools directory");
+        entries.Should().Contain("tools/net10.0/any/dotnet-morphir.dll",
+            "Tool package must contain dotnet-morphir.dll in tools directory");
         entries.Should().Contain("tools/net10.0/any/DotnetToolSettings.xml",
             "Tool package must contain DotnetToolSettings.xml");
 
@@ -39,7 +38,6 @@ public class PackageStructureTests
     }
 
     [Test]
-    [Skip("Requires packages to be built first - run after PackAll target")]
     public async Task ToolPackage_HasCorrectToolSettings()
     {
         // Arrange
@@ -50,14 +48,13 @@ public class PackageStructureTests
         var toolSettings = await TestFixture.ReadPackageEntry(package!, "tools/net10.0/any/DotnetToolSettings.xml");
 
         // Assert
-        toolSettings.Should().Contain("<Command Name=\"morphir\"",
-            "Tool command should be named 'morphir'");
-        toolSettings.Should().Contain("EntryPoint=\"morphir.dll\"",
-            "Tool entry point should be morphir.dll");
+        toolSettings.Should().Contain("<Command Name=\"dotnet-morphir\"",
+            "Tool command should be named 'dotnet-morphir'");
+        toolSettings.Should().Contain("EntryPoint=\"dotnet-morphir.dll\"",
+            "Tool entry point should be dotnet-morphir.dll");
     }
 
     [Test]
-    [Skip("Requires packages to be built first - run after PackAll target")]
     public async Task LibraryPackages_HaveCorrectStructure()
     {
         // Arrange - Check Morphir.Core package
@@ -81,7 +78,6 @@ public class PackageStructureTests
     }
 
     [Test]
-    [Skip("Requires packages to be built first - run after PackAll target")]
     public async Task Packages_DoNotContainUnnecessaryFiles()
     {
         // Arrange - Find specific packages to avoid ambiguity
