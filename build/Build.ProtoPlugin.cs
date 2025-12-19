@@ -16,6 +16,9 @@ partial class Build
     [Parameter("Output directory for proto plugin WASM")]
     readonly AbsolutePath ProtoPluginDir = RootDirectory / "artifacts" / "proto-plugin";
 
+    [Parameter("Version for the proto plugin release (e.g., 0.1.0)")]
+    readonly string PluginVersion;
+
     AbsolutePath ProtoPluginProjectDir => RootDirectory / "integrations" / "rust" / "morphir-wasm-proto-plugin";
 
     /// <summary>
@@ -116,9 +119,10 @@ partial class Build
         {
             Serilog.Log.Information("Packaging Proto WASM plugin...");
 
+            var pluginVer = PluginVersion ?? throw new Exception("PluginVersion parameter is required for PackageProtoPlugin target");
             var wasmFile = ProtoPluginDir / "morphir_plugin.wasm";
             var readmeFile = ProtoPluginProjectDir / "README.md";
-            var tarballName = $"morphir-proto-plugin-v{Version}.tar.gz";
+            var tarballName = $"morphir-proto-plugin-v{pluginVer}.tar.gz";
             var tarballPath = ProtoPluginDir / tarballName;
 
             // Create a staging directory for the tarball contents
