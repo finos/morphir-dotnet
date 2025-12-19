@@ -156,6 +156,9 @@ jobs:
 
             - name: Pack tool package
               run: ./build.sh --target PackTool --configuration ${{ env.CONFIGURATION }} --version ${{ env.RELEASE_VERSION }}
+            
+            - name: Run build tests
+              run: ./build.sh --target TestBuild --configuration ${{ env.CONFIGURATION }}
 
             - name: Publish packages to NuGet
               run: ./build.sh --target PublishAll --api-key ${{ env.NUGET_TOKEN }} --nuget-source https://api.nuget.org/v3/index.json

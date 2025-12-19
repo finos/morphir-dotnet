@@ -17,10 +17,56 @@ partial class Build
     /// </summary>
     Target Test => _ => _
         .DependsOn(Compile)
-        .Description("Run all tests")
+        .Description("Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests)")
         .Executes(() =>
         {
             RunTests(Configuration);
+        });
+    
+    /// <summary>
+    /// Run build tests (Morphir.Build.Tests)
+    /// Validates package structure, metadata, and local installation
+    /// NOTE: Requires packages to be built first (run PackAll target)
+    /// </summary>
+    Target TestBuild => _ => _
+        .DependsOn(Compile)
+        .Description("Run build/package validation tests (requires packages to be built)")
+        .Executes(() =>
+        {
+            Serilog.Log.Information("Running build/package validation tests...");
+
+            // Check if packages exist
+            var packagesDir = OutputDir;
+            if (!System.IO.Directory.Exists(packagesDir) ||
+                !System.IO.Directory.GetFiles(packagesDir, "*.nupkg").Any())
+            {
+                Serilog.Log.Warning("⚠ No packages found in {0}", packagesDir);
+                Serilog.Log.Warning("⚠ Build tests require packages to be built first");
+                Serilog.Log.Warning("⚠ Run: ./build.sh PackAll --configuration {0}", Configuration);
+                Serilog.Log.Warning("⚠ Skipping build tests");
+                return;
+            }
+
+            Serilog.Log.Information("Running Morphir.Build.Tests...");
+
+            // Use dotnet exec to run the test assembly directly (required for .NET 10 SDK + TUnit)
+            var buildTestDll = TestsDirectory / "Morphir.Build.Tests" / "bin" / Configuration / "net10.0" / "Morphir.Build.Tests.dll";
+            var exitCode = RunCommand("dotnet", "exec", buildTestDll);
+
+            // Exit code 0 = success, 8 = all tests skipped (expected when packages don't exist)
+            if (exitCode != 0 && exitCode != 8)
+            {
+                throw new Exception($"Build tests failed with exit code {exitCode}");
+            }
+
+            if (exitCode == 8)
+            {
+                Serilog.Log.Warning("✓ Build tests SKIPPED (packages not built)");
+            }
+            else
+            {
+                Serilog.Log.Information("✓ Build tests PASSED");
+            }
         });
 
     /// <summary>

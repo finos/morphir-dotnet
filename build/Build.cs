@@ -92,6 +92,7 @@ partial class Build : NukeBuild
     AbsolutePath MorphirCoreTestsProject => TestsDirectory / "Morphir.Core.Tests" / "Morphir.Core.Tests.csproj";
     AbsolutePath MorphirToolingTestsProject => TestsDirectory / "Morphir.Tooling.Tests" / "Morphir.Tooling.Tests.csproj";
     AbsolutePath MorphirE2ETestsProject => TestsDirectory / "Morphir.E2E.Tests" / "Morphir.E2E.Tests.csproj";
+    AbsolutePath MorphirBuildTestsProject => TestsDirectory / "Morphir.Build.Tests" / "Morphir.Build.Tests.csproj";
 
     /// <summary>
     /// Clean build artifacts and output directories
