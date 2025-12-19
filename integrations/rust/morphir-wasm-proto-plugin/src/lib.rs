@@ -33,11 +33,11 @@ pub fn detect_version_files(_: ()) -> FnResult<Json<DetectVersionOutput>> {
 #[plugin_fn]
 pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVersionsOutput>> {
     let output = LoadVersionsOutput::default();
-    
+
     // Fetch versions from GitHub Releases API
     // For now, return empty list - versions should be managed by GitHub Releases
     // Users can specify explicit versions which will be resolved
-    
+
     Ok(Json(output))
 }
 
@@ -47,13 +47,13 @@ pub fn resolve_version(
     Json(_input): Json<ResolveVersionInput>,
 ) -> FnResult<Json<ResolveVersionOutput>> {
     let output = ResolveVersionOutput::default();
-    
+
     // For now, just use the input version as-is
     // In a more sophisticated implementation, we would:
     // 1. Fetch latest from GitHub API for "latest" alias
     // 2. Support pre-release versions
     // 3. Validate version exists
-    
+
     Ok(Json(output))
 }
 
@@ -63,7 +63,7 @@ pub fn download_prebuilt(
     Json(input): Json<DownloadPrebuiltInput>,
 ) -> FnResult<Json<DownloadPrebuiltOutput>> {
     let env = get_host_environment()?;
-    
+
     // Determine the platform-specific executable name and RID
     let rid = match (env.os, env.arch) {
         (HostOS::Linux, HostArch::X64) => "linux-x64",
@@ -72,24 +72,20 @@ pub fn download_prebuilt(
         (HostOS::MacOS, HostArch::Arm64) => "osx-arm64",
         (HostOS::Windows, HostArch::X64) => "win-x64",
         _ => {
-            return Err(plugin_err!(
-                "Unsupported platform: {} {}",
-                env.os,
-                env.arch
-            ));
+            return Err(plugin_err!("Unsupported platform: {} {}", env.os, env.arch));
         }
     };
-    
+
     let version = &input.context.version;
-    
+
     // GitHub Release URL format
     let download_url = format!(
         "https://github.com/finos/morphir-dotnet/releases/download/v{}/morphir-{}-v{}.tar.gz",
         version, rid, version
     );
-    
+
     let download_name = format!("morphir-{}-v{}.tar.gz", rid, version);
-    
+
     Ok(Json(DownloadPrebuiltOutput {
         archive_prefix: Some(rid.to_string()),
         download_url,
@@ -104,19 +100,16 @@ pub fn locate_executables(
     Json(_input): Json<LocateExecutablesInput>,
 ) -> FnResult<Json<LocateExecutablesOutput>> {
     let env = get_host_environment()?;
-    
+
     // Determine the executable name based on OS
     let exe_name = if env.os == HostOS::Windows {
         "morphir.exe"
     } else {
         "morphir"
     };
-    
+
     Ok(Json(LocateExecutablesOutput {
-        exes: HashMap::from_iter([(
-            "morphir".into(),
-            ExecutableConfig::new_primary(exe_name),
-        )]),
+        exes: HashMap::from_iter([("morphir".into(), ExecutableConfig::new_primary(exe_name))]),
         ..LocateExecutablesOutput::default()
     }))
 }
@@ -130,24 +123,24 @@ pub fn post_install(Json(input): Json<InstallHook>) -> FnResult<()> {
     } else {
         "morphir"
     });
-    
+
     // Set executable permissions on Unix systems
     #[cfg(unix)]
     {
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
-        
+
         if let Ok(metadata) = fs::metadata(&exe_path) {
             let mut permissions = metadata.permissions();
             permissions.set_mode(0o755);
             let _ = fs::set_permissions(&exe_path, permissions);
         }
     }
-    
+
     // Avoid unused variable warning on non-Unix platforms
     #[cfg(not(unix))]
     let _ = exe_path;
-    
+
     Ok(())
 }
 
