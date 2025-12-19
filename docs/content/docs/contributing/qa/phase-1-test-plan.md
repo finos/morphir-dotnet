@@ -1,3 +1,10 @@
+---
+title: "Phase 1 Test Plan"
+linkTitle: "Phase 1 Test Plan"
+description: "Test plan for Phase 1 of the Deployment Architecture Refactor"
+weight: 10
+---
+
 # Phase 1 Test Plan: Project Structure & Build Organization
 
 **Issue**: #209

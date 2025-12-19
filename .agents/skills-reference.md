@@ -7,7 +7,7 @@
 The morphir-dotnet project provides specialized expert skills for domain-specific tasks. Each skill combines deep domain knowledge, automation scripts, and review capabilities to help agents deliver higher quality results more efficiently.
 
 **Key Features:**
-- **Domain Expertise**: Specialized knowledge in QA testing, AOT optimization, and release management
+- **Domain Expertise**: Specialized knowledge in QA testing, AOT optimization, release management, and technical documentation
 - **Automation Scripts**: F# scripts that save agent tokens and accelerate common tasks
 - **Review Capabilities**: Built-in quality checks and continuous monitoring
 - **Cross-Agent Compatible**: Accessible via documentation and scripts regardless of your agent
@@ -16,7 +16,7 @@ The morphir-dotnet project provides specialized expert skills for domain-specifi
 
 **For Claude Code Users:**
 - Skills are available as interactive tools via `@skill {skill-name}`
-- Examples: `@skill qa-tester`, `@skill aot-guru`, `@skill release-manager`
+- Examples: `@skill qa-tester`, `@skill aot-guru`, `@skill release-manager`, `@skill technical-writer`
 - Skills can run automation scripts and provide guided assistance
 - **Note**: Some skills document common aliases, but these are **not supported** by Claude Code (documentation only)
 
@@ -44,6 +44,9 @@ Diagnose trimming warnings in src/Morphir.Tool
 
 @skill release-manager
 Prepare release for version 1.0.0
+
+@skill technical-writer
+Audit documentation for consistency and completeness
 ```
 
 **Features**:
@@ -817,6 +820,262 @@ Does [Unreleased] section in CHANGELOG.md have changes?
 
 ---
 
+### 4. Technical Writer
+
+**Full Documentation**: [.claude/skills/technical-writer/SKILL.md](../.claude/skills/technical-writer/SKILL.md)
+
+#### Scope and Purpose
+Expert in documentation, Hugo static site generator, Docsy theme, and visual communication. Creates and maintains high-quality documentation with compelling diagrams, consistent style, and excellent user experience.
+
+#### Core Competencies
+
+1. **Hugo Static Site Generator Mastery**
+   - Configuration management (hugo.toml)
+   - Module and theme integration
+   - Shortcode usage and creation
+   - Build troubleshooting and optimization
+   - Live preview and development workflow
+
+2. **Docsy Theme Expertise**
+   - Content organization and navigation
+   - Customization patterns (SCSS, layouts)
+   - Component usage (alerts, cards, tabs)
+   - Never modify theme directly philosophy
+
+3. **Mermaid Diagram Creation**
+   - Flowcharts for processes
+   - Sequence diagrams for interactions
+   - Class diagrams for architecture
+   - State diagrams for workflows
+   - ER diagrams for data models
+   - Gantt charts for timelines
+
+4. **PlantUML Expertise**
+   - C4 architecture diagrams
+   - Component diagrams
+   - Deployment diagrams
+   - Complex system visualization
+
+5. **Markdown Mastery**
+   - Hugo-flavored markdown
+   - Frontmatter optimization
+   - Cross-referencing and links
+   - Table formatting
+
+6. **API Documentation**
+   - XML doc comments
+   - API reference generation
+   - Code example quality
+   - Developer experience
+
+7. **Style Guide Enforcement**
+   - Consistent voice and tone
+   - Terminology standardization
+   - Brand identity maintenance
+   - Accessibility compliance
+
+#### Review Capability
+
+**Documentation Quality Review**
+- Validates link integrity across all docs
+- Checks Hugo build health
+- Verifies diagram syntax correctness
+- Ensures style guide compliance
+- Monitors content freshness
+
+**Review Output:**
+- Link validation report (broken links, redirects)
+- Hugo build diagnostics
+- Diagram syntax validation
+- Style compliance score
+- Content gap analysis
+
+**Review Triggers:**
+- Pre-release documentation validation
+- Quarterly documentation audit
+- After major feature additions
+- PR reviews for docs changes
+
+#### Automation Scripts
+
+Location: `.claude/skills/technical-writer/scripts/` (to be created)
+
+**link-validator.fsx**
+- Validate all internal/external links
+- Generate broken link report
+- Suggest fixes for common issues
+- **Token Savings**: ~800 tokens (vs manual link checking)
+
+**hugo-doctor.fsx**
+- Diagnose Hugo build issues
+- Check configuration validity
+- Verify module compatibility
+- **Token Savings**: ~600 tokens (vs manual troubleshooting)
+
+**diagram-validator.fsx**
+- Validate Mermaid/PlantUML syntax
+- Check diagram rendering
+- Identify broken diagrams
+- **Token Savings**: ~400 tokens (vs manual diagram validation)
+
+**content-auditor.fsx**
+- Analyze content coverage
+- Detect stale documentation
+- Identify missing sections
+- **Token Savings**: ~700 tokens (vs manual content analysis)
+
+**style-checker.fsx**
+- Enforce terminology consistency
+- Check heading hierarchy
+- Validate frontmatter
+- **Token Savings**: ~500 tokens (vs manual style review)
+
+**release-notes-generator.fsx**
+- Parse changelog
+- Generate What's New document
+- Create release announcement
+- **Token Savings**: ~600 tokens (vs manual document creation)
+
+**screenshot-taker.fsx**
+- Capture UI screenshots (with Playwright MCP)
+- Update outdated screenshots
+- Validate visual documentation
+- **Token Savings**: ~900 tokens (vs manual screenshot process)
+
+#### Manual Workflow for Non-Claude Agents
+
+**To validate documentation links:**
+```bash
+# Option 1: Use automation script
+dotnet fsi .claude/skills/technical-writer/scripts/link-validator.fsx
+
+# Option 2: Manual steps
+cd docs && hugo --gc --minify
+# Check build output for broken link warnings
+```
+
+**To diagnose Hugo issues:**
+```bash
+# Option 1: Use automation script
+dotnet fsi .claude/skills/technical-writer/scripts/hugo-doctor.fsx
+
+# Option 2: Manual troubleshooting
+cd docs && hugo version
+hugo config
+hugo server --disableFastRender
+```
+
+**To validate diagrams:**
+```bash
+# Option 1: Use automation script
+dotnet fsi .claude/skills/technical-writer/scripts/diagram-validator.fsx
+
+# Option 2: Manual check
+# Build Hugo and check browser console for Mermaid errors
+cd docs && hugo server
+```
+
+**To use Playwright MCP for live verification:**
+```
+# If Playwright MCP is available, use browser tools
+1. browser_navigate to documentation URL
+2. browser_snapshot to capture accessibility tree
+3. browser_take_screenshot for visual verification
+```
+
+#### Decision Trees
+
+**"What type of diagram should I use?"**
+```
+What are you visualizing?
+  ├─ Process/workflow → Mermaid Flowchart
+  ├─ Time-ordered interactions → Mermaid Sequence Diagram
+  ├─ Class relationships → Mermaid Class Diagram
+  ├─ State transitions → Mermaid State Diagram
+  ├─ Data model → Mermaid ER Diagram
+  ├─ Project timeline → Mermaid Gantt Chart
+  ├─ System architecture (C4) → PlantUML
+  ├─ Component relationships → PlantUML Component
+  └─ Deployment topology → PlantUML Deployment
+```
+
+**"Hugo build is failing"**
+```
+1. What type of error?
+   ├─ "module not found" → Check go.mod, run hugo mod tidy
+   ├─ "shortcode not found" → Verify shortcode path/name
+   ├─ "template not found" → Check layouts directory
+   ├─ "frontmatter error" → Validate YAML syntax
+   ├─ "content error" → Check markdown formatting
+   └─ "theme error" → Never modify theme, use overrides
+
+2. After fix:
+   → Test with hugo server --disableFastRender
+   → Document issue if recurring
+```
+
+**"What type of documentation should I create?"**
+```
+What's the user need?
+  ├─ Getting started → Tutorial (step-by-step)
+  ├─ How to accomplish X → How-To Guide (task-oriented)
+  ├─ Technical details → Reference (comprehensive)
+  ├─ Why/background → Explanation (conceptual)
+  └─ Quick lookup → API Reference (auto-generated)
+```
+
+#### Pattern Catalog
+
+**Mermaid Patterns:**
+```markdown
+# Flowchart
+flowchart LR
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action]
+    B -->|No| D[Other]
+
+# Sequence
+sequenceDiagram
+    participant A
+    participant B
+    A->>B: Request
+    B-->>A: Response
+```
+
+**Hugo Frontmatter:**
+```yaml
+---
+title: "Page Title"
+linkTitle: "Nav Title"
+weight: 10
+description: "Brief description for SEO"
+---
+```
+
+**Docsy Shortcodes:**
+```markdown
+{{< alert title="Warning" color="warning" >}}
+Important content here
+{{< /alert >}}
+
+{{< tabpane >}}
+{{< tab header="C#" >}}
+// C# code
+{{< /tab >}}
+{{< tab header="F#" >}}
+// F# code
+{{< /tab >}}
+{{< /tabpane >}}
+```
+
+#### Integration with Other Skills
+
+- **Release Manager**: Create release notes and What's New documents
+- **QA Tester**: Document test procedures and results
+- **AOT Guru**: Document AOT patterns and troubleshooting guides
+
+---
+
 ## Cross-Agent Compatibility
 
 See [capabilities-matrix.md](./capabilities-matrix.md) for detailed cross-agent compatibility information.
@@ -885,6 +1144,7 @@ Savings: ~500-700 tokens (60-70% reduction)
    - [QA Tester](../.claude/skills/qa-tester/skill.md)
    - [AOT Guru](../.claude/skills/aot-guru/skill.md)
    - [Release Manager](../.claude/skills/release-manager/skill.md)
+   - [Technical Writer](../.claude/skills/technical-writer/SKILL.md)
 
 2. **Run automation scripts directly**:
    ```bash

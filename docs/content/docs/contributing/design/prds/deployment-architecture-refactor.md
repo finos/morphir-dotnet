@@ -1,5 +1,8 @@
 ---
 title: "PRD: Deployment Architecture Refactor"
+linkTitle: "Deployment Refactor"
+description: "Refactor deployment architecture to fix packaging issues and establish changelog-driven versioning"
+weight: 30
 date: 2025-12-18
 status: "Approved"
 priority: "High"

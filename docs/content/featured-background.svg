@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#16213e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f3460;stop-opacity:1" />
+    </linearGradient>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="20" cy="20" r="1" fill="rgba(255,255,255,0.1)"/>
+    </pattern>
+  </defs>
+
+  <!-- Background gradient -->
+  <rect width="100%" height="100%" fill="url(#bg-gradient)"/>
+
+  <!-- Subtle grid pattern -->
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <!-- Dot pattern overlay -->
+  <rect width="100%" height="100%" fill="url(#dots)"/>
+
+  <!-- Abstract geometric shapes representing data flow / transformation -->
+  <g opacity="0.1">
+    <!-- Left side flowing lines -->
+    <path d="M-100,200 Q200,300 400,200 T800,250" stroke="rgba(0,191,165,0.4)" stroke-width="2" fill="none"/>
+    <path d="M-100,250 Q200,350 400,250 T800,300" stroke="rgba(0,191,165,0.3)" stroke-width="2" fill="none"/>
+    <path d="M-100,300 Q200,400 400,300 T800,350" stroke="rgba(0,191,165,0.2)" stroke-width="2" fill="none"/>
+
+    <!-- Right side flowing lines -->
+    <path d="M1920,700 Q1600,800 1400,700 T1000,750" stroke="rgba(0,102,204,0.4)" stroke-width="2" fill="none"/>
+    <path d="M1920,750 Q1600,850 1400,750 T1000,800" stroke="rgba(0,102,204,0.3)" stroke-width="2" fill="none"/>
+    <path d="M1920,800 Q1600,900 1400,800 T1000,850" stroke="rgba(0,102,204,0.2)" stroke-width="2" fill="none"/>
+
+    <!-- Center connection nodes -->
+    <circle cx="960" cy="400" r="80" fill="none" stroke="rgba(0,191,165,0.15)" stroke-width="2"/>
+    <circle cx="960" cy="400" r="120" fill="none" stroke="rgba(0,102,204,0.1)" stroke-width="1"/>
+    <circle cx="960" cy="400" r="160" fill="none" stroke="rgba(0,191,165,0.05)" stroke-width="1"/>
+
+    <!-- Data transformation hexagons -->
+    <polygon points="300,600 350,570 400,600 400,660 350,690 300,660" fill="none" stroke="rgba(0,191,165,0.2)" stroke-width="1"/>
+    <polygon points="1520,300 1570,270 1620,300 1620,360 1570,390 1520,360" fill="none" stroke="rgba(0,102,204,0.2)" stroke-width="1"/>
+
+    <!-- Connecting lines suggesting data flow -->
+    <line x1="400" y1="630" x2="880" y2="400" stroke="rgba(0,191,165,0.1)" stroke-width="1" stroke-dasharray="5,5"/>
+    <line x1="1520" y1="330" x2="1040" y2="400" stroke="rgba(0,102,204,0.1)" stroke-width="1" stroke-dasharray="5,5"/>
+  </g>
+
+  <!-- Subtle glow effect in center -->
+  <ellipse cx="960" cy="540" rx="600" ry="300" fill="url(#bg-gradient)" opacity="0.3"/>
+</svg>

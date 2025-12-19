@@ -1,7 +1,8 @@
 ---
 title: "Guru Creation Guide"
+linkTitle: "Creating Gurus"
 description: "Step-by-step guide for creating new AI gurus in morphir-dotnet"
-weight: 102
+weight: 30
 ---
 
 # Guru Creation Guide
@@ -19,6 +20,31 @@ A guru should be created when you have a domain of expertise that:
 ## Part 1: Should This Be a Guru?
 
 ### Decision Framework
+
+Use this flowchart to determine if you should create a guru:
+
+```mermaid
+flowchart TD
+    START([Start]) --> Q1{Is it a<br/>distinct domain?}
+    Q1 -->|No| ALT1[Create .agents/ guide<br/>or AGENTS.md section]
+    Q1 -->|Yes| Q2{Does it justify<br/>deep expertise?<br/>20+ patterns?}
+    Q2 -->|No| ALT2[Document in<br/>AGENTS.md]
+    Q2 -->|Yes| Q3{3+ core<br/>competencies?}
+    Q3 -->|No| ALT3[Add to existing guru<br/>or create guide]
+    Q3 -->|Yes| Q4{High-token-cost<br/>repetitive work?}
+    Q4 -->|No| ALT4[Create .agents/ guide<br/>No automation needed]
+    Q4 -->|Yes| Q5{Will coordinate<br/>with other gurus?}
+    Q5 -->|No| ALT5[Standalone skill<br/>or utility]
+    Q5 -->|Yes| CREATE([Create a Guru!])
+
+    style START fill:#e8f5e9,stroke:#2e7d32
+    style CREATE fill:#c8e6c9,stroke:#2e7d32
+    style ALT1 fill:#fff3e0,stroke:#e65100
+    style ALT2 fill:#fff3e0,stroke:#e65100
+    style ALT3 fill:#fff3e0,stroke:#e65100
+    style ALT4 fill:#fff3e0,stroke:#e65100
+    style ALT5 fill:#fff3e0,stroke:#e65100
+```
 
 Ask yourself these questions in order:
 
@@ -165,6 +191,36 @@ Release Manager Coordination:
 ### Directory Layout
 
 Create the following structure:
+
+```mermaid
+graph TB
+    subgraph ".claude/skills/{guru-name}/"
+        SKILL["📄 skill.md<br/>Main skill prompt<br/>1000-1200 lines"]
+        README["📄 README.md<br/>Quick reference<br/>300-400 lines"]
+        MAINT["📄 MAINTENANCE.md<br/>Review process"]
+
+        subgraph "scripts/"
+            S1["automation-1.fsx"]
+            S2["automation-2.fsx"]
+            S3["common.fsx"]
+        end
+
+        subgraph "templates/"
+            T1["decision-template.md"]
+            T2["workflow-template.md"]
+        end
+
+        subgraph "patterns/"
+            P1["pattern-1.md"]
+            P2["pattern-2.md"]
+            P3["...grows over time"]
+        end
+    end
+
+    style SKILL fill:#fff3e0,stroke:#e65100
+    style README fill:#e8f5e9,stroke:#2e7d32
+    style MAINT fill:#e3f2fd,stroke:#1565c0
+```
 
 ```
 .claude/skills/{guru-name}/
@@ -821,6 +877,50 @@ Before releasing your guru:
 - [ ] Learning system generating insights
 
 ## Checklist: Creating a New Guru
+
+The guru creation process follows these phases:
+
+```mermaid
+graph LR
+    subgraph "Planning"
+        P1[Define Domain]
+        P2[Map Competencies]
+        P3[Design Feedback]
+    end
+
+    subgraph "Implementation"
+        I1[Create Structure]
+        I2[Write skill.md]
+        I3[Build Scripts]
+    end
+
+    subgraph "Validation"
+        V1[Test Scripts]
+        V2[Verify Trees]
+        V3[Get Feedback]
+    end
+
+    subgraph "Launch"
+        L1[Update AGENTS.md]
+        L2[Announce]
+        L3[Capture Learning]
+    end
+
+    subgraph "Evolution"
+        E1[Quarterly Review]
+        E2[Update Patterns]
+        E3[Improve]
+    end
+
+    Planning --> Implementation --> Validation --> Launch --> Evolution
+    Evolution -.->|Continuous| Evolution
+
+    style P1 fill:#e3f2fd
+    style I1 fill:#e8f5e9
+    style V1 fill:#fff3e0
+    style L1 fill:#fce4ec
+    style E1 fill:#f3e5f5
+```
 
 Use this checklist when creating a new guru:
 

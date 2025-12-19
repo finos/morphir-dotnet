@@ -1,6 +1,8 @@
 ---
 title: "GitHub Copilot Skill Emulation Test Plan"
+linkTitle: "Copilot Skill Emulation"
 description: "Test plan to validate documentation-based skill emulation in GitHub Copilot (Issue #266)."
+weight: 20
 date: 2025-12-19
 draft: false
 ---

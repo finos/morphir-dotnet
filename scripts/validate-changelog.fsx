@@ -164,10 +164,17 @@ let parser = ArgumentParser.Create<CliArguments>(
     helpTextMessage = "Validate CHANGELOG.md format"
 )
 
+// Filter out dotnet-injected arguments (e.g., --preferreduilang from DOTNET_CLI_UI_LANGUAGE)
+let filterDotnetArgs (args: string[]) =
+    args |> Array.filter (fun arg ->
+        not (arg.StartsWith("--preferreduilang", StringComparison.OrdinalIgnoreCase))
+    )
+
 try
     let args =
-        if fsi.CommandLineArgs.Length > 1 then
-            parser.ParseCommandLine(inputs = (fsi.CommandLineArgs |> Array.skip 1), raiseOnUsage = true)
+        let filteredArgs = fsi.CommandLineArgs |> Array.skip 1 |> filterDotnetArgs
+        if filteredArgs.Length > 0 then
+            parser.ParseCommandLine(inputs = filteredArgs, raiseOnUsage = true)
         else
             parser.ParseCommandLine(inputs = [||], raiseOnUsage = false)
 

@@ -8,7 +8,7 @@ changes aligned with Morphir IR and tooling.
 
 - **This file (AGENTS.md)**: Primary guidance for all AI agents
 - **Specialized Topics**: See [.agents/](./.agents/) directory for domain-specific guides
-  - [Skills Reference](./.agents/skills-reference.md) - QA Tester, AOT Guru, Release Manager
+  - [Skills Reference](./.agents/skills-reference.md) - QA Tester, AOT Guru, Release Manager, Technical Writer
   - [Capabilities Matrix](./.agents/capabilities-matrix.md) - Cross-agent feature availability
   - [QA Testing](./.agents/qa-testing.md) - Test plans, playbooks, scripts
   - [AOT Optimization](./.agents/aot-optimization.md) - Trimming, AOT guidance
@@ -925,6 +925,7 @@ This repository provides specialized, domain-specific guidance in the [.agents/]
 - **QA Tester** - Test plan design, regression testing, coverage monitoring, issue reporting
 - **AOT Guru** - Single-file trimmed executables, AOT readiness, trimming diagnostics, size optimization
 - **Release Manager** - Release lifecycle, changelog management, version selection, workflow monitoring
+- **Technical Writer** - Documentation, Hugo/Docsy mastery, Mermaid/PlantUML diagrams, style guide
 - Each skill includes: scope, competencies, review capabilities, automation scripts, manual workflows
 - Decision trees and pattern catalogs for common scenarios
 - Cross-agent accessibility information
@@ -986,7 +987,7 @@ morphir-dotnet provides specialized expert skills that work across all AI coding
 
 #### GitHub Copilot Usage Guide (Skill Emulation)
 
-- **Discover skills**: Ask "What skills are available in this project?" → Copilot should read [.agents/skills-reference.md](./.agents/skills-reference.md) and list QA Tester, AOT Guru, Release Manager with links.
+- **Discover skills**: Ask "What skills are available in this project?" → Copilot should read [.agents/skills-reference.md](./.agents/skills-reference.md) and list QA Tester, AOT Guru, Release Manager, Technical Writer with links.
 - **Invoke guidance**: Use natural language, e.g., "Use the QA Tester skill to create a test plan for PR #123" → Copilot should read `.claude/skills/qa-tester/skill.md` and follow the "Test Plan Development" section.
 - **Run scripts**: Provide exact commands, e.g., `dotnet fsi .claude/skills/qa-tester/scripts/smoke-test.fsx` and explain expected outcomes.
 - **Follow playbooks**: Ask "Walk me through the regression testing playbook" → Copilot should enumerate steps with commands and validation criteria.
