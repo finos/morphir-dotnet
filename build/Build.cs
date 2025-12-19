@@ -10,6 +10,7 @@ using Nuke.Common.ProjectModel;
 using Nuke.Common.Tooling;
 using Nuke.Common.Tools.DotNet;
 using Nuke.Common.Utilities.Collections;
+using SemVersion;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
 
 /// <summary>
@@ -29,8 +30,8 @@ partial class Build : NukeBuild
     [Parameter("Configuration to build - Default is 'Release'")]
     readonly string Configuration = "Release";
 
-    [Parameter("Version string for packages and executables")]
-    readonly string Version;
+    [Parameter("Version string for packages and executables (overrides CHANGELOG.md)")]
+    readonly string? VersionOverride;
 
     [Parameter("Output directory for packages")]
     readonly AbsolutePath OutputDir = RootDirectory / "artifacts" / "packages";
@@ -69,6 +70,19 @@ partial class Build : NukeBuild
     AbsolutePath TestsDirectory => RootDirectory / "tests";
     AbsolutePath ScriptsDirectory => RootDirectory / "scripts";
     AbsolutePath SolutionFile => RootDirectory / "Morphir.slnx";
+    AbsolutePath ChangelogFile => RootDirectory / "CHANGELOG.md";
+
+    /// <summary>
+    /// Gets the version from CHANGELOG.md (or uses VersionOverride if provided)
+    /// </summary>
+    SemanticVersion Version => VersionOverride != null 
+        ? SemanticVersion.Parse(VersionOverride) 
+        : new FileInfo(ChangelogFile).GetVersionFromChangelog();
+
+    /// <summary>
+    /// Gets the release notes for the latest release from CHANGELOG.md
+    /// </summary>
+    string ReleaseNotes => new FileInfo(ChangelogFile).GetReleaseNotes();
 
     // Project paths
     AbsolutePath MorphirCoreProject => SourceDirectory / "Morphir.Core" / "Morphir.Core.csproj";
@@ -223,12 +237,8 @@ partial class Build : NukeBuild
                 .SetProperty("PublishSingleFile", "true")
                 .SetProperty("PublishTrimmed", "true")
                 .SetProperty("PublishAot", "true")
+                .SetProperty("Version", Version.ToString())
                 .SetOutput(ridOutputDir);
-
-            if (!string.IsNullOrEmpty(Version))
-            {
-                publishSettings = publishSettings.SetProperty("Version", Version);
-            }
 
             Serilog.Log.Information($"Publishing single-file executable for {Rid}...");
             DotNetPublish(publishSettings);
@@ -276,12 +286,8 @@ partial class Build : NukeBuild
                 .SetProperty("PublishTrimmed", "true")
                 .SetProperty("TrimMode", "partial")
                 .SetProperty("TreatWarningsAsErrors", "false") // Temporarily disable to allow IL2026 warning for ConfigureWolverineCodeGeneration
+                .SetProperty("Version", Version.ToString())
                 .SetOutput(ridOutputDir);
-
-            if (!string.IsNullOrEmpty(Version))
-            {
-                publishSettings = publishSettings.SetProperty("Version", Version);
-            }
 
             Serilog.Log.Information($"Publishing single-file executable (managed, trimmed) for {Rid}...");
             DotNetPublish(publishSettings);
@@ -327,12 +333,8 @@ partial class Build : NukeBuild
                 .SetSelfContained(true)
                 .SetProperty("PublishSingleFile", "true")
                 .SetProperty("PublishTrimmed", "false")
+                .SetProperty("Version", Version.ToString())
                 .SetOutput(ridOutputDir);
-
-            if (!string.IsNullOrEmpty(Version))
-            {
-                publishSettings = publishSettings.SetProperty("Version", Version);
-            }
 
             Serilog.Log.Information($"Publishing single-file executable (managed, untrimmed) for {Rid}...");
             DotNetPublish(publishSettings);

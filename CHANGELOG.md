@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Ionide.KeepAChangelog integration for changelog-driven versioning
+- ChangelogHelper class for parsing and manipulating CHANGELOG.md
+- PrepareRelease target for automated release preparation
+
 ## [0.3.0-rc.1] - 2025-12-18
 
 ### Added

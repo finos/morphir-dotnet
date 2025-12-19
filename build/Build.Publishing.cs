@@ -242,4 +242,57 @@ partial class Build
         {
             Serilog.Log.Information("All packages published locally successfully");
         });
+
+    // Release Preparation
+
+    [Parameter("Version string for the new release (e.g., 0.3.0 or 0.3.0-beta.1)")]
+    readonly string? ReleaseVersion;
+
+    /// <summary>
+    /// Prepare a new release by moving [Unreleased] content to a versioned section in CHANGELOG.md
+    /// Validates that [Unreleased] has content before preparing the release
+    /// Stages changes with git add but does not commit
+    /// Parameters: --release-version (required, must be valid SemVer)
+    /// </summary>
+    Target PrepareRelease => _ => _
+        .Description("Prepare a new release by updating CHANGELOG.md")
+        .Executes(() =>
+        {
+            if (string.IsNullOrEmpty(ReleaseVersion))
+            {
+                throw new Exception("Release version is required. Use --release-version parameter (e.g., --release-version 0.3.0)");
+            }
+
+            Serilog.Log.Information($"Preparing release: {ReleaseVersion}");
+            
+            var changelogFile = new FileInfo(ChangelogFile);
+            
+            // Validate [Unreleased] has content
+            if (!changelogFile.HasUnreleasedContent())
+            {
+                throw new Exception("[Unreleased] section is empty. Add changes to CHANGELOG.md before preparing a release.");
+            }
+            
+            // Prepare the release (updates CHANGELOG.md)
+            changelogFile.PrepareRelease(ReleaseVersion);
+            
+            Serilog.Log.Information("✓ CHANGELOG.md updated successfully");
+            Serilog.Log.Information($"  - Created new [{ReleaseVersion}] section");
+            Serilog.Log.Information($"  - Reset [Unreleased] section");
+            Serilog.Log.Information($"  - Updated comparison links");
+            
+            // Stage the changes
+            RunCommand("git", "add", ChangelogFile);
+            Serilog.Log.Information($"✓ Staged CHANGELOG.md");
+            
+            // Display next steps
+            Serilog.Log.Information("");
+            Serilog.Log.Information("Next steps:");
+            Serilog.Log.Information("  1. Review changes: git diff --staged");
+            Serilog.Log.Information($"  2. Commit: git commit -m \"chore: prepare release {ReleaseVersion}\"");
+            Serilog.Log.Information($"  3. Push: git push origin release/{ReleaseVersion}");
+            Serilog.Log.Information($"  4. Create PR: gh pr create --title \"chore: prepare release {ReleaseVersion}\"");
+            Serilog.Log.Information($"  5. After merge, tag: git tag -a v{ReleaseVersion} -m \"Release {ReleaseVersion}\"");
+            Serilog.Log.Information($"  6. Push tag: git push origin v{ReleaseVersion}");
+        });
 }

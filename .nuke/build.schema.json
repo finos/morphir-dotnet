@@ -39,6 +39,7 @@
         "PackLibs",
         "PackTool",
         "Precommit",
+        "PrepareRelease",
         "PublishAll",
         "PublishExecutable",
         "PublishLibs",
@@ -156,6 +157,10 @@
           "type": "string",
           "description": "Output directory for packages"
         },
+        "ReleaseVersion": {
+          "type": "string",
+          "description": "Version string for the new release (e.g., 0.3.0 or 0.3.0-beta.1)"
+        },
         "Rid": {
           "type": "string",
           "description": "Runtime Identifier (e.g., linux-x64, win-x64, osx-arm64)"
@@ -172,9 +177,9 @@
           "type": "string",
           "description": "Output directory for tool DLLs"
         },
-        "Version": {
+        "VersionOverride": {
           "type": "string",
-          "description": "Version string for packages and executables"
+          "description": "Version string for packages and executables (overrides CHANGELOG.md)"
         }
       }
     },

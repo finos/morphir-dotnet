@@ -32,6 +32,7 @@
     <PackageVersion Include="FSharp.SystemCommandLine" Version="0.17.0-beta4" />
     <PackageVersion Include="Generator.Equals" Version="3.2.1" />
     <PackageVersion Include="InlineComposition" Version="1.5.1" />
+    <PackageVersion Include="Ionide.KeepAChangelog" Version="0.2.0" />
     <PackageVersion Include="JasperFx.CodeGeneration" Version="3.7.2" />
     <PackageVersion Include="JasperFx.CodeGeneration.Commands" Version="3.7.2" />
     <PackageVersion Include="Nuke.Common" Version="10.1.0" />

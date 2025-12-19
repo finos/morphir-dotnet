@@ -11,6 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Ionide.KeepAChangelog" />
     <PackageReference Include="Nuke.Common" />
   </ItemGroup>
 
