@@ -81,9 +81,9 @@
       },
       "WolverineFx": {
         "type": "Direct",
-        "requested": "[5.8.0, )",
-        "resolved": "5.8.0",
-        "contentHash": "BzHf+tPyU48gtJkyKuDKsWk8v8K55P6bcCehCTqsTdLzCrb0frQKvB7LHtHURwagvXvqBHiLZQuTT50KS2shew==",
+        "requested": "[5.9.0, )",
+        "resolved": "5.9.0",
+        "contentHash": "kHmwFs3QpM9WaXZ3k+ruV/MKBdZYqFLGciTfMpbHWFwfp9BqLgXqY9T5rUvWamSU69qh93yBog7PmZOv5umidg==",
         "dependencies": {
           "JasperFx": "1.11.3",
           "JasperFx.Events": "1.12.2",
@@ -669,7 +669,7 @@
           "Dunet": "[1.11.3, )",
           "Generator.Equals": "[3.2.1, )",
           "LanguageExt.Core": "[5.0.0-beta-61, )",
-          "Vogen": "[8.0.3, )"
+          "Vogen": "[8.0.4, )"
         }
       },
       "morphir.tooling": {
@@ -684,7 +684,7 @@
           "Serilog": "[4.3.0, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
-          "WolverineFx": "[5.8.0, )"
+          "WolverineFx": "[5.9.0, )"
         }
       },
       "Dunet": {
@@ -803,9 +803,9 @@
       },
       "Vogen": {
         "type": "CentralTransitive",
-        "requested": "[8.0.3, )",
-        "resolved": "8.0.3",
-        "contentHash": "mWcOP9OazN1pqZTGedVG+7k+mA5gDy5ZVgF7hlIhY+Dt4Ex+oAdU3ktNB8PjIjyf5MC37M/Z5Yv6DdDdldCPqw=="
+        "requested": "[8.0.4, )",
+        "resolved": "8.0.4",
+        "contentHash": "pBrE2re4pjuvOJTsnApY2calA2VXEfk+GSXigCVvLpD3PL19a5NzhB4a//IlVtaL31jcY30WI8WDDHqhCaKxvw=="
       }
     }
   }
