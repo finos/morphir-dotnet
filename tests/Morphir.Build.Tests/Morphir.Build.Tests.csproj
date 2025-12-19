@@ -8,8 +8,6 @@
     <IsPackable>false</IsPackable>
     <RootNamespace>Morphir.Build.Tests</RootNamespace>
     <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
-    <!-- Opt into the new dotnet test experience for .NET 10 SDK -->
-    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
   </PropertyGroup>
 
   <ItemGroup>

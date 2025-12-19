@@ -34,10 +34,10 @@ partial class Build
         .Executes(() =>
         {
             Serilog.Log.Information("Running build/package validation tests...");
-            
+
             // Check if packages exist
             var packagesDir = OutputDir;
-            if (!System.IO.Directory.Exists(packagesDir) || 
+            if (!System.IO.Directory.Exists(packagesDir) ||
                 !System.IO.Directory.GetFiles(packagesDir, "*.nupkg").Any())
             {
                 Serilog.Log.Warning("⚠ No packages found in {0}", packagesDir);
@@ -46,14 +46,18 @@ partial class Build
                 Serilog.Log.Warning("⚠ Skipping build tests");
                 return;
             }
-            
+
             Serilog.Log.Information("Running Morphir.Build.Tests...");
-            
-            DotNetTest(s => s
-                .SetProjectFile(MorphirBuildTestsProject)
-                .SetConfiguration(Configuration)
-                .SetNoBuild(false));
-            
+
+            // Use dotnet exec to run the test assembly directly (required for .NET 10 SDK + TUnit)
+            var buildTestDll = TestsDirectory / "Morphir.Build.Tests" / "bin" / Configuration / "net10.0" / "Morphir.Build.Tests.dll";
+            var exitCode = RunCommand("dotnet", "exec", buildTestDll);
+
+            if (exitCode != 0)
+            {
+                throw new Exception($"Build tests failed with exit code {exitCode}");
+            }
+
             Serilog.Log.Information("✓ Build tests PASSED");
         });
 

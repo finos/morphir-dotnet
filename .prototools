@@ -1,0 +1,2 @@
+[plugins.tools]
+morphir-test = "https://github.com/finos/morphir-dotnet/releases/download/plugin-v0.1.0/morphir_plugin.wasm"
