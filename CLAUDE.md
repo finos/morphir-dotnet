@@ -11,6 +11,7 @@ This file provides Claude Code-specific guidance for the morphir-dotnet reposito
 - `@skill aot-guru` - AOT/trimming diagnostics, size optimization
 - `@skill release-manager` - Release lifecycle, changelog, version management
 - `@skill technical-writer` - Documentation, Hugo/Docsy, diagrams, style guide
+- `@skill vulnerability-resolver` - CVE scanning, fix/suppress decisions, security documentation
 
 See [.agents/skills-reference.md](./.agents/skills-reference.md) for complete skill documentation.
 
@@ -48,6 +49,14 @@ See [.agents/skills-reference.md](./.agents/skills-reference.md) for complete sk
 - **Scripts**: `link-validator.fsx`, `hugo-doctor.fsx`, `diagram-validator.fsx`
 - **Playwright MCP**: Use for live documentation verification when available
 
+**Vulnerability Resolver** ([.claude/skills/vulnerability-resolver/](./.claude/skills/vulnerability-resolver/))
+- Triggers and monitors OWASP Dependency-Check scans
+- Analyzes CVE reports and categorizes by severity
+- Guides fix vs. suppress decisions with evidence
+- Creates documented suppressions for false positives
+- **Review capability**: Quarterly suppression review, security posture assessment
+- **Scripts**: `scan-branch.fsx`, `parse-report.fsx`, `create-suppression.fsx`
+
 **When to use skills**:
 ```
 User: "Create a test plan for PR #123"
@@ -69,6 +78,14 @@ You: @skill technical-writer
 User: "Create a diagram of the validation flow"
 You: @skill technical-writer
      Create a sequence diagram showing IR validation
+
+User: "CVE scan is failing"
+You: @skill vulnerability-resolver
+     Help analyze and resolve the CVE scan failure
+
+User: "Is this CVE a false positive?"
+You: @skill vulnerability-resolver
+     Analyze CVE-2023-4914 and determine if suppression is appropriate
 ```
 
 ### 2. TDD Workflow (Required)
