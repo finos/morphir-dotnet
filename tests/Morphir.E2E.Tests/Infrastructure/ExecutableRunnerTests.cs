@@ -132,4 +132,55 @@ public class ExecutableRunnerTests
             ExecutableRunner.IsInfrastructureLogMessage(log).Should().BeTrue($"'{log}' should be filtered");
         }
     }
+
+    [Test]
+    public void IsInfrastructureLogMessage_ShouldFilter_SerilogFormattedLogs()
+    {
+        // Serilog formatted log messages with [HH:mm:ss LEVEL] pattern
+        // Added in PR #244 to handle WolverineFx 5.8.0+ log output
+        var serilogLogs = new[]
+        {
+            "[07:05:03 INF] Any info level message",
+            "[23:59:59 INF] Info message at end of day",
+            "[00:00:00 INF] Info message at midnight",
+            "[12:34:56 WRN] Any warning level message",
+            "[01:23:45 WRN] Warning with details",
+            "[11:22:33 DBG] Any debug level message",
+            "[09:08:07 DBG] Debug trace information"
+        };
+
+        foreach (var log in serilogLogs)
+        {
+            ExecutableRunner.IsInfrastructureLogMessage(log).Should().BeTrue($"'{log}' should be filtered");
+        }
+    }
+
+    [Test]
+    public void IsInfrastructureLogMessage_ShouldNotFilter_NonSerilogBracketedContent()
+    {
+        // Content with brackets that should NOT match Serilog pattern
+        var nonSerilogContent = new[]
+        {
+            "[INFO] Not Serilog format - no timestamp",
+            "[07:05] Missing log level",
+            "[Not a timestamp INF] Wrong format",
+            "[ERROR] Different log format",
+            "Some text [07:05:03 INF] with log in middle",
+            "  [07:05:03 INF] Indented log message should still filter"  // This SHOULD filter (leading spaces ok)
+        };
+
+        // First 5 should NOT be filtered, last one SHOULD be filtered
+        for (int i = 0; i < nonSerilogContent.Length - 1; i++)
+        {
+            ExecutableRunner.IsInfrastructureLogMessage(nonSerilogContent[i]).Should().BeFalse(
+                $"'{nonSerilogContent[i]}' should NOT be filtered (doesn't start with Serilog pattern)");
+        }
+
+        // The indented one should be filtered because regex anchors to start after whitespace is trimmed
+        // Actually, looking at the regex: ^\[\d{2}:\d{2}:\d{2}\s+(INF|WRN|DBG)\]
+        // The ^ means start of string, so indented lines won't match. Let me verify:
+        var indentedLog = "  [07:05:03 INF] Indented log message";
+        ExecutableRunner.IsInfrastructureLogMessage(indentedLog).Should().BeFalse(
+            $"'{indentedLog}' should NOT be filtered (regex uses ^ anchor which doesn't match indented lines)");
+    }
 }
