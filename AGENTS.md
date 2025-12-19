@@ -868,17 +868,26 @@ This repository provides specialized, domain-specific guidance in the [.agents/]
   - BDD and unit testing guides
   - Coverage requirements and best practices
 
+- **[AOT Optimization](./.agents/aot-optimization.md)** - Native AOT, trimming, and size optimization
+  - Decision trees for AOT compatibility issues
+  - Diagnostic procedures and automated testing
+  - Common patterns and workarounds
+  - Size optimization strategies
+  - Known issues database and continuous improvement
+  - Integration with CI/CD pipelines
+
 ### Tool-Specific Guidance
 
 - **Claude Code**: [CLAUDE.md](./CLAUDE.md) + [.claude/skills/](./.claude/skills/)
-  - QA Tester skill with F# automation scripts
+  - **QA Tester** - Testing and quality assurance with F# automation scripts
+  - **Release Manager** - Release lifecycle management and deployment
+  - **AOT Guru** - Native AOT, trimming, diagnostics, and optimization
   - TDD workflow guidance
   - CLI logging standards
 
 ### Future Topics
 
 The `.agents/` directory will expand to include:
-- Deployment and release management
 - Documentation and ADR writing
 - Security testing and compliance
 - Performance testing and benchmarking
@@ -897,6 +906,12 @@ See [.agents/README.md](./.agents/README.md) for navigation and contribution gui
 - [Phase 1 Test Plan](./docs/content/contributing/qa/phase-1-test-plan.md) - Example comprehensive test plan
 - [QA Testing Guide](./.agents/qa-testing.md) - Cross-agent QA practices
 - [QA Skill](./.claude/skills/qa-tester/) - Claude Code QA automation
+
+### AOT and Optimization Resources
+- [AOT/Trimming Guide](./docs/contributing/aot-trimming-guide.md) - User-facing AOT documentation
+- [AOT Optimization Guide](./.agents/aot-optimization.md) - Agent-specific AOT guidance
+- [AOT Guru Skill](./.claude/skills/aot-guru/) - Claude Code AOT diagnostics and optimization
+- [F# Coding Guide](./docs/contributing/fsharp-coding-guide.md) - Includes F# AOT patterns
 
 ### Morphir Resources
 - Morphir Homepage: https://morphir.finos.org/
