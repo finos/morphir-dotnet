@@ -1,0 +1,203 @@
+---
+# Guru Skill Metadata Template
+# This file defines the skill's identity, triggers, and capabilities
+
+# Basic Identity
+id: "{guru-id}"  # e.g., "elm-to-fsharp", "security-guru", "performance-guru"
+name: "{Guru Name}"  # e.g., "Elm-to-F# Guru", "Security Guru", "Performance Guru"
+version: "0.1.0"  # Semantic versioning: major.minor.patch
+status: "alpha"  # One of: alpha, beta, stable
+created: "2025-12-19"  # ISO 8601 date
+updated: "2025-12-19"  # ISO 8601 date
+
+# Description
+description: |
+  {Brief 2-3 sentence description of what this guru does}
+  
+  Example:
+  Expert in {domain}. Use when user asks to {task1}, {task2}, or {task3}.
+  Provides {capability1}, {capability2}, and {capability3}.
+
+# Trigger Keywords
+# These keywords help identify when this guru should be invoked
+triggers:
+  - "{primary-keyword}"  # e.g., "migration", "security", "performance"
+  - "{secondary-keyword}"  # e.g., "elm-to-fsharp", "vulnerability", "benchmark"
+  - "{tertiary-keyword}"  # e.g., "translate", "audit", "optimize"
+  - "{task-keyword}"  # e.g., "convert elm", "scan dependencies", "profile code"
+  - "{domain-keyword}"  # e.g., "F# idioms", "CVE", "bottleneck"
+
+# Domain and Scope
+domain:
+  primary: "{Primary Domain}"  # e.g., "Code Migration", "Security", "Performance"
+  secondary:
+    - "{Secondary Area 1}"  # e.g., "Type System Mapping", "Dependency Auditing", "Memory Profiling"
+    - "{Secondary Area 2}"  # e.g., "Pattern Translation", "Vulnerability Scanning", "CPU Profiling"
+
+scope:
+  includes:
+    - "{Responsibility 1}"  # e.g., "Elm syntax to F# translation"
+    - "{Responsibility 2}"  # e.g., "Vulnerability detection and reporting"
+    - "{Responsibility 3}"  # e.g., "Performance bottleneck identification"
+  excludes:
+    - "{Not Responsible 1}"  # e.g., "Product decisions about features"
+    - "{Not Responsible 2}"  # e.g., "Infrastructure security (that's DevOps)"
+    - "{Not Responsible 3}"  # e.g., "Algorithm design (that's Engineering)"
+
+# Competencies
+competencies:
+  primary:
+    - name: "{Competency 1}"  # e.g., "Syntax Translation"
+      description: "{Brief description}"  # e.g., "Convert Elm syntax to F# idiomatically"
+    - name: "{Competency 2}"  # e.g., "Type System Mapping"
+      description: "{Brief description}"  # e.g., "Map Elm types to F# types preserving safety"
+    - name: "{Competency 3}"  # e.g., "Pattern Catalog"
+      description: "{Brief description}"  # e.g., "Maintain growing catalog of translation patterns"
+  
+  secondary:
+    - name: "{Secondary Competency 1}"  # e.g., "Myriad Plugin Identification"
+      description: "{Brief description}"  # e.g., "Identify automation opportunities for Myriad"
+    - name: "{Secondary Competency 2}"  # e.g., "F# Idiom Enforcement"
+      description: "{Brief description}"  # e.g., "Ensure generated code follows F# best practices"
+
+# Review Capability
+review:
+  enabled: true  # Set to false if review capability not yet implemented
+  
+  scope:
+    description: |
+      {What issues should this guru look for?}
+      
+      Example:
+      - {Issue Type 1} (e.g., "Migration anti-patterns")
+      - {Issue Type 2} (e.g., "Reflection usage in generated code")
+      - {Issue Type 3} (e.g., "F# idiom violations")
+      - {Issue Type 4} (e.g., "Myriad plugin opportunities")
+  
+  frequency: "{Review Frequency}"  # e.g., "per-session", "quarterly", "continuous", "on-demand"
+  
+  triggers:
+    - type: "{Trigger Type 1}"  # e.g., "session-completion", "quarterly-schedule", "ci-cd-push"
+      description: "{When this trigger fires}"  # e.g., "After each module migration"
+    - type: "{Trigger Type 2}"  # e.g., "manual-request", "threshold-exceeded", "release-preparation"
+      description: "{When this trigger fires}"  # e.g., "When pattern count reaches 3+"
+  
+  output:
+    format: "{Output Format}"  # e.g., "markdown-report", "github-issues", "json-summary"
+    includes:
+      - "{Output Element 1}"  # e.g., "Pattern catalog updates"
+      - "{Output Element 2}"  # e.g., "Myriad plugin recommendations"
+      - "{Output Element 3}"  # e.g., "F# idiom violation list"
+      - "{Output Element 4}"  # e.g., "Automation opportunity count"
+  
+  integration:
+    retrospectives: true  # Does this feed retrospective system?
+    playbooks: true  # Does this update playbooks?
+    automation: true  # Does this trigger automation decisions?
+    next_review: true  # Does this inform next review criteria?
+
+# Automation Scripts
+automation:
+  scripts:
+    - name: "{script-name-1}.fsx"  # e.g., "elm-to-fsharp.fsx"
+      purpose: "{What this script does}"  # e.g., "Automated translation for simple patterns"
+      token_savings: "{N}"  # e.g., "800" (estimated tokens saved per use)
+      status: "{Status}"  # One of: "planned", "implemented", "tested"
+    
+    - name: "{script-name-2}.fsx"  # e.g., "migration-validator.fsx"
+      purpose: "{What this script does}"  # e.g., "Type safety and idiom validation"
+      token_savings: "{N}"  # e.g., "600"
+      status: "{Status}"  # One of: "planned", "implemented", "tested"
+    
+    - name: "{script-name-3}.fsx"  # e.g., "pattern-detector.fsx"
+      purpose: "{What this script does}"  # e.g., "Identify repetitive patterns for automation"
+      token_savings: "{N}"  # e.g., "400"
+      status: "{Status}"  # One of: "planned", "implemented", "tested"
+
+# Coordination with Other Gurus
+coordination:
+  dependencies:
+    - guru: "{Other Guru 1}"  # e.g., "aot-guru"
+      direction: "to"  # "to" = this guru sends to other; "from" = this guru receives from other
+      interaction: "{What gets passed}"  # e.g., "Generated code for AOT safety review"
+      trigger: "{When this happens}"  # e.g., "After code generation"
+    
+    - guru: "{Other Guru 2}"  # e.g., "qa-tester"
+      direction: "to"  # "to" or "from"
+      interaction: "{What gets passed}"  # e.g., "Code for test coverage verification"
+      trigger: "{When this happens}"  # e.g., "After migration completes"
+    
+    - guru: "{Other Guru 3}"  # e.g., "release-manager"
+      direction: "from"  # "to" or "from"
+      interaction: "{What gets passed}"  # e.g., "Version milestone tracking"
+      trigger: "{When this happens}"  # e.g., "Release preparation"
+
+# Feedback and Learning
+feedback:
+  capture_method: "{How feedback is captured}"  # e.g., "migration-template", "github-issue", "implementation-notes"
+  
+  review_schedule: "{How often feedback is reviewed}"  # e.g., "quarterly", "per-release", "monthly"
+  
+  improvement_triggers:
+    - condition: "{Condition 1}"  # e.g., "Pattern appears 3+ times"
+      action: "{Action 1}"  # e.g., "Evaluate Myriad plugin creation"
+    - condition: "{Condition 2}"  # e.g., "New anti-pattern discovered"
+      action: "{Action 2}"  # e.g., "Update decision tree"
+  
+  learning_system:
+    pattern_catalog: true  # Does this guru maintain a pattern catalog?
+    decision_trees: true  # Does this guru use/update decision trees?
+    playbooks: true  # Does this guru use/update playbooks?
+    templates: true  # Does this guru provide templates?
+
+# Cross-Agent Compatibility
+compatibility:
+  claude_code: true  # Can be used with @skill syntax in Claude Code
+  copilot: true  # Accessible via .agents/ guides and scripts
+  cursor: true  # Accessible via scripts and documentation
+  windsurf: true  # Accessible via scripts and documentation
+  aider: true  # Accessible via scripts and documentation
+  
+  usage:
+    claude_code: "Use @skill {guru-id} or mention {primary-keyword}"
+    copilot: "Read .agents/{guru-id}.md and run scripts directly"
+    other_agents: "Run scripts: dotnet fsi .claude/skills/{guru-id}/scripts/{script-name}.fsx"
+
+# Maturity Tracking
+maturity:
+  current_phase: "alpha"  # One of: candidate, alpha, beta, stable
+  
+  criteria:
+    alpha:
+      - "skill.md complete (1000+ lines)"
+      - "3-5 automation scripts working"
+      - "5-10 seed patterns documented"
+      - "Initial templates created"
+    
+    beta:
+      - "Review capability implemented and tested"
+      - "Feedback mechanism working"
+      - "15+ patterns in catalog"
+      - "Coordination with other gurus tested"
+    
+    stable:
+      - "20+ patterns in catalog"
+      - "2+ quarters of successful use"
+      - "Automated feedback generating insights"
+      - "Token efficiency documented"
+
+# Contact and Maintenance
+maintenance:
+  primary_maintainer: "{Maintainer Name}"  # e.g., "@DamianReeves"
+  backup_maintainer: "{Backup Name}"  # e.g., "@TeamMember"
+  last_review: "2025-12-19"  # ISO 8601 date
+  next_review: "2026-03-19"  # ISO 8601 date (quarterly)
+
+# References
+references:
+  skill_doc: ".claude/skills/{guru-id}/skill.md"
+  readme: ".claude/skills/{guru-id}/README.md"
+  maintenance: ".claude/skills/{guru-id}/MAINTENANCE.md"
+  scripts: ".claude/skills/{guru-id}/scripts/"
+  templates: ".claude/skills/{guru-id}/templates/"
+  patterns: ".claude/skills/{guru-id}/patterns/"
