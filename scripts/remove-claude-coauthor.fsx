@@ -423,8 +423,14 @@ let main (args: ParseResults<CliArguments>) =
                 AnsiConsole.MarkupLine(sprintf "[red]✗ Error creating backup branch: %s[/]" msg)
                 exit 1
 
-        // 8. Confirm with user
-        if not (confirmRewrite()) then
+        // 8. Confirm with user (unless --yes flag provided)
+        let shouldProceed =
+            if args.Contains Yes then
+                true
+            else
+                confirmRewrite()
+        
+        if not shouldProceed then
             AnsiConsole.MarkupLine("[yellow]Cancelled by user.[/]")
             exit 0
 
