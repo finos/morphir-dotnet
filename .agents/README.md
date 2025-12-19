@@ -35,6 +35,7 @@ This directory provides deep-dive guidance for specific areas:
 | Topic | File | When to Use |
 |-------|------|-------------|
 | QA Testing | [qa-testing.md](qa-testing.md) | Creating test plans, running tests, reporting bugs |
+| AOT Optimization | [aot-optimization.md](aot-optimization.md) | Native AOT compilation, trimming, size optimization |
 | [Future] Deployment | deployment.md | Publishing packages, releases, CI/CD |
 | [Future] Documentation | documentation.md | Writing docs, ADRs, PRDs |
 
@@ -42,6 +43,8 @@ This directory provides deep-dive guidance for specific areas:
 If you're using Claude Code, you also have access to:
 - **Claude Skills**: [.claude/skills/](../.claude/skills/) - Specialized prompts and scripts
   - [qa-tester](../.claude/skills/qa-tester/) - QA testing skill with F# scripts
+  - [aot-guru](../.claude/skills/aot-guru/) - AOT diagnostics and optimization skill
+  - [release-manager](../.claude/skills/release-manager/) - Release management skill
 
 See [CLAUDE.md](../CLAUDE.md) for Claude Code-specific guidance.
 
@@ -113,12 +116,18 @@ morphir-dotnet/
 ├── README.md              # Project README
 ├── .agents/               # Specialized agent guidance (THIS DIRECTORY)
 │   ├── README.md          # This file
-│   └── qa-testing.md      # QA testing guide
+│   ├── qa-testing.md      # QA testing guide
+│   └── aot-optimization.md # AOT and size optimization guide
 ├── .claude/               # Claude Code-specific resources
 │   └── skills/            # Claude skills
-│       └── qa-tester/     # QA skill with F# scripts
+│       ├── qa-tester/     # QA skill with F# scripts
+│       ├── aot-guru/      # AOT optimization skill
+│       └── release-manager/ # Release management skill
 └── docs/                  # User-facing documentation
     ├── content/
+    │   └── contributing/
+    │       ├── aot-trimming-guide.md  # User-facing AOT guide
+    │       └── fsharp-coding-guide.md # F# patterns including AOT
     └── spec/
 ```
 
@@ -145,6 +154,24 @@ Comprehensive QA testing guidance including:
 - Unit testing with TUnit
 
 **When to use**: Anytime you're creating test plans, running tests, or reporting issues.
+
+### AOT Optimization ([aot-optimization.md](aot-optimization.md))
+
+Native AOT, trimming, and size optimization guidance including:
+- Decision trees for AOT compatibility
+- Diagnostic procedures and automated testing
+- Common patterns and workarounds
+- Size optimization strategies
+- Known issues database
+- Continuous improvement processes
+- BDD test scenarios for AOT
+
+**When to use**: When working with Native AOT, troubleshooting compilation, optimizing binary size, or adding new features that must be AOT-compatible.
+
+**Related Resources**:
+- User-facing: [AOT/Trimming Guide](../docs/contributing/aot-trimming-guide.md)
+- Skill: [AOT Guru](./.claude/skills/aot-guru/)
+- F# patterns: [F# Coding Guide](../docs/contributing/fsharp-coding-guide.md)
 
 ### [Future] Deployment Guidance
 
@@ -182,6 +209,7 @@ Found issues with agent guidance?
 
 ## Version History
 
+- **2025-12-19**: Added AOT Optimization guidance and AOT Guru skill
 - **2025-12-18**: Initial creation with QA testing guidance
 - [Future updates]
 
