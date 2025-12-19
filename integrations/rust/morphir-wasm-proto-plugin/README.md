@@ -2,6 +2,19 @@
 
 A [proto](https://moonrepo.dev/proto) WASM plugin for managing platform-specific Morphir executable installations.
 
+**Latest Version**: v0.1.1 ([Release Notes](https://github.com/finos/morphir-dotnet/releases/tag/plugin-v0.1.1))
+
+## What's New in v0.1.1
+
+**Quality Improvement Release** - No functional changes, test coverage and documentation improvements only.
+
+- ✅ **850% increase in test coverage** (2 → 19 comprehensive unit tests)
+- ✅ **Complete BDD integration test documentation** with Gherkin scenarios
+- ✅ **All code formatting issues resolved** (18 violations fixed)
+- ✅ **Zero linting warnings**
+
+See [CHANGELOG](../../../CHANGELOG.md#plugin-v011---2025-12-19) for full details.
+
 ## Overview
 
 This plugin enables proto to install and manage Morphir CLI executables across multiple platforms. Proto is a unified toolchain manager that uses WASM plugins to provide consistent tooling experiences.

@@ -5,6 +5,7 @@
 ![NuGet Version](https://img.shields.io/nuget/v/Morphir?label=NuGet%20Morphir)
 ![NuGet Core](https://img.shields.io/nuget/v/Morphir.Core?label=NuGet%20Core)
 ![NuGet Tooling](https://img.shields.io/nuget/v/Morphir.Tooling?label=NuGet%20Tooling)
+[![Proto Plugin](https://img.shields.io/badge/proto_plugin-v0.1.1-blue.svg)](https://github.com/finos/morphir-dotnet/releases/tag/plugin-v0.1.1)
 <img src="https://github.com/finos/branding/blob/master/project-logos/active-project-logos/Morphir%20Logo/Horizontal/2020_Morphir_Logo_Horizontal.png?raw=true" width="450">
 
 # Morphir
