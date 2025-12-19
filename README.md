@@ -54,7 +54,19 @@ Provides tooling for the Morphir ecosystem and .NET libraries that can be used t
 
 Install Morphir using one of the following methods:
 
-**Using Platform-Specific Install Scripts (Recommended):**
+**Using proto (Recommended for multi-language toolchains):**
+
+```bash
+# Install proto (if not already installed)
+curl -fsSL https://moonrepo.dev/install/proto.sh | bash  # Linux/macOS
+# or: irm https://moonrepo.dev/install/proto.ps1 | iex  # Windows
+
+# Add Morphir plugin and install
+proto plugin add morphir "source:https://github.com/finos/morphir-dotnet/releases/latest/download/morphir_plugin.wasm"
+proto install morphir
+```
+
+**Using Platform-Specific Install Scripts:**
 
 ```bash
 # Linux
