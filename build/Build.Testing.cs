@@ -53,12 +53,20 @@ partial class Build
             var buildTestDll = TestsDirectory / "Morphir.Build.Tests" / "bin" / Configuration / "net10.0" / "Morphir.Build.Tests.dll";
             var exitCode = RunCommand("dotnet", "exec", buildTestDll);
 
-            if (exitCode != 0)
+            // Exit code 0 = success, 8 = all tests skipped (expected when packages don't exist)
+            if (exitCode != 0 && exitCode != 8)
             {
                 throw new Exception($"Build tests failed with exit code {exitCode}");
             }
 
-            Serilog.Log.Information("✓ Build tests PASSED");
+            if (exitCode == 8)
+            {
+                Serilog.Log.Warning("✓ Build tests SKIPPED (packages not built)");
+            }
+            else
+            {
+                Serilog.Log.Information("✓ Build tests PASSED");
+            }
         });
 
     /// <summary>
