@@ -1,7 +1,8 @@
 ---
 title: "Guru Philosophy"
+linkTitle: "Guru Philosophy"
 description: "The collaborative AI stewardship philosophy behind morphir-dotnet gurus"
-weight: 101
+weight: 20
 ---
 
 # Guru Philosophy

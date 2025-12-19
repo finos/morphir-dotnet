@@ -1,7 +1,8 @@
 ---
 title: "AI Skill Framework Design"
+linkTitle: "Skill Framework"
 description: "Design for unified, cross-agent AI skill architecture (gurus)"
-weight: 100
+weight: 10
 ---
 
 # AI Skill Framework Design

@@ -1,6 +1,8 @@
 ---
 title: "GitHub Copilot Skill Emulation Execution Report"
+linkTitle: "Execution Report"
 description: "Results and transcripts for executing Copilot skill emulation scenarios (Issue #266)."
+weight: 21
 date: 2025-12-19
 draft: false
 ---

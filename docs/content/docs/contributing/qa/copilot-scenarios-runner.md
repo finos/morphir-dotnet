@@ -1,6 +1,8 @@
 ---
 title: "Copilot Skill Emulation Scenarios Runner"
+linkTitle: "Scenarios Runner"
 description: "Step-by-step prompts and expected outputs for executing Copilot skill emulation BDD scenarios."
+weight: 22
 date: 2025-12-19
 draft: false
 ---

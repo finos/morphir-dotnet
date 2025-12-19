@@ -1,3 +1,10 @@
+---
+title: "Technical Writer Skill Requirements"
+linkTitle: "Technical Writer"
+description: "Requirements for the Technical Writer skill (guru) for documentation and visual communication"
+weight: 40
+---
+
 # Technical Writer Skill - Requirements Document
 
 > **Status**: Draft

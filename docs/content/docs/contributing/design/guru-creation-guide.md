@@ -1,7 +1,8 @@
 ---
 title: "Guru Creation Guide"
+linkTitle: "Creating Gurus"
 description: "Step-by-step guide for creating new AI gurus in morphir-dotnet"
-weight: 102
+weight: 30
 ---
 
 # Guru Creation Guide
