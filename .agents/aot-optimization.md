@@ -1,6 +1,14 @@
 # AOT Optimization Guide for AI Agents
 
-This guide provides AI agents with comprehensive Native AOT, trimming, and size optimization guidance for morphir-dotnet. It complements the user-facing [AOT/Trimming Guide](../docs/contributing/aot-trimming-guide.md) with agent-specific decision trees, diagnostic procedures, and automated workflows.
+This guide provides AI agents with comprehensive guidance on single-file trimmed executables, Native AOT compilation (future), and size optimization for morphir-dotnet. It complements the user-facing [AOT/Trimming Guide](../docs/contributing/aot-trimming-guide.md) with agent-specific decision trees, diagnostic procedures, and automated workflows.
+
+## Critical Context
+
+**Current State**: morphir-dotnet uses **single-file trimmed executables** for production deployments.
+
+**Future Goal**: Native AOT compilation (not yet achievable due to reflection usage and dependency compatibility).
+
+**Your Role**: Focus on trimmed executables today while guiding code toward AOT-readiness for tomorrow.
 
 ## Quick Links
 
@@ -8,45 +16,53 @@ This guide provides AI agents with comprehensive Native AOT, trimming, and size 
 - **F# Guide**: [F# Coding Guide](../docs/contributing/fsharp-coding-guide.md)
 - **Skill**: [AOT Guru Skill](./.claude/skills/aot-guru/)
 - **Main Guidance**: [AGENTS.md](../AGENTS.md)
+- **Myriad**: [F# Code Generation Tool](https://github.com/MoiraeSoftware/myriad)
 
 ## Agent Responsibilities
 
-When working with AOT/trimming:
+When working with trimming and optimization:
 
-1. **Design Phase**: Ensure new code is AOT-compatible from the start
-2. **Implementation**: Use AOT-friendly patterns (source generators, no reflection)
-3. **Testing**: Test with PublishAot=true before finalizing
+1. **Design Phase**: Ensure new code works with trimming and is AOT-ready
+2. **Implementation**: Use trimming-friendly patterns (source generators, explicit types)
+3. **Testing**: Test with PublishTrimmed=true before finalizing
 4. **Documentation**: Update guides with new patterns
 5. **Issue Tracking**: Document problems in issue database
+6. **AOT Readiness**: Guide code toward eventual AOT support
 
 ## Decision Trees
 
-### Decision Tree: "How do I make this code AOT-compatible?"
+### Decision Tree: "How do I make this code work with trimming and prepare for AOT?"
 
 ```
 What type of code?
 ├── JSON Serialization
-│   └── Use source-generated JsonSerializerContext
-│       └── See: AOT/Trimming Guide § JSON Serialization in AOT
+│   ├── C# → Use source-generated JsonSerializerContext
+│   │   └── See: AOT/Trimming Guide § JSON Serialization in AOT
+│   └── F# → Use Myriad for compile-time generation or manual parsing
+│       └── See: F# Coding Guide § JSON Serialization
 │
 ├── Configuration/Options
-│   ├── Simple POCOs → Use source generators
-│   └── Complex validation → Use FluentValidation (AOT-compatible)
+│   ├── Simple POCOs → Use source generators (C#) or Myriad (F#)
+│   └── Complex validation → Use FluentValidation (trimming-compatible)
 │
 ├── Dependency Injection
 │   ├── Simple services → Register explicitly
-│   └── Auto-discovery (WolverineFx, etc.) → Explicit registration for AOT
+│   └── Auto-discovery (WolverineFx, etc.) → Explicit registration for AOT-readiness
 │
 ├── Logging
-│   └── Serilog console/file sinks (AOT-compatible)
+│   └── Serilog console/file sinks (trimming/AOT-compatible)
 │       └── Avoid reflection-based sinks
 │
 ├── CLI Parsing
-│   └── System.CommandLine (AOT-compatible)
-│       └── Argu for F# scripts (AOT-compatible)
+│   └── System.CommandLine (trimming/AOT-compatible)
+│       └── Argu for F# scripts (trimming-compatible)
+│
+├── F# Code Generation
+│   └── Use Myriad (https://github.com/MoiraeSoftware/myriad)
+│       └── Compile-time generation, no reflection
 │
 └── Plugin/Extension System
-    └── ❌ NOT AOT-compatible (Assembly.Load, reflection)
+    └── ❌ NOT trimming/AOT-compatible (Assembly.Load, reflection)
         └── Use compile-time known types only
 ```
 
