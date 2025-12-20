@@ -127,6 +127,13 @@
         "dependencies": {
           "FSharp.Core": "[7.0.200, )"
         }
+      },
+      "morphir.testing": {
+        "type": "Project",
+        "dependencies": {
+          "Expecto": "[10.1.0, )",
+          "FSharp.Core": "[7.0.200, )"
+        }
       }
     }
   }
