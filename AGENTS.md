@@ -38,7 +38,7 @@ Architecture (high-level)
 - adapters/: Edges (serialization, CLI integration, file I/O, codegen).
 - app/: Composition root, configuration, hosting/CLI entry points.
 - docs/spec/: IR specification and schemas (JSON/OpenAPI schemas and samples).
-- tests/: Unit (TUnit), property-based (via generators), and BDD/acceptance (Reqnroll).
+- tests/: Unit (TUnit), snapshot (Verify), property-based (via generators), and BDD/acceptance (Reqnroll).
 
 Stacks and baselines
 - C# 14, .NET 10 (SDK pinned in global.json).
@@ -49,13 +49,13 @@ Stacks and baselines
 Principles
 - Immutability-first; push effects to edges.
 - ADTs: make illegal states unrepresentable; avoid nulls.
-- Strong testing: TUnit for units, Reqnroll for behavior, contract/roundtrip tests.
+- Strong testing: TUnit for units, Verify for snapshots, Reqnroll for behavior, contract/roundtrip tests.
 
 ## 2) Agent Scope
 
 Do
 - Implement small features end-to-end (domain → adapter → tests).
-- Fix bugs with minimal diffs and add regression tests (TUnit and/or Reqnroll).
+- Fix bugs with minimal diffs and add regression tests (TUnit, Verify, and/or Reqnroll).
 - Improve domain types to encode Morphir invariants.
 - Keep docs and scripts consistent with code.
 
@@ -271,6 +271,27 @@ Unit testing (TUnit)
 - Place unit tests in tests/csharp.unit or equivalent.
 - Cover smart constructors, ADT exhaustiveness, and edge cases.
 
+Snapshot testing (Verify)
+- **Use [Verify](https://github.com/VerifyTests/Verify) for snapshot/verification testing**
+- Simplifies assertion of complex data models, JSON, documents, and generated code
+- C# projects: Use `Verify.TUnit` package
+- F# projects: Use `Verify.Expecto` package
+- Verify serializes test results and compares against stored snapshots
+- Snapshots are stored in `.verified.` files alongside test files
+- When snapshots change, tests fail with clear diffs; update snapshots after reviewing changes
+- Ideal for: JSON serialization, code generation output, complex object graphs, API responses
+- Example:
+  ```csharp
+  await Verify(result); // Serializes and compares against snapshot
+  ```
+- Example (F#):
+  ```fsharp
+  test "Generated code matches snapshot" {
+    let generated = generateCode input
+    do! Verify(generated) // Uses Verify.Expecto
+  }
+  ```
+
 Behavior/acceptance (Reqnroll)
 - Feature files under tests/csharp.bdd/Features/*.feature
 - Step definitions in tests/csharp.bdd/Steps/
@@ -285,6 +306,7 @@ Property-based tests
 Contract tests
 - Roundtrip JSON using canonical samples from morphir-elm/morphir.
 - Cross-validate against Morphir CLI when feasible.
+- Consider using Verify for snapshot testing of serialized IR structures
 
 Coverage targets
 - Maintain or improve coverage (>= 80% overall unless specified).
