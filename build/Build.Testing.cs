@@ -12,12 +12,12 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 partial class Build
 {
     /// <summary>
-    /// Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests)
-    /// Tests are run using TUnit test framework
+    /// Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests, Morphir.Internal.CodeGeneration.Tests)
+    /// Tests are run using TUnit and Expecto test frameworks
     /// </summary>
     Target Test => _ => _
         .DependsOn(Compile)
-        .Description("Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests)")
+        .Description("Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests, Morphir.Internal.CodeGeneration.Tests)")
         .Executes(() =>
         {
             RunTests(Configuration);
@@ -174,14 +174,21 @@ partial class Build
         var toolingTestDll = TestsDirectory / "Morphir.Tooling.Tests" / "bin" / configuration / "net10.0" / "Morphir.Tooling.Tests.dll";
         var toolingExitCode = RunCommand("dotnet", "exec", toolingTestDll);
 
+        // Run Morphir.Internal.CodeGeneration.Tests
+        Serilog.Log.Information("");
+        Serilog.Log.Information("Running Morphir.Internal.CodeGeneration.Tests...");
+        var codeGenTestDll = TestsDirectory / "Morphir.Internal.CodeGeneration.Tests" / "bin" / configuration / "net10.0" / "Morphir.Internal.CodeGeneration.Tests.dll";
+        var codeGenExitCode = RunCommand("dotnet", "exec", codeGenTestDll);
+
         // Check if any tests failed
-        if (coreExitCode != 0 || toolingExitCode != 0)
+        if (coreExitCode != 0 || toolingExitCode != 0 || codeGenExitCode != 0)
         {
             Serilog.Log.Error("");
             Serilog.Log.Error("================================================");
             Serilog.Log.Error("Tests FAILED");
             Serilog.Log.Error($"  Morphir.Core.Tests: exit code {coreExitCode}");
             Serilog.Log.Error($"  Morphir.Tooling.Tests: exit code {toolingExitCode}");
+            Serilog.Log.Error($"  Morphir.Internal.CodeGeneration.Tests: exit code {codeGenExitCode}");
             throw new Exception("Tests failed");
         }
 
