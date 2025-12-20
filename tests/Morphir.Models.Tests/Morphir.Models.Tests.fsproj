@@ -35,6 +35,7 @@
         <Compile Include="IR/Classic/DocumentedTests.fs" />
         <Compile Include="IR/Classic/ModuleTests.fs" />
         <Compile Include="IR/Classic/PackageTests.fs" />
+        <Compile Include="IR/Classic/DistributionTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

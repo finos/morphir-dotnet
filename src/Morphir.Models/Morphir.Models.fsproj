@@ -26,6 +26,7 @@
         <Compile Include="IR/Classic/Documented.fs" />
         <Compile Include="IR/Classic/Module.fs" />
         <Compile Include="IR/Classic/Package.fs" />
+        <Compile Include="IR/Classic/Distribution.fs" />
     </ItemGroup>
 
     <ItemGroup>
