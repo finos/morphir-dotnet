@@ -20,6 +20,9 @@
         <Compile Include="IR/FQName.fs" />
         <Compile Include="IR/Classic/AccessControlled.fs" />
         <Compile Include="IR/Classic/Type.fs" />
+        <Compile Include="IR/Classic/Literal.fs" />
+        <Compile Include="IR/Classic/Pattern.fs" />
+        <Compile Include="IR/Classic/Value.fs" />
     </ItemGroup>
 
     <ItemGroup>
