@@ -18,13 +18,17 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Models\Morphir.Models.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.Testing\Morphir.Testing.fsproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="TestHelpers.fs" />
         <Compile Include="IR/NameTests.fs" />
         <Compile Include="IR/PathTests.fs" />
+        <Compile Include="IR/PackageNameTests.fs" />
+        <Compile Include="IR/ModulePathTests.fs" />
         <Compile Include="IR/FQNameTests.fs" />
+        <Compile Include="IR/AccessControlledTests.fs" />
+        <Compile Include="IR/TypeTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

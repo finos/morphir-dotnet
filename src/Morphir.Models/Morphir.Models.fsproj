@@ -15,7 +15,11 @@
     <ItemGroup>
         <Compile Include="IR/Name.fs" />
         <Compile Include="IR/Path.fs" />
+        <Compile Include="IR/PackageName.fs" />
+        <Compile Include="IR/ModulePath.fs" />
         <Compile Include="IR/FQName.fs" />
+        <Compile Include="IR/AccessControlled.fs" />
+        <Compile Include="IR/Type.fs" />
     </ItemGroup>
 
     <ItemGroup>
