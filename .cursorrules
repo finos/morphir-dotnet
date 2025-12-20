@@ -88,7 +88,7 @@ From AGENTS.md:
 - Immutability first
 - ADTs: make illegal states unrepresentable
 - Pure domain, effects at edges
-- Strong testing: TUnit + Reqnroll
+- Strong testing: TUnit + Verify (snapshot testing) + Reqnroll
 - TDD: Test first, then implement
 
 ## ⚠️ Escalate to Humans

@@ -63,6 +63,7 @@
     <PackageVersion Include="LanguageExt.Core" Version="$(LanguageExtVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.1.0" />
     <PackageVersion Include="Reqnroll" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Reqnroll.TUnit" Version="$(ReqnrollVersion)" />
@@ -75,6 +76,8 @@
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
     <PackageVersion Include="TUnit" Version="1.5.70" />
+    <PackageVersion Include="Expecto" Version="10.1.0" />
+    <PackageVersion Include="Expecto.FsCheck" Version="10.1.0" />
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.TUnit" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
@@ -88,6 +91,6 @@
     <!-- Code Generation Dependencies -->
     <PackageVersion Include="Myriad.Core" Version="0.8.3" />
     <PackageVersion Include="Fabulous.AST" Version="1.9.0" />
-    <PackageVersion Include="Fantomas.Core" Version="6.3.0" />
+    <PackageVersion Include="Fantomas.Core" Version="7.0.1" />
   </ItemGroup>
 </Project>

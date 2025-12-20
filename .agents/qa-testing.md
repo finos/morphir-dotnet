@@ -27,9 +27,17 @@ morphir-dotnet follows Test-Driven Development (TDD):
 | Type | Framework | Location | Command |
 |------|-----------|----------|---------|
 | Unit Tests | TUnit | `tests/*.Tests/` | `./build.sh Test` |
+| Snapshot Tests | Verify | `tests/*.Tests/` | `./build.sh Test` |
 | BDD Tests | Reqnroll | `tests/*/Features/*.feature` | `./build.sh Test` |
 | E2E Tests | CLI Execution | `tests/Morphir.E2E.Tests/` | `./build.sh TestE2E` |
 | Build Tests | Nuke | `build/Build*.cs` | `./build.sh DevWorkflow` |
+
+**Snapshot Testing with Verify:**
+- Use [Verify](https://github.com/VerifyTests/Verify) for snapshot/verification testing
+- C# projects: `Verify.TUnit` package
+- F# projects: `Verify.Expecto` package
+- Simplifies assertion of complex data models, JSON, documents, and generated code
+- Snapshots stored in `.verified.` files; update after reviewing diffs
 
 ## Pre-Commit Checklist
 

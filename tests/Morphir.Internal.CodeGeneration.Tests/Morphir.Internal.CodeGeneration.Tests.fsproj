@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <TargetFramework>net10.0</TargetFramework>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <RootNamespace>Morphir.Internal.CodeGeneration.Tests</RootNamespace>
+        <ReqnrollUseIntermediateOutputPathForCodeBehind>true</ReqnrollUseIntermediateOutputPathForCodeBehind>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Testing frameworks -->
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="Expecto.FsCheck" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="Verify.Expecto" />
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Project under test -->
+        <ProjectReference Include="..\..\src\Morphir.Internal.CodeGeneration\Morphir.Internal.CodeGeneration.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Source files -->
+        <Compile Include="TestHelpers.fs" />
+        <Compile Include="Generators\JsonCodecGeneratorTests.fs" />
+        <Compile Include="Generators\VisitorGeneratorTests.fs" />
+        <Compile Include="Generators\LensGeneratorTests.fs" />
+        <Compile Include="Generators\ActivePatternGeneratorTests.fs" />
+        <Compile Include="Generators\BuilderGeneratorTests.fs" />
+        <!-- Test data files (will be used by Myriad for code generation) -->
+        <Compile Include="TestData\JsonCodecTestTypes.fs" />
+        <Compile Include="TestData\VisitorTestTypes.fs" />
+        <Compile Include="TestData\LensTestTypes.fs" />
+        <Compile Include="TestData\ActivePatternTestTypes.fs" />
+        <Compile Include="TestData\BuilderTestTypes.fs" />
+        <!-- Program.fs must be last (EntryPoint requirement) -->
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+</Project>
+
