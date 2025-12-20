@@ -1,7 +1,7 @@
-module Morphir.IR.Tests.AccessControlledTests
+module Morphir.IR.Classic.Tests.AccessControlledTests
 
 open Expecto
-open Morphir.IR
+open Morphir.IR.Classic
 open Morphir.Testing.Assertions
 
 [<Tests>]

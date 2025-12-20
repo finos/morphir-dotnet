@@ -1,4 +1,4 @@
-namespace Morphir.IR
+namespace Morphir.IR.Classic
 
 /// <summary>
 /// AccessControlled manages visibility of types and values in the Morphir IR.

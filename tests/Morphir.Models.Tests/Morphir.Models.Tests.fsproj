@@ -27,8 +27,8 @@
         <Compile Include="IR/PackageNameTests.fs" />
         <Compile Include="IR/ModulePathTests.fs" />
         <Compile Include="IR/FQNameTests.fs" />
-        <Compile Include="IR/AccessControlledTests.fs" />
-        <Compile Include="IR/TypeTests.fs" />
+        <Compile Include="IR/Classic/AccessControlledTests.fs" />
+        <Compile Include="IR/Classic/TypeTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

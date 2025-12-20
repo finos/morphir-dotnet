@@ -1,4 +1,4 @@
-namespace Morphir.IR
+namespace Morphir.IR.Classic
 
 /// <summary>
 /// Type module provides the complete type system for Morphir IR, including
@@ -7,8 +7,8 @@ namespace Morphir.IR
 /// </summary>
 module Type =
 
-    open Name
-    open FQName
+    open Morphir.IR.Name
+    open Morphir.IR.FQName
     open AccessControlled
 
     /// <summary>

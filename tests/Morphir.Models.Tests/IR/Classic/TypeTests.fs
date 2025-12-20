@@ -1,7 +1,8 @@
-module Morphir.IR.Tests.TypeTests
+module Morphir.IR.Classic.Tests.TypeTests
 
 open Expecto
 open Morphir.IR
+open Morphir.IR.Classic
 open Morphir.Testing.Assertions
 
 [<Tests>]
