@@ -23,6 +23,9 @@
         <Compile Include="IR/Classic/Literal.fs" />
         <Compile Include="IR/Classic/Pattern.fs" />
         <Compile Include="IR/Classic/Value.fs" />
+        <Compile Include="IR/Classic/Documented.fs" />
+        <Compile Include="IR/Classic/Module.fs" />
+        <Compile Include="IR/Classic/Package.fs" />
     </ItemGroup>
 
     <ItemGroup>

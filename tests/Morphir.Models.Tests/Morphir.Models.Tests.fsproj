@@ -32,6 +32,9 @@
         <Compile Include="IR/Classic/LiteralTests.fs" />
         <Compile Include="IR/Classic/PatternTests.fs" />
         <Compile Include="IR/Classic/ValueTests.fs" />
+        <Compile Include="IR/Classic/DocumentedTests.fs" />
+        <Compile Include="IR/Classic/ModuleTests.fs" />
+        <Compile Include="IR/Classic/PackageTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
