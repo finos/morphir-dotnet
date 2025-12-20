@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <TargetFramework>net10.0</TargetFramework>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <RootNamespace>Morphir</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="Expecto.FsCheck" />
+        <PackageReference Include="Verify.Expecto" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Morphir.Models\Morphir.Models.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="TestHelpers.fs" />
+        <Compile Include="IR/NameTests.fs" />
+        <Compile Include="IR/PathTests.fs" />
+        <Compile Include="IR/FQNameTests.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+</Project>
+
