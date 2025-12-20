@@ -2,7 +2,7 @@ module Morphir.IR.Tests.NameTests
 
 open Expecto
 open Morphir.IR
-open Morphir.Models.Tests.TestHelpers
+open Morphir.Testing.Assertions
 
 [<Tests>]
 let tests =

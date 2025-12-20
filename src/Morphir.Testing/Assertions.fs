@@ -1,11 +1,11 @@
-namespace Morphir.Models.Tests
+namespace Morphir.Testing
 
 /// <summary>
-/// Helper module providing Elm-like test API for Expecto tests.
+/// Assertion module providing Elm-like test API for Expecto tests.
 /// This module provides a more Elm-friendly API that aligns with the Elm test library,
 /// making it easier to write tests that match the structure and style of morphir-elm tests.
 /// </summary>
-module TestHelpers =
+module Assertions =
 
     open Expecto
     open System
