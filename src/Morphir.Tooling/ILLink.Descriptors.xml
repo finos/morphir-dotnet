@@ -14,12 +14,4 @@
 
     <!-- Preserve JsonSchema.Net types for reflection-based validation -->
     <assembly fullname="JsonSchema.Net" preserve="all" />
-
-    <!-- Preserve ConfigureWolverineCodeGeneration method for Release builds with code generation -->
-    <assembly fullname="Morphir.Tooling">
-        <type fullname="Morphir.Tooling.Program">
-            <method signature="System.Void ConfigureWolverineCodeGeneration(Wolverine.WolverineOptions)" />
-            <method signature="System.Void ConfigureWolverineCodeGenerationWithSuppression(Wolverine.WolverineOptions)" />
-        </type>
-    </assembly>
 </linker>

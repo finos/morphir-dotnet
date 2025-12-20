@@ -7,27 +7,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);NU1608</NoWarn>
-    <!-- Suppress trimming warnings for ConfigureWolverineCodeGeneration - only used in Release builds with pre-generated code -->
-    <!-- Note: IL2026 suppression via UnconditionalSuppressMessage may not work for trimming analyzer -->
-    <!-- The reflection is safe because it only runs when pre-generated code exists -->
-    <WarningsAsErrors Condition="'$(EnableWolverineCodeGeneration)' == 'true'">$(WarningsAsErrors);-IL2026</WarningsAsErrors>
     <RootNamespace>Morphir.Tooling</RootNamespace>
     <!-- Make executable for codegen command when EnableCodegen property is set -->
     <OutputType Condition="'$(EnableCodegen)' == 'true'">Exe</OutputType>
-    <!-- EnableWolverineCodeGeneration: Controls whether to generate Wolverine code at build time
-         Defaults to true for Release builds, false for Debug builds
-         Can be overridden: dotnet build -p:EnableWolverineCodeGeneration=true -->
-    <EnableWolverineCodeGeneration Condition="'$(EnableWolverineCodeGeneration)' == '' And '$(Configuration)' == 'Release'">true</EnableWolverineCodeGeneration>
-    <EnableWolverineCodeGeneration Condition="'$(EnableWolverineCodeGeneration)' == '' And '$(Configuration)' != 'Release'">false</EnableWolverineCodeGeneration>
-    <!-- Define compile-time constant for conditional code generation configuration -->
-    <DefineConstants Condition="'$(EnableWolverineCodeGeneration)' == 'true'">$(DefineConstants);ENABLE_WOLVERINE_CODE_GENERATION</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- WolverineFx for messaging -->
-    <PackageReference Include="JasperFx.CodeGeneration.Commands" />
-    <PackageReference Include="WolverineFx" />
-    <!-- Explicit reference to force Microsoft.Extensions.Hosting 10.0.0 for WolverineFx 5.8.0 -->
+    <!-- Foundatio.Mediator for messaging (source-generated, trimming-friendly) -->
+    <PackageReference Include="Foundatio.Mediator" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
 
     <!-- JSON Schema validation -->
@@ -60,11 +47,6 @@
     <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Wolverine pre-generated code is automatically included by the SDK -->
-    <!-- Files in Internal/Generated/ will be compiled automatically -->
-    <!-- Generated code is created by the GenerateWolverineCode target in Directory.Build.targets -->
-  </ItemGroup>
 
 </Project>
 

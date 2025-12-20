@@ -28,11 +28,9 @@
 
     <ItemGroup>
         <PackageReference Include="System.CommandLine" />
-        <PackageReference Include="WolverineFx" />
         <PackageReference Include="FluentValidation" />
         <PackageReference Include="Extism.runtime.all" />
         <PackageReference Include="Extism.Sdk" />
-        <PackageReference Include="JasperFx.CodeGeneration.Commands" />
 
         <!-- Logging -->
         <PackageReference Include="Serilog" />

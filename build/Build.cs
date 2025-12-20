@@ -263,10 +263,10 @@ partial class Build : NukeBuild
     /// Publish single-file executable without AOT (managed .NET runtime) with trimming
     /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
     /// Output: artifacts/single-file/{rid}/
-    /// Note: Generates Wolverine code before publishing
+    /// Note: Foundatio.Mediator source generators run automatically during build
     /// </summary>
     Target PublishSingleFile => _ => _
-        .DependsOn(GenerateWolverineCode)
+        .DependsOn(Compile)
         .Description("Publish single-file executable without AOT (managed .NET runtime) with trimming (requires --rid parameter)")
         .Executes(() =>
         {
@@ -286,7 +286,7 @@ partial class Build : NukeBuild
                 .SetProperty("PublishSingleFile", "true")
                 .SetProperty("PublishTrimmed", "true")
                 .SetProperty("TrimMode", "partial")
-                .SetProperty("TreatWarningsAsErrors", "false") // Temporarily disable to allow IL2026 warning for ConfigureWolverineCodeGeneration
+                .SetProperty("TreatWarningsAsErrors", "false") // Temporarily disable to allow trimming warnings
                 .SetProperty("Version", Version.ToString())
                 .SetOutput(ridOutputDir);
 
@@ -312,10 +312,10 @@ partial class Build : NukeBuild
     /// Publish single-file executable without AOT and without trimming
     /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
     /// Output: artifacts/single-file-untrimmed/{rid}/
-    /// Note: Generates Wolverine code before publishing
+    /// Note: Foundatio.Mediator source generators run automatically during build
     /// </summary>
     Target PublishSingleFileUntrimmed => _ => _
-        .DependsOn(GenerateWolverineCode)
+        .DependsOn(Compile)
         .Description("Publish single-file executable without AOT and without trimming (requires --rid parameter)")
         .Executes(() =>
         {
