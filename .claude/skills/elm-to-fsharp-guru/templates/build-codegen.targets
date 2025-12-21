@@ -1,0 +1,87 @@
+<!-- MSBuild Targets Template for Code Generation -->
+<Project>
+  
+  <!-- Myriad Configuration -->
+  <PropertyGroup>
+    <!-- Enable Myriad code generation on restore -->
+    <MyriadGenerateOnRestore>true</MyriadGenerateOnRestore>
+    
+    <!-- Myriad output directory -->
+    <MyriadOutputPath>$(MSBuildProjectDirectory)/Generated</MyriadOutputPath>
+  </PropertyGroup>
+  
+  <!-- Myriad Plugin References -->
+  <ItemGroup>
+    <!-- Core Myriad -->
+    <PackageReference Include="Myriad.Core" Version="0.8.3" />
+    <PackageReference Include="Myriad.Plugins" Version="0.8.3" />
+    
+    <!-- Custom Morphir Myriad plugins (if available) -->
+    <!-- <PackageReference Include="Morphir.Myriad.Plugins" Version="1.0.0" Condition="Exists('$(SolutionDir)/Morphir.Myriad.Plugins')" /> -->
+  </ItemGroup>
+  
+  <!-- Files to Process with Myriad -->
+  <ItemGroup>
+    <!-- Example: Mark IR type file for Myriad processing -->
+    <Compile Include="IR/Type.fs">
+      <MyriadFile>true</MyriadFile>
+      <MyriadNameSpace>Morphir.IR.Type.Generated</MyriadNameSpace>
+    </Compile>
+    
+    <!-- Add more files as needed -->
+  </ItemGroup>
+  
+  <!-- Custom Build-Time Code Generation Targets -->
+  
+  <!-- Target: Generate JSON Codecs -->
+  <Target Name="GenerateJsonCodecs" BeforeTargets="CoreCompile">
+    <Message Text="Generating JSON codecs..." Importance="high" />
+    
+    <!-- Run code generation script -->
+    <Exec Command="dotnet fsi $(MSBuildThisFileDirectory)/../scripts/codegen-helpers.fsx json-codec IR/Type.fs"
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+  
+  <!-- Target: Generate Visitors -->
+  <Target Name="GenerateVisitors" BeforeTargets="CoreCompile" Condition="'$(GenerateVisitors)' == 'true'">
+    <Message Text="Generating visitor patterns..." Importance="high" />
+    
+    <!-- Run visitor generation -->
+    <Exec Command="dotnet fsi $(MSBuildThisFileDirectory)/../scripts/codegen-helpers.fsx visitor IR/Type.fs"
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+  
+  <!-- Target: Validate Generated Code -->
+  <Target Name="ValidateGeneratedCode" AfterTargets="CoreCompile">
+    <Message Text="Validating generated code..." Importance="high" />
+    
+    <!-- Check that generated files exist -->
+    <ItemGroup>
+      <GeneratedFiles Include="$(MyriadOutputPath)/**/*.fs" />
+    </ItemGroup>
+    
+    <Message Text="Found @(GeneratedFiles->Count()) generated files" Importance="high" />
+  </Target>
+  
+</Project>
+
+<!-- 
+Usage:
+
+1. Include this file in your project:
+   <Import Project=".claude/skills/elm-to-fsharp-guru/templates/build-codegen.targets" />
+
+2. Or copy relevant targets into your .fsproj file
+
+3. Enable/disable targets with properties:
+   <PropertyGroup>
+     <GenerateVisitors>true</GenerateVisitors>
+   </PropertyGroup>
+
+4. Build as normal:
+   dotnet build
+
+References:
+- MSBuild: https://learn.microsoft.com/en-us/visualstudio/msbuild/
+- Myriad: https://moiraesoftware.github.io/myriad/
+-->
