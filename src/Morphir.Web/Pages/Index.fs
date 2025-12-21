@@ -7,7 +7,8 @@ open Microsoft.AspNetCore.Components.Rendering
 /// Index page component for Morphir.Web
 /// Public type for F#/C# interop
 /// </summary>
-type public Index() =
+[<Route("/")>]
+type Index() =
     inherit ComponentBase()
 
     override this.BuildRenderTree(builder: RenderTreeBuilder) =
@@ -16,7 +17,10 @@ type public Index() =
         builder.AddContent(2, "Morphir Web UI")
         builder.CloseElement()
         builder.OpenElement(3, "p")
-        builder.AddContent(4, "Welcome to Morphir Web Interface")
+        builder.AddContent(4, "Welcome to Morphir Web Interface - Fun.Blazor Edition")
+        builder.CloseElement()
+        builder.OpenElement(5, "p")
+        builder.AddContent(6, "This Blazor Server application provides a web interface for Morphir.")
         builder.CloseElement()
         builder.CloseElement()
 

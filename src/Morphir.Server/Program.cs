@@ -45,10 +45,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 
-// Configure static files (must be before routing)
+// Configure the request pipeline
 app.UseStaticFiles();
-app.UseAntiforgery();
 app.UseRouting();
+app.UseAntiforgery();
 
 // Health check endpoint
 app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTime.UtcNow }))

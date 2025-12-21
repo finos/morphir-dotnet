@@ -7,7 +7,7 @@ open Morphir.Web
 module WebApplicationFactory =
     /// Creates a WebApplicationFactory with test environment configuration
     let createTestFactory () =
-        new WebApplicationFactory<Program>()
+        (new WebApplicationFactory<Program>())
             .WithWebHostBuilder(fun builder ->
                 builder.UseEnvironment("Test") |> ignore
             )

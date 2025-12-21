@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
     <RootNamespace>Morphir.Web.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
@@ -21,6 +22,13 @@
   <ItemGroup>
     <!-- Project under test -->
     <ProjectReference Include="..\..\src\Morphir.Web\Morphir.Web.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Compile files in order -->
+    <Compile Include="TestHelpers/TestHelpers.fs" />
+    <Compile Include="Pages/IndexTests.fs" />
+    <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
