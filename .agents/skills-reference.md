@@ -7,7 +7,7 @@
 The morphir-dotnet project provides specialized expert skills for domain-specific tasks. Each skill combines deep domain knowledge, automation scripts, and review capabilities to help agents deliver higher quality results more efficiently.
 
 **Key Features:**
-- **Domain Expertise**: Specialized knowledge in QA testing, AOT optimization, release management, technical documentation, and vulnerability management
+- **Domain Expertise**: Specialized knowledge in QA testing, AOT optimization, release management, technical documentation, vulnerability management, and Elm-to-F# migration
 - **Automation Scripts**: F# scripts that save agent tokens and accelerate common tasks
 - **Review Capabilities**: Built-in quality checks and continuous monitoring
 - **Cross-Agent Compatible**: Accessible via documentation and scripts regardless of your agent
@@ -16,7 +16,7 @@ The morphir-dotnet project provides specialized expert skills for domain-specifi
 
 **For Claude Code Users:**
 - Skills are available as interactive tools via `@skill {skill-name}`
-- Examples: `@skill qa-tester`, `@skill aot-guru`, `@skill release-manager`, `@skill technical-writer`, `@skill vulnerability-resolver`
+- Examples: `@skill qa-tester`, `@skill aot-guru`, `@skill release-manager`, `@skill technical-writer`, `@skill vulnerability-resolver`, `@skill elm-to-fsharp-guru`
 - Skills can run automation scripts and provide guided assistance
 - **Note**: Some skills document common aliases, but these are **not supported** by Claude Code (documentation only)
 
@@ -50,6 +50,9 @@ Audit documentation for consistency and completeness
 
 @skill vulnerability-resolver
 Scan for CVEs and help resolve security vulnerabilities
+
+@skill elm-to-fsharp-guru
+Migrate Morphir.IR.Type module from Elm to F#
 ```
 
 **Features**:
@@ -1261,6 +1264,279 @@ Can I update the package?
 - **QA Tester**: Run regression tests after dependency updates
 - **Release Manager**: Pre-release security verification gate
 - **AOT Guru**: Verify dependency updates don't break AOT compatibility
+
+---
+
+### 6. Elm-to-F# Guru
+
+**Full Documentation**: [.claude/skills/elm-to-fsharp-guru/SKILL.md](../.claude/skills/elm-to-fsharp-guru/SKILL.md)
+
+#### Scope and Purpose
+Expert in converting Elm code from finos/morphir-elm to idiomatic F# for morphir-dotnet. Combines deep expertise in both Elm and F# ecosystems with specific understanding of Morphir IR concepts, functional domain modeling patterns, .NET integration requirements, and compile-time code generation strategies.
+
+#### Core Philosophy
+**Logical Compatibility Over Literal Translation**: Prioritize idiomatic F# patterns and .NET ecosystem integration over literal Elm-to-F# mapping. Focus on behavioral equivalence verified through testing, not syntactic similarity.
+
+**Compile-Time Code Generation First**: Reflection is a last resort. Always explore Myriad plugins and build-time code generation before accepting runtime reflection. This ensures AOT compatibility and optimal performance.
+
+#### Core Competencies
+
+1. **Language Translation**
+   - Convert Elm syntax, types, and patterns to idiomatic F#
+   - Map Elm's type system to F# while preserving safety
+   - Handle Elm constraints (no typeclasses, Dict limitations)
+   - Apply F# idioms and conventions
+
+2. **Type System Mapping**
+   - Custom types → Discriminated unions
+   - Type aliases → Records or type abbreviations
+   - Opaque types → Phantom types with smart constructors
+   - Maybe/Result → Option/Result
+   - Extensible records → Interfaces or explicit fields
+
+3. **Compile-Time Code Generation**
+   - Use Myriad for F# code generation (AOT-compatible)
+   - Use C# source generators for interop scenarios
+   - Identify code generation opportunities (5+ repetitive types)
+   - Create custom Myriad plugins when needed
+   - Integrate with MSBuild pipeline
+
+4. **JSON Serialization Migration**
+   - System.Text.Json source generators (C# interop)
+   - Myriad-generated codecs (pure F#, AOT-safe)
+   - Manual codecs (simple types, full control)
+   - Decision matrix based on scenario
+
+5. **Test Migration**
+   - Extract test cases from Elm doc comments
+   - Generate BDD scenarios (Reqnroll)
+   - Generate unit tests (TUnit)
+   - Generate property tests (FsCheck)
+   - Create compatibility tests (Elm vs F# output)
+
+6. **UI Architecture Translation**
+   - Elm Architecture → Fun.Blazor
+   - Model-Msg-Update-View pattern
+   - MudBlazor component integration
+   - State management patterns
+   - Blazor Server vs WASM decisions
+
+7. **Behavioral Verification**
+   - Ensure Elm-F# behavioral equivalence
+   - JSON roundtrip testing
+   - Cross-implementation output comparison
+   - Document intentional divergences
+
+8. **Pattern Catalog Maintenance**
+   - Build and maintain translation pattern library
+   - Document new patterns as discovered
+   - Identify automation opportunities
+   - Share learnings across migrations
+
+#### Review Capability
+
+**Migration Quality Review**
+- Check for literal translation anti-patterns
+- Verify F# idiom compliance
+- Detect reflection usage (AOT incompatibility)
+- Identify Myriad plugin opportunities
+- Assess test coverage completeness
+
+**Review Triggers:**
+- After each module migration completes
+- When pattern appears 3+ times (automation candidate)
+- Manual request for migration review
+
+**Review Output:**
+- Migration quality assessment
+- F# idiom compliance report
+- AOT compatibility check
+- Pattern catalog updates needed
+- Myriad plugin recommendations
+- Test coverage verification
+
+#### Automation Scripts
+
+Location: `.claude/skills/elm-to-fsharp-guru/scripts/`
+
+**analyze-elm-module.fsx**
+- Analyze Elm module structure, dependencies, types, functions
+- Identify code generation opportunities
+- Report complexity metrics
+- **Token Savings**: ~800 tokens
+
+**extract-elm-tests.fsx**
+- Extract test cases from Elm doc comments
+- Generate BDD scenarios (Reqnroll .feature files)
+- **Token Savings**: ~600 tokens
+
+**verify-compatibility.fsx**
+- Compare Elm and F# JSON outputs
+- Verify behavioral equivalence
+- Report differences
+- **Token Savings**: ~700 tokens
+
+**migration-metrics.fsx**
+- Track migration progress (modules completed vs pending)
+- Report test coverage per module
+- Calculate feature parity percentage
+- **Token Savings**: ~400 tokens
+
+**generate-myriad-plugin.fsx**
+- Scaffold custom Myriad plugin projects
+- Generate template implementation
+- Set up MSBuild integration
+- **Token Savings**: ~900 tokens
+
+**codegen-helpers.fsx**
+- Build-time code generation utilities
+- Commands: json-codec, visitor, lenses
+- **Token Savings**: ~500 tokens
+
+#### Manual Workflow for Non-Claude Agents
+
+**To analyze an Elm module:**
+```bash
+dotnet fsi .claude/skills/elm-to-fsharp-guru/scripts/analyze-elm-module.fsx \
+    path/to/morphir-elm/src/Morphir/IR/Type.elm
+```
+
+**To extract tests from Elm docs:**
+```bash
+dotnet fsi .claude/skills/elm-to-fsharp-guru/scripts/extract-elm-tests.fsx \
+    path/to/elm/module.elm \
+    tests/Morphir.Core.Tests/ModuleTests.feature
+```
+
+**To verify Elm-F# compatibility:**
+```bash
+dotnet fsi .claude/skills/elm-to-fsharp-guru/scripts/verify-compatibility.fsx \
+    tests/fixtures/
+```
+
+**To scaffold a Myriad plugin:**
+```bash
+dotnet fsi .claude/skills/elm-to-fsharp-guru/scripts/generate-myriad-plugin.fsx \
+    MorphirJsonCodec
+```
+
+#### Decision Trees
+
+**When to Use Myriad vs Manual:**
+```
+Is the pattern repetitive (3+ types)?
+├─ YES → Consider code generation
+│   ├─ Existing Myriad plugin available?
+│   │   ├─ YES → Use existing plugin
+│   │   └─ NO → Worth writing custom plugin (5+ types)?
+│   │       ├─ YES → Write custom Myriad plugin
+│   │       └─ NO → Use build script or manual
+│   └─ For C# interop?
+│       ├─ YES → Use C# source generators
+│       └─ NO → Myriad is appropriate
+└─ NO → Write manually
+```
+
+**Which JSON Serialization Approach:**
+```
+What's the primary use case?
+├─ C# Interop Heavy → System.Text.Json + Source Generators
+├─ Pure F# Library
+│   ├─ Complex types (10+ fields) → Myriad-Generated Codecs
+│   └─ Simple types (< 5 fields) → Manual Implementation
+└─ Prototyping → Manual Implementation
+```
+
+**UI Migration Path:**
+```
+Elm UI Component
+├─ Server-side rendering? → Blazor Server + Fun.Blazor
+├─ Rich client app? → Blazor WASM + Fun.Blazor
+├─ Desktop app? → Avalonia.FuncUI
+├─ Complex state? → Use Elmish (TEA for .NET)
+└─ Material Design? → Add MudBlazor components
+```
+
+#### Pattern Catalog
+
+Location: `.claude/skills/elm-to-fsharp-guru/patterns/`
+
+**Core Patterns:**
+1. **custom-types.md** - Elm custom types → F# discriminated unions
+2. **encoders-decoders.md** - JSON serialization approaches
+3. **opaque-types.md** - Smart constructors and phantom types
+4. **maybe-result.md** - Option/Result equivalence
+5. **dict-limitations.md** - Working around Elm Dict restrictions
+6. **myriad-basics.md** - Using Myriad for code generation
+7. **custom-myriad-plugins.md** - Writing custom Myriad plugins
+8. **fun-blazor-basics.md** - Elm Architecture to Fun.Blazor
+
+#### Migration Workflow
+
+**Phase 1: Analysis & Planning**
+1. Identify Elm module to migrate
+2. Analyze dependencies
+3. Extract test cases with automation
+4. Identify code generation opportunities
+5. Create migration task from template
+6. Estimate effort
+
+**Phase 2: Implementation**
+1. Set up code generation (Myriad/build script)
+2. Create F# types (following patterns)
+3. Implement functions (F# idioms)
+4. Generate or create JSON serialization
+5. Write tests (TDD: unit, BDD, property)
+
+**Phase 3: Verification**
+1. Verify no reflection warnings
+2. Test with PublishTrimmed=true
+3. Run compatibility tests
+4. Verify JSON roundtrip
+5. Compare with Elm output
+6. Document divergences
+7. Get reviews (AOT Guru, QA Tester)
+
+**Phase 4: Documentation**
+1. Update migration tracking
+2. Add new patterns to catalog
+3. Document code generation approach
+4. Update compatibility matrix
+5. Document learnings
+
+#### Integration with Other Skills
+
+- **AOT Guru**: Review generated F# code for AOT safety and reflection issues
+- **QA Tester**: Verify test coverage and BDD scenario quality
+- **Release Manager**: Track feature parity milestones for releases
+- **Technical Writer**: Document new patterns and migration guides
+
+#### Getting Started
+
+**Your First Migration:**
+1. Choose a simple Elm module (< 100 lines, few dependencies)
+2. Analyze with `analyze-elm-module.fsx`
+3. Extract tests with `extract-elm-tests.fsx`
+4. Create migration task from template
+5. Translate types using pattern catalog
+6. Implement functions with F# idioms
+7. Generate codecs (Myriad or manual)
+8. Write tests (TDD)
+9. Verify compatibility with `verify-compatibility.fsx`
+10. Get reviews from AOT Guru and QA Tester
+11. Document learnings
+
+**Success Criteria:**
+- ✅ Types encode same invariants as Elm
+- ✅ Functions are behaviorally equivalent
+- ✅ JSON roundtrip tests pass
+- ✅ No reflection warnings
+- ✅ Test coverage >= 80%
+- ✅ BDD scenarios cover user flows
+- ✅ Code is idiomatic F#
+- ✅ Patterns documented
+- ✅ AOT Guru review passed
+- ✅ QA Tester coverage verified
 
 ---
 

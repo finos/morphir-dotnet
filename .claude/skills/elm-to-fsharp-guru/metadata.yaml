@@ -1,0 +1,258 @@
+---
+# Guru Skill Metadata
+# This file defines the skill's identity, triggers, and capabilities
+
+# Basic Identity
+id: "elm-to-fsharp-guru"
+name: "Elm-to-F# Guru"
+version: "0.1.0"
+status: "alpha"
+created: "2025-12-21"
+updated: "2025-12-21"
+
+# Description
+description: |
+  Expert in converting Elm code from finos/morphir-elm to idiomatic F# for morphir-dotnet.
+  
+  Use when user asks to migrate Elm code, convert patterns, translate types, or analyze Elm modules.
+  Provides Elm-to-F# pattern matching, Myriad code generation guidance, test extraction, and compatibility verification.
+
+# Trigger Keywords
+triggers:
+  - "elm"
+  - "elm-to-fsharp"
+  - "elm to f#"
+  - "migrate elm"
+  - "convert elm"
+  - "translate elm"
+  - "morphir-elm"
+  - "elm architecture"
+  - "fun.blazor"
+  - "elmish"
+  - "myriad"
+  - "code generation"
+
+# Domain and Scope
+domain:
+  primary: "Code Migration"
+  secondary:
+    - "Type System Mapping"
+    - "Pattern Translation"
+    - "Compile-time Code Generation"
+    - "UI Architecture (Elm Architecture to Fun.Blazor)"
+    - "Test Migration"
+
+scope:
+  includes:
+    - "Elm syntax to F# translation"
+    - "Type mapping (Elm custom types to F# DUs)"
+    - "Encoder/Decoder migration with Myriad"
+    - "Test case extraction from Elm docs"
+    - "Behavioral compatibility verification"
+    - "Myriad plugin identification and creation"
+    - "Fun.Blazor migration from Elm UI"
+    - "Pattern catalog maintenance"
+  excludes:
+    - "Product decisions about features"
+    - "Breaking API changes (coordinate with maintainers)"
+    - "Infrastructure decisions"
+    - "Performance optimization (that's AOT Guru)"
+
+# Competencies
+competencies:
+  primary:
+    - name: "Language Expertise"
+      description: "Deep understanding of both Elm and F# ecosystems, type systems, and idioms"
+    - name: "Type System Mapping"
+      description: "Map Elm types to F# types preserving type safety and expressiveness"
+    - name: "Pattern Translation"
+      description: "Convert Elm patterns to idiomatic F# equivalents"
+    - name: "Compile-time Code Generation"
+      description: "Use Myriad for AOT-compatible code generation, avoiding reflection"
+    - name: "Test Migration"
+      description: "Extract tests from Elm docs and create equivalent F# tests"
+    - name: "UI Architecture Migration"
+      description: "Convert Elm Architecture UI to Fun.Blazor with proper state management"
+  
+  secondary:
+    - name: "Morphir IR Understanding"
+      description: "Deep knowledge of Morphir IR concepts and JSON compatibility"
+    - name: "Functional Domain Modeling"
+      description: "Apply functional patterns: smart constructors, phantom types, illegal state prevention"
+    - name: "Build Process Integration"
+      description: "Integrate Myriad and code generation into MSBuild pipelines"
+    - name: "Behavioral Verification"
+      description: "Verify Elm-F# behavioral equivalence through testing"
+
+# Review Capability
+review:
+  enabled: true
+  
+  scope:
+    description: |
+      The Elm-to-F# Guru reviews migrations for:
+      - Migration anti-patterns (literal translation instead of idiomatic)
+      - Reflection usage in generated code (AOT incompatibility)
+      - F# idiom violations (not following F# best practices)
+      - Myriad plugin opportunities (repetitive patterns)
+      - Test coverage gaps (missing test cases)
+      - Pattern catalog updates needed (new patterns discovered)
+  
+  frequency: "per-session"
+  
+  triggers:
+    - type: "session-completion"
+      description: "After each module migration completes"
+    - type: "manual-request"
+      description: "When explicitly asked to review migration"
+    - type: "pattern-threshold"
+      description: "When pattern appears 3+ times"
+  
+  output:
+    format: "markdown-report"
+    includes:
+      - "Migration quality assessment"
+      - "F# idiom compliance"
+      - "AOT compatibility check"
+      - "Pattern catalog updates"
+      - "Myriad plugin recommendations"
+      - "Test coverage verification"
+  
+  integration:
+    retrospectives: true
+    playbooks: true
+    automation: true
+    next_review: true
+
+# Automation Scripts
+automation:
+  scripts:
+    - name: "analyze-elm-module.fsx"
+      purpose: "Analyze Elm module structure, dependencies, types, and code generation opportunities"
+      token_savings: "800"
+      status: "implemented"
+    
+    - name: "extract-elm-tests.fsx"
+      purpose: "Extract test cases from Elm doc comments and generate BDD scenarios"
+      token_savings: "600"
+      status: "implemented"
+    
+    - name: "verify-compatibility.fsx"
+      purpose: "Verify behavioral equivalence between Elm and F# implementations"
+      token_savings: "700"
+      status: "implemented"
+    
+    - name: "migration-metrics.fsx"
+      purpose: "Track migration progress, coverage, and feature parity"
+      token_savings: "400"
+      status: "implemented"
+    
+    - name: "generate-myriad-plugin.fsx"
+      purpose: "Scaffold custom Myriad plugin projects with templates"
+      token_savings: "900"
+      status: "implemented"
+    
+    - name: "codegen-helpers.fsx"
+      purpose: "Build-time code generation utilities (JSON codecs, visitors, lenses)"
+      token_savings: "500"
+      status: "implemented"
+
+# Coordination with Other Gurus
+coordination:
+  dependencies:
+    - guru: "aot-guru"
+      direction: "to"
+      interaction: "Generated F# code for AOT safety review and reflection detection"
+      trigger: "After code generation or Myriad plugin creation"
+    
+    - guru: "qa-tester"
+      direction: "to"
+      interaction: "Migrated code for test coverage verification and BDD scenario validation"
+      trigger: "After migration completes"
+    
+    - guru: "release-manager"
+      direction: "from"
+      interaction: "Feature parity milestones and version planning"
+      trigger: "Release preparation and planning"
+    
+    - guru: "technical-writer"
+      direction: "to"
+      interaction: "Documentation for migration patterns and decision trees"
+      trigger: "New pattern discovered or playbook updated"
+
+# Feedback and Learning
+feedback:
+  capture_method: "migration-template"
+  
+  review_schedule: "quarterly"
+  
+  improvement_triggers:
+    - condition: "Pattern appears 3+ times"
+      action: "Evaluate Myriad plugin creation"
+    - condition: "New anti-pattern discovered"
+      action: "Update decision tree and pattern catalog"
+    - condition: "Test extraction fails"
+      action: "Improve extraction script"
+    - condition: "Compatibility test fails"
+      action: "Document divergence and update patterns"
+  
+  learning_system:
+    pattern_catalog: true
+    decision_trees: true
+    playbooks: true
+    templates: true
+
+# Cross-Agent Compatibility
+compatibility:
+  claude_code: true
+  copilot: true
+  cursor: true
+  windsurf: true
+  aider: true
+  
+  usage:
+    claude_code: "Use @skill elm-to-fsharp-guru or mention 'elm migration'"
+    copilot: "Read .claude/skills/elm-to-fsharp-guru/SKILL.md and run scripts directly"
+    other_agents: "Run scripts: dotnet fsi .claude/skills/elm-to-fsharp-guru/scripts/{script-name}.fsx"
+
+# Maturity Tracking
+maturity:
+  current_phase: "alpha"
+  
+  criteria:
+    alpha:
+      - "SKILL.md complete (1000+ lines)"
+      - "6 automation scripts implemented"
+      - "8 seed patterns documented"
+      - "Initial templates created"
+      - "Integration with AOT Guru established"
+    
+    beta:
+      - "Review capability tested"
+      - "Feedback mechanism working"
+      - "15+ patterns in catalog"
+      - "Coordination with other gurus tested"
+      - "At least 1 successful migration documented"
+    
+    stable:
+      - "20+ patterns in catalog"
+      - "2+ quarters of successful use"
+      - "At least 2 custom Myriad plugins created"
+      - "3+ successful module migrations"
+      - "Token efficiency documented"
+
+# Contact and Maintenance
+maintenance:
+  primary_maintainer: "@DamianReeves"
+  backup_maintainer: "@morphir-dotnet-contributors"
+  last_review: "2025-12-21"
+  next_review: "2026-03-21"
+
+# References
+references:
+  skill_doc: ".claude/skills/elm-to-fsharp-guru/SKILL.md"
+  readme: ".claude/skills/elm-to-fsharp-guru/README.md"
+  implementation: ".claude/skills/elm-to-fsharp-guru/IMPLEMENTATION.md"
+  scripts: ".claude/skills/elm-to-fsharp-guru/scripts/"
+  templates: ".claude/skills/elm-to-fsharp-guru/templates/"
+  patterns: ".claude/skills/elm-to-fsharp-guru/patterns/"
