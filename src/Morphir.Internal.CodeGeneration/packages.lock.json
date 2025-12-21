@@ -32,9 +32,9 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[7.0.200, )",
-        "resolved": "7.0.200",
-        "contentHash": "NmgUnpNH6Zu9B0SPIhojyo38gnPdkdYFYQfbd6zosEH32kbGY/g/Klk7PfOWe1NAe/O1YOMmK9KhwQ2OWsWEbg=="
+        "requested": "[10.0.101, )",
+        "resolved": "10.0.101",
+        "contentHash": "2ctJyvMtrvCou55O62n55f4faZSz8a8WksKoBBobBWgS3TyZQSRjQ9dhA0J+BxcmoDfHtGEzxx0DnfZGt5xUAg=="
       },
       "Myriad.Core": {
         "type": "Direct",

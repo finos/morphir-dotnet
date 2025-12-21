@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Morphir.Web</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Compile Pages before App (App depends on Pages.Index) -->
+    <Compile Include="Pages/Index.fs" />
+    <Compile Include="App.fs" />
+    <Compile Include="Components/Layout.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Allow Morphir.Server to access internal types if needed -->
+    <InternalsVisibleTo Include="Morphir.Server" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Fun.Blazor packages -->
+    <PackageReference Include="Fun.Blazor" />
+    <PackageReference Include="Fun.Blazor.MudBlazor" />
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="FSharp.Core" />
+  </ItemGroup>
+
+</Project>
+

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Morphir.Server</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Foundatio.Mediator for message handling -->
+    <PackageReference Include="Foundatio.Mediator" />
+    
+    <!-- Swagger/OpenAPI for API documentation -->
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference Morphir.Tooling for business logic -->
+    <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />
+    <!-- Reference Morphir.Web to host Blazor app -->
+    <ProjectReference Include="..\Morphir.Web\Morphir.Web.fsproj" />
+  </ItemGroup>
+
+</Project>

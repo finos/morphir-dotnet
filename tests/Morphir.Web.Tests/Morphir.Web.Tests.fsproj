@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Morphir.Web.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Testing frameworks -->
+    <PackageReference Include="Expecto" />
+    <PackageReference Include="coverlet.collector" />
+    
+    <!-- Assertions and verification -->
+    <PackageReference Include="Verify.Expecto" />
+    
+    <!-- ASP.NET Core testing -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Project under test -->
+    <ProjectReference Include="..\..\src\Morphir.Web\Morphir.Web.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Test data files -->
+    <None Include="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- hiding .gitkeep files in Visual Studio -->
+    <None Update="**/.gitkeep" Visible="false" />
+  </ItemGroup>
+
+</Project>
+
