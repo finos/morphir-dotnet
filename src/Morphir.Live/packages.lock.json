@@ -33,6 +33,17 @@
           "Microsoft.Extensions.ObjectPool": "8.0.22"
         }
       },
+      "Fun.Blazor.BlazorMonaco": {
+        "type": "Direct",
+        "requested": "[3.4.0, )",
+        "resolved": "3.4.0",
+        "contentHash": "kTBOgSdn0Pg0Umu3z2PLTRQOwv0VfuYuk2q/vuec20iS7kVaj9/QsmG9NJu7JhdYnqb5tauGekaNSHnd/tXwiA==",
+        "dependencies": {
+          "BlazorMonaco": "3.4.0",
+          "FSharp.Core": "6.0.0",
+          "Fun.Blazor": "4.1.0"
+        }
+      },
       "Fun.Blazor.MudBlazor": {
         "type": "Direct",
         "requested": "[8.15.0, )",

@@ -12,7 +12,6 @@
   <ItemGroup>
     <!-- Order matters in F# - compile in dependency order -->
     <Compile Include="Components/Layout.fs" />
-    <Compile Include="Components/MonacoEditor.fs" />
     <Compile Include="Pages/Index.fs" />
     <Compile Include="Pages/Counter.fs" />
     <Compile Include="Pages/TryMorphir.fs" />
@@ -25,6 +24,7 @@
     <!-- Fun.Blazor packages -->
     <PackageReference Include="Fun.Blazor" />
     <PackageReference Include="Fun.Blazor.MudBlazor" />
+    <PackageReference Include="Fun.Blazor.BlazorMonaco" />
     <PackageReference Include="MudBlazor" />
     <PackageReference Include="FSharp.Core" />
 

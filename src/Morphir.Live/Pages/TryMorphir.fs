@@ -6,8 +6,9 @@ open MudBlazor
 
 /// <summary>
 /// Try-Morphir interactive playground page.
-/// Provides a Monaco editor for experimenting with Morphir transformations.
+/// Provides a code editor for experimenting with Morphir transformations.
 /// Currently uses mock implementation - real IR transformation is future work.
+/// TODO: Integrate BlazorMonaco for rich code editing with syntax highlighting.
 /// </summary>
 [<Route("/try-morphir")>]
 type TryMorphir() =
@@ -41,9 +42,6 @@ Functions:
 Note: This is a mock representation.
 Actual Morphir IR transformation will be implemented in future iterations.
 """
-
-    // Reference to Monaco editor wrapper (optional, for dynamic updates)
-    let mutable monacoEditorRef : obj option = None
 
     // Mock transformation function
     let performMockTransformation() =
@@ -115,7 +113,7 @@ Real Morphir IR transformation coming in future release.
                 Value selectedLanguage
                 ValueChanged (fun (newVal: string) -> 
                     selectedLanguage <- newVal
-                    // Update editor content with language-specific sample
+                    // Update editor language and sample code
                     editorContent <- 
                         match newVal with
                         | "fsharp" -> """// F# Example
@@ -133,10 +131,6 @@ square n = n * n
 result = add 5 (square 3)
 """
                         | _ -> "// Select a language"
-                    
-                    // Update Monaco editor if loaded (future enhancement)
-                    // Note: Dynamic language switching not yet implemented
-                    ()
                 )
                 Variant Variant.Outlined
                 class' "mb-2"
@@ -171,15 +165,20 @@ result = add 5 (square 3)
                                     "Source Code"
                                 }
                                 
-                                // Monaco Code Editor via F# wrapper
-                                html.blazor<Morphir.Live.Components.MonacoEditorWrapper> {
-                                    attr.fragment("Language", (match selectedLanguage with
-                                                                | "fsharp" -> "fsharp"
-                                                                | "elm" -> "plaintext"
-                                                                | _ -> "plaintext"))
-                                    attr.fragment("InitialValue", editorContent)
-                                    attr.fragment("Height", "500px")
-                                    attr.callback("OnContentChanged", fun (content: string) -> editorContent <- content)
+                                // Code Editor (textarea placeholder)
+                                // TODO: Replace with BlazorMonaco StandaloneCodeEditor for rich editing
+                                div {
+                                    style { height 500 }
+                                    class' "border rounded"
+                                    
+                                    textarea {
+                                        class' "form-control"
+                                        style' "width: 100%; height: 100%; background-color: #1e1e1e; color: #d4d4d4; font-family: Consolas, 'Courier New', monospace; font-size: 14px; padding: 12px; border: 0; resize: none;"
+                                        value editorContent
+                                        oninput (fun e ->
+                                            editorContent <- string e.Value
+                                        )
+                                    }
                                 }
                                 
                                 // Transform button

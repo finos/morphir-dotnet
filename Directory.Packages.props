@@ -67,6 +67,7 @@
     <PackageVersion Include="Fun.Blazor" Version="4.1.9" />
     <PackageVersion Include="Fun.Blazor.Cli" Version="4.1.9" />
     <PackageVersion Include="Fun.Blazor.MudBlazor" Version="8.15.0" />
+    <PackageVersion Include="Fun.Blazor.BlazorMonaco" Version="3.4.0" />
     <PackageVersion Include="MudBlazor" Version="8.15.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.0" />

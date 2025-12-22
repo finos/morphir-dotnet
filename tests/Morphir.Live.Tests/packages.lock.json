@@ -474,6 +474,7 @@
           "BlazorMonaco": "[3.4.0, )",
           "FSharp.Core": "[10.0.101, )",
           "Fun.Blazor": "[4.1.9, )",
+          "Fun.Blazor.BlazorMonaco": "[3.4.0, )",
           "Fun.Blazor.MudBlazor": "[8.15.0, )",
           "Microsoft.AspNetCore.Components.WebAssembly": "[10.0.0, )",
           "Microsoft.DotNet.HotReload.WebAssembly.Browser": "[10.0.101, )",
@@ -503,6 +504,17 @@
           "Microsoft.AspNetCore.Components.Web": "9.0.11",
           "Microsoft.AspNetCore.WebUtilities": "9.0.11",
           "Microsoft.Extensions.ObjectPool": "8.0.22"
+        }
+      },
+      "Fun.Blazor.BlazorMonaco": {
+        "type": "CentralTransitive",
+        "requested": "[3.4.0, )",
+        "resolved": "3.4.0",
+        "contentHash": "kTBOgSdn0Pg0Umu3z2PLTRQOwv0VfuYuk2q/vuec20iS7kVaj9/QsmG9NJu7JhdYnqb5tauGekaNSHnd/tXwiA==",
+        "dependencies": {
+          "BlazorMonaco": "3.4.0",
+          "FSharp.Core": "6.0.0",
+          "Fun.Blazor": "4.1.0"
         }
       },
       "Fun.Blazor.MudBlazor": {
