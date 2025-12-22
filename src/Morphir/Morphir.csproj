@@ -49,9 +49,8 @@
     <ItemGroup>
         <PackageReference Include="Extism.runtime.all" />
         <PackageReference Include="Extism.Sdk" />
-        <PackageReference Include="JasperFx.CodeGeneration.Commands" />
         <PackageReference Include="System.CommandLine" />
-        <PackageReference Include="WolverineFx" />
+        <PackageReference Include="Foundatio.Mediator" />
         <PackageReference Include="FluentValidation" />
 
         <!-- Logging -->

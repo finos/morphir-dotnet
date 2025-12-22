@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <Nullable>enable</Nullable>
+    <!-- Opt-in to new dotnet test experience for .NET 10 -->
+    <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="ComponentTests.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Test framework -->
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="FSharp.Core" />
+
+    <!-- Blazor testing -->
+    <PackageReference Include="bunit" />
+    <PackageReference Include="bunit.web" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Morphir.Live/Morphir.Live.fsproj" />
+  </ItemGroup>
+
+</Project>
