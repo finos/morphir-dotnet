@@ -24,6 +24,7 @@
     <Project Path="src\Morphir.Testing\Morphir.Testing.fsproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Morphir.Internal.CodeGeneration.Tests/Morphir.Internal.CodeGeneration.Tests.fsproj" />
     <Project Path="tests/Morphir.Tooling.Tests/Morphir.Tooling.Tests.csproj" />
     <Project Path="tests\Morphir.Core.Tests\Morphir.Core.Tests.csproj" />
     <Project Path="tests\Morphir.Build.Tests\Morphir.Build.Tests.csproj" />
