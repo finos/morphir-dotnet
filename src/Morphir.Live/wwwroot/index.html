@@ -13,6 +13,9 @@
     <!-- MudBlazor CSS and fonts -->
     <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    
+    <!-- Monaco Editor CSS -->
+    <link href="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.css" rel="stylesheet" />
 </head>
 <body>
     <div id="app">
@@ -33,5 +36,11 @@
 
     <!-- MudBlazor JavaScript -->
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    
+    <!-- Monaco Editor JavaScript -->
+    <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
+    <script>require.config({ paths: { 'vs': '_content/BlazorMonaco/lib/monaco-editor/min/vs' } });</script>
+    <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js"></script>
+    <script src="_content/BlazorMonaco/jsInterop.js"></script>
 </body>
 </html>
