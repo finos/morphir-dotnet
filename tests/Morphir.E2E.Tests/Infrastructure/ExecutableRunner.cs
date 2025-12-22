@@ -125,7 +125,6 @@ public class ExecutableRunner
                line.Contains("Application is shutting down", StringComparison.OrdinalIgnoreCase) ||
                line.Contains("Hosting environment:", StringComparison.OrdinalIgnoreCase) ||
                line.Contains("Content root path:", StringComparison.OrdinalIgnoreCase) ||
-               line.Contains("extism.dll", StringComparison.OrdinalIgnoreCase) ||
                line.Contains("Open Telemetry metrics", StringComparison.OrdinalIgnoreCase) ||
                line.Contains("Starting Wolverine messaging", StringComparison.OrdinalIgnoreCase) ||
                (line.Contains("Wolverine code generation mode", StringComparison.OrdinalIgnoreCase) &&
