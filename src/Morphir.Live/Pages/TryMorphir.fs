@@ -3,13 +3,12 @@ namespace Morphir.Live.Pages
 open Microsoft.AspNetCore.Components
 open Fun.Blazor
 open MudBlazor
-open BlazorMonaco
-open BlazorMonaco.Editor
 
 /// <summary>
 /// Try-Morphir interactive playground page.
-/// Provides a Monaco-based code editor for experimenting with Morphir transformations.
+/// Provides a code editor for experimenting with Morphir transformations.
 /// Currently uses mock implementation - real IR transformation is future work.
+/// TODO: Integrate BlazorMonaco for rich code editing with syntax highlighting.
 /// </summary>
 [<Route("/try-morphir")>]
 type TryMorphir() =
@@ -77,22 +76,6 @@ Note: This is placeholder output.
 Real Morphir IR transformation coming in future release.
 """
             | _ -> "Unknown language selected."
-
-    // Editor options
-    let getEditorOptions() =
-        let options = StandaloneEditorConstructionOptions()
-        options.AutomaticLayout <- System.Nullable(true)
-        options.Language <- (if selectedLanguage = "fsharp" then "fsharp" else "plaintext")
-        options.Theme <- "vs-dark"
-        options.Value <- editorContent
-        options.FontSize <- System.Nullable(14)
-        options.LineNumbers <- "on"
-        options.RenderWhitespace <- "selection"
-        options.TabSize <- System.Nullable(4)
-        options
-
-    // Monaco editor reference
-    let mutable monacoEditor : StandaloneCodeEditor option = None
 
     override this.Render() = fragment {
         // Page header
@@ -182,9 +165,8 @@ result = add 5 (square 3)
                                     "Source Code"
                                 }
                                 
-                                // Monaco Editor placeholder
-                                // Note: Direct integration of BlazorMonaco requires Razor components
-                                // For now, using a textarea as a temporary editor
+                                // Code Editor (textarea placeholder)
+                                // TODO: Replace with BlazorMonaco StandaloneCodeEditor for rich editing
                                 div {
                                     style { height 500 }
                                     class' "border rounded"
