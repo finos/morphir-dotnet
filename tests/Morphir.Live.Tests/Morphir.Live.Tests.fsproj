@@ -6,11 +6,12 @@
     <IsTestProject>true</IsTestProject>
     <GenerateProgramFile>false</GenerateProgramFile>
     <Nullable>enable</Nullable>
+    <!-- Opt-in to new dotnet test experience for .NET 10 -->
+    <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="ComponentTests.fs" />
-    <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>

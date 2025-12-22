@@ -5,18 +5,15 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Morphir.Live</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-
-    <!-- Enable WASM support -->
-    <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
-
-    <!-- SSR support -->
-    <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
+    <!-- Disable debug symbols for cleaner WASM experience -->
+    <DebuggerSupport>false</DebuggerSupport>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Order matters in F# - compile in dependency order -->
     <Compile Include="Components/Layout.fs" />
     <Compile Include="Pages/Index.fs" />
+    <Compile Include="Pages/Counter.fs" />
     <Compile Include="Pages/NotFound.fs" />
     <Compile Include="App.fs" />
     <Compile Include="Program.fs" />
@@ -25,7 +22,6 @@
   <ItemGroup>
     <!-- Fun.Blazor packages -->
     <PackageReference Include="Fun.Blazor" />
-    <PackageReference Include="Fun.Blazor.MudBlazor" />
     <PackageReference Include="MudBlazor" />
     <PackageReference Include="FSharp.Core" />
 
