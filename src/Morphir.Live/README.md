@@ -19,6 +19,7 @@ Morphir.Live serves as:
 - ✅ **F#-First**: Functional, type-safe development with Fun.Blazor
 - ✅ **WebAssembly**: Runs entirely in the browser, no server required
 - ✅ **Interactive**: Real-time feedback and exploration
+- ✅ **Try-Morphir**: Interactive code editor with mock transformation (UI only, real IR pipeline coming soon)
 - 🚧 **IR Visualization**: (Coming Soon) Visual representation of Morphir IR
 - 🚧 **Model Validation**: (Coming Soon) Validate Morphir models
 
@@ -72,7 +73,8 @@ src/Morphir.Live/
 │   └── Layout.fs        # Main layout with AppBar
 ├── Pages/               # Application pages/routes
 │   ├── Index.fs         # Home page
-│   ├── Counter.fs       # Example page (to be replaced)
+│   ├── TryMorphir.fs    # Try-Morphir interactive editor (mock)
+│   ├── Counter.fs       # Example page
 │   └── NotFound.fs      # 404 page
 ├── wwwroot/             # Static assets
 │   ├── index.html       # HTML host
@@ -184,8 +186,32 @@ MudButton'() {
 }
 ```
 
+## Try-Morphir Feature
+
+The Try-Morphir page (`/try-morphir`) provides an interactive code editor for experimenting with Morphir transformations:
+
+### Current Implementation (Mock)
+
+- ✅ **Language Selection**: Choose between F# and Elm source languages
+- ✅ **Code Editor**: Textarea-based editor for writing source code
+- ✅ **Mock Transformation**: Simulated transformation output
+- ✅ **Responsive Layout**: Side-by-side editor and output panels
+- ✅ **Clear Disclaimers**: UI clearly indicates mock implementation
+
+### Future Enhancements
+
+- [ ] **Real Morphir IR Pipeline**: Actual transformation from source to Morphir IR
+- [ ] **Monaco Editor Integration**: Rich code editor with syntax highlighting and IntelliSense
+- [ ] **Type Inference**: Display inferred types for expressions
+- [ ] **Error Reporting**: Show compilation and transformation errors
+- [ ] **IR Visualization**: Visual representation of the generated IR
+- [ ] **Export/Share**: Save and share code snippets
+
+**Note**: The current implementation is a UI mockup. The transformation logic returns placeholder text. Real Morphir IR transformation will be integrated in future releases.
+
 ## Roadmap
 
+- [ ] **Try-Morphir**: Complete real IR transformation pipeline (UI exists, backend pending)
 - [ ] **IR Viewer**: Display and navigate Morphir IR structure
 - [ ] **Type Explorer**: Explore Morphir types interactively
 - [ ] **Model Validator**: Validate Morphir models with error reporting
