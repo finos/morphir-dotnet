@@ -14,6 +14,7 @@
     <Compile Include="Components/Layout.fs" />
     <Compile Include="Pages/Index.fs" />
     <Compile Include="Pages/Counter.fs" />
+    <Compile Include="Pages/TryMorphir.fs" />
     <Compile Include="Pages/NotFound.fs" />
     <Compile Include="App.fs" />
     <Compile Include="Program.fs" />
@@ -23,8 +24,12 @@
     <!-- Fun.Blazor packages -->
     <PackageReference Include="Fun.Blazor" />
     <PackageReference Include="Fun.Blazor.MudBlazor" />
+    <PackageReference Include="Fun.Blazor.BlazorMonaco" />
     <PackageReference Include="MudBlazor" />
     <PackageReference Include="FSharp.Core" />
+
+    <!-- Monaco Editor -->
+    <PackageReference Include="BlazorMonaco" />
 
     <!-- Blazor WASM support -->
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />

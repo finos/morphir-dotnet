@@ -67,11 +67,13 @@
     <PackageVersion Include="Fun.Blazor" Version="4.1.9" />
     <PackageVersion Include="Fun.Blazor.Cli" Version="4.1.9" />
     <PackageVersion Include="Fun.Blazor.MudBlazor" Version="8.15.0" />
+    <PackageVersion Include="Fun.Blazor.BlazorMonaco" Version="3.4.0" />
     <PackageVersion Include="MudBlazor" Version="8.15.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.0" />
     <PackageVersion Include="bunit" Version="1.31.3" />
     <PackageVersion Include="bunit.web" Version="1.31.3" />
+    <PackageVersion Include="BlazorMonaco" Version="3.4.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.1.0" />
     <PackageVersion Include="Reqnroll" Version="$(ReqnrollVersion)" />
