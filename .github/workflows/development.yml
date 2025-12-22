@@ -35,15 +35,14 @@ jobs:
               uses: actions/setup-dotnet@v5
               with:
                   dotnet-version: "10.0.x"
-            - uses: actions/cache@v5
-              with:
-                  path: ~/.nuget/packages
-                  # Look to see if there is a cache hit for the corresponding requirements file
-                  key: ${{ runner.os }}-nuget-v2-${{ hashFiles('**/packages.lock.json') }}
-                  restore-keys: |
-                      ${{ runner.os }}-nuget-v2
-            - name: Clear FSharp.Core cache
-              run: rm -rf ~/.nuget/packages/fsharp.core/10.0.101 || true
+            # TEMPORARILY DISABLED: Cache causing NU1403 errors with FSharp.Core.10.0.101
+            # Re-enable once cache is stable
+            # - uses: actions/cache@v5
+            #   with:
+            #       path: ~/.nuget/packages
+            #       key: ${{ runner.os }}-nuget-v2-${{ hashFiles('**/packages.lock.json') }}
+            #       restore-keys: |
+            #           ${{ runner.os }}-nuget-v2
             - name: Restore dependencies
               run: ./build.sh --target Restore
             - name: Check code formatting
@@ -61,16 +60,14 @@ jobs:
               uses: actions/setup-dotnet@v5
               with:
                   dotnet-version: "10.0.x"
-            - uses: actions/cache@v5
-              with:
-                  path: ~/.nuget/packages
-                  # Look to see if there is a cache hit for the corresponding requirements file
-                  key: ${{ runner.os }}-nuget-v2-${{ hashFiles('**/packages.lock.json') }}
-                  restore-keys: |
-                      ${{ runner.os }}-nuget-v2
-            - name: Clear FSharp.Core cache
-              shell: bash
-              run: rm -rf ~/.nuget/packages/fsharp.core/10.0.101 || true
+            # TEMPORARILY DISABLED: Cache causing NU1403 errors with FSharp.Core.10.0.101
+            # Re-enable once cache is stable
+            # - uses: actions/cache@v5
+            #   with:
+            #       path: ~/.nuget/packages
+            #       key: ${{ runner.os }}-nuget-v2-${{ hashFiles('**/packages.lock.json') }}
+            #       restore-keys: |
+            #           ${{ runner.os }}-nuget-v2
             - name: Restore dependencies
               shell: bash
               run: ./build.sh --target Restore
