@@ -100,7 +100,6 @@ public class CliTestHelper
                line.Contains("Application is shutting down") ||
                line.Contains("Hosting environment:") ||
                line.Contains("Content root path:") ||
-               line.Contains("extism.dll") ||
                line.Contains("Open Telemetry metrics") ||
                line.Contains("Starting Wolverine messaging") ||
                line.Contains("Wolverine code generation mode") ||

@@ -29,8 +29,6 @@
     <ItemGroup>
         <PackageReference Include="System.CommandLine" />
         <PackageReference Include="FluentValidation" />
-        <PackageReference Include="Extism.runtime.all" />
-        <PackageReference Include="Extism.Sdk" />
 
         <!-- Logging -->
         <PackageReference Include="Serilog" />
