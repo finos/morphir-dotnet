@@ -717,7 +717,7 @@
         "dependencies": {
           "FSharp.Core": "[10.0.101, )",
           "Fun.Blazor": "[4.1.9, )",
-          "Fun.Blazor.MudBlazor": "[4.1.9, )",
+          "Fun.Blazor.MudBlazor": "[6.11.0, )",
           "MudBlazor": "[8.0.0, )"
         }
       },
@@ -785,7 +785,7 @@
       },
       "Fun.Blazor.MudBlazor": {
         "type": "CentralTransitive",
-        "requested": "[4.1.9, )",
+        "requested": "[6.11.0, )",
         "resolved": "6.11.0",
         "contentHash": "Nisv2GYbT5rbaniz/vjee9Y1aa824AJHBzpUupaxNo8AtMHqPqvP+XimCcEfdyoR1yinjBQRBeluRrvNSUrxgg==",
         "dependencies": {

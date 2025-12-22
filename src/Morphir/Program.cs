@@ -56,7 +56,6 @@ public static partial class Program
         rootCommand.Subcommands.Add(CreateInfoCommand());
         rootCommand.Subcommands.Add(CreateRunCommand());
         rootCommand.Subcommands.Add(CreateIrCommand());
-        rootCommand.Subcommands.Add(CreateServerCommand());
 
         return rootCommand;
     }

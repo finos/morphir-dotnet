@@ -61,8 +61,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />
-        <ProjectReference Include="..\Morphir.Server\Morphir.Server.csproj" />
-        <ProjectReference Include="..\Morphir.Web\Morphir.Web.fsproj" />
     </ItemGroup>
 
     <ItemGroup>
