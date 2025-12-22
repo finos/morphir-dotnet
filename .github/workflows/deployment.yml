@@ -183,7 +183,7 @@ jobs:
               run: ./build.sh --target Compile --configuration ${{ env.CONFIGURATION }}
 
             - name: Download all executable artifacts
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v7
               with:
                   path: ./artifacts/single-file
                   pattern: morphir-*
@@ -215,7 +215,7 @@ jobs:
                   fetch-depth: 0
 
             - name: Download all executable artifacts
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v7
               with:
                   path: ./artifacts/executables
                   pattern: morphir-*
