@@ -39,9 +39,9 @@ jobs:
               with:
                   path: ~/.nuget/packages
                   # Look to see if there is a cache hit for the corresponding requirements file
-                  key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  key: ${{ runner.os }}-nuget-v2-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
-                      ${{ runner.os }}-nuget
+                      ${{ runner.os }}-nuget-v2
             - name: Restore dependencies
               run: ./build.sh --target Restore
             - name: Check code formatting
@@ -63,9 +63,9 @@ jobs:
               with:
                   path: ~/.nuget/packages
                   # Look to see if there is a cache hit for the corresponding requirements file
-                  key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  key: ${{ runner.os }}-nuget-v2-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
-                      ${{ runner.os }}-nuget
+                      ${{ runner.os }}-nuget-v2
             - name: Restore dependencies
               shell: bash
               run: ./build.sh --target Restore
