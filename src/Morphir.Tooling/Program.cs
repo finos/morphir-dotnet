@@ -9,6 +9,14 @@ namespace Morphir.Tooling;
 
 public static partial class Program
 {
+    /// <summary>
+    /// Creates a tooling host with default services and logging configuration.
+    /// </summary>
+    /// <remarks>
+    /// This method is obsolete. Use MorphirCli.CreateBuilder() instead for new code.
+    /// This method is kept for backward compatibility.
+    /// </remarks>
+    [Obsolete("Use MorphirCli.CreateBuilder() instead. This method will be removed in a future version.")]
     public static IHost CreateToolingHost()
     {
         // FIRST: Redirect Console.Out to stderr before ANY code runs

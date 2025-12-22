@@ -544,6 +544,7 @@
       "morphir.tooling": {
         "type": "Project",
         "dependencies": {
+          "Extism.Sdk": "[1.10.0, )",
           "FluentValidation": "[11.12.0, )",
           "Foundatio.Mediator": "[1.0.0-rc.4, )",
           "Json.More.Net": "[2.2.0, )",
@@ -552,7 +553,8 @@
           "Morphir.Core": "[1.0.0, )",
           "Serilog": "[4.3.0, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
-          "Serilog.Sinks.Console": "[6.1.1, )"
+          "Serilog.Sinks.Console": "[6.1.1, )",
+          "System.CommandLine": "[2.0.1, )"
         }
       },
       "Dunet": {
