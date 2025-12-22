@@ -65,6 +65,11 @@ type MainLayout() as this =
                                 "Home"
                             }
                             MudNavLink'() {
+                                Href "/try-morphir"
+                                Icon Icons.Material.Filled.Code
+                                "Try Morphir"
+                            }
+                            MudNavLink'() {
                                 Href "/counter"
                                 Icon Icons.Material.Filled.Calculate
                                 "Counter"

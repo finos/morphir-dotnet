@@ -2,6 +2,16 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
+      "BlazorMonaco": {
+        "type": "Direct",
+        "requested": "[3.4.0, )",
+        "resolved": "3.4.0",
+        "contentHash": "oVdjF5t6pOJLj/XKlNlO4uXuYU+xsBMLak3ZL1Q7Zyb8vBTOhzibampmhSUVvfXWe5e4w0HTKBZwQvuTJ77smg==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Components": "9.0.0",
+          "Microsoft.AspNetCore.Components.Web": "9.0.0"
+        }
+      },
       "FSharp.Core": {
         "type": "Direct",
         "requested": "[10.0.101, )",
