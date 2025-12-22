@@ -22,6 +22,7 @@
   <ItemGroup>
     <!-- Fun.Blazor packages -->
     <PackageReference Include="Fun.Blazor" />
+    <PackageReference Include="Fun.Blazor.MudBlazor" />
     <PackageReference Include="MudBlazor" />
     <PackageReference Include="FSharp.Core" />
 

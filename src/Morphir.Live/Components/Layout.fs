@@ -2,25 +2,47 @@ namespace Morphir.Live.Components
 
 open Microsoft.AspNetCore.Components
 open Fun.Blazor
+open MudBlazor
 
 /// <summary>
-/// Main layout component using Fun.Blazor
-/// Inherits LayoutComponentBase for Blazor layout functionality
+/// Main layout component using MudBlazor with Fun.Blazor
+/// Provides Material Design AppBar and responsive container layout
 /// </summary>
 type MainLayout() as this =
     inherit LayoutComponentBase()
 
     let content = fragment {
-        div {
-            class' "layout"
-            header {
-                class' "header bg-primary text-white p-3"
-                h1 { "Morphir Live" }
+        // MudBlazor provider components (required once at root)
+        MudThemeProvider'()
+        MudDialogProvider'()
+        MudSnackbarProvider'()
+
+        // Main layout with MudBlazor components
+        MudLayout'() {
+            // Material Design AppBar
+            MudAppBar'() {
+                Color Color.Primary
+                Elevation 1
+                childContent [
+                    MudIconButton'() {
+                        Icon Icons.Material.Filled.Menu
+                        Color Color.Inherit
+                        Edge Edge.Start
+                    }
+                    MudText'() {
+                        Typo Typo.h5
+                        "Morphir Live"
+                    }
+                ]
             }
-            main {
-                class' "container mt-4"
-                if not (isNull this.Body) then
+
+            // Main content area
+            MudMainContent'() {
+                MudContainer'() {
+                    MaxWidth MaxWidth.Large
+                    class' "mt-4"
                     this.Body
+                }
             }
         }
     }
