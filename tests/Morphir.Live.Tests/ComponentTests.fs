@@ -37,6 +37,12 @@ type ComponentTests() =
     member _.Routes_Component_Should_Be_Instantiable() =
         use ctx = new TestContext()
 
+        // Register MudBlazor services needed by Routes component (includes MainLayout)
+        ctx.Services.AddMudServices() |> ignore
+
+        // Mock MudBlazor's theme detection JavaScript
+        ctx.JSInterop.SetupVoid("watchDarkThemeMedia", fun _ -> true) |> ignore
+
         // Just verify we can create the component
         let cut = ctx.RenderComponent<Morphir.Live.Routes>()
 
@@ -55,6 +61,9 @@ type ComponentTests() =
         // Register MudBlazor services required by components
         ctx.Services.AddMudServices() |> ignore
 
+        // Mock MudBlazor's theme detection JavaScript
+        ctx.JSInterop.SetupVoid("watchDarkThemeMedia", fun _ -> true) |> ignore
+
         // Render the MainLayout component
         let cut = ctx.RenderComponent<Morphir.Live.Components.MainLayout>()
 
@@ -67,6 +76,7 @@ type ComponentTests() =
     member _.MainLayout_Should_Display_App_Title() =
         use ctx = new TestContext()
         ctx.Services.AddMudServices() |> ignore
+        ctx.JSInterop.SetupVoid("watchDarkThemeMedia", fun _ -> true) |> ignore
 
         let cut = ctx.RenderComponent<Morphir.Live.Components.MainLayout>()
 
@@ -78,6 +88,7 @@ type ComponentTests() =
     member _.MainLayout_Should_Have_MudThemeProvider() =
         use ctx = new TestContext()
         ctx.Services.AddMudServices() |> ignore
+        ctx.JSInterop.SetupVoid("watchDarkThemeMedia", fun _ -> true) |> ignore
 
         let cut = ctx.RenderComponent<Morphir.Live.Components.MainLayout>()
 
@@ -89,6 +100,7 @@ type ComponentTests() =
     member _.MainLayout_Should_Have_Menu_Icon_Button() =
         use ctx = new TestContext()
         ctx.Services.AddMudServices() |> ignore
+        ctx.JSInterop.SetupVoid("watchDarkThemeMedia", fun _ -> true) |> ignore
 
         let cut = ctx.RenderComponent<Morphir.Live.Components.MainLayout>()
 
@@ -100,6 +112,7 @@ type ComponentTests() =
     member _.MainLayout_Should_Have_Main_Content_Container() =
         use ctx = new TestContext()
         ctx.Services.AddMudServices() |> ignore
+        ctx.JSInterop.SetupVoid("watchDarkThemeMedia", fun _ -> true) |> ignore
 
         let cut = ctx.RenderComponent<Morphir.Live.Components.MainLayout>()
 

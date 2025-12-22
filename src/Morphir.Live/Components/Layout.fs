@@ -41,7 +41,8 @@ type MainLayout() as this =
                 MudContainer'() {
                     MaxWidth MaxWidth.Large
                     class' "mt-4"
-                    this.Body
+                    if not (isNull this.Body) then
+                        this.Body
                 }
             }
         }
