@@ -1,14 +1,17 @@
 namespace Morphir.Live.Pages
 
 open Microsoft.AspNetCore.Components
+open Microsoft.JSInterop
 open Fun.Blazor
 open MudBlazor
+open BlazorMonaco
+open BlazorMonaco.Editor
+open System
 
 /// <summary>
 /// Try-Morphir interactive playground page.
-/// Provides a code editor for experimenting with Morphir transformations.
+/// Provides a Monaco code editor for experimenting with Morphir transformations.
 /// Currently uses mock implementation - real IR transformation is future work.
-/// TODO: Integrate BlazorMonaco for rich code editing with syntax highlighting.
 /// </summary>
 [<Route("/try-morphir")>]
 type TryMorphir() =
@@ -43,6 +46,9 @@ Note: This is a mock representation.
 Actual Morphir IR transformation will be implemented in future iterations.
 """
 
+    // Reference to Monaco editor for dynamic updates
+    let mutable inputEditorRef = Option<StandaloneCodeEditor>.None
+
     // Mock transformation function
     let performMockTransformation() =
         transformOutput <- 
@@ -76,6 +82,9 @@ Note: This is placeholder output.
 Real Morphir IR transformation coming in future release.
 """
             | _ -> "Unknown language selected."
+
+    [<Inject>]
+    member val JSRuntime : IJSRuntime = Unchecked.defaultof<IJSRuntime> with get, set
 
     override this.Render() = fragment {
         // Page header
@@ -131,6 +140,21 @@ square n = n * n
 result = add 5 (square 3)
 """
                         | _ -> "// Select a language"
+                    
+                    // Update Monaco editor if loaded
+                    match inputEditorRef with
+                    | Some editor ->
+                        task {
+                            let! model = editor.GetModel()
+                            let newLang = 
+                                match newVal with
+                                | "fsharp" -> "fsharp"
+                                | "elm" -> "plaintext"  // Monaco doesn't have built-in Elm support
+                                | _ -> "plaintext"
+                            do! Editor.Global.SetModelLanguage(this.JSRuntime, model, newLang)
+                            do! editor.SetValue(editorContent)
+                        } |> ignore
+                    | None -> ()
                 )
                 Variant Variant.Outlined
                 class' "mb-2"
@@ -165,19 +189,37 @@ result = add 5 (square 3)
                                     "Source Code"
                                 }
                                 
-                                // Code Editor (textarea placeholder)
-                                // TODO: Replace with BlazorMonaco StandaloneCodeEditor for rich editing
+                                // Monaco Code Editor with Fun.Blazor
                                 div {
-                                    style { height 500 }
-                                    class' "border rounded"
+                                    style' "height: 500px; border: 1px solid #424242; border-radius: 4px;"
                                     
-                                    textarea {
-                                        class' "form-control"
-                                        style' "width: 100%; height: 100%; background-color: #1e1e1e; color: #d4d4d4; font-family: Consolas, 'Courier New', monospace; font-size: 14px; padding: 12px; border: 0; resize: none;"
-                                        value editorContent
-                                        oninput (fun e ->
-                                            editorContent <- string e.Value
+                                    StandaloneCodeEditor'' {
+                                        id "morphir-input-editor"
+                                        CssClass "h-full"
+                                        ConstructionOptions(fun _ ->
+                                            StandaloneEditorConstructionOptions(
+                                                AutomaticLayout = true,
+                                                Language = (match selectedLanguage with
+                                                           | "fsharp" -> "fsharp"
+                                                           | "elm" -> "plaintext"
+                                                           | _ -> "plaintext"),
+                                                Theme = "vs-dark",
+                                                Value = editorContent,
+                                                FontSize = Nullable(14),
+                                                TabSize = Nullable(4),
+                                                Minimap = EditorMinimapOptions(Enabled = Nullable(false)),
+                                                ScrollBeyondLastLine = Nullable(false),
+                                                WordWrap = "on"
+                                            )
                                         )
+                                        OnDidChangeModelContent(fun _ -> task {
+                                            match inputEditorRef with
+                                            | None -> ()
+                                            | Some editor ->
+                                                let! value = editor.GetValue()
+                                                editorContent <- value
+                                        })
+                                        ref (fun x -> inputEditorRef <- Some x)
                                     }
                                 }
                                 
