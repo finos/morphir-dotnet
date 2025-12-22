@@ -10,7 +10,7 @@
   <PropertyGroup>
     <BunsenBurnerVersion>6.2.1</BunsenBurnerVersion>
     <FakeVersion>6.0.0</FakeVersion>
-    <LanguageExtVersion>5.0.0-beta-61</LanguageExtVersion>
+    <LanguageExtVersion>5.0.0-beta-63</LanguageExtVersion>
     <LightBDDVersion>3.6.1</LightBDDVersion>
     <SystemCommandLineVersion>2.0.0-beta4.22272.1</SystemCommandLineVersion>
     <ReqnrollVersion>3.3.0</ReqnrollVersion>
@@ -27,7 +27,7 @@
     <PackageVersion Include="Dunet" Version="1.11.3" />
     <PackageVersion Include="Extism.runtime.all" Version="1.13.0" />
     <PackageVersion Include="Extism.Sdk" Version="1.10.0" />
-    <PackageVersion Include="FSharp.Core" Version="7.0.200" />
+    <PackageVersion Include="FSharp.Core" Version="7.0.403" />
     <PackageVersion Include="FSharp.Data" Version="5.0.2" />
     <PackageVersion Include="FSharp.SystemCommandLine" Version="0.17.0-beta4" />
     <PackageVersion Include="Generator.Equals" Version="3.2.1" />
@@ -50,9 +50,9 @@
     <PackageVersion Include="FluentAssertions" Version="8.8.0" />
     <PackageVersion Include="FluentValidation" Version="11.12.0" />
     <PackageVersion Include="Json.More.Net" Version="2.2.0" />
-    <PackageVersion Include="JsonSchema.Net" Version="8.0.3" />
+    <PackageVersion Include="JsonSchema.Net" Version="8.0.4" />
     <PackageVersion Include="JsonPointer.Net" Version="6.0.1" />
-    <PackageVersion Include="WolverineFx" Version="5.9.0" />
+    <PackageVersion Include="WolverineFx" Version="5.9.1" />
     <PackageVersion Include="YamlDotNet" Version="16.3.0" />
     <PackageVersion Include="FSharp.Formatting" Version="4.0.0-rc1" />
     <PackageVersion Include="FSharp.Literate" Version="4.0.0-rc1" />
@@ -75,9 +75,9 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
-    <PackageVersion Include="TUnit" Version="1.5.70" />
-    <PackageVersion Include="Expecto" Version="10.1.0" />
-    <PackageVersion Include="Expecto.FsCheck" Version="10.1.0" />
+    <PackageVersion Include="TUnit" Version="1.6.5" />
+    <PackageVersion Include="Expecto" Version="10.2.3" />
+    <PackageVersion Include="Expecto.FsCheck" Version="10.2.3" />
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.TUnit" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
@@ -91,6 +91,6 @@
     <!-- Code Generation Dependencies -->
     <PackageVersion Include="Myriad.Core" Version="0.8.3" />
     <PackageVersion Include="Fabulous.AST" Version="1.9.0" />
-    <PackageVersion Include="Fantomas.Core" Version="7.0.1" />
+    <PackageVersion Include="Fantomas.Core" Version="7.0.5" />
   </ItemGroup>
 </Project>

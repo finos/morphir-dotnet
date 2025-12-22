@@ -16,14 +16,14 @@
       },
       "TUnit": {
         "type": "Direct",
-        "requested": "[1.5.70, )",
-        "resolved": "1.5.70",
-        "contentHash": "8hrFKrZDS1PtVarY2i8NDots0aZ0g125MdKtvg1VeH9V4sZFVeCEYRtzyAeDMmpkYokTQ7uSK8XHYiynmcW4JQ==",
+        "requested": "[1.6.5, )",
+        "resolved": "1.6.5",
+        "contentHash": "8E61vINoWwoFBhbwKQ2F2Ruw1moTzhuzs6SgQw6ec6l8NP4gi8j8ShV+lu/RrLyzDRIv99ZqS2+5bL4AbL/Ulg==",
         "dependencies": {
           "Microsoft.Testing.Extensions.CodeCoverage": "18.1.0",
           "Microsoft.Testing.Extensions.TrxReport": "2.0.2",
-          "TUnit.Assertions": "1.5.70",
-          "TUnit.Engine": "1.5.70"
+          "TUnit.Assertions": "1.6.5",
+          "TUnit.Engine": "1.6.5"
         }
       },
       "Azure.Core": {
@@ -520,24 +520,24 @@
       },
       "TUnit.Assertions": {
         "type": "Transitive",
-        "resolved": "1.5.70",
-        "contentHash": "Y50zqbXrSbLA8Y58d57r8uV+1/10+vYH7fzXW1PHqsOpPqO2GjAGq2EfpnApPPbN8p7ATwmFuX/qE46xRLMFHQ=="
+        "resolved": "1.6.5",
+        "contentHash": "yGsLFJpuHJySj9vkWRiNn/NNYOCGHPWUMoFnDboXNOqBWxC9XIhNMqIx/Gg7GxiFRK2GMHY+LNJmgrngIyzirA=="
       },
       "TUnit.Core": {
         "type": "Transitive",
-        "resolved": "1.5.70",
-        "contentHash": "Bix7TCa2XLbGwu96uw2jBFhKEAxYgERWsjnuM9CqLFxGb0YPGVI3jdZmi/T6qpg1eAdZKKGFygT30m79y9urSg=="
+        "resolved": "1.6.5",
+        "contentHash": "YSMEqVDnhfyk1+KkYXcKAA3t6r/ga07Pkm9JON4vgfTV6QAh/R7ssUEkOvhl1bOPOfdLm4GwBfrA1WniL2lRRA=="
       },
       "TUnit.Engine": {
         "type": "Transitive",
-        "resolved": "1.5.70",
-        "contentHash": "hLxJ/DD12hkPykIVbgaDYMxVZyzWZHfOmnnYMqg4iAm/LAR3NrBjfkGLIpzyKztea9/WsIXjXfYZA5V7SY/Mjg==",
+        "resolved": "1.6.5",
+        "contentHash": "9zQlq1btxCxTgWDVpJhFROWsw3RHHVOrLAzm+rrznU2UEoCko4G2vg7+cerpWTIdMFNRVcMY/qEl+iQ+agxAfw==",
         "dependencies": {
           "EnumerableAsyncProcessor": "3.8.4",
           "Microsoft.Testing.Extensions.TrxReport.Abstractions": "2.0.2",
           "Microsoft.Testing.Platform": "2.0.2",
           "Microsoft.Testing.Platform.MSBuild": "2.0.2",
-          "TUnit.Core": "1.5.70"
+          "TUnit.Core": "1.6.5"
         }
       },
       "_build": {
@@ -549,9 +549,9 @@
       },
       "FSharp.Core": {
         "type": "CentralTransitive",
-        "requested": "[7.0.200, )",
-        "resolved": "7.0.200",
-        "contentHash": "NmgUnpNH6Zu9B0SPIhojyo38gnPdkdYFYQfbd6zosEH32kbGY/g/Klk7PfOWe1NAe/O1YOMmK9KhwQ2OWsWEbg=="
+        "requested": "[7.0.403, )",
+        "resolved": "7.0.403",
+        "contentHash": "QYCYEhAj3GccfPdK6EDZu3Yz7I8p75nVHmNnV/9duxTAcqmstbG87waXDC4LBz0/8Jb0teb0ry/xLM2pjk/UAw=="
       },
       "Ionide.KeepAChangelog": {
         "type": "CentralTransitive",
