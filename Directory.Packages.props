@@ -25,8 +25,6 @@
     <PackageVersion Include="BunsenBurner.Hedgehog" Version="$(BunsenBurnerVersion)" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Dunet" Version="1.11.3" />
-    <PackageVersion Include="Extism.runtime.all" Version="1.13.0" />
-    <PackageVersion Include="Extism.Sdk" Version="1.10.0" />
     <PackageVersion Include="FSharp.Core" Version="10.0.101" />
     <PackageVersion Include="FSharp.Data" Version="5.0.2" />
     <PackageVersion Include="FSharp.SystemCommandLine" Version="0.17.0-beta4" />

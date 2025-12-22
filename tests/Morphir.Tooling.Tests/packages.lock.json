@@ -524,7 +524,6 @@
       "morphir.tooling": {
         "type": "Project",
         "dependencies": {
-          "Extism.Sdk": "[1.10.0, )",
           "FluentValidation": "[11.12.0, )",
           "Foundatio.Mediator": "[1.0.0-rc.4, )",
           "Json.More.Net": "[2.2.0, )",
@@ -542,12 +541,6 @@
         "requested": "[1.11.3, )",
         "resolved": "1.11.3",
         "contentHash": "xve1qb4EfUFLnoluZlDlfByd2wm/dQnuPF42hcWD4TbK0q4UD8jQNWIXvdG90972sOpjDKn6fMf2fCyOOyPX3g=="
-      },
-      "Extism.Sdk": {
-        "type": "CentralTransitive",
-        "requested": "[1.10.0, )",
-        "resolved": "1.10.0",
-        "contentHash": "AU4r9RX/vN2ZmciL9h5sWiuyo+59Zy36nQwUbkJA8S1kdNEvm/9F2MoSnPIHck/P06r9Vw+pkmSFKVedvDrh5w=="
       },
       "FluentValidation": {
         "type": "CentralTransitive",

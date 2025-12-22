@@ -47,8 +47,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Extism.runtime.all" />
-        <PackageReference Include="Extism.Sdk" />
         <PackageReference Include="System.CommandLine" />
         <PackageReference Include="Foundatio.Mediator" />
         <PackageReference Include="FluentValidation" />

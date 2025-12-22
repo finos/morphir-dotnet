@@ -2,12 +2,6 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
-      "Extism.Sdk": {
-        "type": "Direct",
-        "requested": "[1.10.0, )",
-        "resolved": "1.10.0",
-        "contentHash": "AU4r9RX/vN2ZmciL9h5sWiuyo+59Zy36nQwUbkJA8S1kdNEvm/9F2MoSnPIHck/P06r9Vw+pkmSFKVedvDrh5w=="
-      },
       "FluentValidation": {
         "type": "Direct",
         "requested": "[11.12.0, )",

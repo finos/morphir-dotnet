@@ -111,36 +111,6 @@
         "resolved": "3.8.4",
         "contentHash": "KlbpupRCz3Kf+P7gsiDvFXJ980i/9lfihMZFmmxIk0Gf6mopEjy74OTJZmdaKDQpE29eQDBnMZB5khyW3eugrg=="
       },
-      "Extism.runtime.linux-arm64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "JKTbKrJ9zqxfKaYBEJQX1bBky6kug/i+uU462Etu9MrnC00t6+FsNzW+lg8O6kqZIZIw+k/QSzQJTbE9+ACoXQ=="
-      },
-      "Extism.runtime.linux-musl-arm64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "a2PUlV8dc9kgUZa8PBb6VuEo8tioX0wQnU0Rn8J5ZGBECoC68VayBmIfdx+OmR9pzpN6IsorjTPlBoRvGHhy3w=="
-      },
-      "Extism.runtime.linux-x64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "/WEePguMvmRn/IY34iFuFNOS28RCKBPBKKG3xpUfpZ7bcnj80e/NPyyMRQQLaZSBJkiDvn7hJwJvt+n3cPF7rA=="
-      },
-      "Extism.runtime.osx-arm64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "L19ANqXBgEZHDrWiQGRz+BGi8N7Rqirw7QTbEKFyJEutEfO25IafOQgr+UAk7/fXCRgUEz55KlBDhMETlEZeVg=="
-      },
-      "Extism.runtime.osx-x64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "BJawGsM0VP2uUf0X4J4wVer9k7G7dmDmMGDWjC21nmVFsfkswWsYmM8SkB9S98rAofni6yvNwT23MOSfu8RGPw=="
-      },
-      "Extism.runtime.win-x64": {
-        "type": "Transitive",
-        "resolved": "1.13.0",
-        "contentHash": "tezN2DRh8PWrKHZiP8fDqnFRASGyxL2lVeDVDPV8YqHVGzqAl1POzYUvxkNkGeozHSrCWJ4ZCTJg4TmG6GQdwg=="
-      },
       "Foundatio.Mediator.Abstractions": {
         "type": "Transitive",
         "resolved": "1.0.0-rc.4",
@@ -521,8 +491,6 @@
       "morphir": {
         "type": "Project",
         "dependencies": {
-          "Extism.Sdk": "[1.10.0, )",
-          "Extism.runtime.all": "[1.13.0, )",
           "FluentValidation": "[11.12.0, )",
           "Foundatio.Mediator": "[1.0.0-rc.4, )",
           "Morphir.Tooling": "[1.0.0, )",
@@ -544,7 +512,6 @@
       "morphir.tooling": {
         "type": "Project",
         "dependencies": {
-          "Extism.Sdk": "[1.10.0, )",
           "FluentValidation": "[11.12.0, )",
           "Foundatio.Mediator": "[1.0.0-rc.4, )",
           "Json.More.Net": "[2.2.0, )",
@@ -562,26 +529,6 @@
         "requested": "[1.11.3, )",
         "resolved": "1.11.3",
         "contentHash": "xve1qb4EfUFLnoluZlDlfByd2wm/dQnuPF42hcWD4TbK0q4UD8jQNWIXvdG90972sOpjDKn6fMf2fCyOOyPX3g=="
-      },
-      "Extism.runtime.all": {
-        "type": "CentralTransitive",
-        "requested": "[1.13.0, )",
-        "resolved": "1.13.0",
-        "contentHash": "p8W+q2VYsNJk3lan0E76SGbjJtQz5OoeBMmwsMmka3n9OriusqZAPFWXqIWU0Zhm9NojH60W+Q1bVgfQdSCS7w==",
-        "dependencies": {
-          "Extism.runtime.linux-arm64": "1.13.0",
-          "Extism.runtime.linux-musl-arm64": "1.13.0",
-          "Extism.runtime.linux-x64": "1.13.0",
-          "Extism.runtime.osx-arm64": "1.13.0",
-          "Extism.runtime.osx-x64": "1.13.0",
-          "Extism.runtime.win-x64": "1.13.0"
-        }
-      },
-      "Extism.Sdk": {
-        "type": "CentralTransitive",
-        "requested": "[1.10.0, )",
-        "resolved": "1.10.0",
-        "contentHash": "AU4r9RX/vN2ZmciL9h5sWiuyo+59Zy36nQwUbkJA8S1kdNEvm/9F2MoSnPIHck/P06r9Vw+pkmSFKVedvDrh5w=="
       },
       "FluentValidation": {
         "type": "CentralTransitive",
