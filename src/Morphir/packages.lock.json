@@ -344,6 +344,17 @@
         "resolved": "10.0.0",
         "contentHash": "uaFRda9NjtbJRkdx311eXlAA3n2em7223c1A8d1VWyl+4FL9vkG7y2lpPfBU9HYdj/9KgdRNdn1vFK8ZYCYT/A=="
       },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "9.0.5",
+        "contentHash": "iFhbuwiertFWWVlbOtfVV2MaojUW0/eQ2AKkBcjvmWHYw2orW5OiTHPqAeB7ny5+s09EQaZaQmX4SIpGX8HUdg=="
+      },
+      "morphir.configuration": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.0.101, )"
+        }
+      },
       "morphir.core": {
         "type": "Project",
         "dependencies": {
@@ -356,11 +367,13 @@
       "morphir.tooling": {
         "type": "Project",
         "dependencies": {
+          "CsToml": "[1.8.0, )",
           "FluentValidation": "[11.12.0, )",
           "Foundatio.Mediator": "[1.0.0-rc.4, )",
           "Json.More.Net": "[2.2.0, )",
           "JsonSchema.Net": "[8.0.4, )",
           "Microsoft.Extensions.Hosting": "[10.0.0, )",
+          "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
           "Serilog": "[4.3.0, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
@@ -368,11 +381,26 @@
           "System.CommandLine": "[2.0.1, )"
         }
       },
+      "CsToml": {
+        "type": "CentralTransitive",
+        "requested": "[1.8.0, )",
+        "resolved": "1.8.0",
+        "contentHash": "SIVq+G/QsiwOFY6lgQjKmvmHNSJaQUDr5ug/O2pbFlUvUOfaiLsTIGqSyyMtlhVpPAX5r+P7rfaMR7iUrhwwYA==",
+        "dependencies": {
+          "System.IO.Hashing": "9.0.5"
+        }
+      },
       "Dunet": {
         "type": "CentralTransitive",
         "requested": "[1.11.3, )",
         "resolved": "1.11.3",
         "contentHash": "xve1qb4EfUFLnoluZlDlfByd2wm/dQnuPF42hcWD4TbK0q4UD8jQNWIXvdG90972sOpjDKn6fMf2fCyOOyPX3g=="
+      },
+      "FSharp.Core": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.101, )",
+        "resolved": "10.0.101",
+        "contentHash": "mrS3J7cLtvXM3u3CmiaFq8oyBdlevzZY1VAAAbFk1gUDQtDEjUOybN5XpQglx5wAgJ0wLdDl6OSSfS7ZDFNcpA=="
       },
       "Generator.Equals": {
         "type": "CentralTransitive",

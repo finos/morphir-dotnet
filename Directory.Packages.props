@@ -103,6 +103,6 @@
     <PackageVersion Include="Fabulous.AST" Version="1.9.0" />
     <PackageVersion Include="Fantomas.Core" Version="7.0.5" />
     <!-- Configuration Dependencies -->
-    <PackageVersion Include="Tomlyn" Version="0.17.0" />
+    <PackageVersion Include="CsToml" Version="1.8.0" />
   </ItemGroup>
 </Project>

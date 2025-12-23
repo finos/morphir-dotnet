@@ -287,6 +287,8 @@ test-*.json
 
 # Morphir generated files
 .morphir/out/
+.morphir/cache/
+.morphir/morphir.user.toml
 
 # Release management history (local state)
 .claude/skills/release-manager/.release-history.json
