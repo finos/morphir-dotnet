@@ -15,11 +15,19 @@ public sealed class ArtifactPathResolver
     /// </summary>
     /// <param name="workspaceRoot">Optional workspace root directory (for local artifacts)</param>
     public ArtifactPathResolver(string? workspaceRoot = null)
+        : this(OsPaths.GetGlobalConfigDirectory(), workspaceRoot)
     {
-        // Global root is in the OS-specific config directory
-        _globalRoot = OsPaths.GetGlobalConfigDirectory();
+    }
 
-        // Local root is in workspace .morphir directory if workspace exists
+    /// <summary>
+    /// Creates a new path resolver with custom global root.
+    /// This constructor is primarily for testing to avoid using the actual system global directory.
+    /// </summary>
+    /// <param name="globalRoot">Custom global root directory</param>
+    /// <param name="workspaceRoot">Optional workspace root directory (for local artifacts)</param>
+    public ArtifactPathResolver(string globalRoot, string? workspaceRoot)
+    {
+        _globalRoot = globalRoot;
         _localRoot = workspaceRoot != null ? Path.Combine(workspaceRoot, ".morphir") : null;
     }
 

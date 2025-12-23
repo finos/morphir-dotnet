@@ -177,10 +177,14 @@ public class DistHandlersTests : IDisposable
     [Test]
     public async Task HandleWhich_WithNoActiveVersion_ShouldReturnNotFound()
     {
-        // Arrange - create a new isolated workspace
-        var isolatedWorkspace = Path.Combine(Path.GetTempPath(), $"morphir-isolated-{Guid.NewGuid()}");
+        // Arrange - create fully isolated directories (both global and local)
+        var isolatedGlobal = Path.Combine(Path.GetTempPath(), $"morphir-global-{Guid.NewGuid()}");
+        var isolatedWorkspace = Path.Combine(Path.GetTempPath(), $"morphir-workspace-{Guid.NewGuid()}");
+        Directory.CreateDirectory(isolatedGlobal);
         Directory.CreateDirectory(isolatedWorkspace);
-        var isolatedResolver = new ArtifactPathResolver(isolatedWorkspace);
+
+        // Use constructor that accepts custom global root for full isolation
+        var isolatedResolver = new ArtifactPathResolver(isolatedGlobal, isolatedWorkspace);
 
         try
         {
@@ -199,6 +203,10 @@ public class DistHandlersTests : IDisposable
             if (Directory.Exists(isolatedWorkspace))
             {
                 Directory.Delete(isolatedWorkspace, recursive: true);
+            }
+            if (Directory.Exists(isolatedGlobal))
+            {
+                Directory.Delete(isolatedGlobal, recursive: true);
             }
         }
     }
