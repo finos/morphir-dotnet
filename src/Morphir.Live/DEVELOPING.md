@@ -83,7 +83,7 @@ Morphir.Live/
 │   └── Layout.fs           # Main layout with AppBar
 ├── Pages/                  # Application pages
 │   ├── Index.fs            # Home page
-│   ├── Counter.fs          # Example page
+│   ├── TryMorphir.fs       # Try-Morphir interactive editor
 │   └── NotFound.fs         # 404 page
 ├── wwwroot/                # Static files
 │   ├── index.html          # HTML host

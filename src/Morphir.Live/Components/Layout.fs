@@ -70,11 +70,6 @@ type MainLayout() as this =
                                 Icon Icons.Material.Filled.Code
                                 "Try Morphir"
                             }
-                            MudNavLink'() {
-                                Href "/counter"
-                                Icon Icons.Material.Filled.Calculate
-                                "Counter"
-                            }
                             MudDivider'() {
                                 class' "my-2"
                             }

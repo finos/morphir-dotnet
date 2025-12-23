@@ -13,7 +13,6 @@
     <!-- Order matters in F# - compile in dependency order -->
     <Compile Include="Components/Layout.fs" />
     <Compile Include="Pages/Index.fs" />
-    <Compile Include="Pages/Counter.fs" />
     <Compile Include="Pages/TryMorphir.fs" />
     <Compile Include="Pages/NotFound.fs" />
     <Compile Include="App.fs" />
