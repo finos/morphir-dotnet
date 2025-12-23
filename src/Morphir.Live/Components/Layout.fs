@@ -20,6 +20,7 @@ type MainLayout() as this =
     let content = fragment {
         // MudBlazor provider components (required once at root)
         MudThemeProvider'()
+        MudPopoverProvider'()
         MudDialogProvider'()
         MudSnackbarProvider'()
 
@@ -68,11 +69,6 @@ type MainLayout() as this =
                                 Href "/try-morphir"
                                 Icon Icons.Material.Filled.Code
                                 "Try Morphir"
-                            }
-                            MudNavLink'() {
-                                Href "/counter"
-                                Icon Icons.Material.Filled.Calculate
-                                "Counter"
                             }
                             MudDivider'() {
                                 class' "my-2"

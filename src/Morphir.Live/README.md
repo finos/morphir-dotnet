@@ -74,7 +74,6 @@ src/Morphir.Live/
 ├── Pages/               # Application pages/routes
 │   ├── Index.fs         # Home page
 │   ├── TryMorphir.fs    # Try-Morphir interactive editor (mock)
-│   ├── Counter.fs       # Example page
 │   └── NotFound.fs      # 404 page
 ├── wwwroot/             # Static assets
 │   ├── index.html       # HTML host

@@ -32,14 +32,9 @@ type Index() =
         div {
             class' "mb-4"
             a {
-                class' "btn btn-success btn-lg me-2"
+                class' "btn btn-success btn-lg"
                 href "/try-morphir"
                 "Try Morphir Editor →"
-            }
-            a {
-                class' "btn btn-outline-primary btn-lg"
-                href "/counter"
-                "Interactive Counter"
             }
         }
 

@@ -1,0 +1,13 @@
+/* Morphir Live - Custom Styles */
+
+/* Utility class for full height (Tailwind-style) */
+.h-full {
+    height: 100% !important;
+}
+
+/* Monaco editor sizing - ensure editor fills its container */
+#morphir-input-editor,
+#morphir-input-editor .monaco-editor {
+    height: 100% !important;
+    min-height: 100%;
+}

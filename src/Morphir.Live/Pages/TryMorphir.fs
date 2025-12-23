@@ -19,7 +19,7 @@ type TryMorphir() =
 
     // State for language selection
     let mutable selectedLanguage = "fsharp"
-    
+
     // State for editor content
     let mutable editorContent = """// Welcome to Try-Morphir!
 // This is a mock implementation. Real IR transformation is coming soon.
@@ -51,9 +51,9 @@ Actual Morphir IR transformation will be implemented in future iterations.
 
     // Mock transformation function
     let performMockTransformation() =
-        transformOutput <- 
+        transformOutput <-
             match selectedLanguage with
-            | "fsharp" -> 
+            | "fsharp" ->
                 """// Mock Morphir IR from F#
 // Input analyzed (mock):
 //   Functions detected: """ + (editorContent.Split('\n').Length.ToString()) + """ lines
@@ -120,10 +120,10 @@ Real Morphir IR transformation coming in future release.
             MudSelect'() {
                 Label "Source Language"
                 Value selectedLanguage
-                ValueChanged (fun (newVal: string) -> 
+                ValueChanged (fun (newVal: string) ->
                     selectedLanguage <- newVal
                     // Update editor language and sample code
-                    editorContent <- 
+                    editorContent <-
                         match newVal with
                         | "fsharp" -> """// F# Example
 let add x y = x + y
@@ -140,13 +140,13 @@ square n = n * n
 result = add 5 (square 3)
 """
                         | _ -> "// Select a language"
-                    
+
                     // Update Monaco editor if loaded
                     match inputEditorRef with
                     | Some editor ->
                         task {
                             let! model = editor.GetModel()
-                            let newLang = 
+                            let newLang =
                                 match newVal with
                                 | "fsharp" -> "fsharp"
                                 | "elm" -> "plaintext"  // Monaco doesn't have built-in Elm support
@@ -188,11 +188,12 @@ result = add 5 (square 3)
                                     class' "mb-2"
                                     "Source Code"
                                 }
-                                
+
                                 // Monaco Code Editor with Fun.Blazor
                                 div {
-                                    style' "height: 500px; border: 1px solid #424242; border-radius: 4px;"
-                                    
+                                    // Responsive height with safe minimums; consistent border-box sizing
+                                    style' "height: clamp(320px, 60vh, 720px); min-width: 280px; box-sizing: border-box; border: 1px solid #424242; border-radius: 4px;"
+
                                     StandaloneCodeEditor'' {
                                         id "morphir-input-editor"
                                         CssClass "h-full"
@@ -222,7 +223,7 @@ result = add 5 (square 3)
                                         ref (fun x -> inputEditorRef <- Some x)
                                     }
                                 }
-                                
+
                                 // Transform button
                                 MudButton'() {
                                     Variant Variant.Filled
@@ -237,7 +238,7 @@ result = add 5 (square 3)
                         }
                     ]
                 }
-                
+
                 // Output panel
                 MudItem'() {
                     xs 12
@@ -252,12 +253,11 @@ result = add 5 (square 3)
                                     class' "mb-2"
                                     "Morphir IR Output (Mock)"
                                 }
-                                
+
                                 div {
-                                    style { height 500 }
-                                    class' "border rounded"
-                                    style' "background-color: #1e1e1e; color: white; padding: 16px; font-family: monospace; font-size: 14px; overflow: auto; white-space: pre;"
-                                    
+                                    // Responsive height mirroring editor with minimums; prevents collapse on empty content
+                                    style' "height: clamp(320px, 60vh, 720px); min-width: 280px; box-sizing: border-box; border: 1px solid #424242; border-radius: 4px; background-color: #1e1e1e; color: white; padding: 16px; font-family: monospace; font-size: 14px; overflow: auto; white-space: pre;"
+
                                     html.text transformOutput
                                 }
                             ]
