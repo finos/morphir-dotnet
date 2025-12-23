@@ -20,6 +20,7 @@ type MainLayout() as this =
     let content = fragment {
         // MudBlazor provider components (required once at root)
         MudThemeProvider'()
+        MudPopoverProvider'()
         MudDialogProvider'()
         MudSnackbarProvider'()
 

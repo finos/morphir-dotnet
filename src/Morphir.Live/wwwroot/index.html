@@ -16,6 +16,19 @@
     
     <!-- Monaco Editor CSS -->
     <link href="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.css" rel="stylesheet" />
+
+    <!-- Custom styles for Monaco editor sizing -->
+    <style>
+        .h-full {
+            height: 100% !important;
+        }
+        /* Ensure Monaco editor and its container fill the parent */
+        #morphir-input-editor,
+        #morphir-input-editor .monaco-editor {
+            height: 100% !important;
+            min-height: 100%;
+        }
+    </style>
 </head>
 <body>
     <div id="app">
