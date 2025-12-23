@@ -335,6 +335,11 @@
         "resolved": "10.0.0",
         "contentHash": "uaFRda9NjtbJRkdx311eXlAA3n2em7223c1A8d1VWyl+4FL9vkG7y2lpPfBU9HYdj/9KgdRNdn1vFK8ZYCYT/A=="
       },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "9.0.5",
+        "contentHash": "iFhbuwiertFWWVlbOtfVV2MaojUW0/eQ2AKkBcjvmWHYw2orW5OiTHPqAeB7ny5+s09EQaZaQmX4SIpGX8HUdg=="
+      },
       "morphir": {
         "type": "Project",
         "dependencies": {
@@ -347,28 +352,45 @@
           "System.CommandLine": "[2.0.1, )"
         }
       },
+      "morphir.configuration": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.0.101, )"
+        }
+      },
       "morphir.core": {
         "type": "Project",
         "dependencies": {
           "Dunet": "[1.11.3, )",
           "Generator.Equals": "[3.2.1, )",
-          "LanguageExt.Core": "[5.0.0-beta-61, )",
+          "LanguageExt.Core": "[5.0.0-beta-63, )",
           "Vogen": "[8.0.4, )"
         }
       },
       "morphir.tooling": {
         "type": "Project",
         "dependencies": {
+          "CsToml": "[1.8.0, )",
           "FluentValidation": "[11.12.0, )",
           "Foundatio.Mediator": "[1.0.0-rc.4, )",
           "Json.More.Net": "[2.2.0, )",
-          "JsonSchema.Net": "[8.0.3, )",
+          "JsonSchema.Net": "[8.0.4, )",
           "Microsoft.Extensions.Hosting": "[10.0.0, )",
+          "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
           "Serilog": "[4.3.0, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
           "System.CommandLine": "[2.0.1, )"
+        }
+      },
+      "CsToml": {
+        "type": "CentralTransitive",
+        "requested": "[1.8.0, )",
+        "resolved": "1.8.0",
+        "contentHash": "SIVq+G/QsiwOFY6lgQjKmvmHNSJaQUDr5ug/O2pbFlUvUOfaiLsTIGqSyyMtlhVpPAX5r+P7rfaMR7iUrhwwYA==",
+        "dependencies": {
+          "System.IO.Hashing": "9.0.5"
         }
       },
       "Dunet": {
@@ -385,6 +407,12 @@
         "dependencies": {
           "Foundatio.Mediator.Abstractions": "1.0.0-rc.4"
         }
+      },
+      "FSharp.Core": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.101, )",
+        "resolved": "10.0.101",
+        "contentHash": "mrS3J7cLtvXM3u3CmiaFq8oyBdlevzZY1VAAAbFk1gUDQtDEjUOybN5XpQglx5wAgJ0wLdDl6OSSfS7ZDFNcpA=="
       },
       "Generator.Equals": {
         "type": "CentralTransitive",
@@ -413,18 +441,18 @@
       },
       "JsonSchema.Net": {
         "type": "CentralTransitive",
-        "requested": "[8.0.3, )",
-        "resolved": "8.0.3",
-        "contentHash": "UO3F3zPv2TeUKbTm/c83fN7AUN/Wg6URxg98mvJKEkrPXA+9QbkEn6FOqDmGrDVrVOayYob6F70XVK81fxlVBg==",
+        "requested": "[8.0.4, )",
+        "resolved": "8.0.4",
+        "contentHash": "NSJ1iu+7Dg6fxaev90bWLvHi5mCqrGMgJuRzXr9mIaRt54Niox3D5g3uKH7ic7vcfkyhDU9opkAPGvek+cG53g==",
         "dependencies": {
-          "JsonPointer.Net": "6.0.0"
+          "JsonPointer.Net": "6.0.1"
         }
       },
       "LanguageExt.Core": {
         "type": "CentralTransitive",
-        "requested": "[5.0.0-beta-61, )",
-        "resolved": "5.0.0-beta-61",
-        "contentHash": "h/Bc8Ch+rINFObd8X8WiKHRuj4qcolyAZd17A6Pik8qK42RCGlH1FhZopOXVvCDTCxtTf6z6HvZvW36SKWN4JA=="
+        "requested": "[5.0.0-beta-63, )",
+        "resolved": "5.0.0-beta-63",
+        "contentHash": "eCWvSm9RknS/jj4pjGTkDiq9pwzBgXxXxIhnaQFlPCCsQzFnVg3WZPB6JqINyohen8bqy0qOuWTumgoB7iA3+A=="
       },
       "Microsoft.Extensions.Hosting": {
         "type": "CentralTransitive",

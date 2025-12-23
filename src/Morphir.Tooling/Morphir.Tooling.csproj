@@ -31,6 +31,9 @@
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.Console" />
+
+    <!-- TOML parsing -->
+    <PackageReference Include="CsToml" />
   </ItemGroup>
 
   <ItemGroup>
@@ -44,6 +47,8 @@
   <ItemGroup>
     <!-- Reference to Morphir.Core for IR types (optional, for future extensibility) -->
     <ProjectReference Include="..\Morphir.Core\Morphir.Core.csproj" />
+    <!-- Reference to Morphir.Configuration for domain models -->
+    <ProjectReference Include="..\Morphir.Configuration\Morphir.Configuration.fsproj" />
   </ItemGroup>
 
   <ItemGroup>
