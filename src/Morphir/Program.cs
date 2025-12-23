@@ -36,6 +36,7 @@ public static class Program
         var app = MorphirCli
             .CreateBuilder(args, "Morphir command line")
             .AddScenario<IrToolingScenario>()
+            .AddScenario<ManagementScenario>()
             .AddCommand(CreateInfoCommand())
             .Build();
 

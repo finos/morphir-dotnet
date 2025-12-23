@@ -353,6 +353,108 @@ If you encounter an issue not covered here:
    - Environment information
    - Sample IR file (if possible) or minimal example
 
+## Management Commands (dist/tool/extension)
+
+### No Active Version Set
+
+**Problem:** Running `morphir dist which` or `morphir tool which <name>` shows "No active version set".
+
+**Solution:**
+
+1. **List installed versions:**
+   ```bash
+   morphir dist list
+   morphir tool list
+   ```
+
+2. **Set an active version:**
+   ```bash
+   # Global
+   morphir dist use <version>
+   morphir tool use <name> <version>
+   
+   # Local (project-specific)
+   morphir dist use <version> --local
+   morphir tool use <name> <version> --local
+   ```
+
+### Platform Not Supported
+
+**Problem:** Installation fails with "Platform not supported" or downloaded artifact doesn't work.
+
+**Solution:**
+
+1. **Check current platform:**
+   ```bash
+   dotnet --info | grep RID
+   ```
+
+2. **Manually specify platform:**
+   ```bash
+   morphir dist install <url> <version> --platform linux-x64
+   ```
+
+3. **Verify available platforms:** Check the distribution documentation for supported platforms.
+
+### Local vs Global Confusion
+
+**Problem:** Setting a version locally but it's not being used.
+
+**Solution:**
+
+- **Remember precedence:** Local (`.morphir/`) overrides global (`~/.config/morphir/`)
+- **Check both scopes:**
+  ```bash
+  morphir dist which          # Shows resolved version (local > global)
+  morphir dist list           # Shows global installations
+  morphir dist list --local   # Shows local installations
+  ```
+- **Clear local selection:** Remove the active selection file in `.morphir/dist/active` or `.morphir/tools/active-<name>`
+
+### Installation Directory Not Created
+
+**Problem:** Installation fails because parent directories don't exist.
+
+**Solution:**
+
+The CLI should create directories automatically. If this fails:
+
+1. **Manually create directories:**
+   ```bash
+   # Global
+   mkdir -p ~/.config/morphir/{dist,tools,extensions}
+   
+   # Local
+   mkdir -p .morphir/{dist,tools,extensions}
+   ```
+
+2. **Check permissions:**
+   ```bash
+   ls -ld ~/.config/morphir
+   ```
+
+### Downloaded Artifact Is Corrupted
+
+**Problem:** Installation completes but artifacts don't work or are corrupted.
+
+**Solution:**
+
+1. **Check manifest for hash:**
+   ```bash
+   cat ~/.config/morphir/dist/<platform>/<version>/manifest.json
+   ```
+
+2. **Verify download integrity** (if SHA256 is in manifest):
+   ```bash
+   sha256sum ~/.config/morphir/dist/<platform>/<version>/bin/artifact
+   ```
+
+3. **Re-download:**
+   ```bash
+   morphir dist remove <version>
+   morphir dist install <url> <version>
+   ```
+
 ## Getting Help
 
 - **Documentation:** [Morphir .NET Docs](/)
@@ -362,5 +464,6 @@ If you encounter an issue not covered here:
 ## See Also
 
 - [CLI Reference](../cli/) - Complete command documentation
+- [Management Commands](./management/) - Dist, tool, and extension management
 - [morphir ir verify](./ir-verify/) - Detailed verification command reference
 - [Schema Specifications](/docs/spec/schemas/) - IR schema documentation
