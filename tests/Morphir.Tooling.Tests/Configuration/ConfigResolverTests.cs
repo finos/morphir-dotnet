@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Morphir.Configuration;
 using Morphir.Tooling.Configuration;
+using FSharpOption = Microsoft.FSharp.Core.FSharpOption<string>;
 
 namespace Morphir.Tooling.Tests.Configuration;
 
@@ -14,6 +15,9 @@ public class ConfigResolverTests
         _testRoot = Path.Combine(Path.GetTempPath(), $"morphir-resolver-test-{Guid.NewGuid()}");
         Directory.CreateDirectory(_testRoot);
     }
+
+    private static bool IsSome(FSharpOption option) => FSharpOption.get_IsSome(option);
+    private static bool IsNone(FSharpOption option) => FSharpOption.get_IsNone(option);
 
     private ConfigResolver CreateResolver()
     {
@@ -65,7 +69,7 @@ workspace = ""/test/workspace/cache""
 
             // Assert
             result.Should().NotBeNull();
-            Microsoft.FSharp.Core.FSharpOption<string>.get_IsSome(result.WorkspaceRoot).Should().BeTrue();
+            IsSome(result.WorkspaceRoot).Should().BeTrue();
             result.WorkspaceRoot.Value.Should().Be(_testRoot);
             Microsoft.FSharp.Collections.ListModule.Length(result.Layers).Should().BeGreaterThanOrEqualTo(1);
 
@@ -152,7 +156,7 @@ workspace = ""/ci/cache""
             result.CiProfileApplied.Should().BeTrue("CI mode is On");
             Microsoft.FSharp.Collections.ListModule.Length(result.Layers).Should().Be(2, "workspace and CI layers should be loaded");
 
-            Microsoft.FSharp.Core.FSharpOption<string>.get_IsSome(result.Effective.Cache.WorkspaceCache).Should().BeTrue();
+            IsSome(result.Effective.Cache.WorkspaceCache).Should().BeTrue();
             result.Effective.Cache.WorkspaceCache.Value.Should().Be("/ci/cache", "CI override should be applied");
         }
         finally
@@ -191,7 +195,7 @@ workspace = ""/ci/cache""
             result.CiProfileApplied.Should().BeFalse("CI mode is Off");
             Microsoft.FSharp.Collections.ListModule.Length(result.Layers).Should().Be(1, "only workspace layer should be loaded");
 
-            Microsoft.FSharp.Core.FSharpOption<string>.get_IsSome(result.Effective.Cache.WorkspaceCache).Should().BeTrue();
+            IsSome(result.Effective.Cache.WorkspaceCache).Should().BeTrue();
             result.Effective.Cache.WorkspaceCache.Value.Should().Be("/workspace/cache", "CI override should not be applied");
         }
         finally
@@ -238,11 +242,11 @@ global = ""/ci/global""
             result.CiProfileApplied.Should().BeTrue();
 
             // User should override workspace for workspace cache
-            Microsoft.FSharp.Core.FSharpOption<string>.get_IsSome(result.Effective.Cache.WorkspaceCache).Should().BeTrue();
+            IsSome(result.Effective.Cache.WorkspaceCache).Should().BeTrue();
             result.Effective.Cache.WorkspaceCache.Value.Should().Be("/user/cache", "user has highest precedence for workspace cache");
 
             // CI should override workspace for global cache
-            Microsoft.FSharp.Core.FSharpOption<string>.get_IsSome(result.Effective.Cache.GlobalCache).Should().BeTrue();
+            IsSome(result.Effective.Cache.GlobalCache).Should().BeTrue();
             result.Effective.Cache.GlobalCache.Value.Should().Be("/ci/global", "CI has highest precedence for global cache");
         }
         finally

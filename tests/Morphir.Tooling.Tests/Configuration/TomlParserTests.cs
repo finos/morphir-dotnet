@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Morphir.Tooling.Configuration;
+using FSharpOption = Microsoft.FSharp.Core.FSharpOption<string>;
 
 namespace Morphir.Tooling.Tests.Configuration;
 
@@ -12,6 +13,9 @@ public class TomlParserTests
         _testRoot = Path.Combine(Path.GetTempPath(), $"morphir-toml-test-{Guid.NewGuid()}");
         Directory.CreateDirectory(_testRoot);
     }
+
+    private static bool IsSome(FSharpOption option) => FSharpOption.get_IsSome(option);
+    private static bool IsNone(FSharpOption option) => FSharpOption.get_IsNone(option);
 
     [Test]
     public void ParseConfigFile_ShouldReturnNull_WhenFileDoesNotExist()
@@ -40,8 +44,8 @@ public class TomlParserTests
 
             // Assert
             result.Should().NotBeNull("empty file should parse as default config");
-            result!.Cache.WorkspaceCache.Should().Be(Microsoft.FSharp.Core.FSharpOption<string>.None);
-            result.Cache.GlobalCache.Should().Be(Microsoft.FSharp.Core.FSharpOption<string>.None);
+            IsNone(result!.Cache.WorkspaceCache).Should().BeTrue();
+            IsNone(result.Cache.GlobalCache).Should().BeTrue();
         }
         finally
         {
@@ -67,9 +71,9 @@ global = ""/custom/global/cache""
 
             // Assert
             result.Should().NotBeNull();
-            Microsoft.FSharp.Core.FSharpOption<string>.get_IsSome(result!.Cache.WorkspaceCache).Should().BeTrue();
+            IsSome(result!.Cache.WorkspaceCache).Should().BeTrue();
             result.Cache.WorkspaceCache.Value.Should().Be("/custom/workspace/cache");
-            Microsoft.FSharp.Core.FSharpOption<string>.get_IsSome(result.Cache.GlobalCache).Should().BeTrue();
+            IsSome(result.Cache.GlobalCache).Should().BeTrue();
             result.Cache.GlobalCache.Value.Should().Be("/custom/global/cache");
         }
         finally
@@ -96,9 +100,9 @@ global = ""/root/global/cache""
 
             // Assert
             result.Should().NotBeNull();
-            Microsoft.FSharp.Core.FSharpOption<string>.get_IsSome(result!.Cache.WorkspaceCache).Should().BeTrue();
+            IsSome(result!.Cache.WorkspaceCache).Should().BeTrue();
             result.Cache.WorkspaceCache.Value.Should().Be("/root/workspace/cache");
-            Microsoft.FSharp.Core.FSharpOption<string>.get_IsSome(result.Cache.GlobalCache).Should().BeTrue();
+            IsSome(result.Cache.GlobalCache).Should().BeTrue();
             result.Cache.GlobalCache.Value.Should().Be("/root/global/cache");
         }
         finally
@@ -124,9 +128,9 @@ workspace = ""/only/workspace/cache""
 
             // Assert
             result.Should().NotBeNull();
-            Microsoft.FSharp.Core.FSharpOption<string>.get_IsSome(result!.Cache.WorkspaceCache).Should().BeTrue();
+            IsSome(result!.Cache.WorkspaceCache).Should().BeTrue();
             result.Cache.WorkspaceCache.Value.Should().Be("/only/workspace/cache");
-            result.Cache.GlobalCache.Should().Be(Microsoft.FSharp.Core.FSharpOption<string>.None);
+            IsNone(result.Cache.GlobalCache).Should().BeTrue();
         }
         finally
         {

@@ -10,6 +10,8 @@ type CiProfileMode =
     | Auto
 
 /// Cache path configuration
+/// Note: Defaults are applied by the ConfigResolver in the implementation layer,
+/// not enforced at the type level. None values indicate "use default".
 type CachePaths =
     { /// Optional override for workspace-local cache path
       /// Defaults to .morphir/cache/ at workspace root
