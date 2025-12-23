@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.Configuration</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Types.fs" />
+        <Compile Include="Merge.fs" />
+        <Compile Include="CiDetection.fs" />
+    </ItemGroup>
+
+</Project>

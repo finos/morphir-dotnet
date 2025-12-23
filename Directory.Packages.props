@@ -90,6 +90,7 @@
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.TUnit" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
+    <PackageVersion Include="YoloDev.Expecto.TestSdk" Version="0.14.3" />
     <PackageVersion Include="Vogen" Version="8.0.4" />
     <PackageVersion Include="TickSpec" Version="2.0.2" />
     <PackageVersion Include="Ionide.KeepAChangelog.Tasks" Version="0.3.1" />
@@ -101,5 +102,7 @@
     <PackageVersion Include="Myriad.Core" Version="0.8.3" />
     <PackageVersion Include="Fabulous.AST" Version="1.9.0" />
     <PackageVersion Include="Fantomas.Core" Version="7.0.5" />
+    <!-- Configuration Dependencies -->
+    <PackageVersion Include="Tomlyn" Version="0.17.0" />
   </ItemGroup>
 </Project>
