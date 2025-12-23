@@ -181,7 +181,7 @@ public class DistHandlersTests : IDisposable
         var isolatedWorkspace = Path.Combine(Path.GetTempPath(), $"morphir-isolated-{Guid.NewGuid()}");
         Directory.CreateDirectory(isolatedWorkspace);
         var isolatedResolver = new ArtifactPathResolver(isolatedWorkspace);
-        
+
         try
         {
             var command = new DistWhich(Platform: "linux-x64");

@@ -175,7 +175,7 @@ public static class ExtensionHandlers
         try
         {
             var extensionPath = resolver.GetArtifactPath(ArtifactType.Extension, platform, command.Version, command.Name, command.Local);
-            
+
             if (!Directory.Exists(extensionPath))
             {
                 return Task.FromResult(new ExtensionRemoveResult(

@@ -174,7 +174,7 @@ public static class ToolHandlers
         try
         {
             var toolPath = resolver.GetArtifactPath(ArtifactType.Tool, platform, command.Version, command.Name, command.Local);
-            
+
             if (!Directory.Exists(toolPath))
             {
                 return Task.FromResult(new ToolRemoveResult(

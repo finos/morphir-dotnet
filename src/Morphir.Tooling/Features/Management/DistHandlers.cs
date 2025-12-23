@@ -46,10 +46,10 @@ public static class DistHandlers
                         // Use System.Text.Json with comment handling
                         var options = new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip };
                         using var doc = JsonDocument.Parse(manifestJson, options);
-                        
+
                         if (doc.RootElement.TryGetProperty("description", out var descProp))
                             description = descProp.GetString();
-                        
+
                         if (doc.RootElement.TryGetProperty("installedAt", out var installedProp))
                         {
                             if (DateTime.TryParse(installedProp.GetString(), out var dt))
@@ -108,7 +108,7 @@ public static class DistHandlers
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsByteArrayAsync(ct);
-            
+
             // For now, just save the downloaded content as a single file
             // In a real implementation, this would extract a zip/tar.gz
             var downloadedFile = Path.Combine(binPath, "artifact");
@@ -221,7 +221,7 @@ public static class DistHandlers
         try
         {
             var distPath = resolver.GetArtifactPath(ArtifactType.Dist, platform, command.Version, useLocal: command.Local);
-            
+
             if (!Directory.Exists(distPath))
             {
                 return Task.FromResult(new DistRemoveResult(
