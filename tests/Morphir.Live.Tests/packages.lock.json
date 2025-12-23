@@ -57,15 +57,6 @@
           "TUnit.Engine": "1.6.20"
         }
       },
-      "TUnit.Assertions.FSharp": {
-        "type": "Direct",
-        "requested": "[*, )",
-        "resolved": "1.6.20",
-        "contentHash": "eOdKEFwkq3cQDLhMc8/01WnY/1X+8OTio4pfsoGsCGeocrfNHl3TOFrz6UKefKNMPGTfHWOnWHxJgX/jfs/hmg==",
-        "dependencies": {
-          "TUnit.Assertions": "1.6.20"
-        }
-      },
       "AngleSharp": {
         "type": "Transitive",
         "resolved": "1.2.0",
