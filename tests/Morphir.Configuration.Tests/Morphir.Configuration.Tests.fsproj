@@ -5,6 +5,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <RootNamespace>Morphir.Configuration.Tests</RootNamespace>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <GenerateProgramFile>false</GenerateProgramFile>
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 
