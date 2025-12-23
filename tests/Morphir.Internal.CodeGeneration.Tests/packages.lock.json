@@ -10,9 +10,9 @@
       },
       "Expecto": {
         "type": "Direct",
-        "requested": "[10.1.0, )",
-        "resolved": "10.1.0",
-        "contentHash": "GIyeEfhAYjvun8d760RdfHGzoY3JKmS7L3lffPRUR9AFF08AWFGaE8lEy1iEg4E71XfLSsJHk/LEC4rvaMrosQ==",
+        "requested": "[10.2.3, )",
+        "resolved": "10.2.3",
+        "contentHash": "mwGOvtkKfMwakKeONwWYy5RgnO7Ijx/THt50GHh8mkSPySVOW/BsOppHzNwby45uaO6X0IKpqS76BrlYgOqcIg==",
         "dependencies": {
           "FSharp.Core": "7.0.200",
           "Mono.Cecil": "[0.11.4, 1.0.0)"
@@ -20,11 +20,11 @@
       },
       "Expecto.FsCheck": {
         "type": "Direct",
-        "requested": "[10.1.0, )",
-        "resolved": "10.1.0",
-        "contentHash": "4G2kqa3QS0uxeVYcyg6NU4M7tebqdxVJdpgiGQsrp6KsITT4lfTKupX81MWwXFCdKbnXUuwIqP3onBvbmUzgBQ==",
+        "requested": "[10.2.3, )",
+        "resolved": "10.2.3",
+        "contentHash": "97ZwoxLIvxyG0fU806nvFbW2uMQFTqi2wpCfPfKasySfIpdf41zERtRiUSZtp1q8fY3uK9mN42dmJsUcL2IrcA==",
         "dependencies": {
-          "Expecto": "10.1.0",
+          "Expecto": "10.2.3",
           "FsCheck": "[2.16.5, 3.0.0)"
         }
       },
