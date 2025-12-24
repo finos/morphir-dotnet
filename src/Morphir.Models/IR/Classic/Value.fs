@@ -184,3 +184,134 @@ module Value =
           OutputType = outputType
           Body = body }
 
+    // toString functions
+
+    /// <summary>
+    /// Converts a Value to its string representation.
+    /// </summary>
+    let rec toString (value: Value<'typeAttributes, 'valueAttributes>) : string =
+        match value with
+        | Literal(_, lit) -> Literal.toString lit
+        | Variable(_, name) -> Morphir.IR.Name.toCamelCase name
+        | Constructor(_, fqName) -> Morphir.IR.FQName.toString fqName
+        | Tuple(_, elements) ->
+            let elementsText =
+                elements
+                |> List.map toString
+                |> String.concat ", "
+            $"({elementsText})"
+        | List(_, elements) ->
+            match elements with
+            | [] -> "[]"
+            | _ ->
+                let elementsText =
+                    elements
+                    |> List.map toString
+                    |> String.concat ", "
+                $"[ {elementsText} ]"
+        | Record(_, fields) ->
+            let fieldsText =
+                fields
+                |> Map.toList
+                |> List.map (fun (name, fieldValue) -> $"{Morphir.IR.Name.toCamelCase name} = {toString fieldValue}")
+                |> String.concat ", "
+            $"{{ {fieldsText} }}"
+        | Reference(_, fqName) -> Morphir.IR.FQName.toString fqName
+        | Field(_, recordValue, fieldName) ->
+            $"{toString recordValue}.{Morphir.IR.Name.toCamelCase fieldName}"
+        | FieldFunction(_, fieldName) -> $".{Morphir.IR.Name.toCamelCase fieldName}"
+        | Apply(_, functionValue, argumentValue) ->
+            let needsParens candidate =
+                match candidate with
+                | Apply _ | Lambda _ | LetDefinition _ | LetRecursion _ | Destructure _ | IfThenElse _ | PatternMatch _ -> true
+                | _ -> false
+            let funcText = toString functionValue
+            let argText = toString argumentValue
+            let argTextWithParens = if needsParens argumentValue then $"({argText})" else argText
+            $"{funcText} {argTextWithParens}"
+        | IfThenElse(_, condition, thenBranch, elseBranch) ->
+            $"if {toString condition} then {toString thenBranch} else {toString elseBranch}"
+        | UpdateRecord(_, recordToUpdate, fieldsToUpdate) ->
+            let fieldsText =
+                fieldsToUpdate
+                |> Map.toList
+                |> List.map (fun (name, fieldValue) -> $"{Morphir.IR.Name.toCamelCase name} = {toString fieldValue}")
+                |> String.concat ", "
+            $"{{ {toString recordToUpdate} | {fieldsText} }}"
+        | Lambda(_, argumentPattern, body) ->
+            $"\\{Pattern.toString argumentPattern} -> {toString body}"
+        | Destructure(_, pattern, valueToDestructure, inValue) ->
+            $"let {Pattern.toString pattern} = {toString valueToDestructure} in {toString inValue}"
+        | PatternMatch(_, valueToMatch, cases) ->
+            let casesText =
+                cases
+                |> List.map (fun (pattern, body) -> $"{Pattern.toString pattern} -> {toString body}")
+                |> String.concat "; "
+            $"case {toString valueToMatch} of {casesText}"
+        | LetDefinition(_, bindingName, definition, inExpr) ->
+            let defText =
+                let argsText =
+                    definition.InputTypes
+                    |> List.map (fun (argName, _, _) -> Morphir.IR.Name.toCamelCase argName)
+                    |> String.concat " "
+                let nameText = Morphir.IR.Name.toCamelCase bindingName
+                let bodyText = toString definition.Body
+                match argsText with
+                | "" -> $"{nameText} = {bodyText}"
+                | _ -> $"{nameText} {argsText} = {bodyText}"
+            $"let {defText} in {toString inExpr}"
+        | LetRecursion(_, bindings, inExpr) ->
+            let bindingsText =
+                bindings
+                |> Map.toList
+                |> List.map (fun (name, definition) ->
+                    let argsText =
+                        definition.InputTypes
+                        |> List.map (fun (argName, _, _) -> Morphir.IR.Name.toCamelCase argName)
+                        |> String.concat " "
+                    let nameText = Morphir.IR.Name.toCamelCase name
+                    let bodyText = toString definition.Body
+                    match argsText with
+                    | "" -> $"{nameText} = {bodyText}"
+                    | _ -> $"{nameText} {argsText} = {bodyText}")
+                |> String.concat "; "
+            $"let {bindingsText} in {toString inExpr}"
+        | Unit _ -> "()"
+
+    /// <summary>
+    /// Converts a ValueSpecification to its string representation.
+    /// </summary>
+    module ValueSpecification =
+        let toString (spec: ValueSpecification<'attributes>) : string =
+            let formatInputs (inputs: (Name * Type<'attributes>) list) : string =
+                match inputs with
+                | [] -> ""
+                | _ ->
+                    inputs
+                    |> List.map (fun (name, typ) ->
+                        $"{Morphir.IR.Name.toCamelCase name} : {Type.toString typ}")
+                    |> String.concat ", "
+                    |> (fun s -> $"({s})")
+
+            let inputsText = formatInputs spec.Inputs
+            let outputText = Type.toString spec.Output
+
+            match inputsText with
+            | "" -> outputText
+            | _ -> $"{inputsText} -> {outputText}"
+
+    /// <summary>
+    /// Converts a ValueDefinition to its string representation.
+    /// </summary>
+    module ValueDefinition =
+        let toString (name: Name) (def: ValueDefinition<'typeAttributes, 'valueAttributes>) : string =
+            let argsText =
+                def.InputTypes
+                |> List.map (fun (argName, _, _) -> Morphir.IR.Name.toCamelCase argName)
+                |> String.concat " "
+            let nameText = Morphir.IR.Name.toCamelCase name
+            let bodyText = toString def.Body
+            match argsText with
+            | "" -> $"{nameText} = {bodyText}"
+            | _ -> $"{nameText} {argsText} = {bodyText}"
+
