@@ -17,7 +17,7 @@ Task 1.1 has been successfully completed with comprehensive documentation review
 
 ### 1. Ecosystem Knowledge Base
 
-**File**: [.agents/ecosystem-knowledge-base.md](../../ecosystem-knowledge-base.md)
+**File**: [.agents/kbs/ecosystem-knowledge-base.md](../../kbs/ecosystem-knowledge-base.md)
 **Size**: ~24,000 words
 **Sections**: 12 major sections covering all aspects of the Morphir ecosystem
 
@@ -48,7 +48,7 @@ Task 1.1 has been successfully completed with comprehensive documentation review
 
 ### 2. Cross-Repository Pattern Catalog
 
-**Location**: Integrated into [.agents/ecosystem-knowledge-base.md](../../ecosystem-knowledge-base.md#cross-repository-patterns)
+**Location**: Integrated into [.agents/kbs/ecosystem-knowledge-base.md](../../kbs/ecosystem-knowledge-base.md#cross-repository-patterns)
 **Patterns Documented**: 7 major patterns
 
 1. **IR Format Versioning** — Manual version management, no automatic migration
@@ -67,7 +67,7 @@ Each pattern includes:
 
 ### 3. Version Compatibility Matrix
 
-**Location**: [.agents/ecosystem-knowledge-base.md#version-compatibility-matrix](../../ecosystem-knowledge-base.md#version-compatibility-matrix)
+**Location**: [.agents/kbs/ecosystem-knowledge-base.md#version-compatibility-matrix](../../kbs/ecosystem-knowledge-base.md#version-compatibility-matrix)
 
 **Matrices Created**:
 
@@ -90,7 +90,7 @@ Each pattern includes:
 
 ### 4. Architectural Decision Log
 
-**File**: [.agents/architectural-decisions.md](../../architectural-decisions.md)
+**File**: [.agents/decisionlogs/architectural-decisions.md](../../decisionlogs/architectural-decisions.md)
 **Format**: Lightweight Architecture Decision Records (ADRs)
 **Total ADRs**: 25 documented decisions
 
@@ -358,8 +358,8 @@ This knowledge base serves as the foundation for the Morphir Application Archite
 
 | File | Size | Purpose |
 |------|------|---------|
-| [.agents/ecosystem-knowledge-base.md](../../ecosystem-knowledge-base.md) | ~24,000 words | Comprehensive Morphir ecosystem knowledge |
-| [.agents/architectural-decisions.md](../../architectural-decisions.md) | ~18,000 words | Lightweight ADRs for all major decisions |
+| [.agents/kbs/ecosystem-knowledge-base.md](../../kbs/ecosystem-knowledge-base.md) | ~24,000 words | Comprehensive Morphir ecosystem knowledge |
+| [.agents/decisionlogs/architectural-decisions.md](../../decisionlogs/architectural-decisions.md) | ~18,000 words | Lightweight ADRs for all major decisions |
 | [.agents/task/tracking/task-1.1-completion-summary.md](./task-1.1-completion-summary.md) | This file | Task completion summary and metrics |
 
 ---

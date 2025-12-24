@@ -805,7 +805,7 @@ myproject/
 
 ## Architectural Decision Records (Quick List)
 
-See [architectural-decisions.md](./architectural-decisions.md) for detailed ADRs.
+See [architectural-decisions.md](../decisionlogs/architectural-decisions.md) for detailed ADRs.
 
 **Key Decisions**:
 
