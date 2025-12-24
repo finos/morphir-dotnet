@@ -73,3 +73,35 @@ module Pattern =
     let unitPattern<'attributes> (attributes: 'attributes) : Pattern<'attributes> =
         UnitPattern attributes
 
+    // toString functions
+
+    /// <summary>
+    /// Converts a Pattern to its string representation.
+    /// </summary>
+    let rec toString (pattern: Pattern<'attributes>) : string =
+        match pattern with
+        | WildcardPattern _ -> "_"
+        | AsPattern(_, nested, name) ->
+            $"{toString nested} as {Morphir.IR.Name.toCamelCase name}"
+        | TuplePattern(_, patterns) ->
+            let patternsText =
+                patterns
+                |> List.map toString
+                |> String.concat " , "
+            $"({patternsText})"
+        | ConstructorPattern(_, fqName, patterns) ->
+            let nameText = Morphir.IR.FQName.toString fqName
+            match patterns with
+            | [] -> nameText
+            | _ ->
+                let argsText =
+                    patterns
+                    |> List.map toString
+                    |> String.concat " "
+                $"{nameText} {argsText}"
+        | EmptyListPattern _ -> "[]"
+        | HeadTailPattern(_, headPattern, tailPattern) ->
+            $"{toString headPattern} :: {toString tailPattern}"
+        | LiteralPattern(_, literal) -> Literal.toString literal
+        | UnitPattern _ -> "()"
+

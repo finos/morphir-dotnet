@@ -46,4 +46,70 @@ let tests =
                 FQName.localName fqName
                 |> Expect.equal localName
         ]
+
+        testList "toString" [
+            testCase "Formats FQName with all components"
+            <| fun _ ->
+                let packagePath = PackageName.packageNameFromList [ Name.fromList [ "morphir"; "sdk" ] ]
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "basics" ] ]
+                let localName = Name.fromList [ "int" ]
+                let fqName = FQName.fqName packagePath modulePath localName
+
+                FQName.toString fqName
+                |> Expect.equal "Morphir.SDK.Basics.Int"
+
+            testCase "Formats FQName with empty package path"
+            <| fun _ ->
+                let packagePath = PackageName.emptyPackageName
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my"; "module" ] ]
+                let localName = Name.fromList [ "value" ]
+                let fqName = FQName.fqName packagePath modulePath localName
+
+                FQName.toString fqName
+                |> Expect.equal "My.Module.Value"
+        ]
+
+        testList "toHumanString" [
+            testCase "Formats FQName omitting empty package path"
+            <| fun _ ->
+                let packagePath = PackageName.emptyPackageName
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my"; "module" ] ]
+                let localName = Name.fromList [ "value" ]
+                let fqName = FQName.fqName packagePath modulePath localName
+
+                FQName.toHumanString fqName
+                |> Expect.equal "My.Module.Value"
+
+            testCase "Formats FQName with package path as Module.Name"
+            <| fun _ ->
+                let packagePath = PackageName.packageNameFromList [ Name.fromList [ "morphir"; "sdk" ] ]
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "basics" ] ]
+                let localName = Name.fromList [ "int" ]
+                let fqName = FQName.fqName packagePath modulePath localName
+
+                FQName.toHumanString fqName
+                |> Expect.equal "Basics.Int"
+        ]
+
+        testList "toDebugString" [
+            testCase "Formats FQName with all components in debug format"
+            <| fun _ ->
+                let packagePath = PackageName.packageNameFromList [ Name.fromList [ "morphir"; "sdk" ] ]
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "basics" ] ]
+                let localName = Name.fromList [ "int" ]
+                let fqName = FQName.fqName packagePath modulePath localName
+
+                FQName.toDebugString fqName
+                |> Expect.equal "FQName(Morphir.SDK, Basics, Int)"
+
+            testCase "Formats FQName with empty package path in debug format"
+            <| fun _ ->
+                let packagePath = PackageName.emptyPackageName
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my"; "module" ] ]
+                let localName = Name.fromList [ "value" ]
+                let fqName = FQName.fqName packagePath modulePath localName
+
+                FQName.toDebugString fqName
+                |> Expect.equal "FQName(, My.Module, Value)"
+        ]
     ]

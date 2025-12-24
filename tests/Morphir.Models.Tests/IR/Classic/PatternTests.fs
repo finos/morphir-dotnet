@@ -145,5 +145,79 @@ let tests =
                 | Pattern.UnitPattern attrs -> ()
                 | _ -> failwith "Expected UnitPattern"
         ]
+
+        testList "toString" [
+            testCase "WildcardPattern formats as underscore"
+            <| fun _ ->
+                let pattern = Pattern.wildcardPattern ()
+                Pattern.toString pattern
+                |> Expect.equal "_"
+
+            testCase "AsPattern formats as nested pattern as name"
+            <| fun _ ->
+                let nested = Pattern.wildcardPattern ()
+                let name = Name.fromList [ "x" ]
+                let pattern = Pattern.asPattern () nested name
+                Pattern.toString pattern
+                |> Expect.equal "_ as x"
+
+            testCase "TuplePattern formats as comma-separated patterns in parentheses"
+            <| fun _ ->
+                let element1 = Pattern.wildcardPattern ()
+                let element2 = Pattern.wildcardPattern ()
+                let pattern = Pattern.tuplePattern () [ element1; element2 ]
+                Pattern.toString pattern
+                |> Expect.equal "(_ , _)"
+
+            testCase "ConstructorPattern without arguments formats as FQName"
+            <| fun _ ->
+                let fqName =
+                    FQName.fqNameFromPaths
+                        (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                        (Path.fromList [ Name.fromList [ "maybe" ] ])
+                        (Name.fromList [ "nothing" ])
+                let pattern = Pattern.constructorPattern () fqName []
+                Pattern.toString pattern
+                |> Expect.equal "Morphir.SDK.Maybe.Nothing"
+
+            testCase "ConstructorPattern with arguments formats as FQName followed by patterns"
+            <| fun _ ->
+                let fqName =
+                    FQName.fqNameFromPaths
+                        (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                        (Path.fromList [ Name.fromList [ "maybe" ] ])
+                        (Name.fromList [ "just" ])
+                let argPattern = Pattern.wildcardPattern ()
+                let pattern = Pattern.constructorPattern () fqName [ argPattern ]
+                Pattern.toString pattern
+                |> Expect.equal "Morphir.SDK.Maybe.Just _"
+
+            testCase "EmptyListPattern formats as empty brackets"
+            <| fun _ ->
+                let pattern = Pattern.emptyListPattern ()
+                Pattern.toString pattern
+                |> Expect.equal "[]"
+
+            testCase "HeadTailPattern formats as head :: tail"
+            <| fun _ ->
+                let headPattern = Pattern.wildcardPattern ()
+                let tailPattern = Pattern.wildcardPattern ()
+                let pattern = Pattern.headTailPattern () headPattern tailPattern
+                Pattern.toString pattern
+                |> Expect.equal "_ :: _"
+
+            testCase "LiteralPattern formats using Literal.toString"
+            <| fun _ ->
+                let lit = Literal.boolLiteral true
+                let pattern = Pattern.literalPattern () lit
+                Pattern.toString pattern
+                |> Expect.equal "True"
+
+            testCase "UnitPattern formats as ()"
+            <| fun _ ->
+                let pattern = Pattern.unitPattern ()
+                Pattern.toString pattern
+                |> Expect.equal "()"
+        ]
     ]
 

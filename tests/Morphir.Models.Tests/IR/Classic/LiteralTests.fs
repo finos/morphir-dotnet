@@ -108,5 +108,79 @@ let tests =
                     value |> Expect.equal "-123.456"
                 | _ -> failwith "Expected DecimalLiteral"
         ]
+
+        testList "toString" [
+            testCase "BoolLiteral true formats as True"
+            <| fun _ ->
+                let lit = Literal.boolLiteral true
+                Literal.toString lit
+                |> Expect.equal "True"
+
+            testCase "BoolLiteral false formats as False"
+            <| fun _ ->
+                let lit = Literal.boolLiteral false
+                Literal.toString lit
+                |> Expect.equal "False"
+
+            testCase "CharLiteral formats with single quotes"
+            <| fun _ ->
+                let lit = Literal.charLiteral 'a'
+                Literal.toString lit
+                |> Expect.equal "'a'"
+
+            testCase "CharLiteral escapes special characters"
+            <| fun _ ->
+                let lit = Literal.charLiteral '\n'
+                Literal.toString lit
+                |> Expect.equal "'\\n'"
+
+            testCase "StringLiteral formats with double quotes"
+            <| fun _ ->
+                let lit = Literal.stringLiteral "hello"
+                Literal.toString lit
+                |> Expect.equal "\"hello\""
+
+            testCase "StringLiteral escapes special characters"
+            <| fun _ ->
+                let lit = Literal.stringLiteral "hello\nworld"
+                Literal.toString lit
+                |> Expect.equal "\"hello\\nworld\""
+
+            testCase "WholeNumberLiteral formats as number"
+            <| fun _ ->
+                let lit = Literal.wholeNumberLiteral 42L
+                Literal.toString lit
+                |> Expect.equal "42"
+
+            testCase "WholeNumberLiteral formats negative numbers"
+            <| fun _ ->
+                let lit = Literal.wholeNumberLiteral -17L
+                Literal.toString lit
+                |> Expect.equal "-17"
+
+            testCase "FloatLiteral formats with G format"
+            <| fun _ ->
+                let lit = Literal.floatLiteral 3.14
+                Literal.toString lit
+                |> Expect.equal "3.14"
+
+            testCase "FloatLiteral formats negative numbers"
+            <| fun _ ->
+                let lit = Literal.floatLiteral -0.5
+                Literal.toString lit
+                |> Expect.equal "-0.5"
+
+            testCase "DecimalLiteral formats as string value"
+            <| fun _ ->
+                let lit = Literal.decimalLiteral "123.456"
+                Literal.toString lit
+                |> Expect.equal "123.456"
+
+            testCase "DecimalLiteral formats negative numbers"
+            <| fun _ ->
+                let lit = Literal.decimalLiteral "-123.456"
+                Literal.toString lit
+                |> Expect.equal "-123.456"
+        ]
     ]
 

@@ -20,6 +20,143 @@ let tests =
 
                 field.Type
                 |> Expect.equal typ
+
+            testList "toString" [
+                testCase "Formats field as name : type"
+                <| fun _ ->
+                    let name = Name.fromList [ "age" ]
+                    let typ = Type.variable () (Name.fromList [ "int" ])
+                    let field = Type.field name typ
+
+                    Type.fieldToString field
+                    |> Expect.equal "age : int"
+            ]
+        ]
+
+        testList "toString" [
+            testList "Type.toString" [
+                testCase "Variable type formats as camelCase name"
+                <| fun _ ->
+                    let typ = Type.variable () (Name.fromList [ "result" ])
+                    Type.toString typ
+                    |> Expect.equal "result"
+
+                testCase "Reference type without arguments formats as FQName"
+                <| fun _ ->
+                    let fqName =
+                        FQName.fqNameFromPaths
+                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "basics" ] ])
+                            (Name.fromList [ "int" ])
+                    let typ = Type.reference () fqName []
+                    Type.toString typ
+                    |> Expect.equal "Morphir.SDK.Basics.Int"
+
+                testCase "Reference type with arguments formats as FQName followed by space-separated types"
+                <| fun _ ->
+                    let listFQName =
+                        FQName.fqNameFromPaths
+                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "list" ] ])
+                            (Name.fromList [ "list" ])
+                    let intType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "basics" ] ])
+                                (Name.fromList [ "int" ]))
+                            []
+                    let listType = Type.reference () listFQName [ intType ]
+                    Type.toString listType
+                    |> Expect.equal "Morphir.SDK.List.List Morphir.SDK.Basics.Int"
+
+                testCase "Tuple type formats as comma-separated types in parentheses"
+                <| fun _ ->
+                    let intType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "basics" ] ])
+                                (Name.fromList [ "int" ]))
+                            []
+                    let stringType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "string" ] ])
+                                (Name.fromList [ "string" ]))
+                            []
+                    let tupleType = Type.tuple () [ intType; stringType ]
+                    Type.toString tupleType
+                    |> Expect.equal "(Morphir.SDK.Basics.Int, Morphir.SDK.String.String)"
+
+                testCase "Record type formats as fields in curly braces"
+                <| fun _ ->
+                    let stringType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "string" ] ])
+                                (Name.fromList [ "string" ]))
+                            []
+                    let intType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "basics" ] ])
+                                (Name.fromList [ "int" ]))
+                            []
+                    let fields = [
+                        Type.field (Name.fromList [ "firstName" ]) stringType
+                        Type.field (Name.fromList [ "age" ]) intType
+                    ]
+                    let recordType = Type.record () fields
+                    Type.toString recordType
+                    |> Expect.equal "{ firstName : Morphir.SDK.String.String, age : Morphir.SDK.Basics.Int }"
+
+                testCase "ExtensibleRecord type formats as variable | fields in curly braces"
+                <| fun _ ->
+                    let stringType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "string" ] ])
+                                (Name.fromList [ "string" ]))
+                            []
+                    let variableName = Name.fromList [ "a" ]
+                    let fields = [
+                        Type.field (Name.fromList [ "name" ]) stringType
+                    ]
+                    let extensibleType = Type.extensibleRecord () variableName fields
+                    Type.toString extensibleType
+                    |> Expect.equal "{ a | name : Morphir.SDK.String.String }"
+
+                testCase "Function type formats as argument -> return"
+                <| fun _ ->
+                    let intType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "basics" ] ])
+                                (Name.fromList [ "int" ]))
+                            []
+                    let stringType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "string" ] ])
+                                (Name.fromList [ "string" ]))
+                            []
+                    let funcType = Type.functionType () intType stringType
+                    Type.toString funcType
+                    |> Expect.equal "Morphir.SDK.Basics.Int -> Morphir.SDK.String.String"
+
+                testCase "Unit type formats as ()"
+                <| fun _ ->
+                    let unitType = Type.unit ()
+                    Type.toString unitType
+                    |> Expect.equal "()"
+            ]
         ]
 
         testList "Type Expressions" [
@@ -218,6 +355,76 @@ let tests =
         ]
 
         testList "Type Specifications" [
+            testList "toString" [
+                testCase "TypeAliasSpecification formats as type alias with parameters and type"
+                <| fun _ ->
+                    let typeParams = [ Name.fromList [ "a" ] ]
+                    let aliasedType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "list" ] ])
+                                (Name.fromList [ "list" ]))
+                            [ Type.variable () (Name.fromList [ "a" ]) ]
+                    let spec = Type.typeAliasSpecification typeParams aliasedType
+                    Type.TypeSpecification.toString spec
+                    |> Expect.equal "type alias a = Morphir.SDK.List.List a"
+
+                testCase "OpaqueTypeSpecification formats as type with parameters"
+                <| fun _ ->
+                    let typeParams = [ Name.fromList [ "a" ] ]
+                    let spec = Type.opaqueTypeSpecification typeParams
+                    Type.TypeSpecification.toString spec
+                    |> Expect.equal "type a"
+
+                testCase "CustomTypeSpecification formats as type with constructors"
+                <| fun _ ->
+                    let typeParams = []
+                    let intType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "basics" ] ])
+                                (Name.fromList [ "int" ]))
+                            []
+                    let constructors =
+                        Map.empty
+                        |> Map.add (Name.fromList [ "ok" ]) [ (Name.fromList [ "value" ], intType) ]
+                        |> Map.add (Name.fromList [ "err" ]) [ (Name.fromList [ "error" ], intType) ]
+                    let spec = Type.customTypeSpecification typeParams constructors
+                    Type.TypeSpecification.toString spec
+                    |> Expect.equal "type = Ok value | Err error"
+
+                testCase "DerivedTypeSpecification formats as type with base type"
+                <| fun _ ->
+                    let typeParams = []
+                    let baseType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "string" ] ])
+                                (Name.fromList [ "string" ]))
+                            []
+                    let fromBase =
+                        FQName.fqNameFromPaths
+                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "date" ] ])
+                            (Name.fromList [ "fromString" ])
+                    let toBase =
+                        FQName.fqNameFromPaths
+                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "date" ] ])
+                            (Name.fromList [ "toString" ])
+                    let details: Type.DerivedTypeDetails<unit> = {
+                        BaseType = baseType
+                        FromBaseType = fromBase
+                        ToBaseType = toBase
+                    }
+                    let spec = Type.derivedTypeSpecification typeParams details
+                    Type.TypeSpecification.toString spec
+                    |> Expect.equal "type derived from Morphir.SDK.String.String"
+            ]
+
             testList "typeAliasSpecification" [
                 testCase "Creates TypeAliasSpecification"
                 <| fun _ ->
@@ -313,6 +520,49 @@ let tests =
         ]
 
         testList "Type Definitions" [
+            testList "toString" [
+                testCase "TypeAliasDefinition formats as type alias with parameters and type"
+                <| fun _ ->
+                    let typeParams = [ Name.fromList [ "a" ] ]
+                    let aliasedType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "list" ] ])
+                                (Name.fromList [ "list" ]))
+                            [ Type.variable () (Name.fromList [ "a" ]) ]
+                    let def = Type.typeAliasDefinition typeParams aliasedType
+                    Type.TypeDefinition.toString def
+                    |> Expect.equal "type alias a = Morphir.SDK.List.List a"
+
+                testCase "CustomTypeDefinition with Public constructors formats as type with constructors"
+                <| fun _ ->
+                    let typeParams = []
+                    let intType =
+                        Type.reference ()
+                            (FQName.fqNameFromPaths
+                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "basics" ] ])
+                                (Name.fromList [ "int" ]))
+                            []
+                    let constructors =
+                        Map.empty
+                        |> Map.add (Name.fromList [ "ok" ]) [ (Name.fromList [ "value" ], intType) ]
+                    let accessControlled = AccessControlled.public' constructors
+                    let def = Type.customTypeDefinition typeParams accessControlled
+                    Type.TypeDefinition.toString def
+                    |> Expect.equal "type = Ok value"
+
+                testCase "CustomTypeDefinition with Private constructors formats as opaque type"
+                <| fun _ ->
+                    let typeParams = []
+                    let constructors = Map.empty
+                    let accessControlled = AccessControlled.private' constructors
+                    let def = Type.customTypeDefinition typeParams accessControlled
+                    Type.TypeDefinition.toString def
+                    |> Expect.equal "type"
+            ]
+
             testList "typeAliasDefinition" [
                 testCase "Creates TypeAliasDefinition"
                 <| fun _ ->

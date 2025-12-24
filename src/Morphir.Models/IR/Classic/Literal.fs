@@ -47,3 +47,40 @@ module Literal =
     /// </summary>
     let decimalLiteral (value: string) : Literal = DecimalLiteral value
 
+    // toString functions
+
+    /// <summary>
+    /// Escapes special characters in a string for display.
+    /// </summary>
+    let private escapeString (value: string) : string =
+        value
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\n", "\\n")
+            .Replace("\r", "\\r")
+            .Replace("\t", "\\t")
+
+    /// <summary>
+    /// Escapes special characters in a character for display.
+    /// </summary>
+    let private escapeChar (value: char) : string =
+        match value with
+        | '\\' -> "\\\\"
+        | '\'' -> "\\'"
+        | '\n' -> "\\n"
+        | '\r' -> "\\r"
+        | '\t' -> "\\t"
+        | _ -> string value
+
+    /// <summary>
+    /// Converts a Literal to its string representation.
+    /// </summary>
+    let toString (literal: Literal) : string =
+        match literal with
+        | BoolLiteral value -> if value then "True" else "False"
+        | CharLiteral value -> $"'{escapeChar value}'"
+        | StringLiteral value -> $"\"{escapeString value}\""
+        | WholeNumberLiteral value -> value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        | FloatLiteral value -> value.ToString("G", System.Globalization.CultureInfo.InvariantCulture)
+        | DecimalLiteral value -> value
+

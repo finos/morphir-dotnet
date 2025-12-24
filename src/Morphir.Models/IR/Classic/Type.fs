@@ -9,6 +9,9 @@ module Type =
 
     open Morphir.IR.Name
     open Morphir.IR.FQName
+    open Morphir.IR.Path
+    open Morphir.IR.PackageName
+    open Morphir.IR.ModulePath
     open AccessControlled
 
     /// <summary>
@@ -150,4 +153,155 @@ module Type =
     /// </summary>
     let customTypeDefinition<'attributes> (typeParams: Name list) (constructors: AccessControlled<Constructors<'attributes>>) : TypeDefinition<'attributes> =
         CustomTypeDefinition(typeParams, constructors)
+
+    // toString functions
+
+    /// <summary>
+    /// Converts a Type to its string representation.
+    /// </summary>
+    let rec toString (typ: Type<'attributes>) : string =
+        let rec renderTypeArg arg =
+            match arg with
+            | Function _ -> $"({toString arg})"
+            | _ -> toString arg
+
+        let fieldToString (field: Field<'attributes>) : string =
+            $"{Morphir.IR.Name.toCamelCase field.Name} : {toString field.Type}"
+
+        match typ with
+        | Variable(_, name) -> Morphir.IR.Name.toCamelCase name
+        | Reference(_, fqName, typeArgs) ->
+            let nameText = Morphir.IR.FQName.toString fqName
+            match typeArgs with
+            | [] -> nameText
+            | _ ->
+                let argsText =
+                    typeArgs
+                    |> List.map renderTypeArg
+                    |> String.concat " "
+                $"{nameText} {argsText}"
+        | Tuple(_, elements) ->
+            let elementsText =
+                elements
+                |> List.map toString
+                |> String.concat ", "
+            $"({elementsText})"
+        | Record(_, fields) ->
+            let fieldsText =
+                fields
+                |> List.map fieldToString
+                |> String.concat ", "
+            $"{{ {fieldsText} }}"
+        | ExtensibleRecord(_, variableName, fields) ->
+            let fieldsText =
+                fields
+                |> List.map fieldToString
+                |> String.concat ", "
+            $"{{ {Morphir.IR.Name.toCamelCase variableName} | {fieldsText} }}"
+        | Function(_, argumentType, returnType) ->
+            let argumentText =
+                match argumentType with
+                | Function _ -> $"({toString argumentType})"
+                | _ -> toString argumentType
+            $"{argumentText} -> {toString returnType}"
+        | Unit _ -> "()"
+
+    /// <summary>
+    /// Converts a Field to its string representation.
+    /// </summary>
+    let fieldToString (field: Field<'attributes>) : string =
+        $"{Morphir.IR.Name.toCamelCase field.Name} : {toString field.Type}"
+
+    /// <summary>
+    /// Converts a TypeSpecification to its string representation.
+    /// </summary>
+    module TypeSpecification =
+        let toString (spec: TypeSpecification<'attributes>) : string =
+            let formatTypeParams (params': Name list) : string =
+                match params' with
+                | [] -> ""
+                | _ ->
+                    params'
+                    |> List.map Morphir.IR.Name.toCamelCase
+                    |> String.concat " "
+
+            match spec with
+            | TypeAliasSpecification(typeParams, typ) ->
+                let paramsText = formatTypeParams typeParams
+                match paramsText with
+                | "" -> $"type alias = {toString typ}"
+                | _ -> $"type alias {paramsText} = {toString typ}"
+            | OpaqueTypeSpecification typeParams ->
+                let paramsText = formatTypeParams typeParams
+                match paramsText with
+                | "" -> "type"
+                | _ -> $"type {paramsText}"
+            | CustomTypeSpecification(typeParams, constructors) ->
+                let paramsText = formatTypeParams typeParams
+                let constructorsText =
+                    constructors
+                    |> Map.toList
+                    |> List.map (fun (ctorName, args) ->
+                        let argsText =
+                            args
+                            |> List.map (fun (argName, argType) ->
+                                $"{Morphir.IR.Name.toCamelCase argName} : {toString argType}")
+                            |> String.concat " "
+                        match argsText with
+                        | "" -> Morphir.IR.Name.toTitleCase ctorName
+                        | _ -> $"{Morphir.IR.Name.toTitleCase ctorName} {argsText}")
+                    |> String.concat " | "
+                match paramsText with
+                | "" -> $"type = {constructorsText}"
+                | _ -> $"type {paramsText} = {constructorsText}"
+            | DerivedTypeSpecification(typeParams, details) ->
+                let paramsText = formatTypeParams typeParams
+                match paramsText with
+                | "" -> $"type derived from {toString details.BaseType}"
+                | _ -> $"type {paramsText} derived from {toString details.BaseType}"
+
+    /// <summary>
+    /// Converts a TypeDefinition to its string representation.
+    /// </summary>
+    module TypeDefinition =
+        let toString (def: TypeDefinition<'attributes>) : string =
+            let formatTypeParams (params': Name list) : string =
+                match params' with
+                | [] -> ""
+                | _ ->
+                    params'
+                    |> List.map Morphir.IR.Name.toCamelCase
+                    |> String.concat " "
+
+            match def with
+            | TypeAliasDefinition(typeParams, typ) ->
+                let paramsText = formatTypeParams typeParams
+                match paramsText with
+                | "" -> $"type alias = {toString typ}"
+                | _ -> $"type alias {paramsText} = {toString typ}"
+            | CustomTypeDefinition(typeParams, accessControlled) ->
+                let paramsText = formatTypeParams typeParams
+                match accessControlled.Access with
+                | AccessControlled.Public ->
+                    let constructors = accessControlled.Value
+                    let constructorsText =
+                        constructors
+                        |> Map.toList
+                        |> List.map (fun (ctorName, args) ->
+                            let argsText =
+                                args
+                                |> List.map (fun (argName, argType) ->
+                                    $"{Morphir.IR.Name.toCamelCase argName} : {toString argType}")
+                                |> String.concat " "
+                            match argsText with
+                            | "" -> Morphir.IR.Name.toTitleCase ctorName
+                            | _ -> $"{Morphir.IR.Name.toTitleCase ctorName} {argsText}")
+                        |> String.concat " | "
+                    match paramsText with
+                    | "" -> $"type = {constructorsText}"
+                    | _ -> $"type {paramsText} = {constructorsText}"
+                | AccessControlled.Private ->
+                    match paramsText with
+                    | "" -> "type"
+                    | _ -> $"type {paramsText}"
 
