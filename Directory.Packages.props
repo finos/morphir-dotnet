@@ -38,7 +38,7 @@
     <PackageVersion Include="LightBDD.Framework" Version="$(LightBDDVersion)" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.0.2" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All" />
-    <PackageVersion Include="altcover" Version="8.2.825" />
+    <PackageVersion Include="altcover" Version="8.9.3" />
     <PackageVersion Include="System.CommandLine" Version="2.0.1" />
     <PackageVersion Include="Funcky.DiscriminatedUnion" Version="1.2.1" />
     <PackageVersion Include="MSBuild.StructuredLogger" Version="2.1.768" />
@@ -84,13 +84,13 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
-    <PackageVersion Include="TUnit" Version="1.6.20" />
+    <PackageVersion Include="TUnit" Version="1.6.25" />
     <PackageVersion Include="Expecto" Version="10.2.3" />
     <PackageVersion Include="Expecto.FsCheck" Version="10.2.3" />
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.TUnit" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
-    <PackageVersion Include="YoloDev.Expecto.TestSdk" Version="0.14.3" />
+    <PackageVersion Include="YoloDev.Expecto.TestSdk" Version="0.15.5" />
     <PackageVersion Include="Vogen" Version="8.0.4" />
     <PackageVersion Include="TickSpec" Version="2.0.2" />
     <PackageVersion Include="Ionide.KeepAChangelog.Tasks" Version="0.3.1" />
