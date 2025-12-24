@@ -9,7 +9,6 @@ module Name =
 
     open System
     open System.Globalization
-    open System.Text.RegularExpressions
 
     /// <summary>
     /// A Name represents a human-readable identifier made up of one or more words.
@@ -17,10 +16,22 @@ module Name =
     type Name = Name of string list
 
     /// <summary>
-    /// Regular expression pattern for matching words in a string.
-    /// Matches sequences of letters (starting with uppercase or lowercase) or sequences of digits.
+    /// Checks if a character is a letter (uppercase or lowercase).
     /// </summary>
-    let private wordPattern = Regex("[a-zA-Z][a-z]*|[0-9]+", RegexOptions.Compiled)
+    let private isLetter (c: char) : bool =
+        (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+
+    /// <summary>
+    /// Checks if a character is a digit.
+    /// </summary>
+    let private isDigit (c: char) : bool =
+        c >= '0' && c <= '9'
+
+    /// <summary>
+    /// Checks if a character is a lowercase letter.
+    /// </summary>
+    let private isLowercase (c: char) : bool =
+        c >= 'a' && c <= 'z'
 
     /// <summary>
     /// Capitalizes the first character of a string.
@@ -32,12 +43,103 @@ module Name =
             CultureInfo.CurrentCulture.TextInfo.ToTitleCase(str)
 
     /// <summary>
-    /// Splits a string into Morphir words using the word pattern.
+    /// Splits a string into Morphir words using direct parsing.
+    /// Pattern: [a-zA-Z][a-z]*|[0-9]+
+    /// Matches sequences of letters (starting with uppercase or lowercase) followed by zero or more lowercase letters,
+    /// OR sequences of digits.
+    /// Uses direct character-by-character parsing instead of Regex for AOT/trimming compatibility.
+    ///
+    /// The regex [a-zA-Z][a-z]* means:
+    /// - One letter (any case) followed by zero or more lowercase letters
+    /// So "SDK" matches as three words: "S", "D", "K" (each is one uppercase with zero lowercase)
+    /// And "fooBar" matches as two words: "foo", "Bar" (Bar starts new word because of uppercase)
     /// </summary>
-    let private toMorphirWords (input: string) =
-        wordPattern.Matches(input)
-        |> Seq.map (fun m -> m.Value)
-        |> List.ofSeq
+    let private toMorphirWords (input: string) : string list =
+        if String.IsNullOrEmpty(input) then
+            []
+        else
+            let mutable words = []
+            let mutable currentWord = System.Text.StringBuilder()
+            let mutable i = 0
+            let mutable inWord = false
+            let mutable wordType = 0 // 0 = none, 1 = letters, 2 = digits
+            let mutable hasLowercase = false // Track if current word has lowercase letters
+
+            while i < input.Length do
+                let c = input.[i]
+                let isLetterChar = isLetter c
+                let isDigitChar = isDigit c
+                let isLowercaseChar = isLowercase c
+
+                if isLetterChar then
+                    if not inWord then
+                        // Start new word with letter
+                        currentWord.Clear() |> ignore
+                        currentWord.Append(c) |> ignore
+                        inWord <- true
+                        wordType <- 1
+                        hasLowercase <- isLowercaseChar
+                    else if wordType = 1 then
+                        // Continue letter word
+                        if isLowercaseChar then
+                            // Lowercase can always be added to letter word
+                            currentWord.Append(c) |> ignore
+                            hasLowercase <- true
+                        else
+                            // Uppercase letter
+                            if hasLowercase then
+                                // We have lowercase in current word, uppercase starts new word
+                                words <- currentWord.ToString() :: words
+                                currentWord.Clear() |> ignore
+                                currentWord.Append(c) |> ignore
+                                hasLowercase <- false
+                            else
+                                // Current word is all uppercase (e.g., "SDK"), uppercase starts new word
+                                words <- currentWord.ToString() :: words
+                                currentWord.Clear() |> ignore
+                                currentWord.Append(c) |> ignore
+                                hasLowercase <- false
+                    else
+                        // Digit word ended, start letter word
+                        words <- currentWord.ToString() :: words
+                        currentWord.Clear() |> ignore
+                        currentWord.Append(c) |> ignore
+                        wordType <- 1
+                        hasLowercase <- isLowercaseChar
+                else if isDigitChar then
+                    if not inWord then
+                        // Start new word with digit
+                        currentWord.Clear() |> ignore
+                        currentWord.Append(c) |> ignore
+                        inWord <- true
+                        wordType <- 2
+                        hasLowercase <- false
+                    else if wordType = 2 then
+                        // Continue digit word
+                        currentWord.Append(c) |> ignore
+                    else
+                        // Letter word ended, start digit word
+                        words <- currentWord.ToString() :: words
+                        currentWord.Clear() |> ignore
+                        currentWord.Append(c) |> ignore
+                        wordType <- 2
+                        hasLowercase <- false
+                else
+                    // Non-word character - end current word if any
+                    if inWord then
+                        words <- currentWord.ToString() :: words
+                        currentWord.Clear() |> ignore
+                        inWord <- false
+                        wordType <- 0
+                        hasLowercase <- false
+
+                i <- i + 1
+
+            // Add final word if any
+            if inWord then
+                words <- currentWord.ToString() :: words
+
+            List.rev words
 
     /// <summary>
     /// Creates a Name from a list of string segments.

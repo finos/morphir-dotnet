@@ -7,7 +7,6 @@ namespace Morphir.IR
 module Path =
 
     open System
-    open System.Text.RegularExpressions
     open Name
 
     /// <summary>
@@ -16,9 +15,50 @@ module Path =
     type Path = Path of Name list
 
     /// <summary>
-    /// Regular expression for matching non-word, non-space characters (path separators).
+    /// Checks if a character is a word character (letter, digit, or underscore).
     /// </summary>
-    let private separatorRegex = Regex("[^\\w\\s]+", RegexOptions.Compiled)
+    let private isWordChar (c: char) : bool =
+        (c >= 'A' && c <= 'Z')
+        || (c >= 'a' && c <= 'z')
+        || (c >= '0' && c <= '9')
+        || c = '_'
+
+    /// <summary>
+    /// Checks if a character is whitespace.
+    /// </summary>
+    let private isWhitespace (c: char) : bool =
+        Char.IsWhiteSpace(c)
+
+    /// <summary>
+    /// Splits a string by non-word, non-space characters (path separators).
+    /// Pattern: [^\w\s]+
+    /// Uses direct character-by-character parsing instead of Regex for AOT/trimming compatibility.
+    /// </summary>
+    let private splitBySeparators (input: string) : string list =
+        if String.IsNullOrEmpty(input) then
+            []
+        else
+            let mutable parts = []
+            let mutable currentPart = System.Text.StringBuilder()
+            let mutable i = 0
+
+            while i < input.Length do
+                let c = input.[i]
+                if isWordChar c || isWhitespace c then
+                    currentPart.Append(c) |> ignore
+                else
+                    // Separator found - end current part if any
+                    if currentPart.Length > 0 then
+                        parts <- currentPart.ToString() :: parts
+                        currentPart.Clear() |> ignore
+
+                i <- i + 1
+
+            // Add final part if any
+            if currentPart.Length > 0 then
+                parts <- currentPart.ToString() :: parts
+
+            List.rev parts
 
     /// <summary>
     /// Creates a Path from a list of Names.
@@ -35,10 +75,9 @@ module Path =
     /// The algorithm will treat any non-word characters that are not spaces as a path separator.
     /// </summary>
     let fromString (input: string) =
-        separatorRegex.Split(input)
-        |> Array.map Name.fromString
-        |> Array.filter (not << Name.isEmpty)
-        |> List.ofArray
+        splitBySeparators input
+        |> List.map Name.fromString
+        |> List.filter (not << Name.isEmpty)
         |> Path
 
     /// <summary>
