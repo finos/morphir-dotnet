@@ -212,7 +212,7 @@ module Value =
         | Record(_, fields) ->
             let fieldsText =
                 fields
-                |> Map.toList
+                |> Map.toList  // Map.toList already returns entries in key-sorted order (deterministic)
                 |> List.map (fun (name, fieldValue) -> $"{Morphir.IR.Name.toCamelCase name} = {toString fieldValue}")
                 |> String.concat ", "
             $"{{ {fieldsText} }}"

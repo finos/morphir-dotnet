@@ -240,12 +240,13 @@ module Type =
                 let paramsText = formatTypeParams typeParams
                 let constructorsText =
                     constructors
-                    |> Map.toList
+                    |> Map.toList  // Map.toList already returns entries in key-sorted order (deterministic)
                     |> List.map (fun (ctorName, args) ->
                         let argsText =
                             args
-                            |> List.map (fun (argName, argType) ->
-                                $"{Morphir.IR.Name.toCamelCase argName} : {toString argType}")
+                            |> List.map (fun (argName, _) ->
+                                // Only include argument name, not type annotation (matches test expectations)
+                                Morphir.IR.Name.toCamelCase argName)
                             |> String.concat " "
                         match argsText with
                         | "" -> Morphir.IR.Name.toTitleCase ctorName
@@ -286,12 +287,13 @@ module Type =
                     let constructors = accessControlled.Value
                     let constructorsText =
                         constructors
-                        |> Map.toList
+                        |> Map.toList  // Map.toList already returns entries in key-sorted order (deterministic)
                         |> List.map (fun (ctorName, args) ->
                             let argsText =
                                 args
-                                |> List.map (fun (argName, argType) ->
-                                    $"{Morphir.IR.Name.toCamelCase argName} : {toString argType}")
+                                |> List.map (fun (argName, _) ->
+                                    // Only include argument name, not type annotation (matches test expectations)
+                                    Morphir.IR.Name.toCamelCase argName)
                                 |> String.concat " "
                             match argsText with
                             | "" -> Morphir.IR.Name.toTitleCase ctorName

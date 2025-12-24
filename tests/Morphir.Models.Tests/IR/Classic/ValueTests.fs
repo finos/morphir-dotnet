@@ -302,7 +302,7 @@ let tests =
                         |> Map.add (Name.fromList [ "age" ]) (Value.literal () (Literal.wholeNumberLiteral 30L))
                     let value = Value.record () fields
                     Value.toString value
-                    |> Expect.equal "{ name = \"John\", age = 30 }"
+                    |> Expect.equal "{ age = 30, name = \"John\" }"  // Sorted alphabetically by field name
 
                 testCase "Reference formats as FQName in camelCase"
                 <| fun _ ->

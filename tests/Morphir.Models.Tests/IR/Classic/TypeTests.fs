@@ -393,7 +393,7 @@ let tests =
                         |> Map.add (Name.fromList [ "err" ]) [ (Name.fromList [ "error" ], intType) ]
                     let spec = Type.customTypeSpecification typeParams constructors
                     Type.TypeSpecification.toString spec
-                    |> Expect.equal "type = Ok value | Err error"
+                    |> Expect.equal "type = Err error | Ok value"  // Sorted alphabetically by constructor name
 
                 testCase "DerivedTypeSpecification formats as type with base type"
                 <| fun _ ->
