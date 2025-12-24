@@ -1,7 +1,6 @@
 namespace Morphir.IR
 
 open System
-open System.Text.RegularExpressions
 
 /// <summary>
 /// Versioning module provides format version information for Morphir IR.
@@ -35,13 +34,43 @@ module Versioning =
     module SemanticVersion =
 
         /// <summary>
+        /// Checks if a character is valid for semver identifiers (alphanumeric or hyphen).
+        /// </summary>
+        let private isValidIdentifierChar (c: char) : bool =
+            (c >= '0' && c <= '9')
+            || (c >= 'A' && c <= 'Z')
+            || (c >= 'a' && c <= 'z')
+            || c = '-'
+
+        /// <summary>
         /// Validates that a string contains only valid semver identifiers (alphanumeric, hyphens, dots).
+        /// Uses direct character-by-character parsing instead of Regex for AOT/trimming compatibility.
+        /// Format: identifier(.identifier)* where identifier = [0-9A-Za-z-]+
         /// </summary>
         let private isValidIdentifier (identifier: string) : bool =
-            if String.IsNullOrEmpty(identifier) then false
+            if String.IsNullOrEmpty(identifier) then
+                false
             else
-                let pattern = Regex("^[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*$", RegexOptions.Compiled)
-                pattern.IsMatch(identifier)
+                let mutable inIdentifier = false
+                let mutable isValid = true
+                let mutable i = 0
+
+                while i < identifier.Length && isValid do
+                    let c = identifier.[i]
+                    if c = '.' then
+                        // Dot must be preceded by at least one valid character
+                        if not inIdentifier then
+                            isValid <- false
+                        else
+                            inIdentifier <- false // Start new identifier after dot
+                    else if isValidIdentifierChar c then
+                        inIdentifier <- true
+                    else
+                        isValid <- false
+                    i <- i + 1
+
+                // Must end with a valid identifier (not a dot)
+                isValid && inIdentifier
 
         /// <summary>
         /// Parses a semantic version string into a SemanticVersion.
