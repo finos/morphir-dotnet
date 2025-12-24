@@ -32,6 +32,15 @@
         <Compile Include="IR/Classic/Module.fs" />
         <Compile Include="IR/Classic/Package.fs" />
         <Compile Include="IR/Classic/Distribution.fs" />
+        <Compile Include="IR/Classic/DSL/Types.fs" />
+        <Compile Include="IR/Classic/DSL/Values.fs" />
+        <Compile Include="IR/Classic/DSL/Patterns.fs" />
+        <Compile Include="IR/Classic/DSL/Literals.fs" />
+        <Compile Include="IR/Classic/DSL/Modules.fs" />
+        <Compile Include="IR/Classic/DSL/Packages.fs" />
+        <Compile Include="IR/Classic/DSL/Distributions.fs" />
+        <Compile Include="IR/DSL/Names.fs" />
+        <Compile Include="IR/DSL/DSL.fs" />
     </ItemGroup>
 
     <ItemGroup>
