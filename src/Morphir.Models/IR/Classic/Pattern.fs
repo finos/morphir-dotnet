@@ -7,8 +7,7 @@ namespace Morphir.IR.Classic
 /// </summary>
 module Pattern =
 
-    open Morphir.IR.Name
-    open Morphir.IR.FQName
+    open Morphir.IR
     open Literal
 
     /// <summary>
@@ -82,7 +81,7 @@ module Pattern =
         match pattern with
         | WildcardPattern _ -> "_"
         | AsPattern(_, nested, name) ->
-            $"{toString nested} as {Morphir.IR.Name.toCamelCase name}"
+            $"{toString nested} as {Name.toCamelCase name}"
         | TuplePattern(_, patterns) ->
             let patternsText =
                 patterns
@@ -90,7 +89,7 @@ module Pattern =
                 |> String.concat " , "
             $"({patternsText})"
         | ConstructorPattern(_, fqName, patterns) ->
-            let nameText = Morphir.IR.FQName.toString fqName
+            let nameText = FQName.toString fqName
             match patterns with
             | [] -> nameText
             | _ ->

@@ -1,19 +1,21 @@
 namespace Morphir.IR
 
 /// <summary>
+/// A Name represents a human-readable identifier made up of one or more words.
+/// </summary>
+type Name = Name of string list
+
+/// <summary>
+/// Name module provides functions for working with Name values.
 /// Name is an abstraction of human-readable identifiers made up of words.
 /// This abstraction allows us to use the same identifiers across various naming conventions used by the different
 /// frontend and backend languages Morphir integrates with.
 /// </summary>
+[<RequireQualifiedAccess>]
 module Name =
 
     open System
     open System.Globalization
-
-    /// <summary>
-    /// A Name represents a human-readable identifier made up of one or more words.
-    /// </summary>
-    type Name = Name of string list
 
     /// <summary>
     /// Checks if a character is a letter (uppercase or lowercase).
@@ -255,4 +257,3 @@ module Name =
     /// Gets the tail (remaining segments) of a Name.
     /// </summary>
     let tail (Name segments) = Name(List.tail segments)
-

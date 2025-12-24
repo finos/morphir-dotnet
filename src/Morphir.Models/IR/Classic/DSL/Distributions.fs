@@ -5,10 +5,9 @@ namespace Morphir.IR.Classic.DSL
 /// </summary>
 module Distributions =
 
-    open Morphir.IR.PackageName
+    open Morphir.IR
     open Morphir.IR.Classic.Distribution
     open Morphir.IR.Classic.Package
-    open System.Collections.Generic
 
     /// <summary>
     /// DistributionBuilder provides a Computation Expression for creating Distribution values.
@@ -36,8 +35,8 @@ module Distributions =
         /// </summary>
         member this.Library(strs: string list) =
             let pkgName =
-                Morphir.IR.Path.fromList (strs |> List.map Morphir.IR.Name.fromString)
-                |> Morphir.IR.PackageName.packageName
+                Path.fromList (strs |> List.map Name.fromString)
+                |> PackageName.packageName
             DistributionBuilder(Some pkgName, dependencies, packageDefinition)
 
         /// <summary>
@@ -73,7 +72,7 @@ module Distributions =
         member _.Run(builder: DistributionBuilder<'typeAttributes, 'valueAttributes>) =
             let pkgName =
                 builder.PackageName
-                |> Option.defaultValue Morphir.IR.PackageName.emptyPackageName
+                |> Option.defaultValue PackageName.emptyPackageName
             let pkgDef =
                 builder.PackageDefinition
                 |> Option.defaultValue (

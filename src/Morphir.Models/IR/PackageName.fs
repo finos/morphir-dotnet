@@ -2,17 +2,16 @@ namespace Morphir.IR
 
 /// <summary>
 /// PackageName represents the globally unique identifier for a package.
+/// </summary>
+type PackageName = PackageName of Path
+
+/// <summary>
+/// PackageName module provides functions for working with PackageName values.
+/// PackageName represents the globally unique identifier for a package.
 /// A package name is a Path that uniquely identifies a package across all Morphir systems.
 /// </summary>
+[<RequireQualifiedAccess>]
 module PackageName =
-
-    open Name
-    open Path
-
-    /// <summary>
-    /// PackageName represents the globally unique identifier for a package.
-    /// </summary>
-    type PackageName = PackageName of Path
 
     /// <summary>
     /// Creates a PackageName from a Path.
@@ -38,4 +37,3 @@ module PackageName =
     /// Creates an empty PackageName.
     /// </summary>
     let emptyPackageName = PackageName Path.empty
-

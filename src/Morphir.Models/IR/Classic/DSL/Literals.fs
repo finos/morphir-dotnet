@@ -1,5 +1,7 @@
 namespace Morphir.IR.Classic.DSL
 
+open System.Runtime.CompilerServices
+
 /// <summary>
 /// Literals module provides helper functions and Computation Expression builders for creating Literal values.
 /// </summary>
@@ -33,34 +35,45 @@ module Literals =
         member _.Zero() = BoolLiteral false
 
         /// <summary>
-        /// Creates a BoolLiteral.
+        /// Delays the computation (required for proper CE support).
         /// </summary>
-        member _.Bool(value: bool) = BoolLiteral value
+        member _.Delay(f: unit -> Literal) = f
 
         /// <summary>
-        /// Creates a CharLiteral.
+        /// Runs the builder to produce the final Literal.
         /// </summary>
-        member _.Char(value: char) = CharLiteral value
+        member _.Run(f: unit -> Literal) = f()
+
+        /// Helper methods for creating literals (lowercase for CE)
+        /// <summary>
+        /// Creates a BoolLiteral (method for CE).
+        /// </summary>
+        member _.bool(value: bool) = BoolLiteral value
 
         /// <summary>
-        /// Creates a StringLiteral.
+        /// Creates a CharLiteral (method for CE).
         /// </summary>
-        member _.String(value: string) = StringLiteral value
+        member _.char(value: char) = CharLiteral value
 
         /// <summary>
-        /// Creates a WholeNumberLiteral.
+        /// Creates a StringLiteral (method for CE).
         /// </summary>
-        member _.Int(value: int64) = WholeNumberLiteral value
+        member _.string(value: string) = StringLiteral value
 
         /// <summary>
-        /// Creates a FloatLiteral.
+        /// Creates a WholeNumberLiteral (method for CE).
         /// </summary>
-        member _.Float(value: float) = FloatLiteral value
+        member _.int(value: int64) = WholeNumberLiteral value
 
         /// <summary>
-        /// Creates a DecimalLiteral.
+        /// Creates a FloatLiteral (method for CE).
         /// </summary>
-        member _.Decimal(value: string) = DecimalLiteral value
+        member _.float(value: float) = FloatLiteral value
+
+        /// <summary>
+        /// Creates a DecimalLiteral (method for CE).
+        /// </summary>
+        member _.decimal(value: string) = DecimalLiteral value
 
     /// <summary>
     /// Global builder instance for use in Computation Expressions.

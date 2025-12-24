@@ -1,10 +1,10 @@
 namespace Morphir.Models.Tests.IR.DSL
 
 open Expecto
+open Morphir.Testing.Assertions
+open Morphir.IR
 open Morphir.IR.Classic.DSL.Patterns
 open Morphir.IR.DSL.Names
-open Morphir.IR.Classic.Pattern
-open Morphir.IR.Name
 
 module PatternsTests =
 
@@ -14,15 +14,15 @@ module PatternsTests =
             testList "PatternBuilder" [
                 testCase "Creates WildcardPattern"
                 <| fun _ ->
-                    let result = pattern { Wildcard () }
+                    let result = pattern { wildcard }
                     let expected = Morphir.IR.Classic.Pattern.wildcardPattern ()
                     result |> Expect.equal expected
 
                 testCase "Creates VariablePattern"
                 <| fun _ ->
-                    let result = pattern { Variable "x" }
+                    let result = pattern { variable "x" }
                     let expected =
-                        Morphir.IR.Classic.Pattern.asPattern () (Morphir.IR.Classic.Pattern.wildcardPattern ()) (Morphir.IR.Name.fromString "x")
+                        Morphir.IR.Classic.Pattern.asPattern () (Morphir.IR.Classic.Pattern.wildcardPattern ()) (Name.fromString "x")
                     result |> Expect.equal expected
 
                 testCase "Creates TuplePattern"

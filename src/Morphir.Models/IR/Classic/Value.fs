@@ -7,8 +7,7 @@ namespace Morphir.IR.Classic
 /// </summary>
 module Value =
 
-    open Morphir.IR.Name
-    open Morphir.IR.FQName
+    open Morphir.IR
     open Type
     open Literal
     open Pattern
@@ -192,8 +191,8 @@ module Value =
     let rec toString (value: Value<'typeAttributes, 'valueAttributes>) : string =
         match value with
         | Literal(_, lit) -> Literal.toString lit
-        | Variable(_, name) -> Morphir.IR.Name.toCamelCase name
-        | Constructor(_, fqName) -> Morphir.IR.FQName.toString fqName
+        | Variable(_, name) -> Name.toCamelCase name
+        | Constructor(_, fqName) -> FQName.toString fqName
         | Tuple(_, elements) ->
             let elementsText =
                 elements
@@ -213,13 +212,13 @@ module Value =
             let fieldsText =
                 fields
                 |> Map.toList  // Map.toList already returns entries in key-sorted order (deterministic)
-                |> List.map (fun (name, fieldValue) -> $"{Morphir.IR.Name.toCamelCase name} = {toString fieldValue}")
+                |> List.map (fun (name, fieldValue) -> $"{Name.toCamelCase name} = {toString fieldValue}")
                 |> String.concat ", "
             $"{{ {fieldsText} }}"
-        | Reference(_, fqName) -> Morphir.IR.FQName.toString fqName
+        | Reference(_, fqName) -> FQName.toString fqName
         | Field(_, recordValue, fieldName) ->
-            $"{toString recordValue}.{Morphir.IR.Name.toCamelCase fieldName}"
-        | FieldFunction(_, fieldName) -> $".{Morphir.IR.Name.toCamelCase fieldName}"
+            $"{toString recordValue}.{Name.toCamelCase fieldName}"
+        | FieldFunction(_, fieldName) -> $".{Name.toCamelCase fieldName}"
         | Apply(_, functionValue, argumentValue) ->
             let needsParens candidate =
                 match candidate with
@@ -235,7 +234,7 @@ module Value =
             let fieldsText =
                 fieldsToUpdate
                 |> Map.toList
-                |> List.map (fun (name, fieldValue) -> $"{Morphir.IR.Name.toCamelCase name} = {toString fieldValue}")
+                |> List.map (fun (name, fieldValue) -> $"{Name.toCamelCase name} = {toString fieldValue}")
                 |> String.concat ", "
             $"{{ {toString recordToUpdate} | {fieldsText} }}"
         | Lambda(_, argumentPattern, body) ->
@@ -252,9 +251,9 @@ module Value =
             let defText =
                 let argsText =
                     definition.InputTypes
-                    |> List.map (fun (argName, _, _) -> Morphir.IR.Name.toCamelCase argName)
+                    |> List.map (fun (argName, _, _) -> Name.toCamelCase argName)
                     |> String.concat " "
-                let nameText = Morphir.IR.Name.toCamelCase bindingName
+                let nameText = Name.toCamelCase bindingName
                 let bodyText = toString definition.Body
                 match argsText with
                 | "" -> $"{nameText} = {bodyText}"
@@ -267,9 +266,9 @@ module Value =
                 |> List.map (fun (name, definition) ->
                     let argsText =
                         definition.InputTypes
-                        |> List.map (fun (argName, _, _) -> Morphir.IR.Name.toCamelCase argName)
+                        |> List.map (fun (argName, _, _) -> Name.toCamelCase argName)
                         |> String.concat " "
-                    let nameText = Morphir.IR.Name.toCamelCase name
+                    let nameText = Name.toCamelCase name
                     let bodyText = toString definition.Body
                     match argsText with
                     | "" -> $"{nameText} = {bodyText}"
@@ -289,7 +288,7 @@ module Value =
                 | _ ->
                     inputs
                     |> List.map (fun (name, typ) ->
-                        $"{Morphir.IR.Name.toCamelCase name} : {Type.toString typ}")
+                        $"{Name.toCamelCase name} : {Type.toString typ}")
                     |> String.concat ", "
                     |> (fun s -> $"({s})")
 
@@ -307,9 +306,9 @@ module Value =
         let toString (name: Name) (def: ValueDefinition<'typeAttributes, 'valueAttributes>) : string =
             let argsText =
                 def.InputTypes
-                |> List.map (fun (argName, _, _) -> Morphir.IR.Name.toCamelCase argName)
+                |> List.map (fun (argName, _, _) -> Name.toCamelCase argName)
                 |> String.concat " "
-            let nameText = Morphir.IR.Name.toCamelCase name
+            let nameText = Name.toCamelCase name
             let bodyText = toString def.Body
             match argsText with
             | "" -> $"{nameText} = {bodyText}"

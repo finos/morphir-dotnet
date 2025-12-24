@@ -5,8 +5,7 @@ namespace Morphir.IR.Classic.DSL
 /// </summary>
 module Types =
 
-    open Morphir.IR.Name
-    open Morphir.IR.FQName
+    open Morphir.IR
     open Morphir.IR.Classic.Type
 
     /// <summary>
@@ -38,6 +37,16 @@ module Types =
         member _.Zero() = Unit defaultAttrs
 
         /// <summary>
+        /// Delays the computation (required for proper CE support).
+        /// </summary>
+        member _.Delay(f: unit -> Type<'attributes>) = f
+
+        /// <summary>
+        /// Runs the builder to produce the final Type.
+        /// </summary>
+        member _.Run(f: unit -> Type<'attributes>) = f()
+
+        /// <summary>
         /// Creates a Variable type (type variable/generic parameter).
         /// </summary>
         member _.Variable(name: Name) = Variable(defaultAttrs, name)
@@ -46,7 +55,7 @@ module Types =
         /// Creates a Variable type from a string.
         /// </summary>
         member _.Variable(str: string) =
-            Variable(defaultAttrs, Morphir.IR.Name.fromString str)
+            Variable(defaultAttrs, Name.fromString str)
 
         /// <summary>
         /// Creates a Reference type (reference to another type).
@@ -83,7 +92,7 @@ module Types =
         member _.ExtensibleRecord(variableName: string, fields: Field<'attributes> list) =
             ExtensibleRecord(
                 defaultAttrs,
-                Morphir.IR.Name.fromString variableName,
+                Name.fromString variableName,
                 fields
             )
 
@@ -107,7 +116,53 @@ module Types =
         /// Creates a Field from a string name.
         /// </summary>
         member _.Field(name: string, typ: Type<'attributes>) =
-            field (Morphir.IR.Name.fromString name) typ
+            field (Name.fromString name) typ
+
+        /// Helper functions (lowercase) for use inside CE blocks
+        /// <summary>
+        /// Creates a Reference type (function-style for CE).
+        /// </summary>
+        member _.reference(fqName: FQName) = Reference(defaultAttrs, fqName, [])
+
+        /// <summary>
+        /// Creates a Reference type with type arguments (function-style for CE).
+        /// </summary>
+        member _.reference(fqName: FQName, typeArgs: Type<'attributes> list) =
+            Reference(defaultAttrs, fqName, typeArgs)
+
+        /// <summary>
+        /// Creates a Tuple type (function-style for CE).
+        /// </summary>
+        member _.tuple(elementTypes: Type<'attributes> list) =
+            Tuple(defaultAttrs, elementTypes)
+
+        /// <summary>
+        /// Creates a Record type (function-style for CE).
+        /// </summary>
+        member _.record(fields: Field<'attributes> list) =
+            Record(defaultAttrs, fields)
+
+        /// <summary>
+        /// Creates a Variable type (function-style for CE).
+        /// </summary>
+        member _.variable(name: string) =
+            Variable(defaultAttrs, Name.fromString name)
+
+        /// <summary>
+        /// Creates a Variable type from Name (function-style for CE).
+        /// </summary>
+        member _.variable(name: Name) = Variable(defaultAttrs, name)
+
+        /// <summary>
+        /// Creates a Unit type (function-style for CE).
+        /// </summary>
+        member _.unit() = Unit defaultAttrs
+
+        /// <summary>
+        /// Helper to create a field in a record.
+        /// </summary>
+        member _.field(name: string, typ: Type<'attributes>) =
+            field (Name.fromString name) typ
 
     /// <summary>
     /// TypeBuilderWithAttrs provides a Computation Expression for creating Type values with explicit attributes.
@@ -135,6 +190,16 @@ module Types =
         member _.Zero() = Unit attrs
 
         /// <summary>
+        /// Delays the computation (required for proper CE support).
+        /// </summary>
+        member _.Delay(f: unit -> Type<'attributes>) = f
+
+        /// <summary>
+        /// Runs the builder to produce the final Type.
+        /// </summary>
+        member _.Run(f: unit -> Type<'attributes>) = f()
+
+        /// <summary>
         /// Creates a Variable type (type variable/generic parameter).
         /// </summary>
         member _.Variable(name: Name) = Variable(attrs, name)
@@ -143,7 +208,7 @@ module Types =
         /// Creates a Variable type from a string.
         /// </summary>
         member _.Variable(str: string) =
-            Variable(attrs, Morphir.IR.Name.fromString str)
+            Variable(attrs, Name.fromString str)
 
         /// <summary>
         /// Creates a Reference type (reference to another type).
@@ -178,7 +243,7 @@ module Types =
         /// Creates an ExtensibleRecord type with variable name from string.
         /// </summary>
         member _.ExtensibleRecord(variableName: string, fields: Field<'attributes> list) =
-            ExtensibleRecord(attrs, Morphir.IR.Name.fromString variableName, fields)
+            ExtensibleRecord(attrs, Name.fromString variableName, fields)
 
         /// <summary>
         /// Creates a Function type (arg -> return).
@@ -200,13 +265,91 @@ module Types =
         /// Creates a Field from a string name.
         /// </summary>
         member _.Field(name: string, typ: Type<'attributes>) =
-            field (Morphir.IR.Name.fromString name) typ
+            field (Name.fromString name) typ
 
     /// <summary>
     /// TypeBuilder for unit attributes.
     /// </summary>
+    [<Sealed>]
     type TypeBuilder() =
-        inherit TypeBuilder<unit>()
+        let defaultAttrs = ()
+
+        /// <summary>
+        /// Yields a Type directly.
+        /// </summary>
+        member _.Yield(typ: Type<unit>) = typ
+
+        /// <summary>
+        /// Combines multiple Types (takes the last one).
+        /// </summary>
+        member _.Combine(_: Type<unit>, typ: Type<unit>) = typ
+
+        /// <summary>
+        /// Supports for loops.
+        /// </summary>
+        member _.For(items: 'a seq, f: 'a -> Type<unit>) =
+            items |> Seq.map f |> Seq.last
+
+        /// <summary>
+        /// Zero case (Unit type).
+        /// </summary>
+        member _.Zero() = Unit defaultAttrs
+
+        /// <summary>
+        /// Delays the computation (required for proper CE support).
+        /// </summary>
+        member _.Delay(f: unit -> Type<unit>) = f
+
+        /// <summary>
+        /// Runs the builder to produce the final Type.
+        /// </summary>
+        member _.Run(f: unit -> Type<unit>) = f()
+
+        /// Helper functions (lowercase) for use inside CE blocks
+        /// <summary>
+        /// Creates a Reference type (function-style for CE).
+        /// </summary>
+        member _.reference(fqName: FQName) = Reference(defaultAttrs, fqName, [])
+
+        /// <summary>
+        /// Creates a Reference type with type arguments (function-style for CE).
+        /// </summary>
+        member _.reference(fqName: FQName, typeArgs: Type<unit> list) =
+            Reference(defaultAttrs, fqName, typeArgs)
+
+        /// <summary>
+        /// Creates a Tuple type (function-style for CE).
+        /// </summary>
+        member _.tuple(elementTypes: Type<unit> list) =
+            Tuple(defaultAttrs, elementTypes)
+
+        /// <summary>
+        /// Creates a Record type (function-style for CE).
+        /// </summary>
+        member _.record(fields: Field<unit> list) =
+            Record(defaultAttrs, fields)
+
+        /// <summary>
+        /// Creates a Variable type (function-style for CE).
+        /// </summary>
+        member _.variable(name: string) =
+            Variable(defaultAttrs, Name.fromString name)
+
+        /// <summary>
+        /// Creates a Variable type from Name (function-style for CE).
+        /// </summary>
+        member _.variable(name: Name) = Variable(defaultAttrs, name)
+
+        /// <summary>
+        /// Creates a Unit type (function-style for CE).
+        /// </summary>
+        member _.unit() = Unit defaultAttrs
+
+        /// <summary>
+        /// Helper to create a field in a record.
+        /// </summary>
+        member _.field(name: string, typ: Type<unit>) =
+            field (Name.fromString name) typ
 
         /// <summary>
         /// Sets explicit attributes for the builder.

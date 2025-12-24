@@ -2,17 +2,16 @@ namespace Morphir.IR
 
 /// <summary>
 /// ModulePath represents the path to a module within a package.
+/// </summary>
+type ModulePath = ModulePath of Path
+
+/// <summary>
+/// ModulePath module provides functions for working with ModulePath values.
+/// ModulePath represents the path to a module within a package.
 /// A module path is a Path that uniquely identifies a module within a package.
 /// </summary>
+[<RequireQualifiedAccess>]
 module ModulePath =
-
-    open Name
-    open Path
-
-    /// <summary>
-    /// ModulePath represents the path to a module within a package.
-    /// </summary>
-    type ModulePath = ModulePath of Path
 
     /// <summary>
     /// Creates a ModulePath from a Path.
@@ -38,4 +37,3 @@ module ModulePath =
     /// Creates an empty ModulePath.
     /// </summary>
     let emptyModulePath = ModulePath Path.empty
-

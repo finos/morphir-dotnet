@@ -1,18 +1,19 @@
 namespace Morphir.IR
 
 /// <summary>
+/// A Path represents a hierarchical location in the IR structure.
+/// </summary>
+type Path = Path of Name list
+
+/// <summary>
+/// Path module provides functions for working with Path values.
 /// Path represents a hierarchical location in the IR structure.
 /// A Path is a list of Names that identifies packages and modules within the hierarchy.
 /// </summary>
+[<RequireQualifiedAccess>]
 module Path =
 
     open System
-    open Name
-
-    /// <summary>
-    /// A Path represents a hierarchical location in the IR structure.
-    /// </summary>
-    type Path = Path of Name list
 
     /// <summary>
     /// Checks if a character is a word character (letter, digit, or underscore).
@@ -137,4 +138,3 @@ module Path =
     /// Checks if this Path is a prefix of the provided path.
     /// </summary>
     let isPrefixOfPath (path: Path) (prefix: Path) = isPrefixOf prefix path
-

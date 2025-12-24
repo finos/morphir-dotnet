@@ -1,12 +1,12 @@
 namespace Morphir.Models.Tests.IR.DSL
 
 open Expecto
+open Morphir.IR
 open Morphir.IR.Classic.DSL.Values
 open Morphir.IR.DSL.Names
 open Morphir.IR.Classic.DSL.Literals
 open Morphir.IR.Classic.Value
 open Morphir.IR.Classic.Literal
-open Morphir.IR.Name
 
 module ValuesTests =
 

@@ -7,11 +7,7 @@ namespace Morphir.IR.Classic
 /// </summary>
 module Type =
 
-    open Morphir.IR.Name
-    open Morphir.IR.FQName
-    open Morphir.IR.Path
-    open Morphir.IR.PackageName
-    open Morphir.IR.ModulePath
+    open Morphir.IR
     open AccessControlled
 
     /// <summary>
@@ -166,12 +162,12 @@ module Type =
             | _ -> toString arg
 
         let fieldToString (field: Field<'attributes>) : string =
-            $"{Morphir.IR.Name.toCamelCase field.Name} : {toString field.Type}"
+            $"{Name.toCamelCase field.Name} : {toString field.Type}"
 
         match typ with
-        | Variable(_, name) -> Morphir.IR.Name.toCamelCase name
+        | Variable(_, name) -> Name.toCamelCase name
         | Reference(_, fqName, typeArgs) ->
-            let nameText = Morphir.IR.FQName.toString fqName
+            let nameText = FQName.toString fqName
             match typeArgs with
             | [] -> nameText
             | _ ->
@@ -197,7 +193,7 @@ module Type =
                 fields
                 |> List.map fieldToString
                 |> String.concat ", "
-            $"{{ {Morphir.IR.Name.toCamelCase variableName} | {fieldsText} }}"
+            $"{{ {Name.toCamelCase variableName} | {fieldsText} }}"
         | Function(_, argumentType, returnType) ->
             let argumentText =
                 match argumentType with
@@ -210,7 +206,7 @@ module Type =
     /// Converts a Field to its string representation.
     /// </summary>
     let fieldToString (field: Field<'attributes>) : string =
-        $"{Morphir.IR.Name.toCamelCase field.Name} : {toString field.Type}"
+        $"{Name.toCamelCase field.Name} : {toString field.Type}"
 
     /// <summary>
     /// Converts a TypeSpecification to its string representation.
@@ -222,7 +218,7 @@ module Type =
                 | [] -> ""
                 | _ ->
                     params'
-                    |> List.map Morphir.IR.Name.toCamelCase
+                    |> List.map Name.toCamelCase
                     |> String.concat " "
 
             match spec with
@@ -246,11 +242,11 @@ module Type =
                             args
                             |> List.map (fun (argName, _) ->
                                 // Only include argument name, not type annotation (matches test expectations)
-                                Morphir.IR.Name.toCamelCase argName)
+                                Name.toCamelCase argName)
                             |> String.concat " "
                         match argsText with
-                        | "" -> Morphir.IR.Name.toTitleCase ctorName
-                        | _ -> $"{Morphir.IR.Name.toTitleCase ctorName} {argsText}")
+                        | "" -> Name.toTitleCase ctorName
+                        | _ -> $"{Name.toTitleCase ctorName} {argsText}")
                     |> String.concat " | "
                 match paramsText with
                 | "" -> $"type = {constructorsText}"
@@ -271,7 +267,7 @@ module Type =
                 | [] -> ""
                 | _ ->
                     params'
-                    |> List.map Morphir.IR.Name.toCamelCase
+                    |> List.map Name.toCamelCase
                     |> String.concat " "
 
             match def with
@@ -293,11 +289,11 @@ module Type =
                                 args
                                 |> List.map (fun (argName, _) ->
                                     // Only include argument name, not type annotation (matches test expectations)
-                                    Morphir.IR.Name.toCamelCase argName)
+                                    Name.toCamelCase argName)
                                 |> String.concat " "
                             match argsText with
-                            | "" -> Morphir.IR.Name.toTitleCase ctorName
-                            | _ -> $"{Morphir.IR.Name.toTitleCase ctorName} {argsText}")
+                            | "" -> Name.toTitleCase ctorName
+                            | _ -> $"{Name.toTitleCase ctorName} {argsText}")
                         |> String.concat " | "
                     match paramsText with
                     | "" -> $"type = {constructorsText}"

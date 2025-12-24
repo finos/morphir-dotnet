@@ -5,7 +5,7 @@ namespace Morphir.IR.Classic.DSL
 /// </summary>
 module Modules =
 
-    open Morphir.IR.Name
+    open Morphir.IR
     open Morphir.IR.Classic.Module
     open Morphir.IR.Classic.Type
     open Morphir.IR.Classic.Value
@@ -44,13 +44,13 @@ module Modules =
         /// Adds a type with string name.
         /// </summary>
         member this.Type(name: string, spec: TypeSpecification<'attributes>) =
-            this.Type(Morphir.IR.Name.fromString name, spec)
+            this.Type(Name.fromString name, spec)
 
         /// <summary>
         /// Adds a type with string name and documentation.
         /// </summary>
         member this.Type(name: string, spec: TypeSpecification<'attributes>, documentation: string) =
-            this.Type(Morphir.IR.Name.fromString name, spec, documentation)
+            this.Type(Name.fromString name, spec, documentation)
 
         /// <summary>
         /// Adds a value to the module specification.
@@ -68,13 +68,13 @@ module Modules =
         /// Adds a value with string name.
         /// </summary>
         member this.Value(name: string, spec: ValueSpecification<'attributes>) =
-            this.Value(Morphir.IR.Name.fromString name, spec)
+            this.Value(Name.fromString name, spec)
 
         /// <summary>
         /// Adds a value with string name and documentation.
         /// </summary>
         member this.Value(name: string, spec: ValueSpecification<'attributes>, documentation: string) =
-            this.Value(Morphir.IR.Name.fromString name, spec, documentation)
+            this.Value(Name.fromString name, spec, documentation)
 
         /// <summary>
         /// Sets the module documentation.
@@ -146,13 +146,13 @@ module Modules =
         /// Adds a type with string name.
         /// </summary>
         member this.Type(name: string, def: TypeDefinition<'typeAttributes>) =
-            this.Type(Morphir.IR.Name.fromString name, def)
+            this.Type(Name.fromString name, def)
 
         /// <summary>
         /// Adds a type with string name and documentation.
         /// </summary>
         member this.Type(name: string, def: TypeDefinition<'typeAttributes>, documentation: string) =
-            this.Type(Morphir.IR.Name.fromString name, def, documentation)
+            this.Type(Name.fromString name, def, documentation)
 
         /// <summary>
         /// Adds a public value to the module definition.
@@ -182,13 +182,13 @@ module Modules =
         /// Adds a value with string name.
         /// </summary>
         member this.Value(name: string, def: ValueDefinition<'typeAttributes, 'valueAttributes>) =
-            this.Value(Morphir.IR.Name.fromString name, def)
+            this.Value(Name.fromString name, def)
 
         /// <summary>
         /// Adds a value with string name and documentation.
         /// </summary>
         member this.Value(name: string, def: ValueDefinition<'typeAttributes, 'valueAttributes>, documentation: string) =
-            this.Value(Morphir.IR.Name.fromString name, def, documentation)
+            this.Value(Name.fromString name, def, documentation)
 
         /// <summary>
         /// Sets the module documentation.

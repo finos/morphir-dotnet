@@ -1,6 +1,7 @@
 namespace Morphir.Models.Tests.IR.DSL
 
 open Expecto
+open Morphir.Testing.Assertions
 open Morphir.IR.Classic.DSL.Literals
 open Morphir.IR.Classic.Literal
 

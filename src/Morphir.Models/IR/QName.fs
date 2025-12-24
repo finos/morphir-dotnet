@@ -2,26 +2,24 @@ namespace Morphir.IR
 
 /// <summary>
 /// QName (Qualified Name) provides a package-scoped identifier for types and values.
+/// Structure: (module path, local name)
+/// </summary>
+type QName =
+    { ModulePath: ModulePath
+      LocalName: Name }
+
+/// <summary>
+/// QName module provides functions for working with QName values.
+/// QName (Qualified Name) provides a package-scoped identifier for types and values.
 /// It consists of a module path and local name (without package path).
 /// </summary>
+[<RequireQualifiedAccess>]
 module QName =
-
-    open Name
-    open Path
-    open ModulePath
-
-    /// <summary>
-    /// QName (Qualified Name) provides a package-scoped identifier for types and values.
-    /// Structure: (module path, local name)
-    /// </summary>
-    type QName =
-        { ModulePath: ModulePath.ModulePath
-          LocalName: Name }
 
     /// <summary>
     /// Creates a QName from a module path and local name.
     /// </summary>
-    let qName (modulePath: ModulePath.ModulePath) (localName: Name) =
+    let qName (modulePath: ModulePath) (localName: Name) =
         { ModulePath = modulePath
           LocalName = localName }
 
@@ -50,7 +48,7 @@ module QName =
         let moduleName =
             qName
             |> modulePath
-            |> modulePathToPath
+            |> ModulePath.modulePathToPath
             |> Path.toString Name.toTitleCase "."
 
         let localName = qName |> localName |> Name.toCamelCase
@@ -71,10 +69,9 @@ module QName =
         let moduleName =
             qName
             |> modulePath
-            |> modulePathToPath
+            |> ModulePath.modulePathToPath
             |> Path.toString Name.toTitleCase "."
 
         let localName = qName |> localName |> Name.toCamelCase
 
         $"QName({moduleName}, {localName})"
-

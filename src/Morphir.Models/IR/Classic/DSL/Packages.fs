@@ -5,7 +5,7 @@ namespace Morphir.IR.Classic.DSL
 /// </summary>
 module Packages =
 
-    open Morphir.IR.ModulePath
+    open Morphir.IR
     open Morphir.IR.Classic.Package
     open Morphir.IR.Classic.Module
     open Morphir.IR.Classic.AccessControlled

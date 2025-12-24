@@ -5,8 +5,7 @@ namespace Morphir.IR.Classic.DSL
 /// </summary>
 module Values =
 
-    open Morphir.IR.Name
-    open Morphir.IR.FQName
+    open Morphir.IR
     open Morphir.IR.Classic.Value
     open Morphir.IR.Classic.Type
     open Morphir.IR.Classic.Pattern
@@ -41,6 +40,16 @@ module Values =
         /// Zero case (Unit value).
         /// </summary>
         member _.Zero() = Unit defaultAttrs
+
+        /// <summary>
+        /// Delays the computation (required for proper CE support).
+        /// </summary>
+        member _.Delay(f: unit -> Value<'typeAttributes, 'valueAttributes>) = f
+
+        /// <summary>
+        /// Runs the builder to produce the final Value.
+        /// </summary>
+        member _.Run(f: unit -> Value<'typeAttributes, 'valueAttributes>) = f()
 
         /// <summary>
         /// Creates a Literal value.
@@ -83,7 +92,7 @@ module Values =
             let nameValuePairs =
                 fields
                 |> List.map (fun (name, value) ->
-                    (Morphir.IR.Name.fromString name, value))
+                    (Name.fromString name, value))
             Value.Record(defaultAttrs, Map.ofList nameValuePairs)
 
         /// <summary>
@@ -95,7 +104,7 @@ module Values =
         /// Creates a Variable value from a string.
         /// </summary>
         member _.Variable(str: string) =
-            Variable(defaultAttrs, Morphir.IR.Name.fromString str)
+            Variable(defaultAttrs, Name.fromString str)
 
         /// <summary>
         /// Creates a Reference value.
@@ -112,7 +121,7 @@ module Values =
         /// Creates a Field value with string field name.
         /// </summary>
         member _.Field(recordExpr: Value<'typeAttributes, 'valueAttributes>, fieldName: string) =
-            Field(defaultAttrs, recordExpr, Morphir.IR.Name.fromString fieldName)
+            Field(defaultAttrs, recordExpr, Name.fromString fieldName)
 
         /// <summary>
         /// Creates a FieldFunction value (a function that extracts a field).
@@ -123,7 +132,7 @@ module Values =
         /// Creates a FieldFunction value with string field name.
         /// </summary>
         member _.FieldFunction(fieldName: string) =
-            FieldFunction(defaultAttrs, Morphir.IR.Name.fromString fieldName)
+            FieldFunction(defaultAttrs, Name.fromString fieldName)
 
         /// <summary>
         /// Creates an Apply value (function application).
@@ -250,6 +259,16 @@ module Values =
         member _.Zero() = Unit attrs
 
         /// <summary>
+        /// Delays the computation (required for proper CE support).
+        /// </summary>
+        member _.Delay(f: unit -> Value<'typeAttributes, 'valueAttributes>) = f
+
+        /// <summary>
+        /// Runs the builder to produce the final Value.
+        /// </summary>
+        member _.Run(f: unit -> Value<'typeAttributes, 'valueAttributes>) = f()
+
+        /// <summary>
         /// Creates a Literal value.
         /// </summary>
         member _.Literal(lit: Literal) = Literal(attrs, lit)
@@ -290,7 +309,7 @@ module Values =
             let nameValuePairs =
                 fields
                 |> List.map (fun (name, value) ->
-                    (Morphir.IR.Name.fromString name, value))
+                    (Name.fromString name, value))
             Value.Record(attrs, Map.ofList nameValuePairs)
 
         /// <summary>
@@ -302,7 +321,7 @@ module Values =
         /// Creates a Variable value from a string.
         /// </summary>
         member _.Variable(str: string) =
-            Variable(attrs, Morphir.IR.Name.fromString str)
+            Variable(attrs, Name.fromString str)
 
         /// <summary>
         /// Creates a Reference value.
@@ -319,7 +338,7 @@ module Values =
         /// Creates a Field value with string field name.
         /// </summary>
         member _.Field(recordExpr: Value<'typeAttributes, 'valueAttributes>, fieldName: string) =
-            Field(attrs, recordExpr, Morphir.IR.Name.fromString fieldName)
+            Field(attrs, recordExpr, Name.fromString fieldName)
 
         /// <summary>
         /// Creates a FieldFunction value (a function that extracts a field).
@@ -330,7 +349,7 @@ module Values =
         /// Creates a FieldFunction value with string field name.
         /// </summary>
         member _.FieldFunction(fieldName: string) =
-            FieldFunction(attrs, Morphir.IR.Name.fromString fieldName)
+            FieldFunction(attrs, Name.fromString fieldName)
 
         /// <summary>
         /// Creates an Apply value (function application).
@@ -431,10 +450,148 @@ module Values =
         member _.Unit() = Unit attrs
 
     /// <summary>
-    /// ValueBuilder for unit attributes.
+    /// ValueBuilder for unit attributes (sealed, non-inheriting version).
     /// </summary>
+    [<Sealed>]
     type ValueBuilder() =
-        inherit ValueBuilder<unit, unit>()
+        let defaultAttrs = ()
+
+        /// <summary>
+        /// Yields a Value directly.
+        /// </summary>
+        member _.Yield(value: Value<unit, unit>) = value
+
+        /// <summary>
+        /// Combines multiple Values (takes the last one).
+        /// </summary>
+        member _.Combine(_: Value<unit, unit>, value: Value<unit, unit>) = value
+
+        /// <summary>
+        /// Supports for loops.
+        /// </summary>
+        member _.For(items: 'a seq, f: 'a -> Value<unit, unit>) =
+            items |> Seq.map f |> Seq.last
+
+        /// <summary>
+        /// Zero case (Unit value).
+        /// </summary>
+        member _.Zero() = Unit defaultAttrs
+
+        /// <summary>
+        /// Delays the computation (required for proper CE support).
+        /// </summary>
+        member _.Delay(f: unit -> Value<unit, unit>) = f
+
+        /// <summary>
+        /// Runs the builder to produce the final Value.
+        /// </summary>
+        member _.Run(f: unit -> Value<unit, unit>) = f()
+
+        /// Lowercase helper functions for CE usage
+        /// <summary>
+        /// Creates a Literal value (lowercase for CE).
+        /// </summary>
+        member _.literal(lit: Literal) = Literal(defaultAttrs, lit)
+
+        /// <summary>
+        /// Creates a Variable value (lowercase for CE).
+        /// </summary>
+        member _.variable(name: Name) = Variable(defaultAttrs, name)
+
+        /// <summary>
+        /// Creates a Variable value from string (lowercase for CE).
+        /// </summary>
+        member _.variable(str: string) = Variable(defaultAttrs, Name.fromString str)
+
+        /// <summary>
+        /// Creates a Tuple value (lowercase for CE).
+        /// </summary>
+        member _.tuple(elements: Value<unit, unit> list) = Value.Tuple(defaultAttrs, elements)
+
+        /// <summary>
+        /// Creates a List value (lowercase for CE).
+        /// </summary>
+        member _.list(elements: Value<unit, unit> list) = Value.List(defaultAttrs, elements)
+
+        /// <summary>
+        /// Creates a Record value (lowercase for CE).
+        /// </summary>
+        member _.record(fields: Map<Name, Value<unit, unit>>) = Value.Record(defaultAttrs, fields)
+
+        /// <summary>
+        /// Creates a Record value from list (lowercase for CE).
+        /// </summary>
+        member _.record(fields: (Name * Value<unit, unit>) list) = Value.Record(defaultAttrs, Map.ofList fields)
+
+        /// <summary>
+        /// Creates a Record value from string-keyed list (lowercase for CE).
+        /// </summary>
+        member _.record(fields: (string * Value<unit, unit>) list) =
+            let nameValuePairs = fields |> List.map (fun (name, value) -> (Name.fromString name, value))
+            Value.Record(defaultAttrs, Map.ofList nameValuePairs)
+
+        /// <summary>
+        /// Creates a Reference value (lowercase for CE).
+        /// </summary>
+        member _.reference(fqName: FQName) = Value.Reference(defaultAttrs, fqName)
+
+        /// <summary>
+        /// Creates an Apply value (lowercase for CE).
+        /// </summary>
+        member _.apply(functionExpr: Value<unit, unit>, argumentExpr: Value<unit, unit>) =
+            Apply(defaultAttrs, functionExpr, argumentExpr)
+
+        /// <summary>
+        /// Unit value property (lowercase for CE).
+        /// </summary>
+        member _.unit = Unit defaultAttrs
+
+        /// Pascal case methods for backward compatibility
+        /// <summary>
+        /// Creates a Literal value.
+        /// </summary>
+        member _.Literal(lit: Literal) = Literal(defaultAttrs, lit)
+
+        /// <summary>
+        /// Creates a Variable value.
+        /// </summary>
+        member _.Variable(name: Name) = Variable(defaultAttrs, name)
+
+        /// <summary>
+        /// Creates a Variable value from string.
+        /// </summary>
+        member _.Variable(str: string) = Variable(defaultAttrs, Name.fromString str)
+
+        /// <summary>
+        /// Creates a Tuple value.
+        /// </summary>
+        member _.Tuple(elements: Value<unit, unit> list) = Value.Tuple(defaultAttrs, elements)
+
+        /// <summary>
+        /// Creates a List value.
+        /// </summary>
+        member _.List(elements: Value<unit, unit> list) = Value.List(defaultAttrs, elements)
+
+        /// <summary>
+        /// Creates a Record value.
+        /// </summary>
+        member _.Record(fields: Map<Name, Value<unit, unit>>) = Value.Record(defaultAttrs, fields)
+
+        /// <summary>
+        /// Creates a Reference value.
+        /// </summary>
+        member _.Reference(fqName: FQName) = Value.Reference(defaultAttrs, fqName)
+
+        /// <summary>
+        /// Creates an Apply value.
+        /// </summary>
+        member _.Apply(functionExpr: Value<unit, unit>, argumentExpr: Value<unit, unit>) =
+            Apply(defaultAttrs, functionExpr, argumentExpr)
+
+        /// <summary>
+        /// Creates a Unit value.
+        /// </summary>
+        member _.Unit() = Unit defaultAttrs
 
         /// <summary>
         /// Sets explicit value attributes for the builder (type attributes default to unit).

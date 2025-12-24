@@ -7,8 +7,7 @@ namespace Morphir.IR.Classic
 /// </summary>
 module Module =
 
-    open Morphir.IR.Name
-    open Morphir.IR.ModulePath
+    open Morphir.IR
     open Type
     open Value
     open AccessControlled

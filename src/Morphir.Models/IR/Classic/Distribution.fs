@@ -7,7 +7,7 @@ namespace Morphir.IR.Classic
 /// </summary>
 module Distribution =
 
-    open Morphir.IR.PackageName
+    open Morphir.IR
     open Package
     open System.Collections.Generic // For Map
 

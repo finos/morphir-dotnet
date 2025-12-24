@@ -1,16 +1,13 @@
 namespace Morphir.IR.DSL
 
+open System.Runtime.CompilerServices
+
 /// <summary>
 /// Names module provides Computation Expression builders for creating Name-related IR constructs.
 /// </summary>
 module Names =
 
-    open Morphir.IR.Name
-    open Morphir.IR.Path
-    open Morphir.IR.FQName
-    open Morphir.IR.QName
-    open Morphir.IR.PackageName
-    open Morphir.IR.ModulePath
+    open Morphir.IR
 
     /// <summary>
     /// NameBuilder provides a Computation Expression for creating Name values.
@@ -19,12 +16,12 @@ module Names =
         /// <summary>
         /// Yields a Name from a single string.
         /// </summary>
-        member _.Yield(str: string) = Morphir.IR.Name.fromString str
+        member _.Yield(str: string) = Name.fromString str
 
         /// <summary>
         /// Yields a Name from a list of strings.
         /// </summary>
-        member _.Yield(strs: string list) = Morphir.IR.Name.fromList strs
+        member _.Yield(strs: string list) = Name.fromList strs
 
         /// <summary>
         /// Yields a Name directly.
@@ -45,7 +42,7 @@ module Names =
         /// <summary>
         /// Zero case (empty Name).
         /// </summary>
-        member _.Zero() = Morphir.IR.Name.empty
+        member _.Zero() = Name.empty
 
         /// <summary>
         /// Delays the computation (required for proper CE support).
@@ -65,18 +62,18 @@ module Names =
         /// Yields a Path from a single string (converted to Name).
         /// </summary>
         member _.Yield(str: string) =
-            Morphir.IR.Path.fromList [ Morphir.IR.Name.fromString str ]
+            Path.fromList [ Name.fromString str ]
 
         /// <summary>
         /// Yields a Path from a list of strings.
         /// </summary>
         member _.Yield(strs: string list) =
-            Morphir.IR.Path.fromList (strs |> List.map Morphir.IR.Name.fromString)
+            Path.fromList (strs |> List.map Name.fromString)
 
         /// <summary>
         /// Yields a Path from a list of Names.
         /// </summary>
-        member _.Yield(names: Name list) = Morphir.IR.Path.fromList names
+        member _.Yield(names: Name list) = Path.fromList names
 
         /// <summary>
         /// Yields a Path directly.
@@ -87,9 +84,9 @@ module Names =
         /// Combines multiple Paths (appends).
         /// </summary>
         member _.Combine(path1: Path, path2: Path) =
-            let (Morphir.IR.Path.Path names1) = path1
-            let (Morphir.IR.Path.Path names2) = path2
-            Morphir.IR.Path.fromList (names1 @ names2)
+            let (Path names1) = path1
+            let (Path names2) = path2
+            Path.fromList (names1 @ names2)
 
         /// <summary>
         /// Supports for loops.
@@ -98,14 +95,14 @@ module Names =
             items
             |> Seq.map f
             |> Seq.fold (fun acc p ->
-                let (Morphir.IR.Path.Path names1) = acc
-                let (Morphir.IR.Path.Path names2) = p
-                Morphir.IR.Path.fromList (names1 @ names2)) Morphir.IR.Path.empty
+                let (Path names1) = acc
+                let (Path names2) = p
+                Path.fromList (names1 @ names2)) Path.empty
 
         /// <summary>
         /// Zero case (empty Path).
         /// </summary>
-        member _.Zero() = Morphir.IR.Path.empty
+        member _.Zero() = Path.empty
 
         /// <summary>
         /// Delays the computation (required for proper CE support).
@@ -125,20 +122,20 @@ module Names =
         /// Yields a PackageName from a single string.
         /// </summary>
         member _.Yield(str: string) =
-            Morphir.IR.Path.fromList [ Morphir.IR.Name.fromString str ]
-            |> Morphir.IR.PackageName.packageName
+            Path.fromList [ Name.fromString str ]
+            |> PackageName.packageName
 
         /// <summary>
         /// Yields a PackageName from a list of strings.
         /// </summary>
         member _.Yield(strs: string list) =
-            Morphir.IR.Path.fromList (strs |> List.map Morphir.IR.Name.fromString)
-            |> Morphir.IR.PackageName.packageName
+            Path.fromList (strs |> List.map Name.fromString)
+            |> PackageName.packageName
 
         /// <summary>
         /// Yields a PackageName from a Path.
         /// </summary>
-        member _.Yield(path: Path) = Morphir.IR.PackageName.packageName path
+        member _.Yield(path: Path) = PackageName.packageName path
 
         /// <summary>
         /// Yields a PackageName directly.
@@ -160,7 +157,7 @@ module Names =
         /// <summary>
         /// Zero case (empty PackageName).
         /// </summary>
-        member _.Zero() = Morphir.IR.PackageName.emptyPackageName
+        member _.Zero() = PackageName.emptyPackageName
 
         /// <summary>
         /// Delays the computation (required for proper CE support).
@@ -180,20 +177,20 @@ module Names =
         /// Yields a ModulePath from a single string.
         /// </summary>
         member _.Yield(str: string) =
-            Morphir.IR.Path.fromList [ Morphir.IR.Name.fromString str ]
-            |> Morphir.IR.ModulePath.modulePath
+            Path.fromList [ Name.fromString str ]
+            |> ModulePath.modulePath
 
         /// <summary>
         /// Yields a ModulePath from a list of strings.
         /// </summary>
         member _.Yield(strs: string list) =
-            Morphir.IR.Path.fromList (strs |> List.map Morphir.IR.Name.fromString)
-            |> Morphir.IR.ModulePath.modulePath
+            Path.fromList (strs |> List.map Name.fromString)
+            |> ModulePath.modulePath
 
         /// <summary>
         /// Yields a ModulePath from a Path.
         /// </summary>
-        member _.Yield(path: Path) = Morphir.IR.ModulePath.modulePath path
+        member _.Yield(path: Path) = ModulePath.modulePath path
 
         /// <summary>
         /// Yields a ModulePath directly.
@@ -215,7 +212,7 @@ module Names =
         /// <summary>
         /// Zero case (empty ModulePath).
         /// </summary>
-        member _.Zero() = Morphir.IR.ModulePath.emptyModulePath
+        member _.Zero() = ModulePath.emptyModulePath
 
         /// <summary>
         /// Delays the computation (required for proper CE support).
@@ -245,50 +242,112 @@ module Names =
         /// <summary>
         /// Sets the package path.
         /// </summary>
-        member this.packagePath(pkg: PackageName) =
-            FQNameBuilder(Some pkg, modulePath, localName)
+        [<CustomOperation("packagePath")>]
+        member this.packagePath(builder: FQNameBuilder, pkg: PackageName) =
+            FQNameBuilder(Some pkg, builder.ModulePath, builder.LocalName)
 
         /// <summary>
         /// Sets the package path from a list of strings.
         /// </summary>
-        member this.packagePath(strs: string list) =
+        [<CustomOperation("packagePath")>]
+        member this.packagePath(builder: FQNameBuilder, strs: string list) =
             let pkg =
-                Morphir.IR.Path.fromList (strs |> List.map Morphir.IR.Name.fromString)
-                |> Morphir.IR.PackageName.packageName
-            FQNameBuilder(Some pkg, modulePath, localName)
+                Path.fromList (strs |> List.map Name.fromString)
+                |> PackageName.packageName
+            FQNameBuilder(Some pkg, builder.ModulePath, builder.LocalName)
+
+        /// <summary>
+        /// Sets the package path (alias for packagePath).
+        /// </summary>
+        [<CustomOperation("package")>]
+        member this.package(builder: FQNameBuilder, pkg: PackageName) =
+            FQNameBuilder(Some pkg, builder.ModulePath, builder.LocalName)
+
+        /// <summary>
+        /// Sets the package path from a list of strings (alias for packagePath).
+        /// </summary>
+        [<CustomOperation("package")>]
+        member this.package(builder: FQNameBuilder, strs: string list) =
+            let pkg =
+                Path.fromList (strs |> List.map Name.fromString)
+                |> PackageName.packageName
+            FQNameBuilder(Some pkg, builder.ModulePath, builder.LocalName)
 
         /// <summary>
         /// Sets the module path.
         /// </summary>
-        member this.Module'(modPath: Morphir.IR.ModulePath.ModulePath) =
-            FQNameBuilder(packagePath, Some modPath, localName)
+        [<CustomOperation("modPath")>]
+        member this.modPath(builder: FQNameBuilder, modPath: ModulePath) =
+            FQNameBuilder(builder.PackagePath, Some modPath, builder.LocalName)
 
         /// <summary>
         /// Sets the module path from a list of strings.
         /// </summary>
-        member this.Module'(strs: string list) =
+        [<CustomOperation("modPath")>]
+        member this.modPath(builder: FQNameBuilder, strs: string list) =
             let modPath =
-                Morphir.IR.Path.fromList (strs |> List.map Morphir.IR.Name.fromString)
-                |> Morphir.IR.ModulePath.modulePath
-            FQNameBuilder(packagePath, Some modPath, localName)
+                Path.fromList (strs |> List.map Name.fromString)
+                |> ModulePath.modulePath
+            FQNameBuilder(builder.PackagePath, Some modPath, builder.LocalName)
+
+        /// <summary>
+        /// Sets the module path (alias for modPath, using F# keyword-safe name).
+        /// </summary>
+        [<CustomOperation("module'")>]
+        member this.module'(builder: FQNameBuilder, modPath: ModulePath) =
+            FQNameBuilder(builder.PackagePath, Some modPath, builder.LocalName)
+
+        /// <summary>
+        /// Sets the module path from a list of strings (alias for modPath).
+        /// </summary>
+        [<CustomOperation("module'")>]
+        member this.module'(builder: FQNameBuilder, strs: string list) =
+            let modPath =
+                Path.fromList (strs |> List.map Name.fromString)
+                |> ModulePath.modulePath
+            FQNameBuilder(builder.PackagePath, Some modPath, builder.LocalName)
 
         /// <summary>
         /// Sets the local name.
         /// </summary>
-        member this.localName(name: Name) =
-            FQNameBuilder(packagePath, modulePath, Some name)
+        [<CustomOperation("localName")>]
+        member this.localName(builder: FQNameBuilder, name: Name) =
+            FQNameBuilder(builder.PackagePath, builder.ModulePath, Some name)
 
         /// <summary>
         /// Sets the local name from a string.
         /// </summary>
-        member this.localName(str: string) =
-            FQNameBuilder(packagePath, modulePath, Some(Morphir.IR.Name.fromString str))
+        [<CustomOperation("localName")>]
+        member this.localName(builder: FQNameBuilder, str: string) =
+            FQNameBuilder(builder.PackagePath, builder.ModulePath, Some(Name.fromString str))
 
         /// <summary>
         /// Sets the local name from a list of strings.
         /// </summary>
-        member this.localName(strs: string list) =
-            FQNameBuilder(packagePath, modulePath, Some(Morphir.IR.Name.fromList strs))
+        [<CustomOperation("localName")>]
+        member this.localName(builder: FQNameBuilder, strs: string list) =
+            FQNameBuilder(builder.PackagePath, builder.ModulePath, Some(Name.fromList strs))
+
+        /// <summary>
+        /// Sets the local name (alias for localName).
+        /// </summary>
+        [<CustomOperation("local")>]
+        member this.local(builder: FQNameBuilder, name: Name) =
+            FQNameBuilder(builder.PackagePath, builder.ModulePath, Some name)
+
+        /// <summary>
+        /// Sets the local name from a string (alias for localName).
+        /// </summary>
+        [<CustomOperation("local")>]
+        member this.local(builder: FQNameBuilder, str: string) =
+            FQNameBuilder(builder.PackagePath, builder.ModulePath, Some(Name.fromString str))
+
+        /// <summary>
+        /// Sets the local name from a list of strings (alias for localName).
+        /// </summary>
+        [<CustomOperation("local")>]
+        member this.local(builder: FQNameBuilder, strs: string list) =
+            FQNameBuilder(builder.PackagePath, builder.ModulePath, Some(Name.fromList strs))
 
         /// <summary>
         /// Yields the builder itself for chaining (for CE syntax support).
@@ -322,13 +381,13 @@ module Names =
             let builder = f()
             let pkg =
                 builder.PackagePath
-                |> Option.defaultValue Morphir.IR.PackageName.emptyPackageName
+                |> Option.defaultValue PackageName.emptyPackageName
             let modPath =
                 builder.ModulePath
-                |> Option.defaultValue Morphir.IR.ModulePath.emptyModulePath
+                |> Option.defaultValue ModulePath.emptyModulePath
             let local =
                 builder.LocalName
-                |> Option.defaultValue (Morphir.IR.Name.fromString "")
+                |> Option.defaultValue (Name.fromString "")
 
             Morphir.IR.FQName.fqName pkg modPath local
 
@@ -344,35 +403,40 @@ module Names =
         /// <summary>
         /// Sets the module path.
         /// </summary>
-        member this.Module'(modPath: Morphir.IR.ModulePath.ModulePath) =
-            QNameBuilder(Some modPath, localName)
+        [<CustomOperation("modPath")>]
+        member this.modPath(builder: QNameBuilder, modPath: ModulePath) =
+            QNameBuilder(Some modPath, builder.LocalName)
 
         /// <summary>
         /// Sets the module path from a list of strings.
         /// </summary>
-        member this.Module'(strs: string list) =
+        [<CustomOperation("modPath")>]
+        member this.modPath(builder: QNameBuilder, strs: string list) =
             let modPath =
-                Morphir.IR.Path.fromList (strs |> List.map Morphir.IR.Name.fromString)
-                |> Morphir.IR.ModulePath.modulePath
-            QNameBuilder(Some modPath, localName)
+                Path.fromList (strs |> List.map Name.fromString)
+                |> ModulePath.modulePath
+            QNameBuilder(Some modPath, builder.LocalName)
 
         /// <summary>
         /// Sets the local name.
         /// </summary>
-        member this.localName(name: Name) =
-            QNameBuilder(modulePath, Some name)
+        [<CustomOperation("localName")>]
+        member this.localName(builder: QNameBuilder, name: Name) =
+            QNameBuilder(builder.ModulePath, Some name)
 
         /// <summary>
         /// Sets the local name from a string.
         /// </summary>
-        member this.localName(str: string) =
-            QNameBuilder(modulePath, Some(Morphir.IR.Name.fromString str))
+        [<CustomOperation("localName")>]
+        member this.localName(builder: QNameBuilder, str: string) =
+            QNameBuilder(builder.ModulePath, Some(Name.fromString str))
 
         /// <summary>
         /// Sets the local name from a list of strings.
         /// </summary>
-        member this.localName(strs: string list) =
-            QNameBuilder(modulePath, Some(Morphir.IR.Name.fromList strs))
+        [<CustomOperation("localName")>]
+        member this.localName(builder: QNameBuilder, strs: string list) =
+            QNameBuilder(builder.ModulePath, Some(Name.fromList strs))
 
         /// <summary>
         /// Yields the builder itself for chaining (for CE syntax support).
@@ -405,10 +469,10 @@ module Names =
             let builder = f()
             let modPath =
                 builder.ModulePath
-                |> Option.defaultValue Morphir.IR.ModulePath.emptyModulePath
+                |> Option.defaultValue ModulePath.emptyModulePath
             let local =
                 builder.LocalName
-                |> Option.defaultValue (Morphir.IR.Name.fromString "")
+                |> Option.defaultValue (Name.fromString "")
 
             Morphir.IR.QName.qName modPath local
 

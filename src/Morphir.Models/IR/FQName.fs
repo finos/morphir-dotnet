@@ -2,28 +2,25 @@ namespace Morphir.IR
 
 /// <summary>
 /// FQName (Fully-Qualified Name) provides a globally unique identifier for any type or value.
+/// Structure: (package path, module path, local name)
+/// </summary>
+type FQName =
+    { PackagePath: PackageName
+      ModulePath: ModulePath
+      LocalName: Name }
+
+/// <summary>
+/// FQName module provides functions for working with FQName values.
+/// FQName (Fully-Qualified Name) provides a globally unique identifier for any type or value.
 /// It consists of a package path, module path, and local name.
 /// </summary>
+[<RequireQualifiedAccess>]
 module FQName =
-
-    open Name
-    open Path
-    open PackageName
-    open ModulePath
-
-    /// <summary>
-    /// FQName (Fully-Qualified Name) provides a globally unique identifier for any type or value.
-    /// Structure: (package path, module path, local name)
-    /// </summary>
-    type FQName =
-        { PackagePath: PackageName.PackageName
-          ModulePath: ModulePath.ModulePath
-          LocalName: Name }
 
     /// <summary>
     /// Creates an FQName from a package path, module path, and local name.
     /// </summary>
-    let fqName (packagePath: PackageName.PackageName) (modulePath: ModulePath.ModulePath) (localName: Name) =
+    let fqName (packagePath: PackageName) (modulePath: ModulePath) (localName: Name) =
         { PackagePath = packagePath
           ModulePath = modulePath
           LocalName = localName }
@@ -59,13 +56,13 @@ module FQName =
         let packageName =
             fqName
             |> packagePath
-            |> packageNameToPath
+            |> PackageName.packageNameToPath
             |> Path.toString Name.toTitleCase "."
 
         let moduleName =
             fqName
             |> modulePathFromFQName
-            |> modulePathToPath
+            |> ModulePath.modulePathToPath
             |> Path.toString Name.toTitleCase "."
 
         let localName = fqName |> localName |> Name.toTitleCase
@@ -83,13 +80,13 @@ module FQName =
         let packageName =
             fqName
             |> packagePath
-            |> packageNameToPath
+            |> PackageName.packageNameToPath
             |> Path.toString Name.toTitleCase "."
 
         let moduleName =
             fqName
             |> modulePathFromFQName
-            |> modulePathToPath
+            |> ModulePath.modulePathToPath
             |> Path.toString Name.toTitleCase "."
 
         let localName = fqName |> localName |> Name.toTitleCase
@@ -107,16 +104,15 @@ module FQName =
         let packageName =
             fqName
             |> packagePath
-            |> packageNameToPath
+            |> PackageName.packageNameToPath
             |> Path.toString Name.toTitleCase "."
 
         let moduleName =
             fqName
             |> modulePathFromFQName
-            |> modulePathToPath
+            |> ModulePath.modulePathToPath
             |> Path.toString Name.toTitleCase "."
 
         let localName = fqName |> localName |> Name.toTitleCase
 
         $"FQName({packageName}, {moduleName}, {localName})"
-
