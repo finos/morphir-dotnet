@@ -45,7 +45,7 @@ let tests =
                 <| fun _ ->
                     let fqName =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "basics" ] ])
                             (Name.fromList [ "int" ])
                     let typ = Type.reference () fqName []
@@ -56,13 +56,13 @@ let tests =
                 <| fun _ ->
                     let listFQName =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "list" ] ])
                             (Name.fromList [ "list" ])
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
@@ -75,14 +75,14 @@ let tests =
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
                     let stringType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "string" ] ])
                                 (Name.fromList [ "string" ]))
                             []
@@ -95,14 +95,14 @@ let tests =
                     let stringType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "string" ] ])
                                 (Name.fromList [ "string" ]))
                             []
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
@@ -119,7 +119,7 @@ let tests =
                     let stringType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "string" ] ])
                                 (Name.fromList [ "string" ]))
                             []
@@ -136,14 +136,14 @@ let tests =
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
                     let stringType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "string" ] ])
                                 (Name.fromList [ "string" ]))
                             []
@@ -177,7 +177,7 @@ let tests =
                 <| fun _ ->
                     let fqName =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "string" ] ])
                             (Name.fromList [ "string" ])
                     let typ = Type.reference () fqName []
@@ -192,13 +192,13 @@ let tests =
                 <| fun _ ->
                     let fqName =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "list" ] ])
                             (Name.fromList [ "list" ])
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
@@ -217,14 +217,14 @@ let tests =
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
                     let stringType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "string" ] ])
                                 (Name.fromList [ "string" ]))
                             []
@@ -242,14 +242,14 @@ let tests =
                     let stringType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "string" ] ])
                                 (Name.fromList [ "string" ]))
                             []
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
@@ -271,7 +271,7 @@ let tests =
                     let stringType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "string" ] ])
                                 (Name.fromList [ "string" ]))
                             []
@@ -294,14 +294,14 @@ let tests =
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
                     let stringType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "string" ] ])
                                 (Name.fromList [ "string" ]))
                             []
@@ -318,14 +318,14 @@ let tests =
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
                     let boolType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "bool" ]))
                             []
@@ -362,7 +362,7 @@ let tests =
                     let aliasedType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "list" ] ])
                                 (Name.fromList [ "list" ]))
                             [ Type.variable () (Name.fromList [ "a" ]) ]
@@ -383,7 +383,7 @@ let tests =
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
@@ -401,18 +401,18 @@ let tests =
                     let baseType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "string" ] ])
                                 (Name.fromList [ "string" ]))
                             []
                     let fromBase =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "date" ] ])
                             (Name.fromList [ "fromString" ])
                     let toBase =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "date" ] ])
                             (Name.fromList [ "toString" ])
                     let details: Type.DerivedTypeDetails<unit> = {
@@ -432,7 +432,7 @@ let tests =
                     let aliasedType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "list" ] ])
                                 (Name.fromList [ "list" ]))
                             []
@@ -464,7 +464,7 @@ let tests =
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
@@ -488,18 +488,18 @@ let tests =
                     let baseType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "string" ] ])
                                 (Name.fromList [ "string" ]))
                             []
                     let fromBase =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "date" ] ])
                             (Name.fromList [ "fromString" ])
                     let toBase =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "date" ] ])
                             (Name.fromList [ "toString" ])
                     let details: Type.DerivedTypeDetails<unit> = {
@@ -527,7 +527,7 @@ let tests =
                     let aliasedType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "list" ] ])
                                 (Name.fromList [ "list" ]))
                             [ Type.variable () (Name.fromList [ "a" ]) ]
@@ -541,7 +541,7 @@ let tests =
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
@@ -570,7 +570,7 @@ let tests =
                     let aliasedType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "list" ] ])
                                 (Name.fromList [ "list" ]))
                             []
@@ -590,7 +590,7 @@ let tests =
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []

@@ -29,7 +29,7 @@ let tests =
                 <| fun _ ->
                     let fqName =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "maybe" ] ])
                             (Name.fromList [ "just" ])
                     let value = Value.constructor () fqName
@@ -101,7 +101,7 @@ let tests =
                 <| fun _ ->
                     let fqName =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "basics" ] ])
                             (Name.fromList [ "add" ])
                     let value = Value.reference () fqName
@@ -140,7 +140,7 @@ let tests =
             testList "apply" [
                 testCase "Creates Apply value"
                 <| fun _ ->
-                    let functionValue = Value.reference () (FQName.fqNameFromPaths (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ]) (Path.fromList [ Name.fromList [ "basics" ] ]) (Name.fromList [ "add" ]))
+                    let functionValue = Value.reference () (FQName.fqNameFromPaths (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ]) (Path.fromList [ Name.fromList [ "basics" ] ]) (Name.fromList [ "add" ]))
                     let argumentValue = Value.literal () (Literal.wholeNumberLiteral 5L)
                     let value = Value.apply () functionValue argumentValue
 
@@ -263,7 +263,7 @@ let tests =
                 <| fun _ ->
                     let fqName =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "maybe" ] ])
                             (Name.fromList [ "just" ])
                     let value = Value.constructor () fqName
@@ -308,7 +308,7 @@ let tests =
                 <| fun _ ->
                     let fqName =
                         FQName.fqNameFromPaths
-                            (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                            (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                             (Path.fromList [ Name.fromList [ "basics" ] ])
                             (Name.fromList [ "add" ])
                     let value = Value.reference () fqName
@@ -344,7 +344,7 @@ let tests =
                     let func =
                         Value.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "add" ]))
                     let arg = Value.literal () (Literal.wholeNumberLiteral 1L)
@@ -357,7 +357,7 @@ let tests =
                     let func =
                         Value.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "add" ]))
                     let arg = Value.tuple () [ Value.literal () (Literal.wholeNumberLiteral 1L); Value.literal () (Literal.wholeNumberLiteral 2L) ]
@@ -463,7 +463,7 @@ let tests =
                     let output =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
@@ -476,14 +476,14 @@ let tests =
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
                     let stringType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "string" ] ])
                                 (Name.fromList [ "string" ]))
                             []
@@ -516,7 +516,7 @@ let tests =
                     let outputType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []
@@ -530,7 +530,7 @@ let tests =
                     let intType =
                         Type.reference ()
                             (FQName.fqNameFromPaths
-                                (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                                (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                                 (Path.fromList [ Name.fromList [ "basics" ] ])
                                 (Name.fromList [ "int" ]))
                             []

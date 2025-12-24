@@ -10,7 +10,7 @@ let tests =
         testList "qName" [
             testCase "Creates QName from components"
             <| fun _ ->
-                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my"; "module" ] ]
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my" ]; Name.fromList [ "module" ] ]
                 let localName = Name.fromList [ "value" ]
 
                 let qName = QName.qName modulePath localName
@@ -25,7 +25,7 @@ let tests =
         testList "qNameFromPath" [
             testCase "Creates QName from Path and Name"
             <| fun _ ->
-                let modulePath = Path.fromList [ Name.fromList [ "my"; "module" ] ]
+                let modulePath = Path.fromList [ Name.fromList [ "my" ]; Name.fromList [ "module" ] ]
                 let localName = Name.fromList [ "value" ]
 
                 let qName = QName.qNameFromPath modulePath localName
@@ -41,7 +41,7 @@ let tests =
         testList "toString" [
             testCase "Formats QName as ModulePath:LocalName"
             <| fun _ ->
-                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my"; "module" ] ]
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my" ]; Name.fromList [ "module" ] ]
                 let localName = Name.fromList [ "value" ]
                 let qName = QName.qName modulePath localName
 
@@ -61,7 +61,7 @@ let tests =
         testList "toHumanString" [
             testCase "Formats QName same as toString (no package to omit)"
             <| fun _ ->
-                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my"; "module" ] ]
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my" ]; Name.fromList [ "module" ] ]
                 let localName = Name.fromList [ "value" ]
                 let qName = QName.qName modulePath localName
 
@@ -72,7 +72,7 @@ let tests =
         testList "toDebugString" [
             testCase "Formats QName with explicit components"
             <| fun _ ->
-                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my"; "module" ] ]
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my" ]; Name.fromList [ "module" ] ]
                 let localName = Name.fromList [ "value" ]
                 let qName = QName.qName modulePath localName
 

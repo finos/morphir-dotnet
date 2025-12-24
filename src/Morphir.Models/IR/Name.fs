@@ -195,6 +195,8 @@ module Name =
 
     /// <summary>
     /// Turns a name into a title-case string (PascalCase).
+    /// Matches morphir-elm implementation: capitalizes each segment and joins them.
+    /// Example: ["value"; "in"; "u"; "s"; "d"] -> "ValueInUSD"
     /// </summary>
     let toTitleCase (Name segments) =
         segments

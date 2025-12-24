@@ -52,7 +52,7 @@ let tests =
             <| fun _ ->
                 let fqName =
                     FQName.fqNameFromPaths
-                        (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                        (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                         (Path.fromList [ Name.fromList [ "maybe" ] ])
                         (Name.fromList [ "nothing" ])
                 let pattern = Pattern.constructorPattern () fqName []
@@ -67,7 +67,7 @@ let tests =
             <| fun _ ->
                 let fqName =
                     FQName.fqNameFromPaths
-                        (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                        (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                         (Path.fromList [ Name.fromList [ "maybe" ] ])
                         (Name.fromList [ "just" ])
                 let argPattern = Pattern.wildcardPattern ()
@@ -173,7 +173,7 @@ let tests =
             <| fun _ ->
                 let fqName =
                     FQName.fqNameFromPaths
-                        (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                        (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                         (Path.fromList [ Name.fromList [ "maybe" ] ])
                         (Name.fromList [ "nothing" ])
                 let pattern = Pattern.constructorPattern () fqName []
@@ -184,7 +184,7 @@ let tests =
             <| fun _ ->
                 let fqName =
                     FQName.fqNameFromPaths
-                        (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                        (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                         (Path.fromList [ Name.fromList [ "maybe" ] ])
                         (Name.fromList [ "just" ])
                 let argPattern = Pattern.wildcardPattern ()
