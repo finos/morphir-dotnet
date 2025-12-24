@@ -6,6 +6,9 @@
         <RootNamespace>Morphir</RootNamespace>
         <Description>Morphir IR model definitions in F#</Description>
         <PackageTags>$(PackageTags);morphir;fsharp;ir</PackageTags>
+        <!-- Enable trimming analyzers for AOT/trimming compatibility -->
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsTrimmable>true</IsTrimmable>
     </PropertyGroup>
 
     <ItemGroup>
@@ -18,6 +21,8 @@
         <Compile Include="IR/PackageName.fs" />
         <Compile Include="IR/ModulePath.fs" />
         <Compile Include="IR/FQName.fs" />
+        <Compile Include="IR/QName.fs" />
+        <Compile Include="IR/Versioning.fs" />
         <Compile Include="IR/Classic/AccessControlled.fs" />
         <Compile Include="IR/Classic/Type.fs" />
         <Compile Include="IR/Classic/Literal.fs" />
