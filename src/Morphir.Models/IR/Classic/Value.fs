@@ -10,7 +10,6 @@ module Value =
     open Morphir.IR
     open Type
     open Literal
-    open Pattern
     open System.Collections.Generic // For Map
 
     /// <summary>
@@ -28,12 +27,12 @@ module Value =
         | Field of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Name
         | FieldFunction of 'valueAttributes * Name
         | Apply of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | Lambda of 'valueAttributes * Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+        | Lambda of 'valueAttributes * Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
         | LetDefinition of 'valueAttributes * Name * ValueDefinition<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
         | LetRecursion of 'valueAttributes * Map<Name, ValueDefinition<'typeAttributes, 'valueAttributes>> * Value<'typeAttributes, 'valueAttributes>
-        | Destructure of 'valueAttributes * Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+        | Destructure of 'valueAttributes * Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
         | IfThenElse of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | PatternMatch of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
+        | PatternMatch of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * (Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
         | UpdateRecord of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Map<Name, Value<'typeAttributes, 'valueAttributes>>
         | Unit of 'valueAttributes
 
@@ -119,7 +118,7 @@ module Value =
     /// <summary>
     /// Creates a Lambda value (anonymous function).
     /// </summary>
-    let lambda<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (argumentPattern: Pattern<'valueAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
+    let lambda<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (argumentPattern: Pattern.Pattern<'valueAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
         Lambda(attributes, argumentPattern, body)
 
     /// <summary>
@@ -137,7 +136,7 @@ module Value =
     /// <summary>
     /// Creates a Destructure value (pattern-based destructuring).
     /// </summary>
-    let destructure<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (pattern: Pattern<'valueAttributes>) (valueToDestructure: Value<'typeAttributes, 'valueAttributes>) (inExpr: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
+    let destructure<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (pattern: Pattern.Pattern<'valueAttributes>) (valueToDestructure: Value<'typeAttributes, 'valueAttributes>) (inExpr: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
         Destructure(attributes, pattern, valueToDestructure, inExpr)
 
     /// <summary>
@@ -149,7 +148,7 @@ module Value =
     /// <summary>
     /// Creates a PatternMatch value (pattern matching with multiple cases).
     /// </summary>
-    let patternMatch<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (valueToMatch: Value<'typeAttributes, 'valueAttributes>) (cases: (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list) : Value<'typeAttributes, 'valueAttributes> =
+    let patternMatch<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (valueToMatch: Value<'typeAttributes, 'valueAttributes>) (cases: (Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list) : Value<'typeAttributes, 'valueAttributes> =
         PatternMatch(attributes, valueToMatch, cases)
 
     /// <summary>

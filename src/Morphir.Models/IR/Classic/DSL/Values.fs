@@ -8,7 +8,7 @@ module Values =
     open Morphir.IR
     open Morphir.IR.Classic.Value
     open Morphir.IR.Classic.Type
-    open Morphir.IR.Classic.Pattern
+    open Morphir.IR.Classic
     open Morphir.IR.Classic.Literal
     open System.Collections.Generic
 
@@ -143,7 +143,7 @@ module Values =
         /// <summary>
         /// Creates a Lambda value (anonymous function).
         /// </summary>
-        member _.Lambda(argumentPattern: Pattern<'valueAttributes>, body: Value<'typeAttributes, 'valueAttributes>) =
+        member _.Lambda(argumentPattern: Pattern.Pattern<'valueAttributes>, body: Value<'typeAttributes, 'valueAttributes>) =
             Lambda(defaultAttrs, argumentPattern, body)
 
         /// <summary>
@@ -151,7 +151,7 @@ module Values =
         /// </summary>
         member _.Lambda(argumentName: string, body: Value<'typeAttributes, 'valueAttributes>) =
             let pattern =
-                Morphir.IR.Classic.Pattern.wildcardPattern defaultAttrs
+                Pattern.wildcard defaultAttrs
             Lambda(defaultAttrs, pattern, body)
 
         /// <summary>
@@ -180,7 +180,7 @@ module Values =
         /// </summary>
         member _.Destructure
             (
-                pattern: Pattern<'valueAttributes>,
+                pattern: Pattern.Pattern<'valueAttributes>,
                 valueToDestructure: Value<'typeAttributes, 'valueAttributes>,
                 inExpr: Value<'typeAttributes, 'valueAttributes>
             ) =
@@ -203,7 +203,7 @@ module Values =
         member _.PatternMatch
             (
                 valueToMatch: Value<'typeAttributes, 'valueAttributes>,
-                cases: (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
+                cases: (Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
             ) =
             PatternMatch(defaultAttrs, valueToMatch, cases)
 
@@ -360,7 +360,7 @@ module Values =
         /// <summary>
         /// Creates a Lambda value (anonymous function).
         /// </summary>
-        member _.Lambda(argumentPattern: Pattern<'valueAttributes>, body: Value<'typeAttributes, 'valueAttributes>) =
+        member _.Lambda(argumentPattern: Pattern.Pattern<'valueAttributes>, body: Value<'typeAttributes, 'valueAttributes>) =
             Lambda(attrs, argumentPattern, body)
 
         /// <summary>
@@ -368,7 +368,7 @@ module Values =
         /// </summary>
         member _.Lambda(argumentName: string, body: Value<'typeAttributes, 'valueAttributes>) =
             let pattern =
-                Morphir.IR.Classic.Pattern.wildcardPattern attrs
+                Pattern.wildcard attrs
             Lambda(attrs, pattern, body)
 
         /// <summary>
@@ -397,7 +397,7 @@ module Values =
         /// </summary>
         member _.Destructure
             (
-                pattern: Pattern<'valueAttributes>,
+                pattern: Pattern.Pattern<'valueAttributes>,
                 valueToDestructure: Value<'typeAttributes, 'valueAttributes>,
                 inExpr: Value<'typeAttributes, 'valueAttributes>
             ) =
@@ -420,7 +420,7 @@ module Values =
         member _.PatternMatch
             (
                 valueToMatch: Value<'typeAttributes, 'valueAttributes>,
-                cases: (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
+                cases: (Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
             ) =
             PatternMatch(attrs, valueToMatch, cases)
 
@@ -487,62 +487,80 @@ module Values =
         /// </summary>
         member _.Run(f: unit -> Value<unit, unit>) = f()
 
-        /// Lowercase helper functions for CE usage
+        /// CustomOperations for CE query-style syntax
         /// <summary>
-        /// Creates a Literal value (lowercase for CE).
+        /// Creates a Literal value (CustomOperation for CE).
         /// </summary>
-        member _.literal(lit: Literal) = Literal(defaultAttrs, lit)
+        [<CustomOperation("literal")>]
+        member _.LiteralOp(_state: Value<unit, unit>, lit: Literal) =
+            Literal(defaultAttrs, lit)
 
         /// <summary>
-        /// Creates a Variable value (lowercase for CE).
+        /// Creates a Variable value (CustomOperation for CE).
         /// </summary>
-        member _.variable(name: Name) = Variable(defaultAttrs, name)
+        [<CustomOperation("variable")>]
+        member _.VariableOp(_state: Value<unit, unit>, name: Name) =
+            Variable(defaultAttrs, name)
 
         /// <summary>
-        /// Creates a Variable value from string (lowercase for CE).
+        /// Creates a Variable value from string (CustomOperation for CE).
         /// </summary>
-        member _.variable(str: string) = Variable(defaultAttrs, Name.fromString str)
+        [<CustomOperation("variable")>]
+        member _.VariableOp(_state: Value<unit, unit>, str: string) =
+            Variable(defaultAttrs, Name.fromString str)
 
         /// <summary>
-        /// Creates a Tuple value (lowercase for CE).
+        /// Creates a Tuple value (CustomOperation for CE).
         /// </summary>
-        member _.tuple(elements: Value<unit, unit> list) = Value.Tuple(defaultAttrs, elements)
+        [<CustomOperation("tuple")>]
+        member _.TupleOp(_state: Value<unit, unit>, elements: Value<unit, unit> list) =
+            Value.Tuple(defaultAttrs, elements)
 
         /// <summary>
-        /// Creates a List value (lowercase for CE).
+        /// Creates a List value (CustomOperation for CE).
         /// </summary>
-        member _.list(elements: Value<unit, unit> list) = Value.List(defaultAttrs, elements)
+        [<CustomOperation("list")>]
+        member _.ListOp(_state: Value<unit, unit>, elements: Value<unit, unit> list) =
+            Value.List(defaultAttrs, elements)
 
         /// <summary>
-        /// Creates a Record value (lowercase for CE).
+        /// Creates a Record value (CustomOperation for CE).
         /// </summary>
-        member _.record(fields: Map<Name, Value<unit, unit>>) = Value.Record(defaultAttrs, fields)
+        [<CustomOperation("record")>]
+        member _.RecordOp(_state: Value<unit, unit>, fields: Map<Name, Value<unit, unit>>) =
+            Value.Record(defaultAttrs, fields)
 
         /// <summary>
-        /// Creates a Record value from list (lowercase for CE).
+        /// Creates a Record value from list (CustomOperation for CE).
         /// </summary>
-        member _.record(fields: (Name * Value<unit, unit>) list) = Value.Record(defaultAttrs, Map.ofList fields)
+        [<CustomOperation("record")>]
+        member _.RecordOp(_state: Value<unit, unit>, fields: (Name * Value<unit, unit>) list) =
+            Value.Record(defaultAttrs, Map.ofList fields)
 
         /// <summary>
-        /// Creates a Record value from string-keyed list (lowercase for CE).
+        /// Creates a Record value from string-keyed list (CustomOperation for CE).
         /// </summary>
-        member _.record(fields: (string * Value<unit, unit>) list) =
+        [<CustomOperation("record")>]
+        member _.RecordOp(_state: Value<unit, unit>, fields: (string * Value<unit, unit>) list) =
             let nameValuePairs = fields |> List.map (fun (name, value) -> (Name.fromString name, value))
             Value.Record(defaultAttrs, Map.ofList nameValuePairs)
 
         /// <summary>
-        /// Creates a Reference value (lowercase for CE).
+        /// Creates a Reference value (CustomOperation for CE).
         /// </summary>
-        member _.reference(fqName: FQName) = Value.Reference(defaultAttrs, fqName)
+        [<CustomOperation("reference")>]
+        member _.ReferenceOp(_state: Value<unit, unit>, fqName: FQName) =
+            Value.Reference(defaultAttrs, fqName)
 
         /// <summary>
-        /// Creates an Apply value (lowercase for CE).
+        /// Creates an Apply value (CustomOperation for CE).
         /// </summary>
-        member _.apply(functionExpr: Value<unit, unit>, argumentExpr: Value<unit, unit>) =
+        [<CustomOperation("apply")>]
+        member _.ApplyOp(_state: Value<unit, unit>, functionExpr: Value<unit, unit>, argumentExpr: Value<unit, unit>) =
             Apply(defaultAttrs, functionExpr, argumentExpr)
 
         /// <summary>
-        /// Unit value property (lowercase for CE).
+        /// Unit value property for CE.
         /// </summary>
         member _.unit = Unit defaultAttrs
 

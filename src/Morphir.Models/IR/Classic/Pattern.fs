@@ -5,6 +5,7 @@ namespace Morphir.IR.Classic
 /// Patterns are used for destructuring and filtering values in lambda,
 /// let destructure, and pattern match expressions.
 /// </summary>
+[<RequireQualifiedAccess>]
 module Pattern =
 
     open Morphir.IR
@@ -27,7 +28,7 @@ module Pattern =
     /// <summary>
     /// Creates a wildcard pattern (matches any value without binding).
     /// </summary>
-    let wildcardPattern<'attributes> (attributes: 'attributes) : Pattern<'attributes> =
+    let wildcard<'attributes> (attributes: 'attributes) : Pattern<'attributes> =
         WildcardPattern attributes
 
     /// <summary>
@@ -39,38 +40,98 @@ module Pattern =
     /// <summary>
     /// Creates a tuple pattern (matches a tuple by matching each element).
     /// </summary>
-    let tuplePattern<'attributes> (attributes: 'attributes) (elementPatterns: Pattern<'attributes> list) : Pattern<'attributes> =
+    let tuple<'attributes> (attributes: 'attributes) (elementPatterns: Pattern<'attributes> list) : Pattern<'attributes> =
         TuplePattern(attributes, elementPatterns)
 
     /// <summary>
     /// Creates a constructor pattern (matches a specific type constructor and its arguments).
     /// </summary>
-    let constructorPattern<'attributes> (attributes: 'attributes) (fqName: FQName) (argumentPatterns: Pattern<'attributes> list) : Pattern<'attributes> =
+    let constructor<'attributes> (attributes: 'attributes) (fqName: FQName) (argumentPatterns: Pattern<'attributes> list) : Pattern<'attributes> =
         ConstructorPattern(attributes, fqName, argumentPatterns)
 
     /// <summary>
     /// Creates an empty list pattern (matches an empty list).
     /// </summary>
-    let emptyListPattern<'attributes> (attributes: 'attributes) : Pattern<'attributes> =
+    let emptyList<'attributes> (attributes: 'attributes) : Pattern<'attributes> =
         EmptyListPattern attributes
 
     /// <summary>
     /// Creates a head-tail pattern (matches a non-empty list by head and tail).
     /// </summary>
-    let headTailPattern<'attributes> (attributes: 'attributes) (headPattern: Pattern<'attributes>) (tailPattern: Pattern<'attributes>) : Pattern<'attributes> =
+    let headTail<'attributes> (attributes: 'attributes) (headPattern: Pattern<'attributes>) (tailPattern: Pattern<'attributes>) : Pattern<'attributes> =
         HeadTailPattern(attributes, headPattern, tailPattern)
 
     /// <summary>
     /// Creates a literal pattern (matches an exact literal value).
     /// </summary>
-    let literalPattern<'attributes> (attributes: 'attributes) (literal: Literal) : Pattern<'attributes> =
+    let literal<'attributes> (attributes: 'attributes) (literal: Literal) : Pattern<'attributes> =
         LiteralPattern(attributes, literal)
 
     /// <summary>
     /// Creates a unit pattern (matches the unit value).
     /// </summary>
-    let unitPattern<'attributes> (attributes: 'attributes) : Pattern<'attributes> =
+    let unit<'attributes> (attributes: 'attributes) : Pattern<'attributes> =
         UnitPattern attributes
+
+    // Fluent API extensions
+
+    /// <summary>
+    /// Type extension providing fluent methods for Pattern.
+    /// </summary>
+    type Pattern<'attributes> with
+        /// <summary>
+        /// Fluent method to create an AsPattern from an existing pattern.
+        /// Wraps this pattern and binds it to the specified name.
+        /// Uses default attributes.
+        /// </summary>
+        /// <param name="name">The name to bind to this pattern (as string)</param>
+        member this.As(name: string) : Pattern<'attributes> =
+            AsPattern(Unchecked.defaultof<'attributes>, this, Name.fromString name)
+
+        /// <summary>
+        /// Fluent method to create an AsPattern from an existing pattern.
+        /// Wraps this pattern and binds it to the specified name.
+        /// Uses default attributes.
+        /// </summary>
+        /// <param name="name">The name to bind to this pattern (as Name)</param>
+        member this.As(name: Name) : Pattern<'attributes> =
+            AsPattern(Unchecked.defaultof<'attributes>, this, name)
+
+        /// <summary>
+        /// Fluent method to create an AsPattern from an existing pattern with explicit attributes.
+        /// Wraps this pattern and binds it to the specified name.
+        /// </summary>
+        /// <param name="attributes">The attributes for the AsPattern</param>
+        /// <param name="name">The name to bind to this pattern (as string)</param>
+        member this.As(attributes: 'attributes, name: string) : Pattern<'attributes> =
+            AsPattern(attributes, this, Name.fromString name)
+
+        /// <summary>
+        /// Fluent method to create an AsPattern from an existing pattern with explicit attributes.
+        /// Wraps this pattern and binds it to the specified name.
+        /// </summary>
+        /// <param name="attributes">The attributes for the AsPattern</param>
+        /// <param name="name">The name to bind to this pattern (as Name)</param>
+        member this.As(attributes: 'attributes, name: Name) : Pattern<'attributes> =
+            AsPattern(attributes, this, name)
+
+        /// <summary>
+        /// Fluent method to create a HeadTailPattern from an existing pattern.
+        /// Creates a list cons pattern where this pattern is the head and the provided pattern is the tail.
+        /// Uses default attributes.
+        /// </summary>
+        /// <param name="tail">The pattern for the tail of the list</param>
+        member this.Cons(tail: Pattern<'attributes>) : Pattern<'attributes> =
+            HeadTailPattern(Unchecked.defaultof<'attributes>, this, tail)
+
+        /// <summary>
+        /// Fluent method to create a HeadTailPattern from an existing pattern with explicit attributes.
+        /// Creates a list cons pattern where this pattern is the head and the provided pattern is the tail.
+        /// </summary>
+        /// <param name="attributes">The attributes for the HeadTailPattern</param>
+        /// <param name="tail">The pattern for the tail of the list</param>
+        member this.Cons(attributes: 'attributes, tail: Pattern<'attributes>) : Pattern<'attributes> =
+            HeadTailPattern(attributes, this, tail)
 
     // toString functions
 

@@ -8,7 +8,7 @@ open System.Runtime.CompilerServices
 module Patterns =
 
     open Morphir.IR
-    open Morphir.IR.Classic.Pattern
+    open Morphir.IR.Classic
     open Morphir.IR.Classic.Literal
 
     /// <summary>
@@ -21,147 +21,212 @@ module Patterns =
         /// <summary>
         /// Yields a Pattern directly.
         /// </summary>
-        member _.Yield(pattern: Pattern<'attributes>) = pattern
+        member _.Yield(pattern: Pattern.Pattern<'attributes>) = pattern
+
+        /// <summary>
+        /// Yields unit as Pattern.UnitPattern (tagless syntax).
+        /// </summary>
+        member _.Yield((): unit) = Pattern.UnitPattern defaultAttrs
+
+        /// <summary>
+        /// Yields a 2-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2): Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes>) =
+            Pattern.TuplePattern(defaultAttrs, [ p1; p2 ])
+
+        /// <summary>
+        /// Yields a 3-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2, p3): Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes>) =
+            Pattern.TuplePattern(defaultAttrs, [ p1; p2; p3 ])
+
+        /// <summary>
+        /// Yields a 4-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2, p3, p4): Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes>) =
+            Pattern.TuplePattern(defaultAttrs, [ p1; p2; p3; p4 ])
+
+        /// <summary>
+        /// Yields a 5-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2, p3, p4, p5): Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes>) =
+            Pattern.TuplePattern(defaultAttrs, [ p1; p2; p3; p4; p5 ])
 
         /// <summary>
         /// Combines multiple Patterns (takes the last one).
         /// </summary>
-        member _.Combine(_: Pattern<'attributes>, pattern: Pattern<'attributes>) = pattern
+        member _.Combine(_: Pattern.Pattern<'attributes>, pattern: Pattern.Pattern<'attributes>) = pattern
 
         /// <summary>
         /// Supports for loops.
         /// </summary>
-        member _.For(items: 'a seq, f: 'a -> Pattern<'attributes>) =
+        member _.For(items: 'a seq, f: 'a -> Pattern.Pattern<'attributes>) =
             items |> Seq.map f |> Seq.last
 
         /// <summary>
-        /// Zero case (WildcardPattern).
+        /// Zero case (Pattern.WildcardPattern).
         /// </summary>
-        member _.Zero() = WildcardPattern defaultAttrs
+        member _.Zero() = Pattern.WildcardPattern defaultAttrs
 
         /// <summary>
         /// Delays the computation (required for proper CE support).
         /// </summary>
-        member _.Delay(f: unit -> Pattern<'attributes>) = f
+        member _.Delay(f: unit -> Pattern.Pattern<'attributes>) = f
 
         /// <summary>
         /// Runs the builder to produce the final Pattern.
         /// </summary>
-        member _.Run(f: unit -> Pattern<'attributes>) = f()
+        member _.Run(f: unit -> Pattern.Pattern<'attributes>) = f()
 
         /// Regular methods for direct usage (Pascal case)
         /// <summary>
-        /// Creates a WildcardPattern (regular method).
+        /// Creates a Pattern.WildcardPattern (regular method).
         /// </summary>
-        member _.Wildcard() = WildcardPattern defaultAttrs
+        member _.Wildcard() = Pattern.WildcardPattern defaultAttrs
 
         /// <summary>
         /// Creates a VariablePattern (regular method).
         /// </summary>
         member _.Variable(name: Name) =
-            AsPattern(defaultAttrs, WildcardPattern defaultAttrs, name)
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, name)
 
         /// <summary>
         /// Creates a VariablePattern from string (regular method).
         /// </summary>
         member _.Variable(name: string) =
-            AsPattern(defaultAttrs, WildcardPattern defaultAttrs, Name.fromString name)
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, Name.fromString name)
 
         /// <summary>
-        /// Creates a TuplePattern (regular method).
+        /// Creates a VariablePattern (short form of Variable).
         /// </summary>
-        member _.Tuple(patterns: Pattern<'attributes> list) =
-            TuplePattern(defaultAttrs, patterns)
+        member _.Var(name: Name) =
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, name)
 
         /// <summary>
-        /// Creates a ConstructorPattern (regular method).
+        /// Creates a VariablePattern from string (short form of Variable).
         /// </summary>
-        member _.Constructor(fqName: FQName, patterns: Pattern<'attributes> list) =
-            ConstructorPattern(defaultAttrs, fqName, patterns)
+        member _.Var(name: string) =
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, Name.fromString name)
 
         /// <summary>
-        /// Creates a LiteralPattern (regular method).
+        /// Creates a Pattern.TuplePattern (regular method).
         /// </summary>
-        member _.Literal(lit: Literal) = LiteralPattern(defaultAttrs, lit)
+        member _.Tuple(patterns: Pattern.Pattern<'attributes> list) =
+            Pattern.TuplePattern(defaultAttrs, patterns)
 
         /// <summary>
-        /// Creates a UnitPattern (regular method).
+        /// Creates a Pattern.ConstructorPattern (regular method).
         /// </summary>
-        member _.Unit() = UnitPattern defaultAttrs
-
-        /// CustomOperations for query-style syntax (lowercase)
-        /// <summary>
-        /// Creates a WildcardPattern.
-        /// </summary>
-        [<CustomOperation("wildcard")>]
-        member _.WildcardOp(_state: Pattern<'attributes>) = WildcardPattern defaultAttrs
+        member _.Constructor(fqName: FQName, patterns: Pattern.Pattern<'attributes> list) =
+            Pattern.ConstructorPattern(defaultAttrs, fqName, patterns)
 
         /// <summary>
-        /// Creates an AsPattern (pattern with name binding).
+        /// Creates a Pattern.LiteralPattern (regular method).
         /// </summary>
-        [<CustomOperation("asPattern")>]
-        member _.AsPattern(_state: Pattern<'attributes>, nested: Pattern<'attributes>, name: Name) =
-            AsPattern(defaultAttrs, nested, name)
+        member _.Literal(lit: Literal) = Pattern.LiteralPattern(defaultAttrs, lit)
 
         /// <summary>
-        /// Creates an AsPattern with string name.
+        /// Creates a Pattern.UnitPattern (regular method).
         /// </summary>
-        [<CustomOperation("asPattern")>]
-        member _.AsPattern(_state: Pattern<'attributes>, nested: Pattern<'attributes>, name: string) =
-            AsPattern(defaultAttrs, nested, Name.fromString name)
+        member _.Unit() = Pattern.UnitPattern defaultAttrs
 
         /// <summary>
-        /// Creates a TuplePattern.
+        /// Creates an Pattern.EmptyListPattern (regular method).
         /// </summary>
-        [<CustomOperation("tuple")>]
-        member _.Tuple(_state: Pattern<'attributes>, patterns: Pattern<'attributes> list) =
-            TuplePattern(defaultAttrs, patterns)
+        member _.EmptyList() = Pattern.EmptyListPattern defaultAttrs
 
         /// <summary>
-        /// Creates a ConstructorPattern.
+        /// Creates a Pattern.HeadTailPattern (regular method).
         /// </summary>
-        [<CustomOperation("constructor")>]
-        member _.Constructor(_state: Pattern<'attributes>, fqName: FQName, patterns: Pattern<'attributes> list) =
-            ConstructorPattern(defaultAttrs, fqName, patterns)
+        member _.HeadTail(headPattern: Pattern.Pattern<'attributes>, tailPattern: Pattern.Pattern<'attributes>) =
+            Pattern.HeadTailPattern(defaultAttrs, headPattern, tailPattern)
 
         /// <summary>
-        /// Creates an EmptyListPattern.
+        /// Creates an Pattern.AsPattern (regular method).
         /// </summary>
-        [<CustomOperation("emptyList")>]
-        member _.EmptyList(_state: Pattern<'attributes>) = EmptyListPattern defaultAttrs
+        member _.AsPattern(nested: Pattern.Pattern<'attributes>, name: Name) =
+            Pattern.AsPattern(defaultAttrs, nested, name)
 
         /// <summary>
-        /// Creates a HeadTailPattern (cons pattern).
+        /// Creates an Pattern.AsPattern with string name (regular method).
         /// </summary>
-        [<CustomOperation("headTail")>]
-        member _.HeadTail(_state: Pattern<'attributes>, headPattern: Pattern<'attributes>, tailPattern: Pattern<'attributes>) =
-            HeadTailPattern(defaultAttrs, headPattern, tailPattern)
+        member _.AsPattern(nested: Pattern.Pattern<'attributes>, name: string) =
+            Pattern.AsPattern(defaultAttrs, nested, Name.fromString name)
+
+        /// CustomOperations for CE usage (Pascal case)
+        /// <summary>
+        /// Creates a Pattern.WildcardPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Wildcard")>]
+        member _.WildcardOp(_state: Pattern.Pattern<'attributes>) = Pattern.WildcardPattern defaultAttrs
 
         /// <summary>
-        /// Creates a LiteralPattern.
+        /// Creates a VariablePattern (CustomOperation for CE).
         /// </summary>
-        [<CustomOperation("literal")>]
-        member _.Literal(_state: Pattern<'attributes>, lit: Literal) = LiteralPattern(defaultAttrs, lit)
+        [<CustomOperation("Variable")>]
+        member _.VariableOp(_state: Pattern.Pattern<'attributes>, name: string) =
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, Name.fromString name)
 
         /// <summary>
-        /// Creates a UnitPattern.
+        /// Creates a VariablePattern with Name (CustomOperation for CE).
         /// </summary>
-        [<CustomOperation("unit")>]
-        member _.Unit(_state: Pattern<'attributes>) = UnitPattern defaultAttrs
+        [<CustomOperation("Variable")>]
+        member _.VariableOp(_state: Pattern.Pattern<'attributes>, name: Name) =
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, name)
 
         /// <summary>
-        /// Creates a VariablePattern (alias for AsPattern with WildcardPattern).
+        /// Creates a Pattern.TuplePattern (CustomOperation for CE).
         /// </summary>
-        [<CustomOperation("variable")>]
-        member _.Variable(_state: Pattern<'attributes>, name: Name) =
-            AsPattern(defaultAttrs, WildcardPattern defaultAttrs, name)
+        [<CustomOperation("Tuple")>]
+        member _.TupleOp(_state: Pattern.Pattern<'attributes>, patterns: Pattern.Pattern<'attributes> list) =
+            Pattern.TuplePattern(defaultAttrs, patterns)
 
         /// <summary>
-        /// Creates a VariablePattern with string name.
+        /// Creates a Pattern.ConstructorPattern (CustomOperation for CE).
         /// </summary>
-        [<CustomOperation("variable")>]
-        member _.Variable(_state: Pattern<'attributes>, name: string) =
-            AsPattern(defaultAttrs, WildcardPattern defaultAttrs, Name.fromString name)
+        [<CustomOperation("Constructor")>]
+        member _.ConstructorOp(_state: Pattern.Pattern<'attributes>, fqName: FQName, patterns: Pattern.Pattern<'attributes> list) =
+            Pattern.ConstructorPattern(defaultAttrs, fqName, patterns)
+
+        /// <summary>
+        /// Creates an Pattern.EmptyListPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("EmptyList")>]
+        member _.EmptyListOp(_state: Pattern.Pattern<'attributes>) = Pattern.EmptyListPattern defaultAttrs
+
+        /// <summary>
+        /// Creates a Pattern.HeadTailPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("HeadTail")>]
+        member _.HeadTailOp(_state: Pattern.Pattern<'attributes>, headPattern: Pattern.Pattern<'attributes>, tailPattern: Pattern.Pattern<'attributes>) =
+            Pattern.HeadTailPattern(defaultAttrs, headPattern, tailPattern)
+
+        /// <summary>
+        /// Creates a Pattern.LiteralPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Literal")>]
+        member _.LiteralOp(_state: Pattern.Pattern<'attributes>, lit: Literal) =
+            Pattern.LiteralPattern(defaultAttrs, lit)
+
+        /// <summary>
+        /// Creates a Pattern.UnitPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Unit")>]
+        member _.UnitOp(_state: Pattern.Pattern<'attributes>) = Pattern.UnitPattern defaultAttrs
+
+        /// <summary>
+        /// Creates an Pattern.AsPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Pattern.AsPattern")>]
+        member _.AsPatternOp(_state: Pattern.Pattern<'attributes>, nested: Pattern.Pattern<'attributes>, name: Name) =
+            Pattern.AsPattern(defaultAttrs, nested, name)
+
+        /// <summary>
+        /// Creates an Pattern.AsPattern with string name (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Pattern.AsPattern")>]
+        member _.AsPatternOp(_state: Pattern.Pattern<'attributes>, nested: Pattern.Pattern<'attributes>, name: string) =
+            Pattern.AsPattern(defaultAttrs, nested, Name.fromString name)
 
     /// <summary>
     /// PatternBuilderWithAttrs provides a Computation Expression for creating Pattern values with explicit attributes.
@@ -170,106 +235,212 @@ module Patterns =
         /// <summary>
         /// Yields a Pattern directly.
         /// </summary>
-        member _.Yield(pattern: Pattern<'attributes>) = pattern
+        member _.Yield(pattern: Pattern.Pattern<'attributes>) = pattern
+
+        /// <summary>
+        /// Yields unit as Pattern.UnitPattern (tagless syntax).
+        /// </summary>
+        member _.Yield((): unit) = Pattern.UnitPattern attrs
+
+        /// <summary>
+        /// Yields a 2-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2): Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes>) =
+            Pattern.TuplePattern(attrs, [ p1; p2 ])
+
+        /// <summary>
+        /// Yields a 3-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2, p3): Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes>) =
+            Pattern.TuplePattern(attrs, [ p1; p2; p3 ])
+
+        /// <summary>
+        /// Yields a 4-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2, p3, p4): Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes>) =
+            Pattern.TuplePattern(attrs, [ p1; p2; p3; p4 ])
+
+        /// <summary>
+        /// Yields a 5-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2, p3, p4, p5): Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes> * Pattern.Pattern<'attributes>) =
+            Pattern.TuplePattern(attrs, [ p1; p2; p3; p4; p5 ])
 
         /// <summary>
         /// Combines multiple Patterns (takes the last one).
         /// </summary>
-        member _.Combine(_: Pattern<'attributes>, pattern: Pattern<'attributes>) = pattern
+        member _.Combine(_: Pattern.Pattern<'attributes>, pattern: Pattern.Pattern<'attributes>) = pattern
 
         /// <summary>
         /// Supports for loops.
         /// </summary>
-        member _.For(items: 'a seq, f: 'a -> Pattern<'attributes>) =
+        member _.For(items: 'a seq, f: 'a -> Pattern.Pattern<'attributes>) =
             items |> Seq.map f |> Seq.last
 
         /// <summary>
-        /// Zero case (WildcardPattern).
+        /// Zero case (Pattern.WildcardPattern).
         /// </summary>
-        member _.Zero() = WildcardPattern attrs
+        member _.Zero() = Pattern.WildcardPattern attrs
 
         /// <summary>
         /// Delays the computation (required for proper CE support).
         /// </summary>
-        member _.Delay(f: unit -> Pattern<'attributes>) = f
+        member _.Delay(f: unit -> Pattern.Pattern<'attributes>) = f
 
         /// <summary>
         /// Runs the builder to produce the final Pattern.
         /// </summary>
-        member _.Run(f: unit -> Pattern<'attributes>) = f()
+        member _.Run(f: unit -> Pattern.Pattern<'attributes>) = f()
+
+        /// Regular methods for direct usage (Pascal case)
+        /// <summary>
+        /// Creates a Pattern.WildcardPattern (regular method).
+        /// </summary>
+        member _.Wildcard() = Pattern.WildcardPattern attrs
 
         /// <summary>
-        /// Creates a WildcardPattern.
+        /// Creates a VariablePattern (regular method).
         /// </summary>
-        [<CustomOperation("wildcard")>]
-        member _.Wildcard(_state: Pattern<'attributes>) = WildcardPattern attrs
+        member _.Variable(name: Name) =
+            Pattern.AsPattern(attrs, Pattern.WildcardPattern attrs, name)
 
         /// <summary>
-        /// Creates an AsPattern (pattern with name binding).
+        /// Creates a VariablePattern from string (regular method).
         /// </summary>
-        [<CustomOperation("asPattern")>]
-        member _.AsPattern(_state: Pattern<'attributes>, nested: Pattern<'attributes>, name: Name) =
-            AsPattern(attrs, nested, name)
+        member _.Variable(name: string) =
+            Pattern.AsPattern(attrs, Pattern.WildcardPattern attrs, Name.fromString name)
 
         /// <summary>
-        /// Creates an AsPattern with string name.
+        /// Creates a VariablePattern (short form of Variable).
         /// </summary>
-        [<CustomOperation("asPattern")>]
-        member _.AsPattern(_state: Pattern<'attributes>, nested: Pattern<'attributes>, name: string) =
-            AsPattern(attrs, nested, Name.fromString name)
+        member _.Var(name: Name) =
+            Pattern.AsPattern(attrs, Pattern.WildcardPattern attrs, name)
 
         /// <summary>
-        /// Creates a TuplePattern.
+        /// Creates a VariablePattern from string (short form of Variable).
         /// </summary>
-        [<CustomOperation("tuple")>]
-        member _.Tuple(_state: Pattern<'attributes>, patterns: Pattern<'attributes> list) =
-            TuplePattern(attrs, patterns)
+        member _.Var(name: string) =
+            Pattern.AsPattern(attrs, Pattern.WildcardPattern attrs, Name.fromString name)
 
         /// <summary>
-        /// Creates a ConstructorPattern.
+        /// Creates a Pattern.TuplePattern (regular method).
         /// </summary>
-        [<CustomOperation("constructor")>]
-        member _.Constructor(_state: Pattern<'attributes>, fqName: FQName, patterns: Pattern<'attributes> list) =
-            ConstructorPattern(attrs, fqName, patterns)
+        member _.Tuple(patterns: Pattern.Pattern<'attributes> list) =
+            Pattern.TuplePattern(attrs, patterns)
 
         /// <summary>
-        /// Creates an EmptyListPattern.
+        /// Creates a Pattern.ConstructorPattern (regular method).
         /// </summary>
-        [<CustomOperation("emptyList")>]
-        member _.EmptyList(_state: Pattern<'attributes>) = EmptyListPattern attrs
+        member _.Constructor(fqName: FQName, patterns: Pattern.Pattern<'attributes> list) =
+            Pattern.ConstructorPattern(attrs, fqName, patterns)
 
         /// <summary>
-        /// Creates a HeadTailPattern (cons pattern).
+        /// Creates a Pattern.LiteralPattern (regular method).
         /// </summary>
-        [<CustomOperation("headTail")>]
-        member _.HeadTail(_state: Pattern<'attributes>, headPattern: Pattern<'attributes>, tailPattern: Pattern<'attributes>) =
-            HeadTailPattern(attrs, headPattern, tailPattern)
+        member _.Literal(lit: Literal) = Pattern.LiteralPattern(attrs, lit)
 
         /// <summary>
-        /// Creates a LiteralPattern.
+        /// Creates a Pattern.UnitPattern (regular method).
         /// </summary>
-        [<CustomOperation("literal")>]
-        member _.Literal(_state: Pattern<'attributes>, lit: Literal) = LiteralPattern(attrs, lit)
+        member _.Unit() = Pattern.UnitPattern attrs
 
         /// <summary>
-        /// Creates a UnitPattern.
+        /// Creates an Pattern.EmptyListPattern (regular method).
         /// </summary>
-        [<CustomOperation("unit")>]
-        member _.Unit(_state: Pattern<'attributes>) = UnitPattern attrs
+        member _.EmptyList() = Pattern.EmptyListPattern attrs
 
         /// <summary>
-        /// Creates a VariablePattern (alias for AsPattern with WildcardPattern).
+        /// Creates a Pattern.HeadTailPattern (regular method).
         /// </summary>
-        [<CustomOperation("variable")>]
-        member _.Variable(_state: Pattern<'attributes>, name: Name) =
-            AsPattern(attrs, WildcardPattern attrs, name)
+        member _.HeadTail(headPattern: Pattern.Pattern<'attributes>, tailPattern: Pattern.Pattern<'attributes>) =
+            Pattern.HeadTailPattern(attrs, headPattern, tailPattern)
 
         /// <summary>
-        /// Creates a VariablePattern with string name.
+        /// Creates an Pattern.AsPattern (regular method).
         /// </summary>
-        [<CustomOperation("variable")>]
-        member _.Variable(_state: Pattern<'attributes>, name: string) =
-            AsPattern(attrs, WildcardPattern attrs, Name.fromString name)
+        member _.AsPattern(nested: Pattern.Pattern<'attributes>, name: Name) =
+            Pattern.AsPattern(attrs, nested, name)
+
+        /// <summary>
+        /// Creates an Pattern.AsPattern with string name (regular method).
+        /// </summary>
+        member _.AsPattern(nested: Pattern.Pattern<'attributes>, name: string) =
+            Pattern.AsPattern(attrs, nested, Name.fromString name)
+
+        /// CustomOperations for CE usage (Pascal case)
+        /// <summary>
+        /// Creates a Pattern.WildcardPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Wildcard")>]
+        member _.WildcardOp(_state: Pattern.Pattern<'attributes>) = Pattern.WildcardPattern attrs
+
+        /// <summary>
+        /// Creates a VariablePattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Variable")>]
+        member _.VariableOp(_state: Pattern.Pattern<'attributes>, name: string) =
+            Pattern.AsPattern(attrs, Pattern.WildcardPattern attrs, Name.fromString name)
+
+        /// <summary>
+        /// Creates a VariablePattern with Name (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Variable")>]
+        member _.VariableOp(_state: Pattern.Pattern<'attributes>, name: Name) =
+            Pattern.AsPattern(attrs, Pattern.WildcardPattern attrs, name)
+
+        /// <summary>
+        /// Creates a Pattern.TuplePattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Tuple")>]
+        member _.TupleOp(_state: Pattern.Pattern<'attributes>, patterns: Pattern.Pattern<'attributes> list) =
+            Pattern.TuplePattern(attrs, patterns)
+
+        /// <summary>
+        /// Creates a Pattern.ConstructorPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Constructor")>]
+        member _.ConstructorOp(_state: Pattern.Pattern<'attributes>, fqName: FQName, patterns: Pattern.Pattern<'attributes> list) =
+            Pattern.ConstructorPattern(attrs, fqName, patterns)
+
+        /// <summary>
+        /// Creates an Pattern.EmptyListPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("EmptyList")>]
+        member _.EmptyListOp(_state: Pattern.Pattern<'attributes>) = Pattern.EmptyListPattern attrs
+
+        /// <summary>
+        /// Creates a Pattern.HeadTailPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("HeadTail")>]
+        member _.HeadTailOp(_state: Pattern.Pattern<'attributes>, headPattern: Pattern.Pattern<'attributes>, tailPattern: Pattern.Pattern<'attributes>) =
+            Pattern.HeadTailPattern(attrs, headPattern, tailPattern)
+
+        /// <summary>
+        /// Creates a Pattern.LiteralPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Literal")>]
+        member _.LiteralOp(_state: Pattern.Pattern<'attributes>, lit: Literal) =
+            Pattern.LiteralPattern(attrs, lit)
+
+        /// <summary>
+        /// Creates a Pattern.UnitPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Unit")>]
+        member _.UnitOp(_state: Pattern.Pattern<'attributes>) = Pattern.UnitPattern attrs
+
+        /// <summary>
+        /// Creates an Pattern.AsPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Pattern.AsPattern")>]
+        member _.AsPatternOp(_state: Pattern.Pattern<'attributes>, nested: Pattern.Pattern<'attributes>, name: Name) =
+            Pattern.AsPattern(attrs, nested, name)
+
+        /// <summary>
+        /// Creates an Pattern.AsPattern with string name (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Pattern.AsPattern")>]
+        member _.AsPatternOp(_state: Pattern.Pattern<'attributes>, nested: Pattern.Pattern<'attributes>, name: string) =
+            Pattern.AsPattern(attrs, nested, Name.fromString name)
 
     /// <summary>
     /// PatternBuilder for unit attributes.
@@ -281,113 +452,215 @@ module Patterns =
         /// <summary>
         /// Yields a Pattern directly.
         /// </summary>
-        member _.Yield(pattern: Pattern<unit>) = pattern
+        member _.Yield(pattern: Pattern.Pattern<unit>) = pattern
+
+        /// <summary>
+        /// Yields unit as Pattern.UnitPattern (tagless syntax).
+        /// </summary>
+        member _.Yield((): unit) = Pattern.UnitPattern defaultAttrs
+
+        /// <summary>
+        /// Yields a 2-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2): Pattern.Pattern<unit> * Pattern.Pattern<unit>) =
+            Pattern.TuplePattern(defaultAttrs, [ p1; p2 ])
+
+        /// <summary>
+        /// Yields a 3-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2, p3): Pattern.Pattern<unit> * Pattern.Pattern<unit> * Pattern.Pattern<unit>) =
+            Pattern.TuplePattern(defaultAttrs, [ p1; p2; p3 ])
+
+        /// <summary>
+        /// Yields a 4-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2, p3, p4): Pattern.Pattern<unit> * Pattern.Pattern<unit> * Pattern.Pattern<unit> * Pattern.Pattern<unit>) =
+            Pattern.TuplePattern(defaultAttrs, [ p1; p2; p3; p4 ])
+
+        /// <summary>
+        /// Yields a 5-tuple of patterns as Pattern.TuplePattern (tagless syntax).
+        /// </summary>
+        member _.Yield((p1, p2, p3, p4, p5): Pattern.Pattern<unit> * Pattern.Pattern<unit> * Pattern.Pattern<unit> * Pattern.Pattern<unit> * Pattern.Pattern<unit>) =
+            Pattern.TuplePattern(defaultAttrs, [ p1; p2; p3; p4; p5 ])
 
         /// <summary>
         /// Combines multiple Patterns (takes the last one).
         /// </summary>
-        member _.Combine(_: Pattern<unit>, pattern: Pattern<unit>) = pattern
+        member _.Combine(_: Pattern.Pattern<unit>, pattern: Pattern.Pattern<unit>) = pattern
 
         /// <summary>
         /// Supports for loops.
         /// </summary>
-        member _.For(items: 'a seq, f: 'a -> Pattern<unit>) =
+        member _.For(items: 'a seq, f: 'a -> Pattern.Pattern<unit>) =
             items |> Seq.map f |> Seq.last
 
         /// <summary>
-        /// Zero case (WildcardPattern).
+        /// Zero case (Pattern.WildcardPattern).
         /// </summary>
-        member _.Zero() = WildcardPattern defaultAttrs
+        member _.Zero() = Pattern.WildcardPattern defaultAttrs
 
         /// <summary>
         /// Delays the computation (required for proper CE support).
         /// </summary>
-        member _.Delay(f: unit -> Pattern<unit>) = f
+        member _.Delay(f: unit -> Pattern.Pattern<unit>) = f
 
         /// <summary>
         /// Runs the builder to produce the final Pattern.
         /// </summary>
-        member _.Run(f: unit -> Pattern<unit>) = f()
+        member _.Run(f: unit -> Pattern.Pattern<unit>) = f()
 
         /// Regular methods for direct usage (Pascal case)
         /// <summary>
-        /// Creates a WildcardPattern (regular method).
+        /// Creates a Pattern.WildcardPattern (regular method).
         /// </summary>
-        member _.Wildcard() = WildcardPattern defaultAttrs
+        member _.Wildcard() = Pattern.WildcardPattern defaultAttrs
 
         /// <summary>
         /// Creates a VariablePattern (regular method).
         /// </summary>
         member _.Variable(name: Name) =
-            AsPattern(defaultAttrs, WildcardPattern defaultAttrs, name)
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, name)
 
         /// <summary>
         /// Creates a VariablePattern from string (regular method).
         /// </summary>
         member _.Variable(name: string) =
-            AsPattern(defaultAttrs, WildcardPattern defaultAttrs, Name.fromString name)
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, Name.fromString name)
 
         /// <summary>
-        /// Creates a TuplePattern (regular method).
+        /// Creates a VariablePattern (short form of Variable).
         /// </summary>
-        member _.Tuple(patterns: Pattern<unit> list) =
-            TuplePattern(defaultAttrs, patterns)
+        member _.Var(name: Name) =
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, name)
 
         /// <summary>
-        /// Creates a ConstructorPattern (regular method).
+        /// Creates a VariablePattern from string (short form of Variable).
         /// </summary>
-        member _.Constructor(fqName: FQName, patterns: Pattern<unit> list) =
-            ConstructorPattern(defaultAttrs, fqName, patterns)
+        member _.Var(name: string) =
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, Name.fromString name)
 
         /// <summary>
-        /// Creates a LiteralPattern (regular method).
+        /// Creates a Pattern.TuplePattern (regular method).
         /// </summary>
-        member _.Literal(lit: Literal) = LiteralPattern(defaultAttrs, lit)
+        member _.Tuple(patterns: Pattern.Pattern<unit> list) =
+            Pattern.TuplePattern(defaultAttrs, patterns)
 
         /// <summary>
-        /// Creates a UnitPattern (regular method).
+        /// Creates a Pattern.ConstructorPattern (regular method).
         /// </summary>
-        member _.Unit() = UnitPattern defaultAttrs
-
-        /// Lowercase helper properties and functions for CE usage
-        /// <summary>
-        /// Wildcard pattern property (lowercase for CE).
-        /// </summary>
-        member _.wildcard = WildcardPattern defaultAttrs
+        member _.Constructor(fqName: FQName, patterns: Pattern.Pattern<unit> list) =
+            Pattern.ConstructorPattern(defaultAttrs, fqName, patterns)
 
         /// <summary>
-        /// Creates a VariablePattern (lowercase for CE).
+        /// Creates a Pattern.LiteralPattern (regular method).
         /// </summary>
-        member _.variable(name: Name) =
-            AsPattern(defaultAttrs, WildcardPattern defaultAttrs, name)
+        member _.Literal(lit: Literal) = Pattern.LiteralPattern(defaultAttrs, lit)
 
         /// <summary>
-        /// Creates a VariablePattern from string (lowercase for CE).
+        /// Creates a Pattern.UnitPattern (regular method).
         /// </summary>
-        member _.variable(name: string) =
-            AsPattern(defaultAttrs, WildcardPattern defaultAttrs, Name.fromString name)
+        member _.Unit() = Pattern.UnitPattern defaultAttrs
 
         /// <summary>
-        /// Creates a TuplePattern (lowercase for CE).
+        /// Creates an Pattern.EmptyListPattern (regular method).
         /// </summary>
-        member _.tuple(patterns: Pattern<unit> list) =
-            TuplePattern(defaultAttrs, patterns)
+        member _.EmptyList() = Pattern.EmptyListPattern defaultAttrs
 
         /// <summary>
-        /// Creates a ConstructorPattern (lowercase for CE).
+        /// Creates a Pattern.HeadTailPattern (regular method).
         /// </summary>
-        member _.constructor(fqName: FQName, patterns: Pattern<unit> list) =
-            ConstructorPattern(defaultAttrs, fqName, patterns)
+        member _.HeadTail(headPattern: Pattern.Pattern<unit>, tailPattern: Pattern.Pattern<unit>) =
+            Pattern.HeadTailPattern(defaultAttrs, headPattern, tailPattern)
 
         /// <summary>
-        /// Creates a LiteralPattern (lowercase for CE).
+        /// Creates an Pattern.AsPattern (regular method).
         /// </summary>
-        member _.literal(lit: Literal) = LiteralPattern(defaultAttrs, lit)
+        member _.AsPattern(nested: Pattern.Pattern<unit>, name: Name) =
+            Pattern.AsPattern(defaultAttrs, nested, name)
 
         /// <summary>
-        /// Unit pattern property (lowercase for CE).
+        /// Creates an Pattern.AsPattern with string name (regular method).
         /// </summary>
-        member _.unit = UnitPattern defaultAttrs
+        member _.AsPattern(nested: Pattern.Pattern<unit>, name: string) =
+            Pattern.AsPattern(defaultAttrs, nested, Name.fromString name)
+
+        /// CustomOperations for CE usage (Pascal case)
+        /// <summary>
+        /// Creates a Pattern.WildcardPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Wildcard")>]
+        member _.WildcardOp(_state: Pattern.Pattern<unit>) =
+            Pattern.WildcardPattern defaultAttrs
+
+        /// <summary>
+        /// Creates a VariablePattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Variable")>]
+        member _.VariableOp(_state: Pattern.Pattern<unit>, name: string) =
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, Name.fromString name)
+
+        /// <summary>
+        /// Creates a VariablePattern with Name (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Variable")>]
+        member _.VariableOp(_state: Pattern.Pattern<unit>, name: Name) =
+            Pattern.AsPattern(defaultAttrs, Pattern.WildcardPattern defaultAttrs, name)
+
+        /// <summary>
+        /// Creates a Pattern.TuplePattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Tuple")>]
+        member _.TupleOp(_state: Pattern.Pattern<unit>, patterns: Pattern.Pattern<unit> list) =
+            Pattern.TuplePattern(defaultAttrs, patterns)
+
+        /// <summary>
+        /// Creates a Pattern.ConstructorPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Constructor")>]
+        member _.ConstructorOp(_state: Pattern.Pattern<unit>, fqName: FQName, patterns: Pattern.Pattern<unit> list) =
+            Pattern.ConstructorPattern(defaultAttrs, fqName, patterns)
+
+        /// <summary>
+        /// Creates an Pattern.EmptyListPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("EmptyList")>]
+        member _.EmptyListOp(_state: Pattern.Pattern<unit>) =
+            Pattern.EmptyListPattern defaultAttrs
+
+        /// <summary>
+        /// Creates a Pattern.HeadTailPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("HeadTail")>]
+        member _.HeadTailOp(_state: Pattern.Pattern<unit>, headPattern: Pattern.Pattern<unit>, tailPattern: Pattern.Pattern<unit>) =
+            Pattern.HeadTailPattern(defaultAttrs, headPattern, tailPattern)
+
+        /// <summary>
+        /// Creates a Pattern.LiteralPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Literal")>]
+        member _.LiteralOp(_state: Pattern.Pattern<unit>, lit: Literal) =
+            Pattern.LiteralPattern(defaultAttrs, lit)
+
+        /// <summary>
+        /// Creates a Pattern.UnitPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Unit")>]
+        member _.UnitOp(_state: Pattern.Pattern<unit>) =
+            Pattern.UnitPattern defaultAttrs
+
+        /// <summary>
+        /// Creates an Pattern.AsPattern (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Pattern.AsPattern")>]
+        member _.AsPatternOp(_state: Pattern.Pattern<unit>, nested: Pattern.Pattern<unit>, name: Name) =
+            Pattern.AsPattern(defaultAttrs, nested, name)
+
+        /// <summary>
+        /// Creates an Pattern.AsPattern with string name (CustomOperation for CE).
+        /// </summary>
+        [<CustomOperation("Pattern.AsPattern")>]
+        member _.AsPatternOp(_state: Pattern.Pattern<unit>, nested: Pattern.Pattern<unit>, name: string) =
+            Pattern.AsPattern(defaultAttrs, nested, Name.fromString name)
 
         /// <summary>
         /// Sets explicit attributes for the builder.
