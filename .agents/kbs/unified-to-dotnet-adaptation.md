@@ -11,9 +11,10 @@
 3. [Plugin Architecture](#plugin-architecture)
 4. [MorphirFile Pattern](#morphirfile-pattern)
 5. [Visitor Utilities](#visitor-utilities)
-6. [Bridge Plugins](#bridge-plugins)
-7. [Decision Trees](#decision-trees)
-8. [Implementation Roadmap](#implementation-roadmap)
+6. [Computation Expression Builders](#computation-expression-builders)
+7. [Bridge Plugins](#bridge-plugins)
+8. [Decision Trees](#decision-trees)
+9. [Implementation Roadmap](#implementation-roadmap)
 
 ---
 
@@ -829,9 +830,508 @@ IRVisitor.Visit(
 
 ---
 
-## 6. Bridge Plugins
+## 6. Computation Expression Builders
 
-### 6.1 IR Version Migration
+### 6.1 Overview
+
+F# computation expressions provide an ergonomic, declarative API for the unified.js pipeline pattern. This section explores three key builders that make the pipeline fluent and type-safe.
+
+**Benefits**:
+- **Declarative**: Express intent, not implementation details
+- **Type-safe**: Compiler-verified transformations
+- **Composable**: Nest and combine builders
+- **Familiar**: Standard F# idiom for complex workflows
+
+**Key Builders**:
+1. **Pipeline Builder**: Fluent processor construction
+2. **Transformer Builder**: Diagnostic-aware transformations
+3. **Visitor Builder**: Declarative tree traversal
+
+### 6.2 Pipeline Builder
+
+**Purpose**: Fluent construction of MorphirProcessor pipelines.
+
+**Implementation**:
+
+```fsharp
+type PipelineBuilder() =
+    member _.Yield(_) = MorphirProcessor.empty
+
+    [<CustomOperation("parse")>]
+    member _.Parse(proc: MorphirProcessor, parser: Parser) =
+        { proc with Parsers = proc.Parsers @ [parser] }
+
+    [<CustomOperation("use")>]
+    member _.Use(proc: MorphirProcessor, plugin: Plugin) =
+        { proc with Plugins = proc.Plugins @ [plugin] }
+
+    [<CustomOperation("stringify")>]
+    member _.Stringify(proc: MorphirProcessor, compiler: Compiler) =
+        { proc with Compilers = proc.Compilers @ [compiler] }
+
+    [<CustomOperation("freeze")>]
+    member _.Freeze(proc: MorphirProcessor) =
+        { proc with Frozen = true }
+
+let pipeline = PipelineBuilder()
+```
+
+**Usage**:
+
+```fsharp
+// Define a complete IR transformation pipeline
+let irProcessor = pipeline {
+    parse irJsonParser
+    use validateIRPlugin
+    use normalizeTypesPlugin
+    use optimizePlugin
+    stringify irJsonSerializer
+    freeze
+}
+
+// Create variant with additional plugins
+let enhancedProcessor = pipeline {
+    parse irJsonParser
+    use validateIRPlugin
+    use normalizeTypesPlugin
+    use optimizePlugin
+    use inlinePlugin  // Additional transformation
+    stringify irJsonSerializer
+}
+
+// Execute pipeline
+let result = irProcessor.Process(inputFile)
+```
+
+**Compared to Direct API**:
+
+```fsharp
+// Without CE - imperative
+let processor =
+    MorphirProcessor.empty
+    |> MorphirProcessor.parse irJsonParser
+    |> MorphirProcessor.use validateIRPlugin
+    |> MorphirProcessor.use normalizeTypesPlugin
+    |> MorphirProcessor.use optimizePlugin
+    |> MorphirProcessor.stringify irJsonSerializer
+    |> MorphirProcessor.freeze
+
+// With CE - declarative
+let processor = pipeline {
+    parse irJsonParser
+    use validateIRPlugin
+    use normalizeTypesPlugin
+    use optimizePlugin
+    stringify irJsonSerializer
+    freeze
+}
+```
+
+### 6.3 Transformer Builder
+
+**Purpose**: Build transformations that accumulate diagnostics in MorphirFile.
+
+**Implementation**:
+
+```fsharp
+type TransformerBuilder() =
+    member _.Bind(file: MorphirFile, f: MorphirFile -> MorphirFile) = f file
+    member _.Return(value: 'a) = value
+    member _.ReturnFrom(file: MorphirFile) = file
+    member _.Zero() = MorphirFile.empty
+
+    // Custom operations for diagnostics
+    [<CustomOperation("info")>]
+    member _.Info(file: MorphirFile, message: string) =
+        file.Info(message)
+
+    [<CustomOperation("warn")>]
+    member _.Warn(file: MorphirFile, message: string, ?pos: SourceRange) =
+        match pos with
+        | Some p -> file.Warn(message, p)
+        | None -> file.Warn(message)
+
+    [<CustomOperation("error")>]
+    member _.Error(file: MorphirFile, message: string, ?pos: SourceRange) =
+        match pos with
+        | Some p -> file.Error(message, p)
+        | None -> file.Error(message)
+
+    [<CustomOperation("transform")>]
+    member _.Transform(file: MorphirFile, f: IRNode -> IRNode option) =
+        match file.Content with
+        | Some node ->
+            match f node with
+            | Some transformed -> { file with Content = Some transformed }
+            | None -> file
+        | None -> file
+
+let transformer = TransformerBuilder()
+```
+
+**Usage**:
+
+```fsharp
+// Define a type reference validator with diagnostics
+let validateTypeReference (fqn: FQName) (args: Type list) (file: MorphirFile) =
+    transformer {
+        info $"Validating type reference: {fqn}"
+
+        // Check if type exists
+        let! typeExists = checkTypeExists fqn
+        if not typeExists then
+            error $"Type not found: {fqn}" (getPosition fqn)
+
+        // Validate argument count
+        let! expectedArity = getTypeArity fqn
+        if args.Length <> expectedArity then
+            error $"Type {fqn} expects {expectedArity} args, got {args.Length}"
+
+        // Validate each argument
+        for arg in args do
+            do! validateType arg
+
+        info $"Type reference valid: {fqn}"
+    }
+
+// Use in plugin
+let typeValidatorPlugin = {
+    Name = "type-validator"
+    Configure = id
+    Transform = fun node file ->
+        match node with
+        | Type.Reference(attr, fqn, args) ->
+            let file' = validateTypeReference fqn args file
+            Some node, file'
+        | _ -> Some node, file
+}
+```
+
+**Compared to Manual Threading**:
+
+```fsharp
+// Without CE - manual threading
+let validateTypeReference fqn args file =
+    let file1 = file.Info($"Validating type reference: {fqn}")
+    let typeExists = checkTypeExists fqn
+    let file2 =
+        if not typeExists then
+            file1.Error($"Type not found: {fqn}", getPosition fqn)
+        else
+            file1
+    let expectedArity = getTypeArity fqn
+    let file3 =
+        if args.Length <> expectedArity then
+            file2.Error($"Type {fqn} expects {expectedArity} args, got {args.Length}")
+        else
+            file2
+    let file4 = args |> List.fold (fun f arg -> validateType arg f) file3
+    file4.Info($"Type reference valid: {fqn}")
+
+// With CE - automatic threading
+let validateTypeReference fqn args file =
+    transformer {
+        info $"Validating type reference: {fqn}"
+        // ... (same as above, but file threading is automatic)
+    }
+```
+
+### 6.4 Visitor Builder
+
+**Purpose**: Declarative tree traversal with type-safe pattern matching and control flow.
+
+**Implementation**:
+
+```fsharp
+type VisitorRule<'Node> = {
+    Pattern: 'Node -> bool
+    Action: 'Node -> VisitorAction
+}
+
+type VisitorBuilder() =
+    member _.Yield(_) = []
+
+    member _.Run(rules: VisitorRule<IRNode> list) =
+        fun (node: IRNode) ->
+            rules
+            |> List.tryPick (fun rule ->
+                if rule.Pattern node then
+                    Some (rule.Action node)
+                else
+                    None)
+            |> Option.defaultValue VisitorAction.Continue
+
+    [<CustomOperation("on")>]
+    member _.On(rules: VisitorRule<IRNode> list, pattern: 'a -> bool, action: 'a -> VisitorAction) =
+        let rule = {
+            Pattern = fun node ->
+                match node with
+                | :? 'a as n -> pattern n
+                | _ -> false
+            Action = fun node ->
+                match node with
+                | :? 'a as n -> action n
+                | _ -> VisitorAction.Continue
+        }
+        rules @ [rule]
+
+    [<CustomOperation("when")>]
+    member _.When(rules: VisitorRule<IRNode> list, condition: IRNode -> bool, action: IRNode -> VisitorAction) =
+        let rule = {
+            Pattern = condition
+            Action = action
+        }
+        rules @ [rule]
+
+let visitor = VisitorBuilder()
+```
+
+**Usage**:
+
+```fsharp
+// Define a visitor that collects type variables and skips cached references
+let collectTypeVariables = visitor {
+    on<Type.Variable> (fun (attr, name) ->
+        variables.Add(name)
+        VisitorAction.Continue)
+
+    on<Type.Reference> (fun (attr, fqn, args) ->
+        if isCached fqn then
+            VisitorAction.Skip  // Skip children
+        else
+            VisitorAction.Continue)
+
+    on<Type.Function> (fun (attr, input, output) ->
+        // Custom processing
+        processFunction input output
+        VisitorAction.Continue)
+
+    when (isDeprecated) (fun node ->
+        warn $"Deprecated type: {node}"
+        VisitorAction.Continue)
+}
+
+// Apply visitor to tree
+let result = IRVisitor.visit collectTypeVariables irTree
+```
+
+**Compared to Manual Pattern Matching**:
+
+```fsharp
+// Without CE - manual recursion
+let rec collectTypeVariables node =
+    match node with
+    | Type.Variable(attr, name) ->
+        variables.Add(name)
+        VisitorAction.Continue
+    | Type.Reference(attr, fqn, args) ->
+        if isCached fqn then
+            VisitorAction.Skip
+        else
+            VisitorAction.Continue
+    | Type.Function(attr, input, output) ->
+        processFunction input output
+        VisitorAction.Continue
+    | _ when isDeprecated node ->
+        warn $"Deprecated type: {node}"
+        VisitorAction.Continue
+    | _ -> VisitorAction.Continue
+
+// With CE - declarative rules
+let collectTypeVariables = visitor {
+    on<Type.Variable> (fun (attr, name) ->
+        variables.Add(name)
+        VisitorAction.Continue)
+    // ... (more readable, less boilerplate)
+}
+```
+
+### 6.5 Combined Example
+
+**Complete pipeline using all three builders**:
+
+```fsharp
+// Define transformation plugin with transformer CE
+let optimizeTypesPlugin = {
+    Name = "optimize-types"
+    Configure = id
+    Transform = fun node file ->
+        transformer {
+            info "Optimizing type definitions"
+
+            // Apply visitor CE for optimization
+            let! optimized = visitor {
+                on<Type.Function> (fun (attr, input, output) ->
+                    // Inline simple functions
+                    if isSimple input && isSimple output then
+                        transform (inlineFunction input output)
+                        VisitorAction.Skip
+                    else
+                        VisitorAction.Continue)
+
+                on<Type.Tuple> (fun (attr, items) ->
+                    // Flatten nested tuples
+                    if hasNestedTuples items then
+                        transform (flattenTuples items)
+                        VisitorAction.Continue
+                    else
+                        VisitorAction.Continue)
+            }
+
+            info "Type optimization complete"
+            return optimized
+        }
+}
+
+// Build complete pipeline with pipeline CE
+let irPipeline = pipeline {
+    parse irJsonParser
+
+    // Validation phase
+    use validateIRPlugin
+    use typeCheckerPlugin
+
+    // Optimization phase
+    use normalizeTypesPlugin
+    use optimizeTypesPlugin
+    use inlinePlugin
+
+    // Output phase
+    stringify irJsonSerializer
+    freeze
+}
+
+// Execute pipeline
+let processIR inputPath outputPath =
+    let file = MorphirFile.fromPath inputPath
+    let result = irPipeline.Process(file)
+
+    match result.Messages |> List.filter (fun m -> m.Severity = Error) with
+    | [] ->
+        // No errors, write output
+        MorphirFile.writeTo outputPath result
+        Ok result
+    | errors ->
+        // Report errors
+        errors |> List.iter (printfn "%O")
+        Error errors
+```
+
+### 6.6 Advanced Patterns
+
+**6.6.1 Nested Transformers**:
+
+```fsharp
+let complexTransform node file =
+    transformer {
+        info "Starting complex transformation"
+
+        // Nested transformer for sub-tree
+        let! subtree = transformer {
+            info "Processing subtree"
+            transform optimizeSubtree
+            warn "Subtree optimization applied"
+        }
+
+        // Continue with main transformation
+        transform (combineResults subtree)
+        info "Complex transformation complete"
+    }
+```
+
+**6.6.2 Conditional Visitors**:
+
+```fsharp
+let conditionalVisitor enableOptimizations = visitor {
+    // Always collect variables
+    on<Type.Variable> (fun (attr, name) ->
+        collectVariable name
+        VisitorAction.Continue)
+
+    // Conditional optimization
+    if enableOptimizations then
+        on<Type.Function> (fun (attr, input, output) ->
+            optimizeFunction input output
+            VisitorAction.Continue)
+
+    // Always warn on deprecated
+    when isDeprecated (fun node ->
+        warn $"Deprecated: {node}"
+        VisitorAction.Continue)
+}
+```
+
+**6.6.3 Pipeline Composition**:
+
+```fsharp
+// Base pipeline
+let basePipeline = pipeline {
+    parse irJsonParser
+    use validateIRPlugin
+    stringify irJsonSerializer
+}
+
+// Enhanced pipeline (adds to frozen base)
+let enhancedPipeline = pipeline {
+    parse irJsonParser
+    use validateIRPlugin
+    use optimizePlugin  // Additional step
+    stringify irJsonSerializer
+}
+
+// Production pipeline (different output)
+let productionPipeline = pipeline {
+    parse irJsonParser
+    use validateIRPlugin
+    use optimizePlugin
+    stringify irBinarySerializer  // Different serializer
+}
+```
+
+### 6.7 Benefits Summary
+
+**Type Safety**:
+- Compiler verifies all operations
+- No runtime type errors
+- IntelliSense support
+
+**Readability**:
+- Declarative intent
+- Less boilerplate
+- Clear data flow
+
+**Composability**:
+- Nest builders
+- Combine pipelines
+- Reuse rules
+
+**Maintainability**:
+- Centralized logic
+- Easy to extend
+- Clear separation of concerns
+
+### 6.8 Implementation Priority
+
+**Phase 1** (Week 2): Pipeline Builder
+- Most impactful for API ergonomics
+- Simplifies common use case
+- Foundation for other builders
+
+**Phase 2** (Week 3): Transformer Builder
+- Improves diagnostic threading
+- Reduces boilerplate significantly
+- Builds on Phase 1
+
+**Phase 3** (Week 4): Visitor Builder
+- Advanced pattern
+- Most complex implementation
+- Highest payoff for complex traversals
+
+---
+
+## 7. Bridge Plugins
+
+### 7.1 IR Version Migration
 
 **V2 to V3 Bridge**:
 ```fsharp
@@ -882,9 +1382,9 @@ let irToTypeScriptBridge = {
 
 ---
 
-## 7. Decision Trees
+## 8. Decision Trees
 
-### 7.1 When to Use Processor Pattern
+### 8.1 When to Use Processor Pattern
 
 ```
 Need pluggable transformation pipeline?
@@ -919,7 +1419,7 @@ What does your plugin do?
 
 ---
 
-## 8. Implementation Roadmap
+## 9. Implementation Roadmap
 
 ### Phase 1: Core Infrastructure (Week 1)
 
