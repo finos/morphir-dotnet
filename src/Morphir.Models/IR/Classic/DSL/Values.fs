@@ -456,6 +456,46 @@ module Values =
         let defaultAttrs = ()
 
         /// <summary>
+        /// Yields unit as Unit value (for CustomOperation initial state).
+        /// </summary>
+        member _.Yield((): unit) = Unit defaultAttrs
+
+        /// <summary>
+        /// Yields a bool as Literal value (tagless syntax).
+        /// </summary>
+        member _.Yield(value: bool) = Literal(defaultAttrs, BoolLiteral value)
+
+        /// <summary>
+        /// Yields a string as Literal value (tagless syntax).
+        /// </summary>
+        member _.Yield(value: string) = Literal(defaultAttrs, StringLiteral value)
+
+        /// <summary>
+        /// Yields an int64 as Literal value (tagless syntax).
+        /// </summary>
+        member _.Yield(value: int64) = Literal(defaultAttrs, WholeNumberLiteral value)
+
+        /// <summary>
+        /// Yields an int as Literal value (tagless syntax).
+        /// </summary>
+        member _.Yield(value: int) = Literal(defaultAttrs, WholeNumberLiteral (int64 value))
+
+        /// <summary>
+        /// Yields a float as Literal value (tagless syntax).
+        /// </summary>
+        member _.Yield(value: float) = Literal(defaultAttrs, FloatLiteral value)
+
+        /// <summary>
+        /// Yields a decimal as Literal value (tagless syntax).
+        /// </summary>
+        member _.Yield(value: decimal) = Literal(defaultAttrs, DecimalLiteral value)
+
+        /// <summary>
+        /// Yields a char as Literal value (tagless syntax).
+        /// </summary>
+        member _.Yield(value: char) = Literal(defaultAttrs, CharLiteral value)
+
+        /// <summary>
         /// Yields a Value directly.
         /// </summary>
         member _.Yield(value: Value<unit, unit>) = value
@@ -491,56 +531,56 @@ module Values =
         /// Creates a Literal value (CustomOperation for CE).
         /// </summary>
         [<CustomOperation("literal")>]
-        member _.LiteralOp(_state: Value<unit, unit>, lit: Literal) =
+        member _.literal(_state: Value<unit, unit>, lit: Literal) =
             Literal(defaultAttrs, lit)
 
         /// <summary>
         /// Creates a Variable value (CustomOperation for CE).
         /// </summary>
         [<CustomOperation("variable")>]
-        member _.VariableOp(_state: Value<unit, unit>, name: Name) =
+        member _.variable(_state: Value<unit, unit>, name: Name) =
             Variable(defaultAttrs, name)
 
         /// <summary>
         /// Creates a Variable value from string (CustomOperation for CE).
         /// </summary>
         [<CustomOperation("variable")>]
-        member _.VariableOp(_state: Value<unit, unit>, str: string) =
+        member _.variable(_state: Value<unit, unit>, str: string) =
             Variable(defaultAttrs, Name.fromString str)
 
         /// <summary>
         /// Creates a Tuple value (CustomOperation for CE).
         /// </summary>
         [<CustomOperation("tuple")>]
-        member _.TupleOp(_state: Value<unit, unit>, elements: Value<unit, unit> list) =
+        member _.tuple(_state: Value<unit, unit>, elements: Value<unit, unit> list) =
             Value.Tuple(defaultAttrs, elements)
 
         /// <summary>
         /// Creates a List value (CustomOperation for CE).
         /// </summary>
         [<CustomOperation("list")>]
-        member _.ListOp(_state: Value<unit, unit>, elements: Value<unit, unit> list) =
+        member _.list(_state: Value<unit, unit>, elements: Value<unit, unit> list) =
             Value.List(defaultAttrs, elements)
 
         /// <summary>
         /// Creates a Record value (CustomOperation for CE).
         /// </summary>
         [<CustomOperation("record")>]
-        member _.RecordOp(_state: Value<unit, unit>, fields: Map<Name, Value<unit, unit>>) =
+        member _.record(_state: Value<unit, unit>, fields: Map<Name, Value<unit, unit>>) =
             Value.Record(defaultAttrs, fields)
 
         /// <summary>
         /// Creates a Record value from list (CustomOperation for CE).
         /// </summary>
         [<CustomOperation("record")>]
-        member _.RecordOp(_state: Value<unit, unit>, fields: (Name * Value<unit, unit>) list) =
+        member _.record(_state: Value<unit, unit>, fields: (Name * Value<unit, unit>) list) =
             Value.Record(defaultAttrs, Map.ofList fields)
 
         /// <summary>
         /// Creates a Record value from string-keyed list (CustomOperation for CE).
         /// </summary>
         [<CustomOperation("record")>]
-        member _.RecordOp(_state: Value<unit, unit>, fields: (string * Value<unit, unit>) list) =
+        member _.record(_state: Value<unit, unit>, fields: (string * Value<unit, unit>) list) =
             let nameValuePairs = fields |> List.map (fun (name, value) -> (Name.fromString name, value))
             Value.Record(defaultAttrs, Map.ofList nameValuePairs)
 
@@ -548,14 +588,14 @@ module Values =
         /// Creates a Reference value (CustomOperation for CE).
         /// </summary>
         [<CustomOperation("reference")>]
-        member _.ReferenceOp(_state: Value<unit, unit>, fqName: FQName) =
+        member _.reference(_state: Value<unit, unit>, fqName: FQName) =
             Value.Reference(defaultAttrs, fqName)
 
         /// <summary>
         /// Creates an Apply value (CustomOperation for CE).
         /// </summary>
         [<CustomOperation("apply")>]
-        member _.ApplyOp(_state: Value<unit, unit>, functionExpr: Value<unit, unit>, argumentExpr: Value<unit, unit>) =
+        member _.apply(_state: Value<unit, unit>, functionExpr: Value<unit, unit>, argumentExpr: Value<unit, unit>) =
             Apply(defaultAttrs, functionExpr, argumentExpr)
 
         /// <summary>
