@@ -317,28 +317,30 @@ let valueDef inputTypes outputType body = {
 
 ## Implementation Plan
 
-### Phase 1: Core Changes (High Priority)
+### Phase 1: Core Changes (High Priority) ✅ COMPLETE
 1. ✅ Add `Yield(unit)` overload
 2. ✅ Convert CustomOperations to lowercase
 3. ✅ Add tagless Yield overloads for primitives
+4. ✅ Create comprehensive ValuesTests (26 tests)
+
+**Status**: Completed in commit 7447a7d. All 287 tests passing.
 
 ### Phase 2: Enhancements (Medium Priority)
 4. ⏳ Add `.Apply()` extension method
 5. ⏳ Add ValueDefinition helper to Helpers.fs
-6. ⏳ Update tests
 
 ### Phase 3: Documentation (Low Priority)
-7. ⏳ Add comprehensive examples
-8. ⏳ Document patterns for common use cases
+6. ⏳ Add comprehensive examples
+7. ⏳ Document patterns for common use cases
 
 ## Success Criteria
 
-- [ ] All Values DSL tests compile
-- [ ] All Values DSL tests pass
-- [ ] Tagless syntax works for primitives
-- [ ] CustomOperations work with lowercase names
-- [ ] Extension method for Apply chains correctly
-- [ ] Documentation includes examples of common patterns
+- [x] All Values DSL tests compile ✅
+- [x] All Values DSL tests pass (287/287) ✅
+- [x] Tagless syntax works for primitives ✅
+- [x] CustomOperations work with lowercase names ✅
+- [ ] Extension method for Apply chains correctly (Phase 2)
+- [ ] Documentation includes examples of common patterns (Phase 3)
 
 ## Related Documents
 
