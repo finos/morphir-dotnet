@@ -1,0 +1,295 @@
+---
+# Morphir Application Architect Skill Metadata
+# This file defines the skill's identity, triggers, and capabilities
+
+# Basic Identity
+id: "morphir-architect"
+name: "Morphir Application Architect"
+version: "1.0.0-alpha"
+status: "alpha"
+created: "2025-12-24"
+updated: "2025-12-24"
+
+# Description
+description: |
+  Expert Morphir application architect providing guidance on AST design, functional programming patterns,
+  IR transformations, and code generation for morphir-dotnet.
+
+  Use when user asks to design AST/IR types, implement transformations, select visitor patterns,
+  or apply functional programming patterns. Provides architectural guidance, pattern selection,
+  and best practices for morphir-dotnet development.
+
+# Trigger Keywords
+triggers:
+  - "architecture"
+  - "architect"
+  - "AST"
+  - "IR"
+  - "type system"
+  - "visitor"
+  - "transformation"
+  - "pattern"
+  - "functional programming"
+  - "monad"
+  - "lens"
+  - "railway-oriented"
+  - "ROP"
+  - "computation expression"
+  - "code generation"
+  - "metaprogramming"
+  - "design pattern"
+
+# Domain and Scope
+domain:
+  primary: "Software Architecture"
+  secondary:
+    - "Language Design Patterns"
+    - "Functional Programming"
+    - "AST/IR Design"
+    - "Code Transformations"
+    - "Metaprogramming"
+
+scope:
+  includes:
+    - "AST/CST design with algebraic data types"
+    - "Type system patterns (generic attributes, wrapper types)"
+    - "Visitor pattern selection and implementation"
+    - "Functional programming patterns (monads, lenses, ROP)"
+    - "Computation expressions for AST construction"
+    - "Code generation with FCS, Roslyn, Source Generators, Myriad"
+    - "Railway-Oriented Programming pipelines"
+    - "Immutable structure updates with lenses"
+    - "Pattern matching and exhaustive case analysis"
+    - "F#/C# interop strategies"
+    - "Decision trees for pattern selection"
+    - "Architectural playbooks"
+  excludes:
+    - "Product decisions about features"
+    - "Breaking API changes without coordination"
+    - "Infrastructure and deployment decisions"
+    - "Performance optimization (coordinate with AOT Guru)"
+    - "Testing strategy (coordinate with QA Tester)"
+
+# Competencies
+competencies:
+  primary:
+    - name: "Language Design Patterns"
+      description: "AST/CST design, type systems, visitor implementations, smart constructors"
+    - name: "Functional Programming Patterns"
+      description: "Monads, functors, applicatives, railway-oriented programming, lenses"
+    - name: "Visitor Pattern Expertise"
+      description: "8 visitor variants for different traversal and transformation scenarios"
+    - name: "Computation Expressions"
+      description: "F# computation expressions for tree construction and DSLs"
+    - name: "Compiler Services & Metaprogramming"
+      description: "FCS, Roslyn, Source Generators, Myriad for code generation"
+
+  secondary:
+    - name: "Morphir IR Understanding"
+      description: "Deep knowledge of Classic IR (F#) and Modern IR (C#) architectures"
+    - name: "Architectural Decision Making"
+      description: "Provide decision trees and playbooks for architectural choices"
+    - name: "Pattern Recognition"
+      description: "Identify applicable patterns from extensive knowledge bases"
+    - name: "Cross-Language Expertise"
+      description: "F#/C# interop, Elm pattern translation, language feature mapping"
+
+# Review Capability
+review:
+  enabled: true
+
+  scope:
+    description: |
+      The Morphir Application Architect reviews code for:
+      - Architectural anti-patterns (mutable state, illegal states representable)
+      - Pattern misuse (wrong visitor variant, incorrect monad usage)
+      - Missing pattern opportunities (should use lens, should use ROP)
+      - F#/C# interop issues (type conversions, collection bridging)
+      - Decision tree violations (chose Classic IR when Modern IR appropriate)
+      - Code generation opportunities (repetitive boilerplate)
+
+  frequency: "per-session"
+
+  triggers:
+    - type: "session-completion"
+      description: "After architectural design or significant implementation"
+    - type: "manual-request"
+      description: "When explicitly asked for architectural review"
+    - type: "pr-review"
+      description: "During pull request reviews involving IR changes"
+    - type: "quarterly-scan"
+      description: "Periodic codebase architectural health check"
+
+  output:
+    format: "markdown-report"
+    includes:
+      - "Architectural health assessment"
+      - "Pattern usage analysis"
+      - "Anti-pattern detection"
+      - "Refactoring recommendations"
+      - "Pattern catalog updates needed"
+      - "Decision tree effectiveness"
+
+  integration:
+    retrospectives: true
+    playbooks: true
+    automation: true
+    next_review: true
+
+# Automation Scripts
+automation:
+  scripts:
+    - name: "architecture-review.fsx"
+      purpose: "Scan codebase for architectural anti-patterns and pattern opportunities"
+      token_savings: "1200"
+      status: "planned"
+
+    - name: "ir-consistency-check.fsx"
+      purpose: "Verify Classic IR and Modern IR type parity and conversion functions"
+      token_savings: "800"
+      status: "planned"
+
+    - name: "pattern-matcher.fsx"
+      purpose: "Identify applicable patterns from knowledge bases in existing code"
+      token_savings: "900"
+      status: "planned"
+
+    - name: "knowledge-base-validator.fsx"
+      purpose: "Verify code examples compile, check links, validate cross-references"
+      token_savings: "600"
+      status: "planned"
+
+# Coordination with Other Skills
+coordination:
+  dependencies:
+    - skill: "technical-writer"
+      direction: "to"
+      interaction: "Architecture diagrams, pattern documentation, decision tree visuals"
+      trigger: "New pattern documented or playbook created"
+
+    - skill: "qa-tester"
+      direction: "to"
+      interaction: "Testing strategies for functional code, property-based testing"
+      trigger: "New pattern needs test approach"
+
+    - skill: "aot-guru"
+      direction: "from"
+      interaction: "Pattern selection for AOT compatibility (avoid reflection)"
+      trigger: "Code generation or metaprogramming decisions"
+
+    - skill: "elm-to-fsharp-guru"
+      direction: "to"
+      interaction: "Elm pattern translation to F# patterns"
+      trigger: "Elm migration needs architectural guidance"
+
+# Feedback and Learning
+feedback:
+  capture_method: "architecture-review-template"
+
+  review_schedule: "quarterly"
+
+  improvement_triggers:
+    - condition: "Pattern used 5+ times in codebase"
+      action: "Add to pattern catalog if not documented"
+    - condition: "Anti-pattern detected repeatedly"
+      action: "Add to decision tree warnings"
+    - condition: "User asks for missing playbook"
+      action: "Create playbook and add to skill.md"
+    - condition: "Decision tree fails to disambiguate"
+      action: "Refine decision tree logic"
+
+  learning_system:
+    pattern_catalog: true
+    decision_trees: true
+    playbooks: true
+    templates: true
+
+# Cross-Agent Compatibility
+compatibility:
+  claude_code: true
+  copilot: true
+  cursor: true
+  windsurf: true
+  aider: true
+
+  usage:
+    claude_code: "Use @skill morphir-architect or @skill architect"
+    copilot: "Read .claude/skills/morphir-architect/skill.md and reference knowledge bases"
+    other_agents: "Read skill.md for guidance, run scripts: dotnet fsi .claude/skills/morphir-architect/scripts/{script-name}.fsx"
+
+# Maturity Tracking
+maturity:
+  current_phase: "alpha"
+
+  criteria:
+    alpha:
+      - "skill.md complete (14000+ lines)"
+      - "6 knowledge bases complete (74000+ words total)"
+      - "3 decision trees documented"
+      - "3 playbooks created"
+      - "Pattern catalog with 60+ patterns"
+      - "README.md and MAINTENANCE.md complete"
+
+    beta:
+      - "Review capability tested in 5+ sessions"
+      - "2+ automation scripts implemented"
+      - "Feedback mechanism working"
+      - "Coordination with 3+ other skills tested"
+      - "Templates created for common scenarios"
+      - "Quarterly review completed once"
+
+    stable:
+      - "4 automation scripts implemented"
+      - "2+ quarters of successful use"
+      - "10+ successful architectural reviews"
+      - "Pattern catalog at 80+ patterns"
+      - "All templates tested in real scenarios"
+      - "Token efficiency documented"
+
+# Contact and Maintenance
+maintenance:
+  primary_maintainer: "@DamianReeves"
+  backup_maintainer: "@morphir-dotnet-contributors"
+  last_review: "2025-12-24"
+  next_review: "2026-01-07"
+
+# Knowledge Bases
+knowledge_bases:
+  - path: ".agents/kbs/ecosystem-knowledge-base.md"
+    lines: "3200+"
+    purpose: "Morphir ecosystem, cross-repository patterns, file structure"
+
+  - path: ".agents/kbs/language-design-patterns.md"
+    lines: "1200+"
+    purpose: "AST/CST design, type systems, 22+ patterns"
+
+  - path: ".agents/kbs/visitor-pattern-implementations.md"
+    lines: "950+"
+    purpose: "8 visitor pattern variants with examples"
+
+  - path: ".agents/kbs/computation-expressions-for-ast.md"
+    lines: "400+"
+    purpose: "F# computation expressions for tree construction"
+
+  - path: ".agents/kbs/functional-programming-patterns.md"
+    lines: "2400+"
+    purpose: "18 FP patterns: monads, lenses, ROP, etc."
+
+  - path: ".agents/kbs/compiler-services-metaprogramming.md"
+    lines: "600+"
+    purpose: "FCS, Roslyn, Source Generators, Myriad, Type Providers"
+
+# Decision Logs
+decision_logs:
+  - path: ".agents/decisionlogs/architectural-decisions.md"
+    entries: "25+"
+    purpose: "Architectural Decision Records (ADRs) for morphir-dotnet"
+
+# References
+references:
+  skill_doc: ".claude/skills/morphir-architect/skill.md"
+  readme: ".claude/skills/morphir-architect/README.md"
+  maintenance: ".claude/skills/morphir-architect/MAINTENANCE.md"
+  scripts: ".claude/skills/morphir-architect/scripts/"
+  templates: ".claude/skills/morphir-architect/templates/"
+  patterns: ".claude/skills/morphir-architect/patterns/"
