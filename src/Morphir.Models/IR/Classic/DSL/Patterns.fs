@@ -64,9 +64,9 @@ module Patterns =
             items |> Seq.map f |> Seq.last
 
         /// <summary>
-        /// Zero case (Pattern.WildcardPattern).
+        /// Zero case (Pattern.UnitPattern).
         /// </summary>
-        member _.Zero() = Pattern.WildcardPattern defaultAttrs
+        member _.Zero() = Pattern.UnitPattern defaultAttrs
 
         /// <summary>
         /// Delays the computation (required for proper CE support).
@@ -278,9 +278,9 @@ module Patterns =
             items |> Seq.map f |> Seq.last
 
         /// <summary>
-        /// Zero case (Pattern.WildcardPattern).
+        /// Zero case (Pattern.UnitPattern).
         /// </summary>
-        member _.Zero() = Pattern.WildcardPattern attrs
+        member _.Zero() = Pattern.UnitPattern attrs
 
         /// <summary>
         /// Delays the computation (required for proper CE support).
@@ -450,14 +450,14 @@ module Patterns =
         let defaultAttrs = ()
 
         /// <summary>
-        /// Yields a Pattern directly.
-        /// </summary>
-        member _.Yield(pattern: Pattern.Pattern<unit>) = pattern
-
-        /// <summary>
         /// Yields unit as Pattern.UnitPattern (tagless syntax).
         /// </summary>
         member _.Yield((): unit) = Pattern.UnitPattern defaultAttrs
+
+        /// <summary>
+        /// Yields a Pattern directly.
+        /// </summary>
+        member _.Yield(pattern: Pattern.Pattern<unit>) = pattern
 
         /// <summary>
         /// Yields a 2-tuple of patterns as Pattern.TuplePattern (tagless syntax).
@@ -495,9 +495,9 @@ module Patterns =
             items |> Seq.map f |> Seq.last
 
         /// <summary>
-        /// Zero case (Pattern.WildcardPattern).
+        /// Zero case (Pattern.UnitPattern).
         /// </summary>
-        member _.Zero() = Pattern.WildcardPattern defaultAttrs
+        member _.Zero() = Pattern.UnitPattern defaultAttrs
 
         /// <summary>
         /// Delays the computation (required for proper CE support).
