@@ -861,8 +861,8 @@ type PipelineBuilder() =
     member _.Parse(proc: MorphirProcessor, parser: Parser) =
         { proc with Parsers = proc.Parsers @ [parser] }
 
-    [<CustomOperation("use")>]
-    member _.Use(proc: MorphirProcessor, plugin: Plugin) =
+    [<CustomOperation("plugin")>]
+    member _.Plugin(proc: MorphirProcessor, plugin: Plugin) =
         { proc with Plugins = proc.Plugins @ [plugin] }
 
     [<CustomOperation("stringify")>]
@@ -882,9 +882,9 @@ let pipeline = PipelineBuilder()
 // Define a complete IR transformation pipeline
 let irProcessor = pipeline {
     parse irJsonParser
-    use validateIRPlugin
-    use normalizeTypesPlugin
-    use optimizePlugin
+    plugin validateIRPlugin
+    plugin normalizeTypesPlugin
+    plugin optimizePlugin
     stringify irJsonSerializer
     freeze
 }
@@ -892,10 +892,10 @@ let irProcessor = pipeline {
 // Create variant with additional plugins
 let enhancedProcessor = pipeline {
     parse irJsonParser
-    use validateIRPlugin
-    use normalizeTypesPlugin
-    use optimizePlugin
-    use inlinePlugin  // Additional transformation
+    plugin validateIRPlugin
+    plugin normalizeTypesPlugin
+    plugin optimizePlugin
+    plugin inlinePlugin  // Additional transformation
     stringify irJsonSerializer
 }
 
@@ -910,18 +910,18 @@ let result = irProcessor.Process(inputFile)
 let processor =
     MorphirProcessor.empty
     |> MorphirProcessor.parse irJsonParser
-    |> MorphirProcessor.use validateIRPlugin
-    |> MorphirProcessor.use normalizeTypesPlugin
-    |> MorphirProcessor.use optimizePlugin
+    |> MorphirProcessor.plugin validateIRPlugin
+    |> MorphirProcessor.plugin normalizeTypesPlugin
+    |> MorphirProcessor.plugin optimizePlugin
     |> MorphirProcessor.stringify irJsonSerializer
     |> MorphirProcessor.freeze
 
 // With CE - declarative
 let processor = pipeline {
     parse irJsonParser
-    use validateIRPlugin
-    use normalizeTypesPlugin
-    use optimizePlugin
+    plugin validateIRPlugin
+    plugin normalizeTypesPlugin
+    plugin optimizePlugin
     stringify irJsonSerializer
     freeze
 }
@@ -1188,13 +1188,13 @@ let irPipeline = pipeline {
     parse irJsonParser
 
     // Validation phase
-    use validateIRPlugin
-    use typeCheckerPlugin
+    plugin validateIRPlugin
+    plugin typeCheckerPlugin
 
     // Optimization phase
-    use normalizeTypesPlugin
-    use optimizeTypesPlugin
-    use inlinePlugin
+    plugin normalizeTypesPlugin
+    plugin optimizeTypesPlugin
+    plugin inlinePlugin
 
     // Output phase
     stringify irJsonSerializer
@@ -1267,23 +1267,23 @@ let conditionalVisitor enableOptimizations = visitor {
 // Base pipeline
 let basePipeline = pipeline {
     parse irJsonParser
-    use validateIRPlugin
+    plugin validateIRPlugin
     stringify irJsonSerializer
 }
 
 // Enhanced pipeline (adds to frozen base)
 let enhancedPipeline = pipeline {
     parse irJsonParser
-    use validateIRPlugin
-    use optimizePlugin  // Additional step
+    plugin validateIRPlugin
+    plugin optimizePlugin  // Additional step
     stringify irJsonSerializer
 }
 
 // Production pipeline (different output)
 let productionPipeline = pipeline {
     parse irJsonParser
-    use validateIRPlugin
-    use optimizePlugin
+    plugin validateIRPlugin
+    plugin optimizePlugin
     stringify irBinarySerializer  // Different serializer
 }
 ```
