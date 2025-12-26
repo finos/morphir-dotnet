@@ -5,6 +5,7 @@ namespace Morphir.IR.Classic
 /// Type Expressions, Type Specifications, Type Definitions, and Field types.
 /// All types support generic attributes for extensibility.
 /// </summary>
+[<RequireQualifiedAccess>]
 module Type =
 
     open Morphir.IR
@@ -109,6 +110,38 @@ module Type =
     /// </summary>
     let unit<'attributes> (attributes: 'attributes) : Type<'attributes> =
         Unit attributes
+
+    // Fluent API extensions
+
+    /// <summary>
+    /// Type extension providing fluent methods for Type.
+    /// </summary>
+    type Type<'attributes> with
+        /// <summary>
+        /// Fluent method to create a Function type from an existing type.
+        /// Creates a function type where this type is the argument and the provided type is the return type.
+        /// Uses default attributes.
+        /// </summary>
+        /// <param name="returnType">The return type of the function</param>
+        member this.Arrow(returnType: Type<'attributes>) : Type<'attributes> =
+            Function(Unchecked.defaultof<'attributes>, this, returnType)
+
+        /// <summary>
+        /// Fluent method to create a Function type with explicit attributes.
+        /// </summary>
+        /// <param name="attributes">The attributes for the Function type</param>
+        /// <param name="returnType">The return type of the function</param>
+        member this.Arrow(attributes: 'attributes, returnType: Type<'attributes>) : Type<'attributes> =
+            Function(attributes, this, returnType)
+
+    /// <summary>
+    /// Right-associative operator for creating function types.
+    /// Usage: intType ^-> stringType creates Int -> String
+    /// Chains correctly: intType ^-> charType ^-> stringType creates Int -> (Char -> String)
+    /// Note: Uses ^-> instead of :-> because : is reserved in F# for type annotations
+    /// </summary>
+    let (^->) (argType: Type<'attributes>) (returnType: Type<'attributes>) : Type<'attributes> =
+        Function(Unchecked.defaultof<'attributes>, argType, returnType)
 
     // Helper functions for Type Specifications
 

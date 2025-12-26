@@ -5,6 +5,9 @@ open Morphir.IR
 open Morphir.IR.Classic
 open Morphir.Testing.Assertions
 
+// Import the ^-> operator explicitly
+let (^->) = Type.(^->)
+
 [<Tests>]
 let tests =
     testList "Type" [
@@ -351,6 +354,77 @@ let tests =
                     match unitType with
                     | Type.Unit attrs -> ()
                     | _ -> failwith "Expected Unit type"
+            ]
+
+            testList "^-> operator" [
+                testCase "Creates Function type with ^-> operator"
+                <| fun _ ->
+                    let intType = Type.variable () (Name.fromString "Int")
+                    let stringType = Type.variable () (Name.fromString "String")
+                    let funcType = intType ^-> stringType
+
+                    match funcType with
+                    | Type.Function(attrs, arg, ret) ->
+                        arg |> Expect.equal intType
+                        ret |> Expect.equal stringType
+                    | _ -> failwith "Expected Function type"
+
+                testCase "^-> operator is right-associative"
+                <| fun _ ->
+                    let intType = Type.variable () (Name.fromString "Int")
+                    let charType = Type.variable () (Name.fromString "Char")
+                    let stringType = Type.variable () (Name.fromString "String")
+
+                    // intType ^-> charType ^-> stringType should equal intType ^-> (charType ^-> stringType)
+                    let chained = intType ^-> charType ^-> stringType
+                    let rightAssoc = intType ^-> (charType ^-> stringType)
+
+                    chained |> Expect.equal rightAssoc
+
+                    // Should create Int -> (Char -> String), not (Int -> Char) -> String
+                    match chained with
+                    | Type.Function(_, arg1, innerFunc) ->
+                        arg1 |> Expect.equal intType
+                        match innerFunc with
+                        | Type.Function(_, arg2, ret) ->
+                            arg2 |> Expect.equal charType
+                            ret |> Expect.equal stringType
+                        | _ -> failwith "Expected nested Function type"
+                    | _ -> failwith "Expected Function type"
+            ]
+
+            testList "Arrow fluent method" [
+                testCase "Creates Function type with .Arrow() method"
+                <| fun _ ->
+                    let intType = Type.variable () (Name.fromString "Int")
+                    let stringType = Type.variable () (Name.fromString "String")
+                    let funcType = intType.Arrow(stringType)
+
+                    match funcType with
+                    | Type.Function(attrs, arg, ret) ->
+                        arg |> Expect.equal intType
+                        ret |> Expect.equal stringType
+                    | _ -> failwith "Expected Function type"
+
+                testCase ".Arrow() chains correctly"
+                <| fun _ ->
+                    let intType = Type.variable () (Name.fromString "Int")
+                    let charType = Type.variable () (Name.fromString "Char")
+                    let stringType = Type.variable () (Name.fromString "String")
+
+                    // Chaining Arrow() should work left-to-right
+                    let chained = intType.Arrow(charType).Arrow(stringType)
+
+                    // This creates (Int -> Char) -> String (left-associative)
+                    match chained with
+                    | Type.Function(_, innerFunc, ret) ->
+                        match innerFunc with
+                        | Type.Function(_, arg1, arg2) ->
+                            arg1 |> Expect.equal intType
+                            arg2 |> Expect.equal charType
+                        | _ -> failwith "Expected nested Function type"
+                        ret |> Expect.equal stringType
+                    | _ -> failwith "Expected Function type"
             ]
         ]
 

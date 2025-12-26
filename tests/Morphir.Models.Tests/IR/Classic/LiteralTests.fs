@@ -92,20 +92,20 @@ let tests =
         testList "decimalLiteral" [
             testCase "Creates DecimalLiteral"
             <| fun _ ->
-                let lit = Literal.decimalLiteral "123.456"
+                let lit = Literal.decimalLiteral 123.456m
 
                 match lit with
                 | Literal.DecimalLiteral value ->
-                    value |> Expect.equal "123.456"
+                    value |> Expect.equal 123.456m
                 | _ -> failwith "Expected DecimalLiteral"
 
             testCase "Creates DecimalLiteral with negative number"
             <| fun _ ->
-                let lit = Literal.decimalLiteral "-123.456"
+                let lit = Literal.decimalLiteral -123.456m
 
                 match lit with
                 | Literal.DecimalLiteral value ->
-                    value |> Expect.equal "-123.456"
+                    value |> Expect.equal -123.456m
                 | _ -> failwith "Expected DecimalLiteral"
         ]
 
@@ -172,13 +172,13 @@ let tests =
 
             testCase "DecimalLiteral formats as string value"
             <| fun _ ->
-                let lit = Literal.decimalLiteral "123.456"
+                let lit = Literal.decimalLiteral 123.456m
                 Literal.toString lit
                 |> Expect.equal "123.456"
 
             testCase "DecimalLiteral formats negative numbers"
             <| fun _ ->
-                let lit = Literal.decimalLiteral "-123.456"
+                let lit = Literal.decimalLiteral -123.456m
                 Literal.toString lit
                 |> Expect.equal "-123.456"
         ]

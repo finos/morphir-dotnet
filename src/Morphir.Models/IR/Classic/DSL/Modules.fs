@@ -7,7 +7,6 @@ module Modules =
 
     open Morphir.IR
     open Morphir.IR.Classic.Module
-    open Morphir.IR.Classic.Type
     open Morphir.IR.Classic.Value
     open Morphir.IR.Classic.AccessControlled
     open Morphir.IR.Classic.Documented
@@ -18,7 +17,7 @@ module Modules =
     /// </summary>
     type ModuleSpecificationBuilder<'attributes>
         (
-            types: Map<Name, Documented<TypeSpecification<'attributes>>>,
+            types: Map<Name, Documented<Morphir.IR.Classic.Type.TypeSpecification<'attributes>>>,
             values: Map<Name, Documented<ValueSpecification<'attributes>>>,
             doc: string option
         ) =
@@ -31,25 +30,25 @@ module Modules =
         /// <summary>
         /// Adds a type to the module specification.
         /// </summary>
-        member this.Type(name: Name, spec: TypeSpecification<'attributes>) =
+        member this.Type(name: Name, spec: Morphir.IR.Classic.Type.TypeSpecification<'attributes>) =
             ModuleSpecificationBuilder(Map.add name (withoutDocumentation spec) types, values, doc)
 
         /// <summary>
         /// Adds a type with documentation.
         /// </summary>
-        member this.Type(name: Name, spec: TypeSpecification<'attributes>, documentation: string) =
+        member this.Type(name: Name, spec: Morphir.IR.Classic.Type.TypeSpecification<'attributes>, documentation: string) =
             ModuleSpecificationBuilder(Map.add name (withDocumentation documentation spec) types, values, doc)
 
         /// <summary>
         /// Adds a type with string name.
         /// </summary>
-        member this.Type(name: string, spec: TypeSpecification<'attributes>) =
+        member this.Type(name: string, spec: Morphir.IR.Classic.Type.TypeSpecification<'attributes>) =
             this.Type(Name.fromString name, spec)
 
         /// <summary>
         /// Adds a type with string name and documentation.
         /// </summary>
-        member this.Type(name: string, spec: TypeSpecification<'attributes>, documentation: string) =
+        member this.Type(name: string, spec: Morphir.IR.Classic.Type.TypeSpecification<'attributes>, documentation: string) =
             this.Type(Name.fromString name, spec, documentation)
 
         /// <summary>
@@ -108,7 +107,7 @@ module Modules =
     /// </summary>
     type ModuleDefinitionBuilder<'typeAttributes, 'valueAttributes>
         (
-            types: Map<Name, AccessControlled<Documented<TypeDefinition<'typeAttributes>>>>,
+            types: Map<Name, AccessControlled<Documented<Morphir.IR.Classic.Type.TypeDefinition<'typeAttributes>>>>,
             values: Map<Name, AccessControlled<Documented<ValueDefinition<'typeAttributes, 'valueAttributes>>>>,
             doc: string option
         ) =
@@ -121,37 +120,37 @@ module Modules =
         /// <summary>
         /// Adds a public type to the module definition.
         /// </summary>
-        member this.Type(name: Name, def: TypeDefinition<'typeAttributes>) =
+        member this.Type(name: Name, def: Morphir.IR.Classic.Type.TypeDefinition<'typeAttributes>) =
             ModuleDefinitionBuilder(Map.add name (public' (withoutDocumentation def)) types, values, doc)
 
         /// <summary>
         /// Adds a public type with documentation.
         /// </summary>
-        member this.Type(name: Name, def: TypeDefinition<'typeAttributes>, documentation: string) =
+        member this.Type(name: Name, def: Morphir.IR.Classic.Type.TypeDefinition<'typeAttributes>, documentation: string) =
             ModuleDefinitionBuilder(Map.add name (public' (withDocumentation documentation def)) types, values, doc)
 
         /// <summary>
         /// Adds a private type to the module definition.
         /// </summary>
-        member this.PrivateType(name: Name, def: TypeDefinition<'typeAttributes>) =
+        member this.PrivateType(name: Name, def: Morphir.IR.Classic.Type.TypeDefinition<'typeAttributes>) =
             ModuleDefinitionBuilder(Map.add name (private' (withoutDocumentation def)) types, values, doc)
 
         /// <summary>
         /// Adds a private type with documentation.
         /// </summary>
-        member this.PrivateType(name: Name, def: TypeDefinition<'typeAttributes>, documentation: string) =
+        member this.PrivateType(name: Name, def: Morphir.IR.Classic.Type.TypeDefinition<'typeAttributes>, documentation: string) =
             ModuleDefinitionBuilder(Map.add name (private' (withDocumentation documentation def)) types, values, doc)
 
         /// <summary>
         /// Adds a type with string name.
         /// </summary>
-        member this.Type(name: string, def: TypeDefinition<'typeAttributes>) =
+        member this.Type(name: string, def: Morphir.IR.Classic.Type.TypeDefinition<'typeAttributes>) =
             this.Type(Name.fromString name, def)
 
         /// <summary>
         /// Adds a type with string name and documentation.
         /// </summary>
-        member this.Type(name: string, def: TypeDefinition<'typeAttributes>, documentation: string) =
+        member this.Type(name: string, def: Morphir.IR.Classic.Type.TypeDefinition<'typeAttributes>, documentation: string) =
             this.Type(Name.fromString name, def, documentation)
 
         /// <summary>

@@ -8,7 +8,6 @@ namespace Morphir.IR.Classic
 module Value =
 
     open Morphir.IR
-    open Type
     open Literal
     open System.Collections.Generic // For Map
 
@@ -41,16 +40,16 @@ module Value =
     /// Contains only type information, no implementation.
     /// </summary>
     and ValueSpecification<'attributes> =
-        { Inputs: (Name * Type<'attributes>) list
-          Output: Type<'attributes> }
+        { Inputs: (Name * Type.Type<'attributes>) list
+          Output: Type.Type<'attributes> }
 
     /// <summary>
     /// ValueDefinition provides the complete implementation of a value or function.
     /// Contains both type information and implementation.
     /// </summary>
     and ValueDefinition<'typeAttributes, 'valueAttributes> =
-        { InputTypes: (Name * 'valueAttributes * Type<'typeAttributes>) list
-          OutputType: Type<'typeAttributes>
+        { InputTypes: (Name * 'valueAttributes * Type.Type<'typeAttributes>) list
+          OutputType: Type.Type<'typeAttributes>
           Body: Value<'typeAttributes, 'valueAttributes> }
 
     // Helper functions for Value Expressions
@@ -168,7 +167,7 @@ module Value =
     /// <summary>
     /// Creates a ValueSpecification.
     /// </summary>
-    let valueSpecification<'attributes> (inputs: (Name * Type<'attributes>) list) (output: Type<'attributes>) : ValueSpecification<'attributes> =
+    let valueSpecification<'attributes> (inputs: (Name * Type.Type<'attributes>) list) (output: Type.Type<'attributes>) : ValueSpecification<'attributes> =
         { Inputs = inputs
           Output = output }
 
@@ -177,7 +176,7 @@ module Value =
     /// <summary>
     /// Creates a ValueDefinition.
     /// </summary>
-    let valueDefinition<'typeAttributes, 'valueAttributes> (inputTypes: (Name * 'valueAttributes * Type<'typeAttributes>) list) (outputType: Type<'typeAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : ValueDefinition<'typeAttributes, 'valueAttributes> =
+    let valueDefinition<'typeAttributes, 'valueAttributes> (inputTypes: (Name * 'valueAttributes * Type.Type<'typeAttributes>) list) (outputType: Type.Type<'typeAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : ValueDefinition<'typeAttributes, 'valueAttributes> =
         { InputTypes = inputTypes
           OutputType = outputType
           Body = body }
@@ -281,7 +280,7 @@ module Value =
     /// </summary>
     module ValueSpecification =
         let toString (spec: ValueSpecification<'attributes>) : string =
-            let formatInputs (inputs: (Name * Type<'attributes>) list) : string =
+            let formatInputs (inputs: (Name * Type.Type<'attributes>) list) : string =
                 match inputs with
                 | [] -> ""
                 | _ ->

@@ -7,7 +7,7 @@ namespace Morphir.IR.Classic
 module Literal =
 
     /// <summary>
-    /// Literal represents a constant value in the Morphir IR.
+    /// Literal represents a constant value in the MorphIr IR.
     /// </summary>
     type Literal =
         | BoolLiteral of bool
@@ -15,7 +15,7 @@ module Literal =
         | StringLiteral of string
         | WholeNumberLiteral of int64
         | FloatLiteral of float
-        | DecimalLiteral of string
+        | DecimalLiteral of decimal
 
     /// <summary>
     /// Creates a boolean literal.
@@ -43,9 +43,9 @@ module Literal =
     let floatLiteral (value: float) : Literal = FloatLiteral value
 
     /// <summary>
-    /// Creates a decimal literal (arbitrary-precision, stored as string).
+    /// Creates a decimal literal using .NET decimal type.
     /// </summary>
-    let decimalLiteral (value: string) : Literal = DecimalLiteral value
+    let decimalLiteral (value: decimal) : Literal = DecimalLiteral value
 
     // toString functions
 
@@ -80,7 +80,7 @@ module Literal =
         | BoolLiteral value -> if value then "True" else "False"
         | CharLiteral value -> $"'{escapeChar value}'"
         | StringLiteral value -> $"\"{escapeString value}\""
-        | WholeNumberLiteral value -> value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        | WholeNumberLiteral value -> value.ToString System.Globalization.CultureInfo.InvariantCulture
         | FloatLiteral value -> value.ToString("G", System.Globalization.CultureInfo.InvariantCulture)
-        | DecimalLiteral value -> value
+        | DecimalLiteral value -> value.ToString System.Globalization.CultureInfo.InvariantCulture
 

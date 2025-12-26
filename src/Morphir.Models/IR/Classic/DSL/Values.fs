@@ -7,7 +7,6 @@ module Values =
 
     open Morphir.IR
     open Morphir.IR.Classic.Value
-    open Morphir.IR.Classic.Type
     open Morphir.IR.Classic
     open Morphir.IR.Classic.Literal
     open System.Collections.Generic

@@ -3,7 +3,8 @@ namespace Morphir.IR.Classic.DSL
 open System.Runtime.CompilerServices
 
 /// <summary>
-/// Literals module provides helper functions and Computation Expression builders for creating Literal values.
+/// Literals module provides Computation Expression builders for creating Literal values.
+/// Supports both tagless (type-inferred) and tagged (explicit) syntax.
 /// </summary>
 module Literals =
 
@@ -11,12 +12,48 @@ module Literals =
 
     /// <summary>
     /// LiteralBuilder provides a Computation Expression for creating Literal values.
+    /// Supports hybrid pattern: both tagless (Yield overloads) and tagged (CustomOperations).
     /// </summary>
     type LiteralBuilder() =
         /// <summary>
-        /// Yields a Literal directly.
+        /// Yields a Literal directly (pass-through for existing Literals).
         /// </summary>
         member _.Yield(lit: Literal) = lit
+
+        /// <summary>
+        /// Yields a bool as BoolLiteral (tagless syntax).
+        /// </summary>
+        member _.Yield(value: bool) = BoolLiteral value
+
+        /// <summary>
+        /// Yields a char as CharLiteral (tagless syntax).
+        /// </summary>
+        member _.Yield(value: char) = CharLiteral value
+
+        /// <summary>
+        /// Yields a string as StringLiteral (tagless syntax).
+        /// </summary>
+        member _.Yield(value: string) = StringLiteral value
+
+        /// <summary>
+        /// Yields an int64 as WholeNumberLiteral (tagless syntax).
+        /// </summary>
+        member _.Yield(value: int64) = WholeNumberLiteral value
+
+        /// <summary>
+        /// Yields an int32 as WholeNumberLiteral, converting to int64 (tagless syntax).
+        /// </summary>
+        member _.Yield(value: int) = WholeNumberLiteral(int64 value)
+
+        /// <summary>
+        /// Yields a float as FloatLiteral (tagless syntax).
+        /// </summary>
+        member _.Yield(value: float) = FloatLiteral value
+
+        /// <summary>
+        /// Yields a decimal as DecimalLiteral (tagless syntax).
+        /// </summary>
+        member _.Yield(value: decimal) = DecimalLiteral value
 
         /// <summary>
         /// Combines multiple Literals (takes the last one).
@@ -30,9 +67,9 @@ module Literals =
             items |> Seq.map f |> Seq.last
 
         /// <summary>
-        /// Zero case (BoolLiteral false).
+        /// Zero case (empty string literal).
         /// </summary>
-        member _.Zero() = BoolLiteral false
+        member _.Zero() = StringLiteral ""
 
         /// <summary>
         /// Delays the computation (required for proper CE support).
@@ -44,73 +81,52 @@ module Literals =
         /// </summary>
         member _.Run(f: unit -> Literal) = f()
 
-        /// Helper methods for creating literals (lowercase for CE)
+        /// Tagged syntax via CustomOperations (for explicit documentation)
         /// <summary>
-        /// Creates a BoolLiteral (method for CE).
+        /// Creates a BoolLiteral (CustomOperation for CE).
         /// </summary>
-        member _.bool(value: bool) = BoolLiteral value
+        [<CustomOperation("Bool")>]
+        member _.BoolOp(_state: Literal, value: bool) = BoolLiteral value
 
         /// <summary>
-        /// Creates a CharLiteral (method for CE).
+        /// Creates a CharLiteral (CustomOperation for CE).
         /// </summary>
-        member _.char(value: char) = CharLiteral value
+        [<CustomOperation("Char")>]
+        member _.CharOp(_state: Literal, value: char) = CharLiteral value
 
         /// <summary>
-        /// Creates a StringLiteral (method for CE).
+        /// Creates a StringLiteral (CustomOperation for CE).
         /// </summary>
-        member _.string(value: string) = StringLiteral value
+        [<CustomOperation("String")>]
+        member _.StringOp(_state: Literal, value: string) = StringLiteral value
 
         /// <summary>
-        /// Creates a WholeNumberLiteral (method for CE).
+        /// Creates a WholeNumberLiteral from int64 (CustomOperation for CE).
         /// </summary>
-        member _.int(value: int64) = WholeNumberLiteral value
+        [<CustomOperation("Int")>]
+        member _.IntOp(_state: Literal, value: int64) = WholeNumberLiteral value
 
         /// <summary>
-        /// Creates a FloatLiteral (method for CE).
+        /// Creates a WholeNumberLiteral from int32, converting to int64 (CustomOperation for CE).
         /// </summary>
-        member _.float(value: float) = FloatLiteral value
+        [<CustomOperation("Int")>]
+        member _.IntOp(_state: Literal, value: int) = WholeNumberLiteral(int64 value)
 
         /// <summary>
-        /// Creates a DecimalLiteral (method for CE).
+        /// Creates a FloatLiteral (CustomOperation for CE).
         /// </summary>
-        member _.decimal(value: string) = DecimalLiteral value
+        [<CustomOperation("Float")>]
+        member _.FloatOp(_state: Literal, value: float) = FloatLiteral value
+
+        /// <summary>
+        /// Creates a DecimalLiteral from decimal type (CustomOperation for CE).
+        /// Use 'm' suffix: literal { Decimal 123.45m }
+        /// </summary>
+        [<CustomOperation("Decimal")>]
+        member _.DecimalOp(_state: Literal, value: decimal) = DecimalLiteral value
 
     /// <summary>
     /// Global builder instance for use in Computation Expressions.
     /// </summary>
     let literal = LiteralBuilder()
-
-    /// <summary>
-    /// Helper functions for creating literals (for convenience, can be used without CE).
-    /// </summary>
-    module Helpers =
-        /// <summary>
-        /// Creates a BoolLiteral.
-        /// </summary>
-        let boolLiteral (value: bool) = BoolLiteral value
-
-        /// <summary>
-        /// Creates a CharLiteral.
-        /// </summary>
-        let charLiteral (value: char) = CharLiteral value
-
-        /// <summary>
-        /// Creates a StringLiteral.
-        /// </summary>
-        let stringLiteral (value: string) = StringLiteral value
-
-        /// <summary>
-        /// Creates a WholeNumberLiteral.
-        /// </summary>
-        let wholeNumberLiteral (value: int64) = WholeNumberLiteral value
-
-        /// <summary>
-        /// Creates a FloatLiteral.
-        /// </summary>
-        let floatLiteral (value: float) = FloatLiteral value
-
-        /// <summary>
-        /// Creates a DecimalLiteral.
-        /// </summary>
-        let decimalLiteral (value: string) = DecimalLiteral value
 

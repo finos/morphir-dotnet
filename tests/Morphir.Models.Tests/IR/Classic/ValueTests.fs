@@ -152,7 +152,7 @@ let tests =
             testList "lambda" [
                 testCase "Creates Lambda value"
                 <| fun _ ->
-                    let pattern = Pattern.wildcardPattern ()
+                    let pattern = Pattern.wildcard ()
                     let body = Value.variable () (Name.fromList [ "x" ])
                     let value = Value.lambda () pattern body
 
@@ -193,7 +193,7 @@ let tests =
             testList "destructure" [
                 testCase "Creates Destructure value"
                 <| fun _ ->
-                    let pattern = Pattern.tuplePattern () [ Pattern.wildcardPattern (); Pattern.wildcardPattern () ]
+                    let pattern = Pattern.tuple () [ Pattern.wildcard (); Pattern.wildcard () ]
                     let valueToDestructure = Value.tuple () [ Value.unit (); Value.unit () ]
                     let inExpr = Value.unit ()
                     let value = Value.destructure () pattern valueToDestructure inExpr
@@ -221,7 +221,7 @@ let tests =
                 <| fun _ ->
                     let valueToMatch = Value.variable () (Name.fromList [ "x" ])
                     let cases = [
-                        (Pattern.wildcardPattern (), Value.unit ())
+                        (Pattern.wildcard (), Value.unit ())
                     ]
                     let value = Value.patternMatch () valueToMatch cases
 
@@ -389,7 +389,7 @@ let tests =
 
                 testCase "Lambda formats as \\pattern -> body"
                 <| fun _ ->
-                    let pattern = Pattern.wildcardPattern ()
+                    let pattern = Pattern.wildcard ()
                     let body = Value.literal () (Literal.wholeNumberLiteral 1L)
                     let value = Value.lambda () pattern body
                     Value.toString value
@@ -397,7 +397,7 @@ let tests =
 
                 testCase "Lambda with AsPattern formats correctly"
                 <| fun _ ->
-                    let pattern = Pattern.asPattern () (Pattern.wildcardPattern ()) (Name.fromList [ "x" ])
+                    let pattern = Pattern.asPattern () (Pattern.wildcard ()) (Name.fromList [ "x" ])
                     let body = Value.variable () (Name.fromList [ "x" ])
                     let value = Value.lambda () pattern body
                     Value.toString value
@@ -405,7 +405,7 @@ let tests =
 
                 testCase "Destructure formats as let pattern = value in body"
                 <| fun _ ->
-                    let pattern = Pattern.wildcardPattern ()
+                    let pattern = Pattern.wildcard ()
                     let valueToDestructure = Value.literal () (Literal.wholeNumberLiteral 1L)
                     let inValue = Value.variable () (Name.fromList [ "x" ])
                     let value = Value.destructure () pattern valueToDestructure inValue
@@ -415,7 +415,7 @@ let tests =
                 testCase "PatternMatch formats as case value of pattern -> body"
                 <| fun _ ->
                     let valueToMatch = Value.literal () (Literal.wholeNumberLiteral 1L)
-                    let pattern = Pattern.wildcardPattern ()
+                    let pattern = Pattern.wildcard ()
                     let body = Value.literal () (Literal.wholeNumberLiteral 2L)
                     let value = Value.patternMatch () valueToMatch [ (pattern, body) ]
                     Value.toString value
@@ -424,8 +424,8 @@ let tests =
                 testCase "PatternMatch with multiple cases formats correctly"
                 <| fun _ ->
                     let valueToMatch = Value.literal () (Literal.boolLiteral true)
-                    let case1 = (Pattern.literalPattern () (Literal.boolLiteral true), Value.literal () (Literal.wholeNumberLiteral 1L))
-                    let case2 = (Pattern.literalPattern () (Literal.boolLiteral false), Value.literal () (Literal.wholeNumberLiteral 2L))
+                    let case1 = (Pattern.literal () (Literal.boolLiteral true), Value.literal () (Literal.wholeNumberLiteral 1L))
+                    let case2 = (Pattern.literal () (Literal.boolLiteral false), Value.literal () (Literal.wholeNumberLiteral 2L))
                     let value = Value.patternMatch () valueToMatch [ case1; case2 ]
                     Value.toString value
                     |> Expect.equal "case True of True -> 1; False -> 2"
