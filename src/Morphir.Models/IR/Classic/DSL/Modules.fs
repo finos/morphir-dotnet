@@ -239,3 +239,154 @@ module Modules =
     /// </summary>
     let module' = moduleDef
 
+    // ===== NEW CE-BASED MODULE BUILDER =====
+
+    /// <summary>
+    /// Module state for CE pattern.
+    /// </summary>
+    type ModuleState = {
+        Types: Map<Name, AccessControlled<Documented<Morphir.IR.Classic.Type.TypeDefinition<unit>>>>
+        Values: Map<Name, AccessControlled<Documented<ValueDefinition<unit, unit>>>>
+        Doc: string option
+    }
+
+    /// <summary>
+    /// ModBuilder - CE-based module definition builder (base class).
+    /// </summary>
+    type ModBuilder() =
+        /// <summary>
+        /// Yields unit to create initial empty state.
+        /// </summary>
+        member _.Yield((): unit) : ModuleState =
+            { Types = Map.empty; Values = Map.empty; Doc = None }
+
+        /// <summary>
+        /// Zero creates empty state.
+        /// </summary>
+        member _.Zero() : ModuleState =
+            { Types = Map.empty; Values = Map.empty; Doc = None }
+
+        /// <summary>
+        /// Delay delays computation.
+        /// </summary>
+        member _.Delay(f: unit -> ModuleState) = f
+
+        /// <summary>
+        /// Run produces final ModuleDefinition.
+        /// </summary>
+        member _.Run(f: unit -> ModuleState) : ModuleDefinition<unit, unit> =
+            let state = f()
+            moduleDefinition state.Types state.Values state.Doc
+
+        /// <summary>
+        /// Combine merges two states (last wins for Doc).
+        /// </summary>
+        member _.Combine(state1: ModuleState, state2: ModuleState) : ModuleState =
+            { Types = Map.fold (fun acc k v -> Map.add k v acc) state1.Types state2.Types
+              Values = Map.fold (fun acc k v -> Map.add k v acc) state1.Values state2.Values
+              Doc = Option.orElse state1.Doc state2.Doc }
+
+        /// <summary>
+        /// CustomOperation: Adds a public type definition.
+        /// Usage: typedef "MyType" typeDefinition
+        /// </summary>
+        [<CustomOperation("typedef")>]
+        member _.typedef(state: ModuleState, name: string, def: Morphir.IR.Classic.Type.TypeDefinition<unit>) : ModuleState =
+            let typeName = Name.fromString name
+            let documented = withoutDocumentation def
+            let accessControlled = public' documented
+            { state with Types = Map.add typeName accessControlled state.Types }
+
+        /// <summary>
+        /// CustomOperation: Adds a public value definition.
+        /// Usage: valuedef "myValue" valueDefinition
+        /// </summary>
+        [<CustomOperation("valuedef")>]
+        member _.valuedef(state: ModuleState, name: string, def: ValueDefinition<unit, unit>) : ModuleState =
+            let valueName = Name.fromString name
+            let documented = withoutDocumentation def
+            let accessControlled = public' documented
+            { state with Values = Map.add valueName accessControlled state.Values }
+
+        /// <summary>
+        /// CustomOperation: Sets module documentation.
+        /// Usage: doc "Module documentation"
+        /// </summary>
+        [<CustomOperation("doc")>]
+        member _.doc(state: ModuleState, documentation: string) : ModuleState =
+            { state with Doc = Some documentation }
+
+        /// <summary>
+        /// CustomOperation: Adds a public type definition explicitly.
+        /// Usage: publicType "MyType" typeDefinition
+        /// </summary>
+        [<CustomOperation("publicType")>]
+        member _.publicType(state: ModuleState, name: string, def: Morphir.IR.Classic.Type.TypeDefinition<unit>) : ModuleState =
+            let typeName = Name.fromString name
+            let documented = withoutDocumentation def
+            let accessControlled = public' documented
+            { state with Types = Map.add typeName accessControlled state.Types }
+
+        /// <summary>
+        /// CustomOperation: Adds a private type definition explicitly.
+        /// Usage: privateType "InternalType" typeDefinition
+        /// </summary>
+        [<CustomOperation("privateType")>]
+        member _.privateType(state: ModuleState, name: string, def: Morphir.IR.Classic.Type.TypeDefinition<unit>) : ModuleState =
+            let typeName = Name.fromString name
+            let documented = withoutDocumentation def
+            let accessControlled = private' documented
+            { state with Types = Map.add typeName accessControlled state.Types }
+
+        /// <summary>
+        /// CustomOperation: Adds a public value definition explicitly.
+        /// Usage: publicValue "myValue" valueDefinition
+        /// </summary>
+        [<CustomOperation("publicValue")>]
+        member _.publicValue(state: ModuleState, name: string, def: ValueDefinition<unit, unit>) : ModuleState =
+            let valueName = Name.fromString name
+            let documented = withoutDocumentation def
+            let accessControlled = public' documented
+            { state with Values = Map.add valueName accessControlled state.Values }
+
+        /// <summary>
+        /// CustomOperation: Adds a private value definition explicitly.
+        /// Usage: privateValue "internalHelper" valueDefinition
+        /// </summary>
+        [<CustomOperation("privateValue")>]
+        member _.privateValue(state: ModuleState, name: string, def: ValueDefinition<unit, unit>) : ModuleState =
+            let valueName = Name.fromString name
+            let documented = withoutDocumentation def
+            let accessControlled = private' documented
+            { state with Values = Map.add valueName accessControlled state.Values }
+
+    /// <summary>
+    /// ModBuilderWithDoc - Builder that starts with documentation.
+    /// Supports: modWithDoc "documentation" { }
+    /// </summary>
+    type ModBuilderWithDoc(documentation: string) =
+        inherit ModBuilder()
+
+        /// <summary>
+        /// Yields unit with initial documentation.
+        /// </summary>
+        member _.Yield((): unit) : ModuleState =
+            { Types = Map.empty; Values = Map.empty; Doc = Some documentation }
+
+        /// <summary>
+        /// Zero with documentation.
+        /// </summary>
+        member _.Zero() : ModuleState =
+            { Types = Map.empty; Values = Map.empty; Doc = Some documentation }
+
+    /// <summary>
+    /// Global mod' builder instance (without documentation).
+    /// </summary>
+    let mod' = ModBuilder()
+
+    /// <summary>
+    /// modWithDoc function creates builder with documentation.
+    /// Usage: modWithDoc "My module docs" { }
+    /// </summary>
+    let modWithDoc (documentation: string) = ModBuilderWithDoc(documentation)
+
