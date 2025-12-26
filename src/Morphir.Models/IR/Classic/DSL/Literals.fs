@@ -16,6 +16,11 @@ module Literals =
     /// </summary>
     type LiteralBuilder() =
         /// <summary>
+        /// Yields unit as empty StringLiteral (for CustomOperation initial state).
+        /// </summary>
+        member _.Yield((): unit) = StringLiteral ""
+
+        /// <summary>
         /// Yields a Literal directly (pass-through for existing Literals).
         /// </summary>
         member _.Yield(lit: Literal) = lit

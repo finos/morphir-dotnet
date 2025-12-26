@@ -10,8 +10,7 @@ module LiteralsTests =
     [<Tests>]
     let tests =
         testList "DSL Literals" [
-            // TODO: Fix LiteralsTests - LiteralBuilder needs Yield(unit) overload for tagless syntax
-            (* testList "Tagged Syntax (CustomOperations)" [
+            testList "Tagged Syntax (CustomOperations)" [
                 testCase "Creates BoolLiteral with tagged syntax"
                 <| fun _ ->
                     let result = literal { Bool true }
@@ -132,5 +131,5 @@ module LiteralsTests =
                     let expected = StringLiteral ""
                     result |> Expect.equal expected
             ]
-            *) ]
+        ]
 
