@@ -12,6 +12,7 @@
 
     <ItemGroup>
         <Compile Include="File.fs" />
+        <Compile Include="Processor.fs" />
     </ItemGroup>
 
 </Project>

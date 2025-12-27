@@ -27,6 +27,7 @@
 
     <ItemGroup>
         <Compile Include="FileTests.fs" />
+        <Compile Include="ProcessorTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
