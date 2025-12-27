@@ -90,3 +90,86 @@ module Distributions =
     /// </summary>
     let distribution = DistributionBuilder()
 
+    // ===== NEW CE-BASED DISTRIBUTION BUILDER =====
+
+    /// <summary>
+    /// Distribution state for CE pattern.
+    /// </summary>
+    type DistributionState = {
+        PackageName: PackageName option
+        Dependencies: Map<PackageName, PackageSpecification<unit>>
+        Package: PackageDefinition<unit, unit> option
+    }
+
+    /// <summary>
+    /// DistBuilder - CE-based distribution builder.
+    /// </summary>
+    type DistBuilder() =
+        /// <summary>
+        /// Yields unit to create initial empty state.
+        /// </summary>
+        member _.Yield((): unit) : DistributionState =
+            { PackageName = None; Dependencies = Map.empty; Package = None }
+
+        /// <summary>
+        /// Zero creates empty state.
+        /// </summary>
+        member _.Zero() : DistributionState =
+            { PackageName = None; Dependencies = Map.empty; Package = None }
+
+        /// <summary>
+        /// Delay delays computation.
+        /// </summary>
+        member _.Delay(f: unit -> DistributionState) = f
+
+        /// <summary>
+        /// Run produces final Distribution.
+        /// Requires library name to be set.
+        /// </summary>
+        member _.Run(f: unit -> DistributionState) : Distribution<unit, unit> =
+            let state = f()
+            match state.PackageName with
+            | None -> failwith "Distribution requires a library name. Use 'library \"com.example.myapp\"' to set the package name."
+            | Some pkgName ->
+                let pkgDef = state.Package |> Option.defaultValue (Morphir.IR.Classic.Package.packageDefinition Map.empty)
+                library pkgName state.Dependencies pkgDef
+
+        /// <summary>
+        /// Combine merges two states (last wins for PackageName and Package).
+        /// </summary>
+        member _.Combine(state1: DistributionState, state2: DistributionState) : DistributionState =
+            { PackageName = Option.orElse state1.PackageName state2.PackageName
+              Dependencies = Map.fold (fun acc k v -> Map.add k v acc) state1.Dependencies state2.Dependencies
+              Package = Option.orElse state1.Package state2.Package }
+
+        /// <summary>
+        /// CustomOperation: Sets the library package name.
+        /// Usage: library "com.example.myapp"
+        /// </summary>
+        [<CustomOperation("library")>]
+        member _.library(state: DistributionState, nameStr: string) : DistributionState =
+            let pkgName = PackageName.packageNameFromString nameStr
+            { state with PackageName = Some pkgName }
+
+        /// <summary>
+        /// CustomOperation: Sets the package definition.
+        /// Usage: package myPackageDefinition
+        /// </summary>
+        [<CustomOperation("package")>]
+        member _.package(state: DistributionState, pkgDef: PackageDefinition<unit, unit>) : DistributionState =
+            { state with Package = Some pkgDef }
+
+        /// <summary>
+        /// CustomOperation: Adds a dependency to the distribution.
+        /// Usage: dependency "com.acme.utils" utilsSpec
+        /// </summary>
+        [<CustomOperation("dependency")>]
+        member _.dependency(state: DistributionState, nameStr: string, spec: PackageSpecification<unit>) : DistributionState =
+            let pkgName = PackageName.packageNameFromString nameStr
+            { state with Dependencies = Map.add pkgName spec state.Dependencies }
+
+    /// <summary>
+    /// Global dist builder instance.
+    /// </summary>
+    let dist = DistBuilder()
+
