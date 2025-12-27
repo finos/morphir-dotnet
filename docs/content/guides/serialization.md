@@ -43,17 +43,28 @@ let semVerOptions = {
 
 ### Encoding and Decoding
 
-Each IR type has a codec module with `encode`, `decode`, and direct writer/reader functions:
+Each IR type has a codec module with `encode`, `decode`, `encodeWithOptions`, `decodeWithOptions`, and direct writer/reader functions:
 
 ```fsharp
 open Morphir.IR
+open Morphir.Json
 open Morphir.Json.Codecs
 
-// Name serialization
+// Name serialization (uses default v3 options)
 let name = Name.fromList [ "foo"; "bar" ]
 let encoded = NameCodec.encode name
-// Result: ["foo", "bar"]
+// Result (Classic): ["foo", "bar"]
 
+// Name serialization with explicit options
+let v1Name = NameCodec.encodeWithOptions MorphirJsonOptions.v1 name
+// Result (Classic v1): ["foo", "bar"]
+
+// SemVer format uses kebab-case strings
+let semVerOptions = MorphirJsonOptions.withFormatVersion (SemVer { Major = 4; Minor = 0; Patch = 0; PreRelease = None; BuildMetadata = None }) MorphirJsonOptions.v3
+let semVerName = NameCodec.encodeWithOptions semVerOptions name
+// Result (SemVer): "foo-bar"
+
+// Decoding auto-detects format (accepts both array and string)
 let decoded = NameCodec.decode encoded
 // Result: Ok (Name ["foo"; "bar"])
 
@@ -78,45 +89,59 @@ Literal types use different tag formats depending on the format version:
 ```fsharp
 open Morphir.IR.Classic.Literal
 open Morphir.IR.Versioning
+open Morphir.Json
 
 let literal = BoolLiteral true
 
 // v1/v2 format: snake_case tags
-let v1Encoded = LiteralCodec.encode (Classic 1) literal
+let v1Encoded = LiteralCodec.encodeWithOptions MorphirJsonOptions.v1 literal
 // Result: ["bool_literal", true]
 
-// v3+ format: PascalCase tags
-let v3Encoded = LiteralCodec.encode (Classic 3) literal
+// v3+ format: PascalCase tags (default)
+let v3Encoded = LiteralCodec.encode literal
 // Result: ["BoolLiteral", true]
 
-// Decoding accepts any format
+// Explicit v3 encoding
+let v3EncodeExplicit = LiteralCodec.encodeWithOptions MorphirJsonOptions.v3 literal
+// Result: ["BoolLiteral", true]
+
+// Decoding accepts any format (auto-detection)
 let decoded = LiteralCodec.decode v1Encoded
 // Result: Ok (BoolLiteral true)
 ```
 
 ### Using JsonConverters
 
-For integration with `System.Text.Json`, use the provided JsonConverters:
+For integration with `System.Text.Json`, use the provided JsonConverters. All converters now accept `MorphirJsonOptions` to configure version-specific behavior:
 
 ```fsharp
 open System.Text.Json
+open Morphir.Json
 open Morphir.Json.Codecs
 
-// Create options with converters
+// Create options with converters using default v3 format
 let options = JsonSerializerOptions()
-options.Converters.Add(NameJsonConverter())
-options.Converters.Add(PathJsonConverter())
-options.Converters.Add(PackageNameJsonConverter())
-options.Converters.Add(ModulePathJsonConverter())
-options.Converters.Add(FQNameJsonConverter())
-options.Converters.Add(LiteralJsonConverter(MorphirJsonOptions.v3))
+options.Converters.Add(NameJsonConverter())               // Uses v3 by default
+options.Converters.Add(PathJsonConverter())               // Uses v3 by default
+options.Converters.Add(PackageNameJsonConverter())        // Uses v3 by default
+options.Converters.Add(ModulePathJsonConverter())         // Uses v3 by default
+options.Converters.Add(FQNameJsonConverter())             // Uses v3 by default
+options.Converters.Add(LiteralJsonConverter())            // Uses v3 by default
+
+// Or configure for a specific version
+let v1Options = JsonSerializerOptions()
+let morphirOpts = MorphirJsonOptions.v1
+v1Options.Converters.Add(NameJsonConverter(morphirOpts))
+v1Options.Converters.Add(PathJsonConverter(morphirOpts))
+v1Options.Converters.Add(LiteralJsonConverter(morphirOpts))
+// ... add other converters with v1 options
 
 // Serialize
 let name = Name.fromList [ "test"; "name" ]
 let json = JsonSerializer.Serialize(name, options)
 // Result: ["test","name"]
 
-// Deserialize
+// Deserialize (auto-detects format)
 let deserialized = JsonSerializer.Deserialize<Name>(json, options)
 // Result: Name ["test"; "name"]
 ```

@@ -54,12 +54,12 @@ let nameCodecTests =
                 let decoded = NameCodec.decode element
                 Expect.equal decoded (Ok (Name.fromList ["hello"; "world"])) "Should decode"
 
-            testCase "fails on non-array"
+            testCase "fails on invalid type (number)"
             <| fun _ ->
-                let json = "\"not an array\""
+                let json = "42"
                 let element = JsonDocument.Parse(json).RootElement
                 let decoded = NameCodec.decode element
-                Expect.isError decoded "Should fail on non-array"
+                Expect.isError decoded "Should fail on invalid type (number)"
         ]
 
         testList "JsonConverter" [
@@ -229,42 +229,42 @@ let literalCodecTests =
             testCase "bool literal roundtrips"
             <| fun _ ->
                 let literal = BoolLiteral true
-                let encoded = LiteralCodec.encode (Classic 3) literal
+                let encoded = LiteralCodec.encodeWithOptions MorphirJsonOptions.v3 literal
                 let decoded = LiteralCodec.decode encoded
                 Expect.equal decoded (Ok literal) "BoolLiteral should roundtrip"
 
             testCase "string literal roundtrips"
             <| fun _ ->
                 let literal = StringLiteral "hello world"
-                let encoded = LiteralCodec.encode (Classic 3) literal
+                let encoded = LiteralCodec.encodeWithOptions MorphirJsonOptions.v3 literal
                 let decoded = LiteralCodec.decode encoded
                 Expect.equal decoded (Ok literal) "StringLiteral should roundtrip"
 
             testCase "char literal roundtrips"
             <| fun _ ->
                 let literal = CharLiteral 'x'
-                let encoded = LiteralCodec.encode (Classic 3) literal
+                let encoded = LiteralCodec.encodeWithOptions MorphirJsonOptions.v3 literal
                 let decoded = LiteralCodec.decode encoded
                 Expect.equal decoded (Ok literal) "CharLiteral should roundtrip"
 
             testCase "whole number literal roundtrips"
             <| fun _ ->
                 let literal = WholeNumberLiteral 42L
-                let encoded = LiteralCodec.encode (Classic 3) literal
+                let encoded = LiteralCodec.encodeWithOptions MorphirJsonOptions.v3 literal
                 let decoded = LiteralCodec.decode encoded
                 Expect.equal decoded (Ok literal) "WholeNumberLiteral should roundtrip"
 
             testCase "float literal roundtrips"
             <| fun _ ->
                 let literal = FloatLiteral 3.14159
-                let encoded = LiteralCodec.encode (Classic 3) literal
+                let encoded = LiteralCodec.encodeWithOptions MorphirJsonOptions.v3 literal
                 let decoded = LiteralCodec.decode encoded
                 Expect.equal decoded (Ok literal) "FloatLiteral should roundtrip"
 
             testCase "decimal literal roundtrips"
             <| fun _ ->
                 let literal = DecimalLiteral 123.456m
-                let encoded = LiteralCodec.encode (Classic 3) literal
+                let encoded = LiteralCodec.encodeWithOptions MorphirJsonOptions.v3 literal
                 let decoded = LiteralCodec.decode encoded
                 Expect.equal decoded (Ok literal) "DecimalLiteral should roundtrip"
         ]
@@ -273,21 +273,21 @@ let literalCodecTests =
             testCase "v1 uses snake_case tags"
             <| fun _ ->
                 let literal = BoolLiteral true
-                let encoded = LiteralCodec.encode (Classic 1) literal
+                let encoded = LiteralCodec.encodeWithOptions MorphirJsonOptions.v1 literal
                 let items = encoded.EnumerateArray() |> Seq.toList
                 Expect.equal (items.[0].GetString()) "bool_literal" "v1 should use snake_case"
 
             testCase "v2 uses snake_case tags"
             <| fun _ ->
                 let literal = StringLiteral "test"
-                let encoded = LiteralCodec.encode (Classic 2) literal
+                let encoded = LiteralCodec.encodeWithOptions MorphirJsonOptions.v2 literal
                 let items = encoded.EnumerateArray() |> Seq.toList
                 Expect.equal (items.[0].GetString()) "string_literal" "v2 should use snake_case"
 
             testCase "v3 uses PascalCase tags"
             <| fun _ ->
                 let literal = BoolLiteral false
-                let encoded = LiteralCodec.encode (Classic 3) literal
+                let encoded = LiteralCodec.encodeWithOptions MorphirJsonOptions.v3 literal
                 let items = encoded.EnumerateArray() |> Seq.toList
                 Expect.equal (items.[0].GetString()) "BoolLiteral" "v3 should use PascalCase"
 
@@ -295,7 +295,8 @@ let literalCodecTests =
             <| fun _ ->
                 let semVer = { Major = 4; Minor = 0; Patch = 0; PreRelease = None; BuildMetadata = None }
                 let literal = WholeNumberLiteral 100L
-                let encoded = LiteralCodec.encode (SemVer semVer) literal
+                let semVerOptions = { FormatVersion = SemVer semVer; WriteIndented = false }
+                let encoded = LiteralCodec.encodeWithOptions semVerOptions literal
                 let items = encoded.EnumerateArray() |> Seq.toList
                 Expect.equal (items.[0].GetString()) "WholeNumberLiteral" "SemVer should use PascalCase"
         ]

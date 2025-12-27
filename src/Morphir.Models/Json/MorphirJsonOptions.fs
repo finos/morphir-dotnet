@@ -165,3 +165,28 @@ module MorphirJsonOptions =
         jsonOptions.Encoder <- System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         jsonOptions
 
+    /// <summary>
+    /// Gets the options value from an optional parameter, using the default if not provided.
+    /// </summary>
+    let getOrDefault (optionsParam: MorphirJsonOptions option) : MorphirJsonOptions =
+        defaultArg optionsParam defaultOptions
+
+    /// <summary>
+    /// Attempts to detect the format version from JSON content based on tag naming patterns.
+    /// Returns v3 if detection is inconclusive.
+    /// </summary>
+    let tryDetectVersion (jsonText: string) : FormatVersion =
+        // Look for common tag patterns to detect version:
+        // v1: lowercase type tags, snake_case literal tags
+        // v2: PascalCase type tags, snake_case literal tags
+        // v3: PascalCase for all tags
+        if jsonText.Contains("_literal") then
+            // v1 or v2 format (has snake_case literal tags)
+            if jsonText.Contains("\"variable\"") || jsonText.Contains("\"reference\"") then
+                Classic 1  // v1 has lowercase type tags
+            else
+                Classic 2  // v2 has PascalCase type tags
+        else
+            // v3+ format (no snake_case tags)
+            Classic 3
+

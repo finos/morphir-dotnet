@@ -35,9 +35,10 @@ module LiteralCodec =
         TagNaming.literalTag version baseName
 
     /// <summary>
-    /// Writes a Literal directly to a Utf8JsonWriter using the specified format version.
+    /// Writes a Literal directly to a Utf8JsonWriter using the specified options.
     /// </summary>
-    let writeTo (version: FormatVersion) (writer: Utf8JsonWriter) (literal: Literal) : unit =
+    let writeToWithOptions (options: MorphirJsonOptions) (writer: Utf8JsonWriter) (literal: Literal) : unit =
+        let version = options.FormatVersion
         writer.WriteStartArray()
         match literal with
         | BoolLiteral value ->
@@ -62,15 +63,27 @@ module LiteralCodec =
         writer.WriteEndArray()
 
     /// <summary>
-    /// Encodes a Literal to a JsonElement using the specified format version.
+    /// Writes a Literal directly to a Utf8JsonWriter using default options (v3).
     /// </summary>
-    let encode (version: FormatVersion) (literal: Literal) : JsonElement =
+    let writeTo (writer: Utf8JsonWriter) (literal: Literal) : unit =
+        writeToWithOptions MorphirJsonOptions.defaultOptions writer literal
+
+    /// <summary>
+    /// Encodes a Literal to a JsonElement using the specified options.
+    /// </summary>
+    let encodeWithOptions (options: MorphirJsonOptions) (literal: Literal) : JsonElement =
         use stream = new System.IO.MemoryStream()
         use writer = new Utf8JsonWriter(stream)
-        writeTo version writer literal
+        writeToWithOptions options writer literal
         writer.Flush()
         stream.Position <- 0L
         JsonDocument.Parse(stream).RootElement.Clone()
+
+    /// <summary>
+    /// Encodes a Literal to a JsonElement using default options (v3).
+    /// </summary>
+    let encode (literal: Literal) : JsonElement =
+        encodeWithOptions MorphirJsonOptions.defaultOptions literal
 
     /// <summary>
     /// Normalizes a tag for comparison (handles both v1/v2 and v3+ formats).
@@ -87,10 +100,12 @@ module LiteralCodec =
         normalized.ToLowerInvariant()
 
     /// <summary>
-    /// Reads a Literal directly from a Utf8JsonReader.
-    /// Accepts both v1/v2 and v3+ tag formats.
+    /// Reads a Literal directly from a Utf8JsonReader using the specified options.
+    /// Accepts both v1/v2 and v3+ tag formats (auto-detected).
     /// </summary>
-    let readFrom (reader: byref<Utf8JsonReader>) : Result<Literal, string> =
+    let readFromWithOptions (options: MorphirJsonOptions) (reader: byref<Utf8JsonReader>) : Result<Literal, string> =
+        // Options parameter available for future use (e.g., strict validation mode)
+        // Currently, reading is version-agnostic and accepts all formats
         if reader.TokenType <> JsonTokenType.StartArray then
             Error $"Expected StartArray for Literal, got {reader.TokenType}"
         else
@@ -177,19 +192,33 @@ module LiteralCodec =
                             result
 
     /// <summary>
-    /// Decodes a JsonElement to a Literal.
-    /// Accepts both v1/v2 and v3+ tag formats.
+    /// Reads a Literal directly from a Utf8JsonReader using default options.
+    /// Accepts both v1/v2 and v3+ tag formats (auto-detected).
     /// </summary>
-    let decode (element: JsonElement) : Result<Literal, string> =
+    let readFrom (reader: byref<Utf8JsonReader>) : Result<Literal, string> =
+        readFromWithOptions MorphirJsonOptions.defaultOptions &reader
+
+    /// <summary>
+    /// Decodes a JsonElement to a Literal using the specified options.
+    /// Accepts both v1/v2 and v3+ tag formats (auto-detected).
+    /// </summary>
+    let decodeWithOptions (options: MorphirJsonOptions) (element: JsonElement) : Result<Literal, string> =
         if element.ValueKind <> JsonValueKind.Array then
             Error $"Expected JSON array for Literal, got {element.ValueKind}"
         else
             let rawText = element.GetRawText()
             let mutable reader = Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes(rawText))
             if reader.Read() then
-                readFrom &reader
+                readFromWithOptions options &reader
             else
                 Error "Failed to read JSON element"
+
+    /// <summary>
+    /// Decodes a JsonElement to a Literal using default options.
+    /// Accepts both v1/v2 and v3+ tag formats (auto-detected).
+    /// </summary>
+    let decode (element: JsonElement) : Result<Literal, string> =
+        decodeWithOptions MorphirJsonOptions.defaultOptions element
 
 
 /// <summary>
@@ -205,12 +234,12 @@ type LiteralJsonConverter(options: MorphirJsonOptions) =
     new() = LiteralJsonConverter(MorphirJsonOptions.defaultOptions)
 
     override _.Read(reader: byref<Utf8JsonReader>, _typeToConvert: Type, _options: JsonSerializerOptions) : Literal =
-        match LiteralCodec.readFrom &reader with
+        match LiteralCodec.readFromWithOptions options &reader with
         | Ok literal -> literal
         | Error msg -> raise (JsonException(msg))
 
     override _.Write(writer: Utf8JsonWriter, value: Literal, _options: JsonSerializerOptions) : unit =
-        LiteralCodec.writeTo options.FormatVersion writer value
+        LiteralCodec.writeToWithOptions options writer value
 
     override _.CanConvert(typeToConvert: Type) : bool =
         typeToConvert = typeof<Literal>

@@ -4,6 +4,7 @@ open System
 open System.Text.Json
 open System.Text.Json.Serialization
 open Morphir.IR
+open Morphir.Json
 
 /// <summary>
 /// FQNameCodec module provides JSON encoding and decoding for FQName values.
@@ -13,22 +14,28 @@ open Morphir.IR
 module FQNameCodec =
 
     /// <summary>
-    /// Writes an FQName directly to a Utf8JsonWriter.
+    /// Writes an FQName directly to a Utf8JsonWriter using the specified options.
     /// </summary>
-    let writeTo (writer: Utf8JsonWriter) (fqName: FQName) : unit =
+    let writeToWithOptions (options: MorphirJsonOptions) (writer: Utf8JsonWriter) (fqName: FQName) : unit =
         writer.WriteStartArray()
         // Package path
-        PackageNameCodec.writeTo writer fqName.PackagePath
+        PackageNameCodec.writeToWithOptions options writer fqName.PackagePath
         // Module path
-        ModulePathCodec.writeTo writer fqName.ModulePath
+        ModulePathCodec.writeToWithOptions options writer fqName.ModulePath
         // Local name
-        NameCodec.writeTo writer fqName.LocalName
+        NameCodec.writeToWithOptions options writer fqName.LocalName
         writer.WriteEndArray()
 
     /// <summary>
-    /// Reads an FQName directly from a Utf8JsonReader.
+    /// Writes an FQName directly to a Utf8JsonWriter using default options (v3).
     /// </summary>
-    let readFrom (reader: byref<Utf8JsonReader>) : Result<FQName, string> =
+    let writeTo (writer: Utf8JsonWriter) (fqName: FQName) : unit =
+        writeToWithOptions MorphirJsonOptions.defaultOptions writer fqName
+
+    /// <summary>
+    /// Reads an FQName directly from a Utf8JsonReader using the specified options.
+    /// </summary>
+    let readFromWithOptions (options: MorphirJsonOptions) (reader: byref<Utf8JsonReader>) : Result<FQName, string> =
         if reader.TokenType <> JsonTokenType.StartArray then
             Error $"Expected StartArray for FQName, got {reader.TokenType}"
         else
@@ -36,21 +43,21 @@ module FQNameCodec =
             if not (reader.Read()) then
                 Error "Unexpected end of JSON when reading FQName package path"
             else
-                match PackageNameCodec.readFrom &reader with
+                match PackageNameCodec.readFromWithOptions options &reader with
                 | Error msg -> Error $"Failed to read FQName package path: {msg}"
                 | Ok packagePath ->
                     // Read module path
                     if not (reader.Read()) then
                         Error "Unexpected end of JSON when reading FQName module path"
                     else
-                        match ModulePathCodec.readFrom &reader with
+                        match ModulePathCodec.readFromWithOptions options &reader with
                         | Error msg -> Error $"Failed to read FQName module path: {msg}"
                         | Ok modulePath ->
                             // Read local name
                             if not (reader.Read()) then
                                 Error "Unexpected end of JSON when reading FQName local name"
                             else
-                                match NameCodec.readFrom &reader with
+                                match NameCodec.readFromWithOptions options &reader with
                                 | Error msg -> Error $"Failed to read FQName local name: {msg}"
                                 | Ok localName ->
                                     // Read closing array bracket
@@ -60,46 +67,69 @@ module FQNameCodec =
                                         Ok { PackagePath = packagePath; ModulePath = modulePath; LocalName = localName }
 
     /// <summary>
-    /// Encodes an FQName to a JsonElement.
+    /// Reads an FQName directly from a Utf8JsonReader using default options.
     /// </summary>
-    let encode (fqName: FQName) : JsonElement =
+    let readFrom (reader: byref<Utf8JsonReader>) : Result<FQName, string> =
+        readFromWithOptions MorphirJsonOptions.defaultOptions &reader
+
+    /// <summary>
+    /// Encodes an FQName to a JsonElement using the specified options.
+    /// </summary>
+    let encodeWithOptions (options: MorphirJsonOptions) (fqName: FQName) : JsonElement =
         use stream = new System.IO.MemoryStream()
         use writer = new Utf8JsonWriter(stream)
-        writeTo writer fqName
+        writeToWithOptions options writer fqName
         writer.Flush()
         stream.Position <- 0L
         JsonDocument.Parse(stream).RootElement.Clone()
 
     /// <summary>
-    /// Decodes a JsonElement to an FQName.
+    /// Encodes an FQName to a JsonElement using default options (v3).
+    /// </summary>
+    let encode (fqName: FQName) : JsonElement =
+        encodeWithOptions MorphirJsonOptions.defaultOptions fqName
+
+    /// <summary>
+    /// Decodes a JsonElement to an FQName using the specified options.
     /// Expects a 3-element JSON array: [packagePath, modulePath, localName]
     /// </summary>
-    let decode (element: JsonElement) : Result<FQName, string> =
+    let decodeWithOptions (options: MorphirJsonOptions) (element: JsonElement) : Result<FQName, string> =
         if element.ValueKind <> JsonValueKind.Array then
             Error $"Expected JSON array for FQName, got {element.ValueKind}"
         else
             let rawText = element.GetRawText()
             let mutable reader = Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes(rawText))
             if reader.Read() then
-                readFrom &reader
+                readFromWithOptions options &reader
             else
                 Error "Failed to read JSON element"
 
+    /// <summary>
+    /// Decodes a JsonElement to an FQName using default options.
+    /// </summary>
+    let decode (element: JsonElement) : Result<FQName, string> =
+        decodeWithOptions MorphirJsonOptions.defaultOptions element
+
 
 /// <summary>
-/// JsonConverter for FQName type.
+/// JsonConverter for FQName type with configurable format version.
 /// Serializes FQName as a 3-element JSON array.
 /// </summary>
-type FQNameJsonConverter() =
+type FQNameJsonConverter(options: MorphirJsonOptions) =
     inherit JsonConverter<FQName>()
 
+    /// <summary>
+    /// Creates an FQNameJsonConverter with default options (v3).
+    /// </summary>
+    new() = FQNameJsonConverter(MorphirJsonOptions.defaultOptions)
+
     override _.Read(reader: byref<Utf8JsonReader>, _typeToConvert: Type, _options: JsonSerializerOptions) : FQName =
-        match FQNameCodec.readFrom &reader with
+        match FQNameCodec.readFromWithOptions options &reader with
         | Ok fqName -> fqName
         | Error msg -> raise (JsonException(msg))
 
     override _.Write(writer: Utf8JsonWriter, value: FQName, _options: JsonSerializerOptions) : unit =
-        FQNameCodec.writeTo writer value
+        FQNameCodec.writeToWithOptions options writer value
 
     override _.CanConvert(typeToConvert: Type) : bool =
         typeToConvert = typeof<FQName>
