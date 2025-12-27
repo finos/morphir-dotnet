@@ -42,6 +42,8 @@
         <Compile Include="IR/DSL/PatternsTests.fs" />
         <Compile Include="IR/DSL/LiteralsTests.fs" />
         <Compile Include="IR/DSL/ModulesTests.fs" />
+        <Compile Include="IR/DSL/PackagesTests.fs" />
+        <Compile Include="IR/DSL/DistributionsTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

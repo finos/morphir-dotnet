@@ -107,3 +107,110 @@ module Packages =
     /// </summary>
     let package' = packageDef
 
+    // ===== NEW CE-BASED PACKAGE BUILDER =====
+
+    /// <summary>
+    /// Package state for CE pattern.
+    /// </summary>
+    type PackageState = {
+        Modules: Map<ModulePath, AccessControlled<ModuleDefinition<unit, unit>>>
+    }
+
+    /// <summary>
+    /// PackageBuilder - CE-based package definition builder.
+    /// </summary>
+    type PackageBuilder() =
+        /// <summary>
+        /// Yields unit to create initial empty state.
+        /// </summary>
+        member _.Yield((): unit) : PackageState =
+            { Modules = Map.empty }
+
+        /// <summary>
+        /// Zero creates empty state.
+        /// </summary>
+        member _.Zero() : PackageState =
+            { Modules = Map.empty }
+
+        /// <summary>
+        /// Delay delays computation.
+        /// </summary>
+        member _.Delay(f: unit -> PackageState) = f
+
+        /// <summary>
+        /// Run produces final PackageDefinition.
+        /// </summary>
+        member _.Run(f: unit -> PackageState) : PackageDefinition<unit, unit> =
+            let state = f()
+            packageDefinition state.Modules
+
+        /// <summary>
+        /// Combine merges two states (last wins for module collisions).
+        /// </summary>
+        member _.Combine(state1: PackageState, state2: PackageState) : PackageState =
+            { Modules = Map.fold (fun acc k v -> Map.add k v acc) state1.Modules state2.Modules }
+
+        /// <summary>
+        /// For enables iteration support in computation expressions.
+        /// </summary>
+        member this.For(sequence: seq<'a>, body: 'a -> PackageState) : PackageState =
+            sequence
+            |> Seq.fold (fun state item ->
+                let newState = body item
+                this.Combine(state, newState)
+            ) { Modules = Map.empty }
+
+        /// <summary>
+        /// CustomOperation: Adds a public module definition (default).
+        /// Usage: moduledef "com.example.Customer" customerModule
+        /// </summary>
+        [<CustomOperation("moduledef")>]
+        member _.moduledef(state: PackageState, pathStr: string, moduleDef: ModuleDefinition<unit, unit>) : PackageState =
+            let modulePath = ModulePath.modulePathFromString pathStr
+            let accessControlled = public' moduleDef
+            { state with Modules = Map.add modulePath accessControlled state.Modules }
+
+        /// <summary>
+        /// CustomOperation: Adds a public module definition explicitly.
+        /// Usage: publicModule "com.example.Order" orderModule
+        /// </summary>
+        [<CustomOperation("publicModule")>]
+        member _.publicModule(state: PackageState, pathStr: string, moduleDef: ModuleDefinition<unit, unit>) : PackageState =
+            let modulePath = ModulePath.modulePathFromString pathStr
+            let accessControlled = public' moduleDef
+            { state with Modules = Map.add modulePath accessControlled state.Modules }
+
+        /// <summary>
+        /// CustomOperation: Adds a private module definition explicitly.
+        /// Usage: privateModule "com.internal.Utils" utilsModule
+        /// </summary>
+        [<CustomOperation("privateModule")>]
+        member _.privateModule(state: PackageState, pathStr: string, moduleDef: ModuleDefinition<unit, unit>) : PackageState =
+            let modulePath = ModulePath.modulePathFromString pathStr
+            let accessControlled = private' moduleDef
+            { state with Modules = Map.add modulePath accessControlled state.Modules }
+
+        /// <summary>
+        /// CustomOperation: Extends package with modules from another package definition.
+        /// Usage: extend basePackage
+        /// </summary>
+        [<CustomOperation("extend")>]
+        member _.extend(state: PackageState, pkgDef: PackageDefinition<unit, unit>) : PackageState =
+            // Add all modules from the package definition to current state
+            // Error on collision (module path already exists)
+            let newModules =
+                pkgDef.Modules
+                |> Map.fold (fun acc path accessControlledModule ->
+                    if Map.containsKey path state.Modules then
+                        let pathStr = path |> ModulePath.modulePathToPath |> Path.toCanonicalString
+                        failwithf "Module path collision: '%s' already exists in package. Cannot extend with duplicate module paths." pathStr
+                    else
+                        Map.add path accessControlledModule acc
+                ) state.Modules
+            { state with Modules = newModules }
+
+    /// <summary>
+    /// Global pkg builder instance.
+    /// </summary>
+    let pkg = PackageBuilder()
+
