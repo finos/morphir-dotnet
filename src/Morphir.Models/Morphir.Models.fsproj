@@ -13,6 +13,8 @@
 
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="System.Text.Json" />
+        <PackageReference Include="FSharp.SystemTextJson" />
     </ItemGroup>
 
     <ItemGroup>
@@ -42,6 +44,11 @@
         <Compile Include="IR/Classic/DSL/Distributions.fs" />
         <Compile Include="IR/DSL/Names.fs" />
         <Compile Include="IR/DSL/DSL.fs" />
+        <Compile Include="Json/MorphirJsonOptions.fs" />
+        <Compile Include="Json/Codecs/NameCodec.fs" />
+        <Compile Include="Json/Codecs/PathCodec.fs" />
+        <Compile Include="Json/Codecs/FQNameCodec.fs" />
+        <Compile Include="Json/Codecs/LiteralCodec.fs" />
     </ItemGroup>
 
     <ItemGroup>
