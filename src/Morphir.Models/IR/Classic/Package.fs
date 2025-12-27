@@ -7,8 +7,7 @@ namespace Morphir.IR.Classic
 /// </summary>
 module Package =
 
-    open Morphir.IR.PackageName
-    open Morphir.IR.ModulePath
+    open Morphir.IR
     open Module
     open AccessControlled
     open System.Collections.Generic // For Map

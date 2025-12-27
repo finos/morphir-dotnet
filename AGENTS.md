@@ -132,6 +132,7 @@ C# 14 / .NET 10 specifics
 
 F# specifics
 - See [F# Coding Guide](./docs/contributing/fsharp-coding-guide.md) for comprehensive F# standards
+- **Computation Expressions for DSLs**: Use CustomOperations for query-style syntax, Yield/Delay/Run for compositional nesting, or combine both for flexible hybrid DSLs (see [CE Guide](./docs/contributing/fsharp-coding-guide.md#computation-expressions-and-dsls))
 - **Prefer active patterns** over complex if-then chains for value extraction
 - Use discriminated unions to make illegal states unrepresentable
 - Follow CLI logging standards (stdout for data, stderr for diagnostics)
@@ -166,8 +167,9 @@ Model Morphir IR precisely:
 - Types: aliases, custom (union) types, records, tuples, functions.
 - Values/Expr: literals, lambdas, application, pattern matching.
 - Keep IR fidelity; avoid lossy representations.
+- **DSL Builders**: Use F# Computation Expressions for clean IR construction syntax (see [Morphir IR DSL](./src/Morphir.Models/IR/Classic/DSL/) and [CE Guide](./docs/contributing/fsharp-coding-guide.md#computation-expressions-and-dsls))
 
-F# example
+F# example (type definitions)
 ```fsharp
 type NameSegment = private NameSegment of string
 module NameSegment =
@@ -184,6 +186,28 @@ type TypeExpr =
   | TTuple of TypeExpr list
   | TRecord of Map<string, TypeExpr>
   | TFunc of input: TypeExpr * output: TypeExpr
+```
+
+F# example (DSL usage with Computation Expressions)
+```fsharp
+// Clean syntax for building IR constructs using CE DSL
+let personType =
+    type' {
+        record [
+            field "name" stringType
+            field "age" intType
+        ]
+    }
+
+let morphirBasicsInt =
+    fqName {
+        package ["morphir"; "sdk"]
+        module' ["basics"]
+        local "int"
+    }
+
+let boolLiteral = literal { Bool true }
+let stringLiteral = literal { String "hello" }
 ```
 
 C# example

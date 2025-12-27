@@ -10,9 +10,10 @@ This guide provides F#-specific coding standards and best practices for the morp
 4. [Immutability and Data Structures](#immutability-and-data-structures)
 5. [Async and Task Workflows](#async-and-task-workflows)
 6. [Type Design](#type-design)
-7. [JSON Serialization with System.Text.Json](#json-serialization-with-systemtextjson)
-8. [CLI Scripts (.fsx)](#cli-scripts-fsx)
-9. [Testing](#testing)
+7. [Computation Expressions and DSLs](#computation-expressions-and-dsls)
+8. [JSON Serialization with System.Text.Json](#json-serialization-with-systemtextjson)
+9. [CLI Scripts (.fsx)](#cli-scripts-fsx)
+10. [Testing](#testing)
 
 ---
 
@@ -507,6 +508,418 @@ let toSeconds (mins: float<minutes>) : float<seconds> =
 
 ---
 
+## Computation Expressions and DSLs
+
+Computation Expressions (CEs) are F#'s powerful mechanism for creating Domain-Specific Languages (DSLs). morphir-dotnet uses CEs extensively for building IR constructs with clean, declarative syntax.
+
+### Understanding Computation Expressions
+
+A computation expression is syntactic sugar that transforms code inside `{ }` blocks according to rules defined by a builder class:
+
+```fsharp
+// What you write:
+literal { Bool true }
+
+// What F# translates to:
+let _builder = literal
+let _state = _builder.Zero()
+let _result = _builder.BoolOp(_state, true)
+_result
+```
+
+### The Two Main CE Patterns
+
+morphir-dotnet uses two complementary patterns:
+
+#### Pattern 1: CustomOperation Pattern (Query-Style)
+
+Use for query-like DSLs where operations flow sequentially:
+
+```fsharp
+type FQNameBuilder(packagePath, modulePath, localName) =
+    new() = FQNameBuilder(None, None, None)
+
+    member _.Zero() = FQNameBuilder(None, None, None)
+
+    [<CustomOperation("package")>]
+    member _.Package(builder: FQNameBuilder, strs: string list) =
+        let pkg = Path.fromList (strs |> List.map Name.fromString) |> PackageName.packageName
+        FQNameBuilder(Some pkg, builder.ModulePath, builder.LocalName)
+
+    [<CustomOperation("module'")>]
+    member _.Module(builder: FQNameBuilder, strs: string list) =
+        let mod' = Path.fromList (strs |> List.map Name.fromString) |> ModulePath.modulePath
+        FQNameBuilder(builder.PackagePath, Some mod', builder.LocalName)
+
+    [<CustomOperation("local")>]
+    member _.Local(builder: FQNameBuilder, str: string) =
+        FQNameBuilder(builder.PackagePath, builder.ModulePath, Some (Name.fromString str))
+
+let fqName = FQNameBuilder()
+
+// Usage - clean query syntax:
+fqName {
+    package ["morphir"; "sdk"]
+    module' ["basics"]
+    local "int"
+}
+```
+
+**Key characteristics:**
+- State flows through operations (builder accumulates changes)
+- CustomOperations modify and return new builder state
+- No `Yield`, `Delay`, or `Run` needed for simple cases
+- Clean keyword-based syntax
+
+#### Pattern 2: Yield/Delay/Run Pattern (Compositional)
+
+Use for hierarchical, nested structures:
+
+```fsharp
+type LiteralBuilder() =
+    member _.Yield(lit: Literal) = lit
+    member _.Combine(_, lit: Literal) = lit
+    member _.For(items, f) = items |> Seq.map f |> Seq.last
+    member _.Zero() = BoolLiteral false
+    member _.Delay(f: unit -> Literal) = f
+    member _.Run(f: unit -> Literal) = f()
+
+    // CustomOperations that ignore state and return literals
+    [<CustomOperation("Bool")>]
+    member _.BoolOp(_: Literal, value: bool) = BoolLiteral value
+
+    [<CustomOperation("String")>]
+    member _.StringOp(_: Literal, value: string) = StringLiteral value
+
+let literal = LiteralBuilder()
+
+// Usage:
+literal { Bool true }
+literal { String "hello" }
+```
+
+**Key characteristics:**
+- Supports deep nesting through `Yield`
+- `Delay` and `Run` enable deferred execution
+- `Combine` enables multiple expressions in one block
+- CustomOperations can coexist with Yield pattern
+
+### Hybrid Pattern (Best of Both Worlds)
+
+morphir-dotnet's DSL builders use a hybrid approach - combining both patterns:
+
+```fsharp
+type ValueBuilder() =
+    // Standard CE methods for composition
+    member _.Yield(value: Value<unit, unit>) = value
+    member _.Delay(f: unit -> Value<unit, unit>) = f
+    member _.Run(f: unit -> Value<unit, unit>) = f()
+    member _.Combine(_, value: Value<unit, unit>) = value
+    member _.Zero() = Unit()
+
+    // CustomOperations for clean syntax
+    [<CustomOperation("literal")>]
+    member _.LiteralOp(_: Value<unit, unit>, lit: Literal) =
+        Literal((), lit)
+
+    [<CustomOperation("tuple")>]
+    member _.TupleOp(_: Value<unit, unit>, elements: Value<unit, unit> list) =
+        Tuple((), elements)
+
+let value = ValueBuilder()
+
+// Both styles work:
+value { literal (BoolLiteral true) }  // CustomOperation style
+value { Literal((), BoolLiteral true) }  // Yield style
+```
+
+### CustomOperation Best Practices
+
+#### 1. Naming Conventions
+
+**✅ Good: Use domain-appropriate names**
+```fsharp
+[<CustomOperation("package")>]    // Clear, matches domain
+[<CustomOperation("where")>]      // Query keyword
+[<CustomOperation("select")>]     // Standard operation
+```
+
+**❌ Avoid: Generic or unclear names**
+```fsharp
+[<CustomOperation("set")>]        // Too generic
+[<CustomOperation("do")>]         // F# keyword (confusing)
+```
+
+#### 2. State Parameter Pattern
+
+The first parameter of a CustomOperation is always the builder state, often ignored:
+
+```fsharp
+// ✅ Good: Clear state ignore pattern
+[<CustomOperation("Bool")>]
+member _.BoolOp(_state: Literal, value: bool) = BoolLiteral value
+
+// ❌ Avoid: Unnamed parameter (unclear intent)
+[<CustomOperation("Bool")>]
+member _.BoolOp(lit, value: bool) = BoolLiteral value
+```
+
+#### 3. Method vs CustomOperation
+
+Choose based on usage context:
+
+| Use CustomOperation When | Use Regular Method When |
+|--------------------------|-------------------------|
+| Query-style syntax desired (`where`, `select`) | Function-call style preferred |
+| Inside CE blocks only | Need to call outside CE |
+| Building up state | Direct value construction |
+| Example: `fqName { package ["morphir"] }` | Example: `fqName.Package(["morphir"])` |
+
+```fsharp
+type Builder() =
+    member _.Zero() = State.Empty
+
+    // CustomOperation - for CE use
+    [<CustomOperation("select")>]
+    member _.SelectOp(state, value) = { state with Value = value }
+
+    // Regular method - callable anywhere
+    member _.Select(value) = { State.Empty with Value = value }
+
+let b = Builder()
+
+// CustomOperation usage (only inside CE):
+b { select "name" }
+
+// Regular method usage (anywhere):
+b.Select("name")
+b { Select("name") }  // Also works in CE
+```
+
+### Performance: InlineIfLambda (F# 6+)
+
+For high-performance DSLs, use `[<InlineIfLambda>]` to eliminate closure allocations:
+
+```fsharp
+type ListBuilder() =
+    [<InlineIfLambda>]
+    member inline _.Delay([<InlineIfLambda>] f: unit -> 'T list) = f
+
+    [<InlineIfLambda>]
+    member inline _.Run([<InlineIfLambda>] f: unit -> 'T list) = f()
+
+    [<InlineIfLambda>]
+    member inline _.Combine([<InlineIfLambda>] a: 'T list, [<InlineIfLambda>] b: 'T list) =
+        List.append a b
+```
+
+**Benefits:**
+- Up to 5x faster than standard CE implementation
+- Zero allocations when combined with struct builders
+- Completely linear IL - nested lambdas flattened at compile time
+
+**When to use:**
+- High-frequency code paths (HTML generation, string building)
+- Performance-critical DSLs
+- List/array builders
+- Any CE where allocations matter
+
+**Requirements:**
+- Must use `inline` functions
+- Must mark lambda parameters with `[<InlineIfLambda>]`
+- Only available in F# 6+
+
+### Common CE Gotchas
+
+#### Gotcha 1: Bare Identifiers Require Properties or CustomOperations
+
+```fsharp
+// ❌ This FAILS - F# can't find 'Bool' in scope
+type LiteralBuilder() =
+    member _.Zero() = BoolLiteral false
+    member _.Bool(value: bool) = BoolLiteral value  // Method, not property
+
+let literal = LiteralBuilder()
+literal { Bool true }  // Error: 'Bool' not defined
+
+// ✅ Fix Option 1: Use CustomOperation
+type LiteralBuilder() =
+    member _.Zero() = BoolLiteral false
+
+    [<CustomOperation("Bool")>]
+    member _.BoolOp(_: Literal, value: bool) = BoolLiteral value
+
+// ✅ Fix Option 2: Make it a property returning a function
+type LiteralBuilder() =
+    member _.Zero() = BoolLiteral false
+    member _.Bool = BoolLiteral  // Property
+
+// ✅ Fix Option 3: Call with explicit parentheses
+literal { Bool(true) }  // Works with regular method
+```
+
+#### Gotcha 2: F# Keywords Conflict with Method Names
+
+```fsharp
+// ❌ These conflict with F# built-in conversion functions
+member _.string(value) = ...  // Conflicts with 'string' function
+member _.int(value) = ...     // Conflicts with 'int' function
+member _.float(value) = ...   // Conflicts with 'float' function
+
+// ✅ Use Pascal case to avoid conflicts
+member _.String(value) = ...  // No conflict
+member _.Int(value) = ...
+member _.Float(value) = ...
+```
+
+#### Gotcha 3: CustomOperations Return Type
+
+CustomOperations must return the builder state type (or compatible type):
+
+```fsharp
+// ❌ Wrong return type causes "expected 'Type<unit>' but got 'unit'" error
+[<CustomOperation("reference")>]
+member _.ReferenceOp(_: Type<unit>, fqName: FQName) : unit =
+    ()  // Returns unit, not Type<unit>!
+
+// ✅ Correct - returns the state type
+[<CustomOperation("reference")>]
+member _.ReferenceOp(_: Type<unit>, fqName: FQName) : Type<unit> =
+    Reference((), fqName, [])
+```
+
+### morphir-dotnet DSL Examples
+
+#### Example 1: FQName Builder (CustomOperation Pattern)
+
+```fsharp
+// From src/Morphir.Models/IR/DSL/Names.fs
+fqName {
+    package ["morphir"; "sdk"]
+    module' ["basics"]
+    local "int"
+}
+// Result: FQName for morphir.sdk.basics.int
+```
+
+#### Example 2: Literal Builder (Hybrid Pattern)
+
+```fsharp
+// From src/Morphir.Models/IR/Classic/DSL/Literals.fs
+literal { Bool true }
+literal { String "hello" }
+literal { Int 42L }
+literal { Float 3.14 }
+```
+
+#### Example 3: Type Builder (Hybrid Pattern)
+
+```fsharp
+// From src/Morphir.Models/IR/Classic/DSL/Types.fs
+type' {
+    reference (fqName {
+        package ["morphir"; "sdk"]
+        module' ["list"]
+        local "list"
+    })
+}
+
+type' {
+    tuple [
+        intType
+        stringType
+    ]
+}
+
+type' {
+    record [
+        field "name" stringType
+        field "age" intType
+    ]
+}
+```
+
+#### Example 4: Pattern Builder (Hybrid Pattern)
+
+```fsharp
+// From src/Morphir.Models/IR/Classic/DSL/Patterns.fs
+pattern { wildcard }
+pattern { Variable "x" }
+pattern { Tuple [ pattern1; pattern2 ] }
+pattern { Constructor fqName [ argPattern ] }
+```
+
+### CE Decision Tree
+
+```
+What kind of DSL are you building?
+├── Query-style (operations flow sequentially)
+│   └── Use: CustomOperations only
+│       - Example: fqName { package []; module' []; local "" }
+│       - Need: Zero, CustomOperations
+│       - Skip: Yield, Delay, Run
+│
+├── Hierarchical (nested structures)
+│   └── Use: Yield/Delay/Run pattern
+│       - Example: div { span { "Hello" }; span { "World" } }
+│       - Need: Yield, Delay, Run, Combine
+│       - Optional: CustomOperations for keywords
+│
+└── Hybrid (both query and nesting)
+    └── Use: Both patterns together
+        - Example: morphir-dotnet IR builders
+        - Need: All CE methods + CustomOperations
+        - Flexible: Supports multiple usage styles
+```
+
+### Testing CE Builders
+
+```fsharp
+[<Test>]
+let ``literal builder creates BoolLiteral`` () =
+    let result = literal { Bool true }
+    let expected = BoolLiteral true
+    Assert.AreEqual(expected, result)
+
+[<Test>]
+let ``fqName builder creates correct FQName`` () =
+    let result =
+        fqName {
+            package ["morphir"; "sdk"]
+            module' ["basics"]
+            local "int"
+        }
+
+    Assert.AreEqual("morphir.sdk", result.PackagePath)
+    Assert.AreEqual("basics", result.ModulePath)
+    Assert.AreEqual("int", result.LocalName)
+```
+
+### CE Best Practices Summary
+
+1. ✅ **Choose the right pattern** - CustomOperations for queries, Yield for nesting
+2. ✅ **Use hybrid for flexibility** - Combine both patterns in complex DSLs
+3. ✅ **Name CustomOperations clearly** - Use domain-appropriate keywords
+4. ✅ **Ignore state parameter** - Use `_state` or `_` when not needed
+5. ✅ **Avoid F# keyword conflicts** - Use Pascal case for method names
+6. ✅ **Return correct types** - CustomOperations must return builder state
+7. ✅ **Consider InlineIfLambda** - For performance-critical DSLs (F# 6+)
+8. ✅ **Test both styles** - If hybrid, test CustomOperation and Yield usage
+9. ✅ **Document usage patterns** - Show examples of both styles
+10. ✅ **Provide helper functions** - Complement CEs with standalone functions
+
+### References
+
+- [F# Computation Expressions](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/computation-expressions)
+- [F# RFC FS-1056: Custom Operation Overloads](https://github.com/fsharp/fslang-design/blob/main/FSharp-6.0/FS-1056-allow-custom-operation-overloads.md)
+- [F# RFC FS-1098: InlineIfLambda](https://github.com/fsharp/fslang-design/blob/main/FSharp-6.0/FS-1098-inline-if-lambda.md)
+- [F# for Fun and Profit - Computation Expressions Series](https://fsharpforfunandprofit.com/series/computation-expressions/)
+- [Bolero HTML Builders](https://github.com/fsbolero/Bolero/blob/master/src/Bolero.Html/Builders.fs) - Excellent InlineIfLambda example
+- [Fun.Blazor](https://github.com/slaveOftime/Fun.Blazor) - Component-based DSL
+- [morphir-dotnet IR DSL](../src/Morphir.Models/IR/Classic/DSL/) - Reference implementation
+
+---
+
 ## JSON Serialization with System.Text.Json
 
 System.Text.Json is the recommended JSON library for .NET. When working with F# types, there are specific patterns and gotchas to be aware of.
@@ -957,6 +1370,11 @@ Key F# principles for morphir-dotnet:
 10. ✅ **Use nullable reference types (F# 9)** for C# interop boundaries
 11. ✅ **Use FSharp.SystemTextJson** for JSON serialization with F# types
 12. ✅ **Follow railway-oriented programming** for error handling
+13. ✅ **Use CustomOperations** for query-style DSL syntax
+14. ✅ **Use Yield/Delay/Run** for compositional, nested DSLs
+15. ✅ **Combine both patterns** for flexible hybrid DSLs
+16. ✅ **Avoid F# keyword conflicts** - Use Pascal case in CEs (Bool, String, Int)
+17. ✅ **Consider InlineIfLambda** for high-performance CEs (F# 6+)
 
 ---
 

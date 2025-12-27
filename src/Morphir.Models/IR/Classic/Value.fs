@@ -7,11 +7,8 @@ namespace Morphir.IR.Classic
 /// </summary>
 module Value =
 
-    open Morphir.IR.Name
-    open Morphir.IR.FQName
-    open Type
+    open Morphir.IR
     open Literal
-    open Pattern
     open System.Collections.Generic // For Map
 
     /// <summary>
@@ -29,12 +26,12 @@ module Value =
         | Field of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Name
         | FieldFunction of 'valueAttributes * Name
         | Apply of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | Lambda of 'valueAttributes * Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+        | Lambda of 'valueAttributes * Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
         | LetDefinition of 'valueAttributes * Name * ValueDefinition<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
         | LetRecursion of 'valueAttributes * Map<Name, ValueDefinition<'typeAttributes, 'valueAttributes>> * Value<'typeAttributes, 'valueAttributes>
-        | Destructure of 'valueAttributes * Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+        | Destructure of 'valueAttributes * Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
         | IfThenElse of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | PatternMatch of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
+        | PatternMatch of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * (Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
         | UpdateRecord of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Map<Name, Value<'typeAttributes, 'valueAttributes>>
         | Unit of 'valueAttributes
 
@@ -43,16 +40,16 @@ module Value =
     /// Contains only type information, no implementation.
     /// </summary>
     and ValueSpecification<'attributes> =
-        { Inputs: (Name * Type<'attributes>) list
-          Output: Type<'attributes> }
+        { Inputs: (Name * Type.Type<'attributes>) list
+          Output: Type.Type<'attributes> }
 
     /// <summary>
     /// ValueDefinition provides the complete implementation of a value or function.
     /// Contains both type information and implementation.
     /// </summary>
     and ValueDefinition<'typeAttributes, 'valueAttributes> =
-        { InputTypes: (Name * 'valueAttributes * Type<'typeAttributes>) list
-          OutputType: Type<'typeAttributes>
+        { InputTypes: (Name * 'valueAttributes * Type.Type<'typeAttributes>) list
+          OutputType: Type.Type<'typeAttributes>
           Body: Value<'typeAttributes, 'valueAttributes> }
 
     // Helper functions for Value Expressions
@@ -120,7 +117,7 @@ module Value =
     /// <summary>
     /// Creates a Lambda value (anonymous function).
     /// </summary>
-    let lambda<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (argumentPattern: Pattern<'valueAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
+    let lambda<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (argumentPattern: Pattern.Pattern<'valueAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
         Lambda(attributes, argumentPattern, body)
 
     /// <summary>
@@ -138,7 +135,7 @@ module Value =
     /// <summary>
     /// Creates a Destructure value (pattern-based destructuring).
     /// </summary>
-    let destructure<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (pattern: Pattern<'valueAttributes>) (valueToDestructure: Value<'typeAttributes, 'valueAttributes>) (inExpr: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
+    let destructure<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (pattern: Pattern.Pattern<'valueAttributes>) (valueToDestructure: Value<'typeAttributes, 'valueAttributes>) (inExpr: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
         Destructure(attributes, pattern, valueToDestructure, inExpr)
 
     /// <summary>
@@ -150,7 +147,7 @@ module Value =
     /// <summary>
     /// Creates a PatternMatch value (pattern matching with multiple cases).
     /// </summary>
-    let patternMatch<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (valueToMatch: Value<'typeAttributes, 'valueAttributes>) (cases: (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list) : Value<'typeAttributes, 'valueAttributes> =
+    let patternMatch<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (valueToMatch: Value<'typeAttributes, 'valueAttributes>) (cases: (Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list) : Value<'typeAttributes, 'valueAttributes> =
         PatternMatch(attributes, valueToMatch, cases)
 
     /// <summary>
@@ -170,7 +167,7 @@ module Value =
     /// <summary>
     /// Creates a ValueSpecification.
     /// </summary>
-    let valueSpecification<'attributes> (inputs: (Name * Type<'attributes>) list) (output: Type<'attributes>) : ValueSpecification<'attributes> =
+    let valueSpecification<'attributes> (inputs: (Name * Type.Type<'attributes>) list) (output: Type.Type<'attributes>) : ValueSpecification<'attributes> =
         { Inputs = inputs
           Output = output }
 
@@ -179,7 +176,7 @@ module Value =
     /// <summary>
     /// Creates a ValueDefinition.
     /// </summary>
-    let valueDefinition<'typeAttributes, 'valueAttributes> (inputTypes: (Name * 'valueAttributes * Type<'typeAttributes>) list) (outputType: Type<'typeAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : ValueDefinition<'typeAttributes, 'valueAttributes> =
+    let valueDefinition<'typeAttributes, 'valueAttributes> (inputTypes: (Name * 'valueAttributes * Type.Type<'typeAttributes>) list) (outputType: Type.Type<'typeAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : ValueDefinition<'typeAttributes, 'valueAttributes> =
         { InputTypes = inputTypes
           OutputType = outputType
           Body = body }
@@ -192,8 +189,8 @@ module Value =
     let rec toString (value: Value<'typeAttributes, 'valueAttributes>) : string =
         match value with
         | Literal(_, lit) -> Literal.toString lit
-        | Variable(_, name) -> Morphir.IR.Name.toCamelCase name
-        | Constructor(_, fqName) -> Morphir.IR.FQName.toString fqName
+        | Variable(_, name) -> Name.toCamelCase name
+        | Constructor(_, fqName) -> FQName.toString fqName
         | Tuple(_, elements) ->
             let elementsText =
                 elements
@@ -212,14 +209,14 @@ module Value =
         | Record(_, fields) ->
             let fieldsText =
                 fields
-                |> Map.toList
-                |> List.map (fun (name, fieldValue) -> $"{Morphir.IR.Name.toCamelCase name} = {toString fieldValue}")
+                |> Map.toList  // Map.toList already returns entries in key-sorted order (deterministic)
+                |> List.map (fun (name, fieldValue) -> $"{Name.toCamelCase name} = {toString fieldValue}")
                 |> String.concat ", "
             $"{{ {fieldsText} }}"
-        | Reference(_, fqName) -> Morphir.IR.FQName.toString fqName
+        | Reference(_, fqName) -> FQName.toString fqName
         | Field(_, recordValue, fieldName) ->
-            $"{toString recordValue}.{Morphir.IR.Name.toCamelCase fieldName}"
-        | FieldFunction(_, fieldName) -> $".{Morphir.IR.Name.toCamelCase fieldName}"
+            $"{toString recordValue}.{Name.toCamelCase fieldName}"
+        | FieldFunction(_, fieldName) -> $".{Name.toCamelCase fieldName}"
         | Apply(_, functionValue, argumentValue) ->
             let needsParens candidate =
                 match candidate with
@@ -235,7 +232,7 @@ module Value =
             let fieldsText =
                 fieldsToUpdate
                 |> Map.toList
-                |> List.map (fun (name, fieldValue) -> $"{Morphir.IR.Name.toCamelCase name} = {toString fieldValue}")
+                |> List.map (fun (name, fieldValue) -> $"{Name.toCamelCase name} = {toString fieldValue}")
                 |> String.concat ", "
             $"{{ {toString recordToUpdate} | {fieldsText} }}"
         | Lambda(_, argumentPattern, body) ->
@@ -252,9 +249,9 @@ module Value =
             let defText =
                 let argsText =
                     definition.InputTypes
-                    |> List.map (fun (argName, _, _) -> Morphir.IR.Name.toCamelCase argName)
+                    |> List.map (fun (argName, _, _) -> Name.toCamelCase argName)
                     |> String.concat " "
-                let nameText = Morphir.IR.Name.toCamelCase bindingName
+                let nameText = Name.toCamelCase bindingName
                 let bodyText = toString definition.Body
                 match argsText with
                 | "" -> $"{nameText} = {bodyText}"
@@ -267,9 +264,9 @@ module Value =
                 |> List.map (fun (name, definition) ->
                     let argsText =
                         definition.InputTypes
-                        |> List.map (fun (argName, _, _) -> Morphir.IR.Name.toCamelCase argName)
+                        |> List.map (fun (argName, _, _) -> Name.toCamelCase argName)
                         |> String.concat " "
-                    let nameText = Morphir.IR.Name.toCamelCase name
+                    let nameText = Name.toCamelCase name
                     let bodyText = toString definition.Body
                     match argsText with
                     | "" -> $"{nameText} = {bodyText}"
@@ -283,13 +280,13 @@ module Value =
     /// </summary>
     module ValueSpecification =
         let toString (spec: ValueSpecification<'attributes>) : string =
-            let formatInputs (inputs: (Name * Type<'attributes>) list) : string =
+            let formatInputs (inputs: (Name * Type.Type<'attributes>) list) : string =
                 match inputs with
                 | [] -> ""
                 | _ ->
                     inputs
                     |> List.map (fun (name, typ) ->
-                        $"{Morphir.IR.Name.toCamelCase name} : {Type.toString typ}")
+                        $"{Name.toCamelCase name} : {Type.toString typ}")
                     |> String.concat ", "
                     |> (fun s -> $"({s})")
 
@@ -307,9 +304,9 @@ module Value =
         let toString (name: Name) (def: ValueDefinition<'typeAttributes, 'valueAttributes>) : string =
             let argsText =
                 def.InputTypes
-                |> List.map (fun (argName, _, _) -> Morphir.IR.Name.toCamelCase argName)
+                |> List.map (fun (argName, _, _) -> Name.toCamelCase argName)
                 |> String.concat " "
-            let nameText = Morphir.IR.Name.toCamelCase name
+            let nameText = Name.toCamelCase name
             let bodyText = toString def.Body
             match argsText with
             | "" -> $"{nameText} = {bodyText}"

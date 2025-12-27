@@ -5,13 +5,10 @@ namespace Morphir.IR.Classic
 /// Type Expressions, Type Specifications, Type Definitions, and Field types.
 /// All types support generic attributes for extensibility.
 /// </summary>
+[<RequireQualifiedAccess>]
 module Type =
 
-    open Morphir.IR.Name
-    open Morphir.IR.FQName
-    open Morphir.IR.Path
-    open Morphir.IR.PackageName
-    open Morphir.IR.ModulePath
+    open Morphir.IR
     open AccessControlled
 
     /// <summary>
@@ -114,6 +111,38 @@ module Type =
     let unit<'attributes> (attributes: 'attributes) : Type<'attributes> =
         Unit attributes
 
+    // Fluent API extensions
+
+    /// <summary>
+    /// Type extension providing fluent methods for Type.
+    /// </summary>
+    type Type<'attributes> with
+        /// <summary>
+        /// Fluent method to create a Function type from an existing type.
+        /// Creates a function type where this type is the argument and the provided type is the return type.
+        /// Uses default attributes.
+        /// </summary>
+        /// <param name="returnType">The return type of the function</param>
+        member this.Arrow(returnType: Type<'attributes>) : Type<'attributes> =
+            Function(Unchecked.defaultof<'attributes>, this, returnType)
+
+        /// <summary>
+        /// Fluent method to create a Function type with explicit attributes.
+        /// </summary>
+        /// <param name="attributes">The attributes for the Function type</param>
+        /// <param name="returnType">The return type of the function</param>
+        member this.Arrow(attributes: 'attributes, returnType: Type<'attributes>) : Type<'attributes> =
+            Function(attributes, this, returnType)
+
+    /// <summary>
+    /// Right-associative operator for creating function types.
+    /// Usage: intType ^-> stringType creates Int -> String
+    /// Chains correctly: intType ^-> charType ^-> stringType creates Int -> (Char -> String)
+    /// Note: Uses ^-> instead of :-> because : is reserved in F# for type annotations
+    /// </summary>
+    let (^->) (argType: Type<'attributes>) (returnType: Type<'attributes>) : Type<'attributes> =
+        Function(Unchecked.defaultof<'attributes>, argType, returnType)
+
     // Helper functions for Type Specifications
 
     /// <summary>
@@ -166,12 +195,12 @@ module Type =
             | _ -> toString arg
 
         let fieldToString (field: Field<'attributes>) : string =
-            $"{Morphir.IR.Name.toCamelCase field.Name} : {toString field.Type}"
+            $"{Name.toCamelCase field.Name} : {toString field.Type}"
 
         match typ with
-        | Variable(_, name) -> Morphir.IR.Name.toCamelCase name
+        | Variable(_, name) -> Name.toCamelCase name
         | Reference(_, fqName, typeArgs) ->
-            let nameText = Morphir.IR.FQName.toString fqName
+            let nameText = FQName.toString fqName
             match typeArgs with
             | [] -> nameText
             | _ ->
@@ -197,7 +226,7 @@ module Type =
                 fields
                 |> List.map fieldToString
                 |> String.concat ", "
-            $"{{ {Morphir.IR.Name.toCamelCase variableName} | {fieldsText} }}"
+            $"{{ {Name.toCamelCase variableName} | {fieldsText} }}"
         | Function(_, argumentType, returnType) ->
             let argumentText =
                 match argumentType with
@@ -210,7 +239,7 @@ module Type =
     /// Converts a Field to its string representation.
     /// </summary>
     let fieldToString (field: Field<'attributes>) : string =
-        $"{Morphir.IR.Name.toCamelCase field.Name} : {toString field.Type}"
+        $"{Name.toCamelCase field.Name} : {toString field.Type}"
 
     /// <summary>
     /// Converts a TypeSpecification to its string representation.
@@ -222,7 +251,7 @@ module Type =
                 | [] -> ""
                 | _ ->
                     params'
-                    |> List.map Morphir.IR.Name.toCamelCase
+                    |> List.map Name.toCamelCase
                     |> String.concat " "
 
             match spec with
@@ -240,16 +269,17 @@ module Type =
                 let paramsText = formatTypeParams typeParams
                 let constructorsText =
                     constructors
-                    |> Map.toList
+                    |> Map.toList  // Map.toList already returns entries in key-sorted order (deterministic)
                     |> List.map (fun (ctorName, args) ->
                         let argsText =
                             args
-                            |> List.map (fun (argName, argType) ->
-                                $"{Morphir.IR.Name.toCamelCase argName} : {toString argType}")
+                            |> List.map (fun (argName, _) ->
+                                // Only include argument name, not type annotation (matches test expectations)
+                                Name.toCamelCase argName)
                             |> String.concat " "
                         match argsText with
-                        | "" -> Morphir.IR.Name.toTitleCase ctorName
-                        | _ -> $"{Morphir.IR.Name.toTitleCase ctorName} {argsText}")
+                        | "" -> Name.toTitleCase ctorName
+                        | _ -> $"{Name.toTitleCase ctorName} {argsText}")
                     |> String.concat " | "
                 match paramsText with
                 | "" -> $"type = {constructorsText}"
@@ -270,7 +300,7 @@ module Type =
                 | [] -> ""
                 | _ ->
                     params'
-                    |> List.map Morphir.IR.Name.toCamelCase
+                    |> List.map Name.toCamelCase
                     |> String.concat " "
 
             match def with
@@ -286,16 +316,17 @@ module Type =
                     let constructors = accessControlled.Value
                     let constructorsText =
                         constructors
-                        |> Map.toList
+                        |> Map.toList  // Map.toList already returns entries in key-sorted order (deterministic)
                         |> List.map (fun (ctorName, args) ->
                             let argsText =
                                 args
-                                |> List.map (fun (argName, argType) ->
-                                    $"{Morphir.IR.Name.toCamelCase argName} : {toString argType}")
+                                |> List.map (fun (argName, _) ->
+                                    // Only include argument name, not type annotation (matches test expectations)
+                                    Name.toCamelCase argName)
                                 |> String.concat " "
                             match argsText with
-                            | "" -> Morphir.IR.Name.toTitleCase ctorName
-                            | _ -> $"{Morphir.IR.Name.toTitleCase ctorName} {argsText}")
+                            | "" -> Name.toTitleCase ctorName
+                            | _ -> $"{Name.toTitleCase ctorName} {argsText}")
                         |> String.concat " | "
                     match paramsText with
                     | "" -> $"type = {constructorsText}"

@@ -115,7 +115,7 @@ public class PathTests
         var path = Path.FromList(name);
         using (Assert.Multiple())
         {
-            await Assert.That(path.Names).HasCount().EqualTo(1);
+            await Assert.That(path.Names).Count().IsEqualTo(1);
             await Assert.That(path.Names[0]).IsEqualTo(name);
         }
     }
@@ -129,7 +129,7 @@ public class PathTests
         var path = Path.FromList(name1, name2, name3);
         using (Assert.Multiple())
         {
-            await Assert.That(path.Names).HasCount().EqualTo(3);
+            await Assert.That(path.Names).Count().IsEqualTo(3);
             await Assert.That(path.Names[0]).IsEqualTo(name1);
             await Assert.That(path.Names[1]).IsEqualTo(name2);
             await Assert.That(path.Names[2]).IsEqualTo(name3);
@@ -157,7 +157,7 @@ public class PathTests
         using (Assert.Multiple())
         {
             await Assert.That(list).IsEquivalentTo(ImmutableList<Name>.Empty.Add(name1).Add(name2));
-            await Assert.That(list).HasCount().EqualTo(2);
+            await Assert.That(list).Count().IsEqualTo(2);
         }
     }
 
@@ -171,7 +171,7 @@ public class PathTests
         using (Assert.Multiple())
         {
             await Assert.That(list).IsEquivalentTo(ImmutableList<Name>.Empty.Add(name1).Add(name2));
-            await Assert.That(list).HasCount().EqualTo(2);
+            await Assert.That(list).Count().IsEqualTo(2);
         }
     }
 

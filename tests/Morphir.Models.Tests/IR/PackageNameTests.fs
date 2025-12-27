@@ -10,7 +10,7 @@ let tests =
         testList "packageName" [
             testCase "Creates PackageName from Path"
             <| fun _ ->
-                let path = Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ]
+                let path = Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ]
                 let packageName = PackageName.packageName path
 
                 PackageName.packageNameToPath packageName
@@ -18,7 +18,7 @@ let tests =
 
             testCase "Creates PackageName from list"
             <| fun _ ->
-                let names = [ Name.fromList [ "morphir" ]; Name.fromList [ "sdk" ] ]
+                let names = [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ]
                 let packageName = PackageName.packageNameFromList names
 
                 PackageName.packageNameToPath packageName

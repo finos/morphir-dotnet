@@ -10,7 +10,7 @@ let tests =
         testList "fqName" [
             testCase "Creates FQName from components"
             <| fun _ ->
-                let packagePath = PackageName.packageNameFromList [ Name.fromList [ "morphir"; "sdk" ] ]
+                let packagePath = PackageName.packageNameFromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ]
                 let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "string" ] ]
                 let localName = Name.fromList [ "to"; "upper" ]
 
@@ -29,7 +29,7 @@ let tests =
         testList "fqNameFromPaths" [
             testCase "Creates FQName from Path values"
             <| fun _ ->
-                let packagePath = Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ]
+                let packagePath = Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ]
                 let modulePath = Path.fromList [ Name.fromList [ "string" ] ]
                 let localName = Name.fromList [ "to"; "upper" ]
 
@@ -50,7 +50,8 @@ let tests =
         testList "toString" [
             testCase "Formats FQName with all components"
             <| fun _ ->
-                let packagePath = PackageName.packageNameFromList [ Name.fromList [ "morphir"; "sdk" ] ]
+                // SDK should be parsed as ["s", "d", "k"] to match morphir-elm behavior
+                let packagePath = PackageName.packageNameFromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ]
                 let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "basics" ] ]
                 let localName = Name.fromList [ "int" ]
                 let fqName = FQName.fqName packagePath modulePath localName
@@ -61,7 +62,7 @@ let tests =
             testCase "Formats FQName with empty package path"
             <| fun _ ->
                 let packagePath = PackageName.emptyPackageName
-                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my"; "module" ] ]
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my" ]; Name.fromList [ "module" ] ]
                 let localName = Name.fromList [ "value" ]
                 let fqName = FQName.fqName packagePath modulePath localName
 
@@ -73,7 +74,7 @@ let tests =
             testCase "Formats FQName omitting empty package path"
             <| fun _ ->
                 let packagePath = PackageName.emptyPackageName
-                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my"; "module" ] ]
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my" ]; Name.fromList [ "module" ] ]
                 let localName = Name.fromList [ "value" ]
                 let fqName = FQName.fqName packagePath modulePath localName
 
@@ -82,7 +83,7 @@ let tests =
 
             testCase "Formats FQName with package path as Module.Name"
             <| fun _ ->
-                let packagePath = PackageName.packageNameFromList [ Name.fromList [ "morphir"; "sdk" ] ]
+                let packagePath = PackageName.packageNameFromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ]
                 let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "basics" ] ]
                 let localName = Name.fromList [ "int" ]
                 let fqName = FQName.fqName packagePath modulePath localName
@@ -94,7 +95,7 @@ let tests =
         testList "toDebugString" [
             testCase "Formats FQName with all components in debug format"
             <| fun _ ->
-                let packagePath = PackageName.packageNameFromList [ Name.fromList [ "morphir"; "sdk" ] ]
+                let packagePath = PackageName.packageNameFromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ]
                 let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "basics" ] ]
                 let localName = Name.fromList [ "int" ]
                 let fqName = FQName.fqName packagePath modulePath localName
@@ -105,7 +106,7 @@ let tests =
             testCase "Formats FQName with empty package path in debug format"
             <| fun _ ->
                 let packagePath = PackageName.emptyPackageName
-                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my"; "module" ] ]
+                let modulePath = ModulePath.modulePathFromList [ Name.fromList [ "my" ]; Name.fromList [ "module" ] ]
                 let localName = Name.fromList [ "value" ]
                 let fqName = FQName.fqName packagePath modulePath localName
 

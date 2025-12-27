@@ -11,7 +11,7 @@ let tests =
         testList "wildcardPattern" [
             testCase "Creates WildcardPattern"
             <| fun _ ->
-                let pattern = Pattern.wildcardPattern ()
+                let pattern = Pattern.wildcard ()
 
                 match pattern with
                 | Pattern.WildcardPattern attrs -> ()
@@ -22,7 +22,7 @@ let tests =
             testCase "Creates AsPattern with WildcardPattern nested"
             <| fun _ ->
                 let name = Name.fromList [ "x" ]
-                let nested = Pattern.wildcardPattern ()
+                let nested = Pattern.wildcard ()
                 let pattern = Pattern.asPattern () nested name
 
                 match pattern with
@@ -37,9 +37,9 @@ let tests =
         testList "tuplePattern" [
             testCase "Creates TuplePattern with multiple elements"
             <| fun _ ->
-                let element1 = Pattern.wildcardPattern ()
-                let element2 = Pattern.wildcardPattern ()
-                let pattern = Pattern.tuplePattern () [ element1; element2 ]
+                let element1 = Pattern.wildcard ()
+                let element2 = Pattern.wildcard ()
+                let pattern = Pattern.tuple () [ element1; element2 ]
 
                 match pattern with
                 | Pattern.TuplePattern(attrs, elements) ->
@@ -52,10 +52,10 @@ let tests =
             <| fun _ ->
                 let fqName =
                     FQName.fqNameFromPaths
-                        (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                        (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                         (Path.fromList [ Name.fromList [ "maybe" ] ])
                         (Name.fromList [ "nothing" ])
-                let pattern = Pattern.constructorPattern () fqName []
+                let pattern = Pattern.constructor () fqName []
 
                 match pattern with
                 | Pattern.ConstructorPattern(attrs, fn, args) ->
@@ -67,11 +67,11 @@ let tests =
             <| fun _ ->
                 let fqName =
                     FQName.fqNameFromPaths
-                        (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                        (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                         (Path.fromList [ Name.fromList [ "maybe" ] ])
                         (Name.fromList [ "just" ])
-                let argPattern = Pattern.wildcardPattern ()
-                let pattern = Pattern.constructorPattern () fqName [ argPattern ]
+                let argPattern = Pattern.wildcard ()
+                let pattern = Pattern.constructor () fqName [ argPattern ]
 
                 match pattern with
                 | Pattern.ConstructorPattern(attrs, fn, args) ->
@@ -83,7 +83,7 @@ let tests =
         testList "emptyListPattern" [
             testCase "Creates EmptyListPattern"
             <| fun _ ->
-                let pattern = Pattern.emptyListPattern ()
+                let pattern = Pattern.emptyList ()
 
                 match pattern with
                 | Pattern.EmptyListPattern attrs -> ()
@@ -93,9 +93,9 @@ let tests =
         testList "headTailPattern" [
             testCase "Creates HeadTailPattern"
             <| fun _ ->
-                let headPattern = Pattern.wildcardPattern ()
-                let tailPattern = Pattern.wildcardPattern ()
-                let pattern = Pattern.headTailPattern () headPattern tailPattern
+                let headPattern = Pattern.wildcard ()
+                let tailPattern = Pattern.wildcard ()
+                let pattern = Pattern.headTail () headPattern tailPattern
 
                 match pattern with
                 | Pattern.HeadTailPattern(attrs, head, tail) ->
@@ -112,7 +112,7 @@ let tests =
             testCase "Creates LiteralPattern with BoolLiteral"
             <| fun _ ->
                 let lit = Literal.boolLiteral true
-                let pattern = Pattern.literalPattern () lit
+                let pattern = Pattern.literal () lit
 
                 match pattern with
                 | Pattern.LiteralPattern(attrs, literal) ->
@@ -125,7 +125,7 @@ let tests =
             testCase "Creates LiteralPattern with StringLiteral"
             <| fun _ ->
                 let lit = Literal.stringLiteral "test"
-                let pattern = Pattern.literalPattern () lit
+                let pattern = Pattern.literal () lit
 
                 match pattern with
                 | Pattern.LiteralPattern(attrs, literal) ->
@@ -139,7 +139,7 @@ let tests =
         testList "unitPattern" [
             testCase "Creates UnitPattern"
             <| fun _ ->
-                let pattern = Pattern.unitPattern ()
+                let pattern = Pattern.unit ()
 
                 match pattern with
                 | Pattern.UnitPattern attrs -> ()
@@ -149,13 +149,13 @@ let tests =
         testList "toString" [
             testCase "WildcardPattern formats as underscore"
             <| fun _ ->
-                let pattern = Pattern.wildcardPattern ()
+                let pattern = Pattern.wildcard ()
                 Pattern.toString pattern
                 |> Expect.equal "_"
 
             testCase "AsPattern formats as nested pattern as name"
             <| fun _ ->
-                let nested = Pattern.wildcardPattern ()
+                let nested = Pattern.wildcard ()
                 let name = Name.fromList [ "x" ]
                 let pattern = Pattern.asPattern () nested name
                 Pattern.toString pattern
@@ -163,9 +163,9 @@ let tests =
 
             testCase "TuplePattern formats as comma-separated patterns in parentheses"
             <| fun _ ->
-                let element1 = Pattern.wildcardPattern ()
-                let element2 = Pattern.wildcardPattern ()
-                let pattern = Pattern.tuplePattern () [ element1; element2 ]
+                let element1 = Pattern.wildcard ()
+                let element2 = Pattern.wildcard ()
+                let pattern = Pattern.tuple () [ element1; element2 ]
                 Pattern.toString pattern
                 |> Expect.equal "(_ , _)"
 
@@ -173,10 +173,10 @@ let tests =
             <| fun _ ->
                 let fqName =
                     FQName.fqNameFromPaths
-                        (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                        (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                         (Path.fromList [ Name.fromList [ "maybe" ] ])
                         (Name.fromList [ "nothing" ])
-                let pattern = Pattern.constructorPattern () fqName []
+                let pattern = Pattern.constructor () fqName []
                 Pattern.toString pattern
                 |> Expect.equal "Morphir.SDK.Maybe.Nothing"
 
@@ -184,38 +184,38 @@ let tests =
             <| fun _ ->
                 let fqName =
                     FQName.fqNameFromPaths
-                        (Path.fromList [ Name.fromList [ "morphir"; "sdk" ] ])
+                        (Path.fromList [ Name.fromList [ "morphir" ]; Name.fromList [ "s"; "d"; "k" ] ])
                         (Path.fromList [ Name.fromList [ "maybe" ] ])
                         (Name.fromList [ "just" ])
-                let argPattern = Pattern.wildcardPattern ()
-                let pattern = Pattern.constructorPattern () fqName [ argPattern ]
+                let argPattern = Pattern.wildcard ()
+                let pattern = Pattern.constructor () fqName [ argPattern ]
                 Pattern.toString pattern
                 |> Expect.equal "Morphir.SDK.Maybe.Just _"
 
             testCase "EmptyListPattern formats as empty brackets"
             <| fun _ ->
-                let pattern = Pattern.emptyListPattern ()
+                let pattern = Pattern.emptyList ()
                 Pattern.toString pattern
                 |> Expect.equal "[]"
 
             testCase "HeadTailPattern formats as head :: tail"
             <| fun _ ->
-                let headPattern = Pattern.wildcardPattern ()
-                let tailPattern = Pattern.wildcardPattern ()
-                let pattern = Pattern.headTailPattern () headPattern tailPattern
+                let headPattern = Pattern.wildcard ()
+                let tailPattern = Pattern.wildcard ()
+                let pattern = Pattern.headTail () headPattern tailPattern
                 Pattern.toString pattern
                 |> Expect.equal "_ :: _"
 
             testCase "LiteralPattern formats using Literal.toString"
             <| fun _ ->
                 let lit = Literal.boolLiteral true
-                let pattern = Pattern.literalPattern () lit
+                let pattern = Pattern.literal () lit
                 Pattern.toString pattern
                 |> Expect.equal "True"
 
             testCase "UnitPattern formats as ()"
             <| fun _ ->
-                let pattern = Pattern.unitPattern ()
+                let pattern = Pattern.unit ()
                 Pattern.toString pattern
                 |> Expect.equal "()"
         ]
