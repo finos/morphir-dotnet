@@ -410,3 +410,303 @@ let processorIntegrationTests =
             Expect.equal step2 (Some true) "step2 should be configured"
         }
     ]
+
+[<Tests>]
+let processorExecutionTests =
+    testList "MorphirProcessor Execution" [
+        test "processFile should execute parse phase" {
+            let parser: Parser = fun file -> Ok(box "parsed IR")
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse parser
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            Expect.isSome result.Content "content should be parsed"
+        }
+
+        test "processFile should handle parse failures" {
+            let failingParser: Parser = fun file -> Result.Error "Parse error"
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse failingParser
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            Expect.isTrue (MorphirFile.hasErrors result) "should have error from failed parser"
+        }
+
+        test "processFile should try multiple parsers until one succeeds" {
+            let failParser1: Parser = fun file -> Result.Error "Parser 1 failed"
+            let failParser2: Parser = fun file -> Result.Error "Parser 2 failed"
+            let successParser: Parser = fun file -> Result.Ok(box "parsed by parser 3")
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse failParser1
+                |> MorphirProcessor.parse failParser2
+                |> MorphirProcessor.parse successParser
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            Expect.isSome result.Content "content should be parsed by third parser"
+            Expect.hasLength result.Messages 2 "should have 2 warnings from failed parsers"
+        }
+
+        test "processFile should execute transform phase" {
+            let parser: Parser = fun file -> Ok(box "original IR")
+
+            let transformPlugin: Plugin =
+                {
+                    Name = "transform"
+                    Configure = id
+                    Transform = fun node file -> (Some(box "transformed IR"), file |> MorphirFile.info "Transformed")
+                }
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse parser
+                |> MorphirProcessor.plugin transformPlugin
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            Expect.isSome result.Content "content should be transformed"
+            Expect.hasLength result.Messages 1 "should have info message from plugin"
+        }
+
+        test "processFile should run multiple plugins in sequence" {
+            let parser: Parser = fun file -> Ok(box 0)
+
+            let incrementPlugin: Plugin =
+                {
+                    Name = "increment"
+                    Configure = id
+                    Transform =
+                        fun node file ->
+                            let value = unbox<int> node
+                            (Some(box (value + 1)), file |> MorphirFile.info (sprintf "Incremented to %d" (value + 1)))
+                }
+
+            let doublePlugin: Plugin =
+                {
+                    Name = "double"
+                    Configure = id
+                    Transform =
+                        fun node file ->
+                            let value = unbox<int> node
+                            (Some(box (value * 2)), file |> MorphirFile.info (sprintf "Doubled to %d" (value * 2)))
+                }
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse parser
+                |> MorphirProcessor.plugin incrementPlugin
+                |> MorphirProcessor.plugin doublePlugin
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            // (0 + 1) * 2 = 2
+            let finalValue = result.Content |> Option.map unbox<int>
+            Expect.equal finalValue (Some 2) "should apply both transformations"
+            Expect.hasLength result.Messages 2 "should have 2 info messages"
+        }
+
+        test "processFile should handle plugin returning None" {
+            let parser: Parser = fun file -> Ok(box "IR")
+
+            let removingPlugin: Plugin =
+                {
+                    Name = "remove"
+                    Configure = id
+                    Transform = fun node file -> (None, file |> MorphirFile.error "Validation failed" None)
+                }
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse parser
+                |> MorphirProcessor.plugin removingPlugin
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            Expect.isNone result.Content "content should be removed by plugin"
+            Expect.isTrue (MorphirFile.hasErrors result) "should have error"
+        }
+
+        test "processFile should skip transform phase if parse failed" {
+            let failingParser: Parser = fun file -> Result.Error "Parse error"
+
+            let shouldNotRunPlugin: Plugin =
+                {
+                    Name = "should-not-run"
+                    Configure = id
+                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Plugin ran")
+                }
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse failingParser
+                |> MorphirProcessor.plugin shouldNotRunPlugin
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            let infoMessages = MorphirFile.messagesOfSeverity Info result
+            Expect.isEmpty infoMessages "plugin should not run if parse failed"
+        }
+
+        test "processFile should execute stringify phase" {
+            let parser: Parser = fun file -> Ok(box "IR tree")
+
+            let compiler: Compiler =
+                fun node file -> file |> MorphirFile.info "Compiled to JSON"
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse parser
+                |> MorphirProcessor.stringify compiler
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            let messages = MorphirFile.messagesOfSeverity Info result
+            Expect.hasLength messages 1 "should have info message from compiler"
+        }
+
+        test "processFile should run multiple compilers in sequence" {
+            let parser: Parser = fun file -> Ok(box "IR")
+
+            let jsonCompiler: Compiler =
+                fun node file -> file |> MorphirFile.info "Compiled to JSON"
+
+            let prettyPrintCompiler: Compiler =
+                fun node file -> file |> MorphirFile.info "Pretty printed"
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse parser
+                |> MorphirProcessor.stringify jsonCompiler
+                |> MorphirProcessor.stringify prettyPrintCompiler
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            let messages = MorphirFile.messagesOfSeverity Info result
+            Expect.hasLength messages 2 "should have 2 info messages from compilers"
+        }
+
+        test "processFile should skip stringify phase if transform removed content" {
+            let parser: Parser = fun file -> Ok(box "IR")
+
+            let removingPlugin: Plugin =
+                {
+                    Name = "remove"
+                    Configure = id
+                    Transform = fun node file -> (None, file |> MorphirFile.error "Removed" None)
+                }
+
+            let shouldNotRunCompiler: Compiler =
+                fun node file -> file |> MorphirFile.info "Compiler ran"
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse parser
+                |> MorphirProcessor.plugin removingPlugin
+                |> MorphirProcessor.stringify shouldNotRunCompiler
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            let infoMessages = MorphirFile.messagesOfSeverity Info result
+            Expect.isEmpty infoMessages "compiler should not run if transform removed content"
+        }
+
+        test "processFile should execute full three-phase pipeline" {
+            let parser: Parser = fun file -> Ok(box "parsed IR")
+
+            let validatePlugin: Plugin =
+                {
+                    Name = "validate"
+                    Configure = id
+                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Validation passed")
+                }
+
+            let optimizePlugin: Plugin =
+                {
+                    Name = "optimize"
+                    Configure = id
+                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Optimization complete")
+                }
+
+            let compiler: Compiler =
+                fun node file -> file |> MorphirFile.info "Compiled to JSON"
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse parser
+                |> MorphirProcessor.plugin validatePlugin
+                |> MorphirProcessor.plugin optimizePlugin
+                |> MorphirProcessor.stringify compiler
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            Expect.isSome result.Content "content should be present"
+            Expect.isFalse (MorphirFile.hasErrors result) "should have no errors"
+            Expect.hasLength result.Messages 3 "should have 3 info messages (validate, optimize, compile)"
+            Expect.equal result.Messages.[0].Message "Validation passed" "first message from validate"
+            Expect.equal result.Messages.[1].Message "Optimization complete" "second message from optimize"
+            Expect.equal result.Messages.[2].Message "Compiled to JSON" "third message from compiler"
+        }
+
+        test "processFile should accumulate errors while continuing" {
+            let parser: Parser = fun file -> Ok(box "IR")
+
+            let errorPlugin1: Plugin =
+                {
+                    Name = "error1"
+                    Configure = id
+                    Transform = fun node file -> (Some node, file |> MorphirFile.error "Error 1" None)
+                }
+
+            let errorPlugin2: Plugin =
+                {
+                    Name = "error2"
+                    Configure = id
+                    Transform = fun node file -> (Some node, file |> MorphirFile.error "Error 2" None)
+                }
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse parser
+                |> MorphirProcessor.plugin errorPlugin1
+                |> MorphirProcessor.plugin errorPlugin2
+
+            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let result = MorphirProcessor.processFile inputFile proc
+
+            Expect.isTrue (MorphirFile.hasErrors result) "should have errors"
+            let errors = MorphirFile.errors result
+            Expect.hasLength errors 2 "should have 2 errors"
+        }
+
+        test "processPath should create file from path and process it" {
+            let parser: Parser = fun file -> Ok(box "parsed")
+
+            let proc =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse parser
+
+            let result = MorphirProcessor.processPath "/test/input.json" proc
+
+            Expect.equal result.Path (Some "/test/input.json") "should preserve path"
+            Expect.isSome result.Content "should have parsed content"
+        }
+    ]

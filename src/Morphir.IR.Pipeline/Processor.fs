@@ -165,3 +165,110 @@ module MorphirProcessor =
             | :? 'T as typed -> Some typed
             | _ -> None
         | false, _ -> None
+
+    /// <summary>
+    /// Executes the parse phase, running all parsers sequentially until one succeeds.
+    /// </summary>
+    /// <param name="file">The input file</param>
+    /// <param name="processor">The processor with parsers</param>
+    let private runParsePhase (file: MorphirFile) (processor: MorphirProcessor): MorphirFile =
+        match processor.Parsers with
+        | [] ->
+            // No parsers, return file as-is
+            file
+        | parsers ->
+            // Try parsers in order until one succeeds
+            let rec tryParsers remainingParsers currentFile =
+                match remainingParsers with
+                | [] ->
+                    // All parsers failed, add error
+                    currentFile
+                    |> MorphirFile.error "No parser succeeded" None
+                | parser :: rest ->
+                    match parser currentFile with
+                    | Result.Ok content ->
+                        // Parser succeeded, update file content
+                        { currentFile with Content = Some content }
+                    | Result.Error errorMsg ->
+                        // Parser failed, try next parser
+                        let updatedFile =
+                            currentFile
+                            |> MorphirFile.warn (sprintf "Parser failed: %s" errorMsg) None
+
+                        tryParsers rest updatedFile
+
+            tryParsers parsers file
+
+    /// <summary>
+    /// Executes the transform phase, running all plugins sequentially.
+    /// </summary>
+    /// <param name="file">The file with IR content</param>
+    /// <param name="processor">The processor with plugins</param>
+    let private runTransformPhase (file: MorphirFile) (processor: MorphirProcessor): MorphirFile =
+        match file.Content with
+        | None ->
+            // No content to transform (parse phase failed)
+            file
+        | Some initialNode ->
+            // Run plugins sequentially, threading node and file through chain
+            let rec runPlugins remainingPlugins currentNode currentFile =
+                match remainingPlugins with
+                | [] ->
+                    // All plugins complete, update file content with final node
+                    { currentFile with Content = Some currentNode }
+                | plugin :: rest ->
+                    let (transformedNode, updatedFile) = plugin.Transform currentNode currentFile
+
+                    match transformedNode with
+                    | Some node ->
+                        // Plugin returned transformed node, continue with next plugin
+                        runPlugins rest node updatedFile
+                    | None ->
+                        // Plugin removed node (e.g., validation failed), stop transform phase
+                        // Update file content to None and return
+                        { updatedFile with Content = None }
+
+            runPlugins processor.Plugins initialNode file
+
+    /// <summary>
+    /// Executes the stringify phase, running all compilers sequentially.
+    /// </summary>
+    /// <param name="file">The file with transformed IR content</param>
+    /// <param name="processor">The processor with compilers</param>
+    let private runStringifyPhase (file: MorphirFile) (processor: MorphirProcessor): MorphirFile =
+        match file.Content with
+        | None ->
+            // No content to stringify (parse or transform phase failed)
+            file
+        | Some node ->
+            // Run compilers sequentially, threading file through chain
+            let rec runCompilers remainingCompilers currentFile =
+                match remainingCompilers with
+                | [] -> currentFile
+                | compiler :: rest ->
+                    let updatedFile = compiler node currentFile
+                    runCompilers rest updatedFile
+
+            runCompilers processor.Compilers file
+
+    /// <summary>
+    /// Processes a file through the complete three-phase pipeline.
+    /// Phases: Parse -> Transform -> Stringify
+    /// </summary>
+    /// <param name="file">The input file</param>
+    /// <param name="processor">The processor to execute</param>
+    let processFile (file: MorphirFile) (processor: MorphirProcessor): MorphirFile =
+        file
+        |> fun f -> runParsePhase f processor
+        |> fun f -> runTransformPhase f processor
+        |> fun f -> runStringifyPhase f processor
+
+    /// <summary>
+    /// Processes a file path through the complete three-phase pipeline.
+    /// Creates a MorphirFile from the path and processes it.
+    /// </summary>
+    /// <param name="path">The file path</param>
+    /// <param name="processor">The processor to execute</param>
+    let processPath (path: string) (processor: MorphirProcessor): MorphirFile =
+        let file = MorphirFile.fromPath path
+        processFile file processor
