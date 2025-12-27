@@ -13,6 +13,7 @@
     <ItemGroup>
         <Compile Include="File.fs" />
         <Compile Include="Processor.fs" />
+        <Compile Include="PipelineBuilder.fs" />
     </ItemGroup>
 
 </Project>
