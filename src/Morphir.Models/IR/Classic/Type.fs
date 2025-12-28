@@ -1,63 +1,62 @@
 namespace Morphir.IR.Classic
 
+open Morphir.IR
+open AccessControlled
+
 /// <summary>
-/// Type module provides the complete type system for Morphir IR, including
-/// Type Expressions, Type Specifications, Type Definitions, and Field types.
+/// Type represents a type expression in the Morphir IR.
+/// Each variant includes attributes as the first parameter.
+/// </summary>
+type Type<'attributes> =
+    | Variable of 'attributes * Name
+    | Reference of 'attributes * FQName * Type<'attributes> list
+    | Tuple of 'attributes * Type<'attributes> list
+    | Record of 'attributes * Field<'attributes> list
+    | ExtensibleRecord of 'attributes * Name * Field<'attributes> list
+    | Function of 'attributes * Type<'attributes> * Type<'attributes>
+    | Unit of 'attributes
+
+/// <summary>
+/// Field represents a named field in a Record or ExtensibleRecord type.
+/// </summary>
+and Field<'attributes> = { Name: Name; Type: Type<'attributes> }
+
+/// <summary>
+/// Constructors represents a map of constructor names to their arguments.
+/// Used in CustomTypeSpecification and CustomTypeDefinition.
+/// </summary>
+type Constructors<'attributes> = Map<Name, (Name * Type<'attributes>) list>
+
+/// <summary>
+/// DerivedTypeDetails contains information for a derived type specification.
+/// </summary>
+type DerivedTypeDetails<'attributes> =
+    { BaseType: Type<'attributes>
+      FromBaseType: FQName
+      ToBaseType: FQName }
+
+/// <summary>
+/// TypeSpecification defines the interface of a type without implementation details.
+/// </summary>
+type TypeSpecification<'attributes> =
+    | TypeAliasSpecification of Name list * Type<'attributes>
+    | OpaqueTypeSpecification of Name list
+    | CustomTypeSpecification of Name list * Constructors<'attributes>
+    | DerivedTypeSpecification of Name list * DerivedTypeDetails<'attributes>
+
+/// <summary>
+/// TypeDefinition provides the complete implementation of a type.
+/// </summary>
+type TypeDefinition<'attributes> =
+    | TypeAliasDefinition of Name list * Type<'attributes>
+    | CustomTypeDefinition of Name list * AccessControlled<Constructors<'attributes>>
+
+/// <summary>
+/// Type module provides helper functions for the complete type system for Morphir IR.
 /// All types support generic attributes for extensibility.
 /// </summary>
 [<RequireQualifiedAccess>]
 module Type =
-
-    open Morphir.IR
-    open AccessControlled
-
-    /// <summary>
-    /// Type represents a type expression in the Morphir IR.
-    /// Each variant includes attributes as the first parameter.
-    /// </summary>
-    type Type<'attributes> =
-        | Variable of 'attributes * Name
-        | Reference of 'attributes * FQName * Type<'attributes> list
-        | Tuple of 'attributes * Type<'attributes> list
-        | Record of 'attributes * Field<'attributes> list
-        | ExtensibleRecord of 'attributes * Name * Field<'attributes> list
-        | Function of 'attributes * Type<'attributes> * Type<'attributes>
-        | Unit of 'attributes
-
-    /// <summary>
-    /// Field represents a named field in a Record or ExtensibleRecord type.
-    /// </summary>
-    and Field<'attributes> = { Name: Name; Type: Type<'attributes> }
-
-    /// <summary>
-    /// Constructors represents a map of constructor names to their arguments.
-    /// Used in CustomTypeSpecification and CustomTypeDefinition.
-    /// </summary>
-    type Constructors<'attributes> = Map<Name, (Name * Type<'attributes>) list>
-
-    /// <summary>
-    /// DerivedTypeDetails contains information for a derived type specification.
-    /// </summary>
-    type DerivedTypeDetails<'attributes> =
-        { BaseType: Type<'attributes>
-          FromBaseType: FQName
-          ToBaseType: FQName }
-
-    /// <summary>
-    /// TypeSpecification defines the interface of a type without implementation details.
-    /// </summary>
-    type TypeSpecification<'attributes> =
-        | TypeAliasSpecification of Name list * Type<'attributes>
-        | OpaqueTypeSpecification of Name list
-        | CustomTypeSpecification of Name list * Constructors<'attributes>
-        | DerivedTypeSpecification of Name list * DerivedTypeDetails<'attributes>
-
-    /// <summary>
-    /// TypeDefinition provides the complete implementation of a type.
-    /// </summary>
-    type TypeDefinition<'attributes> =
-        | TypeAliasDefinition of Name list * Type<'attributes>
-        | CustomTypeDefinition of Name list * AccessControlled<Constructors<'attributes>>
 
     // Helper functions for Field
 

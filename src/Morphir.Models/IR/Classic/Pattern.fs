@@ -1,29 +1,29 @@
 namespace Morphir.IR.Classic
 
+open Morphir.IR
+
 /// <summary>
-/// Pattern module provides pattern matching types for Morphir IR.
+/// Pattern represents a pattern matching expression in the Morphir IR.
+/// Each variant includes attributes as the first parameter.
 /// Patterns are used for destructuring and filtering values in lambda,
 /// let destructure, and pattern match expressions.
 /// </summary>
+type Pattern<'attributes> =
+    | WildcardPattern of 'attributes
+    | AsPattern of 'attributes * Pattern<'attributes> * Name
+    | TuplePattern of 'attributes * Pattern<'attributes> list
+    | ConstructorPattern of 'attributes * FQName * Pattern<'attributes> list
+    | EmptyListPattern of 'attributes
+    | HeadTailPattern of 'attributes * Pattern<'attributes> * Pattern<'attributes>
+    | LiteralPattern of 'attributes * Literal
+    | UnitPattern of 'attributes
+
+/// <summary>
+/// Pattern module provides helper functions for working with patterns.
+/// Requires qualified access to avoid name conflicts.
+/// </summary>
 [<RequireQualifiedAccess>]
 module Pattern =
-
-    open Morphir.IR
-    open Literal
-
-    /// <summary>
-    /// Pattern represents a pattern matching expression in the Morphir IR.
-    /// Each variant includes attributes as the first parameter.
-    /// </summary>
-    type Pattern<'attributes> =
-        | WildcardPattern of 'attributes
-        | AsPattern of 'attributes * Pattern<'attributes> * Name
-        | TuplePattern of 'attributes * Pattern<'attributes> list
-        | ConstructorPattern of 'attributes * FQName * Pattern<'attributes> list
-        | EmptyListPattern of 'attributes
-        | HeadTailPattern of 'attributes * Pattern<'attributes> * Pattern<'attributes>
-        | LiteralPattern of 'attributes * Literal
-        | UnitPattern of 'attributes
 
     /// <summary>
     /// Creates a wildcard pattern (matches any value without binding).
@@ -164,4 +164,3 @@ module Pattern =
             $"{toString headPattern} :: {toString tailPattern}"
         | LiteralPattern(_, literal) -> Literal.toString literal
         | UnitPattern _ -> "()"
-

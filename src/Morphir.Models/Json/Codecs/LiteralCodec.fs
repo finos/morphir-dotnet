@@ -4,7 +4,7 @@ open System
 open System.Globalization
 open System.Text.Json
 open System.Text.Json.Serialization
-open Morphir.IR.Classic.Literal
+open Morphir.IR.Classic
 open Morphir.IR.Versioning
 open Morphir.Json
 

@@ -30,6 +30,7 @@
         <Compile Include="IR/Classic/Literal.fs" />
         <Compile Include="IR/Classic/Pattern.fs" />
         <Compile Include="IR/Classic/Value.fs" />
+        <Compile Include="IR/Classic/Aliases.fs" />
         <Compile Include="IR/Classic/Documented.fs" />
         <Compile Include="IR/Classic/Module.fs" />
         <Compile Include="IR/Classic/Package.fs" />
@@ -45,10 +46,14 @@
         <Compile Include="IR/DSL/Names.fs" />
         <Compile Include="IR/DSL/DSL.fs" />
         <Compile Include="Json/MorphirJsonOptions.fs" />
+        <Compile Include="Json/Encode.fs" />
+        <Compile Include="Json/Decode.fs" />
         <Compile Include="Json/Codecs/NameCodec.fs" />
         <Compile Include="Json/Codecs/PathCodec.fs" />
         <Compile Include="Json/Codecs/FQNameCodec.fs" />
         <Compile Include="Json/Codecs/LiteralCodec.fs" />
+        <Compile Include="Json/Codecs/TypeCodec.fs" />
+        <Compile Include="Json/Codecs/RawTypeCodec.fs" />
     </ItemGroup>
 
     <ItemGroup>

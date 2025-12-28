@@ -3,7 +3,7 @@ module Morphir.Json.Tests.CodecTests
 open Expecto
 open System.Text.Json
 open Morphir.IR
-open Morphir.IR.Classic.Literal
+open Morphir.IR.Classic
 open Morphir.IR.Versioning
 open Morphir.Json
 open Morphir.Json.Codecs
@@ -447,5 +447,171 @@ let morphirJsonOptionsTests =
         testCase "getMajorVersion returns correct value"
         <| fun _ ->
             Expect.equal (MorphirJsonOptions.getMajorVersion MorphirJsonOptions.v3) 3 "Major version of v3"
+    ]
+
+[<Tests>]
+let rawTypeCodecTests =
+    testList "RawTypeCodec" [
+        testList "roundtrip v3" [
+            testCase "Variable type roundtrips"
+            <| fun _ ->
+                let typ = Type.Variable ((), Name.fromString "a")
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                let decoded = RawTypeCodec.decode encoded
+                Expect.equal decoded (Ok typ) "Variable type should roundtrip"
+
+            testCase "Reference type roundtrips"
+            <| fun _ ->
+                let fqName = FQName.fqNameFromPaths (Path.fromString "morphir.sdk") (Path.fromString "basics") (Name.fromString "int")
+                let typ = Type.Reference ((), fqName, [])
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                let decoded = RawTypeCodec.decode encoded
+                Expect.equal decoded (Ok typ) "Reference type should roundtrip"
+
+            testCase "Tuple type roundtrips"
+            <| fun _ ->
+                let typ = Type.Tuple ((), [
+                    Type.Variable ((), Name.fromString "a")
+                    Type.Variable ((), Name.fromString "b")
+                ])
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                let decoded = RawTypeCodec.decode encoded
+                Expect.equal decoded (Ok typ) "Tuple type should roundtrip"
+
+            testCase "Record type roundtrips"
+            <| fun _ ->
+                let typ = Type.Record ((), [
+                    { Name = Name.fromString "name"; Type = Type.Variable ((), Name.fromString "String") }
+                    { Name = Name.fromString "age"; Type = Type.Variable ((), Name.fromString "Int") }
+                ])
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                let decoded = RawTypeCodec.decode encoded
+                Expect.equal decoded (Ok typ) "Record type should roundtrip"
+
+            testCase "ExtensibleRecord type roundtrips"
+            <| fun _ ->
+                let typ = Type.ExtensibleRecord ((), Name.fromString "r", [
+                    { Name = Name.fromString "x"; Type = Type.Variable ((), Name.fromString "Int") }
+                ])
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                let decoded = RawTypeCodec.decode encoded
+                Expect.equal decoded (Ok typ) "ExtensibleRecord type should roundtrip"
+
+            testCase "Function type roundtrips"
+            <| fun _ ->
+                let typ = Type.Function ((),
+                    Type.Variable ((), Name.fromString "a"),
+                    Type.Variable ((), Name.fromString "b")
+                )
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                let decoded = RawTypeCodec.decode encoded
+                Expect.equal decoded (Ok typ) "Function type should roundtrip"
+
+            testCase "Unit type roundtrips"
+            <| fun _ ->
+                let typ = Type.Unit ()
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                let decoded = RawTypeCodec.decode encoded
+                Expect.equal decoded (Ok typ) "Unit type should roundtrip"
+
+            testCase "Nested function type roundtrips"
+            <| fun _ ->
+                // (a -> b) -> c
+                let typ = Type.Function ((),
+                    Type.Function ((),
+                        Type.Variable ((), Name.fromString "a"),
+                        Type.Variable ((), Name.fromString "b")
+                    ),
+                    Type.Variable ((), Name.fromString "c")
+                )
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                let decoded = RawTypeCodec.decode encoded
+                Expect.equal decoded (Ok typ) "Nested function type should roundtrip"
+        ]
+
+        testList "version-specific tags" [
+            testCase "v1 uses lowercase tags"
+            <| fun _ ->
+                let typ = Type.Variable ((), Name.fromString "a")
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v1 typ
+                let items = encoded.EnumerateArray() |> Seq.toList
+                Expect.equal (items.[0].GetString()) "variable" "v1 should use lowercase"
+
+            testCase "v2 uses PascalCase tags"
+            <| fun _ ->
+                let typ = Type.Reference ((), FQName.fqNameFromPaths (Path.fromString "test") (Path.fromString "module") (Name.fromString "Type"), [])
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v2 typ
+                let items = encoded.EnumerateArray() |> Seq.toList
+                Expect.equal (items.[0].GetString()) "Reference" "v2 should use PascalCase"
+
+            testCase "v3 uses PascalCase tags"
+            <| fun _ ->
+                let typ = Type.Function ((), Type.Unit (), Type.Unit ())
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                let items = encoded.EnumerateArray() |> Seq.toList
+                Expect.equal (items.[0].GetString()) "Function" "v3 should use PascalCase"
+        ]
+
+        testList "cross-version decoding" [
+            testCase "decodes v1 format"
+            <| fun _ ->
+                let json = """["variable", null, ["a"]]"""
+                let element = JsonDocument.Parse(json).RootElement
+                let decoded = RawTypeCodec.decode element
+                let expected = Type.Variable ((), Name.fromString "a")
+                Expect.equal decoded (Ok expected) "Should decode v1 format"
+
+            testCase "decodes v2 format"
+            <| fun _ ->
+                let json = """["Reference", null, [["test"], ["module"], ["Type"]], []]"""
+                let element = JsonDocument.Parse(json).RootElement
+                let decoded = RawTypeCodec.decode element
+                let expected = Type.Reference ((), FQName.fqNameFromPaths (Path.fromString "test") (Path.fromString "module") (Name.fromString "Type"), [])
+                Expect.equal decoded (Ok expected) "Should decode v2 format"
+
+            testCase "decodes v3 format"
+            <| fun _ ->
+                let json = """["Unit", null]"""
+                let element = JsonDocument.Parse(json).RootElement
+                let decoded = RawTypeCodec.decode element
+                let expected = Type.Unit ()
+                Expect.equal decoded (Ok expected) "Should decode v3 format"
+        ]
+
+        testList "encoding structure" [
+            testCase "Variable encodes as [tag, attrs, name]"
+            <| fun _ ->
+                let typ = Type.Variable ((), Name.fromString "a")
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                Expect.equal encoded.ValueKind JsonValueKind.Array "Should be array"
+                let items = encoded.EnumerateArray() |> Seq.toList
+                Expect.equal items.Length 3 "Should have 3 elements"
+                Expect.equal (items.[0].GetString()) "Variable" "Tag should be Variable"
+                Expect.equal items.[1].ValueKind JsonValueKind.Null "Attrs should be null"
+
+            testCase "Reference encodes as [tag, attrs, fqname, typeArgs]"
+            <| fun _ ->
+                let fqName = FQName.fqNameFromPaths (Path.fromString "test") (Path.fromString "module") (Name.fromString "Type")
+                let typ = Type.Reference ((), fqName, [])
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                let items = encoded.EnumerateArray() |> Seq.toList
+                Expect.equal items.Length 4 "Should have 4 elements"
+                Expect.equal (items.[0].GetString()) "Reference" "Tag should be Reference"
+                Expect.equal items.[1].ValueKind JsonValueKind.Null "Attrs should be null"
+                Expect.equal items.[3].ValueKind JsonValueKind.Array "TypeArgs should be array"
+
+            testCase "Record encodes fields correctly"
+            <| fun _ ->
+                let typ = Type.Record ((), [
+                    { Name = Name.fromString "name"; Type = Type.Variable ((), Name.fromString "String") }
+                ])
+                let encoded = RawTypeCodec.encodeWithOptions MorphirJsonOptions.v3 typ
+                let items = encoded.EnumerateArray() |> Seq.toList
+                Expect.equal items.Length 3 "Should have 3 elements"
+                let fields = items.[2].EnumerateArray() |> Seq.toList
+                Expect.equal fields.Length 1 "Should have 1 field"
+                let field = fields.[0].EnumerateArray() |> Seq.toList
+                Expect.equal field.Length 2 "Field should have [name, type]"
+        ]
     ]
 
