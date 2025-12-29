@@ -71,7 +71,7 @@ jobs:
         run: ./build.sh --target PackageProtoPlugin --plugin-version ${{ env.PLUGIN_VERSION }}
 
       - name: Upload Plugin Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: morphir-proto-plugin
           path: |

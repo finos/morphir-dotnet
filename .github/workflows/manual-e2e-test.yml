@@ -122,7 +122,7 @@ jobs:
 
             - name: Upload executable artifact (on failure)
               if: failure()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v6
               with:
                   name: failed-executable-${{ matrix.rid }}
                   path: ./artifacts/single-file/${{ matrix.rid }}/
@@ -130,7 +130,7 @@ jobs:
 
             - name: Upload test results (on failure)
               if: failure()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v6
               with:
                   name: test-results-${{ matrix.rid }}
                   path: |
