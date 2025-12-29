@@ -360,7 +360,7 @@
         "dependencies": {
           "Dunet": "[1.11.3, )",
           "Generator.Equals": "[3.2.1, )",
-          "LanguageExt.Core": "[5.0.0-beta-65, )",
+          "LanguageExt.Core": "[5.0.0-beta-74, )",
           "Vogen": "[8.0.4, )"
         }
       },
@@ -371,7 +371,7 @@
           "FluentValidation": "[11.12.0, )",
           "Foundatio.Mediator": "[1.0.0-rc.4, )",
           "Json.More.Net": "[2.2.0, )",
-          "JsonSchema.Net": "[8.0.4, )",
+          "JsonSchema.Net": "[8.0.5, )",
           "Microsoft.Extensions.Hosting": "[10.0.0, )",
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
@@ -429,18 +429,18 @@
       },
       "JsonSchema.Net": {
         "type": "CentralTransitive",
-        "requested": "[8.0.4, )",
-        "resolved": "8.0.4",
-        "contentHash": "NSJ1iu+7Dg6fxaev90bWLvHi5mCqrGMgJuRzXr9mIaRt54Niox3D5g3uKH7ic7vcfkyhDU9opkAPGvek+cG53g==",
+        "requested": "[8.0.5, )",
+        "resolved": "8.0.5",
+        "contentHash": "QoEqdoAUgAkbzuFAiHySjGuh8lJs8L8DxkEDGJLEebtlZ6+EbEr0wmYlidErSS2ASNFOModueb83DLNIRLqshg==",
         "dependencies": {
           "JsonPointer.Net": "6.0.1"
         }
       },
       "LanguageExt.Core": {
         "type": "CentralTransitive",
-        "requested": "[5.0.0-beta-65, )",
-        "resolved": "5.0.0-beta-65",
-        "contentHash": "idt9Vd0TO5W+b+iYFN1JBJT4AwpTmmKy66enmk/Xr9Zx/2nCxYj+gDB1WQZEhKWrLvXtFaid+Qsga1y/1AqdDQ=="
+        "requested": "[5.0.0-beta-74, )",
+        "resolved": "5.0.0-beta-74",
+        "contentHash": "ADpdgIS9vtv41pipPZJFB8W9kDwXqMk02xgRRaZWzYNerhwsgbNc/eG7GoR2F/yAJf3MXXadcAbOJjq9zGO6OQ=="
       },
       "Microsoft.Extensions.Hosting": {
         "type": "CentralTransitive",
