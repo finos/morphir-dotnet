@@ -3,6 +3,7 @@ namespace Morphir.Models.Tests.IR.DSL
 open Expecto
 open Morphir.Testing.Assertions
 open Morphir.IR
+open Morphir.IR.Classic  // For Pattern type and PatternExtensions AutoOpen module
 open Morphir.IR.Classic.DSL.Patterns
 open Morphir.IR.DSL.Names
 

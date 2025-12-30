@@ -3,7 +3,7 @@ namespace Morphir.Models.Tests.IR.DSL
 open Expecto
 open Morphir.Testing.Assertions
 open Morphir.IR.Classic.DSL.Literals
-open Morphir.IR.Classic.Literal
+open Morphir.IR.Classic  // Literal type and its cases (BoolLiteral, etc.) are at namespace level
 
 module LiteralsTests =
 
@@ -99,27 +99,27 @@ module LiteralsTests =
             ]
 
             testList "Direct constructors (from Literal module)" [
-                testCase "boolLiteral function works"
+                testCase "Literal.boolLiteral function works"
                 <| fun _ ->
-                    let result = boolLiteral true
+                    let result = Literal.boolLiteral true
                     let expected = BoolLiteral true
                     result |> Expect.equal expected
 
-                testCase "stringLiteral function works"
+                testCase "Literal.stringLiteral function works"
                 <| fun _ ->
-                    let result = stringLiteral "test"
+                    let result = Literal.stringLiteral "test"
                     let expected = StringLiteral "test"
                     result |> Expect.equal expected
 
-                testCase "wholeNumberLiteral function works"
+                testCase "Literal.wholeNumberLiteral function works"
                 <| fun _ ->
-                    let result = wholeNumberLiteral 42L
+                    let result = Literal.wholeNumberLiteral 42L
                     let expected = WholeNumberLiteral 42L
                     result |> Expect.equal expected
 
-                testCase "decimalLiteral function works"
+                testCase "Literal.decimalLiteral function works"
                 <| fun _ ->
-                    let result = decimalLiteral 123.45m
+                    let result = Literal.decimalLiteral 123.45m
                     let expected = DecimalLiteral 123.45m
                     result |> Expect.equal expected
             ]
