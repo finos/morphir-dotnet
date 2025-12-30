@@ -18,7 +18,7 @@ module Module =
     /// Contains only type signatures, no implementations.
     /// </summary>
     type ModuleSpecification<'attributes> =
-        { Types: Map<Name, Documented<TypeSpecification<'attributes>>>
+        { Types: Map<Name, Documented<Type.TypeSpecification<'attributes>>>
           Values: Map<Name, Documented<ValueSpecification<'attributes>>>
           Doc: string option }
 
@@ -27,14 +27,14 @@ module Module =
     /// Contains all types and values (public and private) with full implementations.
     /// </summary>
     type ModuleDefinition<'typeAttributes, 'valueAttributes> =
-        { Types: Map<Name, AccessControlled<Documented<TypeDefinition<'typeAttributes>>>>
+        { Types: Map<Name, AccessControlled<Documented<Type.TypeDefinition<'typeAttributes>>>>
           Values: Map<Name, AccessControlled<Documented<ValueDefinition<'typeAttributes, 'valueAttributes>>>>
           Doc: string option }
 
     /// <summary>
     /// Creates a ModuleSpecification.
     /// </summary>
-    let moduleSpecification<'attributes> (types: Map<Name, Documented<TypeSpecification<'attributes>>>) (values: Map<Name, Documented<ValueSpecification<'attributes>>>) (doc: string option) : ModuleSpecification<'attributes> =
+    let moduleSpecification<'attributes> (types: Map<Name, Documented<Type.TypeSpecification<'attributes>>>) (values: Map<Name, Documented<ValueSpecification<'attributes>>>) (doc: string option) : ModuleSpecification<'attributes> =
         { Types = types
           Values = values
           Doc = doc }
@@ -42,7 +42,7 @@ module Module =
     /// <summary>
     /// Creates a ModuleDefinition.
     /// </summary>
-    let moduleDefinition<'typeAttributes, 'valueAttributes> (types: Map<Name, AccessControlled<Documented<TypeDefinition<'typeAttributes>>>>) (values: Map<Name, AccessControlled<Documented<ValueDefinition<'typeAttributes, 'valueAttributes>>>>) (doc: string option) : ModuleDefinition<'typeAttributes, 'valueAttributes> =
+    let moduleDefinition<'typeAttributes, 'valueAttributes> (types: Map<Name, AccessControlled<Documented<Type.TypeDefinition<'typeAttributes>>>>) (values: Map<Name, AccessControlled<Documented<ValueDefinition<'typeAttributes, 'valueAttributes>>>>) (doc: string option) : ModuleDefinition<'typeAttributes, 'valueAttributes> =
         { Types = types
           Values = values
           Doc = doc }

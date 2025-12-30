@@ -24,17 +24,17 @@ module Aliases =
     /// <summary>
     /// RawConstructors represents constructors without type attributes.
     /// </summary>
-    type RawConstructors = Constructors<unit>
+    type RawConstructors = Type.Constructors<unit>
 
     /// <summary>
     /// RawTypeSpecification represents a type specification without attributes.
     /// </summary>
-    type RawTypeSpecification = TypeSpecification<unit>
+    type RawTypeSpecification = Type.TypeSpecification<unit>
 
     /// <summary>
     /// RawTypeDefinition represents a type definition without attributes.
     /// </summary>
-    type RawTypeDefinition = TypeDefinition<unit>
+    type RawTypeDefinition = Type.TypeDefinition<unit>
 
     // ===== Pattern Aliases =====
 
