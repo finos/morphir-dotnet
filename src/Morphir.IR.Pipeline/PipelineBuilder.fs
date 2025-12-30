@@ -3,6 +3,7 @@ namespace Morphir.IR.Pipeline
 /// <summary>
 /// Computation expression builder for creating MorphirProcessor pipelines.
 /// Provides a declarative, F#-idiomatic API for pipeline construction.
+/// Pipelines are frozen (immutable) by default.
 /// </summary>
 /// <example>
 /// <code>
@@ -11,8 +12,8 @@ namespace Morphir.IR.Pipeline
 ///     uses validateIRPlugin
 ///     uses optimizePlugin
 ///     stringify irJsonSerializer
-///     freeze
 /// }
+/// // Automatically frozen - no freeze call needed!
 /// </code>
 /// </example>
 type PipelineBuilder() =
@@ -25,6 +26,14 @@ type PipelineBuilder() =
     /// Returns an empty processor for empty pipeline blocks.
     /// </summary>
     member _.Zero() = MorphirProcessor.empty
+
+    /// <summary>
+    /// Returns the processor, frozen by default.
+    /// Pipelines are immutable unless explicitly marked as mutable.
+    /// </summary>
+    member _.Run(proc: MorphirProcessor) : MorphirProcessor =
+        if proc.Frozen then proc
+        else MorphirProcessor.freeze proc
 
     /// <summary>
     /// Adds a parser to the pipeline.
@@ -55,6 +64,8 @@ type PipelineBuilder() =
 
     /// <summary>
     /// Freezes the processor, making it an immutable template.
+    /// Note: Pipelines are frozen by default, so this operation is typically redundant.
+    /// It's kept for backward compatibility and explicit freeze scenarios.
     /// </summary>
     /// <param name="proc">The current processor</param>
     [<CustomOperation("freeze")>]
@@ -78,6 +89,7 @@ type PipelineBuilder() =
 module PipelineBuilderInstance =
     /// <summary>
     /// Creates a new pipeline using computation expression syntax.
+    /// Pipelines are frozen (immutable) by default.
     /// </summary>
     /// <example>
     /// <code>
@@ -85,8 +97,8 @@ module PipelineBuilderInstance =
     ///     parse irJsonParser
     ///     uses validateIRPlugin
     ///     stringify irJsonSerializer
-    ///     freeze
     /// }
+    /// // Automatically frozen!
     /// </code>
     /// </example>
     let pipeline = PipelineBuilder()

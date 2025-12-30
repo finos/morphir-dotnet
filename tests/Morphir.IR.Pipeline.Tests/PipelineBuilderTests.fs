@@ -6,13 +6,13 @@ open Morphir.IR.Pipeline
 [<Tests>]
 let pipelineBuilderBasicTests =
     testList "PipelineBuilder Basic" [
-        test "empty pipeline should create empty processor" {
+        test "empty pipeline should create empty frozen processor" {
             let proc = pipeline { () }
 
             Expect.isEmpty proc.Parsers "should have no parsers"
             Expect.isEmpty proc.Plugins "should have no plugins"
             Expect.isEmpty proc.Compilers "should have no compilers"
-            Expect.isFalse (MorphirProcessor.isFrozen proc) "should not be frozen"
+            Expect.isTrue (MorphirProcessor.isFrozen proc) "should be frozen by default"
         }
 
         test "parse should add parser" {
