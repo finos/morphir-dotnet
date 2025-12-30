@@ -37,9 +37,9 @@
       },
       "LanguageExt.Core": {
         "type": "Direct",
-        "requested": "[5.0.0-beta-65, )",
-        "resolved": "5.0.0-beta-65",
-        "contentHash": "idt9Vd0TO5W+b+iYFN1JBJT4AwpTmmKy66enmk/Xr9Zx/2nCxYj+gDB1WQZEhKWrLvXtFaid+Qsga1y/1AqdDQ=="
+        "requested": "[5.0.0-beta-75, )",
+        "resolved": "5.0.0-beta-75",
+        "contentHash": "4//talekoZP2T/RAhE6bcgyemW2m4LOj23Ul7fKR0QrMtX5gkpklA7/rBY8H0rzDTAxFP/dIWfOmUIa8xB8kvQ=="
       },
       "StaticCS": {
         "type": "Direct",
