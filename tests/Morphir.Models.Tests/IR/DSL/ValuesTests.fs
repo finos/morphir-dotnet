@@ -2,9 +2,8 @@ namespace Morphir.Models.Tests.IR.DSL
 
 open Expecto
 open Morphir.IR
-open Morphir.IR.Classic
+open Morphir.IR.Classic  // For Literal, Pattern, Type and their extensions
 open Morphir.IR.Classic.Value
-open Morphir.IR.Classic.Literal
 open Morphir.IR.Classic.DSL.Values
 open Morphir.IR.Classic.DSL.Helpers
 
