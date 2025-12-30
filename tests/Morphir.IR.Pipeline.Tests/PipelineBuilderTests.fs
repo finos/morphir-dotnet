@@ -23,7 +23,7 @@ let pipelineBuilderBasicTests =
             Expect.hasLength proc.Parsers 1 "should have 1 parser"
         }
 
-        test "plugin should add plugin" {
+        test "uses should add plugin" {
             let testPlugin: Plugin =
                 {
                     Name = "test"
@@ -31,7 +31,7 @@ let pipelineBuilderBasicTests =
                     Transform = fun node file -> (Some node, file)
                 }
 
-            let proc = pipeline { plugin testPlugin }
+            let proc = pipeline { uses testPlugin }
 
             Expect.hasLength proc.Plugins 1 "should have 1 plugin"
         }
@@ -91,8 +91,8 @@ let pipelineBuilderCompositionTests =
                 }
 
             let proc = pipeline {
-                plugin plugin1
-                plugin plugin2
+                uses plugin1
+                uses plugin2
             }
 
             Expect.hasLength proc.Plugins 2 "should have 2 plugins"
@@ -133,8 +133,8 @@ let pipelineBuilderCompositionTests =
 
             let proc = pipeline {
                 parse parser
-                plugin plugin1
-                plugin plugin2
+                uses plugin1
+                uses plugin2
                 stringify compiler
                 freeze
             }
@@ -179,7 +179,7 @@ let pipelineBuilderExecutionTests =
 
             let proc = pipeline {
                 parse parser
-                plugin validatePlugin
+                uses validatePlugin
                 stringify compiler
             }
 
@@ -209,14 +209,14 @@ let pipelineBuilderExecutionTests =
 
             let basePipeline = pipeline {
                 parse parser
-                plugin basePlugin
+                uses basePlugin
                 freeze
             }
 
             let variantPipeline = pipeline {
                 parse parser
-                plugin basePlugin
-                plugin variantPlugin
+                uses basePlugin
+                uses variantPlugin
                 freeze
             }
 
@@ -235,7 +235,7 @@ let pipelineBuilderExecutionTests =
                     Transform = fun node file -> (Some node, file)
                 }
 
-            let proc = pipeline { plugin configuringPlugin }
+            let proc = pipeline { uses configuringPlugin }
 
             let configured = MorphirProcessor.getDataAs<bool> "configured" proc
 
@@ -275,9 +275,9 @@ let pipelineBuilderIntegrationTests =
 
             let validationPipeline = pipeline {
                 parse irParser
-                plugin syntaxPlugin
-                plugin semanticPlugin
-                plugin normalizePlugin
+                uses syntaxPlugin
+                uses semanticPlugin
+                uses normalizePlugin
                 stringify jsonCompiler
                 freeze
             }
@@ -301,7 +301,7 @@ let pipelineBuilderIntegrationTests =
 
             let basePipeline = pipeline {
                 parse parser
-                plugin validatePlugin
+                uses validatePlugin
                 freeze
             }
 
@@ -360,8 +360,8 @@ let pipelineBuilderIntegrationTests =
 
             let errorPipeline = pipeline {
                 parse parser
-                plugin strictValidatorPlugin
-                plugin warningPlugin
+                uses strictValidatorPlugin
+                uses warningPlugin
             }
 
             let inputFile = MorphirFile.fromPath "/test/input.json"

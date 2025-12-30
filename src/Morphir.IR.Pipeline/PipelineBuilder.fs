@@ -8,8 +8,8 @@ namespace Morphir.IR.Pipeline
 /// <code>
 /// let proc = pipeline {
 ///     parse irJsonParser
-///     plugin validateIRPlugin
-///     plugin optimizePlugin
+///     uses validateIRPlugin
+///     uses optimizePlugin
 ///     stringify irJsonSerializer
 ///     freeze
 /// }
@@ -40,8 +40,8 @@ type PipelineBuilder() =
     /// </summary>
     /// <param name="proc">The current processor</param>
     /// <param name="plugin">The plugin to add</param>
-    [<CustomOperation("plugin")>]
-    member _.Plugin(proc: MorphirProcessor, plugin: Plugin): MorphirProcessor =
+    [<CustomOperation("uses")>]
+    member _.Uses(proc: MorphirProcessor, plugin: Plugin): MorphirProcessor =
         MorphirProcessor.plugin plugin proc
 
     /// <summary>
@@ -83,7 +83,7 @@ module PipelineBuilderInstance =
     /// <code>
     /// let proc = pipeline {
     ///     parse irJsonParser
-    ///     plugin validateIRPlugin
+    ///     uses validateIRPlugin
     ///     stringify irJsonSerializer
     ///     freeze
     /// }
