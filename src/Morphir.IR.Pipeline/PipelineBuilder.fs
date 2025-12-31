@@ -120,8 +120,8 @@ module PipelineBuilderInstance =
     ///     stringify irJsonSerializer
     /// }
     ///
-    /// // Explicitly immutable - using Pipeline.frozen
-    /// let immutableProc = Pipeline.frozen {
+    /// // Explicitly immutable - PREFERRED for clarity
+    /// let immutableProc = Pipeline.immutable {
     ///     parse irJsonParser
     ///     uses validatePlugin
     /// }
@@ -188,18 +188,23 @@ module PipelineBuilderInstance =
     /// </summary>
     module Pipeline =
         /// <summary>
-        /// Explicitly creates a frozen (immutable) pipeline.
+        /// Explicitly creates an immutable (frozen) pipeline.
         /// This is the default behavior but can be used for clarity.
         /// </summary>
         /// <example>
         /// <code>
-        /// let proc = Pipeline.frozen {
+        /// let proc = Pipeline.immutable {
         ///     parse irJsonParser
         ///     uses validatePlugin
         /// }
         /// </code>
         /// </example>
-        let frozen = FrozenPipelineBuilder()
+        let immutable = FrozenPipelineBuilder()
+
+        /// <summary>
+        /// Alias for 'immutable' - creates a frozen (immutable) pipeline.
+        /// </summary>
+        let frozen = immutable
 
         /// <summary>
         /// Explicitly creates a mutable (unfrozen) pipeline.
