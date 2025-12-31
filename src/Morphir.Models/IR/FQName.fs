@@ -116,3 +116,37 @@ module FQName =
         let localName = fqName |> localName |> Name.toTitleCase
 
         $"FQName({packageName}, {moduleName}, {localName})"
+
+    /// <summary>
+    /// Parse a string into an FQName using splitter as the separator between package, module and local names.
+    /// Returns a default FQName with empty paths if the input is malformed.
+    /// Expected format: "package:module:local" where : is the splitter.
+    /// </summary>
+    let fromString (fqNameString: string) (splitter: string) : FQName =
+        match fqNameString.Split(splitter) with
+        | [| packageNameString; moduleNameString; localNameString |] ->
+            { PackagePath = packageNameString |> Path.fromString |> PackageName.packageName
+              ModulePath = moduleNameString |> Path.fromString |> ModulePath.modulePath
+              LocalName = Name.fromString localNameString }
+        | _ ->
+            // Default to empty paths if malformed
+            { PackagePath = PackageName.emptyPackageName
+              ModulePath = ModulePath.emptyModulePath
+              LocalName = Name.empty }
+
+    /// <summary>
+    /// Parse a string into an FQName using separator as the separator between package, module and local names.
+    /// Fails with an error message if the input is malformed.
+    /// Expected format: "package:module:local" where : is the separator.
+    /// </summary>
+    let fromStringStrict (fqNameString: string) (separator: string) : Result<FQName, string> =
+        let parts = fqNameString.Split(separator)
+        match parts with
+        | [| packageNameString; moduleNameString; localNameString |] ->
+            Ok
+                { PackagePath = packageNameString |> Path.fromString |> PackageName.packageName
+                  ModulePath = moduleNameString |> Path.fromString |> ModulePath.modulePath
+                  LocalName = Name.fromString localNameString }
+        | _ ->
+            Error
+                $"A fully-qualified name needs to have 3 parts: a package name, a module name and a local name. I found {parts.Length} parts by splitting '{fqNameString}' using '{separator}' as the separator."

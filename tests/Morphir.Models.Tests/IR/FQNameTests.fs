@@ -113,4 +113,181 @@ let tests =
                 FQName.toDebugString fqName
                 |> Expect.equal "FQName(, My.Module, Value)"
         ]
+
+        testList "fromString" [
+            testCase "Parses well-formed FQName string with colon separator"
+            <| fun _ ->
+                let fqName = FQName.fromString "Morphir.SDK:Basics:int" ":"
+
+                FQName.packagePath fqName
+                |> PackageName.packageNameToPath
+                |> Path.toString Name.toTitleCase "."
+                |> Expect.equal "Morphir.SDK"
+
+                FQName.modulePathFromFQName fqName
+                |> ModulePath.modulePathToPath
+                |> Path.toString Name.toTitleCase "."
+                |> Expect.equal "Basics"
+
+                FQName.localName fqName
+                |> Name.toTitleCase
+                |> Expect.equal "Int"
+
+            testCase "Parses well-formed FQName string with dot separator"
+            <| fun _ ->
+                let fqName = FQName.fromString "MyPackage.MyModule.myValue" "."
+
+                FQName.packagePath fqName
+                |> PackageName.packageNameToPath
+                |> Path.toString Name.toTitleCase "."
+                |> Expect.equal "MyPackage"
+
+                FQName.modulePathFromFQName fqName
+                |> ModulePath.modulePathToPath
+                |> Path.toString Name.toTitleCase "."
+                |> Expect.equal "MyModule"
+
+                FQName.localName fqName
+                |> Name.toTitleCase
+                |> Expect.equal "MyValue"
+
+            testCase "Returns empty FQName for malformed string with too few parts"
+            <| fun _ ->
+                let fqName = FQName.fromString "Package:Module" ":"
+
+                FQName.packagePath fqName
+                |> Expect.equal PackageName.emptyPackageName
+
+                FQName.modulePathFromFQName fqName
+                |> Expect.equal ModulePath.emptyModulePath
+
+                FQName.localName fqName
+                |> Expect.equal Name.empty
+
+            testCase "Returns empty FQName for malformed string with too many parts"
+            <| fun _ ->
+                let fqName = FQName.fromString "Package:Module:Local:Extra" ":"
+
+                FQName.packagePath fqName
+                |> Expect.equal PackageName.emptyPackageName
+
+                FQName.modulePathFromFQName fqName
+                |> Expect.equal ModulePath.emptyModulePath
+
+                FQName.localName fqName
+                |> Expect.equal Name.empty
+
+            testCase "Returns empty FQName for empty string"
+            <| fun _ ->
+                let fqName = FQName.fromString "" ":"
+
+                FQName.packagePath fqName
+                |> Expect.equal PackageName.emptyPackageName
+
+                FQName.modulePathFromFQName fqName
+                |> Expect.equal ModulePath.emptyModulePath
+
+                FQName.localName fqName
+                |> Expect.equal Name.empty
+
+            testCase "Handles empty package path in string"
+            <| fun _ ->
+                let fqName = FQName.fromString ":MyModule:myValue" ":"
+
+                FQName.packagePath fqName
+                |> PackageName.packageNameToPath
+                |> Path.isEmpty
+                |> Expect.isTrue
+
+                FQName.modulePathFromFQName fqName
+                |> ModulePath.modulePathToPath
+                |> Path.toString Name.toTitleCase "."
+                |> Expect.equal "MyModule"
+
+                FQName.localName fqName
+                |> Name.toTitleCase
+                |> Expect.equal "MyValue"
+        ]
+
+        testList "fromStringStrict" [
+            testCase "Successfully parses well-formed FQName string"
+            <| fun _ ->
+                match FQName.fromStringStrict "Morphir.SDK:Basics:int" ":" with
+                | Ok fqName ->
+                    FQName.packagePath fqName
+                    |> PackageName.packageNameToPath
+                    |> Path.toString Name.toTitleCase "."
+                    |> Expect.equal "Morphir.SDK"
+
+                    FQName.modulePathFromFQName fqName
+                    |> ModulePath.modulePathToPath
+                    |> Path.toString Name.toTitleCase "."
+                    |> Expect.equal "Basics"
+
+                    FQName.localName fqName
+                    |> Name.toTitleCase
+                    |> Expect.equal "Int"
+                | Error msg ->
+                    failtest $"Expected Ok, got Error: {msg}"
+
+            testCase "Fails with descriptive error for too few parts"
+            <| fun _ ->
+                match FQName.fromStringStrict "Package:Module" ":" with
+                | Ok _ ->
+                    failtest "Expected Error, got Ok"
+                | Error msg ->
+                    Expect.stringContains msg "needs to have 3 parts" "Error message should mention 3 parts"
+                    Expect.stringContains msg "found 2 parts" "Error message should mention found 2 parts"
+                    Expect.stringContains msg "Package:Module" "Error message should include input string"
+                    Expect.stringContains msg ":" "Error message should include separator"
+
+            testCase "Fails with descriptive error for too many parts"
+            <| fun _ ->
+                match FQName.fromStringStrict "Package:Module:Local:Extra" ":" with
+                | Ok _ ->
+                    failtest "Expected Error, got Ok"
+                | Error msg ->
+                    Expect.stringContains msg "needs to have 3 parts" "Error message should mention 3 parts"
+                    Expect.stringContains msg "found 4 parts" "Error message should mention found 4 parts"
+
+            testCase "Fails with descriptive error for empty string"
+            <| fun _ ->
+                match FQName.fromStringStrict "" ":" with
+                | Ok _ ->
+                    failtest "Expected Error, got Ok"
+                | Error msg ->
+                    Expect.stringContains msg "needs to have 3 parts" "Error message should mention 3 parts"
+                    Expect.stringContains msg "found 1 parts" "Error message should mention found 1 parts"
+
+            testCase "Successfully parses with different separator"
+            <| fun _ ->
+                match FQName.fromStringStrict "MyPackage.MyModule.myValue" "." with
+                | Ok fqName ->
+                    FQName.packagePath fqName
+                    |> PackageName.packageNameToPath
+                    |> Path.toString Name.toTitleCase "."
+                    |> Expect.equal "MyPackage"
+
+                    FQName.localName fqName
+                    |> Name.toTitleCase
+                    |> Expect.equal "MyValue"
+                | Error msg ->
+                    failtest $"Expected Ok, got Error: {msg}"
+
+            testCase "Handles empty package path in strict mode"
+            <| fun _ ->
+                match FQName.fromStringStrict ":MyModule:myValue" ":" with
+                | Ok fqName ->
+                    FQName.packagePath fqName
+                    |> PackageName.packageNameToPath
+                    |> Path.isEmpty
+                    |> Expect.isTrue
+
+                    FQName.modulePathFromFQName fqName
+                    |> ModulePath.modulePathToPath
+                    |> Path.toString Name.toTitleCase "."
+                    |> Expect.equal "MyModule"
+                | Error msg ->
+                    failtest $"Expected Ok, got Error: {msg}"
+        ]
     ]
