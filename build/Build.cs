@@ -49,13 +49,13 @@ partial class Build : NukeBuild
     readonly AbsolutePath ToolDllDir = RootDirectory / "artifacts" / "tool-dll";
 
     [Parameter("Runtime Identifier (e.g., linux-x64, win-x64, osx-arm64)")]
-    readonly string Rid;
+    readonly string? Rid;
 
     [Parameter("NuGet source URL")]
     readonly string NuGetSource = "https://api.nuget.org/v3/index.json";
 
     [Parameter("NuGet API key for publishing")]
-    readonly string ApiKey;
+    readonly string? ApiKey;
 
     [Parameter("Local NuGet feed directory")]
     readonly AbsolutePath LocalSource = RootDirectory / "artifacts" / "local-feed";

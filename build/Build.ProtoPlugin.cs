@@ -17,7 +17,7 @@ partial class Build
     readonly AbsolutePath ProtoPluginDir = RootDirectory / "artifacts" / "proto-plugin";
 
     [Parameter("Version for the proto plugin release (e.g., 0.1.0)")]
-    readonly string PluginVersion;
+    readonly string? PluginVersion;
 
     AbsolutePath ProtoPluginProjectDir => RootDirectory / "integrations" / "rust" / "morphir-wasm-proto-plugin";
 
