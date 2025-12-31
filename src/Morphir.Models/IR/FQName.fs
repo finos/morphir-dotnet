@@ -118,9 +118,9 @@ module FQName =
         $"FQName({packageName}, {moduleName}, {localName})"
 
     /// <summary>
-    /// Parse a string into an FQName using splitter as the separator between package, module and local names.
+    /// Parse a string into an FQName using the splitter as the separator between package, module and local names.
     /// Returns a default FQName with empty paths if the input is malformed.
-    /// Expected format: "package:module:local" where : is the splitter.
+    /// Expected format: "package:module:local" where ':' is the splitter.
     /// </summary>
     let fromString (fqNameString: string) (splitter: string) : FQName =
         match fqNameString.Split(splitter) with
@@ -135,9 +135,9 @@ module FQName =
               LocalName = Name.empty }
 
     /// <summary>
-    /// Parse a string into an FQName using separator as the separator between package, module and local names.
+    /// Parse a string into an FQName using the separator as the separator between package, module and local names.
     /// Fails with an error message if the input is malformed.
-    /// Expected format: "package:module:local" where : is the separator.
+    /// Expected format: "package:module:local" where ':' is the separator.
     /// </summary>
     let fromStringStrict (fqNameString: string) (separator: string) : Result<FQName, string> =
         let parts = fqNameString.Split(separator)
