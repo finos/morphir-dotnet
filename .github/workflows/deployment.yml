@@ -129,7 +129,7 @@ jobs:
               run: ./build.sh --target TestE2E --executable-type trimmed --configuration ${{ env.CONFIGURATION }}
 
             - name: Upload executable artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v6
               with:
                   name: morphir-${{ matrix.rid }}
                   # Upload the RID directory to preserve structure when merged
