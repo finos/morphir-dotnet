@@ -123,6 +123,14 @@ module MorphirProcessor =
         { processor with Frozen = true }
 
     /// <summary>
+    /// Unfreezes the processor, making it mutable.
+    /// This is useful when you want to continue modifying a pipeline that was frozen by default.
+    /// </summary>
+    /// <param name="processor">The processor to unfreeze</param>
+    let unfreeze (processor: MorphirProcessor): MorphirProcessor =
+        { processor with Frozen = false }
+
+    /// <summary>
     /// Checks if the processor is frozen.
     /// </summary>
     /// <param name="processor">The processor to check</param>

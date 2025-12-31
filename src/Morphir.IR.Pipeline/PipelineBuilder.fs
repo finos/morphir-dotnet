@@ -32,8 +32,19 @@ type PipelineBuilder() =
     /// Pipelines are immutable unless explicitly marked as mutable.
     /// </summary>
     member _.Run(proc: MorphirProcessor) : MorphirProcessor =
-        if proc.Frozen then proc
-        else MorphirProcessor.freeze proc
+        // Check if pipeline is marked as mutable
+        let stayMutable =
+            match MorphirProcessor.getDataAs<bool> "__stay_mutable__" proc with
+            | Some true -> true
+            | _ -> false
+
+        if proc.Frozen then
+            proc
+        elif stayMutable then
+            // Remove the marker and return unfrozen processor
+            { proc with Data = proc.Data.Remove("__stay_mutable__") }
+        else
+            MorphirProcessor.freeze proc
 
     /// <summary>
     /// Adds a parser to the pipeline.
@@ -73,6 +84,15 @@ type PipelineBuilder() =
         MorphirProcessor.freeze proc
 
     /// <summary>
+    /// Marks the pipeline as unfrozen, preventing auto-freezing.
+    /// Use this when you need to continue modifying the pipeline after it's defined.
+    /// </summary>
+    /// <param name="proc">The current processor</param>
+    [<CustomOperation("unfrozen")>]
+    member _.Unfrozen(proc: MorphirProcessor): MorphirProcessor =
+        MorphirProcessor.setData "__stay_mutable__" (box true) proc
+
+    /// <summary>
     /// Sets data in the processor's data dictionary.
     /// </summary>
     /// <param name="proc">The current processor</param>
@@ -93,12 +113,24 @@ module PipelineBuilderInstance =
     /// </summary>
     /// <example>
     /// <code>
+    /// // Frozen by default (immutable)
     /// let proc = pipeline {
     ///     parse irJsonParser
     ///     uses validateIRPlugin
     ///     stringify irJsonSerializer
     /// }
-    /// // Automatically frozen!
+    ///
+    /// // Explicitly unfrozen (opt-out of auto-freezing)
+    /// let mutableProc = pipeline {
+    ///     parse irJsonParser
+    ///     uses validateIRPlugin
+    ///     unfrozen
+    /// }
+    /// // Can continue modifying mutableProc
+    /// let extended = mutableProc |> MorphirProcessor.plugin optimizePlugin
+    ///
+    /// // Unfreeze a frozen pipeline
+    /// let unfrozenAfter = proc |> MorphirProcessor.unfreeze
     /// </code>
     /// </example>
     let pipeline = PipelineBuilder()
