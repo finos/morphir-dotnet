@@ -17,6 +17,7 @@
     <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
     <Project Path="src/Morphir/Morphir.csproj" />
     <Project Path="src/Morphir.Configuration/Morphir.Configuration.fsproj" />
+    <Project Path="src/Morphir.IR.Pipeline/Morphir.IR.Pipeline.fsproj" />
     <Project Path="src/Morphir.Tool/Morphir.Tool.csproj" />
     <Project Path="src\Morphir.Live\Morphir.Live.fsproj" />
     <Project Path="src\Morphir.Core\Morphir.Core.csproj" />
@@ -27,6 +28,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Morphir.Configuration.Tests/Morphir.Configuration.Tests.fsproj" />
     <Project Path="tests/Morphir.Internal.CodeGeneration.Tests/Morphir.Internal.CodeGeneration.Tests.fsproj" />
+    <Project Path="tests/Morphir.IR.Pipeline.Tests/Morphir.IR.Pipeline.Tests.fsproj" />
     <Project Path="tests/Morphir.Tooling.Tests/Morphir.Tooling.Tests.csproj" />
     <Project Path="tests\Morphir.Core.Tests\Morphir.Core.Tests.csproj" />
     <Project Path="tests\Morphir.Models.Tests\Morphir.Models.Tests.fsproj" />
