@@ -1,0 +1,7 @@
+module Morphir.SDK.Tests.Program
+
+open Expecto
+
+[<EntryPoint>]
+let main args =
+    runTestsInAssemblyWithCLIArgs [] args
