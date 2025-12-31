@@ -27,6 +27,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Morphir.Configuration.Tests/Morphir.Configuration.Tests.fsproj" />
+    <Project Path="tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj" />
     <Project Path="tests/Morphir.Internal.CodeGeneration.Tests/Morphir.Internal.CodeGeneration.Tests.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Tests/Morphir.IR.Pipeline.Tests.fsproj" />
     <Project Path="tests/Morphir.Tooling.Tests/Morphir.Tooling.Tests.csproj" />
