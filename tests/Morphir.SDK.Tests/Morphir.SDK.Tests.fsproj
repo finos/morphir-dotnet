@@ -41,6 +41,7 @@
         <Compile Include="LocalDateTests.fs" />
         <Compile Include="LocalTimeTests.fs" />
         <Compile Include="DecimalTests.fs" />
+        <Compile Include="PropertyTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
