@@ -18,8 +18,7 @@ public class PackageMetadataTests
             TestFixture.FindLatestPackage("Morphir.Core.*.nupkg"),
             TestFixture.FindLatestPackage("Morphir.Tooling.*.nupkg"),
             TestFixture.FindLatestPackage("Morphir.Tool.*.nupkg"),
-            // NOTE: Morphir.SDK is excluded from version check as it's in independent alpha development
-            // and will be versioned separately until it reaches stable release
+            TestFixture.FindLatestPackage("Morphir.SDK.*.nupkg"),
         }.Where(p => p != null).ToList();
 
         packages.Should().HaveCountGreaterThan(1, "Multiple packages should exist to compare versions");
@@ -82,7 +81,7 @@ public class PackageMetadataTests
             TestFixture.FindLatestPackage("Morphir.Core.*.nupkg"),
             TestFixture.FindLatestPackage("Morphir.Tooling.*.nupkg"),
             TestFixture.FindLatestPackage("Morphir.Tool.*.nupkg"),
-            // NOTE: Morphir.SDK is excluded as it's a new alpha package with minimal release notes
+            TestFixture.FindLatestPackage("Morphir.SDK.*.nupkg"),
         }.Where(p => p != null).ToList();
 
         packages.Should().NotBeEmpty("At least one package should exist after build");

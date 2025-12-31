@@ -8,7 +8,7 @@
         
         <!-- NuGet Package Metadata -->
         <PackageId>Morphir.SDK</PackageId>
-        <Version>0.4.0-alpha</Version>
+        <!-- Version is set by build system from CHANGELOG.md -->
         <Authors>FINOS Morphir Team</Authors>
         <Company>FINOS</Company>
         <Description>F# runtime library providing Morphir SDK types and functions for generated F# code. Provides type aliases and helper functions for working with Morphir IR in F#.</Description>

@@ -12,12 +12,12 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 partial class Build
 {
     /// <summary>
-    /// Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests, Morphir.Internal.CodeGeneration.Tests, Morphir.Models.Tests, Morphir.IR.Pipeline.Tests)
+    /// Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests, Morphir.Internal.CodeGeneration.Tests, Morphir.Models.Tests, Morphir.IR.Pipeline.Tests, Morphir.SDK.Tests)
     /// Tests are run using TUnit and Expecto test frameworks
     /// </summary>
     Target Test => _ => _
         .DependsOn(Compile)
-        .Description("Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests, Morphir.Internal.CodeGeneration.Tests, Morphir.Models.Tests, Morphir.IR.Pipeline.Tests)")
+        .Description("Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests, Morphir.Internal.CodeGeneration.Tests, Morphir.Models.Tests, Morphir.IR.Pipeline.Tests, Morphir.SDK.Tests)")
         .Executes(() =>
         {
             RunTests(Configuration);
@@ -153,8 +153,14 @@ partial class Build
         var pipelineTestDll = TestsDirectory / "Morphir.IR.Pipeline.Tests" / "bin" / configuration / "net10.0" / "Morphir.IR.Pipeline.Tests.dll";
         var pipelineExitCode = RunCommand("dotnet", "exec", pipelineTestDll);
 
+        // Run Morphir.SDK.Tests (Expecto)
+        Serilog.Log.Information("");
+        Serilog.Log.Information("Running Morphir.SDK.Tests...");
+        var sdkTestDll = TestsDirectory / "Morphir.SDK.Tests" / "bin" / configuration / "net10.0" / "Morphir.SDK.Tests.dll";
+        var sdkExitCode = RunCommand("dotnet", "exec", sdkTestDll);
+
         // Check if any tests failed
-        if (coreExitCode != 0 || toolingExitCode != 0 || codeGenExitCode != 0 || modelsExitCode != 0 || pipelineExitCode != 0)
+        if (coreExitCode != 0 || toolingExitCode != 0 || codeGenExitCode != 0 || modelsExitCode != 0 || pipelineExitCode != 0 || sdkExitCode != 0)
         {
             Serilog.Log.Error("");
             Serilog.Log.Error("================================================");
@@ -164,6 +170,7 @@ partial class Build
             Serilog.Log.Error($"  Morphir.Internal.CodeGeneration.Tests: exit code {codeGenExitCode}");
             Serilog.Log.Error($"  Morphir.Models.Tests: exit code {modelsExitCode}");
             Serilog.Log.Error($"  Morphir.IR.Pipeline.Tests: exit code {pipelineExitCode}");
+            Serilog.Log.Error($"  Morphir.SDK.Tests: exit code {sdkExitCode}");
             throw new Exception("Tests failed");
         }
 

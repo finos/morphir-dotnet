@@ -14,7 +14,7 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 partial class Build
 {
     /// <summary>
-    /// Pack library projects as NuGet packages (Morphir.Core, Morphir.Tooling, Morphir)
+    /// Pack library projects as NuGet packages (Morphir.Core, Morphir.Tooling, Morphir, Morphir.SDK)
     /// Output: artifacts/packages/
     /// Parameters: --version-override (optional, overrides CHANGELOG.md version)
     /// </summary>
@@ -49,9 +49,16 @@ partial class Build
                 .SetOutputDirectory(OutputDir)
                 .SetProperty("Version", versionString));
 
+            Serilog.Log.Information("Packing Morphir.SDK...");
+            DotNetPack(s => s
+                .SetProject(MorphirSDKProject)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(OutputDir)
+                .SetProperty("Version", versionString));
+
             // Validate library packages
             Serilog.Log.Information("Validating library packages...");
-            var libraryProjects = new[] { "Morphir.Core", "Morphir.Tooling", "Morphir" };
+            var libraryProjects = new[] { "Morphir.Core", "Morphir.Tooling", "Morphir", "Morphir.SDK" };
             foreach (var project in libraryProjects)
             {
                 var packagePath = PathHelper.GetLibraryPackagePath(project, versionString, OutputDir);
