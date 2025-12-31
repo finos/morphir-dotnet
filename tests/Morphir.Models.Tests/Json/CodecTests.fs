@@ -60,6 +60,14 @@ let nameCodecTests =
                 let element = JsonDocument.Parse(json).RootElement
                 let decoded = NameCodec.decode element
                 Expect.isError decoded "Should fail on invalid type (number)"
+
+            testCase "normalizes uppercase segments to lowercase"
+            <| fun _ ->
+                let json = """["Type", "Constructor", "Name"]"""
+                let element = JsonDocument.Parse(json).RootElement
+                let decoded = NameCodec.decode element
+                Expect.equal decoded (Ok (Name.fromList ["type"; "constructor"; "name"]))
+                    "Should normalize segments to lowercase per Name invariant"
         ]
 
         testList "JsonConverter" [

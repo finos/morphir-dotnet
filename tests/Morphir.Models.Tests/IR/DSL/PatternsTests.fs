@@ -49,8 +49,8 @@ module PatternsTests =
 
                 testCase "Creates LiteralPattern"
                 <| fun _ ->
-                    let result = pattern { Literal (Morphir.IR.Classic.Literal.BoolLiteral true) }
-                    let expected = Morphir.IR.Classic.Pattern.literal () (Morphir.IR.Classic.Literal.BoolLiteral true)
+                    let result = pattern { Literal (BoolLiteral true) }
+                    let expected = Morphir.IR.Classic.Pattern.literal () (BoolLiteral true)
                     result |> Expect.equal expected
 
                 testCase "Creates UnitPattern with CustomOperation"

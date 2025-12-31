@@ -1,7 +1,5 @@
 namespace Morphir.IR.Classic
 
-open Morphir.IR.Classic.Value
-
 /// <summary>
 /// Common type aliases for Morphir IR types following the morphir-elm conventions.
 /// These aliases provide convenient names for frequently-used type instantiations.

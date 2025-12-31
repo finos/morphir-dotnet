@@ -1,55 +1,54 @@
 namespace Morphir.IR.Classic
 
+open Morphir.IR
+
 /// <summary>
-/// Value module provides the complete value expression system for Morphir IR,
-/// including Value expressions, ValueSpecification, and ValueDefinition.
+/// Value represents a value expression in the Morphir IR.
+/// Each variant includes value attributes as the first parameter.
+/// </summary>
+type Value<'typeAttributes, 'valueAttributes> =
+    | Literal of 'valueAttributes * Literal
+    | Constructor of 'valueAttributes * FQName
+    | Tuple of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> list
+    | List of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> list
+    | Record of 'valueAttributes * Map<Name, Value<'typeAttributes, 'valueAttributes>>
+    | Variable of 'valueAttributes * Name
+    | Reference of 'valueAttributes * FQName
+    | Field of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Name
+    | FieldFunction of 'valueAttributes * Name
+    | Apply of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+    | Lambda of 'valueAttributes * Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+    | LetDefinition of 'valueAttributes * Name * ValueDefinition<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+    | LetRecursion of 'valueAttributes * Map<Name, ValueDefinition<'typeAttributes, 'valueAttributes>> * Value<'typeAttributes, 'valueAttributes>
+    | Destructure of 'valueAttributes * Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+    | IfThenElse of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+    | PatternMatch of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
+    | UpdateRecord of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Map<Name, Value<'typeAttributes, 'valueAttributes>>
+    | Unit of 'valueAttributes
+
+/// <summary>
+/// ValueSpecification defines the type signature of a value or function.
+/// Contains only type information, no implementation.
+/// </summary>
+and ValueSpecification<'attributes> =
+    { Inputs: (Name * Type<'attributes>) list
+      Output: Type<'attributes> }
+
+/// <summary>
+/// ValueDefinition provides the complete implementation of a value or function.
+/// Contains both type information and implementation.
+/// </summary>
+and ValueDefinition<'typeAttributes, 'valueAttributes> =
+    { InputTypes: (Name * 'valueAttributes * Type<'typeAttributes>) list
+      OutputType: Type<'typeAttributes>
+      Body: Value<'typeAttributes, 'valueAttributes> }
+
+/// <summary>
+/// Value module provides helper functions for the complete value expression system for Morphir IR.
 /// All types support generic attributes for extensibility.
 /// </summary>
+[<RequireQualifiedAccess>]
 module Value =
-
-    open Morphir.IR
-    open System.Collections.Generic // For Map
-
-    /// <summary>
-    /// Value represents a value expression in the Morphir IR.
-    /// Each variant includes value attributes as the first parameter.
-    /// </summary>
-    type Value<'typeAttributes, 'valueAttributes> =
-        | Literal of 'valueAttributes * Literal
-        | Constructor of 'valueAttributes * FQName
-        | Tuple of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> list
-        | List of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> list
-        | Record of 'valueAttributes * Map<Name, Value<'typeAttributes, 'valueAttributes>>
-        | Variable of 'valueAttributes * Name
-        | Reference of 'valueAttributes * FQName
-        | Field of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Name
-        | FieldFunction of 'valueAttributes * Name
-        | Apply of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | Lambda of 'valueAttributes * Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | LetDefinition of 'valueAttributes * Name * ValueDefinition<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | LetRecursion of 'valueAttributes * Map<Name, ValueDefinition<'typeAttributes, 'valueAttributes>> * Value<'typeAttributes, 'valueAttributes>
-        | Destructure of 'valueAttributes * Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | IfThenElse of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | PatternMatch of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
-        | UpdateRecord of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Map<Name, Value<'typeAttributes, 'valueAttributes>>
-        | Unit of 'valueAttributes
-
-    /// <summary>
-    /// ValueSpecification defines the type signature of a value or function.
-    /// Contains only type information, no implementation.
-    /// </summary>
-    and ValueSpecification<'attributes> =
-        { Inputs: (Name * Type<'attributes>) list
-          Output: Type<'attributes> }
-
-    /// <summary>
-    /// ValueDefinition provides the complete implementation of a value or function.
-    /// Contains both type information and implementation.
-    /// </summary>
-    and ValueDefinition<'typeAttributes, 'valueAttributes> =
-        { InputTypes: (Name * 'valueAttributes * Type<'typeAttributes>) list
-          OutputType: Type<'typeAttributes>
-          Body: Value<'typeAttributes, 'valueAttributes> }
 
     // Helper functions for Value Expressions
 

@@ -6,7 +6,6 @@ namespace Morphir.IR.Classic.DSL
 module Values =
 
     open Morphir.IR
-    open Morphir.IR.Classic.Value
     open Morphir.IR.Classic
     open System.Collections.Generic
 

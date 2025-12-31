@@ -2,8 +2,7 @@ namespace Morphir.Models.Tests.IR.DSL
 
 open Expecto
 open Morphir.IR
-open Morphir.IR.Classic  // For Literal, Pattern, Type and their extensions
-open Morphir.IR.Classic.Value
+open Morphir.IR.Classic  // For Literal, Pattern, Type, Value and their extensions
 open Morphir.IR.Classic.DSL.Values
 open Morphir.IR.Classic.DSL.Helpers
 
@@ -52,19 +51,19 @@ module ValuesTests =
             testList "Tagless Unit Syntax" [
                 testCase "Creates Unit value with tagless syntax" <| fun _ ->
                     let result = value { () }
-                    let expected = Unit ()
+                    let expected = Value.Unit ()
                     Expect.equal result expected "value { () } should create Unit value"
             ]
 
             testList "CustomOperations" [
                 testCase "CustomOperation 'variable' works with Name" <| fun _ ->
                     let result = value { variable (Name.fromString "x") }
-                    let expected = Variable((), Name.fromString "x")
+                    let expected = Value.Variable((), Name.fromString "x")
                     Expect.equal result expected "Should create Variable from Name"
 
                 testCase "CustomOperation 'variable' works with string" <| fun _ ->
                     let result = value { variable "myVar" }
-                    let expected = Variable((), Name.fromString "myVar")
+                    let expected = Value.Variable((), Name.fromString "myVar")
                     Expect.equal result expected "Should create Variable from string"
 
                 testCase "CustomOperation 'literal' works" <| fun _ ->
@@ -119,7 +118,7 @@ module ValuesTests =
             testList "Pascal-case Methods (Direct Usage)" [
                 testCase "Creates Variable value" <| fun _ ->
                     let result = value.Variable("x")
-                    let expected = Variable((), Name.fromString "x")
+                    let expected = Value.Variable((), Name.fromString "x")
                     Expect.equal result expected "Should create Variable"
 
                 testCase "Creates Literal value" <| fun _ ->
@@ -162,7 +161,7 @@ module ValuesTests =
 
                 testCase "Creates Unit value" <| fun _ ->
                     let result = value.Unit()
-                    let expected = Unit ()
+                    let expected = Value.Unit ()
                     Expect.equal result expected "Should create Unit"
             ]
         ]

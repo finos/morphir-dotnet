@@ -46,14 +46,14 @@ module TypeCodec =
         let encodeType = encodeWithOptions options encodeAttrs  // Recursive reference
 
         match typ with
-        | Variable(attrs, name) ->
+        | Type.Variable(attrs, name) ->
             Encode.arrayOfElements [
                 Encode.string (getTag version Tags.variable)
                 encodeAttrs attrs
                 NameCodec.encodeWithOptions options name
             ]
 
-        | Reference(attrs, fqName, typeArgs) ->
+        | Type.Reference(attrs, fqName, typeArgs) ->
             Encode.arrayOfElements [
                 Encode.string (getTag version Tags.reference)
                 encodeAttrs attrs
@@ -61,14 +61,14 @@ module TypeCodec =
                 Encode.list encodeType typeArgs
             ]
 
-        | Tuple(attrs, elementTypes) ->
+        | Type.Tuple(attrs, elementTypes) ->
             Encode.arrayOfElements [
                 Encode.string (getTag version Tags.tuple)
                 encodeAttrs attrs
                 Encode.list encodeType elementTypes
             ]
 
-        | Record(attrs, fields) ->
+        | Type.Record(attrs, fields) ->
             let encodeField (field: Field<'attributes>) : JsonElement =
                 Encode.arrayOfElements [
                     NameCodec.encodeWithOptions options field.Name
@@ -81,7 +81,7 @@ module TypeCodec =
                 Encode.list encodeField fields
             ]
 
-        | ExtensibleRecord(attrs, varName, fields) ->
+        | Type.ExtensibleRecord(attrs, varName, fields) ->
             let encodeField (field: Field<'attributes>) : JsonElement =
                 Encode.arrayOfElements [
                     NameCodec.encodeWithOptions options field.Name
@@ -95,7 +95,7 @@ module TypeCodec =
                 Encode.list encodeField fields
             ]
 
-        | Function(attrs, argType, returnType) ->
+        | Type.Function(attrs, argType, returnType) ->
             Encode.arrayOfElements [
                 Encode.string (getTag version Tags.func)
                 encodeAttrs attrs
@@ -103,7 +103,7 @@ module TypeCodec =
                 encodeType returnType
             ]
 
-        | Unit attrs ->
+        | Type.Unit attrs ->
             Encode.arrayOfElements [
                 Encode.string (getTag version Tags.unit)
                 encodeAttrs attrs
@@ -135,7 +135,7 @@ module TypeCodec =
                 | "variable" ->
                     match Decode.index 2 (NameCodec.decodeWithOptions options) element with
                     | Error msg -> Error msg
-                    | Ok name -> Ok (Variable(attrs, name))
+                    | Ok name -> Ok (Type.Variable(attrs, name))
 
                 | "reference" ->
                     match Decode.index 2 (FQNameCodec.decodeWithOptions options) element with
@@ -143,12 +143,12 @@ module TypeCodec =
                     | Ok fqName ->
                         match Decode.index 3 (Decode.list decodeType) element with
                         | Error msg -> Error msg
-                        | Ok typeArgs -> Ok (Reference(attrs, fqName, typeArgs))
+                        | Ok typeArgs -> Ok (Type.Reference(attrs, fqName, typeArgs))
 
                 | "tuple" ->
                     match Decode.index 2 (Decode.list decodeType) element with
                     | Error msg -> Error msg
-                    | Ok elementTypes -> Ok (Tuple(attrs, elementTypes))
+                    | Ok elementTypes -> Ok (Type.Tuple(attrs, elementTypes))
 
                 | "record" ->
                     let decodeField (fieldElement: JsonElement) : Result<Field<'attributes>, string> =
@@ -161,7 +161,7 @@ module TypeCodec =
 
                     match Decode.index 2 (Decode.list decodeField) element with
                     | Error msg -> Error msg
-                    | Ok fields -> Ok (Record(attrs, fields))
+                    | Ok fields -> Ok (Type.Record(attrs, fields))
 
                 | "extensiblerecord" ->
                     let decodeField (fieldElement: JsonElement) : Result<Field<'attributes>, string> =
@@ -177,7 +177,7 @@ module TypeCodec =
                     | Ok varName ->
                         match Decode.index 3 (Decode.list decodeField) element with
                         | Error msg -> Error msg
-                        | Ok fields -> Ok (ExtensibleRecord(attrs, varName, fields))
+                        | Ok fields -> Ok (Type.ExtensibleRecord(attrs, varName, fields))
 
                 | "function" ->
                     match Decode.index 2 decodeType element with
@@ -185,10 +185,10 @@ module TypeCodec =
                     | Ok argType ->
                         match Decode.index 3 decodeType element with
                         | Error msg -> Error msg
-                        | Ok returnType -> Ok (Function(attrs, argType, returnType))
+                        | Ok returnType -> Ok (Type.Function(attrs, argType, returnType))
 
                 | "unit" ->
-                    Ok (Unit attrs)
+                    Ok (Type.Unit attrs)
 
                 | _ ->
                     Error $"Unknown Type tag: {tag}"

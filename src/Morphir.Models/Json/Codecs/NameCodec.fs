@@ -65,7 +65,7 @@ module NameCodec =
                 if reader.TokenType = JsonTokenType.String then
                     let segment = reader.GetString()
                     if not (isNull segment) then
-                        segments.Add(segment)
+                        segments.Add(segment.ToLowerInvariant())  // Normalize to lowercase to match Name invariant
                 else
                     error <- Some $"Expected string in Name array, got {reader.TokenType}"
             match error with
