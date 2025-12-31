@@ -84,16 +84,16 @@ Morphir IR (JSON) → Fabulous.AST Oak → Fantomas → Formatted F# Code
 
 | Issue | Title | Priority | Dependencies | Milestone |
 |-------|-------|----------|--------------|-----------|
-| **Epic** | F# Code Generation Backend | P0 | - | - |
-| **#2** | Phase 0: Morphir.SDK F# Library Implementation | P0 | Epic | M0 |
-| **#3** | Phase 1: Foundation - Project Setup and Fabulous.AST Exploration | P0 | #2 | - |
-| **#4** | Phase 2: Type Mapping - Morphir IR Types → F# Types | P0 | #3 | M1 |
-| **#5** | Phase 3: Value Mapping - Morphir IR Values → F# Functions | P0 | #4 | M2-M4 |
-| **#6** | Phase 4: CLI Integration - `morphir gen fsharp` Command | P0 | #5 | - |
-| **#7** | Phase 5: SDK Translation - Morphir SDK → F# Standard Library | P0 | #5 | M4 |
-| **#8** | Phase 6: Advanced Features - JSON Codecs and Lenses | P1 | #6, #7 | M5 |
-| **#9** | Phase 7: Testing and Documentation | P0 | #8 | - |
-| **#10** | Phase 8: Release Preparation | P0 | #9 | v1.0 |
+| **[#363](https://github.com/finos/morphir-dotnet/issues/363)** | F# Code Generation Backend | P0 | - | - |
+| **[#364](https://github.com/finos/morphir-dotnet/issues/364)** | Phase 0: Morphir.SDK F# Library Implementation | P0 | #363 | M0 |
+| **[#365](https://github.com/finos/morphir-dotnet/issues/365)** | Phase 1: Foundation - Project Setup and Fabulous.AST Exploration | P0 | #364 | - |
+| **[#366](https://github.com/finos/morphir-dotnet/issues/366)** | Phase 2: Type Mapping - Morphir IR Types → F# Types | P0 | #365 | M1 |
+| **[#367](https://github.com/finos/morphir-dotnet/issues/367)** | Phase 3: Value Mapping - Morphir IR Values → F# Functions | P0 | #366 | M2-M4 |
+| **[#368](https://github.com/finos/morphir-dotnet/issues/368)** | Phase 4: CLI Integration - `morphir gen fsharp` Command | P0 | #367 | - |
+| **[#369](https://github.com/finos/morphir-dotnet/issues/369)** | Phase 5: SDK Translation - Morphir SDK → F# Standard Library | P0 | #367 | M4 |
+| **[#370](https://github.com/finos/morphir-dotnet/issues/370)** | Phase 6: Advanced Features - JSON Codecs and Lenses | P1 | #368, #369 | M5 |
+| **[#372](https://github.com/finos/morphir-dotnet/issues/372)** | Phase 7: Testing and Documentation | P0 | #370 | - |
+| **[#371](https://github.com/finos/morphir-dotnet/issues/371)** | Phase 8: Release Preparation | P0 | #372 | v1.0 |
 
 ---
 

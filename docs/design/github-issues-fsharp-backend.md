@@ -6,12 +6,13 @@
 
 ---
 
-## Issue #1: [EPIC] F# Code Generation Backend
+## Issue #363: [EPIC] F# Code Generation Backend
 
 **Type**: Epic
-**Labels**: `epic`, `feature`, `backend`, `code-generation`
+**Labels**: `epic`, `feature`, `code-generation`, `fsharp`
 **Priority**: P0
 **Milestone**: v1.0.0
+**GitHub**: https://github.com/finos/morphir-dotnet/issues/363
 
 ### Description
 
@@ -48,15 +49,15 @@ Enable developers to generate production-ready F# code from Morphir IR, eliminat
 
 ### Child Issues
 
-- **#TBD: Phase 0: Morphir.SDK F# Library Implementation** (NEW - Critical dependency)
-- #2 Foundation: Project Setup and Fabulous.AST Exploration
-- #3 Type Mapping: Morphir IR Types → F# Types
-- #4 Value Mapping: Morphir IR Values → F# Functions
-- #5 CLI Integration: `morphir gen fsharp` Command
-- #6 SDK Translation: Morphir SDK → Morphir.SDK Library
-- #7 Advanced Features: JSON Codecs and Lenses
-- #8 Testing and Documentation
-- #9 Release Preparation
+- **[#364](https://github.com/finos/morphir-dotnet/issues/364): Phase 0: Morphir.SDK F# Library Implementation** (NEW - Critical dependency)
+- [#365](https://github.com/finos/morphir-dotnet/issues/365): Foundation: Project Setup and Fabulous.AST Exploration
+- [#366](https://github.com/finos/morphir-dotnet/issues/366): Type Mapping: Morphir IR Types → F# Types
+- [#367](https://github.com/finos/morphir-dotnet/issues/367): Value Mapping: Morphir IR Values → F# Functions
+- [#368](https://github.com/finos/morphir-dotnet/issues/368): CLI Integration: `morphir gen fsharp` Command
+- [#369](https://github.com/finos/morphir-dotnet/issues/369): SDK Translation: Morphir SDK → Morphir.SDK Library
+- [#370](https://github.com/finos/morphir-dotnet/issues/370): Advanced Features: JSON Codecs and Lenses
+- [#372](https://github.com/finos/morphir-dotnet/issues/372): Testing and Documentation
+- [#371](https://github.com/finos/morphir-dotnet/issues/371): Release Preparation
 
 ### Dependencies
 
@@ -66,15 +67,16 @@ Enable developers to generate production-ready F# code from Morphir IR, eliminat
 
 ---
 
-## Issue #TBD: Phase 0: Morphir.SDK F# Library Implementation
+## Issue #364: Phase 0: Morphir.SDK F# Library Implementation
 
 **Type**: Feature
-**Labels**: `feature`, `sdk`, `library`, `phase-0`
+**Labels**: `feature`, `sdk`, `fsharp`, `phase-0`, `priority-p0`
 **Priority**: P0 (Critical - Blocks Phase 1)
 **Milestone**: v1.0.0
-**Epic**: #1
+**Epic**: [#363](https://github.com/finos/morphir-dotnet/issues/363)
 **Estimated Effort**: 1-2 weeks (Can run in parallel with Phase 1 planning)
 **Assignee**: TBD
+**GitHub**: https://github.com/finos/morphir-dotnet/issues/364
 
 ### Description
 
@@ -254,15 +256,16 @@ let ``Maybe.withDefault should return default for None`` () =
 
 ---
 
-## Issue #2: Foundation: Project Setup and Fabulous.AST Exploration
+## Issue #365: Foundation: Project Setup and Fabulous.AST Exploration
 
 **Type**: Feature
-**Labels**: `feature`, `backend`, `fsharp`, `phase-1`
+**Labels**: `feature`, `code-generation`, `fsharp`, `phase-1`, `priority-p0`
 **Priority**: P0
 **Milestone**: v1.0.0
-**Epic**: #1
+**Epic**: [#363](https://github.com/finos/morphir-dotnet/issues/363)
 **Estimated Effort**: 2 weeks
 **Assignee**: TBD
+**GitHub**: https://github.com/finos/morphir-dotnet/issues/365
 
 ### Description
 
@@ -377,16 +380,17 @@ Set up the `Morphir.Backends.FSharp` project and create foundational infrastruct
 
 ---
 
-## Issue #3: Type Mapping: Morphir IR Types → F# Types
+## Issue #366: Type Mapping: Morphir IR Types → F# Types
 
 **Type**: Feature
-**Labels**: `feature`, `backend`, `fsharp`, `phase-2`
+**Labels**: `feature`, `code-generation`, `fsharp`, `phase-2`, `priority-p0`
 **Priority**: P0
 **Milestone**: v1.0.0
-**Epic**: #1
+**Epic**: [#363](https://github.com/finos/morphir-dotnet/issues/363)
 **Estimated Effort**: 2 weeks
 **Assignee**: TBD
-**Depends On**: #2
+**Depends On**: [#365](https://github.com/finos/morphir-dotnet/issues/365)
+**GitHub**: https://github.com/finos/morphir-dotnet/issues/366
 
 ### Description
 
@@ -522,16 +526,17 @@ let ``Map Morphir Result type to F# Result`` () =
 
 ---
 
-## Issue #4: Value Mapping: Morphir IR Values → F# Functions
+## Issue #367: Value Mapping: Morphir IR Values → F# Functions
 
 **Type**: Feature
-**Labels**: `feature`, `backend`, `fsharp`, `phase-3`
+**Labels**: `feature`, `code-generation`, `fsharp`, `phase-3`, `priority-p0`
 **Priority**: P0
 **Milestone**: v1.0.0
-**Epic**: #1
+**Epic**: [#363](https://github.com/finos/morphir-dotnet/issues/363)
 **Estimated Effort**: 2 weeks
 **Assignee**: TBD
-**Depends On**: #3
+**Depends On**: [#366](https://github.com/finos/morphir-dotnet/issues/366)
+**GitHub**: https://github.com/finos/morphir-dotnet/issues/367
 
 ### Description
 
@@ -701,16 +706,17 @@ let ``Map curried function with pattern matching`` () =
 
 ---
 
-## Issue #5: CLI Integration: `morphir gen fsharp` Command
+## Issue #368: CLI Integration: `morphir gen fsharp` Command
 
 **Type**: Feature
-**Labels**: `feature`, `backend`, `fsharp`, `cli`, `phase-4`
+**Labels**: `feature`, `code-generation`, `fsharp`, `cli`, `phase-4`, `priority-p0`
 **Priority**: P0
 **Milestone**: v1.0.0
-**Epic**: #1
+**Epic**: [#363](https://github.com/finos/morphir-dotnet/issues/363)
 **Estimated Effort**: 1 week
 **Assignee**: TBD
-**Depends On**: #4
+**Depends On**: [#367](https://github.com/finos/morphir-dotnet/issues/367)
+**GitHub**: https://github.com/finos/morphir-dotnet/issues/368
 
 ### Description
 
@@ -810,16 +816,17 @@ morphir gen fsharp --help
 
 ---
 
-## Issue #6: SDK Translation: Morphir SDK → F# Standard Library
+## Issue #369: SDK Translation: Morphir SDK → F# Standard Library
 
 **Type**: Feature
-**Labels**: `feature`, `backend`, `fsharp`, `sdk`, `phase-5`
+**Labels**: `feature`, `code-generation`, `fsharp`, `sdk`, `phase-5`, `priority-p0`
 **Priority**: P0
 **Milestone**: v1.0.0
-**Epic**: #1
+**Epic**: [#363](https://github.com/finos/morphir-dotnet/issues/363)
 **Estimated Effort**: 1 week
 **Assignee**: TBD
-**Depends On**: #5
+**Depends On**: [#367](https://github.com/finos/morphir-dotnet/issues/367)
+**GitHub**: https://github.com/finos/morphir-dotnet/issues/369
 
 ### Description
 
@@ -918,16 +925,17 @@ let ``Translate List.map to F# List.map`` () =
 
 ---
 
-## Issue #7: Advanced Features: JSON Codecs and Lenses
+## Issue #370: Advanced Features: JSON Codecs and Lenses
 
 **Type**: Feature
-**Labels**: `feature`, `backend`, `fsharp`, `codecs`, `lenses`, `phase-6`
+**Labels**: `feature`, `code-generation`, `fsharp`, `codecs`, `lenses`, `phase-6`, `priority-p1`
 **Priority**: P1
 **Milestone**: v1.0.0
-**Epic**: #1
+**Epic**: [#363](https://github.com/finos/morphir-dotnet/issues/363)
 **Estimated Effort**: 2 weeks
 **Assignee**: TBD
-**Depends On**: #6
+**Depends On**: [#368](https://github.com/finos/morphir-dotnet/issues/368), [#369](https://github.com/finos/morphir-dotnet/issues/369)
+**GitHub**: https://github.com/finos/morphir-dotnet/issues/370
 
 ### Description
 
@@ -1047,16 +1055,17 @@ module Lenses =
 
 ---
 
-## Issue #8: Testing and Documentation
+## Issue #372: Testing and Documentation
 
 **Type**: Documentation + Testing
-**Labels**: `testing`, `documentation`, `phase-7`
+**Labels**: `testing`, `documentation`, `phase-7`, `priority-p0`
 **Priority**: P0
 **Milestone**: v1.0.0
-**Epic**: #1
+**Epic**: [#363](https://github.com/finos/morphir-dotnet/issues/363)
 **Estimated Effort**: 1 week
 **Assignee**: TBD
-**Depends On**: #7
+**Depends On**: [#370](https://github.com/finos/morphir-dotnet/issues/370)
+**GitHub**: https://github.com/finos/morphir-dotnet/issues/372
 
 ### Description
 
@@ -1151,16 +1160,17 @@ Create comprehensive test suite and user-facing documentation for the F# backend
 
 ---
 
-## Issue #9: Release Preparation
+## Issue #371: Release Preparation
 
 **Type**: Release
-**Labels**: `release`, `phase-8`
+**Labels**: `release`, `phase-8`, `priority-p0`
 **Priority**: P0
 **Milestone**: v1.0.0
-**Epic**: #1
+**Epic**: [#363](https://github.com/finos/morphir-dotnet/issues/363)
 **Estimated Effort**: 1 week
 **Assignee**: TBD
-**Depends On**: #8
+**Depends On**: [#372](https://github.com/finos/morphir-dotnet/issues/372)
+**GitHub**: https://github.com/finos/morphir-dotnet/issues/371
 
 ### Description
 
@@ -1253,16 +1263,16 @@ Final polish, code review, CI/CD integration, and preparation for v1.0.0 release
 
 | Issue | Title | Priority | Effort | Phase | Dependencies |
 |-------|-------|----------|--------|-------|--------------|
-| #1 | [EPIC] F# Code Generation Backend | P0 | 13 weeks | - | - |
-| #TBD | Phase 0: Morphir.SDK F# Library Implementation | P0 | 1-2 weeks | 0 | - |
-| #2 | Foundation: Project Setup and Fabulous.AST Exploration | P0 | 2 weeks | 1 | Phase 0 |
-| #3 | Type Mapping: Morphir IR Types → F# Types | P0 | 2 weeks | 2 | #2 |
-| #4 | Value Mapping: Morphir IR Values → F# Functions | P0 | 2 weeks | 3 | #3 |
-| #5 | CLI Integration: `morphir gen fsharp` Command | P0 | 1 week | 4 | #4 |
-| #6 | SDK Translation: Morphir SDK → F# Standard Library | P0 | 1 week | 5 | #5 |
-| #7 | Advanced Features: JSON Codecs and Lenses | P1 | 2 weeks | 6 | #6 |
-| #8 | Testing and Documentation | P0 | 1 week | 7 | #7 |
-| #9 | Release Preparation | P0 | 1 week | 8 | #8 |
+| [#363](https://github.com/finos/morphir-dotnet/issues/363) | [EPIC] F# Code Generation Backend | P0 | 13 weeks | - | - |
+| [#364](https://github.com/finos/morphir-dotnet/issues/364) | Phase 0: Morphir.SDK F# Library Implementation | P0 | 1-2 weeks | 0 | - |
+| [#365](https://github.com/finos/morphir-dotnet/issues/365) | Foundation: Project Setup and Fabulous.AST Exploration | P0 | 2 weeks | 1 | #364 |
+| [#366](https://github.com/finos/morphir-dotnet/issues/366) | Type Mapping: Morphir IR Types → F# Types | P0 | 2 weeks | 2 | #365 |
+| [#367](https://github.com/finos/morphir-dotnet/issues/367) | Value Mapping: Morphir IR Values → F# Functions | P0 | 2 weeks | 3 | #366 |
+| [#368](https://github.com/finos/morphir-dotnet/issues/368) | CLI Integration: `morphir gen fsharp` Command | P0 | 1 week | 4 | #367 |
+| [#369](https://github.com/finos/morphir-dotnet/issues/369) | SDK Translation: Morphir SDK → F# Standard Library | P0 | 1 week | 5 | #367 |
+| [#370](https://github.com/finos/morphir-dotnet/issues/370) | Advanced Features: JSON Codecs and Lenses | P1 | 2 weeks | 6 | #368, #369 |
+| [#372](https://github.com/finos/morphir-dotnet/issues/372) | Testing and Documentation | P0 | 1 week | 7 | #370 |
+| [#371](https://github.com/finos/morphir-dotnet/issues/371) | Release Preparation | P0 | 1 week | 8 | #372 |
 
 **Total Timeline**: 13 weeks (1 week Phase 0 + 12 weeks implementation)
 **Total Issues**: 10 (1 Epic + 9 Implementation - including Phase 0)
