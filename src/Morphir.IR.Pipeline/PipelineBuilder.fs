@@ -120,17 +120,99 @@ module PipelineBuilderInstance =
     ///     stringify irJsonSerializer
     /// }
     ///
-    /// // Explicitly unfrozen (opt-out of auto-freezing)
-    /// let mutableProc = pipeline {
+    /// // Explicitly immutable - using Pipeline.frozen
+    /// let immutableProc = Pipeline.frozen {
     ///     parse irJsonParser
-    ///     uses validateIRPlugin
-    ///     unfrozen
+    ///     uses validatePlugin
     /// }
-    /// // Can continue modifying mutableProc
+    ///
+    /// // Explicitly mutable - PREFERRED syntax for mutable pipelines
+    /// let mutableProc = Pipeline.mut {
+    ///     parse irJsonParser
+    ///     uses validatePlugin
+    /// }
+    /// // Can continue modifying
     /// let extended = mutableProc |> MorphirProcessor.plugin optimizePlugin
     ///
-    /// // Unfreeze a frozen pipeline
+    /// // Alternative: using unfrozen keyword inside pipeline
+    /// let alsoMutable = pipeline {
+    ///     parse irJsonParser
+    ///     unfrozen
+    /// }
+    ///
+    /// // Alternative: unfreeze an existing frozen pipeline
     /// let unfrozenAfter = proc |> MorphirProcessor.unfreeze
     /// </code>
     /// </example>
     let pipeline = PipelineBuilder()
+
+    /// <summary>
+    /// Helper type for Pipeline.frozen { ... } syntax.
+    /// Creates frozen (immutable) pipelines explicitly.
+    /// </summary>
+    type FrozenPipelineBuilder() =
+        member _.Yield(_) = MorphirProcessor.empty
+        member _.Zero() = MorphirProcessor.empty
+        member _.Run(proc: MorphirProcessor) =
+            if proc.Frozen then proc else MorphirProcessor.freeze proc
+        [<CustomOperation("parse")>]
+        member _.Parse(proc: MorphirProcessor, parser: Parser) = MorphirProcessor.parse parser proc
+        [<CustomOperation("uses")>]
+        member _.Uses(proc: MorphirProcessor, plugin: Plugin) = MorphirProcessor.plugin plugin proc
+        [<CustomOperation("stringify")>]
+        member _.Stringify(proc: MorphirProcessor, compiler: Compiler) = MorphirProcessor.stringify compiler proc
+        [<CustomOperation("data")>]
+        member _.Data(proc: MorphirProcessor, key: string, value: obj) = MorphirProcessor.setData key value proc
+
+    /// <summary>
+    /// Helper type for Pipeline.mut { ... } syntax.
+    /// Creates unfrozen (mutable) pipelines that can be modified after creation.
+    /// </summary>
+    type MutablePipelineBuilder() =
+        member _.Yield(_) = MorphirProcessor.empty
+        member _.Zero() = MorphirProcessor.empty
+        member _.Run(proc: MorphirProcessor) =
+            // Never auto-freeze - always return unfrozen
+            if proc.Frozen then MorphirProcessor.unfreeze proc else proc
+        [<CustomOperation("parse")>]
+        member _.Parse(proc: MorphirProcessor, parser: Parser) = MorphirProcessor.parse parser proc
+        [<CustomOperation("uses")>]
+        member _.Uses(proc: MorphirProcessor, plugin: Plugin) = MorphirProcessor.plugin plugin proc
+        [<CustomOperation("stringify")>]
+        member _.Stringify(proc: MorphirProcessor, compiler: Compiler) = MorphirProcessor.stringify compiler proc
+        [<CustomOperation("data")>]
+        member _.Data(proc: MorphirProcessor, key: string, value: obj) = MorphirProcessor.setData key value proc
+
+    /// <summary>
+    /// Module providing explicit pipeline builder variations.
+    /// </summary>
+    module Pipeline =
+        /// <summary>
+        /// Explicitly creates a frozen (immutable) pipeline.
+        /// This is the default behavior but can be used for clarity.
+        /// </summary>
+        /// <example>
+        /// <code>
+        /// let proc = Pipeline.frozen {
+        ///     parse irJsonParser
+        ///     uses validatePlugin
+        /// }
+        /// </code>
+        /// </example>
+        let frozen = FrozenPipelineBuilder()
+
+        /// <summary>
+        /// Explicitly creates a mutable (unfrozen) pipeline.
+        /// Use when you need to continue modifying the pipeline after creation.
+        /// Short for "mutable" to avoid keyword conflicts.
+        /// </summary>
+        /// <example>
+        /// <code>
+        /// let proc = Pipeline.mut {
+        ///     parse irJsonParser
+        ///     uses validatePlugin
+        /// }
+        /// let extended = proc |> MorphirProcessor.plugin optimizePlugin
+        /// </code>
+        /// </example>
+        let mut = MutablePipelineBuilder()
