@@ -13,15 +13,10 @@ module TypeValidator =
 
     /// <summary>
     /// Creates an FQName from a colon-separated string (Package:Module:Name).
+    /// Uses the official FQName.fromString function.
     /// </summary>
     let private makeFQName (str: string): FQName =
-        let parts = str.Split(':')
-        if parts.Length <> 3 then
-            failwithf "Invalid FQName format: %s (expected Package:Module:Name)" str
-        let packagePath = PackageName.packageNameFromString parts.[0]
-        let modulePath = ModulePath.modulePathFromString parts.[1]
-        let localName = Name.fromString parts.[2]
-        FQName.fqName packagePath modulePath localName
+        FQName.fromString str ":"
 
     /// <summary>
     /// Type environment mapping variable names to their types.
