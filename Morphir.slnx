@@ -13,6 +13,9 @@
     <File Path="dotnet.config" />
     <File Path="AGENTS.md" />
   </Folder>
+  <Folder Name="/build/">
+    <Project Path="build/_build.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
     <Project Path="src/Morphir/Morphir.csproj" />
