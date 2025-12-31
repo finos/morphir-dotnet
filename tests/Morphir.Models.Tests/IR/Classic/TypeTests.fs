@@ -5,8 +5,7 @@ open Morphir.IR
 open Morphir.IR.Classic
 open Morphir.Testing.Assertions
 
-// Import the ^-> operator explicitly
-let (^->) = Type.(^->)
+// The ^-> operator and Arrow extension are now available from AutoOpen TypeExtensions module
 
 [<Tests>]
 let tests =

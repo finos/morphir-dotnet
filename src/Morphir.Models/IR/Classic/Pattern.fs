@@ -1,29 +1,29 @@
 namespace Morphir.IR.Classic
 
+open Morphir.IR
+
 /// <summary>
-/// Pattern module provides pattern matching types for Morphir IR.
+/// Pattern represents a pattern matching expression in the Morphir IR.
+/// Each variant includes attributes as the first parameter.
 /// Patterns are used for destructuring and filtering values in lambda,
 /// let destructure, and pattern match expressions.
 /// </summary>
+type Pattern<'attributes> =
+    | WildcardPattern of 'attributes
+    | AsPattern of 'attributes * Pattern<'attributes> * Name
+    | TuplePattern of 'attributes * Pattern<'attributes> list
+    | ConstructorPattern of 'attributes * FQName * Pattern<'attributes> list
+    | EmptyListPattern of 'attributes
+    | HeadTailPattern of 'attributes * Pattern<'attributes> * Pattern<'attributes>
+    | LiteralPattern of 'attributes * Literal
+    | UnitPattern of 'attributes
+
+/// <summary>
+/// Pattern module provides helper functions for working with patterns.
+/// Requires qualified access to avoid name conflicts.
+/// </summary>
 [<RequireQualifiedAccess>]
 module Pattern =
-
-    open Morphir.IR
-    open Literal
-
-    /// <summary>
-    /// Pattern represents a pattern matching expression in the Morphir IR.
-    /// Each variant includes attributes as the first parameter.
-    /// </summary>
-    type Pattern<'attributes> =
-        | WildcardPattern of 'attributes
-        | AsPattern of 'attributes * Pattern<'attributes> * Name
-        | TuplePattern of 'attributes * Pattern<'attributes> list
-        | ConstructorPattern of 'attributes * FQName * Pattern<'attributes> list
-        | EmptyListPattern of 'attributes
-        | HeadTailPattern of 'attributes * Pattern<'attributes> * Pattern<'attributes>
-        | LiteralPattern of 'attributes * Literal
-        | UnitPattern of 'attributes
 
     /// <summary>
     /// Creates a wildcard pattern (matches any value without binding).
@@ -73,10 +73,50 @@ module Pattern =
     let unit<'attributes> (attributes: 'attributes) : Pattern<'attributes> =
         UnitPattern attributes
 
-    // Fluent API extensions
+
+    // toString functions
 
     /// <summary>
-    /// Type extension providing fluent methods for Pattern.
+    /// Converts a Pattern to its string representation.
+    /// </summary>
+    let rec toString (pattern: Pattern<'attributes>) : string =
+        match pattern with
+        | WildcardPattern _ -> "_"
+        | AsPattern(_, nested, name) ->
+            $"{toString nested} as {Name.toCamelCase name}"
+        | TuplePattern(_, patterns) ->
+            let patternsText =
+                patterns
+                |> List.map toString
+                |> String.concat " , "
+            $"({patternsText})"
+        | ConstructorPattern(_, fqName, patterns) ->
+            let nameText = FQName.toString fqName
+            match patterns with
+            | [] -> nameText
+            | _ ->
+                let argsText =
+                    patterns
+                    |> List.map toString
+                    |> String.concat " "
+                $"{nameText} {argsText}"
+        | EmptyListPattern _ -> "[]"
+        | HeadTailPattern(_, headPattern, tailPattern) ->
+            $"{toString headPattern} :: {toString tailPattern}"
+        | LiteralPattern(_, literal) -> Literal.toString literal
+        | UnitPattern _ -> "()"
+
+/// <summary>
+/// PatternExtensions provides extension methods for Pattern that are available in both F# and C#.
+/// This module is marked AutoOpen so extensions are available whenever Morphir.IR.Classic is opened.
+/// </summary>
+[<AutoOpen>]
+module PatternExtensions =
+
+    open System.Runtime.CompilerServices
+
+    /// <summary>
+    /// F# type extensions for Pattern (natural F# style).
     /// </summary>
     type Pattern<'attributes> with
         /// <summary>
@@ -133,35 +173,51 @@ module Pattern =
         member this.Cons(attributes: 'attributes, tail: Pattern<'attributes>) : Pattern<'attributes> =
             HeadTailPattern(attributes, this, tail)
 
-    // toString functions
-
     /// <summary>
-    /// Converts a Pattern to its string representation.
+    /// C#-visible extension methods for Pattern (using Extension attribute).
+    /// These make the same methods available in C# as extension methods.
     /// </summary>
-    let rec toString (pattern: Pattern<'attributes>) : string =
-        match pattern with
-        | WildcardPattern _ -> "_"
-        | AsPattern(_, nested, name) ->
-            $"{toString nested} as {Name.toCamelCase name}"
-        | TuplePattern(_, patterns) ->
-            let patternsText =
-                patterns
-                |> List.map toString
-                |> String.concat " , "
-            $"({patternsText})"
-        | ConstructorPattern(_, fqName, patterns) ->
-            let nameText = FQName.toString fqName
-            match patterns with
-            | [] -> nameText
-            | _ ->
-                let argsText =
-                    patterns
-                    |> List.map toString
-                    |> String.concat " "
-                $"{nameText} {argsText}"
-        | EmptyListPattern _ -> "[]"
-        | HeadTailPattern(_, headPattern, tailPattern) ->
-            $"{toString headPattern} :: {toString tailPattern}"
-        | LiteralPattern(_, literal) -> Literal.toString literal
-        | UnitPattern _ -> "()"
+    [<Extension>]
+    type PatternExtensionsForCSharp =
+        /// <summary>
+        /// Fluent method to create an AsPattern (C# extension).
+        /// </summary>
+        [<Extension>]
+        static member As(this: Pattern<'attributes>, name: string) : Pattern<'attributes> =
+            AsPattern(Unchecked.defaultof<'attributes>, this, Name.fromString name)
+
+        /// <summary>
+        /// Fluent method to create an AsPattern (C# extension).
+        /// </summary>
+        [<Extension>]
+        static member As(this: Pattern<'attributes>, name: Name) : Pattern<'attributes> =
+            AsPattern(Unchecked.defaultof<'attributes>, this, name)
+
+        /// <summary>
+        /// Fluent method to create an AsPattern with explicit attributes (C# extension).
+        /// </summary>
+        [<Extension>]
+        static member As(this: Pattern<'attributes>, attributes: 'attributes, name: string) : Pattern<'attributes> =
+            AsPattern(attributes, this, Name.fromString name)
+
+        /// <summary>
+        /// Fluent method to create an AsPattern with explicit attributes (C# extension).
+        /// </summary>
+        [<Extension>]
+        static member As(this: Pattern<'attributes>, attributes: 'attributes, name: Name) : Pattern<'attributes> =
+            AsPattern(attributes, this, name)
+
+        /// <summary>
+        /// Fluent method to create a HeadTailPattern (C# extension).
+        /// </summary>
+        [<Extension>]
+        static member Cons(this: Pattern<'attributes>, tail: Pattern<'attributes>) : Pattern<'attributes> =
+            HeadTailPattern(Unchecked.defaultof<'attributes>, this, tail)
+
+        /// <summary>
+        /// Fluent method to create a HeadTailPattern with explicit attributes (C# extension).
+        /// </summary>
+        [<Extension>]
+        static member Cons(this: Pattern<'attributes>, attributes: 'attributes, tail: Pattern<'attributes>) : Pattern<'attributes> =
+            HeadTailPattern(attributes, this, tail)
 

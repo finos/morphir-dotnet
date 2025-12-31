@@ -8,10 +8,8 @@ namespace Morphir.IR.Classic
 module Module =
 
     open Morphir.IR
-    open Value
     open AccessControlled
     open Documented
-    open System.Collections.Generic // For Map
 
     /// <summary>
     /// ModuleSpecification provides the public interface of a module.

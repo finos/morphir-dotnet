@@ -49,13 +49,13 @@ partial class Build : NukeBuild
     readonly AbsolutePath ToolDllDir = RootDirectory / "artifacts" / "tool-dll";
 
     [Parameter("Runtime Identifier (e.g., linux-x64, win-x64, osx-arm64)")]
-    readonly string Rid;
+    readonly string? Rid;
 
     [Parameter("NuGet source URL")]
     readonly string NuGetSource = "https://api.nuget.org/v3/index.json";
 
     [Parameter("NuGet API key for publishing")]
-    readonly string ApiKey;
+    readonly string? ApiKey;
 
     [Parameter("Local NuGet feed directory")]
     readonly AbsolutePath LocalSource = RootDirectory / "artifacts" / "local-feed";
@@ -91,6 +91,8 @@ partial class Build : NukeBuild
     AbsolutePath MorphirToolProject => SourceDirectory / "Morphir.Tool" / "Morphir.Tool.csproj";
     AbsolutePath MorphirCoreTestsProject => TestsDirectory / "Morphir.Core.Tests" / "Morphir.Core.Tests.csproj";
     AbsolutePath MorphirToolingTestsProject => TestsDirectory / "Morphir.Tooling.Tests" / "Morphir.Tooling.Tests.csproj";
+    AbsolutePath MorphirModelsTestsProject => TestsDirectory / "Morphir.Models.Tests" / "Morphir.Models.Tests.fsproj";
+    AbsolutePath MorphirIRPipelineTestsProject => TestsDirectory / "Morphir.IR.Pipeline.Tests" / "Morphir.IR.Pipeline.Tests.fsproj";
     AbsolutePath MorphirE2ETestsProject => TestsDirectory / "Morphir.E2E.Tests" / "Morphir.E2E.Tests.csproj";
     AbsolutePath MorphirBuildTestsProject => TestsDirectory / "Morphir.Build.Tests" / "Morphir.Build.Tests.csproj";
 

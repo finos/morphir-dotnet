@@ -1,21 +1,22 @@
 namespace Morphir.IR.Classic
 
 /// <summary>
-/// Literal module provides constant value types for Morphir IR.
+/// Literal represents a constant value in the MorphIr IR.
+/// </summary>
+type Literal =
+    | BoolLiteral of bool
+    | CharLiteral of char
+    | StringLiteral of string
+    | WholeNumberLiteral of int64
+    | FloatLiteral of float
+    | DecimalLiteral of decimal
+
+/// <summary>
+/// Literal module provides helper functions for constant value types in Morphir IR.
 /// Literals represent immutable constant data.
 /// </summary>
+[<RequireQualifiedAccess>]
 module Literal =
-
-    /// <summary>
-    /// Literal represents a constant value in the MorphIr IR.
-    /// </summary>
-    type Literal =
-        | BoolLiteral of bool
-        | CharLiteral of char
-        | StringLiteral of string
-        | WholeNumberLiteral of int64
-        | FloatLiteral of float
-        | DecimalLiteral of decimal
 
     /// <summary>
     /// Creates a boolean literal.

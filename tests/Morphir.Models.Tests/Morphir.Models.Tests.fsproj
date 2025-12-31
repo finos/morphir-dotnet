@@ -14,6 +14,7 @@
         <PackageReference Include="Expecto" />
         <PackageReference Include="Expecto.FsCheck" />
         <PackageReference Include="Verify.Expecto" />
+        <PackageReference Include="System.Text.Json" />
     </ItemGroup>
 
     <ItemGroup>
@@ -45,6 +46,7 @@
         <Compile Include="IR/DSL/PackagesTests.fs" />
         <Compile Include="IR/DSL/DistributionsTests.fs" />
         <Compile Include="IR/DSL/IntegrationTests.fs" />
+        <Compile Include="Json/CodecTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

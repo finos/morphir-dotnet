@@ -6,8 +6,8 @@ namespace Morphir.IR.Classic.DSL
 module Modules =
 
     open Morphir.IR
+    open Morphir.IR.Classic
     open Morphir.IR.Classic.Module
-    open Morphir.IR.Classic.Value
     open Morphir.IR.Classic.AccessControlled
     open Morphir.IR.Classic.Documented
     open System.Collections.Generic

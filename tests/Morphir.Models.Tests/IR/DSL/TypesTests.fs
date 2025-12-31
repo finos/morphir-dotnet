@@ -10,8 +10,7 @@ open Morphir.Testing.Assertions
 
 module TypesTests =
 
-    // Import the ^-> operator explicitly
-    let (^->) = Type.(^->)
+    // The ^-> operator is now available from AutoOpen TypeExtensions module
 
     [<Tests>]
     let tests =

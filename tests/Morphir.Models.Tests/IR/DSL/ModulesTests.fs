@@ -4,7 +4,6 @@ open Expecto
 open Morphir.IR
 open Morphir.IR.Classic
 open Morphir.IR.Classic.Module
-open Morphir.IR.Classic.Value
 open Morphir.IR.Classic.AccessControlled
 open Morphir.IR.Classic.DSL.Modules
 

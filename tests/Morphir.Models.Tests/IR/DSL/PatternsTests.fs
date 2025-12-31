@@ -3,6 +3,7 @@ namespace Morphir.Models.Tests.IR.DSL
 open Expecto
 open Morphir.Testing.Assertions
 open Morphir.IR
+open Morphir.IR.Classic  // For Pattern type and PatternExtensions AutoOpen module
 open Morphir.IR.Classic.DSL.Patterns
 open Morphir.IR.DSL.Names
 
@@ -48,8 +49,8 @@ module PatternsTests =
 
                 testCase "Creates LiteralPattern"
                 <| fun _ ->
-                    let result = pattern { Literal (Morphir.IR.Classic.Literal.BoolLiteral true) }
-                    let expected = Morphir.IR.Classic.Pattern.literal () (Morphir.IR.Classic.Literal.BoolLiteral true)
+                    let result = pattern { Literal (BoolLiteral true) }
+                    let expected = Morphir.IR.Classic.Pattern.literal () (BoolLiteral true)
                     result |> Expect.equal expected
 
                 testCase "Creates UnitPattern with CustomOperation"

@@ -1,33 +1,32 @@
 namespace Morphir.IR.Classic
 
+open Morphir.IR
+open AccessControlled
+
 /// <summary>
-/// Type module provides the complete type system for Morphir IR, including
-/// Type Expressions, Type Specifications, Type Definitions, and Field types.
+/// Type represents a type expression in the Morphir IR.
+/// Each variant includes attributes as the first parameter.
+/// </summary>
+type Type<'attributes> =
+    | Variable of 'attributes * Name
+    | Reference of 'attributes * FQName * Type<'attributes> list
+    | Tuple of 'attributes * Type<'attributes> list
+    | Record of 'attributes * Field<'attributes> list
+    | ExtensibleRecord of 'attributes * Name * Field<'attributes> list
+    | Function of 'attributes * Type<'attributes> * Type<'attributes>
+    | Unit of 'attributes
+
+/// <summary>
+/// Field represents a named field in a Record or ExtensibleRecord type.
+/// </summary>
+and Field<'attributes> = { Name: Name; Type: Type<'attributes> }
+
+/// <summary>
+/// Type module provides helper functions for the complete type system for Morphir IR.
 /// All types support generic attributes for extensibility.
 /// </summary>
 [<RequireQualifiedAccess>]
 module Type =
-
-    open Morphir.IR
-    open AccessControlled
-
-    /// <summary>
-    /// Type represents a type expression in the Morphir IR.
-    /// Each variant includes attributes as the first parameter.
-    /// </summary>
-    type Type<'attributes> =
-        | Variable of 'attributes * Name
-        | Reference of 'attributes * FQName * Type<'attributes> list
-        | Tuple of 'attributes * Type<'attributes> list
-        | Record of 'attributes * Field<'attributes> list
-        | ExtensibleRecord of 'attributes * Name * Field<'attributes> list
-        | Function of 'attributes * Type<'attributes> * Type<'attributes>
-        | Unit of 'attributes
-
-    /// <summary>
-    /// Field represents a named field in a Record or ExtensibleRecord type.
-    /// </summary>
-    and Field<'attributes> = { Name: Name; Type: Type<'attributes> }
 
     /// <summary>
     /// Constructors represents a map of constructor names to their arguments.
@@ -111,37 +110,6 @@ module Type =
     let unit<'attributes> (attributes: 'attributes) : Type<'attributes> =
         Unit attributes
 
-    // Fluent API extensions
-
-    /// <summary>
-    /// Type extension providing fluent methods for Type.
-    /// </summary>
-    type Type<'attributes> with
-        /// <summary>
-        /// Fluent method to create a Function type from an existing type.
-        /// Creates a function type where this type is the argument and the provided type is the return type.
-        /// Uses default attributes.
-        /// </summary>
-        /// <param name="returnType">The return type of the function</param>
-        member this.Arrow(returnType: Type<'attributes>) : Type<'attributes> =
-            Function(Unchecked.defaultof<'attributes>, this, returnType)
-
-        /// <summary>
-        /// Fluent method to create a Function type with explicit attributes.
-        /// </summary>
-        /// <param name="attributes">The attributes for the Function type</param>
-        /// <param name="returnType">The return type of the function</param>
-        member this.Arrow(attributes: 'attributes, returnType: Type<'attributes>) : Type<'attributes> =
-            Function(attributes, this, returnType)
-
-    /// <summary>
-    /// Right-associative operator for creating function types.
-    /// Usage: intType ^-> stringType creates Int -> String
-    /// Chains correctly: intType ^-> charType ^-> stringType creates Int -> (Char -> String)
-    /// Note: Uses ^-> instead of :-> because : is reserved in F# for type annotations
-    /// </summary>
-    let (^->) (argType: Type<'attributes>) (returnType: Type<'attributes>) : Type<'attributes> =
-        Function(Unchecked.defaultof<'attributes>, argType, returnType)
 
     // Helper functions for Type Specifications
 
@@ -335,4 +303,66 @@ module Type =
                     match paramsText with
                     | "" -> "type"
                     | _ -> $"type {paramsText}"
+
+/// <summary>
+/// TypeExtensions provides extension methods and operators for Type that are available in both F# and C#.
+/// This module is marked AutoOpen so extensions are available whenever Morphir.IR.Classic is opened.
+/// </summary>
+[<AutoOpen>]
+module TypeExtensions =
+
+    open System.Runtime.CompilerServices
+
+    /// <summary>
+    /// F# type extensions for Type (natural F# style).
+    /// </summary>
+    type Type<'attributes> with
+        /// <summary>
+        /// Fluent method to create a Function type from an existing type.
+        /// Creates a function type where this type is the argument and the provided type is the return type.
+        /// Uses default attributes.
+        /// </summary>
+        /// <param name="returnType">The return type of the function</param>
+        member this.Arrow(returnType: Type<'attributes>) : Type<'attributes> =
+            Function(Unchecked.defaultof<'attributes>, this, returnType)
+
+        /// <summary>
+        /// Fluent method to create a Function type with explicit attributes.
+        /// </summary>
+        /// <param name="attributes">The attributes for the Function type</param>
+        /// <param name="returnType">The return type of the function</param>
+        member this.Arrow(attributes: 'attributes, returnType: Type<'attributes>) : Type<'attributes> =
+            Function(attributes, this, returnType)
+
+    /// <summary>
+    /// C#-visible extension methods for Type (using Extension attribute).
+    /// These make the same methods available in C# as extension methods.
+    /// </summary>
+    [<Extension>]
+    type TypeExtensionsForCSharp =
+        /// <summary>
+        /// Fluent method to create a Function type from an existing type (C# extension).
+        /// Creates a function type where this type is the argument and the provided type is the return type.
+        /// Uses default attributes.
+        /// </summary>
+        [<Extension>]
+        static member Arrow(this: Type<'attributes>, returnType: Type<'attributes>) : Type<'attributes> =
+            Function(Unchecked.defaultof<'attributes>, this, returnType)
+
+        /// <summary>
+        /// Fluent method to create a Function type with explicit attributes (C# extension).
+        /// </summary>
+        [<Extension>]
+        static member Arrow(this: Type<'attributes>, attributes: 'attributes, returnType: Type<'attributes>) : Type<'attributes> =
+            Function(attributes, this, returnType)
+
+    /// <summary>
+    /// Right-associative operator for creating function types.
+    /// Usage: intType ^-> stringType creates Int -> String
+    /// Chains correctly: intType ^-> charType ^-> stringType creates Int -> (Char -> String)
+    /// Note: Uses ^-> instead of :-> because : is reserved in F# for type annotations
+    /// This operator is F#-only (not available in C#).
+    /// </summary>
+    let (^->) (argType: Type<'attributes>) (returnType: Type<'attributes>) : Type<'attributes> =
+        Function(Unchecked.defaultof<'attributes>, argType, returnType)
 

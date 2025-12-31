@@ -1,6 +1,7 @@
 namespace Morphir.IR.Classic.DSL
 
 open System.Runtime.CompilerServices
+open Morphir.IR.Classic
 
 /// <summary>
 /// Literals module provides Computation Expression builders for creating Literal values.
@@ -8,7 +9,6 @@ open System.Runtime.CompilerServices
 /// </summary>
 module Literals =
 
-    open Morphir.IR.Classic.Literal
 
     /// <summary>
     /// LiteralBuilder provides a Computation Expression for creating Literal values.

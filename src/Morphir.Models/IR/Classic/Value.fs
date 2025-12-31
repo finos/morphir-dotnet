@@ -1,56 +1,54 @@
 namespace Morphir.IR.Classic
 
+open Morphir.IR
+
 /// <summary>
-/// Value module provides the complete value expression system for Morphir IR,
-/// including Value expressions, ValueSpecification, and ValueDefinition.
+/// Value represents a value expression in the Morphir IR.
+/// Each variant includes value attributes as the first parameter.
+/// </summary>
+type Value<'typeAttributes, 'valueAttributes> =
+    | Literal of 'valueAttributes * Literal
+    | Constructor of 'valueAttributes * FQName
+    | Tuple of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> list
+    | List of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> list
+    | Record of 'valueAttributes * Map<Name, Value<'typeAttributes, 'valueAttributes>>
+    | Variable of 'valueAttributes * Name
+    | Reference of 'valueAttributes * FQName
+    | Field of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Name
+    | FieldFunction of 'valueAttributes * Name
+    | Apply of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+    | Lambda of 'valueAttributes * Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+    | LetDefinition of 'valueAttributes * Name * ValueDefinition<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+    | LetRecursion of 'valueAttributes * Map<Name, ValueDefinition<'typeAttributes, 'valueAttributes>> * Value<'typeAttributes, 'valueAttributes>
+    | Destructure of 'valueAttributes * Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+    | IfThenElse of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
+    | PatternMatch of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
+    | UpdateRecord of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Map<Name, Value<'typeAttributes, 'valueAttributes>>
+    | Unit of 'valueAttributes
+
+/// <summary>
+/// ValueSpecification defines the type signature of a value or function.
+/// Contains only type information, no implementation.
+/// </summary>
+and ValueSpecification<'attributes> =
+    { Inputs: (Name * Type<'attributes>) list
+      Output: Type<'attributes> }
+
+/// <summary>
+/// ValueDefinition provides the complete implementation of a value or function.
+/// Contains both type information and implementation.
+/// </summary>
+and ValueDefinition<'typeAttributes, 'valueAttributes> =
+    { InputTypes: (Name * 'valueAttributes * Type<'typeAttributes>) list
+      OutputType: Type<'typeAttributes>
+      Body: Value<'typeAttributes, 'valueAttributes> }
+
+/// <summary>
+/// Value module provides helper functions for the complete value expression system for Morphir IR.
 /// All types support generic attributes for extensibility.
 /// </summary>
+[<RequireQualifiedAccess>]
 module Value =
-
-    open Morphir.IR
-    open Literal
-    open System.Collections.Generic // For Map
-
-    /// <summary>
-    /// Value represents a value expression in the Morphir IR.
-    /// Each variant includes value attributes as the first parameter.
-    /// </summary>
-    type Value<'typeAttributes, 'valueAttributes> =
-        | Literal of 'valueAttributes * Literal
-        | Constructor of 'valueAttributes * FQName
-        | Tuple of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> list
-        | List of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> list
-        | Record of 'valueAttributes * Map<Name, Value<'typeAttributes, 'valueAttributes>>
-        | Variable of 'valueAttributes * Name
-        | Reference of 'valueAttributes * FQName
-        | Field of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Name
-        | FieldFunction of 'valueAttributes * Name
-        | Apply of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | Lambda of 'valueAttributes * Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | LetDefinition of 'valueAttributes * Name * ValueDefinition<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | LetRecursion of 'valueAttributes * Map<Name, ValueDefinition<'typeAttributes, 'valueAttributes>> * Value<'typeAttributes, 'valueAttributes>
-        | Destructure of 'valueAttributes * Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | IfThenElse of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes> * Value<'typeAttributes, 'valueAttributes>
-        | PatternMatch of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * (Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
-        | UpdateRecord of 'valueAttributes * Value<'typeAttributes, 'valueAttributes> * Map<Name, Value<'typeAttributes, 'valueAttributes>>
-        | Unit of 'valueAttributes
-
-    /// <summary>
-    /// ValueSpecification defines the type signature of a value or function.
-    /// Contains only type information, no implementation.
-    /// </summary>
-    and ValueSpecification<'attributes> =
-        { Inputs: (Name * Type.Type<'attributes>) list
-          Output: Type.Type<'attributes> }
-
-    /// <summary>
-    /// ValueDefinition provides the complete implementation of a value or function.
-    /// Contains both type information and implementation.
-    /// </summary>
-    and ValueDefinition<'typeAttributes, 'valueAttributes> =
-        { InputTypes: (Name * 'valueAttributes * Type.Type<'typeAttributes>) list
-          OutputType: Type.Type<'typeAttributes>
-          Body: Value<'typeAttributes, 'valueAttributes> }
 
     // Helper functions for Value Expressions
 
@@ -117,7 +115,7 @@ module Value =
     /// <summary>
     /// Creates a Lambda value (anonymous function).
     /// </summary>
-    let lambda<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (argumentPattern: Pattern.Pattern<'valueAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
+    let lambda<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (argumentPattern: Pattern<'valueAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
         Lambda(attributes, argumentPattern, body)
 
     /// <summary>
@@ -135,7 +133,7 @@ module Value =
     /// <summary>
     /// Creates a Destructure value (pattern-based destructuring).
     /// </summary>
-    let destructure<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (pattern: Pattern.Pattern<'valueAttributes>) (valueToDestructure: Value<'typeAttributes, 'valueAttributes>) (inExpr: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
+    let destructure<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (pattern: Pattern<'valueAttributes>) (valueToDestructure: Value<'typeAttributes, 'valueAttributes>) (inExpr: Value<'typeAttributes, 'valueAttributes>) : Value<'typeAttributes, 'valueAttributes> =
         Destructure(attributes, pattern, valueToDestructure, inExpr)
 
     /// <summary>
@@ -147,7 +145,7 @@ module Value =
     /// <summary>
     /// Creates a PatternMatch value (pattern matching with multiple cases).
     /// </summary>
-    let patternMatch<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (valueToMatch: Value<'typeAttributes, 'valueAttributes>) (cases: (Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list) : Value<'typeAttributes, 'valueAttributes> =
+    let patternMatch<'typeAttributes, 'valueAttributes> (attributes: 'valueAttributes) (valueToMatch: Value<'typeAttributes, 'valueAttributes>) (cases: (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list) : Value<'typeAttributes, 'valueAttributes> =
         PatternMatch(attributes, valueToMatch, cases)
 
     /// <summary>
@@ -167,7 +165,7 @@ module Value =
     /// <summary>
     /// Creates a ValueSpecification.
     /// </summary>
-    let valueSpecification<'attributes> (inputs: (Name * Type.Type<'attributes>) list) (output: Type.Type<'attributes>) : ValueSpecification<'attributes> =
+    let valueSpecification<'attributes> (inputs: (Name * Type<'attributes>) list) (output: Type<'attributes>) : ValueSpecification<'attributes> =
         { Inputs = inputs
           Output = output }
 
@@ -176,7 +174,7 @@ module Value =
     /// <summary>
     /// Creates a ValueDefinition.
     /// </summary>
-    let valueDefinition<'typeAttributes, 'valueAttributes> (inputTypes: (Name * 'valueAttributes * Type.Type<'typeAttributes>) list) (outputType: Type.Type<'typeAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : ValueDefinition<'typeAttributes, 'valueAttributes> =
+    let valueDefinition<'typeAttributes, 'valueAttributes> (inputTypes: (Name * 'valueAttributes * Type<'typeAttributes>) list) (outputType: Type<'typeAttributes>) (body: Value<'typeAttributes, 'valueAttributes>) : ValueDefinition<'typeAttributes, 'valueAttributes> =
         { InputTypes = inputTypes
           OutputType = outputType
           Body = body }
@@ -280,7 +278,7 @@ module Value =
     /// </summary>
     module ValueSpecification =
         let toString (spec: ValueSpecification<'attributes>) : string =
-            let formatInputs (inputs: (Name * Type.Type<'attributes>) list) : string =
+            let formatInputs (inputs: (Name * Type<'attributes>) list) : string =
                 match inputs with
                 | [] -> ""
                 | _ ->

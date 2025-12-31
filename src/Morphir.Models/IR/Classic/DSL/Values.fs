@@ -6,9 +6,7 @@ namespace Morphir.IR.Classic.DSL
 module Values =
 
     open Morphir.IR
-    open Morphir.IR.Classic.Value
     open Morphir.IR.Classic
-    open Morphir.IR.Classic.Literal
     open System.Collections.Generic
 
     /// <summary>
@@ -142,7 +140,7 @@ module Values =
         /// <summary>
         /// Creates a Lambda value (anonymous function).
         /// </summary>
-        member _.Lambda(argumentPattern: Pattern.Pattern<'valueAttributes>, body: Value<'typeAttributes, 'valueAttributes>) =
+        member _.Lambda(argumentPattern: Pattern<'valueAttributes>, body: Value<'typeAttributes, 'valueAttributes>) =
             Lambda(defaultAttrs, argumentPattern, body)
 
         /// <summary>
@@ -179,7 +177,7 @@ module Values =
         /// </summary>
         member _.Destructure
             (
-                pattern: Pattern.Pattern<'valueAttributes>,
+                pattern: Pattern<'valueAttributes>,
                 valueToDestructure: Value<'typeAttributes, 'valueAttributes>,
                 inExpr: Value<'typeAttributes, 'valueAttributes>
             ) =
@@ -202,7 +200,7 @@ module Values =
         member _.PatternMatch
             (
                 valueToMatch: Value<'typeAttributes, 'valueAttributes>,
-                cases: (Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
+                cases: (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
             ) =
             PatternMatch(defaultAttrs, valueToMatch, cases)
 
@@ -359,7 +357,7 @@ module Values =
         /// <summary>
         /// Creates a Lambda value (anonymous function).
         /// </summary>
-        member _.Lambda(argumentPattern: Pattern.Pattern<'valueAttributes>, body: Value<'typeAttributes, 'valueAttributes>) =
+        member _.Lambda(argumentPattern: Pattern<'valueAttributes>, body: Value<'typeAttributes, 'valueAttributes>) =
             Lambda(attrs, argumentPattern, body)
 
         /// <summary>
@@ -396,7 +394,7 @@ module Values =
         /// </summary>
         member _.Destructure
             (
-                pattern: Pattern.Pattern<'valueAttributes>,
+                pattern: Pattern<'valueAttributes>,
                 valueToDestructure: Value<'typeAttributes, 'valueAttributes>,
                 inExpr: Value<'typeAttributes, 'valueAttributes>
             ) =
@@ -419,7 +417,7 @@ module Values =
         member _.PatternMatch
             (
                 valueToMatch: Value<'typeAttributes, 'valueAttributes>,
-                cases: (Pattern.Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
+                cases: (Pattern<'valueAttributes> * Value<'typeAttributes, 'valueAttributes>) list
             ) =
             PatternMatch(attrs, valueToMatch, cases)
 
