@@ -79,7 +79,7 @@ module TypeValidator =
     /// Infers the type of a value expression.
     /// Returns (inferredType, updatedFile) with any type errors reported.
     /// </summary>
-    let rec inferValueType (env: TypeEnvironment) (value: Value<unit, unit>) (file: MorphirFile): (Type<unit> option * MorphirFile) =
+    let rec inferValueType (env: TypeEnvironment) (value: Value<unit, unit>) (file: VFile): (Type<unit> option * VFile) =
         match value with
         | Value.Literal(_, lit) ->
             (Some (inferLiteralType lit), file)
@@ -90,19 +90,19 @@ module TypeValidator =
                 (Some typ, file)
             | None ->
                 let errorMsg = sprintf "Undefined variable: %s" (Name.toTitleCase name)
-                (None, file |> MorphirFile.error errorMsg None)
+                (None, file |> VFile.error errorMsg None)
 
         | Value.Constructor(_, fqName) ->
             // For now, assume constructors are valid
             // A full implementation would look up the constructor in a type registry
             let msg = sprintf "Constructor validation not yet implemented: %s" (FQName.toString fqName)
-            (None, file |> MorphirFile.warn msg None)
+            (None, file |> VFile.warn msg None)
 
         | Value.Reference(_, fqName) ->
             // For now, assume references are valid
             // A full implementation would look up the reference in a type registry
             let msg = sprintf "Reference validation not yet implemented: %s" (FQName.toString fqName)
-            (None, file |> MorphirFile.warn msg None)
+            (None, file |> VFile.warn msg None)
 
         | Value.Tuple(_, elements) ->
             let (types, finalFile) =
@@ -135,7 +135,7 @@ module TypeValidator =
                             | Some t when typesEqual t expectedType -> newFile
                             | Some t ->
                                 let errorMsg = sprintf "List element type mismatch: expected %A, got %A" expectedType t
-                                newFile |> MorphirFile.error errorMsg None
+                                newFile |> VFile.error errorMsg None
                             | None -> newFile
                         ) file1
                     let listType = Type.Reference((), makeFQName "Morphir.SDK:List:List", [expectedType])
@@ -150,17 +150,17 @@ module TypeValidator =
                     (Some outputType, file2)
                 else
                     let errorMsg = sprintf "Function argument type mismatch: expected %A, got %A" inputType actualArgType
-                    (None, file2 |> MorphirFile.error errorMsg None)
+                    (None, file2 |> VFile.error errorMsg None)
             | Some funcT, _ ->
                 let errorMsg = sprintf "Cannot apply non-function type: %A" funcT
-                (None, file2 |> MorphirFile.error errorMsg None)
+                (None, file2 |> VFile.error errorMsg None)
             | _ -> (None, file2)  // Errors already reported
 
         | Value.Lambda(_, pattern, body) ->
             // For now, we'll infer a simple function type
             // A full implementation would extract bindings from the pattern
             let msg = "Lambda type inference not yet fully implemented"
-            (None, file |> MorphirFile.warn msg None)
+            (None, file |> VFile.warn msg None)
 
         | Value.IfThenElse(_, condition, thenBranch, elseBranch) ->
             let (condType, file1) = inferValueType env condition file
@@ -170,7 +170,7 @@ module TypeValidator =
                 | Some t when typesEqual t boolType -> file1
                 | Some t ->
                     let errorMsg = sprintf "If condition must be Bool, got %A" t
-                    file1 |> MorphirFile.error errorMsg None
+                    file1 |> VFile.error errorMsg None
                 | None -> file1
 
             let (thenType, file3) = inferValueType env thenBranch file2
@@ -181,7 +181,7 @@ module TypeValidator =
                     (Some thenT, file4)
                 else
                     let errorMsg = sprintf "If branches have different types: then = %A, else = %A" thenT elseT
-                    (None, file4 |> MorphirFile.error errorMsg None)
+                    (None, file4 |> VFile.error errorMsg None)
             | _ -> (None, file4)  // Errors already reported
 
         | Value.Unit _ ->
@@ -190,20 +190,20 @@ module TypeValidator =
         | _ ->
             // Other cases not yet implemented
             let msg = sprintf "Type inference not yet implemented for: %A" value
-            (None, file |> MorphirFile.warn msg None)
+            (None, file |> VFile.warn msg None)
 
     /// <summary>
     /// Validates a value definition.
     /// </summary>
-    let validateValueDefinition (env: TypeEnvironment) (def: ValueDefinition<unit, unit>) (file: MorphirFile): MorphirFile =
+    let validateValueDefinition (env: TypeEnvironment) (def: ValueDefinition<unit, unit>) (file: VFile): VFile =
         let (inferredType, file1) = inferValueType env def.Body file
         match inferredType with
         | Some infType ->
             if typesEqual infType def.OutputType then
-                file1 |> MorphirFile.info "Value definition type-checks successfully"
+                file1 |> VFile.info "Value definition type-checks successfully"
             else
                 let errorMsg = sprintf "Value definition type mismatch: declared %A, inferred %A" def.OutputType infType
-                file1 |> MorphirFile.error errorMsg None
+                file1 |> VFile.error errorMsg None
         | None ->
             file1  // Errors already reported during inference
 
@@ -219,7 +219,7 @@ module TypeValidator =
                 // In a full implementation, we would cast to Value<unit, unit>
                 // and perform full type validation
                 let msg = "Type validation plugin executed (full validation pending IR integration)"
-                (Some node, file |> MorphirFile.info msg)
+                (Some node, file |> VFile.info msg)
         }
 
     /// <summary>
@@ -232,5 +232,5 @@ module TypeValidator =
             Transform = fun node file ->
                 // In a full implementation, this would use the environment
                 let msg = sprintf "Type validation with environment (size: %d)" (Map.count env)
-                (Some node, file |> MorphirFile.info msg)
+                (Some node, file |> VFile.info msg)
         }

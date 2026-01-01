@@ -151,7 +151,7 @@ let processorCompilerTests =
     testList "MorphirProcessor Compilers" [
         test "stringify should add compiler to unfrozen processor" {
             let testCompiler: Compiler =
-                fun node file -> file |> MorphirFile.info "Compiled"
+                fun node file -> file |> VFile.info "Compiled"
 
             let proc =
                 MorphirProcessor.empty
@@ -162,8 +162,8 @@ let processorCompilerTests =
         }
 
         test "stringify should add multiple compilers in order" {
-            let compiler1: Compiler = fun node file -> file |> MorphirFile.info "Compiler1"
-            let compiler2: Compiler = fun node file -> file |> MorphirFile.info "Compiler2"
+            let compiler1: Compiler = fun node file -> file |> VFile.info "Compiler1"
+            let compiler2: Compiler = fun node file -> file |> VFile.info "Compiler2"
 
             let proc =
                 MorphirProcessor.empty
@@ -356,18 +356,18 @@ let processorIntegrationTests =
                 {
                     Name = "validate"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Validation passed")
+                    Transform = fun node file -> (Some node, file |> VFile.info "Validation passed")
                 }
 
             let optimizePlugin: Plugin =
                 {
                     Name = "optimize"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Optimization complete")
+                    Transform = fun node file -> (Some node, file |> VFile.info "Optimization complete")
                 }
 
             let compiler: Compiler =
-                fun node file -> file |> MorphirFile.info "Compiled to JSON"
+                fun node file -> file |> VFile.info "Compiled to JSON"
 
             let proc =
                 MorphirProcessor.empty
@@ -421,7 +421,7 @@ let processorExecutionTests =
                 MorphirProcessor.empty
                 |> MorphirProcessor.parse parser
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
             Expect.isSome result.Content "content should be parsed"
@@ -434,10 +434,10 @@ let processorExecutionTests =
                 MorphirProcessor.empty
                 |> MorphirProcessor.parse failingParser
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
-            Expect.isTrue (MorphirFile.hasErrors result) "should have error from failed parser"
+            Expect.isTrue (VFile.hasErrors result) "should have error from failed parser"
         }
 
         test "processFile should try multiple parsers until one succeeds" {
@@ -451,7 +451,7 @@ let processorExecutionTests =
                 |> MorphirProcessor.parse failParser2
                 |> MorphirProcessor.parse successParser
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
             Expect.isSome result.Content "content should be parsed by third parser"
@@ -465,7 +465,7 @@ let processorExecutionTests =
                 {
                     Name = "transform"
                     Configure = id
-                    Transform = fun node file -> (Some(box "transformed IR"), file |> MorphirFile.info "Transformed")
+                    Transform = fun node file -> (Some(box "transformed IR"), file |> VFile.info "Transformed")
                 }
 
             let proc =
@@ -473,7 +473,7 @@ let processorExecutionTests =
                 |> MorphirProcessor.parse parser
                 |> MorphirProcessor.plugin transformPlugin
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
             Expect.isSome result.Content "content should be transformed"
@@ -490,7 +490,7 @@ let processorExecutionTests =
                     Transform =
                         fun node file ->
                             let value = unbox<int> node
-                            (Some(box (value + 1)), file |> MorphirFile.info (sprintf "Incremented to %d" (value + 1)))
+                            (Some(box (value + 1)), file |> VFile.info (sprintf "Incremented to %d" (value + 1)))
                 }
 
             let doublePlugin: Plugin =
@@ -500,7 +500,7 @@ let processorExecutionTests =
                     Transform =
                         fun node file ->
                             let value = unbox<int> node
-                            (Some(box (value * 2)), file |> MorphirFile.info (sprintf "Doubled to %d" (value * 2)))
+                            (Some(box (value * 2)), file |> VFile.info (sprintf "Doubled to %d" (value * 2)))
                 }
 
             let proc =
@@ -509,7 +509,7 @@ let processorExecutionTests =
                 |> MorphirProcessor.plugin incrementPlugin
                 |> MorphirProcessor.plugin doublePlugin
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
             // (0 + 1) * 2 = 2
@@ -525,7 +525,7 @@ let processorExecutionTests =
                 {
                     Name = "remove"
                     Configure = id
-                    Transform = fun node file -> (None, file |> MorphirFile.error "Validation failed" None)
+                    Transform = fun node file -> (None, file |> VFile.error "Validation failed" None)
                 }
 
             let proc =
@@ -533,11 +533,11 @@ let processorExecutionTests =
                 |> MorphirProcessor.parse parser
                 |> MorphirProcessor.plugin removingPlugin
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
             Expect.isNone result.Content "content should be removed by plugin"
-            Expect.isTrue (MorphirFile.hasErrors result) "should have error"
+            Expect.isTrue (VFile.hasErrors result) "should have error"
         }
 
         test "processFile should skip transform phase if parse failed" {
@@ -547,7 +547,7 @@ let processorExecutionTests =
                 {
                     Name = "should-not-run"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Plugin ran")
+                    Transform = fun node file -> (Some node, file |> VFile.info "Plugin ran")
                 }
 
             let proc =
@@ -555,10 +555,10 @@ let processorExecutionTests =
                 |> MorphirProcessor.parse failingParser
                 |> MorphirProcessor.plugin shouldNotRunPlugin
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
-            let infoMessages = MorphirFile.messagesOfSeverity Info result
+            let infoMessages = VFile.messagesOfSeverity Info result
             Expect.isEmpty infoMessages "plugin should not run if parse failed"
         }
 
@@ -566,17 +566,17 @@ let processorExecutionTests =
             let parser: Parser = fun file -> Ok(box "IR tree")
 
             let compiler: Compiler =
-                fun node file -> file |> MorphirFile.info "Compiled to JSON"
+                fun node file -> file |> VFile.info "Compiled to JSON"
 
             let proc =
                 MorphirProcessor.empty
                 |> MorphirProcessor.parse parser
                 |> MorphirProcessor.stringify compiler
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
-            let messages = MorphirFile.messagesOfSeverity Info result
+            let messages = VFile.messagesOfSeverity Info result
             Expect.hasLength messages 1 "should have info message from compiler"
         }
 
@@ -584,10 +584,10 @@ let processorExecutionTests =
             let parser: Parser = fun file -> Ok(box "IR")
 
             let jsonCompiler: Compiler =
-                fun node file -> file |> MorphirFile.info "Compiled to JSON"
+                fun node file -> file |> VFile.info "Compiled to JSON"
 
             let prettyPrintCompiler: Compiler =
-                fun node file -> file |> MorphirFile.info "Pretty printed"
+                fun node file -> file |> VFile.info "Pretty printed"
 
             let proc =
                 MorphirProcessor.empty
@@ -595,10 +595,10 @@ let processorExecutionTests =
                 |> MorphirProcessor.stringify jsonCompiler
                 |> MorphirProcessor.stringify prettyPrintCompiler
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
-            let messages = MorphirFile.messagesOfSeverity Info result
+            let messages = VFile.messagesOfSeverity Info result
             Expect.hasLength messages 2 "should have 2 info messages from compilers"
         }
 
@@ -609,11 +609,11 @@ let processorExecutionTests =
                 {
                     Name = "remove"
                     Configure = id
-                    Transform = fun node file -> (None, file |> MorphirFile.error "Removed" None)
+                    Transform = fun node file -> (None, file |> VFile.error "Removed" None)
                 }
 
             let shouldNotRunCompiler: Compiler =
-                fun node file -> file |> MorphirFile.info "Compiler ran"
+                fun node file -> file |> VFile.info "Compiler ran"
 
             let proc =
                 MorphirProcessor.empty
@@ -621,10 +621,10 @@ let processorExecutionTests =
                 |> MorphirProcessor.plugin removingPlugin
                 |> MorphirProcessor.stringify shouldNotRunCompiler
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
-            let infoMessages = MorphirFile.messagesOfSeverity Info result
+            let infoMessages = VFile.messagesOfSeverity Info result
             Expect.isEmpty infoMessages "compiler should not run if transform removed content"
         }
 
@@ -635,18 +635,18 @@ let processorExecutionTests =
                 {
                     Name = "validate"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Validation passed")
+                    Transform = fun node file -> (Some node, file |> VFile.info "Validation passed")
                 }
 
             let optimizePlugin: Plugin =
                 {
                     Name = "optimize"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Optimization complete")
+                    Transform = fun node file -> (Some node, file |> VFile.info "Optimization complete")
                 }
 
             let compiler: Compiler =
-                fun node file -> file |> MorphirFile.info "Compiled to JSON"
+                fun node file -> file |> VFile.info "Compiled to JSON"
 
             let proc =
                 MorphirProcessor.empty
@@ -655,11 +655,11 @@ let processorExecutionTests =
                 |> MorphirProcessor.plugin optimizePlugin
                 |> MorphirProcessor.stringify compiler
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
             Expect.isSome result.Content "content should be present"
-            Expect.isFalse (MorphirFile.hasErrors result) "should have no errors"
+            Expect.isFalse (VFile.hasErrors result) "should have no errors"
             Expect.hasLength result.Messages 3 "should have 3 info messages (validate, optimize, compile)"
             Expect.equal result.Messages.[0].Message "Validation passed" "first message from validate"
             Expect.equal result.Messages.[1].Message "Optimization complete" "second message from optimize"
@@ -673,14 +673,14 @@ let processorExecutionTests =
                 {
                     Name = "error1"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.error "Error 1" None)
+                    Transform = fun node file -> (Some node, file |> VFile.error "Error 1" None)
                 }
 
             let errorPlugin2: Plugin =
                 {
                     Name = "error2"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.error "Error 2" None)
+                    Transform = fun node file -> (Some node, file |> VFile.error "Error 2" None)
                 }
 
             let proc =
@@ -689,11 +689,11 @@ let processorExecutionTests =
                 |> MorphirProcessor.plugin errorPlugin1
                 |> MorphirProcessor.plugin errorPlugin2
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
-            Expect.isTrue (MorphirFile.hasErrors result) "should have errors"
-            let errors = MorphirFile.errors result
+            Expect.isTrue (VFile.hasErrors result) "should have errors"
+            let errors = VFile.errors result
             Expect.hasLength errors 2 "should have 2 errors"
         }
 

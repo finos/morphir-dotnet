@@ -302,8 +302,8 @@ module PrettyPrinter =
                 let formatted = sprintf "-- Pretty printed output (indent: %d, colors: %b) --" config.IndentWidth config.UseColors
                 let updatedFile =
                     file
-                    |> MorphirFile.info "Pretty printer executed"
-                    |> MorphirFile.setData "pretty-printed" (box formatted)
+                    |> VFile.info "Pretty printer executed"
+                    |> VFile.setData "pretty-printed" (box formatted)
                 (Some node, updatedFile)
         }
 

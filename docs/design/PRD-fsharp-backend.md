@@ -160,7 +160,7 @@ morphir-dotnet currently consumes and validates Morphir IR but lacks the ability
 ```
 src/Morphir.Backends.FSharp/
 ├── Mapper.fs          # Morphir IR → Fabulous.AST
-├── Generator.fs       # Fabulous.AST → F# code string
+├── Generator.fs       # Fabulous.AST → F# code string (generates VFile)
 ├── Helpers.fs         # Morphir-specific DSL helpers
 ├── SDK.fs             # SDK type/function mappings
 └── Plugin.fs          # Pipeline integration
@@ -170,14 +170,20 @@ src/Morphir.Backends.FSharp/
 - Fabulous.AST >= 1.9.0
 - Fantomas.Core >= 7.0.5
 - Morphir.Models (Classic IR)
-- Morphir.IR.Pipeline
+- **Morphir.IR.Pipeline** (provides VFile and VFileTree)
+
+**File Architecture Integration** (See [Unified File Architecture](./unified-file-architecture.md)):
+- Uses `VFile` for generated F# files (path, content, diagnostics)
+- Uses `Map<string, VFile>` for flat FileMap output (morphir-elm compatible)
+- Optionally uses `VFileTree` for hierarchical directory structures
+- All generated files carry diagnostics and metadata
 
 **Pipeline Integration**:
 ```fsharp
 let fsharpPipeline = pipeline {
     parse irJsonParser
     uses (fsharpBackendPlugin options)
-    stringify fsharpCodeGenerator
+    stringify fsharpCodeGenerator  // Returns Map<string, VFile>
 }
 ```
 
@@ -247,6 +253,31 @@ morphir gen fsharp --limit-to-modules "Morphir.Reference.Model,Morphir.Reference
 
 ### TR-5: Output Format
 
+**File Architecture** (Using VFileTree as Primary):
+
+The backend generates `VFileTree` (hierarchical structure) as the **primary output format**:
+
+```fsharp
+// Generator.fs PRIMARY API: Returns VFileTree
+let generate (distribution: Distribution<unit, unit>)
+    : VFileTree =
+    // Build hierarchical tree structure directly
+    buildFileTree distribution.Modules
+
+// COMPATIBILITY: Flatten to Map<string, VFile> if needed
+let generateFileMap (distribution: Distribution<unit, unit>)
+    : Map<string, VFile> =
+    generate distribution
+    |> VFileTree.toFileMap  // morphir-elm compatible
+```
+
+**Why VFileTree as Primary?**
+- ✅ Preserves directory structure explicitly (no path parsing)
+- ✅ Better CLI UX (can visualize tree with `tree` command)
+- ✅ Metadata at directory level (not just files)
+- ✅ Better scalability for large projects
+- ✅ morphir-elm compatibility via `toFileMap()` conversion
+
 **File Organization**:
 ```
 generated/
@@ -261,6 +292,12 @@ generated/
 │       └── Result.fs
 └── README.md                  # Generated documentation
 ```
+
+Each file is a `VFile` with:
+- **Path**: Relative path (e.g., "Morphir/Reference/Model.fs")
+- **Content**: Generated F# code string
+- **Messages**: Diagnostics (warnings if codegen had issues)
+- **Data**: Metadata (module path, generation timestamp)
 
 **Generated File Structure**:
 ```fsharp
@@ -456,6 +493,9 @@ module Codecs =
 - **Fantomas.Core v7.0.5+**: F# code formatting
 - **Morphir.Models**: Classic IR (F# discriminated unions)
 - **Morphir.IR.Pipeline**: Pluggable transformation pipeline
+  - Provides `VFile` (virtual file abstraction with diagnostics)
+  - Provides `VFileTree` (hierarchical file structure) - **[NEW]**
+  - See [Unified File Architecture](./unified-file-architecture.md)
 - **Thoth.Json** (optional): JSON codec generation
 
 ### Process Dependencies

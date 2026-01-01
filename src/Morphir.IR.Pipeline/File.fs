@@ -42,7 +42,7 @@ type SourceRange =
 /// <summary>
 /// Represents a diagnostic message accumulated during pipeline processing.
 /// </summary>
-type MorphirMessage =
+type VMessage =
     {
         /// <summary>Severity level of the message</summary>
         Severity: MessageSeverity
@@ -61,7 +61,7 @@ type MorphirMessage =
 /// Inspired by VFile from unified.js ecosystem.
 /// Accumulates diagnostics and carries IR content through transformation phases.
 /// </summary>
-type MorphirFile =
+type VFile =
     {
         /// <summary>IR tree content (None during parse phase, Some after parsing)</summary>
         Content: obj option  // Will be IRNode in actual implementation
@@ -70,17 +70,17 @@ type MorphirFile =
         /// <summary>History of path transformations (tracks file renames/moves)</summary>
         History: string list
         /// <summary>Accumulated diagnostic messages from all pipeline phases</summary>
-        Messages: MorphirMessage list
+        Messages: VMessage list
         /// <summary>Shared data dictionary for plugin communication</summary>
         Data: ImmutableDictionary<string, obj>
     }
 
 [<RequireQualifiedAccess>]
-module MorphirFile =
+module VFile =
     /// <summary>
-    /// Creates an empty MorphirFile with no content, path, or messages.
+    /// Creates an empty VFile with no content, path, or messages.
     /// </summary>
-    let empty: MorphirFile =
+    let empty: VFile =
         {
             Content = None
             Path = None
@@ -90,10 +90,10 @@ module MorphirFile =
         }
 
     /// <summary>
-    /// Creates a MorphirFile from a file path.
+    /// Creates a VFile from a file path.
     /// </summary>
     /// <param name="path">The file path</param>
-    let fromPath (path: string): MorphirFile =
+    let fromPath (path: string): VFile =
         {
             Content = None
             Path = Some path
@@ -103,10 +103,10 @@ module MorphirFile =
         }
 
     /// <summary>
-    /// Creates a MorphirFile with the given content.
+    /// Creates a VFile with the given content.
     /// </summary>
     /// <param name="content">The IR tree content</param>
-    let fromContent (content: 'a): MorphirFile =
+    let fromContent (content: 'a): VFile =
         {
             Content = Some (box content)
             Path = None
@@ -116,11 +116,11 @@ module MorphirFile =
         }
 
     /// <summary>
-    /// Creates a MorphirFile with both path and content.
+    /// Creates a VFile with both path and content.
     /// </summary>
     /// <param name="path">The file path</param>
     /// <param name="content">The IR tree content</param>
-    let create (path: string) (content: 'a): MorphirFile =
+    let create (path: string) (content: 'a): VFile =
         {
             Content = Some (box content)
             Path = Some path
@@ -134,7 +134,7 @@ module MorphirFile =
     /// </summary>
     /// <param name="message">The message text</param>
     /// <param name="file">The file to add the message to</param>
-    let info (message: string) (file: MorphirFile): MorphirFile =
+    let info (message: string) (file: VFile): VFile =
         let msg =
             {
                 Severity = Info
@@ -152,7 +152,7 @@ module MorphirFile =
     /// <param name="message">The message text</param>
     /// <param name="position">Optional source position</param>
     /// <param name="file">The file to add the message to</param>
-    let warn (message: string) (position: SourceRange option) (file: MorphirFile): MorphirFile =
+    let warn (message: string) (position: SourceRange option) (file: VFile): VFile =
         let msg =
             {
                 Severity = Warning
@@ -170,7 +170,7 @@ module MorphirFile =
     /// <param name="message">The message text</param>
     /// <param name="position">Optional source position</param>
     /// <param name="file">The file to add the message to</param>
-    let error (message: string) (position: SourceRange option) (file: MorphirFile): MorphirFile =
+    let error (message: string) (position: SourceRange option) (file: VFile): VFile =
         let msg =
             {
                 Severity = Error
@@ -188,7 +188,7 @@ module MorphirFile =
     /// <param name="message">The message text</param>
     /// <param name="position">Optional source position</param>
     /// <param name="file">The file to add the message to</param>
-    let fail (message: string) (position: SourceRange option) (file: MorphirFile): MorphirFile =
+    let fail (message: string) (position: SourceRange option) (file: VFile): VFile =
         let msg =
             {
                 Severity = Fatal
@@ -215,8 +215,8 @@ module MorphirFile =
         (position: SourceRange option)
         (source: string option)
         (ruleId: string option)
-        (file: MorphirFile)
-        : MorphirFile =
+        (file: VFile)
+        : VFile =
         let msg =
             {
                 Severity = severity
@@ -232,7 +232,7 @@ module MorphirFile =
     /// Checks if the file has any error or fatal messages.
     /// </summary>
     /// <param name="file">The file to check</param>
-    let hasErrors (file: MorphirFile): bool =
+    let hasErrors (file: VFile): bool =
         file.Messages
         |> List.exists (fun msg -> msg.Severity = Error || msg.Severity = Fatal)
 
@@ -240,7 +240,7 @@ module MorphirFile =
     /// Checks if the file has any fatal messages.
     /// </summary>
     /// <param name="file">The file to check</param>
-    let hasFatals (file: MorphirFile): bool =
+    let hasFatals (file: VFile): bool =
         file.Messages |> List.exists (fun msg -> msg.Severity = Fatal)
 
     /// <summary>
@@ -248,14 +248,14 @@ module MorphirFile =
     /// </summary>
     /// <param name="severity">The severity to filter by</param>
     /// <param name="file">The file to query</param>
-    let messagesOfSeverity (severity: MessageSeverity) (file: MorphirFile): MorphirMessage list =
+    let messagesOfSeverity (severity: MessageSeverity) (file: VFile): VMessage list =
         file.Messages |> List.filter (fun msg -> msg.Severity = severity)
 
     /// <summary>
     /// Gets all error messages (both Error and Fatal).
     /// </summary>
     /// <param name="file">The file to query</param>
-    let errors (file: MorphirFile): MorphirMessage list =
+    let errors (file: VFile): VMessage list =
         file.Messages
         |> List.filter (fun msg -> msg.Severity = Error || msg.Severity = Fatal)
 
@@ -263,7 +263,7 @@ module MorphirFile =
     /// Gets all warning messages.
     /// </summary>
     /// <param name="file">The file to query</param>
-    let warnings (file: MorphirFile): MorphirMessage list =
+    let warnings (file: VFile): VMessage list =
         file.Messages |> List.filter (fun msg -> msg.Severity = Warning)
 
     /// <summary>
@@ -272,7 +272,7 @@ module MorphirFile =
     /// <param name="key">The data key</param>
     /// <param name="value">The data value</param>
     /// <param name="file">The file to update</param>
-    let setData (key: string) (value: obj) (file: MorphirFile): MorphirFile =
+    let setData (key: string) (value: obj) (file: VFile): VFile =
         { file with Data = file.Data.SetItem(key, value) }
 
     /// <summary>
@@ -280,7 +280,7 @@ module MorphirFile =
     /// </summary>
     /// <param name="key">The data key</param>
     /// <param name="file">The file to query</param>
-    let getData (key: string) (file: MorphirFile): obj option =
+    let getData (key: string) (file: VFile): obj option =
         match file.Data.TryGetValue(key) with
         | true, value -> Some value
         | false, _ -> None
@@ -290,7 +290,7 @@ module MorphirFile =
     /// </summary>
     /// <param name="key">The data key</param>
     /// <param name="file">The file to query</param>
-    let getDataAs<'T> (key: string) (file: MorphirFile): 'T option =
+    let getDataAs<'T> (key: string) (file: VFile): 'T option =
         match file.Data.TryGetValue(key) with
         | true, value ->
             match value with
@@ -303,5 +303,5 @@ module MorphirFile =
     /// </summary>
     /// <param name="key">The data key</param>
     /// <param name="file">The file to update</param>
-    let removeData (key: string) (file: MorphirFile): MorphirFile =
+    let removeData (key: string) (file: VFile): VFile =
         { file with Data = file.Data.Remove(key) }

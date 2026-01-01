@@ -6,6 +6,26 @@
 
 ---
 
+## Prerequisites
+
+### Unified File Architecture (VFile & VFileTree)
+
+**IMPORTANT**: The F# Backend depends on the unified file architecture from `Morphir.IR.Pipeline`:
+
+- ✅ **VFile** (EXISTING): Virtual file with content, path, diagnostics, metadata
+- 🆕 **VFileTree** (NEW): Hierarchical file structure for multi-file projects
+- 🆕 **TreeProcessor** (NEW): Pipeline support for processing file trees
+
+**See**: [Unified File Architecture](./unified-file-architecture.md)
+
+**GitHub Issues**:
+- [TBD] Implement VFileTree in Morphir.IR.Pipeline
+- [TBD] Implement TreeProcessor in Morphir.IR.Pipeline
+
+**Status**: VFile exists, VFileTree and TreeProcessor need implementation before F# Backend Phase 1.
+
+---
+
 ## Issue #363: [EPIC] F# Code Generation Backend
 
 **Type**: Epic
@@ -377,6 +397,7 @@ Set up the `Morphir.Backends.FSharp` project and create foundational infrastruct
 ### Dependencies
 
 - Phase 0 SDK library (must be published before SDK.fs can reference it)
+- **Unified File Architecture**: VFile (exists), VFileTree (new), TreeProcessor (new)
 
 ---
 
@@ -747,14 +768,20 @@ Integrate the F# backend into the morphir CLI as a `morphir gen fsharp` command 
 **Generator Module** (`Generator.fs`):
 - [ ] Implement `renderToFSharp`: Oak → formatted F# string
 - [ ] Implement `formatCode`: Apply Fantomas formatting
-- [ ] Implement `renderFileMap`: Process all generated files
-- [ ] Handle formatting errors gracefully
+- [ ] **PRIMARY**: Implement `generate`: Process all modules → `VFileTree`
+- [ ] **COMPATIBILITY**: Implement `generateFileMap`: Flatten to `Map<string, VFile>` via `VFileTree.toFileMap`
+- [ ] Handle formatting errors gracefully (add to VFile.Messages)
+- [ ] Add metadata to VFile (module path, generation timestamp)
+- [ ] Add metadata to directory levels in tree
 
-**File Writing**:
-- [ ] Create output directory structure
-- [ ] Write all `.fs` files to disk
+**File Writing** (Using VFileTree):
+- [ ] Read `VFileTree` from Generator (PRIMARY)
+- [ ] Create output directory structure from tree hierarchy
+- [ ] Write `VFile.Content` to disk for each file in tree
 - [ ] Preserve module hierarchy (Morphir/Reference/Model.fs)
 - [ ] Generate README.md with generation metadata
+- [ ] Report diagnostics from VFile.Messages to stderr
+- [ ] Optional: Support writing from flat `Map<string, VFile>` (compatibility)
 
 **Logging**:
 - [ ] Progress logging to stderr (not stdout!)

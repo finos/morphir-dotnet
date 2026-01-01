@@ -24,7 +24,7 @@ let optimizerExecutionTests =
     testList "Optimizer Execution" [
         test "plugin should execute without error" {
             let plugin = Optimizer.create()
-            let file = MorphirFile.empty
+            let file = VFile.empty
             let node = box "test-node"
 
             let (resultNode, resultFile) = plugin.Transform node file
