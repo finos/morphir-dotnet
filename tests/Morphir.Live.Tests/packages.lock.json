@@ -57,15 +57,6 @@
           "TUnit.Engine": "1.6.28"
         }
       },
-      "TUnit.Assertions.FSharp": {
-        "type": "Direct",
-        "requested": "[*, )",
-        "resolved": "1.7.7",
-        "contentHash": "rvwtghhiZnjRCadT+A7nSK3BV+XQMtZzSwZ5dmkL0vHldxvKuR410FJRed5syB/tz8pIg2bABRAdvEMZvYniXg==",
-        "dependencies": {
-          "TUnit.Assertions": "1.7.7"
-        }
-      },
       "AngleSharp": {
         "type": "Transitive",
         "resolved": "1.2.0",
@@ -460,8 +451,8 @@
       },
       "TUnit.Assertions": {
         "type": "Transitive",
-        "resolved": "1.7.7",
-        "contentHash": "mRi+XFr+IOkWVSj3IAs3gRHUba4Xsa0K9athLZMkipeZBfXL23o1+DqWMrXbUHqCuWlWaVDRnAcn8fF4tNaE8Q=="
+        "resolved": "1.6.28",
+        "contentHash": "r3nZ5XNE5p2BXikfKwXwZfeAuMOAAjgjPrbcEnNGvufBeKIIv7H3Zi48tbabRy0OHzuqvRRF40ploxbuVBD3VQ=="
       },
       "TUnit.Core": {
         "type": "Transitive",

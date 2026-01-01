@@ -18,6 +18,7 @@ public class PackageMetadataTests
             TestFixture.FindLatestPackage("Morphir.Core.*.nupkg"),
             TestFixture.FindLatestPackage("Morphir.Tooling.*.nupkg"),
             TestFixture.FindLatestPackage("Morphir.Tool.*.nupkg"),
+            TestFixture.FindLatestPackage("Morphir.SDK.*.nupkg"),
         }.Where(p => p != null).ToList();
 
         packages.Should().HaveCountGreaterThan(1, "Multiple packages should exist to compare versions");
@@ -80,6 +81,7 @@ public class PackageMetadataTests
             TestFixture.FindLatestPackage("Morphir.Core.*.nupkg"),
             TestFixture.FindLatestPackage("Morphir.Tooling.*.nupkg"),
             TestFixture.FindLatestPackage("Morphir.Tool.*.nupkg"),
+            TestFixture.FindLatestPackage("Morphir.SDK.*.nupkg"),
         }.Where(p => p != null).ToList();
 
         packages.Should().NotBeEmpty("At least one package should exist after build");

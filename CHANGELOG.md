@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CRITICAL**: Removed contradictory Claude co-author example from AGENTS.md and strengthened CLA compliance warnings in both AGENTS.md and CLAUDE.md (issue #270)
 
 ### Added
+- **Morphir.SDK F# Runtime Library** (`Morphir.SDK` NuGet package)
+  - F# runtime library providing Morphir SDK types and functions for generated F# code
+  - 14 core modules: Basics, Maybe, Result, List, String, Int, Bool, Char, Dict, Set, Tuple, LocalDate, LocalTime, Decimal
+  - Type aliases for F# built-ins (Option, Result, Map, Set, DateOnly, TimeOnly)
+  - 175 tests (125 unit + 50 property-based tests with FsCheck)
+  - Comprehensive XML documentation and README
+  - AOT-compatible (no reflection)
+  - Foundation for F# code generation backend (Phase 0 of #363)
 - Comprehensive skills troubleshooting guide (`.claude/skills/TROUBLESHOOTING.md`)
 - Cross-platform skill invocation documentation in `.agents/skills-reference.md` with platform-specific guidance for Claude Code, GitHub Copilot, Cursor, Windsurf, and JetBrains AI
 - Skill alias documentation (documentation-only feature, not functionally supported)

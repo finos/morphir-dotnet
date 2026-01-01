@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.SDK</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsPackable>true</IsPackable>
+        
+        <!-- NuGet Package Metadata -->
+        <PackageId>Morphir.SDK</PackageId>
+        <!-- Version is set by build system from CHANGELOG.md -->
+        <Authors>FINOS Morphir Team</Authors>
+        <Company>FINOS</Company>
+        <Description>F# runtime library providing Morphir SDK types and functions for generated F# code. Provides type aliases and helper functions for working with Morphir IR in F#.</Description>
+        <PackageProjectUrl>https://github.com/finos/morphir-dotnet</PackageProjectUrl>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <RepositoryUrl>https://github.com/finos/morphir-dotnet</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>morphir;fsharp;functional;sdk;morphir-ir</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Basics.fs" />
+        <Compile Include="Maybe.fs" />
+        <Compile Include="Result.fs" />
+        <Compile Include="List.fs" />
+        <Compile Include="String.fs" />
+        <Compile Include="Int.fs" />
+        <Compile Include="Bool.fs" />
+        <Compile Include="Char.fs" />
+        <Compile Include="Dict.fs" />
+        <Compile Include="Set.fs" />
+        <Compile Include="Tuple.fs" />
+        <Compile Include="LocalDate.fs" />
+        <Compile Include="LocalTime.fs" />
+        <Compile Include="Decimal.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+</Project>
