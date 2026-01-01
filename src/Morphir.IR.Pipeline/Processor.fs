@@ -219,11 +219,11 @@ module MorphirProcessor =
             file
         | Some initialNode ->
             // Run plugins sequentially, threading node and file through chain
-            let rec runPlugins remainingPlugins currentNode currentFile =
+            let rec runPlugins remainingPlugins currentNode (currentFile: VFile) =
                 match remainingPlugins with
                 | [] ->
                     // All plugins complete, update file content with final node
-                    { currentFile with Content = Some currentNode }
+                    ({ currentFile with Content = Some currentNode }: VFile)
                 | plugin :: rest ->
                     let (transformedNode, updatedFile) = plugin.Transform currentNode currentFile
 
@@ -234,7 +234,7 @@ module MorphirProcessor =
                     | None ->
                         // Plugin removed node (e.g., validation failed), stop transform phase
                         // Update file content to None and return
-                        { updatedFile with Content = None }
+                        ({ updatedFile with Content = None }: VFile)
 
             runPlugins processor.Plugins initialNode file
 
