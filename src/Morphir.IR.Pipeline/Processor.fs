@@ -3,16 +3,16 @@ namespace Morphir.IR.Pipeline
 open System.Collections.Immutable
 
 /// <summary>
-/// Parser function that converts a MorphirFile into an IR tree.
+/// Parser function that converts a VFile into an IR tree.
 /// Returns Result with IRNode on success or error message on failure.
 /// </summary>
-type Parser = MorphirFile -> Result<obj, string>
+type Parser = VFile -> Result<obj, string>
 
 /// <summary>
-/// Compiler function that converts an IR tree and MorphirFile into an updated MorphirFile.
+/// Compiler function that converts an IR tree and VFile into an updated VFile.
 /// Typically serializes the IR tree to the file's content or external format.
 /// </summary>
-type Compiler = obj -> MorphirFile -> MorphirFile
+type Compiler = obj -> VFile -> VFile
 
 /// <summary>
 /// Plugin record representing a transformation plugin.
@@ -25,7 +25,7 @@ type Plugin =
         /// <summary>Configure the processor (e.g., add additional plugins, set data)</summary>
         Configure: MorphirProcessor -> MorphirProcessor
         /// <summary>Transform an IR node and file, returning updated node and file</summary>
-        Transform: obj -> MorphirFile -> (obj option * MorphirFile)
+        Transform: obj -> VFile -> (obj option * VFile)
     }
 
 /// <summary>
@@ -179,7 +179,7 @@ module MorphirProcessor =
     /// </summary>
     /// <param name="file">The input file</param>
     /// <param name="processor">The processor with parsers</param>
-    let private runParsePhase (file: MorphirFile) (processor: MorphirProcessor): MorphirFile =
+    let private runParsePhase (file: VFile) (processor: MorphirProcessor): VFile =
         match processor.Parsers with
         | [] ->
             // No parsers, return file as-is
@@ -191,7 +191,7 @@ module MorphirProcessor =
                 | [] ->
                     // All parsers failed, add error
                     currentFile
-                    |> MorphirFile.error "No parser succeeded" None
+                    |> VFile.error "No parser succeeded" None
                 | parser :: rest ->
                     match parser currentFile with
                     | Result.Ok content ->
@@ -201,7 +201,7 @@ module MorphirProcessor =
                         // Parser failed, try next parser
                         let updatedFile =
                             currentFile
-                            |> MorphirFile.warn (sprintf "Parser failed: %s" errorMsg) None
+                            |> VFile.warn (sprintf "Parser failed: %s" errorMsg) None
 
                         tryParsers rest updatedFile
 
@@ -212,7 +212,7 @@ module MorphirProcessor =
     /// </summary>
     /// <param name="file">The file with IR content</param>
     /// <param name="processor">The processor with plugins</param>
-    let private runTransformPhase (file: MorphirFile) (processor: MorphirProcessor): MorphirFile =
+    let private runTransformPhase (file: VFile) (processor: MorphirProcessor): VFile =
         match file.Content with
         | None ->
             // No content to transform (parse phase failed)
@@ -243,7 +243,7 @@ module MorphirProcessor =
     /// </summary>
     /// <param name="file">The file with transformed IR content</param>
     /// <param name="processor">The processor with compilers</param>
-    let private runStringifyPhase (file: MorphirFile) (processor: MorphirProcessor): MorphirFile =
+    let private runStringifyPhase (file: VFile) (processor: MorphirProcessor): VFile =
         match file.Content with
         | None ->
             // No content to stringify (parse or transform phase failed)
@@ -265,7 +265,7 @@ module MorphirProcessor =
     /// </summary>
     /// <param name="file">The input file</param>
     /// <param name="processor">The processor to execute</param>
-    let processFile (file: MorphirFile) (processor: MorphirProcessor): MorphirFile =
+    let processFile (file: VFile) (processor: MorphirProcessor): VFile =
         file
         |> fun f -> runParsePhase f processor
         |> fun f -> runTransformPhase f processor
@@ -273,10 +273,10 @@ module MorphirProcessor =
 
     /// <summary>
     /// Processes a file path through the complete three-phase pipeline.
-    /// Creates a MorphirFile from the path and processes it.
+    /// Creates a VFile from the path and processes it.
     /// </summary>
     /// <param name="path">The file path</param>
     /// <param name="processor">The processor to execute</param>
-    let processPath (path: string) (processor: MorphirProcessor): MorphirFile =
-        let file = MorphirFile.fromPath path
+    let processPath (path: string) (processor: MorphirProcessor): VFile =
+        let file = VFile.fromPath path
         processFile file processor
