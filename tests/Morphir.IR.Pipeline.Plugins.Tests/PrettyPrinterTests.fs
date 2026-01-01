@@ -25,7 +25,7 @@ let prettyPrinterExecutionTests =
     testList "PrettyPrinter Execution" [
         test "plugin should execute without error" {
             let plugin = PrettyPrinter.create()
-            let file = MorphirFile.empty
+            let file = VFile.empty
             let node = box "test-node"
 
             let (resultNode, resultFile) = plugin.Transform node file
@@ -37,7 +37,7 @@ let prettyPrinterExecutionTests =
 
         test "plugin should store formatted output in file data" {
             let plugin = PrettyPrinter.create()
-            let file = MorphirFile.empty
+            let file = VFile.empty
             let node = box "test-node"
 
             let (_, resultFile) = plugin.Transform node file

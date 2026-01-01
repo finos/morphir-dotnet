@@ -26,7 +26,7 @@ let typeValidatorExecutionTests =
     testList "TypeValidator Execution" [
         test "plugin should execute without error" {
             let plugin = TypeValidator.create()
-            let file = MorphirFile.empty
+            let file = VFile.empty
             let node = box "test-node"
 
             let (resultNode, resultFile) = plugin.Transform node file
@@ -38,7 +38,7 @@ let typeValidatorExecutionTests =
 
         test "plugin should preserve node" {
             let plugin = TypeValidator.create()
-            let file = MorphirFile.empty
+            let file = VFile.empty
             let testNode = box "test-node"
 
             let (resultNode, _) = plugin.Transform testNode file

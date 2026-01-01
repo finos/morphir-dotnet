@@ -114,9 +114,9 @@ let morphirMessageTests =
 
 [<Tests>]
 let morphirFileConstructorTests =
-    testList "MorphirFile Constructors" [
+    testList "VFile Constructors" [
         test "empty should create file with no content or messages" {
-            let file = MorphirFile.empty
+            let file = VFile.empty
 
             Expect.isNone file.Content "content should be None"
             Expect.isNone file.Path "path should be None"
@@ -126,7 +126,7 @@ let morphirFileConstructorTests =
         }
 
         test "fromPath should create file with path and history" {
-            let file = MorphirFile.fromPath "/test/file.json"
+            let file = VFile.fromPath "/test/file.json"
 
             Expect.isNone file.Content "content should be None"
             Expect.equal file.Path (Some "/test/file.json") "path should be set"
@@ -136,7 +136,7 @@ let morphirFileConstructorTests =
 
         test "fromContent should create file with content" {
             let content = "test IR content"
-            let file = MorphirFile.fromContent content
+            let file = VFile.fromContent content
 
             Expect.isSome file.Content "content should be Some"
             Expect.isNone file.Path "path should be None"
@@ -146,7 +146,7 @@ let morphirFileConstructorTests =
 
         test "create should create file with both path and content" {
             let content = "test IR content"
-            let file = MorphirFile.create "/test/file.json" content
+            let file = VFile.create "/test/file.json" content
 
             Expect.isSome file.Content "content should be Some"
             Expect.equal file.Path (Some "/test/file.json") "path should be set"
@@ -157,11 +157,11 @@ let morphirFileConstructorTests =
 
 [<Tests>]
 let morphirFileDiagnosticTests =
-    testList "MorphirFile Diagnostics" [
+    testList "VFile Diagnostics" [
         test "info should add informational message" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.info "Processing started"
+                VFile.empty
+                |> VFile.info "Processing started"
 
             Expect.hasLength file.Messages 1 "should have 1 message"
             Expect.equal file.Messages.[0].Severity Info "severity should be Info"
@@ -170,8 +170,8 @@ let morphirFileDiagnosticTests =
 
         test "warn should add warning message" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.warn "Deprecated pattern" None
+                VFile.empty
+                |> VFile.warn "Deprecated pattern" None
 
             Expect.hasLength file.Messages 1 "should have 1 message"
             Expect.equal file.Messages.[0].Severity Warning "severity should be Warning"
@@ -183,8 +183,8 @@ let morphirFileDiagnosticTests =
             let range = { Start = pos; End = pos }
 
             let file =
-                MorphirFile.empty
-                |> MorphirFile.warn "Deprecated pattern" (Some range)
+                VFile.empty
+                |> VFile.warn "Deprecated pattern" (Some range)
 
             Expect.hasLength file.Messages 1 "should have 1 message"
             Expect.isSome file.Messages.[0].Position "should have position"
@@ -192,8 +192,8 @@ let morphirFileDiagnosticTests =
 
         test "error should add error message" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.error "Type mismatch" None
+                VFile.empty
+                |> VFile.error "Type mismatch" None
 
             Expect.hasLength file.Messages 1 "should have 1 message"
             Expect.equal file.Messages.[0].Severity Error "severity should be Error"
@@ -202,8 +202,8 @@ let morphirFileDiagnosticTests =
 
         test "fail should add fatal message" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.fail "Critical failure" None
+                VFile.empty
+                |> VFile.fail "Critical failure" None
 
             Expect.hasLength file.Messages 1 "should have 1 message"
             Expect.equal file.Messages.[0].Severity Fatal "severity should be Fatal"
@@ -212,11 +212,11 @@ let morphirFileDiagnosticTests =
 
         test "should accumulate multiple messages" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.info "Step 1"
-                |> MorphirFile.warn "Warning 1" None
-                |> MorphirFile.error "Error 1" None
-                |> MorphirFile.info "Step 2"
+                VFile.empty
+                |> VFile.info "Step 1"
+                |> VFile.warn "Warning 1" None
+                |> VFile.error "Error 1" None
+                |> VFile.info "Step 2"
 
             Expect.hasLength file.Messages 4 "should have 4 messages"
             Expect.equal file.Messages.[0].Message "Step 1" "first message should be 'Step 1'"
@@ -230,8 +230,8 @@ let morphirFileDiagnosticTests =
             let range = { Start = pos; End = pos }
 
             let file =
-                MorphirFile.empty
-                |> MorphirFile.message Error "Invalid type" (Some range) (Some "validator") (Some "IR-001")
+                VFile.empty
+                |> VFile.message Error "Invalid type" (Some range) (Some "validator") (Some "IR-001")
 
             Expect.hasLength file.Messages 1 "should have 1 message"
             Expect.equal file.Messages.[0].Severity Error "severity should be Error"
@@ -242,60 +242,60 @@ let morphirFileDiagnosticTests =
 
 [<Tests>]
 let morphirFileQueryTests =
-    testList "MorphirFile Queries" [
+    testList "VFile Queries" [
         test "hasErrors should return false for file with no errors" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.info "Info message"
-                |> MorphirFile.warn "Warning message" None
+                VFile.empty
+                |> VFile.info "Info message"
+                |> VFile.warn "Warning message" None
 
-            Expect.isFalse (MorphirFile.hasErrors file) "should not have errors"
+            Expect.isFalse (VFile.hasErrors file) "should not have errors"
         }
 
         test "hasErrors should return true for file with errors" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.error "Error message" None
+                VFile.empty
+                |> VFile.error "Error message" None
 
-            Expect.isTrue (MorphirFile.hasErrors file) "should have errors"
+            Expect.isTrue (VFile.hasErrors file) "should have errors"
         }
 
         test "hasErrors should return true for file with fatal errors" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.fail "Fatal error" None
+                VFile.empty
+                |> VFile.fail "Fatal error" None
 
-            Expect.isTrue (MorphirFile.hasErrors file) "should have errors"
+            Expect.isTrue (VFile.hasErrors file) "should have errors"
         }
 
         test "hasFatals should return false for file with no fatals" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.error "Error message" None
+                VFile.empty
+                |> VFile.error "Error message" None
 
-            Expect.isFalse (MorphirFile.hasFatals file) "should not have fatals"
+            Expect.isFalse (VFile.hasFatals file) "should not have fatals"
         }
 
         test "hasFatals should return true for file with fatals" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.fail "Fatal error" None
+                VFile.empty
+                |> VFile.fail "Fatal error" None
 
-            Expect.isTrue (MorphirFile.hasFatals file) "should have fatals"
+            Expect.isTrue (VFile.hasFatals file) "should have fatals"
         }
 
         test "messagesOfSeverity should filter by severity" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.info "Info 1"
-                |> MorphirFile.warn "Warning 1" None
-                |> MorphirFile.error "Error 1" None
-                |> MorphirFile.info "Info 2"
-                |> MorphirFile.error "Error 2" None
+                VFile.empty
+                |> VFile.info "Info 1"
+                |> VFile.warn "Warning 1" None
+                |> VFile.error "Error 1" None
+                |> VFile.info "Info 2"
+                |> VFile.error "Error 2" None
 
-            let infos = MorphirFile.messagesOfSeverity Info file
-            let warnings = MorphirFile.messagesOfSeverity Warning file
-            let errors = MorphirFile.messagesOfSeverity Error file
+            let infos = VFile.messagesOfSeverity Info file
+            let warnings = VFile.messagesOfSeverity Warning file
+            let errors = VFile.messagesOfSeverity Error file
 
             Expect.hasLength infos 2 "should have 2 info messages"
             Expect.hasLength warnings 1 "should have 1 warning message"
@@ -304,25 +304,25 @@ let morphirFileQueryTests =
 
         test "errors should return all errors and fatals" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.error "Error 1" None
-                |> MorphirFile.fail "Fatal 1" None
-                |> MorphirFile.warn "Warning 1" None
-                |> MorphirFile.error "Error 2" None
+                VFile.empty
+                |> VFile.error "Error 1" None
+                |> VFile.fail "Fatal 1" None
+                |> VFile.warn "Warning 1" None
+                |> VFile.error "Error 2" None
 
-            let errorList = MorphirFile.errors file
+            let errorList = VFile.errors file
 
             Expect.hasLength errorList 3 "should have 3 error/fatal messages"
         }
 
         test "warnings should return all warnings" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.warn "Warning 1" None
-                |> MorphirFile.error "Error 1" None
-                |> MorphirFile.warn "Warning 2" None
+                VFile.empty
+                |> VFile.warn "Warning 1" None
+                |> VFile.error "Error 1" None
+                |> VFile.warn "Warning 2" None
 
-            let warningList = MorphirFile.warnings file
+            let warningList = VFile.warnings file
 
             Expect.hasLength warningList 2 "should have 2 warning messages"
         }
@@ -330,67 +330,67 @@ let morphirFileQueryTests =
 
 [<Tests>]
 let morphirFileDataTests =
-    testList "MorphirFile Data" [
+    testList "VFile Data" [
         test "setData should store data value" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.setData "key1" (box "value1")
+                VFile.empty
+                |> VFile.setData "key1" (box "value1")
 
-            let value = MorphirFile.getData "key1" file
+            let value = VFile.getData "key1" file
 
             Expect.isSome value "value should be Some"
             Expect.equal value (Some (box "value1")) "value should match"
         }
 
         test "getData should return None for missing key" {
-            let file = MorphirFile.empty
+            let file = VFile.empty
 
-            let value = MorphirFile.getData "missing" file
+            let value = VFile.getData "missing" file
 
             Expect.isNone value "value should be None"
         }
 
         test "getDataAs should return typed value" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.setData "count" (box 42)
+                VFile.empty
+                |> VFile.setData "count" (box 42)
 
-            let value = MorphirFile.getDataAs<int> "count" file
+            let value = VFile.getDataAs<int> "count" file
 
             Expect.equal value (Some 42) "value should be 42"
         }
 
         test "getDataAs should return None for wrong type" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.setData "value" (box "string")
+                VFile.empty
+                |> VFile.setData "value" (box "string")
 
-            let value = MorphirFile.getDataAs<int> "value" file
+            let value = VFile.getDataAs<int> "value" file
 
             Expect.isNone value "value should be None (wrong type)"
         }
 
         test "removeData should remove data value" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.setData "key1" (box "value1")
-                |> MorphirFile.removeData "key1"
+                VFile.empty
+                |> VFile.setData "key1" (box "value1")
+                |> VFile.removeData "key1"
 
-            let value = MorphirFile.getData "key1" file
+            let value = VFile.getData "key1" file
 
             Expect.isNone value "value should be None after removal"
         }
 
         test "should support multiple data values" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.setData "string" (box "text")
-                |> MorphirFile.setData "number" (box 123)
-                |> MorphirFile.setData "flag" (box true)
+                VFile.empty
+                |> VFile.setData "string" (box "text")
+                |> VFile.setData "number" (box 123)
+                |> VFile.setData "flag" (box true)
 
-            let str = MorphirFile.getDataAs<string> "string" file
-            let num = MorphirFile.getDataAs<int> "number" file
-            let flag = MorphirFile.getDataAs<bool> "flag" file
+            let str = VFile.getDataAs<string> "string" file
+            let num = VFile.getDataAs<int> "number" file
+            let flag = VFile.getDataAs<bool> "flag" file
 
             Expect.equal str (Some "text") "string should match"
             Expect.equal num (Some 123) "number should match"
@@ -399,11 +399,11 @@ let morphirFileDataTests =
 
         test "should allow data updates" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.setData "key" (box "value1")
-                |> MorphirFile.setData "key" (box "value2")
+                VFile.empty
+                |> VFile.setData "key" (box "value1")
+                |> VFile.setData "key" (box "value2")
 
-            let value = MorphirFile.getDataAs<string> "key" file
+            let value = VFile.getDataAs<string> "key" file
 
             Expect.equal value (Some "value2") "value should be updated to 'value2'"
         }
@@ -411,50 +411,50 @@ let morphirFileDataTests =
 
 [<Tests>]
 let morphirFileIntegrationTests =
-    testList "MorphirFile Integration" [
+    testList "VFile Integration" [
         test "should support full pipeline flow" {
             let file =
-                MorphirFile.fromPath "/test/input.json"
-                |> MorphirFile.info "Parsing started"
-                |> MorphirFile.setData "parser" (box "json-parser")
-                |> MorphirFile.info "Parsing complete"
-                |> MorphirFile.warn "Deprecated pattern found" None
-                |> MorphirFile.info "Validation started"
-                |> MorphirFile.info "Validation complete"
+                VFile.fromPath "/test/input.json"
+                |> VFile.info "Parsing started"
+                |> VFile.setData "parser" (box "json-parser")
+                |> VFile.info "Parsing complete"
+                |> VFile.warn "Deprecated pattern found" None
+                |> VFile.info "Validation started"
+                |> VFile.info "Validation complete"
 
             Expect.equal file.Path (Some "/test/input.json") "path should be preserved"
             Expect.hasLength file.Messages 5 "should have 5 messages"
-            Expect.isFalse (MorphirFile.hasErrors file) "should not have errors"
+            Expect.isFalse (VFile.hasErrors file) "should not have errors"
 
-            let parserData = MorphirFile.getDataAs<string> "parser" file
+            let parserData = VFile.getDataAs<string> "parser" file
             Expect.equal parserData (Some "json-parser") "parser data should be preserved"
         }
 
         test "should accumulate errors while continuing" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.info "Processing started"
-                |> MorphirFile.error "Type error in function A" None
-                |> MorphirFile.error "Type error in function B" None
-                |> MorphirFile.warn "Unused import" None
-                |> MorphirFile.info "Processing complete"
+                VFile.empty
+                |> VFile.info "Processing started"
+                |> VFile.error "Type error in function A" None
+                |> VFile.error "Type error in function B" None
+                |> VFile.warn "Unused import" None
+                |> VFile.info "Processing complete"
 
             Expect.hasLength file.Messages 5 "should have 5 messages"
-            Expect.isTrue (MorphirFile.hasErrors file) "should have errors"
+            Expect.isTrue (VFile.hasErrors file) "should have errors"
 
-            let errorList = MorphirFile.errors file
+            let errorList = VFile.errors file
             Expect.hasLength errorList 2 "should have 2 errors"
         }
 
         test "should track fatal errors" {
             let file =
-                MorphirFile.empty
-                |> MorphirFile.info "Processing started"
-                |> MorphirFile.fail "Parse error: unexpected end of file" None
-                |> MorphirFile.info "Attempting recovery"
+                VFile.empty
+                |> VFile.info "Processing started"
+                |> VFile.fail "Parse error: unexpected end of file" None
+                |> VFile.info "Attempting recovery"
 
-            Expect.isTrue (MorphirFile.hasFatals file) "should have fatal errors"
-            Expect.isTrue (MorphirFile.hasErrors file) "should have errors"
+            Expect.isTrue (VFile.hasFatals file) "should have fatal errors"
+            Expect.isTrue (VFile.hasErrors file) "should have errors"
             Expect.hasLength file.Messages 3 "should have 3 messages (including after fatal)"
         }
     ]

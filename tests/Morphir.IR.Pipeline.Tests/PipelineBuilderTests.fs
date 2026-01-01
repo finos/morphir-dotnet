@@ -172,10 +172,10 @@ let pipelineBuilderExecutionTests =
                 {
                     Name = "validate"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Validated")
+                    Transform = fun node file -> (Some node, file |> VFile.info "Validated")
                 }
 
-            let compiler: Compiler = fun node file -> file |> MorphirFile.info "Compiled"
+            let compiler: Compiler = fun node file -> file |> VFile.info "Compiled"
 
             let proc = pipeline {
                 parse parser
@@ -183,7 +183,7 @@ let pipelineBuilderExecutionTests =
                 stringify compiler
             }
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile proc
 
             Expect.isSome result.Content "should have content"
@@ -253,25 +253,25 @@ let pipelineBuilderIntegrationTests =
                 {
                     Name = "syntax-validator"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Syntax valid")
+                    Transform = fun node file -> (Some node, file |> VFile.info "Syntax valid")
                 }
 
             let semanticPlugin: Plugin =
                 {
                     Name = "semantic-validator"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Semantics valid")
+                    Transform = fun node file -> (Some node, file |> VFile.info "Semantics valid")
                 }
 
             let normalizePlugin: Plugin =
                 {
                     Name = "normalizer"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Normalized")
+                    Transform = fun node file -> (Some node, file |> VFile.info "Normalized")
                 }
 
             let jsonCompiler: Compiler =
-                fun node file -> file |> MorphirFile.info "Compiled to JSON"
+                fun node file -> file |> VFile.info "Compiled to JSON"
 
             let validationPipeline = pipeline {
                 parse irParser
@@ -282,10 +282,10 @@ let pipelineBuilderIntegrationTests =
                 freeze
             }
 
-            let inputFile = MorphirFile.fromPath "/test/module.json"
+            let inputFile = VFile.fromPath "/test/module.json"
             let result = MorphirProcessor.processFile inputFile validationPipeline
 
-            Expect.isFalse (MorphirFile.hasErrors result) "should have no errors"
+            Expect.isFalse (VFile.hasErrors result) "should have no errors"
             Expect.hasLength result.Messages 4 "should have 4 info messages"
         }
 
@@ -296,7 +296,7 @@ let pipelineBuilderIntegrationTests =
                 {
                     Name = "validate"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.info "Validated")
+                    Transform = fun node file -> (Some node, file |> VFile.info "Validated")
                 }
 
             let basePipeline = pipeline {
@@ -312,7 +312,7 @@ let pipelineBuilderIntegrationTests =
                     Transform =
                         fun node file ->
                             let value = unbox<int> node
-                            (Some(box (value * 2)), file |> MorphirFile.info "Optimized")
+                            (Some(box (value * 2)), file |> VFile.info "Optimized")
                 }
 
             // Create variant by adding optimize plugin to frozen base
@@ -323,7 +323,7 @@ let pipelineBuilderIntegrationTests =
 
             Expect.isFalse (MorphirProcessor.isFrozen optimizedPipeline) "variant should be unfrozen"
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let baseResult = MorphirProcessor.processFile inputFile basePipeline
             let optResult = MorphirProcessor.processFile inputFile optimizedPipeline
 
@@ -345,8 +345,8 @@ let pipelineBuilderIntegrationTests =
                         fun node file ->
                             let updatedFile =
                                 file
-                                |> MorphirFile.error "Type mismatch in function A" None
-                                |> MorphirFile.error "Undefined variable in function B" None
+                                |> VFile.error "Type mismatch in function A" None
+                                |> VFile.error "Undefined variable in function B" None
 
                             (Some node, updatedFile)
                 }
@@ -355,7 +355,7 @@ let pipelineBuilderIntegrationTests =
                 {
                     Name = "deprecation-checker"
                     Configure = id
-                    Transform = fun node file -> (Some node, file |> MorphirFile.warn "Deprecated API usage" None)
+                    Transform = fun node file -> (Some node, file |> VFile.warn "Deprecated API usage" None)
                 }
 
             let errorPipeline = pipeline {
@@ -364,12 +364,12 @@ let pipelineBuilderIntegrationTests =
                 uses warningPlugin
             }
 
-            let inputFile = MorphirFile.fromPath "/test/input.json"
+            let inputFile = VFile.fromPath "/test/input.json"
             let result = MorphirProcessor.processFile inputFile errorPipeline
 
-            Expect.isTrue (MorphirFile.hasErrors result) "should have errors"
-            let errors = MorphirFile.errors result
-            let warnings = MorphirFile.warnings result
+            Expect.isTrue (VFile.hasErrors result) "should have errors"
+            let errors = VFile.errors result
+            let warnings = VFile.warnings result
 
             Expect.hasLength errors 2 "should have 2 errors"
             Expect.hasLength warnings 1 "should have 1 warning"
