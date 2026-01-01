@@ -241,11 +241,12 @@ module VFileTree =
         |> Map.ofList
 
     /// <summary>
-    /// Creates a tree from a morphir-elm style FileMap (infers structure from paths).
+    /// Creates a tree from a morphir-elm style FileMap.
+    /// Note: Currently creates a flat structure. Future enhancement could infer
+    /// directory hierarchy by grouping files with common path prefixes.
     /// </summary>
     /// <param name="fileMap">Map of file paths to files</param>
     let fromFileMap (fileMap: Map<string, VFile>): VFileTree =
-        // For now, return flat tree. Future enhancement: group by directory path segments
         {
             Path = "."
             Content = fileMap |> Map.toList |> List.map (snd >> File)
@@ -255,6 +256,8 @@ module VFileTree =
 
     /// <summary>
     /// Flattens the tree to a simple string map (morphir-elm exact equivalent).
+    /// Note: This function attempts to convert file content to strings. Non-string
+    /// content will be converted using ToString().
     /// </summary>
     /// <param name="tree">Tree to flatten</param>
     let toStringMap (tree: VFileTree): Map<string, string> =
@@ -262,7 +265,10 @@ module VFileTree =
         |> toFileMap
         |> Map.map (fun _ file ->
             match file.Content with
-            | Some content -> unbox<string> content
+            | Some content ->
+                match content with
+                | :? string as s -> s
+                | other -> other.ToString()
             | None -> "")
 
     /// <summary>
