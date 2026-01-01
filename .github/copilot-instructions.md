@@ -147,6 +147,32 @@ public abstract record TypeExpr
 - Schemas in `docs/spec/schemas/` validated in CI
 - Backward compatibility: additive OK, breaking needs ADR
 
+## Copilot Coding Agent Firewall Configuration
+
+The Copilot coding agent runs with a firewall that limits internet access by default. This project is configured to allow access to the GitHub API for monitoring CI/CD workflow status.
+
+**Configuration File**: [`.github/workflows/copilot-setup-steps.yml`](./workflows/copilot-setup-steps.yml)
+
+This file:
+- Sets `COPILOT_AGENT_FIREWALL_ALLOW_LIST_ADDITIONS` to include `api.github.com`
+- Configures .NET SDK for the development environment
+- Runs before the firewall is enabled
+
+**Troubleshooting Firewall Issues**:
+
+If you see a warning like:
+> Firewall rules blocked me from connecting to one or more addresses
+
+Options to resolve:
+1. **Add to custom allowlist** (admin-only): Settings → Copilot → coding agent → Custom allowlist
+2. **Update copilot-setup-steps.yml**: Add the blocked domain to `COPILOT_AGENT_FIREWALL_ALLOW_LIST_ADDITIONS`
+3. **Use setup steps**: Run network calls in the `copilot-setup-steps` job before the firewall activates
+
+**Documentation**:
+- [Customizing the firewall](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-firewall)
+- [Copilot allowlist reference](https://docs.github.com/en/copilot/reference/copilot-allowlist-reference)
+- [Customizing the development environment](https://docs.github.com/en/copilot/how-tos/agents/copilot-coding-agent/customizing-the-development-environment-for-copilot-coding-agent)
+
 ## Additional Resources
 
 **Essential Reading**:
