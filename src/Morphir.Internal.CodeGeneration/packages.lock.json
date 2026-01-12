@@ -4,9 +4,9 @@
     "net10.0": {
       "Fabulous.AST": {
         "type": "Direct",
-        "requested": "[1.9.0, )",
-        "resolved": "1.9.0",
-        "contentHash": "lDk3+0KEPTCkbL/sd6WslO9kCuarXVdl0pTh9yW+YAk5MdEWLJv2DmrbQ66ui9TlXEg3REITafpj4BlUQN3trQ==",
+        "requested": "[1.10.0, )",
+        "resolved": "1.10.0",
+        "contentHash": "7Hr980JrpWQGLs/kiM+d0cCtaCtl8Za8SHMYbM9Xuc2+ICysHEwz3fAOidNMv8oAiA87gpGEfZArsaVUtK64Uw==",
         "dependencies": {
           "Fantomas.Core": "[7.0.1]"
         }
