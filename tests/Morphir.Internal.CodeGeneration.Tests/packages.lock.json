@@ -46,16 +46,16 @@
       },
       "Verify.Expecto": {
         "type": "Direct",
-        "requested": "[31.9.2, )",
-        "resolved": "31.9.2",
-        "contentHash": "yl3v/NUvFM7Y6z5tvQpD/1qbVsWmB2cSBxe+oIQDKfsR/j0AtJSLYZM+MVubvNha80g8FJjPnxjMDRxdXf1G4w==",
+        "requested": "[31.9.4, )",
+        "resolved": "31.9.4",
+        "contentHash": "+lxPzL1LksPuaSJ8IwAUtPvFTUo2Tyf2p7d610R8jhLOHSfJBrv0b2R94ODGGjsIdYQ11YBxMCzoNw/5YJBJvg==",
         "dependencies": {
           "Argon": "0.33.0",
-          "DiffEngine": "18.1.2",
+          "DiffEngine": "18.3.0",
           "Expecto": "10.2.3",
           "FSharp.Core": "10.0.101",
-          "SimpleInfoName": "3.1.2",
-          "Verify": "31.9.2"
+          "SimpleInfoName": "3.2.0",
+          "Verify": "31.9.4"
         }
       },
       "Argon": {
@@ -65,8 +65,8 @@
       },
       "DiffEngine": {
         "type": "Transitive",
-        "resolved": "18.1.2",
-        "contentHash": "MY9stHlsXnLAtWMf2+I82WoJ3BICwNr7S2571yuuRGZ5zAVYDl8UcH8cBaOEyLT2khXABEzF8t6DLUHd5Ou0Wg==",
+        "resolved": "18.3.0",
+        "contentHash": "9/CKpqMo3HtsmNV/krqR53WOuVqwhqK/FGlPpo8/UtojkFxJBO1oAGkdQ1aQGMBuzqrfbSxitleQZXfwfUihaA==",
         "dependencies": {
           "EmptyFiles": "8.17.1"
         }
@@ -123,17 +123,17 @@
       },
       "SimpleInfoName": {
         "type": "Transitive",
-        "resolved": "3.1.2",
-        "contentHash": "/OoEZQxSW6DeTJ9nfrg8BLCOCWpxBiWHV4NkG3t+Xpe8tvzm7yCwKwxkhpauMl3fg9OjlIjJMKX61H6VavLkrw=="
+        "resolved": "3.2.0",
+        "contentHash": "K8ivHRbPWfncijk62Dan/r/z55gwq3aFzqB6yFlD9X0bbpIaacHyHH2cpcIdz0FECUpERUZTwxts0z4gRWpQpA=="
       },
       "Verify": {
         "type": "Transitive",
-        "resolved": "31.9.2",
-        "contentHash": "0Pxozpj6+wWw0IvWdDJGiZ+YLYUxtDSXJ/NYvbfHUBj3AVh7kwS/CMLQNVgYwHSd5CuR6vP3t5hF18q/PfMNvw==",
+        "resolved": "31.9.4",
+        "contentHash": "0EtGbsmPvWHtQysBjAllsR9RD6pIr3gRZ5v1MlVo3cEffbckngjS1v9C2Hou770Ke80ZlczjZnhtUBYgk+y1YA==",
         "dependencies": {
           "Argon": "0.33.0",
-          "DiffEngine": "18.1.2",
-          "SimpleInfoName": "3.1.2"
+          "DiffEngine": "18.3.0",
+          "SimpleInfoName": "3.2.0"
         }
       },
       "morphir.internal.codegeneration": {
