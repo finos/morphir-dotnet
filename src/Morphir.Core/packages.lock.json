@@ -4,9 +4,9 @@
     "net10.0": {
       "Dunet": {
         "type": "Direct",
-        "requested": "[1.11.3, )",
-        "resolved": "1.11.3",
-        "contentHash": "xve1qb4EfUFLnoluZlDlfByd2wm/dQnuPF42hcWD4TbK0q4UD8jQNWIXvdG90972sOpjDKn6fMf2fCyOOyPX3g=="
+        "requested": "[1.12.0, )",
+        "resolved": "1.12.0",
+        "contentHash": "5SXPCeLv7k08fhHOL9ia4PRWjam9h2k0oKtX9EfBMloCTLZGJe4//jzhErLOfNIDfLNUbnvpBJIQtvBzt4/J1A=="
       },
       "Funcky.DiscriminatedUnion": {
         "type": "Direct",
@@ -37,9 +37,9 @@
       },
       "LanguageExt.Core": {
         "type": "Direct",
-        "requested": "[5.0.0-beta-65, )",
-        "resolved": "5.0.0-beta-65",
-        "contentHash": "idt9Vd0TO5W+b+iYFN1JBJT4AwpTmmKy66enmk/Xr9Zx/2nCxYj+gDB1WQZEhKWrLvXtFaid+Qsga1y/1AqdDQ=="
+        "requested": "[5.0.0-beta-77, )",
+        "resolved": "5.0.0-beta-77",
+        "contentHash": "zVBqn2alHIDTOSjgWDUo31irEg59ZfM6T8e24UcUn6o/F+5Qr0jRjGPp2LzME7PHyKh+crK+boBmdCAFguwqjw=="
       },
       "StaticCS": {
         "type": "Direct",
