@@ -24,9 +24,9 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[10.0.101, )",
-        "resolved": "10.0.101",
-        "contentHash": "mrS3J7cLtvXM3u3CmiaFq8oyBdlevzZY1VAAAbFk1gUDQtDEjUOybN5XpQglx5wAgJ0wLdDl6OSSfS7ZDFNcpA=="
+        "requested": "[10.0.102, )",
+        "resolved": "10.0.102",
+        "contentHash": "umz5pbtOvL/F9U5sibhREzZT2ewAs//nRTMwj8XcOOjMdOP828tipLpEhb2fZNijhiyikJ6Nr/dsMc/lj58W9w=="
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
@@ -40,22 +40,22 @@
       },
       "System.Text.Json": {
         "type": "Direct",
-        "requested": "[9.0.0, )",
-        "resolved": "9.0.0",
-        "contentHash": "js7+qAu/9mQvnhA4EfGMZNEzXtJCDxgkgj8ohuxq/Qxv+R56G+ljefhiJHOxTNiw54q8vmABCWUwkMulNdlZ4A=="
+        "requested": "[9.0.12, )",
+        "resolved": "9.0.12",
+        "contentHash": "wHv2GrfYd4/uaoZQJj6NOR8M0AlnWJ2/MFAHQomSMqk+/rSIY6AlcitL6LXbTgXf8+ngGjAAmQm17kfbNplQ9w=="
       },
       "Verify.Expecto": {
         "type": "Direct",
-        "requested": "[31.9.2, )",
-        "resolved": "31.9.2",
-        "contentHash": "yl3v/NUvFM7Y6z5tvQpD/1qbVsWmB2cSBxe+oIQDKfsR/j0AtJSLYZM+MVubvNha80g8FJjPnxjMDRxdXf1G4w==",
+        "requested": "[31.11.0, )",
+        "resolved": "31.11.0",
+        "contentHash": "X7ZMBGWuO38LH0NEYZ6UCc9PIkxV3nWxl/In9VwMDUhaIf3B96puLNM6QP9YRLHOM2T2pFyLA+nA0zYIDr2eZA==",
         "dependencies": {
           "Argon": "0.33.0",
-          "DiffEngine": "18.1.2",
+          "DiffEngine": "18.4.0",
           "Expecto": "10.2.3",
-          "FSharp.Core": "10.0.101",
-          "SimpleInfoName": "3.1.2",
-          "Verify": "31.9.2"
+          "FSharp.Core": "10.0.102",
+          "SimpleInfoName": "3.2.0",
+          "Verify": "31.11.0"
         }
       },
       "Argon": {
@@ -65,8 +65,8 @@
       },
       "DiffEngine": {
         "type": "Transitive",
-        "resolved": "18.1.2",
-        "contentHash": "MY9stHlsXnLAtWMf2+I82WoJ3BICwNr7S2571yuuRGZ5zAVYDl8UcH8cBaOEyLT2khXABEzF8t6DLUHd5Ou0Wg==",
+        "resolved": "18.4.0",
+        "contentHash": "gwrVNGWutjmNaOZZOHyJJYtho1vqcFzhxcOe6FB1om2Iioks22HvQFy0UIJQGQqD/AHAdsYVaBfwzTxEHVDAjw==",
         "dependencies": {
           "EmptyFiles": "8.17.1"
         }
@@ -115,38 +115,38 @@
       },
       "SimpleInfoName": {
         "type": "Transitive",
-        "resolved": "3.1.2",
-        "contentHash": "/OoEZQxSW6DeTJ9nfrg8BLCOCWpxBiWHV4NkG3t+Xpe8tvzm7yCwKwxkhpauMl3fg9OjlIjJMKX61H6VavLkrw=="
+        "resolved": "3.2.0",
+        "contentHash": "K8ivHRbPWfncijk62Dan/r/z55gwq3aFzqB6yFlD9X0bbpIaacHyHH2cpcIdz0FECUpERUZTwxts0z4gRWpQpA=="
       },
       "Verify": {
         "type": "Transitive",
-        "resolved": "31.9.2",
-        "contentHash": "0Pxozpj6+wWw0IvWdDJGiZ+YLYUxtDSXJ/NYvbfHUBj3AVh7kwS/CMLQNVgYwHSd5CuR6vP3t5hF18q/PfMNvw==",
+        "resolved": "31.11.0",
+        "contentHash": "e2o/PkDe5V09/BuGzF5sK7FOydP7Zw9rvf8IbgyTPZx+VuIuAcPyJDigZq64bypBT6M3HurMNKxz1jdvGeSGiA==",
         "dependencies": {
           "Argon": "0.33.0",
-          "DiffEngine": "18.1.2",
-          "SimpleInfoName": "3.1.2"
+          "DiffEngine": "18.4.0",
+          "SimpleInfoName": "3.2.0"
         }
       },
       "morphir.models": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.0.101, )",
-          "FSharp.SystemTextJson": "[1.3.13, )"
+          "FSharp.Core": "[10.0.102, )",
+          "FSharp.SystemTextJson": "[1.4.36, )"
         }
       },
       "morphir.testing": {
         "type": "Project",
         "dependencies": {
           "Expecto": "[10.2.3, )",
-          "FSharp.Core": "[10.0.101, )"
+          "FSharp.Core": "[10.0.102, )"
         }
       },
       "FSharp.SystemTextJson": {
         "type": "CentralTransitive",
-        "requested": "[1.3.13, )",
-        "resolved": "1.3.13",
-        "contentHash": "znp8odpdkVGKVX0AvbhiXdmeMi0KJ+A4AyAQWSkfAEAe4Z4clRE+rVhrLnAGrFD1VEIUX2lsQ4o84ywpWZUSGw==",
+        "requested": "[1.4.36, )",
+        "resolved": "1.4.36",
+        "contentHash": "1xLk0SBF1nedD74B77rcArjD2d+DeZwbNI7BVCAyKwIBERo1VoX8Mf4AtX0OV2L3ZeM/XS1b6BuhXCyoh0KBnw==",
         "dependencies": {
           "FSharp.Core": "4.7.0"
         }
