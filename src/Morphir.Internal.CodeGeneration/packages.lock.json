@@ -4,9 +4,9 @@
     "net10.0": {
       "Fabulous.AST": {
         "type": "Direct",
-        "requested": "[1.9.0, )",
-        "resolved": "1.9.0",
-        "contentHash": "lDk3+0KEPTCkbL/sd6WslO9kCuarXVdl0pTh9yW+YAk5MdEWLJv2DmrbQ66ui9TlXEg3REITafpj4BlUQN3trQ==",
+        "requested": "[1.10.0, )",
+        "resolved": "1.10.0",
+        "contentHash": "7Hr980JrpWQGLs/kiM+d0cCtaCtl8Za8SHMYbM9Xuc2+ICysHEwz3fAOidNMv8oAiA87gpGEfZArsaVUtK64Uw==",
         "dependencies": {
           "Fantomas.Core": "[7.0.1]"
         }
@@ -32,18 +32,24 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[10.0.101, )",
-        "resolved": "10.0.101",
-        "contentHash": "mrS3J7cLtvXM3u3CmiaFq8oyBdlevzZY1VAAAbFk1gUDQtDEjUOybN5XpQglx5wAgJ0wLdDl6OSSfS7ZDFNcpA=="
+        "requested": "[10.0.103, )",
+        "resolved": "10.0.103",
+        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
       },
       "Myriad.Core": {
         "type": "Direct",
-        "requested": "[0.8.3, )",
-        "resolved": "0.8.3",
-        "contentHash": "KwCIC8PH6pd7Dcyso/b/U/rl80AeOV7g8hvs4cjokfzutnVMXgtL3rqNG8moXaBnmdTpE33AZSlVjo+gHLqe8A==",
+        "requested": "[0.85.0, )",
+        "resolved": "0.85.0",
+        "contentHash": "RqNukBy6IBe9rxoSK5Okt/8TdasSOrN2MAVOE5+u8dl5gGyYF4j5CvhNlQNSyC0YuBM9hncogsfLQHeoOevxtA==",
         "dependencies": {
-          "Fantomas.Core": "6.1.1"
+          "Fantomas.Core": "7.0.5",
+          "editorconfig": "0.15.0"
         }
+      },
+      "editorconfig": {
+        "type": "Transitive",
+        "resolved": "0.15.0",
+        "contentHash": "NuUxFbycSCOhl0WzmNZ8ksSMrTHBFzTASkil+IOqXpqTXszokKjy6ihxMdjArGaC+AaLLq4nxfGVFLi6KWyFJg=="
       },
       "Fantomas.FCS": {
         "type": "Transitive",

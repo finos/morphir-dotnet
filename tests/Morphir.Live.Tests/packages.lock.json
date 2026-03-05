@@ -41,9 +41,9 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[10.0.101, )",
-        "resolved": "10.0.101",
-        "contentHash": "mrS3J7cLtvXM3u3CmiaFq8oyBdlevzZY1VAAAbFk1gUDQtDEjUOybN5XpQglx5wAgJ0wLdDl6OSSfS7ZDFNcpA=="
+        "requested": "[10.0.103, )",
+        "resolved": "10.0.103",
+        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
       },
       "TUnit": {
         "type": "Direct",
@@ -202,8 +202,8 @@
       },
       "Microsoft.DotNet.HotReload.WebAssembly.Browser": {
         "type": "Transitive",
-        "resolved": "10.0.101",
-        "contentHash": "30d2d7ti8GiDYf9zg4+w5cvH3jm9HAQMyXzZgCVpEjmh3WLErJazuu2tyoIO75uNYLWPD/NNTTRD9SoPpDiACw=="
+        "resolved": "10.0.103",
+        "contentHash": "tIq6T4oyBMjxxxllslJu2fOJqEj8SOW29IfWqHYxubreOVlFWnxPN2PjDMuwoHjkrOnPKyuqoNcVYh5YOZcs0Q=="
       },
       "Microsoft.Extensions.Caching.Abstractions": {
         "type": "Transitive",
@@ -475,12 +475,12 @@
         "type": "Project",
         "dependencies": {
           "BlazorMonaco": "[3.4.0, )",
-          "FSharp.Core": "[10.0.101, )",
-          "Fun.Blazor": "[4.1.9, )",
+          "FSharp.Core": "[10.0.103, )",
+          "Fun.Blazor": "[4.1.10, )",
           "Fun.Blazor.BlazorMonaco": "[3.4.0, )",
           "Fun.Blazor.MudBlazor": "[8.15.0, )",
           "Microsoft.AspNetCore.Components.WebAssembly": "[10.0.0, )",
-          "Microsoft.DotNet.HotReload.WebAssembly.Browser": "[10.0.101, )",
+          "Microsoft.DotNet.HotReload.WebAssembly.Browser": "[10.0.103, )",
           "MudBlazor": "[8.15.0, )"
         }
       },
@@ -496,9 +496,9 @@
       },
       "Fun.Blazor": {
         "type": "CentralTransitive",
-        "requested": "[4.1.9, )",
-        "resolved": "4.1.9",
-        "contentHash": "UZlCc1qtRaYZBW5OnZvdXbto8L6KIBcz5UdtGOY/rGsel/8KJL1FfZygZCiUOI8wbDb1xKS5Yued6CmaL5TjDg==",
+        "requested": "[4.1.10, )",
+        "resolved": "4.1.10",
+        "contentHash": "BMO1bULkjQMRhEMiThK0s5ce2Z3yV+geZWhs4PmyfQPeT58GWPli7FFdvWlZbot2728HOJuAqKw7ytYWCFE4eg==",
         "dependencies": {
           "FSharp.Core": "6.0.0",
           "FSharp.Data.Adaptive": "1.2.15",
