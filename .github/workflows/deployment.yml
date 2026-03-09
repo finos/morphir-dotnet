@@ -39,7 +39,7 @@ jobs:
             skip-git-release: ${{ steps.extract-version.outputs.skip-git-release }}
         steps:
             - name: Fetch Source Code
-              uses: actions/checkout@v6.0.1
+              uses: actions/checkout@v6.0.2
               with:
                   fetch-depth: 0
 
@@ -99,7 +99,7 @@ jobs:
         runs-on: ${{ matrix.os }}
         steps:
             - name: Fetch Source Code
-              uses: actions/checkout@v6.0.1
+              uses: actions/checkout@v6.0.2
               with:
                   fetch-depth: 0
 
@@ -154,7 +154,7 @@ jobs:
               run: echo "GH_TOKEN=${GITHUB_TOKEN}" >> $GITHUB_ENV
 
             - name: Fetch Source Code
-              uses: actions/checkout@v6.0.1
+              uses: actions/checkout@v6.0.2
               with:
                   fetch-depth: 0
                   token: ${{ env.GH_TOKEN }}
@@ -210,7 +210,7 @@ jobs:
             contents: write
         steps:
             - name: Fetch Source Code
-              uses: actions/checkout@v6.0.1
+              uses: actions/checkout@v6.0.2
               with:
                   fetch-depth: 0
 

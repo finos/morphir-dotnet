@@ -91,7 +91,7 @@ jobs:
         runs-on: ${{ matrix.os }}
         steps:
             - name: Fetch Source Code
-              uses: actions/checkout@v6.0.1
+              uses: actions/checkout@v6.0.2
               with:
                   fetch-depth: 0
 
