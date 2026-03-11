@@ -26,9 +26,9 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[10.0.103, )",
-        "resolved": "10.0.103",
-        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
+        "requested": "[10.0.104, )",
+        "resolved": "10.0.104",
+        "contentHash": "2VQpRzjhuN6EHODVGiYZ/svc68up2/c3TdQ7eQtkY2MAN6EKMOF2SaraPCiMDu4+JMIbq9KkPxaWk5sXbfPs9Q=="
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
@@ -136,7 +136,7 @@
       "morphir.ir.pipeline": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.0.103, )"
+          "FSharp.Core": "[10.0.104, )"
         }
       }
     }
