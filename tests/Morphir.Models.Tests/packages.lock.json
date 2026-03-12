@@ -24,9 +24,9 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[10.0.103, )",
-        "resolved": "10.0.103",
-        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
+        "requested": "[10.0.104, )",
+        "resolved": "10.0.104",
+        "contentHash": "2VQpRzjhuN6EHODVGiYZ/svc68up2/c3TdQ7eQtkY2MAN6EKMOF2SaraPCiMDu4+JMIbq9KkPxaWk5sXbfPs9Q=="
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
@@ -40,9 +40,9 @@
       },
       "System.Text.Json": {
         "type": "Direct",
-        "requested": "[9.0.13, )",
-        "resolved": "9.0.13",
-        "contentHash": "+CbJTUwj4bG0zqxTDVFaetNCgcpg3WvszGdxAi6+TDgcHtpsM5iqWn4TN8DdbFM/WM4RmrHKDOxzfqg4zODLYQ=="
+        "requested": "[9.0.14, )",
+        "resolved": "9.0.14",
+        "contentHash": "zahtYv0C3LAIUUSiEwuL9QAtal8X1cp32qua8JWMjgoik33BpRU9ziLT9QJukF39y/G43VeTn0XFcDujzeFMMA=="
       },
       "Verify.Expecto": {
         "type": "Direct",
@@ -131,7 +131,7 @@
       "morphir.models": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.0.103, )",
+          "FSharp.Core": "[10.0.104, )",
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
       },
@@ -139,7 +139,7 @@
         "type": "Project",
         "dependencies": {
           "Expecto": "[10.2.3, )",
-          "FSharp.Core": "[10.0.103, )"
+          "FSharp.Core": "[10.0.104, )"
         }
       },
       "FSharp.SystemTextJson": {

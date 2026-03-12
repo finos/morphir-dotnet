@@ -44,14 +44,14 @@
       },
       "System.CommandLine": {
         "type": "Direct",
-        "requested": "[2.0.3, )",
-        "resolved": "2.0.3",
-        "contentHash": "5nY9hlrGGFEmyecNUux58sohD2Q16U6jlFBYwH57b2IVUs+u7LfMFaHwOtw2tuIi8CUl6jKXw5s4FuIt9aLtug=="
+        "requested": "[2.0.4, )",
+        "resolved": "2.0.4",
+        "contentHash": "L5qskg+CB8T40PhVUGFDI9M9GiRhLf9jjQq7UCB1EGGb07oT9/SyS2Q7PCZh7l8yyd41yEnlI6T2ZrkGBxRPkg=="
       },
       "Foundatio.Mediator.Abstractions": {
         "type": "Transitive",
-        "resolved": "1.0.0-rc.13",
-        "contentHash": "6NW+LVJBjv6QQ8UOKiTlBShPKhAqqytTitp7jw02nEbcP6+RSimR01Al4+yRt1dc8Qz+23+q4AxCm/ufioFHng==",
+        "resolved": "1.0.1",
+        "contentHash": "e9uJi/tqatrWxYgHGPNiYzmugA+HrwUpTosWnBS319UmlpetxciKyPf56u6zgxft4FlBTxRJ/PbhX0B11tUGJQ==",
         "dependencies": {
           "Microsoft.Bcl.AsyncInterfaces": "10.0.3",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.3",
@@ -344,18 +344,18 @@
         "type": "Project",
         "dependencies": {
           "FluentValidation": "[11.12.0, )",
-          "Foundatio.Mediator": "[1.0.0-rc.13, )",
+          "Foundatio.Mediator": "[1.0.1, )",
           "Morphir.Tooling": "[1.0.0, )",
           "Serilog": "[4.3.1, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
-          "System.CommandLine": "[2.0.3, )"
+          "System.CommandLine": "[2.0.4, )"
         }
       },
       "morphir.configuration": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.0.103, )"
+          "FSharp.Core": "[10.0.104, )"
         }
       },
       "morphir.core": {
@@ -372,7 +372,7 @@
         "dependencies": {
           "CsToml": "[1.8.2, )",
           "FluentValidation": "[11.12.0, )",
-          "Foundatio.Mediator": "[1.0.0-rc.13, )",
+          "Foundatio.Mediator": "[1.0.1, )",
           "Json.More.Net": "[2.2.0, )",
           "JsonSchema.Net": "[8.0.5, )",
           "Microsoft.Extensions.Hosting": "[10.0.0, )",
@@ -381,7 +381,7 @@
           "Serilog": "[4.3.1, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
-          "System.CommandLine": "[2.0.3, )"
+          "System.CommandLine": "[2.0.4, )"
         }
       },
       "CsToml": {
@@ -401,18 +401,18 @@
       },
       "Foundatio.Mediator": {
         "type": "CentralTransitive",
-        "requested": "[1.0.0-rc.13, )",
-        "resolved": "1.0.0-rc.13",
-        "contentHash": "v/lxarBDCG+STcWrk0XSxBEegZEMW4EYuXl3z4eID2ZC+syw4T846UKGaDZ9LwGbPTt/tK4LJOYIpMjin/+EcQ==",
+        "requested": "[1.0.1, )",
+        "resolved": "1.0.1",
+        "contentHash": "1Ze3NcylQK7c1DSUOPHeyV14cKFXsHq9Nzwj/J1Nj14xebmtTZnN1ic7lzke16M7SD+t0bdH7PQU3F6aMPIhFw==",
         "dependencies": {
-          "Foundatio.Mediator.Abstractions": "1.0.0-rc.13"
+          "Foundatio.Mediator.Abstractions": "1.0.1"
         }
       },
       "FSharp.Core": {
         "type": "CentralTransitive",
-        "requested": "[10.0.103, )",
-        "resolved": "10.0.103",
-        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
+        "requested": "[10.0.104, )",
+        "resolved": "10.0.104",
+        "contentHash": "2VQpRzjhuN6EHODVGiYZ/svc68up2/c3TdQ7eQtkY2MAN6EKMOF2SaraPCiMDu4+JMIbq9KkPxaWk5sXbfPs9Q=="
       },
       "Generator.Equals": {
         "type": "CentralTransitive",
