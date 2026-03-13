@@ -41,9 +41,9 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[10.0.103, )",
-        "resolved": "10.0.103",
-        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
+        "requested": "[10.1.201, )",
+        "resolved": "10.1.201",
+        "contentHash": "s5w9LWYurZ9yZdIppoIaYLkRadyT5s3u0wbQCb0J4bQd3ubIlIWQ3Nd5+ll1y3pv5OnTS373dP8T1S/BP46QXg=="
       },
       "TUnit": {
         "type": "Direct",
@@ -475,7 +475,7 @@
         "type": "Project",
         "dependencies": {
           "BlazorMonaco": "[3.4.0, )",
-          "FSharp.Core": "[10.0.103, )",
+          "FSharp.Core": "[10.1.201, )",
           "Fun.Blazor": "[4.1.10, )",
           "Fun.Blazor.BlazorMonaco": "[3.4.0, )",
           "Fun.Blazor.MudBlazor": "[8.15.0, )",
