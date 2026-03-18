@@ -75,15 +75,15 @@
       },
       "Verify.TUnit": {
         "type": "Direct",
-        "requested": "[31.13.2, )",
-        "resolved": "31.13.2",
-        "contentHash": "mponkYFVE9CAFmT3RZX3mSWBjmXk0CqG133IvaXmunTodp2IrO52FoQDuA6sxpONqkAmemxA1aTCkpFgH0TjAw==",
+        "requested": "[31.13.4, )",
+        "resolved": "31.13.4",
+        "contentHash": "lq2/VNVWssYnY9hOXTjPqgBoos/rv8BBcB9Vjlh51Q4yHrWLDi0gHStZJmIKBjwqnARvZrekP+7xvVj75SPG5A==",
         "dependencies": {
           "Argon": "0.33.5",
-          "DiffEngine": "18.4.2",
+          "DiffEngine": "19.1.1",
           "SimpleInfoName": "3.2.0",
-          "TUnit.Core": "1.16.4",
-          "Verify": "31.13.2"
+          "TUnit.Core": "1.19.74",
+          "Verify": "31.13.4"
         }
       },
       "Argon": {
@@ -111,8 +111,8 @@
       },
       "DiffEngine": {
         "type": "Transitive",
-        "resolved": "18.4.2",
-        "contentHash": "wF6X6muxUEqJNEsrzM/EKqN47wCHp7M5oQkze8hjg7SwTuUxso+RZmUJZIOcVilMCjXnNXn0xOxyqoqZYoAs8Q==",
+        "resolved": "19.1.1",
+        "contentHash": "/m7XN8P0N973UqdBy44iJ0JsgzSk8YbvRzmMKqFS9qJuc0LaovESG5zW4q3aB27ApDVjnwD7Z+w3ZqVHe0/AnQ==",
         "dependencies": {
           "EmptyFiles": "8.17.2"
         }
@@ -215,8 +215,8 @@
       },
       "TUnit.Core": {
         "type": "Transitive",
-        "resolved": "1.16.4",
-        "contentHash": "xW0BX4hwJHn0r4UhiBrj8mfx01VlwZzg1XWMKG2KqIVcKXvcuprKALkWhQetO++h4cWTdEiWHoJCacW8vEaI9Q=="
+        "resolved": "1.19.74",
+        "contentHash": "YdZwezzZ+3iasAotGrMahjvpsYIJt9R3RKS9aknJTJtwhRh23hqkYqRwWp4aBe26nWLhV3PUCNRcJgInTdgnGQ=="
       },
       "TUnit.Engine": {
         "type": "Transitive",
@@ -232,11 +232,11 @@
       },
       "Verify": {
         "type": "Transitive",
-        "resolved": "31.13.2",
-        "contentHash": "RwN7iLJTPmD+iSNuOulhrPx6KJitcnVB/nulAtHm+6xaCAPyEPwq9W/OQ1oITaxhK0/lyATPDO7iFrOrlv+X6A==",
+        "resolved": "31.13.4",
+        "contentHash": "J8EEiJd8K6ViNX7RuQlf9lgjEELeSJOEehMRvdN17aQvU3Hblgx+iMjhKLQ8eTp8PHROuG40bbFk/XsKQ+b0rQ==",
         "dependencies": {
           "Argon": "0.33.5",
-          "DiffEngine": "18.4.2",
+          "DiffEngine": "19.1.1",
           "SimpleInfoName": "3.2.0"
         }
       },
