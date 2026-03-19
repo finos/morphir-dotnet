@@ -26,9 +26,9 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[10.0.103, )",
-        "resolved": "10.0.103",
-        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
+        "requested": "[10.1.201, )",
+        "resolved": "10.1.201",
+        "contentHash": "s5w9LWYurZ9yZdIppoIaYLkRadyT5s3u0wbQCb0J4bQd3ubIlIWQ3Nd5+ll1y3pv5OnTS373dP8T1S/BP46QXg=="
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
@@ -136,13 +136,13 @@
       "morphir.ir.pipeline": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.0.103, )"
+          "FSharp.Core": "[10.1.201, )"
         }
       },
       "morphir.ir.pipeline.plugins": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.0.103, )",
+          "FSharp.Core": "[10.1.201, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
@@ -150,7 +150,7 @@
       "morphir.models": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.0.103, )",
+          "FSharp.Core": "[10.1.201, )",
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
       },
