@@ -24,9 +24,9 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[10.0.103, )",
-        "resolved": "10.0.103",
-        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
+        "requested": "[11.0.100, )",
+        "resolved": "11.0.100",
+        "contentHash": "ijfOz8ihqkFNdKUY57l8YTrbJNfQW/6tFYAUU57ByZzmTxxf1o12cQaCqDOjNqAz4h86AKS7IwQkNhYcrjLeCQ=="
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
@@ -40,22 +40,22 @@
       },
       "System.Text.Json": {
         "type": "Direct",
-        "requested": "[9.0.13, )",
-        "resolved": "9.0.13",
-        "contentHash": "+CbJTUwj4bG0zqxTDVFaetNCgcpg3WvszGdxAi6+TDgcHtpsM5iqWn4TN8DdbFM/WM4RmrHKDOxzfqg4zODLYQ=="
+        "requested": "[9.0.14, )",
+        "resolved": "9.0.14",
+        "contentHash": "zahtYv0C3LAIUUSiEwuL9QAtal8X1cp32qua8JWMjgoik33BpRU9ziLT9QJukF39y/G43VeTn0XFcDujzeFMMA=="
       },
       "Verify.Expecto": {
         "type": "Direct",
-        "requested": "[31.13.2, )",
-        "resolved": "31.13.2",
-        "contentHash": "2T3nZEU6uIHgdrjBX6dvL5xqSQ4/i1X7c2yC0ufvG5QBaTjclIp5PnVMLEmiAoCq36ybtARB+mfX1Dk1cTlxPg==",
+        "requested": "[31.15.0, )",
+        "resolved": "31.15.0",
+        "contentHash": "j5MsmBbF93CosW5tQoKwCFQqqOvueNjGv18JsnCBa8zd1iEl2zNLhIfQ8AyjdDsnUqB5M+uXdwCzflp4TDTrDw==",
         "dependencies": {
           "Argon": "0.33.5",
-          "DiffEngine": "18.4.2",
+          "DiffEngine": "19.1.2",
           "Expecto": "10.2.3",
-          "FSharp.Core": "10.0.103",
+          "FSharp.Core": "11.0.100",
           "SimpleInfoName": "3.2.0",
-          "Verify": "31.13.2"
+          "Verify": "31.15.0"
         }
       },
       "Argon": {
@@ -65,8 +65,8 @@
       },
       "DiffEngine": {
         "type": "Transitive",
-        "resolved": "18.4.2",
-        "contentHash": "wF6X6muxUEqJNEsrzM/EKqN47wCHp7M5oQkze8hjg7SwTuUxso+RZmUJZIOcVilMCjXnNXn0xOxyqoqZYoAs8Q==",
+        "resolved": "19.1.2",
+        "contentHash": "5fteTgsAXovFNT8wnZT3US51KzVOipI2ptvBG5O27BuHqBPgdu6G8dwAnfF7BoP7RCJyLoT4AyoQ5KS3b3YhCw==",
         "dependencies": {
           "EmptyFiles": "8.17.2"
         }
@@ -120,18 +120,18 @@
       },
       "Verify": {
         "type": "Transitive",
-        "resolved": "31.13.2",
-        "contentHash": "RwN7iLJTPmD+iSNuOulhrPx6KJitcnVB/nulAtHm+6xaCAPyEPwq9W/OQ1oITaxhK0/lyATPDO7iFrOrlv+X6A==",
+        "resolved": "31.15.0",
+        "contentHash": "kYcurjOHZQfSggL5nA7Fqw0idzDdQOtDSWyfZ81SaMBgyYNIM01bq53GdYQigmMvqhkBj0Wf5M7qp+CrPRl0uQ==",
         "dependencies": {
           "Argon": "0.33.5",
-          "DiffEngine": "18.4.2",
+          "DiffEngine": "19.1.2",
           "SimpleInfoName": "3.2.0"
         }
       },
       "morphir.models": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.0.103, )",
+          "FSharp.Core": "[11.0.100, )",
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
       },
@@ -139,7 +139,7 @@
         "type": "Project",
         "dependencies": {
           "Expecto": "[10.2.3, )",
-          "FSharp.Core": "[10.0.103, )"
+          "FSharp.Core": "[11.0.100, )"
         }
       },
       "FSharp.SystemTextJson": {
