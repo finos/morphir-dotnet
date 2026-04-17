@@ -16,9 +16,9 @@
       },
       "Reqnroll": {
         "type": "Direct",
-        "requested": "[3.3.3, )",
-        "resolved": "3.3.3",
-        "contentHash": "3f4zOQraEDna8x3yZ9sEuPz4eQ60XsVIyYCr9RnzgK9cfb6ykGxWxkYadj7tq3hP+Qy6ox3va8Ma2p18xzRlig==",
+        "requested": "[3.3.4, )",
+        "resolved": "3.3.4",
+        "contentHash": "tFFx0xACekjT9F/aFZjQMNTbaxy7zNU4uXFXvU1Eybuko2Rx1RLCAzN+uPDiDxsGB/Nd0wZC0M8Ho5i9xm8Jdg==",
         "dependencies": {
           "Cucumber.CucumberExpressions": "17.1.0",
           "Cucumber.HtmlFormatter": "22.2.0",
@@ -30,12 +30,12 @@
       },
       "Reqnroll.TUnit": {
         "type": "Direct",
-        "requested": "[3.3.3, )",
-        "resolved": "3.3.3",
-        "contentHash": "ueRAKgFXQJorapwgrOu4400lJSuYHsUOiwTg6JM3kyuYDKozjI0ijxsI7OsV4lQeJ5ZW1tEhuKZJ/twE6mwNtA==",
+        "requested": "[3.3.4, )",
+        "resolved": "3.3.4",
+        "contentHash": "LP8OFiQ5J/AmjnjVO0G8Xlb1URt+C7Bcior/NwE/LhgjN+V0e+eCqD4hLe8gxjr4Gu6QtJUcxo23OJnDLwmnUA==",
         "dependencies": {
-          "Reqnroll": "3.3.3",
-          "Reqnroll.Tools.MsBuild.Generation": "3.3.3",
+          "Reqnroll": "3.3.4",
+          "Reqnroll.Tools.MsBuild.Generation": "3.3.4",
           "TUnit.Core": "1.3.25"
         }
       },
@@ -75,15 +75,15 @@
       },
       "Verify.TUnit": {
         "type": "Direct",
-        "requested": "[31.13.2, )",
-        "resolved": "31.13.2",
-        "contentHash": "mponkYFVE9CAFmT3RZX3mSWBjmXk0CqG133IvaXmunTodp2IrO52FoQDuA6sxpONqkAmemxA1aTCkpFgH0TjAw==",
+        "requested": "[31.16.1, )",
+        "resolved": "31.16.1",
+        "contentHash": "HncbYp/Y1nVZwHM+zDQho2dBClDcuh+m2xONNtpND3iQ2om4WlfhcUCyQhwLBr7gzEPMjethd4qTjkoi+vFkeA==",
         "dependencies": {
           "Argon": "0.33.5",
-          "DiffEngine": "18.4.2",
+          "DiffEngine": "19.1.2",
           "SimpleInfoName": "3.2.0",
-          "TUnit.Core": "1.16.4",
-          "Verify": "31.13.2"
+          "TUnit.Core": "1.34.5",
+          "Verify": "31.16.1"
         }
       },
       "Argon": {
@@ -111,8 +111,8 @@
       },
       "DiffEngine": {
         "type": "Transitive",
-        "resolved": "18.4.2",
-        "contentHash": "wF6X6muxUEqJNEsrzM/EKqN47wCHp7M5oQkze8hjg7SwTuUxso+RZmUJZIOcVilMCjXnNXn0xOxyqoqZYoAs8Q==",
+        "resolved": "19.1.2",
+        "contentHash": "5fteTgsAXovFNT8wnZT3US51KzVOipI2ptvBG5O27BuHqBPgdu6G8dwAnfF7BoP7RCJyLoT4AyoQ5KS3b3YhCw==",
         "dependencies": {
           "EmptyFiles": "8.17.2"
         }
@@ -200,8 +200,8 @@
       },
       "Reqnroll.Tools.MsBuild.Generation": {
         "type": "Transitive",
-        "resolved": "3.3.3",
-        "contentHash": "hKh06b4dKTy8YzcyCmtH3pH6dPZ5v4xhHvZ6Rq4AlDQgzvqtkqcgtAMYJEjMtvnaNfJVQcg6pZSi9s2w/zX50g=="
+        "resolved": "3.3.4",
+        "contentHash": "atTwejJRcKgUcJCofp4uSPKNXBav6ZITHtuD6dhByg1ubyVJirjz5TkcVCR9oFnHAEbZvOdd4cYCJNPO9rSAsQ=="
       },
       "SimpleInfoName": {
         "type": "Transitive",
@@ -215,8 +215,8 @@
       },
       "TUnit.Core": {
         "type": "Transitive",
-        "resolved": "1.16.4",
-        "contentHash": "xW0BX4hwJHn0r4UhiBrj8mfx01VlwZzg1XWMKG2KqIVcKXvcuprKALkWhQetO++h4cWTdEiWHoJCacW8vEaI9Q=="
+        "resolved": "1.34.5",
+        "contentHash": "LZKaDlmAhBDE81nSpr4vypSvKKx5dLc5e3geiNsgPsaunD+EcQ98BJWpCC8BjVEQgcfZY/7WW2RHZdtJ5lTtBg=="
       },
       "TUnit.Engine": {
         "type": "Transitive",
@@ -232,11 +232,11 @@
       },
       "Verify": {
         "type": "Transitive",
-        "resolved": "31.13.2",
-        "contentHash": "RwN7iLJTPmD+iSNuOulhrPx6KJitcnVB/nulAtHm+6xaCAPyEPwq9W/OQ1oITaxhK0/lyATPDO7iFrOrlv+X6A==",
+        "resolved": "31.16.1",
+        "contentHash": "nw/NcGR7RjkFyin5Vh8Txm7jn+TDi9PI4dYaFUj3gKx5oBGEqCdEvHfiTOZ3rshHzcQcfVi669itNx0ApFwTxA==",
         "dependencies": {
           "Argon": "0.33.5",
-          "DiffEngine": "18.4.2",
+          "DiffEngine": "19.1.2",
           "SimpleInfoName": "3.2.0"
         }
       },
