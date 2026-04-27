@@ -19,11 +19,11 @@
       },
       "Foundatio.Mediator": {
         "type": "Direct",
-        "requested": "[1.0.0-rc.13, )",
-        "resolved": "1.0.0-rc.13",
-        "contentHash": "v/lxarBDCG+STcWrk0XSxBEegZEMW4EYuXl3z4eID2ZC+syw4T846UKGaDZ9LwGbPTt/tK4LJOYIpMjin/+EcQ==",
+        "requested": "[1.1.0, )",
+        "resolved": "1.1.0",
+        "contentHash": "X4ow1KYRqqWGGfChd5UuLLRg1xgS3woGSY3LAQrxP0krELSFqShnjjZwliPZLjVOqLMNcZtuCs42Qj/zwwB5lg==",
         "dependencies": {
-          "Foundatio.Mediator.Abstractions": "1.0.0-rc.13"
+          "Foundatio.Mediator.Abstractions": "1.1.0"
         }
       },
       "Ionide.KeepAChangelog.Tasks": {
@@ -107,17 +107,17 @@
       },
       "System.CommandLine": {
         "type": "Direct",
-        "requested": "[2.0.3, )",
-        "resolved": "2.0.3",
-        "contentHash": "5nY9hlrGGFEmyecNUux58sohD2Q16U6jlFBYwH57b2IVUs+u7LfMFaHwOtw2tuIi8CUl6jKXw5s4FuIt9aLtug=="
+        "requested": "[2.0.7, )",
+        "resolved": "2.0.7",
+        "contentHash": "ih4yNLLF2Ebz85xJJBaPeddLa4d1AekYId7Y1g8oSsEaBHHd/CtyeBJ+tDvQadqeXz7i591K5ry/td+4aaHnQA=="
       },
       "Foundatio.Mediator.Abstractions": {
         "type": "Transitive",
-        "resolved": "1.0.0-rc.13",
-        "contentHash": "6NW+LVJBjv6QQ8UOKiTlBShPKhAqqytTitp7jw02nEbcP6+RSimR01Al4+yRt1dc8Qz+23+q4AxCm/ufioFHng==",
+        "resolved": "1.1.0",
+        "contentHash": "RjAS7TINz+BBnTmSBF3NC2Ih/rkvDNfA0G83gJFRDJWJweByMQkbFvXN9WgEr0Gm1/tX2NiPwMLWKCDmu1oMOw==",
         "dependencies": {
-          "Microsoft.Bcl.AsyncInterfaces": "10.0.3",
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.3",
+          "Microsoft.Bcl.AsyncInterfaces": "10.0.5",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.5",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.1"
         }
       },
@@ -136,8 +136,8 @@
       },
       "Microsoft.Bcl.AsyncInterfaces": {
         "type": "Transitive",
-        "resolved": "10.0.3",
-        "contentHash": "TV62UsrJZPX6gbt3c4WrtXh7bmaDIcMqf9uft1cc4L6gJXOU07hDGEh+bFQh/L2Az0R1WVOkiT66lFqS6G2NmA=="
+        "resolved": "10.0.5",
+        "contentHash": "hQB3Hq1LlF0NkGVNyZIvwIQIY3LM7Cw1oYjNiTvdNqmzzipVAWEK1c5sj2H5aFX0udnjgPLxSYKq2fupueS8ow=="
       },
       "Microsoft.Bcl.HashCode": {
         "type": "Transitive",
@@ -232,8 +232,8 @@
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
         "type": "Transitive",
-        "resolved": "10.0.3",
-        "contentHash": "bwGMrRcAMWx2s/RDgja97p27rxSz2pEQW0+rX5cWAUWVETVJ/eyxGfjAl8vuG5a+lckWmPIE+vcuaZNVB5YDdw=="
+        "resolved": "10.0.5",
+        "contentHash": "iVMtq9eRvzyhx8949EGT0OCYJfXi737SbRVzWXE5GrOgGj5AaZ9eUuxA/BSUfmOMALKn/g8KfFaNQw0eiB3lyA=="
       },
       "Microsoft.Extensions.Diagnostics": {
         "type": "Transitive",
@@ -406,13 +406,13 @@
       "morphir.configuration": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.0.103, )"
+          "FSharp.Core": "[11.0.100, )"
         }
       },
       "morphir.core": {
         "type": "Project",
         "dependencies": {
-          "Dunet": "[1.16.1, )",
+          "Dunet": "[1.16.2, )",
           "Generator.Equals": "[3.3.0, )",
           "LanguageExt.Core": "[5.0.0-beta-77, )",
           "Vogen": "[8.0.4, )"
@@ -420,15 +420,15 @@
       },
       "Dunet": {
         "type": "CentralTransitive",
-        "requested": "[1.16.1, )",
-        "resolved": "1.16.1",
-        "contentHash": "ioVu/TMuXsbhskVkemzx/9UvKDAc+doPccKAkQckHe3ncjgBbPErsTE/MLdSRaTcZEK93+J9NsqUKeCWegbZyQ=="
+        "requested": "[1.16.2, )",
+        "resolved": "1.16.2",
+        "contentHash": "R4PEZo50RK76wRW1kq4xiQqX/hnrx8Gn+8T1XIEYuigyjVh3Guhtt3+b4GG2j3h+E3VadLINtbV+Id79nsFy/Q=="
       },
       "FSharp.Core": {
         "type": "CentralTransitive",
-        "requested": "[10.0.103, )",
-        "resolved": "10.0.103",
-        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
+        "requested": "[11.0.100, )",
+        "resolved": "11.0.100",
+        "contentHash": "ijfOz8ihqkFNdKUY57l8YTrbJNfQW/6tFYAUU57ByZzmTxxf1o12cQaCqDOjNqAz4h86AKS7IwQkNhYcrjLeCQ=="
       },
       "Generator.Equals": {
         "type": "CentralTransitive",
