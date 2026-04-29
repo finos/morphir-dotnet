@@ -13,9 +13,9 @@
     <LanguageExtVersion>5.0.0-beta-77</LanguageExtVersion>
     <LightBDDVersion>3.6.1</LightBDDVersion>
     <SystemCommandLineVersion>2.0.0-beta4.22272.1</SystemCommandLineVersion>
-    <ReqnrollVersion>3.3.3</ReqnrollVersion>
+    <ReqnrollVersion>3.3.4</ReqnrollVersion>
     <TickSpecVersion>2.0.2</TickSpecVersion>
-    <VerifyVersion>31.13.2</VerifyVersion>
+    <VerifyVersion>31.16.2</VerifyVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Autofac" Version="7.0.0" />
@@ -24,8 +24,8 @@
     <PackageVersion Include="BunsenBurner.Bogus" Version="$(BunsenBurnerVersion)" />
     <PackageVersion Include="BunsenBurner.Hedgehog" Version="$(BunsenBurnerVersion)" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
-    <PackageVersion Include="Dunet" Version="1.16.1" />
-    <PackageVersion Include="FSharp.Core" Version="10.0.103" />
+    <PackageVersion Include="Dunet" Version="1.16.2" />
+    <PackageVersion Include="FSharp.Core" Version="11.0.100" />
     <PackageVersion Include="FSharp.Data" Version="5.0.2" />
     <PackageVersion Include="FSharp.SystemCommandLine" Version="0.17.0-beta4" />
     <PackageVersion Include="Generator.Equals" Version="3.3.0" />
@@ -39,17 +39,17 @@
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.0.2" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All" />
     <PackageVersion Include="altcover" Version="8.9.3" />
-    <PackageVersion Include="System.CommandLine" Version="2.0.3" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.7" />
     <PackageVersion Include="Funcky.DiscriminatedUnion" Version="1.2.1" />
     <PackageVersion Include="MSBuild.StructuredLogger" Version="2.1.768" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
     <PackageVersion Include="StaticCS" Version="0.3.1" />
-    <PackageVersion Include="FluentAssertions" Version="8.8.0" />
+    <PackageVersion Include="FluentAssertions" Version="8.9.0" />
     <PackageVersion Include="FluentValidation" Version="11.12.0" />
     <PackageVersion Include="Json.More.Net" Version="2.2.0" />
     <PackageVersion Include="JsonSchema.Net" Version="8.0.5" />
     <PackageVersion Include="JsonPointer.Net" Version="6.0.1" />
-    <PackageVersion Include="Foundatio.Mediator" Version="1.0.0-rc.13" />
+    <PackageVersion Include="Foundatio.Mediator" Version="1.2.1" />
     <PackageVersion Include="YamlDotNet" Version="16.3.0" />
     <PackageVersion Include="FSharp.Formatting" Version="4.0.0-rc1" />
     <PackageVersion Include="FSharp.Literate" Version="4.0.0-rc1" />
@@ -68,11 +68,11 @@
     <PackageVersion Include="Fun.Blazor.BlazorMonaco" Version="3.4.0" />
     <PackageVersion Include="MudBlazor" Version="8.15.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.7" />
     <PackageVersion Include="bunit" Version="1.40.0" />
     <PackageVersion Include="bunit.web" Version="1.40.0" />
     <PackageVersion Include="BlazorMonaco" Version="3.4.0" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.1.0" />
     <PackageVersion Include="Reqnroll" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Reqnroll.TUnit" Version="$(ReqnrollVersion)" />
@@ -90,14 +90,14 @@
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.TUnit" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
-    <PackageVersion Include="YoloDev.Expecto.TestSdk" Version="0.15.5" />
-    <PackageVersion Include="Vogen" Version="8.0.4" />
+    <PackageVersion Include="YoloDev.Expecto.TestSdk" Version="0.15.6" />
+    <PackageVersion Include="Vogen" Version="8.0.5" />
     <PackageVersion Include="TickSpec" Version="2.0.2" />
     <PackageVersion Include="Ionide.KeepAChangelog.Tasks" Version="0.3.3" />
     <!-- F# Script Dependencies (for .claude/skills) -->
     <PackageVersion Include="Argu" Version="6.2.4" />
     <PackageVersion Include="Spectre.Console" Version="0.53.0" />
-    <PackageVersion Include="System.Text.Json" Version="9.0.13" />
+    <PackageVersion Include="System.Text.Json" Version="9.0.15" />
     <PackageVersion Include="FSharp.SystemTextJson" Version="1.4.36" />
     <!-- Code Generation Dependencies -->
     <PackageVersion Include="Myriad.Core" Version="0.85.0" />
