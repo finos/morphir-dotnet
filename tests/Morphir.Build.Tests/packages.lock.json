@@ -10,9 +10,9 @@
       },
       "FluentAssertions": {
         "type": "Direct",
-        "requested": "[8.8.0, )",
-        "resolved": "8.8.0",
-        "contentHash": "m0kwcqBwvVel03FuMa7Ozo/oTaxYbjeNlcOhQFkyQpwX/8wks6RNl/Jnn58DCZVs6c2oG1RsCZw7HfKSaxLm3w=="
+        "requested": "[8.9.0, )",
+        "resolved": "8.9.0",
+        "contentHash": "Y5RDjxaVlxWX2yy0X/ay1tJjSKMOtjepSb83mmfngFS63hm3LsoZNj6nhmImzm1ifRmpF9ouvmHjx9nNwnkpDg=="
       },
       "TUnit": {
         "type": "Direct",
@@ -549,9 +549,9 @@
       },
       "FSharp.Core": {
         "type": "CentralTransitive",
-        "requested": "[10.0.103, )",
-        "resolved": "10.0.103",
-        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
+        "requested": "[10.1.203, )",
+        "resolved": "10.1.203",
+        "contentHash": "I2MFk72yHqfgI594gKFigq8PVIso0Mh1ZUgG9R4n8gyYQ4IwpBxmvecfjnKA7iMLdVHYULB70PsLwYW/K76gew=="
       },
       "Ionide.KeepAChangelog": {
         "type": "CentralTransitive",

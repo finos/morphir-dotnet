@@ -14,9 +14,9 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[10.0.103, )",
-        "resolved": "10.0.103",
-        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
+        "requested": "[10.1.203, )",
+        "resolved": "10.1.203",
+        "contentHash": "I2MFk72yHqfgI594gKFigq8PVIso0Mh1ZUgG9R4n8gyYQ4IwpBxmvecfjnKA7iMLdVHYULB70PsLwYW/K76gew=="
       },
       "Fun.Blazor": {
         "type": "Direct",
@@ -70,9 +70,9 @@
       },
       "Microsoft.AspNetCore.Components.WebAssembly.DevServer": {
         "type": "Direct",
-        "requested": "[10.0.3, )",
-        "resolved": "10.0.3",
-        "contentHash": "BYWLabl3xbopAqRu1ZZaYiur0J9Hp9oRDq6AfmMI/Q8pVeTRXUhtJwzVpQdyc9e8PNO44xWM8imbe+L41zfB0Q=="
+        "requested": "[10.0.7, )",
+        "resolved": "10.0.7",
+        "contentHash": "VfFuuTIgLXbtFclhz5f/PQWlygaSaF9pwtiXJjpt8k3pjndlm+aUWZ26LtpbBWY0e+Punqr9Xy/ar6W0cdWlww=="
       },
       "Microsoft.DotNet.HotReload.WebAssembly.Browser": {
         "type": "Direct",

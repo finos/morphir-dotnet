@@ -30,32 +30,32 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[10.0.103, )",
-        "resolved": "10.0.103",
-        "contentHash": "GfQInb74eDh9JZ8wx4+t/lOrH1uRqZvneuViVJ8CwbQwmtyyZoeGuzRayL01MNAsm8B6eRenWwJThu01EFPeKg=="
+        "requested": "[11.0.100, )",
+        "resolved": "11.0.100",
+        "contentHash": "ijfOz8ihqkFNdKUY57l8YTrbJNfQW/6tFYAUU57ByZzmTxxf1o12cQaCqDOjNqAz4h86AKS7IwQkNhYcrjLeCQ=="
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
-        "requested": "[18.3.0, )",
-        "resolved": "18.3.0",
-        "contentHash": "xW3kXuWRQtgoxJp4J+gdhHSQyK+6Wb/AZDSd7lMvuMRYlZ1tnpkojyfZlWilB5G4dmZ0Y0ZxU/M23TlubndNkw==",
+        "requested": "[18.5.1, )",
+        "resolved": "18.5.1",
+        "contentHash": "SfqVaLiIqAbRWuPg5BP4QFwBIirQj/YIL8Dhxl6zntBKbXp0cQykoV480SmwG+yRMiWptxEI6NbHQuGSZ8b97w==",
         "dependencies": {
-          "Microsoft.CodeCoverage": "18.3.0",
-          "Microsoft.TestPlatform.TestHost": "18.3.0"
+          "Microsoft.CodeCoverage": "18.5.1",
+          "Microsoft.TestPlatform.TestHost": "18.5.1"
         }
       },
       "Verify.Expecto": {
         "type": "Direct",
-        "requested": "[31.13.2, )",
-        "resolved": "31.13.2",
-        "contentHash": "2T3nZEU6uIHgdrjBX6dvL5xqSQ4/i1X7c2yC0ufvG5QBaTjclIp5PnVMLEmiAoCq36ybtARB+mfX1Dk1cTlxPg==",
+        "requested": "[31.16.2, )",
+        "resolved": "31.16.2",
+        "contentHash": "/cTS7K15H70lbjbLt6NY1DBrT0Yaox2f9oMLXkPlHmqnTA0lst5vEUUOqCuzmx83f/IK81Keck0TZwQX+prJPw==",
         "dependencies": {
           "Argon": "0.33.5",
-          "DiffEngine": "18.4.2",
+          "DiffEngine": "19.1.3",
           "Expecto": "10.2.3",
-          "FSharp.Core": "10.0.103",
+          "FSharp.Core": "11.0.100",
           "SimpleInfoName": "3.2.0",
-          "Verify": "31.13.2"
+          "Verify": "31.16.2"
         }
       },
       "Argon": {
@@ -65,10 +65,10 @@
       },
       "DiffEngine": {
         "type": "Transitive",
-        "resolved": "18.4.2",
-        "contentHash": "wF6X6muxUEqJNEsrzM/EKqN47wCHp7M5oQkze8hjg7SwTuUxso+RZmUJZIOcVilMCjXnNXn0xOxyqoqZYoAs8Q==",
+        "resolved": "19.1.3",
+        "contentHash": "4Tsn/JeL5GF4RJhW1yTtUPMqYWck1eOfJwE3CrlQsOlrFc9WyUxZPgywB7zvRPi6pVKShzcch0WbTkWe3GB7HA==",
         "dependencies": {
-          "EmptyFiles": "8.17.2"
+          "EmptyFiles": "8.18.1"
         }
       },
       "editorconfig": {
@@ -78,8 +78,8 @@
       },
       "EmptyFiles": {
         "type": "Transitive",
-        "resolved": "8.17.2",
-        "contentHash": "2oyDVmM/DU3g0h2kqcV05zjOUfo9AdwPoduIGh0LZL6nXqSN4qhZna2M/aJoYiQrmIznJ52wxYCmxDnWaRZ1JQ=="
+        "resolved": "8.18.1",
+        "contentHash": "5gA7ICU+CafaHJLbrL/lOEABwkmXS6089WoCbn+NkIul2ATAGGzQsD4cXOFmYmQp6b9Jd/f4bb2EK+14dY75Pw=="
       },
       "Fantomas.FCS": {
         "type": "Transitive",
@@ -99,20 +99,20 @@
       },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
-        "resolved": "18.3.0",
-        "contentHash": "23BNy/vziREC20Wwhb50K7+kZe0m07KlLWDQv4qjJ9tt3QjpDpDIqJFrhYHmMEo9xDkuSp55U/8h4bMF7MiB+g=="
+        "resolved": "18.5.1",
+        "contentHash": "vMFDR1ZjqzzgKmM0zrPie7Gv9Y+ZppjODB5Quzu9Eq0TlIusUfUCYFPEawO91zQuqwzvdFbJSU7WHNtjStffJQ=="
       },
       "Microsoft.TestPlatform.ObjectModel": {
         "type": "Transitive",
-        "resolved": "18.3.0",
-        "contentHash": "AEIEX2aWdPO9XbtR96eBaJxmXRD9vaI9uQ1T/JbPEKlTAZwYx0ZrMzKyULMdh/HH9Sg03kXCoN7LszQ90o6nPQ=="
+        "resolved": "18.5.1",
+        "contentHash": "KNZd+M0S0rz5eNAln0pbZX+A/RbokYZCbGKx4fN4CkhtWhkz6nSJDO+9LGYjRE4d0WPVriJ2JnVubkjt3+PpMg=="
       },
       "Microsoft.TestPlatform.TestHost": {
         "type": "Transitive",
-        "resolved": "18.3.0",
-        "contentHash": "twmsoelXnp1uWMU3VGip9f0Jr1mZ0PZqgJdF35CIrdYgYrkHIJMV1m8uKyhcdjLdsQDESHAgkR7KhS9i1qpJag==",
+        "resolved": "18.5.1",
+        "contentHash": "RM+3JNHEoHOCFXzVntUcIiYxzPjzBN0N8wto6HYXi76YyBTZ/3CeRL8U+Pk5zx3AUrOmHxDvKJwGUCdElU9bJg==",
         "dependencies": {
-          "Microsoft.TestPlatform.ObjectModel": "18.3.0",
+          "Microsoft.TestPlatform.ObjectModel": "18.5.1",
           "Newtonsoft.Json": "13.0.3"
         }
       },
@@ -133,11 +133,11 @@
       },
       "Verify": {
         "type": "Transitive",
-        "resolved": "31.13.2",
-        "contentHash": "RwN7iLJTPmD+iSNuOulhrPx6KJitcnVB/nulAtHm+6xaCAPyEPwq9W/OQ1oITaxhK0/lyATPDO7iFrOrlv+X6A==",
+        "resolved": "31.16.2",
+        "contentHash": "5FfUZ61HNRr10S/SvXT4NAf61jUw1B+jgxKDN74hHGVW7K+QyZ/M7lyz6fqVF4RHYU6kSZhtVtKWFgrs3yuBQg==",
         "dependencies": {
           "Argon": "0.33.5",
-          "DiffEngine": "18.4.2",
+          "DiffEngine": "19.1.3",
           "SimpleInfoName": "3.2.0"
         }
       },
@@ -145,7 +145,7 @@
         "type": "Project",
         "dependencies": {
           "FSharp.Compiler.Service": "[34.1.1, )",
-          "FSharp.Core": "[10.0.103, )",
+          "FSharp.Core": "[11.0.100, )",
           "Fabulous.AST": "[1.10.0, )",
           "Fantomas.Core": "[7.0.5, )",
           "Myriad.Core": "[0.85.0, )"
