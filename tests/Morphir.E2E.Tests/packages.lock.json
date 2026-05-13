@@ -10,15 +10,15 @@
       },
       "FluentAssertions": {
         "type": "Direct",
-        "requested": "[8.8.0, )",
-        "resolved": "8.8.0",
-        "contentHash": "m0kwcqBwvVel03FuMa7Ozo/oTaxYbjeNlcOhQFkyQpwX/8wks6RNl/Jnn58DCZVs6c2oG1RsCZw7HfKSaxLm3w=="
+        "requested": "[8.10.0, )",
+        "resolved": "8.10.0",
+        "contentHash": "yGvv+xp0gHFgGwhQcGoDdKIrhLhPi3zYYWWLLHPMctr+G6PWD7QH8L4wqoa5WRZquPbfSV/cP1MraI7ppAHrWw=="
       },
       "Reqnroll": {
         "type": "Direct",
-        "requested": "[3.3.3, )",
-        "resolved": "3.3.3",
-        "contentHash": "3f4zOQraEDna8x3yZ9sEuPz4eQ60XsVIyYCr9RnzgK9cfb6ykGxWxkYadj7tq3hP+Qy6ox3va8Ma2p18xzRlig==",
+        "requested": "[3.3.4, )",
+        "resolved": "3.3.4",
+        "contentHash": "tFFx0xACekjT9F/aFZjQMNTbaxy7zNU4uXFXvU1Eybuko2Rx1RLCAzN+uPDiDxsGB/Nd0wZC0M8Ho5i9xm8Jdg==",
         "dependencies": {
           "Cucumber.CucumberExpressions": "17.1.0",
           "Cucumber.HtmlFormatter": "22.2.0",
@@ -30,12 +30,12 @@
       },
       "Reqnroll.TUnit": {
         "type": "Direct",
-        "requested": "[3.3.3, )",
-        "resolved": "3.3.3",
-        "contentHash": "ueRAKgFXQJorapwgrOu4400lJSuYHsUOiwTg6JM3kyuYDKozjI0ijxsI7OsV4lQeJ5ZW1tEhuKZJ/twE6mwNtA==",
+        "requested": "[3.3.4, )",
+        "resolved": "3.3.4",
+        "contentHash": "LP8OFiQ5J/AmjnjVO0G8Xlb1URt+C7Bcior/NwE/LhgjN+V0e+eCqD4hLe8gxjr4Gu6QtJUcxo23OJnDLwmnUA==",
         "dependencies": {
-          "Reqnroll": "3.3.3",
-          "Reqnroll.Tools.MsBuild.Generation": "3.3.3",
+          "Reqnroll": "3.3.4",
+          "Reqnroll.Tools.MsBuild.Generation": "3.3.4",
           "TUnit.Core": "1.3.25"
         }
       },
@@ -129,8 +129,8 @@
       },
       "Reqnroll.Tools.MsBuild.Generation": {
         "type": "Transitive",
-        "resolved": "3.3.3",
-        "contentHash": "hKh06b4dKTy8YzcyCmtH3pH6dPZ5v4xhHvZ6Rq4AlDQgzvqtkqcgtAMYJEjMtvnaNfJVQcg6pZSi9s2w/zX50g=="
+        "resolved": "3.3.4",
+        "contentHash": "atTwejJRcKgUcJCofp4uSPKNXBav6ZITHtuD6dhByg1ubyVJirjz5TkcVCR9oFnHAEbZvOdd4cYCJNPO9rSAsQ=="
       },
       "TUnit.Assertions": {
         "type": "Transitive",
