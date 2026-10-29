@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 
@@ -43,7 +44,7 @@ public class CliTestHelper
         var startInfo = new ProcessStartInfo
         {
             FileName = "dotnet",
-            Arguments = $"run --project \"{_cliProjectPath}\" --no-build -- {arguments}",
+            Arguments = $"run --project \"{_cliProjectPath}\" --configuration {typeof(CliTestHelper).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration} --no-build -- {arguments}",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -114,20 +115,21 @@ public class CliTestHelper
     }
 
     /// <summary>
-    /// Find repository root by looking for .git directory
+    /// Find repository root by looking for a .git directory or worktree file
     /// </summary>
     private static string FindRepositoryRoot(string startPath)
     {
         var current = new DirectoryInfo(startPath);
         while (current != null)
         {
-            if (Directory.Exists(Path.Combine(current.FullName, ".git")))
+            var gitPath = Path.Combine(current.FullName, ".git");
+            if (Directory.Exists(gitPath) || File.Exists(gitPath))
                 return current.FullName;
 
             current = current.Parent;
         }
 
-        throw new InvalidOperationException("Could not find repository root (.git directory)");
+        throw new InvalidOperationException("Could not find repository root (.git directory or file)");
     }
 
     /// <summary>

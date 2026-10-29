@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Xml.Linq;
 using FluentAssertions;
 using TUnit.Core;
 
@@ -20,6 +21,7 @@ public class LocalInstallationTests
         {
             var localSource = Path.Combine(tempDir, "feed");
             Directory.CreateDirectory(localSource);
+            var configPath = CreateLocalFeedConfig(localSource);
 
             var toolPackage = TestFixture.FindLatestPackage("Morphir.Tool.*.nupkg");
             toolPackage.Should().NotBeNull("Tool package should exist after build");
@@ -33,7 +35,7 @@ public class LocalInstallationTests
 
             // Act - Install tool from local source (version is required for local feeds)
             var installResult = await RunDotnetCommand(
-                $"tool install Morphir.Tool --version {version} --tool-path {tempDir} --add-source {localSource}");
+                $"tool install Morphir.Tool --version {version} --tool-path \"{tempDir}\" --configfile \"{configPath}\"");
 
             // Assert
             installResult.ExitCode.Should().Be(0,
@@ -68,6 +70,7 @@ public class LocalInstallationTests
         {
             var localSource = Path.Combine(tempDir, "feed");
             Directory.CreateDirectory(localSource);
+            var configPath = CreateLocalFeedConfig(localSource);
 
             var toolPackage = TestFixture.FindLatestPackage("Morphir.Tool.*.nupkg");
             toolPackage.Should().NotBeNull("Tool package should exist after build");
@@ -81,7 +84,7 @@ public class LocalInstallationTests
 
             // Install tool (version is required for local feeds)
             await RunDotnetCommand(
-                $"tool install Morphir.Tool --version {version} --tool-path {tempDir} --add-source {localSource}");
+                $"tool install Morphir.Tool --version {version} --tool-path \"{tempDir}\" --configfile \"{configPath}\"");
 
             // Act - Run the tool command
             var toolPath = Path.Combine(tempDir, "dotnet-morphir");
@@ -119,6 +122,7 @@ public class LocalInstallationTests
         {
             var localSource = Path.Combine(tempDir, "feed");
             Directory.CreateDirectory(localSource);
+            var configPath = CreateLocalFeedConfig(localSource);
 
             var toolPackage = TestFixture.FindLatestPackage("Morphir.Tool.*.nupkg");
             toolPackage.Should().NotBeNull("Tool package should exist after build");
@@ -132,7 +136,7 @@ public class LocalInstallationTests
 
             // Install tool (version is required for local feeds)
             await RunDotnetCommand(
-                $"tool install Morphir.Tool --version {version} --tool-path {tempDir} --add-source {localSource}");
+                $"tool install Morphir.Tool --version {version} --tool-path \"{tempDir}\" --configfile \"{configPath}\"");
 
             // Act - Uninstall tool
             var uninstallResult = await RunDotnetCommand(
@@ -161,6 +165,18 @@ public class LocalInstallationTests
     }
 
     // Helper methods
+
+    private static string CreateLocalFeedConfig(string localSource)
+    {
+        var configPath = Path.Combine(localSource, "NuGet.config");
+        var config = new XDocument(
+            new XElement("configuration",
+                new XElement("packageSources",
+                    new XElement("clear"),
+                    new XElement("add", new XAttribute("key", "local"), new XAttribute("value", localSource)))));
+        config.Save(configPath);
+        return configPath;
+    }
 
     private async Task<CommandResult> RunDotnetCommand(string arguments)
     {
