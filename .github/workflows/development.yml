@@ -84,9 +84,28 @@ jobs:
               shell: bash
               run: ./build.sh --target TestBuild --configuration ${{ env.CONFIGURATION }}
 
+    openspec:
+        name: OpenSpec workflow
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+            - name: Complete the pinned MoonBit SDK and package registry
+              run: |
+                set -euo pipefail
+                curl -fsSL https://cli.moonbitlang.com/install/unix.sh | \
+                  MOON_HOME="$(mise where http:moonbit)" bash -s -- "$(mise current http:moonbit)"
+                mise exec -- moon update
+
+            - name: Verify shared OpenSpec workflow
+              run: mise run openspec:verify
+
     ci:
         runs-on: ubuntu-latest
-        needs: [lint, test]
+        needs: [lint, test, openspec]
         steps:
             - uses: actions/checkout@v6.0.1
             - name: Aggregate of lint, and all tests
