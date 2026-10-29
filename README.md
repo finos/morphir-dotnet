@@ -108,7 +108,7 @@ This project uses [Nuke](https://nuke.build/) for build orchestration, providing
 
 ### Requirements
 
-- [.NET SDK 10.0](https://dotnet.microsoft.com/download) or higher
+- [.NET SDK 10.0.403](https://dotnet.microsoft.com/download) or a later patch in the same feature band, as specified in `global.json`
 
 ### Basic Commands
 

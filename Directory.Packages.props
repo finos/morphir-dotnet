@@ -58,22 +58,22 @@
     <PackageVersion Include="Dotnet.ProjInfo.Workspace.FCS" Version="0.39" />
     <PackageVersion Include="FSharp.Compiler.Service" Version="34.1.1" />
     <PackageVersion Include="LanguageExt.Core" Version="$(LanguageExtVersion)" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.14" />
     <PackageVersion Include="Fun.Blazor" Version="4.1.10" />
     <PackageVersion Include="Fun.Blazor.Cli" Version="4.1.9" />
     <PackageVersion Include="Fun.Blazor.MudBlazor" Version="8.15.0" />
     <PackageVersion Include="Fun.Blazor.BlazorMonaco" Version="3.4.0" />
     <PackageVersion Include="MudBlazor" Version="8.15.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.14" />
     <PackageVersion Include="bunit" Version="1.40.0" />
     <PackageVersion Include="bunit.web" Version="1.40.0" />
     <PackageVersion Include="BlazorMonaco" Version="3.4.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.1.0" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.4.1" />
     <PackageVersion Include="Reqnroll" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Reqnroll.TUnit" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Serilog" Version="4.3.1" />
@@ -84,7 +84,7 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
-    <PackageVersion Include="TUnit" Version="1.6.28" />
+    <PackageVersion Include="TUnit" Version="1.16.4" />
     <PackageVersion Include="Expecto" Version="10.2.3" />
     <PackageVersion Include="Expecto.FsCheck" Version="10.2.3" />
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
