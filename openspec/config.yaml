@@ -1,0 +1,10 @@
+# Copyright 2026 FINOS
+# SPDX-License-Identifier: Apache-2.0
+
+schema: html-design
+githubCopilot:
+  cloudAgent: false
+context: |
+  Morphir .NET uses .NET 10, C# and F#, with Nuke build orchestration.
+  Preserve immutable Morphir IR models, typed errors and compatibility.
+  Follow AGENTS.md, CONTRIBUTING.md and README.md for testing, FINOS contribution notices and review; link the GitHub issue. Changes need explicit approval before merge.
