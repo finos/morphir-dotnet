@@ -34,7 +34,7 @@ jobs:
             - name: Setup .NET SDK
               uses: actions/setup-dotnet@v5
               with:
-                  dotnet-version: "10.0.x"
+                  global-json-file: global.json
             # TEMPORARILY DISABLED: Cache causing NU1403 errors with FSharp.Core.10.0.101
             # Re-enable once cache is stable
             # - uses: actions/cache@v5
@@ -59,7 +59,7 @@ jobs:
             - name: Setup .NET SDK
               uses: actions/setup-dotnet@v5
               with:
-                  dotnet-version: "10.0.x"
+                  global-json-file: global.json
             # TEMPORARILY DISABLED: Cache causing NU1403 errors with FSharp.Core.10.0.101
             # Re-enable once cache is stable
             # - uses: actions/cache@v5

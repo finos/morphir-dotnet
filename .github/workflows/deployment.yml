@@ -106,7 +106,7 @@ jobs:
             - name: Setup .NET SDK
               uses: actions/setup-dotnet@v5
               with:
-                  dotnet-version: "10.0.x"
+                  global-json-file: global.json
 
             - name: Cache Nuget Packages
               uses: actions/cache@v5
@@ -162,10 +162,7 @@ jobs:
             - name: Setup .NET SDK
               uses: actions/setup-dotnet@v5
               with:
-                  dotnet-version: "10.0.x"
-            # Not specifying a version will attempt to install via global.json
-            - name: Use .NET Core global.json
-              uses: actions/setup-dotnet@v5
+                  global-json-file: global.json
 
             - name: Cache Nuget Packages
               uses: actions/cache@v5

@@ -18,9 +18,33 @@ public class PathHelperTests
         // Assert
         root.Should().NotBeNullOrEmpty();
         Directory.Exists(root).Should().BeTrue("Repository root should exist");
-        Directory.Exists(Path.Combine(root, ".git")).Should().BeTrue("Repository root should contain .git directory");
+        var gitPath = Path.Combine(root, ".git");
+        (Directory.Exists(gitPath) || File.Exists(gitPath)).Should().BeTrue("Repository root should contain a .git directory or worktree file");
 
         await Task.CompletedTask;
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void GetRepositoryRoot_FindsGitDirectoryOrWorktreeFile(bool isWorktree)
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"morphir-root-{Guid.NewGuid():N}");
+        var nestedDirectory = Directory.CreateDirectory(Path.Combine(root, "src", "nested"));
+        try
+        {
+            var gitPath = Path.Combine(root, ".git");
+            if (isWorktree)
+                File.WriteAllText(gitPath, "gitdir: /repository/.git/worktrees/test");
+            else
+                Directory.CreateDirectory(gitPath);
+
+            PathHelper.GetRepositoryRoot(nestedDirectory.FullName).Should().Be(root);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Test]
