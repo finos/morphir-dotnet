@@ -142,18 +142,23 @@ public static class PathHelper
     }
 
     /// <summary>
-    /// Gets the repository root directory (where .git folder exists)
+    /// Gets the repository root directory containing a .git directory or worktree file
     /// </summary>
     /// <returns>Full path to the repository root</returns>
     /// <exception cref="InvalidOperationException">Thrown when repository root cannot be found</exception>
-    public static string GetRepositoryRoot()
+    public static string GetRepositoryRoot() => GetRepositoryRoot(Directory.GetCurrentDirectory());
+
+    /// <summary>
+    /// Gets the repository root by searching upward from the specified directory
+    /// </summary>
+    public static string GetRepositoryRoot(string startPath)
     {
-        var currentDir = Directory.GetCurrentDirectory();
-        var dir = new DirectoryInfo(currentDir);
+        var dir = new DirectoryInfo(startPath);
 
         while (dir != null)
         {
-            if (Directory.Exists(Path.Combine(dir.FullName, ".git")))
+            var gitPath = Path.Combine(dir.FullName, ".git");
+            if (Directory.Exists(gitPath) || File.Exists(gitPath))
             {
                 return dir.FullName;
             }

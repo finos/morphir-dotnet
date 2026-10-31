@@ -62,7 +62,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: "10.0.x"
+          global-json-file: global.json
 
       - name: Build Proto Plugin
         run: ./build.sh --target BuildProtoPlugin

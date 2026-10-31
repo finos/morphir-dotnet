@@ -292,3 +292,6 @@ test-*.json
 
 # Release management history (local state)
 .claude/skills/release-manager/.release-history.json
+
+# Shared OpenSpec checker build cache
+/scripts/_build/
