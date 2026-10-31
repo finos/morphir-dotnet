@@ -8,10 +8,10 @@ This file lists the maintainers of this repository.
 |----------------|------|--------------|------------------|
 | @AttilaMihaly | Attila Mihaly | Morgan Stanley |  |
 | @DamianReeves | Damian Reeves | @CapitalOne |  |
-| @finos-builds | *please add name* | *please add organization* |  |
-| @nwokafor-choongsaeng | Nwokafor Choongsaeng | *please add organization* |  |
+| @finos-builds | Not publicly listed | Not publicly listed |  |
+| @nwokafor-choongsaeng | Nwokafor Choongsaeng | Not publicly listed |  |
 | @psmulovics | Peter Smulovics | Morgan Stanley |  |
-| @stephengoldbaum | Stephen Goldbaum | *please add organization* |  |
+| @stephengoldbaum | Stephen Goldbaum | Not publicly listed |  |
 
 For information about maintainer responsibilities and resources, see the [FINOS Maintainers Cheatsheet](https://community.finos.org/docs/finos-maintainers-cheatsheet).
 
