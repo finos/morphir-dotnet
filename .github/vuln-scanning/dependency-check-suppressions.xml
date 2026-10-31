@@ -52,7 +52,11 @@
       https://github.com/advisories/GHSA-5mfx-4wcx-rv27
     ]]></notes>
     <packageUrl regex="true">^pkg:generic/(Azure\.Core@1\.57\.0|System\.ClientModel@1\.13\.0)$</packageUrl>
-    <cpe regex="true">^cpe:2\.3:a:microsoft:(azure_identity|azure_identity_sdk|azure_sdk_for_\.net|identity_model):.*$</cpe>
+    <!-- Dependency-Check converts CPEs to 2.2 URI form before suppression matching. -->
+    <cpe>cpe:/a:microsoft:azure_identity</cpe>
+    <cpe>cpe:/a:microsoft:azure_identity_sdk</cpe>
+    <cpe>cpe:/a:microsoft:azure_sdk_for_.net</cpe>
+    <cpe>cpe:/a:microsoft:identity_model</cpe>
   </suppress>
 
   <suppress until="2027-01-31">
@@ -87,7 +91,7 @@
       Reference: https://www.nuget.org/packages/Microsoft.Bcl.HashCode/1.1.1
     ]]></notes>
     <packageUrl regex="true">^pkg:generic/Microsoft\.Bcl\.HashCode@3\.1\.11$</packageUrl>
-    <cpe regex="true">^cpe:2\.3:a:microsoft:\.net_core:.*$</cpe>
+    <cpe>cpe:/a:microsoft:.net_core</cpe>
   </suppress>
 
   <suppress until="2027-01-31">
