@@ -9,26 +9,23 @@ recorded schema. Follow this repository's contribution and approval rules.
 ## Bootstrap
 
 Install [mise](https://mise.jdx.dev/), then run `mise install`. OpenSpec is pinned
-to 1.14.3. MoonBit 0.10.15+943464bfa runs the shared checker; it does not change
+to 1.14.3. MoonBit 0.10.18+6c83a7f62 runs the shared checker; it does not change
 the project's implementation language. Existing project runtime pins remain in
-place. Complete the MoonBit SDK and initialize its package registry once per
-machine. The binary archive installed by mise does not include core or moonx.
+place. The binary archive installed by mise does not include core or moonx, so
+the mise postinstall hook completes the MoonBit SDK inside mise's installation:
 
-On Linux and macOS:
+- On Linux and Apple Silicon macOS, it runs the upstream Unix installer for the
+  pinned version.
+- On Windows x64 and Windows on Arm (which runs the x64 build under emulation),
+  it runs `tools/bootstrap-moonbit-windows.ps1` with PowerShell 7 (`pwsh`). The
+  script downloads the pinned core and checks its SHA-256 against
+  `tools/moonbit-core-pin.json`.
+
+MoonBit publishes no Intel macOS build for this version.
+
+After `mise install`, initialize the MoonBit package registry once per machine:
 
 ```sh
-set -euo pipefail
-curl -fsSL https://cli.moonbitlang.com/install/unix.sh | \
-  MOON_HOME="$(mise where http:moonbit)" bash -s -- "$(mise current http:moonbit)"
-mise exec -- moon update
-```
-
-On Windows, use PowerShell:
-
-```powershell
-$env:MOON_HOME = mise where http:moonbit
-$env:MOONBIT_INSTALL_VERSION = mise current http:moonbit
-Invoke-RestMethod https://cli.moonbitlang.com/install/powershell.ps1 | Invoke-Expression
 mise exec -- moon update
 ```
 
