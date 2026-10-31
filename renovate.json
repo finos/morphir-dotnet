@@ -10,6 +10,7 @@
   "updateNotScheduled": false,
   "automerge": false,
   "separateMajorMinor": true,
+  "groupSingleUpdates": true,
   "labels": [
     "dependencies"
   ],
