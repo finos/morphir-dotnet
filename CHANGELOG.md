@@ -8,11 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `VFileTree.writeToDisk` no longer writes outside the output directory. It returns `TreeWriteError.InvalidTree` and writes nothing for rooted or `..` paths, files with no path, and duplicate locations, and it no longer adds the root tree path to output paths (#376)
+- `VFileTree.toFileMap` and `toStringMap` keys are now relative to the tree root and use forward slashes on every platform (#376)
+- `VFileTree.findFile` and `updateFile` accept a file's full location, and `updateFile` no longer changes same-named files in other directories (#376)
 - Claude Code skills now load correctly - renamed all `skill.md` files to `SKILL.md` (uppercase, case-sensitive requirement)
 - Updated all skill documentation references to use correct `SKILL.md` filename
 - **CRITICAL**: Removed contradictory Claude co-author example from AGENTS.md and strengthened CLA compliance warnings in both AGENTS.md and CLAUDE.md (issue #270)
 
 ### Added
+- `VFileTree` usage and morphir-elm migration guide in the `Morphir.IR.Pipeline` README (#376)
+- `VFileTree.fromFileMap` now infers nested directories from map keys (#376)
+- `VFileTree.loadFromDisk` loads a directory into a tree, returning `Result<VFileTree, TreeLoadError>` (#376)
+- `TreeWriteError`, `TreeWriteProblem` and `TreeLoadError` union types for file tree I/O failures, with `describe` functions for display (#376)
+- `ParseError` union type. `Parser` now returns `Result<obj, ParseError>` instead of `Result<obj, string>`, and the source position of invalid input now appears on the parser's warning
 - **Morphir.SDK F# Runtime Library** (`Morphir.SDK` NuGet package)
   - F# runtime library providing Morphir SDK types and functions for generated F# code
   - 14 core modules: Basics, Maybe, Result, List, String, Int, Bool, Char, Dict, Set, Tuple, LocalDate, LocalTime, Decimal

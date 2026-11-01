@@ -3,10 +3,37 @@ namespace Morphir.IR.Pipeline
 open System.Collections.Immutable
 
 /// <summary>
-/// Parser function that converts a VFile into an IR tree.
-/// Returns Result with IRNode on success or error message on failure.
+/// The reason a parser could not parse a file.
 /// </summary>
-type Parser = VFile -> Result<obj, string>
+[<RequireQualifiedAccess>]
+type ParseError =
+    /// <summary>The file is not in a format this parser handles.</summary>
+    | UnsupportedInput of reason: string
+    /// <summary>The file is in a format this parser handles, but its content is malformed.</summary>
+    | InvalidInput of message: string * position: SourceRange option
+    /// <summary>The parser could not finish, for example because reading the file failed.</summary>
+    | Failed of cause: exn
+
+/// <summary>
+/// Functions for working with parse errors.
+/// </summary>
+[<RequireQualifiedAccess>]
+module ParseError =
+    /// <summary>
+    /// Describes an error in text suitable for showing to a person.
+    /// </summary>
+    /// <param name="error">The error to describe</param>
+    let describe (error: ParseError): string =
+        match error with
+        | ParseError.UnsupportedInput reason -> "unsupported input: " + reason
+        | ParseError.InvalidInput (message, _) -> message
+        | ParseError.Failed cause -> cause.Message
+
+/// <summary>
+/// Parser function that converts a VFile into an IR tree.
+/// Returns Result with IRNode on success or the reason on failure.
+/// </summary>
+type Parser = VFile -> Result<obj, ParseError>
 
 /// <summary>
 /// Compiler function that converts an IR tree and VFile into an updated VFile.
@@ -197,11 +224,17 @@ module MorphirProcessor =
                     | Result.Ok content ->
                         // Parser succeeded, update file content
                         { currentFile with Content = Some content }
-                    | Result.Error errorMsg ->
+                    | Result.Error error ->
                         // Parser failed, try next parser
+                        let position =
+                            match error with
+                            | ParseError.InvalidInput (_, position) -> position
+                            | ParseError.UnsupportedInput _
+                            | ParseError.Failed _ -> None
+
                         let updatedFile =
                             currentFile
-                            |> VFile.warn (sprintf "Parser failed: %s" errorMsg) None
+                            |> VFile.warn (sprintf "Parser failed: %s" (ParseError.describe error)) position
 
                         tryParsers rest updatedFile
 

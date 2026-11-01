@@ -428,7 +428,7 @@ let processorExecutionTests =
         }
 
         test "processFile should handle parse failures" {
-            let failingParser: Parser = fun file -> Result.Error "Parse error"
+            let failingParser: Parser = fun file -> Result.Error (ParseError.InvalidInput ("Parse error", None))
 
             let proc =
                 MorphirProcessor.empty
@@ -441,8 +441,8 @@ let processorExecutionTests =
         }
 
         test "processFile should try multiple parsers until one succeeds" {
-            let failParser1: Parser = fun file -> Result.Error "Parser 1 failed"
-            let failParser2: Parser = fun file -> Result.Error "Parser 2 failed"
+            let failParser1: Parser = fun file -> Result.Error (ParseError.UnsupportedInput "Parser 1 failed")
+            let failParser2: Parser = fun file -> Result.Error (ParseError.UnsupportedInput "Parser 2 failed")
             let successParser: Parser = fun file -> Result.Ok(box "parsed by parser 3")
 
             let proc =
@@ -456,6 +456,60 @@ let processorExecutionTests =
 
             Expect.isSome result.Content "content should be parsed by third parser"
             Expect.hasLength result.Messages 2 "should have 2 warnings from failed parsers"
+        }
+
+        test "processFile should put the position of invalid input on the warning" {
+            let range: SourceRange = {
+                Start = { Line = 3; Column = 7; Offset = None }
+                End = { Line = 3; Column = 12; Offset = None }
+            }
+
+            let failing: Parser = fun _ -> Result.Error (ParseError.InvalidInput ("unexpected token", Some range))
+            let succeeding: Parser = fun _ -> Result.Ok (box "parsed")
+
+            let result =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse failing
+                |> MorphirProcessor.parse succeeding
+                |> MorphirProcessor.processFile (VFile.fromPath "/test/input.json")
+
+            match result.Messages with
+            | [ warning ] ->
+                Expect.equal warning.Severity Warning "a failed parser should warn while others can still succeed"
+                Expect.equal warning.Position (Some range) "the warning should point at the invalid input"
+            | other -> failtestf "expected one warning, got %A" other
+        }
+
+        testList "processFile should include each kind of parse failure in the warning" [
+            for name, error, expected in [
+                "unsupported input", ParseError.UnsupportedInput "not JSON", "not JSON"
+                "invalid input", ParseError.InvalidInput ("unexpected token", None), "unexpected token"
+                "failed parser", ParseError.Failed (System.IO.IOException "disk gone"), "disk gone"
+            ] do
+                test name {
+                    let failing: Parser = fun _ -> Result.Error error
+
+                    let result =
+                        MorphirProcessor.empty
+                        |> MorphirProcessor.parse failing
+                        |> MorphirProcessor.processFile (VFile.fromPath "/test/input.json")
+
+                    Expect.stringContains result.Messages.Head.Message expected "the reason should reach the warning"
+                }
+        ]
+
+        test "processFile should keep each parser's warning before the final error when all fail" {
+            let failing: Parser = fun _ -> Result.Error (ParseError.UnsupportedInput "not JSON")
+
+            let result =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse failing
+                |> MorphirProcessor.processFile (VFile.fromPath "/test/input.json")
+
+            Expect.equal
+                (result.Messages |> List.map (fun message -> message.Severity))
+                [ Warning; Error ]
+                "the failure should warn and then the phase should report an error"
         }
 
         test "processFile should execute transform phase" {
@@ -541,7 +595,7 @@ let processorExecutionTests =
         }
 
         test "processFile should skip transform phase if parse failed" {
-            let failingParser: Parser = fun file -> Result.Error "Parse error"
+            let failingParser: Parser = fun file -> Result.Error (ParseError.InvalidInput ("Parse error", None))
 
             let shouldNotRunPlugin: Plugin =
                 {

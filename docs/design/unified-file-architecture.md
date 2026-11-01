@@ -72,6 +72,8 @@ The Pipeline currently handles **single files** flowing through transformations.
 
 ### Layer 2: VFileTree (NEW) 🆕
 
+**Status**: Implemented. The [Morphir.IR.Pipeline README](../../src/Morphir.IR.Pipeline/README.md) documents the API as built, and the code below is the original proposal. `TreeConfig` differs: it has `Name`, `Version`, `OutputFormat` and `Extensions`.
+
 **Location**: `Morphir.IR.Pipeline/FileTree.fs` (new file in existing project)
 
 **Project**: `Morphir.IR.Pipeline` (existing project - just add new file)
@@ -588,6 +590,12 @@ let mapPackageDefinitionToTree (packageDef: Package.Definition<unit>)
 - ✅ Natural representation of project structure
 
 ### Compatibility Layer: Conversion Functions
+
+The code below is the original proposal. The implementation differs in three ways, and the [Morphir.IR.Pipeline README](../../src/Morphir.IR.Pipeline/README.md#migrate-from-morphir-elm) covers the migration patterns:
+
+- `toFileMap` keys leave out the root tree's `Path` and always use forward slashes.
+- `fromFileMap` rewrites each file's path to be relative to its directory, so a round trip keeps the same keys.
+- `toFileMap` leaves out files that have no path, because they have no key.
 
 ```fsharp
 /// Conversion between VFileTree (primary) and Map (compatibility)

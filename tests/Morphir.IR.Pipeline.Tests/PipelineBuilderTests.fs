@@ -64,7 +64,7 @@ let pipelineBuilderBasicTests =
 let pipelineBuilderCompositionTests =
     testList "PipelineBuilder Composition" [
         test "should support multiple parsers" {
-            let parser1: Parser = fun file -> Result.Error "fail"
+            let parser1: Parser = fun file -> Result.Error (ParseError.UnsupportedInput "fail")
             let parser2: Parser = fun file -> Result.Ok(box "parsed")
 
             let proc = pipeline {
