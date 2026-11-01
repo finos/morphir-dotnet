@@ -6,9 +6,12 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Morphir.Models/Morphir.Models.fsproj" />
+    <ProjectReference Include="../Morphir.IR.Pipeline/Morphir.IR.Pipeline.fsproj" />
+    <ProjectReference Include="../Morphir.IR.Pipeline.Plugins/Morphir.IR.Pipeline.Plugins.fsproj" />
     <PackageReference Include="FSharp.Core" />
     <PackageReference Include="Fabulous.AST" />
     <PackageReference Include="Fantomas.Core" />
   </ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="Morphir.CodeGeneration.FSharp.Tests" /></ItemGroup>
   <ItemGroup><Compile Include="Types.fs" /><Compile Include="Decode.fs" /><Compile Include="DependencyOrder.fs" /><Compile Include="Validate.fs" /><Compile Include="Emit.fs" /><Compile Include="Transpiler.fs" /></ItemGroup>
 </Project>

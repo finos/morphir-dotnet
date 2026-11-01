@@ -93,7 +93,7 @@ module PrettyPrinter =
     /// <summary>
     /// Formats a type expression.
     /// </summary>
-    let rec formatType (config: Config) (typ: Type<unit>): string =
+    let rec formatType (config: Config) (typ: Type<'a>): string =
         let text =
             match typ with
             | Type.Variable(_, name) ->
@@ -121,7 +121,7 @@ module PrettyPrinter =
     /// <summary>
     /// Formats a pattern.
     /// </summary>
-    let rec formatPattern (config: Config) (level: int) (pattern: Pattern<unit>): string =
+    let rec formatPattern (config: Config) (level: int) (pattern: Pattern<'a>): string =
         match pattern with
         | Pattern.WildcardPattern _ ->
             "_"
@@ -149,7 +149,7 @@ module PrettyPrinter =
     /// <summary>
     /// Formats a value expression.
     /// </summary>
-    let rec formatValue (config: Config) (level: int) (value: Value<unit, unit>): string =
+    let rec formatValue (config: Config) (level: int) (value: Value<'ta, 'va>): string =
         match value with
         | Value.Literal(_, lit) ->
             formatLiteral config lit
@@ -263,7 +263,7 @@ module PrettyPrinter =
     /// <summary>
     /// Formats a value definition.
     /// </summary>
-    let formatValueDefinition (config: Config) (name: string) (def: ValueDefinition<unit, unit>): string =
+    let formatValueDefinition (config: Config) (name: string) (def: ValueDefinition<'ta, 'va>): string =
         let sb = StringBuilder()
         sb.Append(colorize config Colors.keyword "let") |> ignore
         sb.Append(" ") |> ignore
@@ -290,25 +290,35 @@ module PrettyPrinter =
         sb.ToString()
 
     /// <summary>
-    /// Creates a pretty printer plugin with custom configuration.
+    /// The formatted text this plugin stores on the file. A run's output tree holds it as metadata.
     /// </summary>
-    let createWithConfig (config: Config): Plugin =
-        {
-            Name = "pretty-printer"
-            Configure = fun proc -> proc
-            Transform = fun node file ->
-                // For now, node is just an object
-                // In a full implementation, we would format the actual Value
-                let formatted = sprintf "-- Pretty printed output (indent: %d, colors: %b) --" config.IndentWidth config.UseColors
-                let updatedFile =
-                    file
-                    |> VFile.info "Pretty printer executed"
-                    |> VFile.setData "pretty-printed" (box formatted)
-                (Some node, updatedFile)
-        }
+    let output = Property.create<string> "morphir.pretty-printer.output"
+
+    /// <summary>
+    /// Formats every value in a package, in a stable order.
+    /// </summary>
+    /// <param name="config">The configuration</param>
+    /// <param name="package">The package to format</param>
+    let formatPackage (config: Config) (package: Package.PackageDefinition<'ta, 'va>): string =
+        let _, formatted =
+            ClassicPackage.mapDefinitions
+                (fun location definition (current: string list) ->
+                    definition, formatValueDefinition config location definition :: current)
+                package
+                []
+
+        formatted |> List.rev |> String.concat "\n\n"
+
+    /// <summary>
+    /// Creates a pretty printer plugin with custom configuration. The model is unchanged.
+    /// </summary>
+    /// <param name="config">The configuration</param>
+    let createWithConfig (config: Config): Plugin<Package.PackageDefinition<'ta, 'va>> =
+        Plugin.create "pretty-printer" (fun package file ->
+            Some package, file |> VFile.set output (formatPackage config package))
 
     /// <summary>
     /// Creates a pretty printer plugin with default configuration.
     /// </summary>
-    let create(): Plugin =
+    let create(): Plugin<Package.PackageDefinition<'ta, 'va>> =
         createWithConfig defaultConfig

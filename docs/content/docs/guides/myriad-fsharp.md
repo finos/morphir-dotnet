@@ -57,6 +57,8 @@ The backend translates aliases, generic variables, closed records, custom unions
 
 Package and module qualification is retained. Record fields and values use Morphir camelCase; types and cases use PascalCase. F# keywords are escaped. Unsupported collisions and cycles between separate modules produce diagnostics. Private declarations retain restricted visibility in generated code.
 
+Generation runs as a pipeline of parse, scope validation, type validation, constant folding and F# compilation. Folding replaces mapped SDK operations on literals with their result when it matches run-time behaviour, so `add 2 3` appears as `5`. A model's own function named `add` is left alone, and so is a result outside the `Int` range. Folding does not change which models are accepted.
+
 ## Initial SDK mappings
 
 | Morphir SDK | Generated representation |
@@ -91,6 +93,8 @@ The coordinator isolates output by model, configuration and target framework. Av
 | Open-record diagnostic | Replace the unsupported open row with a closed model type |
 | Module dependency cycle | Refactor the model's cross-module cycle; files remain separate |
 | Unmapped SDK/external symbol | Use a supported mapping or provide an implementation in the model |
+| `unbound-variable` | Bind the variable in the named value, or correct its name |
+| `type-mismatch` | Correct the named value. Only definite conflicts between primitive types are reported, such as a string literal under a declared `Int` |
 | `fsharp-generation` | Review the rendering reason and IR declaration; constructs without an F# representation, such as empty unions, fail without partial output |
 | Duplicate output directory or path | Assign distinct model ownership and names |
 | Host method/assembly mismatch | Use the documented pinned packages and automatic isolated host setup |

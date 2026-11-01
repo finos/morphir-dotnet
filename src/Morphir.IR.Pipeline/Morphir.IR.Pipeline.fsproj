@@ -11,6 +11,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="Property.fs" />
         <Compile Include="File.fs" />
         <Compile Include="FileTree.fs" />
         <Compile Include="Processor.fs" />

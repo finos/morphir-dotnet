@@ -7,6 +7,7 @@ open System.Diagnostics
 open System.IO
 open System.Text.Json.Nodes
 open Morphir.Testing
+open Morphir.CodeGeneration.FSharp.Tests.TranspilerAdapter
 
 module F = Morphir.CodeGeneration.FSharp.Tests.Fixtures
 
@@ -1161,6 +1162,80 @@ let contractTests =
                 Directory.Delete(directory, true)
     ]
 
+[<Tests>]
+let optimizationEquivalenceTests =
+    let generated optimize (path: string, json: string) =
+        match Transpiler.GenerateWith optimize (path, json) with
+        | Ok modules -> modules
+        | Error errors -> failtestf "%A" errors
+
+    let sourceText (modules: GeneratedModule list) =
+        modules |> List.map (fun m -> m.Source) |> String.concat "\n"
+
+    let floatType = F.tRef (F.sdk "basics" "float") []
+    let flt (value: float) = F.literal "FloatLiteral" (box value)
+
+    let foldable =
+        F.model [
+            "folding",
+            [],
+            [
+                F.binding "added" [] F.intType (F.op "add" (F.integer 40) (F.integer 2))
+                F.binding "nested" [] F.intType (F.op "multiply" (F.op "add" (F.integer 1) (F.integer 2)) (F.integer 4))
+                F.binding "subtracted" [] F.intType (F.op "subtract" (F.integer 2) (F.integer 5))
+                F.binding "truncated" [] F.intType (F.op "divide" (F.integer -7) (F.integer 2))
+                F.binding "overflowing" [] F.intType (F.op "add" (F.integer 2147483647) (F.integer 1))
+                F.binding "floats" [] floatType (F.op "divide" (flt 1.0) (flt 4.0))
+                F.binding "less" [] F.boolType (F.op "less_than" (F.integer 1) (F.integer 2))
+                F.binding "not_less" [] F.boolType (F.op "greater_than_or_equal" (F.integer 1) (F.integer 2))
+                F.binding "same" [] F.boolType (F.op "equal" (F.str "a") (F.str "a"))
+                F.binding "different" [] F.boolType (F.op "not_equal" (F.str "a") (F.str "a"))
+            ]
+        ]
+
+    let printAll =
+        [ "added"; "nested"; "subtracted"; "truncated"; "overflowing"; "floats"; "less"; "notLess"; "same"; "different" ]
+        |> List.map (fun name -> $"printfn \"{name} %%A\" Car.Rental.Folding.{name}")
+        |> String.concat "\n"
+
+    testList "Optimization equivalence" [
+        testCase "folded expressions should behave the same as the unoptimized build"
+        <| fun _ ->
+            let optimized = generated true ("folding.json", foldable)
+            let plain = generated false ("folding.json", foldable)
+
+            Expect.notEqual (sourceText optimized) (sourceText plain) "folding should change the source"
+
+            let optimizedOutput = execute optimized printAll
+            let plainOutput = execute plain printAll
+
+            Expect.equal optimizedOutput plainOutput "same results with optimization on and off"
+            Expect.stringContains optimizedOutput "added 42" "the fixture should have run"
+            Expect.stringContains optimizedOutput "truncated -3" "division should truncate"
+        for version in [ 1; 2; 3 ] do
+            testCase $"car rental version {version} should behave the same with optimization on and off"
+            <| fun _ ->
+                let input = ($"car-rental-v{version}.json", ModelResources.read $"car-rental-v{version}.json")
+                let consumer = "printfn \"%A\" (Car.Rental.Workflow.rent 3)"
+                let optimizedOutput = execute (generated true input) consumer
+                let plainOutput = execute (generated false input) consumer
+
+                Expect.equal optimizedOutput plainOutput "same results with optimization on and off"
+                Expect.stringContains optimizedOutput "15000" "three days at 5000 cents"
+    ]
+
 [<EntryPoint>]
 let main argv =
-    runTestsWithCLIArgs [] argv (testList "Backend" [ tests; contractTests ])
+    runTestsWithCLIArgs
+        []
+        argv
+        (testList "Backend" [
+            tests
+            contractTests
+            optimizationEquivalenceTests
+            PipelineGenerationTests.treeTests
+            PipelineGenerationTests.orderTests
+            PipelineGenerationTests.validationTests
+            PipelineGenerationTests.optimizationTests
+            PipelineGenerationTests.failureTests
+        ])

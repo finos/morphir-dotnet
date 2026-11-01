@@ -3,10 +3,11 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
+using Microsoft.FSharp.Collections;
 using Morphir.CodeGeneration.FSharp;
+using Morphir.IR.Pipeline;
 
 namespace Morphir.Myriad.Build;
 
@@ -44,10 +45,17 @@ public sealed class GenerateMorphirModules : Microsoft.Build.Utilities.Task
 
             foreach (var (inputPath, outputRoot) in inputs)
             {
-                var manifestPath = Path.Combine(outputRoot, "manifest.json");
+                var options = new PublishOptions(outputRoot, ManifestMode.NewManifest("manifest.json"));
                 if (DesignTimeBuild)
                 {
-                    generated.AddRange(ReadManifest(manifestPath).Select(path => new TaskItem(OwnedPath(outputRoot, path))));
+                    var manifest = VFileTreeModule.readManifest(options);
+                    if (manifest.IsError)
+                    {
+                        Log.LogError(TreeWriteErrorModule.describe(manifest.ErrorValue));
+                        return false;
+                    }
+
+                    generated.AddRange(manifest.ResultValue.Select(path => new TaskItem(Path.Combine(outputRoot, path))));
                     continue;
                 }
 
@@ -57,84 +65,68 @@ public sealed class GenerateMorphirModules : Microsoft.Build.Utilities.Task
                     return false;
                 }
 
-                var result = Transpiler.Generate(inputPath, File.ReadAllText(inputPath));
-                if (result.IsError)
+                var plan = Transpiler.generate(VFileModule.fromDisk(inputPath));
+                if (VFileTreeModule.hasErrors(plan))
                 {
-                    foreach (var diagnostic in result.ErrorValue)
+                    foreach (var message in VFileTreeModule.collectMessages(plan).Where(message => message.Severity.IsError || message.Severity.IsFatal))
                     {
-                        Log.LogError($"{diagnostic.InputPath}: {diagnostic.Category} at {diagnostic.Location}: {diagnostic.Message}");
+                        Log.LogError(VMessageModule.describe(message));
                     }
 
                     return false;
                 }
 
-                var modules = result.ResultValue.ToArray();
-                var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var module in modules)
+                // Fail on unsafe or colliding paths before starting the host.
+                var validation = VFileTreeModule.validatePublish(options, plan);
+                if (validation.IsError)
                 {
-                    _ = OwnedPath(outputRoot, module.RelativePath);
-                    if (!paths.Add(module.RelativePath.Replace('\\', '/')))
-                    {
-                        Log.LogError($"Morphir generated path collision in '{inputPath}': {module.RelativePath}");
-                        return false;
-                    }
+                    Log.LogError($"Morphir generation failed for '{inputPath}': {TreeWriteErrorModule.describe(validation.ErrorValue)}");
+                    return false;
                 }
 
+                var entries = VFileTreeModule.tryGet(Transpiler.manifest, plan)?.Value?.ToArray() ?? [];
                 Directory.CreateDirectory(outputRoot);
-                using var publicationLock = AcquireLock(Path.Combine(outputRoot, ".publish.lock"));
-                var stage = Path.Combine(outputRoot, ".stage-" + Guid.NewGuid().ToString("N"));
-                Directory.CreateDirectory(stage);
+                var hostDirectory = Path.Combine(outputRoot, ".host-" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(hostDirectory);
                 try
                 {
-                    var compatibleHost = PrepareHost(stage);
-                    foreach (var module in modules)
+                    var compatibleHost = PrepareHost(hostDirectory);
+                    var hostOutput = Path.Combine(hostDirectory, "output");
+                    var files = new List<VFile>();
+                    foreach (var entry in entries)
                     {
-                        var stagePath = OwnedPath(stage, module.RelativePath);
-                        Directory.CreateDirectory(Path.GetDirectoryName(stagePath)!);
-                        if (!Generate(inputPath, module.ModulePath, stagePath, compatibleHost))
+                        var outputPath = Path.Combine(hostOutput, entry.Location);
+                        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+                        if (!Generate(inputPath, entry.ModulePath, outputPath, compatibleHost))
                         {
                             return false;
                         }
+
+                        files.Add(VFileModule.ofDiskFile(entry.Location, outputPath));
                     }
 
                     // Publication begins only after every host invocation has succeeded.
-                    var oldPaths = ReadManifest(manifestPath);
-                    foreach (var module in modules)
+                    var order = ListModule.OfSeq(entries.Select(entry => entry.Location));
+                    var tree = VFileTreeModule.set(VFileTreeModule.declaredOrder, order, VFileTreeModule.fromFiles(ListModule.OfSeq(files)));
+                    var published = VFileTreeModule.publish(options, tree);
+                    if (published.IsError)
                     {
-                        var source = OwnedPath(stage, module.RelativePath);
-                        var destination = OwnedPath(outputRoot, module.RelativePath);
-                        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                        if (!File.Exists(destination) || !File.ReadAllBytes(source).AsSpan().SequenceEqual(File.ReadAllBytes(destination)))
-                        {
-                            File.Move(source, destination, true);
-                        }
+                        Log.LogError($"Morphir generation failed for '{inputPath}': {TreeWriteErrorModule.describe(published.ErrorValue)}");
+                        return false;
                     }
 
-                    var manifest = JsonSerializer.Serialize(modules.Select(module => module.RelativePath.Replace('\\', '/')).ToArray()) + Environment.NewLine;
-                    if (!File.Exists(manifestPath) || File.ReadAllText(manifestPath) != manifest)
-                    {
-                        var stagedManifest = Path.Combine(stage, "manifest.json");
-                        File.WriteAllText(stagedManifest, manifest);
-                        File.Move(stagedManifest, manifestPath, true);
-                    }
-
-                    foreach (var obsolete in oldPaths.Where(path => !paths.Contains(path)))
-                    {
-                        File.Delete(OwnedPath(outputRoot, obsolete));
-                    }
-
-                    generated.AddRange(modules.Select(module => new TaskItem(OwnedPath(outputRoot, module.RelativePath))));
+                    generated.AddRange(entries.Select(entry => new TaskItem(Path.Combine(outputRoot, entry.Location))));
                 }
                 finally
                 {
-                    Directory.Delete(stage, true);
+                    Directory.Delete(hostDirectory, true);
                 }
             }
 
             GeneratedFiles = generated.ToArray();
             return !Log.HasLoggedErrors;
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or JsonException or InvalidOperationException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
         {
             Log.LogError($"Morphir generation failed: {exception.Message}");
             return false;
@@ -155,7 +147,7 @@ public sealed class GenerateMorphirModules : Microsoft.Build.Utilities.Task
         return Path.GetFullPath(Path.Combine(IntermediateDirectory, name + "-" + identity), ProjectDirectory);
     }
 
-    private string PrepareHost(string stage)
+    private string PrepareHost(string hostDirectory)
     {
         if (!File.Exists(HostPath))
         {
@@ -163,7 +155,7 @@ public sealed class GenerateMorphirModules : Microsoft.Build.Utilities.Task
         }
 
         var sourceRoot = Path.GetDirectoryName(HostPath)!;
-        var destinationRoot = Path.Combine(stage, ".host");
+        var destinationRoot = Path.Combine(hostDirectory, ".host");
         Directory.CreateDirectory(destinationRoot);
         foreach (var file in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
         {
@@ -195,6 +187,7 @@ public sealed class GenerateMorphirModules : Microsoft.Build.Utilities.Task
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
+            CreateNoWindow = true,
         };
         foreach (var argument in new[] { "--roll-forward", "LatestMajor", compatibleHost, "--inputfile", inputPath, "--outputfile", outputPath, "--plugin", PluginPath, "--generator-filter", "MorphirFSharpGenerator", "--additionalparams", "MorphirModule=" + modulePath })
         {
@@ -224,52 +217,5 @@ public sealed class GenerateMorphirModules : Microsoft.Build.Utilities.Task
         }
 
         return true;
-    }
-
-    private static string[] ReadManifest(string path) => File.Exists(path)
-        ? JsonSerializer.Deserialize<string[]>(File.ReadAllText(path)) ?? throw new InvalidOperationException($"Invalid generated-file manifest '{path}'.")
-        : [];
-
-    private static string OwnedPath(string root, string relative)
-    {
-        if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative) || relative.Replace('\\', '/').Split('/').Any(segment => segment is "" or "." or ".."))
-        {
-            throw new InvalidOperationException($"Invalid generated relative path '{relative}'.");
-        }
-
-        var fullRoot = Path.GetFullPath(root);
-        var prefix = Path.EndsInDirectorySeparator(fullRoot) ? fullRoot : fullRoot + Path.DirectorySeparatorChar;
-        var path = Path.GetFullPath(Path.Combine(fullRoot, relative));
-        if (!path.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException($"Generated path '{relative}' escapes '{root}'.");
-        }
-
-        var directory = Path.GetFullPath(root);
-        foreach (var segment in relative.Replace('\\', '/').Split('/').SkipLast(1).Prepend(""))
-        {
-            directory = Path.Combine(directory, segment);
-            if (Directory.Exists(directory) && new DirectoryInfo(directory).LinkTarget is not null)
-            {
-                throw new InvalidOperationException($"Generated directory '{directory}' is a symbolic link.");
-            }
-        }
-
-        return path;
-    }
-
-    private static FileStream AcquireLock(string path)
-    {
-        for (var attempt = 0; ; attempt++)
-        {
-            try
-            {
-                return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-            }
-            catch (IOException) when (attempt < 100)
-            {
-                Thread.Sleep(100);
-            }
-        }
     }
 }

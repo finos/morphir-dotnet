@@ -201,6 +201,57 @@ let tests =
               build consumer true |> ignore
               writeModel consumer (File.ReadAllText(Path.Combine(root, "tests/Fixtures/MorphirIR/malformed-model.txt")))
               build consumer false |> assertContains "model.json"
+      "a host failure leaves existing generated output unchanged",
+      fun () ->
+          withConsumer
+          <| fun consumer ->
+              writeModel consumer (model [ moduleJson "inventory" 5000 ])
+              build consumer true |> ignore
+              let generated = files consumer "Inventory.fs" |> Array.exactlyOne
+              let before = File.ReadAllText generated
+
+              editProject
+                  consumer
+                  "</Project>"
+                  "<PropertyGroup><MorphirMyriadHostPath>does-not-exist/Myriad.dll</MorphirMyriadHostPath></PropertyGroup></Project>"
+
+              writeModel consumer (model [ moduleJson "inventory" 6000 ])
+              build consumer false |> assertContains "Myriad host could not be found"
+              assertEqual before (File.ReadAllText generated)
+      "colliding module paths fail before the host starts",
+      fun () ->
+          withConsumer
+          <| fun consumer ->
+              let renamed (words: string array) =
+                  let module' = moduleJson "inventory" 5000
+                  module'.[0] <- JsonSerializer.SerializeToNode([| words |])
+                  module'
+
+              writeModel consumer (model [ renamed [| "a"; "bc" |]; renamed [| "ab"; "c" |] ])
+
+              editProject
+                  consumer
+                  "</Project>"
+                  "<PropertyGroup><MorphirMyriadHostPath>does-not-exist/Myriad.dll</MorphirMyriadHostPath></PropertyGroup></Project>"
+
+              let output = build consumer false
+              assertContains "name-collision" output
+              // The host path is invalid, so reaching the host would report that instead.
+              assertEqual false (output.Contains "Myriad host could not be found")
+              let generatedFolder = string Path.DirectorySeparatorChar + "morphir" + string Path.DirectorySeparatorChar
+              assertEqual [||] (files consumer "*.fs" |> Array.filter (fun path -> path.Contains generatedFolder))
+      "a type mismatch fails the build with its rule",
+      fun () ->
+          withConsumer
+          <| fun consumer ->
+              let module' = moduleJson "inventory" 5000
+              module'.[1].["value"].["values"].[0].[1].["value"].["body"].[2].[0] <- JsonValue.Create("StringLiteral")
+              module'.[1].["value"].["values"].[0].[1].["value"].["body"].[2].[1] <- JsonValue.Create("not a number")
+              writeModel consumer (model [ module' ])
+
+              let output = build consumer false
+              assertContains "type-mismatch" output
+              assertContains "Inventory.dailyRate" output
       "missing model failure includes the input path",
       fun () ->
           withConsumer

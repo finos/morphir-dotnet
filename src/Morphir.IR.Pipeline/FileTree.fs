@@ -1,7 +1,6 @@
 namespace Morphir.IR.Pipeline
 
 open System
-open System.Collections.Immutable
 
 /// <summary>
 /// Configuration for a file tree (project-level settings).
@@ -14,13 +13,13 @@ type TreeConfig = {
     /// <summary>Output format preference</summary>
     OutputFormat: string option
     /// <summary>Plugin-specific configuration</summary>
-    Extensions: ImmutableDictionary<string, obj>
+    Extensions: PropertyBag
 }
 
 /// <summary>
 /// Content of a file tree node (file or directory).
 /// </summary>
-type TreeContent =
+type TreeNode =
     /// <summary>A file. Its path is relative to the directory that contains it.</summary>
     | File of file: VFile
     /// <summary>A subdirectory. Its path is relative to the directory that contains it.</summary>
@@ -39,9 +38,11 @@ and VFileTree = {
     /// <summary>Root path (directory or project file)</summary>
     Path: string
     /// <summary>Tree content (files and subdirectories)</summary>
-    Content: TreeContent list
+    Content: TreeNode list
     /// <summary>Tree-level metadata</summary>
-    Metadata: ImmutableDictionary<string, obj>
+    Metadata: PropertyBag
+    /// <summary>Diagnostics that belong to the tree rather than to one of its files</summary>
+    Messages: VMessage list
     /// <summary>Project configuration</summary>
     Config: TreeConfig
 }
@@ -71,18 +72,67 @@ type TreeWriteProblem =
     | FileWithoutPath of file: VFile
     /// <summary>The location is rooted or contains "..", so it is outside the output directory.</summary>
     | PathOutsideOutputDirectory of location: string
-    /// <summary>More than one file has this location, so writing would lose a file.</summary>
+    /// <summary>
+    /// More than one file has this location, compared case-insensitively on every platform so that
+    /// output is portable, or a file's location is the manifest's.
+    /// </summary>
     | DuplicateLocation of location: string
+    /// <summary>The output root or a directory on the way to this location is a symbolic link.</summary>
+    | SymbolicLinkInPath of location: string
+    /// <summary>The tree reports errors, so it must not replace existing output.</summary>
+    | TreeHasErrors of errors: VMessage list
+    /// <summary>The tree's declared order does not list exactly the tree's locations.</summary>
+    | DeclaredOrderMismatch of unexpected: string list * missing: string list
+    /// <summary>The previous manifest holds an entry that is not a safe location.</summary>
+    | InvalidManifestEntry of entry: string
 
 /// <summary>
-/// The reason <c>VFileTree.writeToDisk</c> failed.
+/// The reason publishing a tree failed.
 /// </summary>
 [<RequireQualifiedAccess>]
 type TreeWriteError =
     /// <summary>The tree failed validation and nothing was written. Lists every problem found.</summary>
     | InvalidTree of problems: TreeWriteProblem list
-    /// <summary>Writing failed. Files written before the failure remain on disk.</summary>
+    /// <summary>
+    /// Writing failed. A failure while staging leaves existing output unchanged. A failure while
+    /// moving staged files into place can leave a mix of old and new files.
+    /// </summary>
     | WriteFailed of outputDir: string * cause: exn
+
+/// <summary>
+/// Whether publishing tracks the files it owns in a manifest.
+/// </summary>
+[<RequireQualifiedAccess>]
+type ManifestMode =
+    /// <summary>No manifest is written, and no files are removed.</summary>
+    | NoManifest
+    /// <summary>
+    /// A JSON manifest with this file name, directly under the output root, lists the published
+    /// locations. Files listed by the previous manifest and no longer in the tree are deleted.
+    /// </summary>
+    | Manifest of fileName: string
+
+/// <summary>
+/// Where and how to publish a tree.
+/// </summary>
+type PublishOptions = {
+    /// <summary>The directory that receives the files</summary>
+    OutputRoot: string
+    /// <summary>Whether to track published files in a manifest</summary>
+    Manifest: ManifestMode
+}
+
+/// <summary>
+/// What publishing a tree did, as locations relative to the output root.
+/// </summary>
+type PublishResult = {
+    /// <summary>Files created or replaced</summary>
+    Written: string list
+    /// <summary>Files already byte-identical, and left untouched</summary>
+    Unchanged: string list
+    /// <summary>Files deleted because the previous manifest listed them and the tree does not</summary>
+    Removed: string list
+}
 
 /// <summary>
 /// The reason <c>VFileTree.loadFromDisk</c> failed.
@@ -110,6 +160,15 @@ module TreeWriteError =
             | TreeWriteProblem.PathOutsideOutputDirectory location ->
                 "path is outside the output directory: " + location
             | TreeWriteProblem.DuplicateLocation location -> "more than one file has the path: " + location
+            | TreeWriteProblem.SymbolicLinkInPath location -> "a directory on the way to this path is a symbolic link: " + location
+            | TreeWriteProblem.TreeHasErrors errors ->
+                "the tree has errors: " + String.Join("; ", errors |> List.map VMessage.describe)
+            | TreeWriteProblem.DeclaredOrderMismatch (unexpected, missing) ->
+                "the declared order does not match the tree's files. Not in the tree: "
+                + String.Join(", ", unexpected)
+                + ". Not in the order: "
+                + String.Join(", ", missing)
+            | TreeWriteProblem.InvalidManifestEntry entry -> "the previous manifest has an unsafe entry: " + entry
 
         match error with
         | TreeWriteError.InvalidTree problems -> String.Join("; ", problems |> List.map describeProblem)
@@ -141,7 +200,7 @@ module TreeConfig =
         Name = None
         Version = None
         OutputFormat = None
-        Extensions = ImmutableDictionary.Empty
+        Extensions = PropertyBag.empty
     }
 
     /// <summary>
@@ -151,6 +210,31 @@ module TreeConfig =
     /// <param name="version">Project version</param>
     let create (name: string) (version: string): TreeConfig =
         { empty with Name = Some name; Version = Some version }
+
+    /// <summary>
+    /// Stores a typed plugin setting.
+    /// </summary>
+    /// <param name="property">The property</param>
+    /// <param name="value">The value</param>
+    /// <param name="config">The configuration to update</param>
+    let set (property: Property<'T>) (value: 'T) (config: TreeConfig): TreeConfig =
+        { config with Extensions = PropertyBag.set property value config.Extensions }
+
+    /// <summary>
+    /// Reads a typed plugin setting.
+    /// </summary>
+    /// <param name="property">The property</param>
+    /// <param name="config">The configuration to query</param>
+    let tryGet (property: Property<'T>) (config: TreeConfig): 'T option =
+        PropertyBag.tryGet property config.Extensions
+
+    /// <summary>
+    /// Removes a typed plugin setting.
+    /// </summary>
+    /// <param name="property">The property</param>
+    /// <param name="config">The configuration to update</param>
+    let remove (property: Property<'T>) (config: TreeConfig): TreeConfig =
+        { config with Extensions = PropertyBag.remove property config.Extensions }
 
 /// <summary>
 /// Functions for creating, querying, transforming, converting and writing file trees.
@@ -188,7 +272,8 @@ module VFileTree =
     let empty: VFileTree = {
         Path = "."
         Content = []
-        Metadata = ImmutableDictionary.Empty
+        Metadata = PropertyBag.empty
+        Messages = []
         Config = TreeConfig.empty
     }
 
@@ -236,7 +321,7 @@ module VFileTree =
 
     /// <summary>Every file that has a location, paired with that location, in tree order.</summary>
     let private locatedFiles (tree: VFileTree): (string * VFile) list =
-        let rec collect (basePath: string) (content: TreeContent list) =
+        let rec collect (basePath: string) (content: TreeNode list) =
             content
             |> List.collect (function
                 | File file ->
@@ -284,22 +369,45 @@ module VFileTree =
             | Directory subtree -> 1 + directoryCount subtree)
 
     /// <summary>
-    /// Checks if the tree has any error or fatal messages.
+    /// Collects all diagnostic messages from the tree, its directories and its files.
+    /// </summary>
+    /// <param name="tree">Tree to collect from</param>
+    let rec collectMessages (tree: VFileTree): VMessage list =
+        tree.Messages
+        @ (tree.Content
+           |> List.collect (function
+               | File file -> file.Messages
+               | Directory subtree -> collectMessages subtree))
+
+    /// <summary>
+    /// Checks if the tree, any directory in it or any of its files has an error or fatal message.
     /// </summary>
     /// <param name="tree">Tree to check</param>
     let hasErrors (tree: VFileTree): bool =
-        tree
-        |> allFiles
-        |> List.exists VFile.hasErrors
+        collectMessages tree
+        |> List.exists (fun message -> message.Severity = Error || message.Severity = Fatal)
 
     /// <summary>
-    /// Collects all diagnostic messages from all files in the tree.
+    /// Adds a diagnostic that belongs to the tree rather than to one of its files.
     /// </summary>
-    /// <param name="tree">Tree to collect from</param>
-    let collectMessages (tree: VFileTree): VMessage list =
-        tree
-        |> allFiles
-        |> List.collect (fun file -> file.Messages)
+    /// <param name="message">The message</param>
+    /// <param name="tree">Tree to update</param>
+    let report (message: VMessage) (tree: VFileTree): VFileTree =
+        { tree with Messages = tree.Messages @ [ message ] }
+
+    /// <summary>
+    /// Merges an overlay tree onto a base tree. Files and messages from the overlay come after the
+    /// base's, and overlay metadata wins. Files are not checked for duplicate locations, which
+    /// publishing rejects.
+    /// </summary>
+    /// <param name="overlay">The tree to add</param>
+    /// <param name="tree">The base tree</param>
+    let merge (overlay: VFileTree) (tree: VFileTree): VFileTree =
+        { tree with
+            Content = tree.Content @ overlay.Content
+            Messages = tree.Messages @ overlay.Messages
+            Metadata = PropertyBag.merge overlay.Metadata tree.Metadata
+        }
 
     /// <summary>
     /// Maps a function over all files in the tree.
@@ -380,7 +488,7 @@ module VFileTree =
             else
                 { file with Path = Some path; History = file.History @ [ path ] }
 
-        let rec build (entries: (string list * VFile) list): TreeContent list =
+        let rec build (entries: (string list * VFile) list): TreeNode list =
             let leaves, nested =
                 entries |> List.partition (fun (segments, _) -> segments.Length = 1)
 
@@ -414,42 +522,46 @@ module VFileTree =
 
         { empty with Content = topLevelFiles @ inferred }
 
-    /// <summary>The text of a file: its content's string form, or empty when it has no content.</summary>
-    let private contentText (file: VFile): string =
-        file.Content
-        |> Option.map (fun content -> content.ToString())
-        |> Option.defaultValue ""
-
     /// <summary>
     /// Flattens the tree to a simple string map (morphir-elm exact equivalent), with the same keys
-    /// as <see cref="toFileMap"/>. Non-string content is converted using ToString(), and a file
-    /// with no content maps to an empty string.
+    /// as <see cref="toFileMap"/>. This reads every file's content, and a file with no content maps
+    /// to an empty string.
     /// </summary>
     /// <param name="tree">Tree to flatten</param>
-    let toStringMap (tree: VFileTree): Map<string, string> =
+    /// <returns>The map, or the first error from reading a file.</returns>
+    let toStringMap (tree: VFileTree): Result<Map<string, string>, ContentError> =
         tree
-        |> toFileMap
-        |> Map.map (fun _ file -> contentText file)
-
+        |> locatedFiles
+        |> List.fold
+            (fun result (location, file) ->
+                result
+                |> Result.bind (fun map ->
+                    VFile.readText file |> Result.map (fun text -> Map.add location text map)))
+            (Result.Ok Map.empty)
     /// <summary>
-    /// Sets tree-level metadata.
+    /// Stores a typed value in the tree-level metadata.
     /// </summary>
-    /// <param name="key">Metadata key</param>
-    /// <param name="value">Metadata value</param>
+    /// <param name="property">The property</param>
+    /// <param name="value">The value</param>
     /// <param name="tree">Tree to update</param>
-    let setMetadata (key: string) (value: obj) (tree: VFileTree): VFileTree =
-        { tree with Metadata = tree.Metadata.SetItem(key, value) }
+    let set (property: Property<'T>) (value: 'T) (tree: VFileTree): VFileTree =
+        { tree with Metadata = PropertyBag.set property value tree.Metadata }
 
     /// <summary>
-    /// Gets tree-level metadata.
+    /// Reads a typed value from the tree-level metadata.
     /// </summary>
-    /// <param name="key">Metadata key</param>
+    /// <param name="property">The property</param>
     /// <param name="tree">Tree to query</param>
-    let getMetadata (key: string) (tree: VFileTree): obj option =
-        match tree.Metadata.TryGetValue(key) with
-        | true, value -> Some value
-        | false, _ -> None
+    let tryGet (property: Property<'T>) (tree: VFileTree): 'T option =
+        PropertyBag.tryGet property tree.Metadata
 
+    /// <summary>
+    /// Removes a typed value from the tree-level metadata.
+    /// </summary>
+    /// <param name="property">The property</param>
+    /// <param name="tree">Tree to update</param>
+    let remove (property: Property<'T>) (tree: VFileTree): VFileTree =
+        { tree with Metadata = PropertyBag.remove property tree.Metadata }
     /// <summary>
     /// Gets statistics about the tree.
     /// </summary>
@@ -465,9 +577,66 @@ module VFileTree =
             InfoCount = messages |> List.filter (fun m -> m.Severity = Info) |> List.length
         }
 
-    /// <summary>The reasons a tree cannot be written safely. Empty when it can.</summary>
-    let private writeProblems (tree: VFileTree): TreeWriteProblem list =
-        let located = locatedFiles tree
+    /// <summary>
+    /// The dependency or declared order of a tree's locations, independent of directory structure.
+    /// A manifest lists locations in this order, or sorted when this is absent.
+    /// </summary>
+    let declaredOrder = Property.create<string list> "morphir.tree.declared-order"
+
+    /// <summary>True when a path read back from a manifest is a plain relative location.</summary>
+    let private isSafeManifestEntry (entry: string): bool =
+        not (String.IsNullOrWhiteSpace entry)
+        && not (isRooted entry)
+        && entry.Replace('\\', '/').Split('/')
+           |> Array.forall (fun segment -> segment <> "" && segment <> "." && segment <> "..")
+
+    /// <summary>The output root's full path without a trailing separator.</summary>
+    let private fullRoot (root: string): string =
+        System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath root)
+
+    /// <summary>True when a location resolves to a path inside the output root.</summary>
+    let private staysInside (root: string) (location: string): bool =
+        let rootPath = fullRoot root
+        let resolved = System.IO.Path.GetFullPath(System.IO.Path.Combine(rootPath, location))
+        resolved.StartsWith(rootPath + string System.IO.Path.DirectorySeparatorChar, StringComparison.Ordinal)
+
+    let private isSymbolicLink (directory: string): bool =
+        System.IO.Directory.Exists directory
+        && not (isNull (System.IO.DirectoryInfo(directory).LinkTarget))
+
+    /// <summary>True when a directory between the output root and a location is a symbolic link.</summary>
+    let private linkInPath (root: string) (location: string): bool =
+        let parents = pathSegments location |> List.rev |> List.tail |> List.rev
+
+        parents
+        |> List.scan (fun directory segment -> System.IO.Path.Combine(directory, segment)) (fullRoot root)
+        |> List.tail
+        |> List.exists isSymbolicLink
+
+    /// <summary>Reads the raw entries of a manifest. A missing manifest has no entries.</summary>
+    let private readManifestEntries (options: PublishOptions): string list =
+        match options.Manifest with
+        | ManifestMode.NoManifest -> []
+        | ManifestMode.Manifest fileName ->
+            let path = System.IO.Path.Combine(options.OutputRoot, fileName)
+
+            if System.IO.File.Exists path then
+                use document = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText path)
+
+                [ for entry in document.RootElement.EnumerateArray() -> entry.GetString() ]
+            else
+                []
+
+    /// <summary>The order a tree's locations are listed in a manifest.</summary>
+    let private manifestOrder (tree: VFileTree): string list =
+        match tryGet declaredOrder tree with
+        | Some order -> order
+        | None -> locatedFiles tree |> List.map fst |> List.sort
+
+    /// <summary>Every reason a tree cannot be published safely. Empty when it can.</summary>
+    let private publishProblems (options: PublishOptions) (tree: VFileTree): TreeWriteProblem list =
+        let located = locatedFiles tree |> List.map fst
+        let root = options.OutputRoot
 
         let pathless =
             tree
@@ -475,64 +644,293 @@ module VFileTree =
             |> List.filter (fun file -> Option.isNone (fileLocation "" file))
             |> List.map TreeWriteProblem.FileWithoutPath
 
-        let outside =
-            located
-            |> List.map fst
-            |> List.filter (fun location -> isRooted location || List.contains ".." (pathSegments location))
-            |> List.map TreeWriteProblem.PathOutsideOutputDirectory
+        let isOutside (location: string) =
+            isRooted location
+            || List.contains ".." (pathSegments location)
+            || not (staysInside root location)
+
+        let outside, inside = located |> List.partition isOutside
 
         let duplicates =
             located
-            |> List.countBy fst
-            |> List.filter (fun (_, count) -> count > 1)
-            |> List.map (fst >> TreeWriteProblem.DuplicateLocation)
+            |> List.groupBy (fun location -> location.ToUpperInvariant())
+            |> List.filter (fun (_, group) -> group.Length > 1)
+            |> List.map (fun (_, group) -> TreeWriteProblem.DuplicateLocation group.Head)
 
-        pathless @ outside @ duplicates
+        let manifestCollisions =
+            match options.Manifest with
+            | ManifestMode.NoManifest -> []
+            | ManifestMode.Manifest fileName ->
+                located
+                |> List.filter (fun location -> String.Equals(location, fileName, StringComparison.OrdinalIgnoreCase))
+                |> List.map TreeWriteProblem.DuplicateLocation
+
+        let links =
+            if isSymbolicLink (fullRoot root) then
+                [ TreeWriteProblem.SymbolicLinkInPath root ]
+            else
+                inside
+                |> List.filter (linkInPath root)
+                |> List.map TreeWriteProblem.SymbolicLinkInPath
+
+        let errors =
+            match collectMessages tree |> List.filter (fun message -> message.Severity = Error || message.Severity = Fatal) with
+            | [] -> []
+            | messages -> [ TreeWriteProblem.TreeHasErrors messages ]
+
+        let order =
+            match tryGet declaredOrder tree with
+            | None -> []
+            | Some declared ->
+                let unexpected = declared |> List.filter (fun location -> not (List.contains location located))
+                let missing = located |> List.filter (fun location -> not (List.contains location declared))
+
+                if List.isEmpty unexpected && List.isEmpty missing then
+                    []
+                else
+                    [ TreeWriteProblem.DeclaredOrderMismatch (unexpected, missing) ]
+
+        let manifestEntries =
+            readManifestEntries options
+            |> List.filter (fun entry -> not (isSafeManifestEntry entry))
+            |> List.map TreeWriteProblem.InvalidManifestEntry
+
+        pathless
+        @ (outside |> List.map TreeWriteProblem.PathOutsideOutputDirectory)
+        @ duplicates
+        @ manifestCollisions
+        @ links
+        @ errors
+        @ order
+        @ manifestEntries
 
     /// <summary>
-    /// Writes the tree's files under an output directory, each at its location. The root tree's
-    /// path is not part of the output path. Directories are created only as needed for files.
+    /// Checks whether a tree can be published, without writing anything. Use this to fail early
+    /// before expensive work.
+    /// </summary>
+    /// <param name="options">Where and how the tree would be published</param>
+    /// <param name="tree">Tree to check</param>
+    /// <returns>Ok, or an error listing every problem found.</returns>
+    let validatePublish (options: PublishOptions) (tree: VFileTree): Result<unit, TreeWriteError> =
+        try
+            match publishProblems options tree with
+            | [] -> Result.Ok ()
+            | problems -> Result.Error (TreeWriteError.InvalidTree problems)
+        with ex ->
+            Result.Error (TreeWriteError.WriteFailed (options.OutputRoot, ex))
+
+    /// <summary>
+    /// Reads the locations listed by the manifest in an output root, in order. A missing manifest
+    /// has no locations. Every entry is checked, because the file could have been changed.
+    /// </summary>
+    /// <param name="options">The output root and manifest</param>
+    let readManifest (options: PublishOptions): Result<string list, TreeWriteError> =
+        try
+            let entries = readManifestEntries options
+
+            match entries |> List.filter (fun entry -> not (isSafeManifestEntry entry)) with
+            | [] -> Result.Ok entries
+            | invalid -> Result.Error (TreeWriteError.InvalidTree (invalid |> List.map TreeWriteProblem.InvalidManifestEntry))
+        with ex ->
+            Result.Error (TreeWriteError.WriteFailed (options.OutputRoot, ex))
+
+    /// <summary>
+    /// Takes the lock that serializes publishers of an output root. It lives in a per-user temp
+    /// directory so that publishing leaves nothing extra in the output root.
+    /// </summary>
+    let private acquireLock (root: string): System.IO.FileStream =
+        let rootPath = fullRoot root
+        let identity = if OperatingSystem.IsWindows() then rootPath.ToUpperInvariant() else rootPath
+
+        let name =
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes identity))
+
+        let directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "morphir-publish-locks")
+        System.IO.Directory.CreateDirectory directory |> ignore
+        let path = System.IO.Path.Combine(directory, name + ".lock")
+
+        let rec attempt (tries: int) =
+            try
+                new System.IO.FileStream(path, System.IO.FileMode.OpenOrCreate, System.IO.FileAccess.ReadWrite, System.IO.FileShare.None)
+            with :? System.IO.IOException when tries < 100 ->
+                System.Threading.Thread.Sleep 100
+                attempt (tries + 1)
+
+        attempt 0
+
+    /// <summary>Writes a file's content to a path, keeping bytes and streams byte for byte.</summary>
+    let private writeContent (path: string) (content: VFileContent option): unit =
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName path) |> ignore
+
+        match content with
+        | None -> System.IO.File.WriteAllBytes(path, [||])
+        | Some value ->
+            match VFileContent.openRead value with
+            | Result.Error (ContentError.ReadFailed (_, cause)) -> raise cause
+            | Result.Ok source ->
+                use source = source
+                use target = System.IO.File.Create path
+                source.CopyTo target
+
+    /// <summary>Compares two files without loading them whole.</summary>
+    let private sameContent (first: string) (second: string): bool =
+        if System.IO.FileInfo(first).Length <> System.IO.FileInfo(second).Length then
+            false
+        else
+            use a = System.IO.File.OpenRead first
+            use b = System.IO.File.OpenRead second
+            let bufferA = Array.zeroCreate<byte> 81920
+            let bufferB = Array.zeroCreate<byte> 81920
+
+            let rec compare () =
+                let countA = a.ReadAtLeast(bufferA.AsSpan(), bufferA.Length, false)
+                let countB = b.ReadAtLeast(bufferB.AsSpan(), bufferB.Length, false)
+
+                if countA <> countB then
+                    false
+                elif countA = 0 then
+                    true
+                elif bufferA.AsSpan(0, countA).SequenceEqual(ReadOnlySpan<byte>(bufferB, 0, countB)) then
+                    compare ()
+                else
+                    false
+
+            compare ()
+
+    /// <summary>Renders manifest text, without reflection-based serialization.</summary>
+    let private manifestText (locations: string list): string =
+        use buffer = new System.IO.MemoryStream()
+
+        do
+            use writer = new System.Text.Json.Utf8JsonWriter(buffer)
+            writer.WriteStartArray()
+
+            for location in locations do
+                writer.WriteStringValue location
+
+            writer.WriteEndArray()
+
+        System.Text.Encoding.UTF8.GetString(buffer.ToArray()) + Environment.NewLine
+
+    /// <summary>
+    /// Publishes a tree under an output root so that files cannot escape the root, cannot silently
+    /// overwrite each other, and failed output never replaces good output.
     /// </summary>
     /// <remarks>
-    /// Nothing is written if any file has no path, if a location is rooted or contains "..", or if
-    /// two files share a location. A failure while writing can leave earlier files on disk.
+    /// The whole tree is validated first, and nothing is written if any problem is found. All
+    /// content is then written to a private staging directory inside the root. Only after every
+    /// file is staged do files move into place, under a lock shared by publishers running as the
+    /// same user. Identical files are left untouched. With a manifest, it is written after the
+    /// files, and files listed by the previous manifest and no longer in the tree are deleted. An
+    /// I/O failure during the moves can leave a mix of old and new files, which the next
+    /// publication corrects.
     /// </remarks>
+    /// <param name="options">Where and how to publish</param>
+    /// <param name="tree">Tree to publish</param>
+    /// <returns>What was written, unchanged and removed, or the reason publishing failed.</returns>
+    let publish (options: PublishOptions) (tree: VFileTree): Result<PublishResult, TreeWriteError> =
+        match validatePublish options tree with
+        | Result.Error error -> Result.Error error
+        | Result.Ok () ->
+            let root = options.OutputRoot
+
+            try
+                System.IO.Directory.CreateDirectory root |> ignore
+                let stage = System.IO.Path.Combine(root, ".stage-" + Guid.NewGuid().ToString "N")
+                System.IO.Directory.CreateDirectory stage |> ignore
+
+                try
+                    let located = locatedFiles tree
+
+                    for location, file in located do
+                        writeContent (System.IO.Path.Combine(stage, location)) file.Content
+
+                    use _lock = acquireLock root
+
+                    // Check again now that this publisher holds the lock, because another one
+                    // could have changed the root or its manifest.
+                    match publishProblems options tree with
+                    | _ :: _ as problems -> Result.Error (TreeWriteError.InvalidTree problems)
+                    | [] ->
+                        let previous = readManifestEntries options
+
+                        let unchanged, changed =
+                            located
+                            |> List.map fst
+                            |> List.partition (fun location ->
+                                let destination = System.IO.Path.Combine(root, location)
+
+                                System.IO.File.Exists destination
+                                && sameContent (System.IO.Path.Combine(stage, location)) destination)
+
+                        for location in changed do
+                            let destination = System.IO.Path.Combine(root, location)
+                            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName destination) |> ignore
+                            System.IO.File.Move(System.IO.Path.Combine(stage, location), destination, true)
+
+                        let removed =
+                            match options.Manifest with
+                            | ManifestMode.NoManifest -> []
+                            | ManifestMode.Manifest fileName ->
+                                let text = manifestText (manifestOrder tree)
+                                let manifestPath = System.IO.Path.Combine(root, fileName)
+
+                                if not (System.IO.File.Exists manifestPath) || System.IO.File.ReadAllText manifestPath <> text then
+                                    let staged = System.IO.Path.Combine(stage, fileName)
+                                    System.IO.File.WriteAllText(staged, text)
+                                    System.IO.File.Move(staged, manifestPath, true)
+
+                                let current = located |> List.map fst
+
+                                previous
+                                |> List.filter (fun entry ->
+                                    not (current |> List.exists (fun location -> String.Equals(location, entry, StringComparison.OrdinalIgnoreCase)))
+                                    && System.IO.File.Exists(System.IO.Path.Combine(root, entry)))
+
+                        for entry in removed do
+                            System.IO.File.Delete(System.IO.Path.Combine(root, entry))
+
+                        Result.Ok { Written = changed; Unchanged = unchanged; Removed = removed }
+                finally
+                    if System.IO.Directory.Exists stage then
+                        System.IO.Directory.Delete(stage, true)
+            with ex ->
+                Result.Error (TreeWriteError.WriteFailed (root, ex))
+
+    /// <summary>
+    /// Publishes the tree's files under an output directory with no manifest. The root tree's path
+    /// is not part of the output path. Directories are created only as needed for files. See
+    /// <c>publish</c> for the guarantees.
+    /// </summary>
     /// <param name="outputDir">Output directory</param>
     /// <param name="tree">Tree to write</param>
     /// <returns>Ok when every file was written, otherwise the reason it failed.</returns>
     let writeToDisk (outputDir: string) (tree: VFileTree): Result<unit, TreeWriteError> =
-        match writeProblems tree with
-        | [] ->
-            try
-                for location, file in locatedFiles tree do
-                    let fullPath = System.IO.Path.Combine(outputDir, location)
-                    System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fullPath)) |> ignore
-                    System.IO.File.WriteAllText(fullPath, contentText file)
-
-                Result.Ok ()
-            with ex ->
-                Result.Error (TreeWriteError.WriteFailed (outputDir, ex))
-        | problems -> Result.Error (TreeWriteError.InvalidTree problems)
+        publish { OutputRoot = outputDir; Manifest = ManifestMode.NoManifest } tree
+        |> Result.map ignore
 
     /// <summary>
-    /// Loads a directory into a tree, reading every file as text. The tree's path is the directory
-    /// given, and each file and subdirectory path is its own name. Each directory lists its files
-    /// first and then its subdirectories, both sorted by name.
+    /// Loads a directory into a tree without reading any file content. Each file's content is
+    /// opened on demand, so a missing or unreadable file surfaces when its content is read. The
+    /// tree's path is the directory given, and each file and subdirectory path is its own name.
+    /// Each directory lists its files first and then its subdirectories, both sorted by name.
     /// </summary>
     /// <remarks>
-    /// Files load as strings, with UTF-8 assumed unless the file has a byte order mark, so this
-    /// does not preserve binary files. Hidden files and directories such as .git are included, and
-    /// empty directories are kept. Symbolic links to directories are skipped because they can form
-    /// cycles. Symbolic links to files are read.
+    /// Hidden files and directories such as .git are included, and empty directories are kept.
+    /// Symbolic links to directories are skipped because they can form cycles. Symbolic links to
+    /// files are read.
     /// </remarks>
     /// <param name="rootDir">Directory to load</param>
-    /// <returns>The tree, or the reason the directory could not be loaded.</returns>
+    /// <returns>The tree, or the reason the directory could not be listed.</returns>
     let loadFromDisk (rootDir: string): Result<VFileTree, TreeLoadError> =
-        let rec loadContent (directory: System.IO.DirectoryInfo): TreeContent list =
+        let rec loadContent (directory: System.IO.DirectoryInfo): TreeNode list =
             let files =
                 directory.EnumerateFiles()
                 |> Seq.sortBy (fun file -> file.Name)
-                |> Seq.map (fun file -> File (VFile.create file.Name (System.IO.File.ReadAllText file.FullName)))
+                |> Seq.map (fun file ->
+                    let fullName = file.FullName
+                    let source = StreamSource(fun () -> System.IO.File.OpenRead fullName :> System.IO.Stream)
+                    File(VFile.ofStream file.Name source))
                 |> List.ofSeq
 
             let directories =

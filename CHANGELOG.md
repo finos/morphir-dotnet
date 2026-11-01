@@ -20,7 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `VFileTree.fromFileMap` now infers nested directories from map keys (#376)
 - `VFileTree.loadFromDisk` loads a directory into a tree, returning `Result<VFileTree, TreeLoadError>` (#376)
 - `TreeWriteError`, `TreeWriteProblem` and `TreeLoadError` union types for file tree I/O failures, with `describe` functions for display (#376)
-- `ParseError` union type. `Parser` now returns `Result<obj, ParseError>` instead of `Result<obj, string>`, and the source position of invalid input now appears on the parser's warning
+- `ParseError` union type, which keeps the rule, location and source position of malformed input on the resulting diagnostic
+- Strongly typed pipeline: `Parser<'T>`, `Plugin<'T>`, `Compiler<'T>` and `MorphirProcessor<'T>` replace the `obj`-based contracts, and a run returns a `VFileTree`, so one input can produce many output files
+- `MorphirProcessor.run` accepts a file or a directory, and `MorphirProcessor.runEachFile` runs once per file in a tree
+- `Parser.forFile`, `Parser.ofParseable` and `Plugin.focus` for building typed stages
+- `Property<'T>` and `PropertyBag`, a typed replacement for string-keyed data on files, trees, tree configuration and processors, with functions that work with `|>`, `<|` and `>>`
+- `VFileContent` for text, bytes or a re-openable `StreamSource`, so file content does not have to be held in memory. `VFileTree.loadFromDisk` no longer reads files up front, and binary files survive a round trip
+- Tree-level diagnostics on `VFileTree`, and `Path` and `Location` on `VMessage`, with `VMessage.describe` for display
+- `VFileTree.publish`, `validatePublish`, `readManifest` and `declaredOrder`: path containment, symbolic link rejection, case-insensitive collision detection, staged publication, no rewriting of identical files, and manifest-based removal of obsolete files, moved from the Myriad build task so that every backend gets them
+- `Morphir.CodeGeneration.FSharp` now runs as a real pipeline through `Transpiler.generate`, with scope validation, type validation and constant folding. Definite type mismatches now fail the build, and folded literals appear in generated source. `GeneratedModule` and `Diagnostic` are removed in favour of `VFileTree` and `VMessage`
+- `Optimizer` and `TypeValidator` now process real packages: the optimizer matches SDK functions by fully qualified name and folds only where the result matches run-time behaviour, and the validator reports only definite mismatches
 - **Morphir.SDK F# Runtime Library** (`Morphir.SDK` NuGet package)
   - F# runtime library providing Morphir SDK types and functions for generated F# code
   - 14 core modules: Basics, Maybe, Result, List, String, Int, Bool, Char, Dict, Set, Tuple, LocalDate, LocalTime, Decimal

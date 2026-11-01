@@ -37,6 +37,22 @@
           "FSharp.Core": "[11.0.100, )",
           "Fabulous.AST": "[1.10.0, )",
           "Fantomas.Core": "[7.0.5, )",
+          "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.IR.Pipeline.Plugins": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
+      "morphir.ir.pipeline": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )"
+        }
+      },
+      "morphir.ir.pipeline.plugins": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )",
+          "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
       },

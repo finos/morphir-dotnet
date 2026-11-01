@@ -35,6 +35,7 @@ This delivery supports explicit classic IR versions 1, 2 and 3, produces one F# 
 - Complete JSON fixtures live in resource files. Tests embed shared fixtures and the example models; substitutions use JsonNode. Generation/verification scripts use F#, without Python.
 - Returning a car releases inventory while preserving its pending billing obligation. Billing an earlier rental does not overwrite a new reservation.
 - This first delivery is implemented. The broader CLI/backend roadmap below remains separate; this PRD's overall status stays In Progress until that roadmap is reconciled through later initiatives.
+- [typed-pipeline-myriad](../../openspec/changes/typed-pipeline-myriad/proposal.md) moved generation onto `Morphir.IR.Pipeline`. `Transpiler.generate` is a typed pipeline of parse, scope validation, type validation, constant folding and F# compilation, returning a `VFileTree` with the dependency order declared in a manifest. The build task publishes through `VFileTree.publish`. This supersedes the first delivery's decision not to route through the pipeline, and the `VFile` and `VFileTree` sections below now describe what ships. The consumer build contract did not change.
 
 ## Executive Summary
 

@@ -3,11 +3,16 @@ module Morphir.IR.Pipeline.Tests.PipelineBuilderTests
 open Expecto
 open Morphir.IR.Pipeline
 
+let private key1 = Property.create<string> "test.key1"
+let private key2 = Property.create<int> "test.key2"
+let private key3 = Property.create<bool> "test.key3"
+let private configuredKey = Property.create<bool> "test.configured"
+
 [<Tests>]
 let pipelineBuilderBasicTests =
     testList "PipelineBuilder Basic" [
         test "empty pipeline should create empty frozen processor" {
-            let proc = pipeline { () }
+            let proc: MorphirProcessor<string> = pipeline { () }
 
             Expect.isEmpty proc.Parsers "should have no parsers"
             Expect.isEmpty proc.Plugins "should have no plugins"
@@ -16,7 +21,7 @@ let pipelineBuilderBasicTests =
         }
 
         test "parse should add parser" {
-            let testParser: Parser = fun file -> Result.Ok(box "parsed")
+            let testParser: Parser<string> = fun _ -> Ok "parsed"
 
             let proc = pipeline { parse testParser }
 
@@ -24,7 +29,7 @@ let pipelineBuilderBasicTests =
         }
 
         test "uses should add plugin" {
-            let testPlugin: Plugin =
+            let testPlugin: Plugin<string> =
                 {
                     Name = "test"
                     Configure = id
@@ -37,7 +42,7 @@ let pipelineBuilderBasicTests =
         }
 
         test "stringify should add compiler" {
-            let testCompiler: Compiler = fun node file -> file
+            let testCompiler: Compiler<string> = fun _ _ -> VFileTree.empty
 
             let proc = pipeline { stringify testCompiler }
 
@@ -45,18 +50,31 @@ let pipelineBuilderBasicTests =
         }
 
         test "freeze should freeze processor" {
-            let proc = pipeline { freeze }
+            let proc: MorphirProcessor<string> = pipeline { freeze }
 
             Expect.isTrue (MorphirProcessor.isFrozen proc) "should be frozen"
         }
 
+        test "unfrozen should leave the processor unfrozen" {
+            let proc: MorphirProcessor<string> = pipeline { unfrozen }
+
+            Expect.isFalse (MorphirProcessor.isFrozen proc) "should stay unfrozen"
+        }
+
+        test "unfrozen should not linger once the pipeline is built" {
+            let proc: MorphirProcessor<string> = pipeline { unfrozen }
+            let frozenAgain = proc |> MorphirProcessor.freeze
+
+            Expect.isTrue (MorphirProcessor.isFrozen frozenAgain) "freezing afterwards should still work"
+        }
+
         test "data should set processor data" {
-            let proc = pipeline { data "key" (box "value") }
+            let proc: MorphirProcessor<string> = pipeline { data key1 "value" }
 
-            let value = MorphirProcessor.getData "key" proc
+            let value = MorphirProcessor.tryGet key1 proc
 
-            Expect.isSome value "should have data"
-            Expect.equal value (Some(box "value")) "value should match"
+             
+            Expect.equal value (Some "value") "value should match"
         }
     ]
 
@@ -64,8 +82,8 @@ let pipelineBuilderBasicTests =
 let pipelineBuilderCompositionTests =
     testList "PipelineBuilder Composition" [
         test "should support multiple parsers" {
-            let parser1: Parser = fun file -> Result.Error (ParseError.UnsupportedInput "fail")
-            let parser2: Parser = fun file -> Result.Ok(box "parsed")
+            let parser1: Parser<string> = fun _ -> Result.Error (ParseError.UnsupportedInput "fail")
+            let parser2: Parser<string> = fun _ -> Ok "parsed"
 
             let proc = pipeline {
                 parse parser1
@@ -76,14 +94,14 @@ let pipelineBuilderCompositionTests =
         }
 
         test "should support multiple plugins" {
-            let plugin1: Plugin =
+            let plugin1: Plugin<string> =
                 {
                     Name = "plugin1"
                     Configure = id
                     Transform = fun node file -> (Some node, file)
                 }
 
-            let plugin2: Plugin =
+            let plugin2: Plugin<string> =
                 {
                     Name = "plugin2"
                     Configure = id
@@ -101,8 +119,8 @@ let pipelineBuilderCompositionTests =
         }
 
         test "should support multiple compilers" {
-            let compiler1: Compiler = fun node file -> file
-            let compiler2: Compiler = fun node file -> file
+            let compiler1: Compiler<string> = fun _ _ -> VFileTree.empty
+            let compiler2: Compiler<string> = fun _ _ -> VFileTree.empty
 
             let proc = pipeline {
                 stringify compiler1
@@ -113,23 +131,23 @@ let pipelineBuilderCompositionTests =
         }
 
         test "should support full pipeline" {
-            let parser: Parser = fun file -> Result.Ok(box "IR")
+            let parser: Parser<string> = fun _ -> Ok "IR"
 
-            let plugin1: Plugin =
+            let plugin1: Plugin<string> =
                 {
                     Name = "validate"
                     Configure = id
                     Transform = fun node file -> (Some node, file)
                 }
 
-            let plugin2: Plugin =
+            let plugin2: Plugin<string> =
                 {
                     Name = "optimize"
                     Configure = id
                     Transform = fun node file -> (Some node, file)
                 }
 
-            let compiler: Compiler = fun node file -> file
+            let compiler: Compiler<string> = fun _ _ -> VFileTree.empty
 
             let proc = pipeline {
                 parse parser
@@ -146,15 +164,15 @@ let pipelineBuilderCompositionTests =
         }
 
         test "should support multiple data values" {
-            let proc = pipeline {
-                data "key1" (box "value1")
-                data "key2" (box 42)
-                data "key3" (box true)
+            let proc: MorphirProcessor<string> = pipeline {
+                data key1 "value1"
+                data key2 42
+                data key3 true
             }
 
-            let val1 = MorphirProcessor.getDataAs<string> "key1" proc
-            let val2 = MorphirProcessor.getDataAs<int> "key2" proc
-            let val3 = MorphirProcessor.getDataAs<bool> "key3" proc
+            let val1 = MorphirProcessor.tryGet key1 proc
+            let val2 = MorphirProcessor.tryGet key2 proc
+            let val3 = MorphirProcessor.tryGet key3 proc
 
             Expect.equal val1 (Some "value1") "key1 should match"
             Expect.equal val2 (Some 42) "key2 should match"
@@ -164,214 +182,88 @@ let pipelineBuilderCompositionTests =
 
 [<Tests>]
 let pipelineBuilderExecutionTests =
+    let parser: Parser<string> = fun _ -> Ok "parsed IR"
+    let basePlugin: Plugin<string> = Plugin.create "base" (fun model file -> (Some model, file))
+    let variantPlugin: Plugin<string> = Plugin.create "variant" (fun model file -> (Some model, file))
+
     testList "PipelineBuilder Execution" [
-        test "pipeline should execute successfully" {
-            let parser: Parser = fun file -> Result.Ok(box "parsed IR")
+        test "pipeline should infer the model type and run every stage" {
+            let validate = Plugin.create "validate" (fun (model: string) file -> (Some model, file |> VFile.info "Validated"))
 
-            let validatePlugin: Plugin =
-                {
-                    Name = "validate"
-                    Configure = id
-                    Transform = fun node file -> (Some node, file |> VFile.info "Validated")
-                }
-
-            let compiler: Compiler = fun node file -> file |> VFile.info "Compiled"
+            let compiler: Compiler<string> =
+                fun model _ -> VFileTree.empty |> VFileTree.addFile (VFile.create "out.txt" model)
 
             let proc = pipeline {
                 parse parser
-                uses validatePlugin
+                uses validate
                 stringify compiler
             }
 
-            let inputFile = VFile.fromPath "/test/input.json"
-            let result = MorphirProcessor.processFile inputFile proc
+            let result = MorphirProcessor.processFile (VFile.fromPath "/test/input.json") proc
 
-            Expect.isSome result.Content "should have content"
-            Expect.hasLength result.Messages 2 "should have 2 messages"
+            Expect.isTrue (MorphirProcessor.isFrozen proc) "should be frozen by default"
+            Expect.hasLength result.Messages 1 "should move the plugin's message to the tree"
+            Expect.hasLength (VFileTree.allFiles result) 1 "should produce the compiler's file"
         }
 
         test "frozen pipeline should create variants" {
-            let parser: Parser = fun file -> Result.Ok(box "IR")
-
-            let basePlugin: Plugin =
-                {
-                    Name = "base"
-                    Configure = id
-                    Transform = fun node file -> (Some node, file)
-                }
-
-            let variantPlugin: Plugin =
-                {
-                    Name = "variant"
-                    Configure = id
-                    Transform = fun node file -> (Some node, file)
-                }
-
             let basePipeline = pipeline {
                 parse parser
                 uses basePlugin
                 freeze
             }
 
-            let variantPipeline = pipeline {
-                parse parser
-                uses basePlugin
-                uses variantPlugin
-                freeze
-            }
+            let variant = basePipeline |> MorphirProcessor.plugin variantPlugin
 
-            Expect.isTrue (MorphirProcessor.isFrozen basePipeline) "base should be frozen"
+            Expect.isTrue (MorphirProcessor.isFrozen basePipeline) "base should remain frozen"
             Expect.hasLength basePipeline.Plugins 1 "base should have 1 plugin"
-
-            Expect.isTrue (MorphirProcessor.isFrozen variantPipeline) "variant should be frozen"
-            Expect.hasLength variantPipeline.Plugins 2 "variant should have 2 plugins"
+            Expect.isFalse (MorphirProcessor.isFrozen variant) "variant should be unfrozen"
+            Expect.hasLength variant.Plugins 2 "variant should have 2 plugins"
         }
 
         test "pipeline with plugin configuration" {
-            let configuringPlugin: Plugin =
-                {
-                    Name = "configuring"
-                    Configure = fun proc -> MorphirProcessor.setData "configured" (box true) proc
-                    Transform = fun node file -> (Some node, file)
-                }
+            let configuring: Plugin<string> =
+                { basePlugin with Configure = PropertyBag.set configuredKey true }
 
-            let proc = pipeline { uses configuringPlugin }
+            let proc = pipeline { uses configuring }
 
-            let configured = MorphirProcessor.getDataAs<bool> "configured" proc
-
-            Expect.equal configured (Some true) "plugin should have configured processor"
-        }
-    ]
-
-[<Tests>]
-let pipelineBuilderIntegrationTests =
-    testList "PipelineBuilder Integration" [
-        test "realistic IR validation pipeline" {
-            let irParser: Parser = fun file -> Result.Ok(box "{ module: 'Test' }")
-
-            let syntaxPlugin: Plugin =
-                {
-                    Name = "syntax-validator"
-                    Configure = id
-                    Transform = fun node file -> (Some node, file |> VFile.info "Syntax valid")
-                }
-
-            let semanticPlugin: Plugin =
-                {
-                    Name = "semantic-validator"
-                    Configure = id
-                    Transform = fun node file -> (Some node, file |> VFile.info "Semantics valid")
-                }
-
-            let normalizePlugin: Plugin =
-                {
-                    Name = "normalizer"
-                    Configure = id
-                    Transform = fun node file -> (Some node, file |> VFile.info "Normalized")
-                }
-
-            let jsonCompiler: Compiler =
-                fun node file -> file |> VFile.info "Compiled to JSON"
-
-            let validationPipeline = pipeline {
-                parse irParser
-                uses syntaxPlugin
-                uses semanticPlugin
-                uses normalizePlugin
-                stringify jsonCompiler
-                freeze
-            }
-
-            let inputFile = VFile.fromPath "/test/module.json"
-            let result = MorphirProcessor.processFile inputFile validationPipeline
-
-            Expect.isFalse (VFile.hasErrors result) "should have no errors"
-            Expect.hasLength result.Messages 4 "should have 4 info messages"
+            Expect.equal (MorphirProcessor.tryGet configuredKey proc) (Some true) "plugin should have configured processor"
         }
 
-        test "optimization pipeline variant" {
-            let parser: Parser = fun file -> Result.Ok(box 100)
+        test "Pipeline.immutable should freeze" {
+            let proc = Pipeline.immutable { parse parser }
 
-            let validatePlugin: Plugin =
-                {
-                    Name = "validate"
-                    Configure = id
-                    Transform = fun node file -> (Some node, file |> VFile.info "Validated")
-                }
+            Expect.isTrue (MorphirProcessor.isFrozen proc) "should be frozen"
+        }
 
-            let basePipeline = pipeline {
+        test "Pipeline.mut should stay unfrozen" {
+            let proc = Pipeline.mut { parse parser }
+
+            Expect.isFalse (MorphirProcessor.isFrozen proc) "should be unfrozen"
+        }
+
+        test "a pipeline with an error should report it and produce no files" {
+            let strict =
+                Plugin.create "strict" (fun (model: string) file ->
+                    (Some model, file |> VFile.error "Type mismatch" None |> VFile.error "Undefined variable" None))
+
+            let warning = Plugin.create "warn" (fun (model: string) file -> (Some model, file |> VFile.warn "Deprecated" None))
+
+            let compiler: Compiler<string> =
+                fun model _ -> VFileTree.empty |> VFileTree.addFile (VFile.create "out.txt" model)
+
+            let proc = pipeline {
                 parse parser
-                uses validatePlugin
-                freeze
+                uses strict
+                uses warning
+                stringify compiler
             }
 
-            let optimizePlugin: Plugin =
-                {
-                    Name = "optimize"
-                    Configure = id
-                    Transform =
-                        fun node file ->
-                            let value = unbox<int> node
-                            (Some(box (value * 2)), file |> VFile.info "Optimized")
-                }
+            let result = MorphirProcessor.processFile (VFile.fromPath "/test/input.json") proc
+            let stats = VFileTree.statistics result
 
-            // Create variant by adding optimize plugin to frozen base
-            let optimizedPipeline =
-                basePipeline |> MorphirProcessor.plugin optimizePlugin
-
-            Expect.isTrue (MorphirProcessor.isFrozen basePipeline) "base should remain frozen"
-
-            Expect.isFalse (MorphirProcessor.isFrozen optimizedPipeline) "variant should be unfrozen"
-
-            let inputFile = VFile.fromPath "/test/input.json"
-            let baseResult = MorphirProcessor.processFile inputFile basePipeline
-            let optResult = MorphirProcessor.processFile inputFile optimizedPipeline
-
-            let baseValue = baseResult.Content |> Option.map unbox<int>
-            let optValue = optResult.Content |> Option.map unbox<int>
-
-            Expect.equal baseValue (Some 100) "base should return 100"
-            Expect.equal optValue (Some 200) "optimized should return 200"
-        }
-
-        test "error handling pipeline" {
-            let parser: Parser = fun file -> Result.Ok(box "IR with errors")
-
-            let strictValidatorPlugin: Plugin =
-                {
-                    Name = "strict-validator"
-                    Configure = id
-                    Transform =
-                        fun node file ->
-                            let updatedFile =
-                                file
-                                |> VFile.error "Type mismatch in function A" None
-                                |> VFile.error "Undefined variable in function B" None
-
-                            (Some node, updatedFile)
-                }
-
-            let warningPlugin: Plugin =
-                {
-                    Name = "deprecation-checker"
-                    Configure = id
-                    Transform = fun node file -> (Some node, file |> VFile.warn "Deprecated API usage" None)
-                }
-
-            let errorPipeline = pipeline {
-                parse parser
-                uses strictValidatorPlugin
-                uses warningPlugin
-            }
-
-            let inputFile = VFile.fromPath "/test/input.json"
-            let result = MorphirProcessor.processFile inputFile errorPipeline
-
-            Expect.isTrue (VFile.hasErrors result) "should have errors"
-            let errors = VFile.errors result
-            let warnings = VFile.warnings result
-
-            Expect.hasLength errors 2 "should have 2 errors"
-            Expect.hasLength warnings 1 "should have 1 warning"
+            Expect.equal stats.ErrorCount 2 "should have 2 errors"
+            Expect.equal stats.WarningCount 1 "later plugins still run after an error"
+            Expect.equal stats.TotalFiles 0 "compilers should not run"
         }
     ]
