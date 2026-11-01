@@ -112,6 +112,7 @@
     <PackageVersion Include="FSharp.SystemTextJson" Version="1.4.36" />
     <!-- Code Generation Dependencies -->
     <PackageVersion Include="Myriad.Core" Version="0.85.0" />
+    <PackageVersion Include="Microsoft.Build.Framework" Version="18.0.2" />
     <PackageVersion Include="Fabulous.AST" Version="1.10.0" />
     <PackageVersion Include="Fantomas.Core" Version="7.0.5" />
     <!-- Configuration Dependencies -->

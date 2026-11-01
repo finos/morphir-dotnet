@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Description>Generate F# modules from classic Morphir model JSON through Myriad.</Description>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Tool assemblies intentionally are not consumer references. -->
+    <NoWarn>$(NoWarn);NU5100</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Myriad.Core" />
+    <PackageDownload Include="myriad" Version="[0.85.0]" />
+    <ProjectReference Include="../Morphir.CodeGeneration.FSharp/Morphir.CodeGeneration.FSharp.fsproj" />
+    <ProjectReference Include="../Morphir.Myriad.Build/Morphir.Myriad.Build.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="MorphirFSharpGenerator.fs" />
+    <None Remove="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../README.md'))" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="ThirdPartyNotices.txt" Pack="true" PackagePath="/" />
+    <None Include="build/Morphir.Myriad.props" Pack="true" PackagePath="build/" />
+    <None Include="build/Morphir.Myriad.targets" Pack="true" PackagePath="build/" />
+  </ItemGroup>
+  <Target Name="IncludeMyriadTools" BeforeTargets="_GetPackageFiles">
+    <ItemGroup>
+      <None Include="$(TargetDir)*.dll;$(TargetDir)*.deps.json" Pack="true" PackagePath="tools/plugin/" />
+      <None Include="../Morphir.Myriad.Build/bin/$(Configuration)/net10.0/*.dll;../Morphir.Myriad.Build/bin/$(Configuration)/net10.0/*.deps.json" Pack="true" PackagePath="tasks/net10.0/" />
+      <_MorphirHostFile Include="$(NuGetPackageRoot)/myriad/0.85.0/tools/net9.0/any/**/*" Exclude="$(NuGetPackageRoot)/myriad/0.85.0/tools/net9.0/any/FSharp.Core.dll" />
+      <None Include="@(_MorphirHostFile)" Pack="true" PackagePath="tools/host/%(_MorphirHostFile.RecursiveDir)" />
+      <None Include="$(TargetDir)FSharp.Core.dll" Pack="true" PackagePath="tools/host/" />
+      <None Include="$(NuGetPackageRoot)/myriad/0.85.0/README.md" Pack="true" PackagePath="tools/host/UPSTREAM-README.md" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -1,0 +1,188 @@
+﻿// Domain.fs
+module Car.Rental.Domain
+
+type Availability =
+    | Available
+    | Rented
+    | Reserved
+
+and CompletedRental =
+    { vehicleId: string
+      dailyRate: int
+      days: int }
+
+and Invoice =
+    { vehicleId: string
+      dailyRate: int
+      days: int
+      totalCents: int }
+
+and PendingRentals =
+    | NoPendingRentals
+    | PendingRental of CompletedRental * PendingRentals
+
+and RentalError =
+    | ActiveRentalRequired
+    | AlreadyBilled
+    | InvalidDuration
+    | ReservationRequired
+    | ReturnRequired
+    | Unavailable
+
+and RentalStatus =
+    | Active of int
+    | Completed of int * int
+    | Confirmed of int
+    | Invoiced of Invoice
+    | Unreserved
+
+and Vehicle =
+    { id: string
+      dailyRate: int
+      status: RentalStatus
+      pendingRentals: PendingRentals
+      lastInvoice: option<Invoice> }
+
+// Billing.fs
+module Car.Rental.Billing
+
+let bill (vehicle: Car.Rental.Domain.Vehicle) : Result<Car.Rental.Domain.Vehicle, Car.Rental.Domain.RentalError> =
+    (match (vehicle).pendingRentals with
+     | Car.Rental.Domain.PendingRental(completion, remaining) ->
+         (Ok(
+             { vehicle with
+                 lastInvoice =
+                     (Some(
+                         ({ dailyRate = (completion).dailyRate
+                            days = (completion).days
+                            totalCents = ((completion).dailyRate * (completion).days)
+                            vehicleId = (completion).vehicleId }
+                         : Car.Rental.Domain.Invoice)
+                     ))
+                 pendingRentals = remaining
+                 status =
+                     (match (vehicle).status with
+                      | Car.Rental.Domain.Completed(_, _) ->
+                          (Car.Rental.Domain.Invoiced(
+                              ({ dailyRate = (completion).dailyRate
+                                 days = (completion).days
+                                 totalCents = ((completion).dailyRate * (completion).days)
+                                 vehicleId = (completion).vehicleId }
+                              : Car.Rental.Domain.Invoice)
+                          ))
+                      | currentStatus -> currentStatus) }
+         ))
+     | Car.Rental.Domain.NoPendingRentals ->
+         (match (vehicle).lastInvoice with
+          | None -> (Error(Car.Rental.Domain.ReturnRequired))
+          | _ -> (Error(Car.Rental.Domain.AlreadyBilled))))
+
+let invoice (vehicle: Car.Rental.Domain.Vehicle) : option<Car.Rental.Domain.Invoice> = (vehicle).lastInvoice
+
+// Inventory.fs
+module Car.Rental.Inventory
+
+let availability (vehicle: Car.Rental.Domain.Vehicle) : Car.Rental.Domain.Availability =
+    (match (vehicle).status with
+     | Car.Rental.Domain.Confirmed(_) -> Car.Rental.Domain.Reserved
+     | Car.Rental.Domain.Active(_) -> Car.Rental.Domain.Rented
+     | _ -> Car.Rental.Domain.Available)
+
+let dailyRate: int = 5000
+
+let car: Car.Rental.Domain.Vehicle =
+    ({ dailyRate = dailyRate
+       id = "CAR-1"
+       lastInvoice = None
+       pendingRentals = Car.Rental.Domain.NoPendingRentals
+       status = Car.Rental.Domain.Unreserved }
+    : Car.Rental.Domain.Vehicle)
+
+let rec lookup (id: string) (vehicles: list<Car.Rental.Domain.Vehicle>) : option<Car.Rental.Domain.Vehicle> =
+    (match vehicles with
+     | [] -> None
+     | (head :: tail) ->
+         (if ((head).id = id) then
+              (Some(head))
+          else
+              (lookup (id) (tail))))
+
+// Pickup.fs
+module Car.Rental.Pickup
+
+let pickup (vehicle: Car.Rental.Domain.Vehicle) : Result<Car.Rental.Domain.Vehicle, Car.Rental.Domain.RentalError> =
+    (match (vehicle).status with
+     | Car.Rental.Domain.Confirmed(rate) ->
+         (Ok(
+             { vehicle with
+                 status = (Car.Rental.Domain.Active(rate)) }
+         ))
+     | _ -> (Error(Car.Rental.Domain.ReservationRequired)))
+
+// Reservation.fs
+module Car.Rental.Reservation
+
+let reserve
+    (days: int)
+    (vehicle: Car.Rental.Domain.Vehicle)
+    : Result<Car.Rental.Domain.Vehicle, Car.Rental.Domain.RentalError> =
+    (if (days <= 0) then
+         (Error(Car.Rental.Domain.InvalidDuration))
+     else
+         (match (vehicle).status with
+          | Car.Rental.Domain.Unreserved ->
+              (Ok(
+                  { vehicle with
+                      status = (Car.Rental.Domain.Confirmed((vehicle).dailyRate)) }
+              ))
+          | Car.Rental.Domain.Completed(_, _) ->
+              (Ok(
+                  { vehicle with
+                      status = (Car.Rental.Domain.Confirmed((vehicle).dailyRate)) }
+              ))
+          | Car.Rental.Domain.Invoiced(_) ->
+              (Ok(
+                  { vehicle with
+                      status = (Car.Rental.Domain.Confirmed((vehicle).dailyRate)) }
+              ))
+          | _ -> (Error(Car.Rental.Domain.Unavailable))))
+
+// Return.fs
+module Car.Rental.Return
+
+let returnCar
+    (days: int)
+    (vehicle: Car.Rental.Domain.Vehicle)
+    : Result<Car.Rental.Domain.Vehicle, Car.Rental.Domain.RentalError> =
+    (if (days <= 0) then
+         (Error(Car.Rental.Domain.InvalidDuration))
+     else
+         (match (vehicle).status with
+          | Car.Rental.Domain.Active(rate) ->
+              (Ok(
+                  { vehicle with
+                      pendingRentals =
+                          Car.Rental.Domain.PendingRental(
+                              ({ dailyRate = rate
+                                 days = days
+                                 vehicleId = (vehicle).id }
+                              : Car.Rental.Domain.CompletedRental),
+                              (vehicle).pendingRentals
+                          )
+                      status = Car.Rental.Domain.Completed(rate, days) }
+              ))
+          | _ -> (Error(Car.Rental.Domain.ActiveRentalRequired))))
+
+// Workflow.fs
+module Car.Rental.Workflow
+
+let rent (days: int) : Result<Car.Rental.Domain.Vehicle, Car.Rental.Domain.RentalError> =
+    (match (Car.Rental.Reservation.reserve (days) (Car.Rental.Inventory.car)) with
+     | Ok(reserved) ->
+         (match (Car.Rental.Pickup.pickup (reserved)) with
+          | Ok(pickedUp) ->
+              (match (Car.Rental.Return.returnCar (days) (pickedUp)) with
+               | Ok(returned) -> (Car.Rental.Billing.bill (returned))
+               | Error(error) -> (Error(error)))
+          | Error(error) -> (Error(error)))
+     | Error(error) -> (Error(error)))

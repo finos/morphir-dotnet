@@ -106,11 +106,6 @@
           "System.Security.Cryptography.ProtectedData": "9.0.6"
         }
       },
-      "Microsoft.Build.Framework": {
-        "type": "Transitive",
-        "resolved": "18.0.2",
-        "contentHash": "sOSb+0J4G/jCBW/YqmRuL0eOMXgfw1KQLdC9TkbvfA5xs7uNm+PBQXJCOzSJGXtZcZrtXozcwxPmUiRUbmd7FA=="
-      },
       "Microsoft.Build.Locator": {
         "type": "Transitive",
         "resolved": "1.7.8",
@@ -529,6 +524,12 @@
         "requested": "[11.0.100, )",
         "resolved": "11.0.100",
         "contentHash": "ijfOz8ihqkFNdKUY57l8YTrbJNfQW/6tFYAUU57ByZzmTxxf1o12cQaCqDOjNqAz4h86AKS7IwQkNhYcrjLeCQ=="
+      },
+      "Microsoft.Build.Framework": {
+        "type": "CentralTransitive",
+        "requested": "[18.0.2, )",
+        "resolved": "18.0.2",
+        "contentHash": "sOSb+0J4G/jCBW/YqmRuL0eOMXgfw1KQLdC9TkbvfA5xs7uNm+PBQXJCOzSJGXtZcZrtXozcwxPmUiRUbmd7FA=="
       },
       "Microsoft.Build.Utilities.Core": {
         "type": "CentralTransitive",

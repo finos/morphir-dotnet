@@ -5,6 +5,8 @@ weight: 10
 description: "Get up and running with Morphir .NET"
 ---
 
+For executable F# from a model JSON file, start with [Generate F# from Morphir]({{< relref "/docs/getting-started/morphir-to-fsharp" >}}).
+
 ## Installation
 
 ### Prerequisites

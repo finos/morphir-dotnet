@@ -17,10 +17,11 @@ partial class Build
     /// </summary>
     Target Test => _ => _
         .DependsOn(Compile)
-        .Description("Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests, Morphir.Internal.CodeGeneration.Tests, Morphir.Models.Tests, Morphir.IR.Pipeline.Tests, Morphir.SDK.Tests)")
+        .Description("Run unit suites, Myriad BDD consumers and cold package lifecycle checks")
         .Executes(() =>
         {
             RunTests(Configuration);
+            RunMyriadPackageTests();
         });
 
     /// <summary>
@@ -76,11 +77,28 @@ partial class Build
     /// </summary>
     Target TestAll => _ => _
         .DependsOn(Test, TestBuild)
-        .Description("Run all tests (unit tests and build tests)")
+        .Description("Run unit, BDD and package-consumer suites plus build/package validation")
         .Executes(() =>
         {
             Serilog.Log.Information("All tests completed successfully");
         });
+
+    /// <summary>
+    /// Exercise cold package consumers, module publication and rebuild behavior.
+    /// </summary>
+    Target TestMyriadPackages => _ => _
+        .DependsOn(Compile)
+        .Description("Run Myriad package-consumer lifecycle checks")
+        .Executes(RunMyriadPackageTests);
+
+    void RunMyriadPackageTests()
+    {
+        var script = TestsDirectory / "Morphir.Myriad.Tests" / "package-tests.fsx";
+        if (RunCommand("dotnet", "fsi", script) != 0)
+        {
+            throw new Exception("Myriad package-consumer checks failed");
+        }
+    }
 
     /// <summary>
     /// Build the E2E test project (Morphir.E2E.Tests)
@@ -159,8 +177,25 @@ partial class Build
         var sdkTestDll = TestsDirectory / "Morphir.SDK.Tests" / "bin" / configuration / "net10.0" / "Morphir.SDK.Tests.dll";
         var sdkExitCode = RunCommand("dotnet", "exec", sdkTestDll);
 
+        var myriadExitCodes = new[]
+        {
+            "Morphir.CodeGeneration.FSharp.Tests",
+            "Morphir.Myriad.Tests",
+            "Morphir.Myriad.Integration.Tests",
+        }.Select(project =>
+        {
+            Serilog.Log.Information("Running {Project}...", project);
+            var testDll = TestsDirectory / project / "bin" / configuration / "net10.0" / $"{project}.dll";
+            var exitCode = RunCommand("dotnet", "exec", testDll);
+            if (exitCode != 0)
+            {
+                Serilog.Log.Error("{Project}: exit code {ExitCode}", project, exitCode);
+            }
+            return exitCode;
+        }).ToArray();
+
         // Check if any tests failed
-        if (coreExitCode != 0 || toolingExitCode != 0 || codeGenExitCode != 0 || modelsExitCode != 0 || pipelineExitCode != 0 || sdkExitCode != 0)
+        if (coreExitCode != 0 || toolingExitCode != 0 || codeGenExitCode != 0 || modelsExitCode != 0 || pipelineExitCode != 0 || sdkExitCode != 0 || myriadExitCodes.Any(code => code != 0))
         {
             Serilog.Log.Error("");
             Serilog.Log.Error("================================================");

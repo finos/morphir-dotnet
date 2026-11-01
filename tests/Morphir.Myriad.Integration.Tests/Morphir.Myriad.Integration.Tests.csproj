@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
+    <ReqnrollUseIntermediateOutputPathForCodeBehind>true</ReqnrollUseIntermediateOutputPathForCodeBehind>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="Reqnroll" />
+    <PackageReference Include="Reqnroll.TUnit" />
+    <PackageReference Include="coverlet.collector" />
+    <Content Include="**/*.feature" />
+    <EmbeddedResource Include="../Fixtures/MorphirIR/*" LogicalName="Morphir.Tests.Fixtures.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../examples/car-rental/models/*.json" LogicalName="Morphir.Tests.Fixtures.%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

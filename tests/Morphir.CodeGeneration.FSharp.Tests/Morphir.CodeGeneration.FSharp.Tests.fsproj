@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Expecto" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="YoloDev.Expecto.TestSdk" />
+    <PackageReference Include="Verify.Expecto" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Morphir.CodeGeneration.FSharp/Morphir.CodeGeneration.FSharp.fsproj" />
+    <ProjectReference Include="../../src/Morphir.SDK/Morphir.SDK.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Fixtures/ResourceLoader.fs" Link="ResourceLoader.fs" />
+    <Compile Include="Fixtures.fs" />
+    <Compile Include="TranspilerTests.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../Fixtures/MorphirIR/*" LogicalName="Morphir.Tests.Fixtures.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="TestData/**/*.json" LogicalName="Morphir.Tests.Fixtures.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../examples/car-rental/models/*.json" LogicalName="Morphir.Tests.Fixtures.%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

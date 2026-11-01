@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-myriad-morphir-fsharp</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-myriad-morphir-fsharp</h1>
+<p class="meta">OpenSpec change | 2026-10-31 | Implemented and locally verified; ready for review</p>
+<p>Review the <a href="proposal.md">proposal</a>, <a href="specs/morphir-fsharp-transpilation/spec.md">transpilation contract</a>, <a href="specs/myriad-model-generation/spec.md">Myriad integration contract</a> and <a href="tasks.md">implementation tasks</a>.</p>
+<nav class="toc" aria-label="Contents"><ul>
+<li><a href="#context">Context</a></li><li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a></li><li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+</ul></nav>
+
+<h2 id="context">Context</h2>
+<p>See the proposal for motivation and roadmap boundaries. The repository has classic distribution, package, module, type, value and pattern ADTs in Morphir.Models. Its JSON codecs cover names, literals and types, but not a full library distribution. The existing version detector belongs to verification tooling and defaults unknown inputs to v3, which is unsafe for generation. Existing v1/v2/v3 validation fixtures contain empty libraries.</p>
+<p>Morphir.Internal.CodeGeneration is development tooling with generators that accept .fs and return empty ASTs. Its test helper uses a default GeneratorContext and accepts empty output. Neither is a working backend or evidence that a packaged plugin loads in Myriad. The older backend PRD proposes v3-only CLI generation and lossy open-record conversion; this change replaces those decisions for the first delivery.</p>
+<p>The central dependency pins include Myriad.Core 0.85.0, Fabulous.AST 1.10.0 and Fantomas.Core 7.0.5. The cached Myriad.Core package records source revision 165a7e5b424a16b5d507797e9ed43e4c3da12f5b. Its <a href="https://github.com/MoiraeSoftware/myriad/blob/165a7e5b424a16b5d507797e9ed43e4c3da12f5b/src/Myriad.Core/Types.fs">generator contract</a> has InputFilename, AdditionalParameters and Output.Source. The <a href="https://github.com/MoiraeSoftware/myriad/blob/165a7e5b424a16b5d507797e9ed43e4c3da12f5b/src/Myriad.Sdk/build/Myriad.Sdk.targets">matching SDK targets</a> demonstrate host invocation and selector parameters. Each invocation has one output path.</p>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p>Keep decoding, name resolution, dependency planning and translation independent of Myriad and MSBuild. Generate one file per Morphir module as requested, with an explicit ordered manifest. Use the compiler and executable examples to establish correctness rather than treating snapshots as proof.</p>
+<p>Do not change public IR representations or route through document trees, the object-based IR pipeline, or Wolverine hosting. Do not add a Morphir CLI command. This pass does not promise every SDK operation, open row polymorphism, arbitrary external libraries, cross-module recursion, or an incremental compiler cache.</p>
+
+<h2 id="decisions">Decisions</h2>
+<h3 id="arch-1">ARCH-1. Separate backend, Myriad plugin and build coordinator</h3>
+<p>Add Morphir.CodeGeneration.FSharp with versioned JSON decoding and a pure generation API over classic ADTs. It returns a Result containing an ordered module manifest and source, or typed diagnostics. Add Morphir.Myriad for the .json generator named morphir-fsharp. Add Morphir.Myriad.Build for the MSBuild task that coordinates multiple outputs. File access, process execution and output publication live in the adapters. Keep the development-only generator package unchanged.</p>
+<p>Alternatives: extending the internal plugin would mix internal .fs tooling with public model generation. A CLI-first backend would not satisfy the build integration. A document-tree conversion would expand the explicitly deferred scope.</p>
+<svg viewBox="0 0 960 165" role="img" aria-labelledby="flow-title flow-desc">
+<title id="flow-title">Model build flow</title><desc id="flow-desc">The build coordinator reads classic JSON, plans modules and invokes Myriad for each module. Successful generation publishes ordered F# files for compilation.</desc>
+<g fill="var(--panel)" stroke="var(--line)"><rect x="5" y="35" width="170" height="85" rx="8"/><rect x="210" y="35" width="210" height="85" rx="8"/><rect x="455" y="35" width="230" height="85" rx="8"/><rect x="720" y="35" width="235" height="85" rx="8"/></g>
+<g fill="var(--fg)" font-family="system-ui, sans-serif" font-size="16" text-anchor="middle"><text x="90" y="68">Classic model JSON</text><text x="90" y="95">v1 / v2 / v3</text><text x="315" y="68">Decode and validate</text><text x="315" y="95">Ordered module plan</text><text x="570" y="68">Myriad per module</text><text x="570" y="95">Backend → formatted F#</text><text x="837" y="68">Publish file manifest</text><text x="837" y="95">Compile before consumers</text></g>
+<g stroke="var(--fg)" fill="none" stroke-width="2"><path d="M175 78 H202 l-8 -6 m8 6 l-8 6"/><path d="M420 78 H447 l-8 -6 m8 6 l-8 6"/><path d="M685 78 H712 l-8 -6 m8 6 l-8 6"/></g></svg>
+
+<h3 id="ir-1">IR-1. Explicit classic version decoding</h3>
+<p>Parse formatVersion before dispatch. Accept integer 1, 2 or 3 only and require the matching Library envelope, tags and version-specific layouts. Reuse version-aware primitive codecs, adding the missing pattern, value, module, package and distribution decoders within the backend without changing existing codec defaults. Preserve attributes needed for type information and reference checking; incidental metadata does not affect emitted names. Use canonical non-empty fixtures checked against the repository's versioned schemas and wire conventions. Do not lowercase tags globally or normalize lists into maps before checking duplicate keys.</p>
+<p>Alternatives: verification's fallback to v3 can reinterpret future data; generic F# union deserialization does not establish Morphir wire compatibility. A universal modern-IR conversion would couple this initiative to IR 4+.</p>
+
+<h3 id="emit-1">EMIT-1. One source file per module with stable ordering</h3>
+<p>Plan the entire library before emission. Resolve local references and build module and declaration dependency graphs. Topologically order modules with canonical module paths as the tie-breaker. Emit types before dependent values and use type-and and let-rec-and groups within a module. Reject cycles between distinct modules and irreducible initialization cycles with the involved symbols. This preserves the requested file boundaries without moving public definitions between modules.</p>
+<p>Use each module path to derive its file beneath a model-specific directory, for example Domain/Types.fs and Domain/Rules.fs. A stable escaped model identity separates models with identical input basenames. Reject traversal segments, normalized-name collisions and case-insensitive path collisions before any writes. Emit package namespace and module qualification consistently in every file. An empty library has an empty manifest. No extra model definition file is needed.</p>
+<p>Use Fabulous.AST computation expressions and Fantomas with a fixed formatter configuration. Return formatted text via Output.Source, avoiding FSharp.Compiler.Service versus Fantomas.FCS syntax-type conversions. The manifest and generated file contents contain no timestamps or absolute input paths. An alternative single combined file simplifies cycles but contradicts the requested module layout. Per-module side effects hidden inside Generate would bypass Myriad's output contract.</p>
+
+<h3 id="map-1">MAP-1. Explicit representations and SDK mappings</h3>
+<p>Map named closed record aliases to F# record declarations, custom types to unions, and anonymous closed structural records to consistent anonymous-record types and expressions. Carry expected types through construction, field access and updates. Reject open ExtensibleRecord nodes rather than erase their rows. Escape identifiers with F# double backticks and detect collisions after canonical casing. Bind local names through lexical scopes so escaping and shadowing never capture a different variable. Keep private model members inaccessible to external consumers, using assembly-internal visibility where package-local references require it.</p>
+<p>The initial SDK table maps Int to int, Float to float, Bool to bool, String to string, Char to char, List to list, Maybe to option, and Result error/success parameters to F# success/error parameters. Use the existing SDK Order representation. Map add, subtract, multiply, divide, equality and ordered comparisons, List.map, Maybe.map and Result.map only after compiler and behavior tests establish their argument order and numeric behavior. Prefer standard F# operations when equivalent and explicit Morphir.SDK references when required. No suffix-based or reflection-based name guessing. Generated consumers reference Morphir.SDK when the emitted mapping requires it.</p>
+<p>WholeNumberLiteral carries int64 in the model while Morphir.SDK.Basics.Int is int32. Reject literals outside the mapped range rather than narrow silently. Emit invariant escaped literals, decimal suffixes and correct float syntax; add tests for boundaries and arithmetic behavior. Unsupported SDK entries or specification-only external dependencies fail with their FQName. Alternatives: copying SDK implementations creates a second runtime to maintain; resolving every name to an F# spelling hides semantic differences.</p>
+
+<h3 id="build-1">BUILD-1. Coordinate one Myriad invocation per module</h3>
+<p>The proposed consumer-facing item is MorphirModel, with one JSON Include and optional output directory metadata. The package supplies a task and targets. The task resolves paths from MSBuildProjectDirectory, validates the whole model, obtains the ordered module plan and invokes the matched Myriad host once per module. Pass the original JSON as InputFilename and a stable encoded MorphirModule selector through AdditionalParameters; the plugin validates that selector and returns exactly that module. A direct host invocation without a valid selector fails. No marker .fs file is required.</p>
+<p>Use the host's inputfile, outputfile, plugin, generator-filter and additionalparams arguments. Pass arguments without shell interpolation and direct plugin diagnostics to stderr. Package the compatible host/runtime assets or resolve them from the explicitly pinned Myriad.Sdk restore assets. Prove the exact restored executable path and dependency resolution in the first end-to-end slice. Do not depend on the SDK's private target names or let its automatic generation run a second time for coordinator-owned files.</p>
+<p>The coordinator target runs before F# compilation and returns generated Compile items in manifest order ahead of handwritten files, preserving the latter's relative order. Run planning on every ordinary build initially; avoid rewriting identical output. This favors reliable regeneration and module additions/removals over speculative caching. Design-time builds may consume the last successful manifest without launching generation; a normal clean build establishes the outputs.</p>
+<pre><code class="language-xml">&lt;!-- Proposed package interface; implementation must prove this sample in a clean consumer. --&gt;
+&lt;ItemGroup&gt;
+  &lt;MorphirModel Include="models/business-model.json" /&gt;
+&lt;/ItemGroup&gt;
+&lt;!-- Generated files go beneath obj/.../morphir/&amp;lt;model-id&amp;gt;/, in dependency order. --&gt;</code></pre>
+<p>Alternatives: manual Compile/MyriadFile entries with selectors force users to maintain a module list. A generator writing arbitrary sibling files would leave compilation order and stale-output cleanup undefined. The coordinator keeps those responsibilities explicit.</p>
+
+<h3 id="build-2">BUILD-2. Publish a complete generation result</h3>
+<p>Validate all definitions and paths before host emission. Generate into a staging directory under the target intermediate directory, scoped by project, configuration, target framework and model. Publish the manifest only after every invocation succeeds. Add files to compilation only after successful publication. On failure, return a failed task result and block CoreCompile even if previous files exist. Reconcile the prior manifest after success and delete only obsolete files owned by that manifest inside the model output directory. MSBuild clean removes owned intermediate artifacts.</p>
+<p>Use isolated staging paths for concurrent builds. Serialize publication for the same model output identity and reject duplicate model/output ownership in a project. No cross-process cache is needed. Alternatives: publishing each module immediately exposes partial output; relying on file timestamps alone can retain stale modules.</p>
+
+<h3 id="qa-1">QA-1. Test real host and compiled behavior from the first slice</h3>
+<p>Keep complete IR text in fixture resources. Test projects embed the shared files under tests/Fixtures/MorphirIR and link the car rental models directly from the example. Load them through assembly resource helpers; standalone F# checks read the same files from disk. Use JsonNode for structural substitutions instead of inline JSON templates. Focused IR object builders remain useful for individual construct tests.</p>
+<p>Begin with a failing BDD scenario that builds and executes a tiny non-empty v3 model through a locally packed plugin. Then implement that vertical slice before broader syntax coverage. Each subsequent group adds a failing focused test, minimal implementation and refactoring with green tests. Use Expecto for F# component tests, Verify.Expecto for reviewed source snapshots, and the repository's Reqnroll integration conventions for consumer builds. Never reuse the internal stub helper as generation evidence.</p>
+<p>Cover non-empty v1/v2/v3 models, every listed type/value/pattern family, SDK result ordering, numeric and string escaping boundaries, module ordering, privacy from a separate assembly, malformed and unsupported inputs, deterministic output, module add/remove, repeat builds, paths containing spaces and stale output after failure. Compiler diagnostics determine syntax and type correctness; executed fixtures determine expected behavior. Include a local nupkg consumer without references to source-tree build output. Run trim/AOT publication on a representative generated consumer, not on the Myriad host.</p>
+
+<h3 id="ex-1">EX-1. Use car rental as the runnable teaching example</h3>
+<p>Deliver examples/car-rental/ with a checked-in model JSON, equivalent version 1/2/3 fixtures, readable descriptions of its modules and rules, fixture provenance/update instructions and a thin F# console consumer. A fresh checkout and the documented .NET/package setup must be enough to run it. An optional upstream authoring tool must not become a prerequisite for the tutorial. Keep the tiny first build slice as an inventory or daily-rate function from this example, then expand the same example as the backend gains support.</p>
+<p>All inventory, reservation, pickup, return and billing decisions belong to the Morphir model and execute through generated functions. Handwritten F# supplies explicit inputs, sequences calls and displays results. Use immutable state and typed Result errors. The supplied sample car has a daily rate of 5000 cents. Reserving an available car marks it reserved and captures that rate; pickup of the confirmed reservation marks it rented. Return of an active rental records positive whole billable days, completes the reservation and makes the car available. Billing the completed rental once uses the captured rate times actual billable days, so three days costs 15000 cents.</p>
+<p>The example allows one active reservation per car and makes the car unavailable immediately when reserved. It uses explicit day counts and integer cents within the supported Int range. Future-dated booking calendars, time zones, taxes, discounts, payment collection, persistence and user interfaces are outside the example. These choices keep the workflow within the initial SDK mappings and avoid requiring new runtime integrations. Rejections include an unavailable car, pickup without a confirmed reservation, return without an active rental, nonpositive durations, billing before return and duplicate billing. Each rejection leaves the supplied state unchanged.</p>
+<table><thead><tr><th>Morphir module</th><th>Responsibility</th><th>Model dependencies</th></tr></thead><tbody>
+<tr><td>Domain</td><td>Vehicle and reservation identifiers, lifecycle states, money, rental and invoice records, typed errors</td><td>None</td></tr>
+<tr><td>Inventory</td><td>Sample inventory, lookup, availability and immutable vehicle-state updates</td><td>Domain</td></tr>
+<tr><td>Reservation</td><td>Reserve an available car and capture its rate</td><td>Domain, Inventory</td></tr>
+<tr><td>Pickup</td><td>Convert a confirmed reservation into an active rental</td><td>Domain, Inventory, Reservation</td></tr>
+<tr><td>Return</td><td>Complete a rental and release inventory</td><td>Domain, Inventory</td></tr>
+<tr><td>Billing</td><td>Create one invoice for a completed rental</td><td>Domain</td></tr>
+<tr><td>Workflow</td><td>Combine the operations and expose the complete sample journey</td><td>The other model modules</td></tr>
+</tbody></table>
+<p>This graph is acyclic and produces seven separate .fs files, so the example also demonstrates module planning and qualified references. Use only the promised core mappings, local recursion and closed records/unions as needed. Alternatives: independent snippets would hide integration failures; a handwritten F# rental engine would demonstrate the driver rather than the transpiler; calendar and payment services would obscure the generation workflow.</p>
+
+<h3 id="doc-1">DOC-1. Deliver reference, first-run and full-workflow articles</h3>
+<p>Use the existing Hugo documentation structure and front matter. Link all three articles from the package README and appropriate getting-started/guides navigation. Give each page a distinct purpose while keeping package versions, commands, model paths and expected results consistent with the shipped example.</p>
+<table><thead><tr><th>Planned article</th><th>Coverage</th><th>Verification</th></tr></thead><tbody>
+<tr><td>docs/content/docs/guides/myriad-fsharp.md</td><td>Plugin and build-item reference, module selection, generated file layout/order, supported classic versions and mappings, runtime references, regeneration, known limitations and troubleshooting</td><td>Check configuration examples against the real packaged consumer and mapping registry; build the documentation site and verify navigation/links.</td></tr>
+<tr><td>docs/content/docs/getting-started/morphir-to-fsharp.md</td><td>Prerequisites, local package feed, exact references, supplied car rental JSON, MorphirModel setup, first generated call, build/run commands and expected output</td><td>Run the article's instructions from a clean copied example without source-tree DLL references or a separate Morphir frontend.</td></tr>
+<tr><td>docs/content/docs/guides/car-rental-tutorial.md</td><td>Inventory → reservation → pickup → return → billing, model rules and JSON, seven generated files, F# calls, state/error results, invoice calculation, model edit and regeneration</td><td>Build and execute the full lifecycle and rejected operations for each classic fixture; repeat the documented rate change in a disposable copy.</td></tr>
+</tbody></table>
+<p>The tutorial starts with the supplied model and explains its provenance and module boundaries before configuring generation. Readers inspect the per-module output, call the generated operations and compare each state transition with the expected result. The final exercise changes the model's sample daily rate from 5000 to 6000 cents at a documented JSON location, rebuilds and runs a fresh three-day rental to obtain 18000 cents. Readers never edit generated files. Explain that a rate captured by an existing reservation stays fixed; the rate-change exercise starts a new rental.</p>
+<p>Use Reqnroll scenarios to drive the same packaged example and assert observable states, typed business errors and invoice totals. Keep tutorial command checks and expected outputs alongside the sample so documentation drift fails verification. Distinguish business-rule errors returned by generated functions from malformed/unsupported input and Myriad build failures. The reference includes remedies for each class. Alternatives: README-only instructions leave the complete workflow unexplained; an untested prose tutorial can diverge from generation and runtime behavior.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody>
+<tr><td>Myriad host, FSharp.Core and Fantomas assembly versions differ from the plugin's versions.</td><td>Prove packaged loading first using the existing central pins; isolate build-task dependencies. A failed compatibility check blocks mapper expansion and requires a concrete dependency fix.</td></tr>
+<tr><td>Historical JSON variants are only lightly exercised by current fixtures.</td><td>Add canonical non-empty version-specific fixtures and strict decoder tests. Do not claim compatibility from empty schema-validation samples.</td></tr>
+<tr><td>Separate files cannot represent arbitrary cross-module recursion.</td><td>Reject those graphs explicitly. Support recursive declarations within a module and document the file boundary limitation.</td></tr>
+<tr><td>SDK numeric and collection semantics may differ from a similarly named F# function.</td><td>Use an explicit tested mapping table, reject integer narrowing, and document numeric/runtime limits. Reject unmapped references.</td></tr>
+<tr><td>Re-decoding a library for each module increases build time.</td><td>Accept this cost for the first delivery and measure it. Defer caching until correctness and invalidation behavior are established.</td></tr>
+<tr><td>New module sets or failed generation leave old files.</td><td>Publish a complete manifest, compile only that manifest and block compilation on any generation failure. Remove only previously owned obsolete paths.</td></tr>
+<tr><td>The tutorial drifts from the model or quietly implements rules in handwritten F#.</td><td>Use one shipped car rental example for the articles and automated checks. Assert lifecycle and invoice behavior through generated functions in clean package consumers.</td></tr>
+</tbody></table>
+
+<h2 id="migration">Migration plan</h2>
+<ol>
+<li>Reconcile the existing backend PRD and PRD index with this delivery, preserving the broader roadmap and marking implementation status as work starts.</li>
+<li>Add backend, plugin and coordinator projects and a package-consuming example. Prove the smallest real Myriad build before extending mappings.</li>
+<li>Expand supported classic constructs and version fixtures with tests and documentation alongside each change. Complete the strict compatibility and rejection matrix.</li>
+<li>Finish the car rental model and consumer, plugin reference, getting-started article and end-to-end tutorial. Verify the full workflow, business rejections, model-edit exercise and documentation-site navigation before declaring the example complete.</li>
+<li>Run repository format, unit, BDD and contract checks plus local package-consumer and generated-code trim/AOT checks. Update contribution notices as applicable.</li>
+<li>Publish or merge only under the repository's existing explicit authorization rules. Rollback is removal of the opt-in package references and MorphirModel item; generated files live under intermediate output. No existing IR files, APIs or development generators are migrated.</li>
+</ol>
+</main>
+</body>
+</html>

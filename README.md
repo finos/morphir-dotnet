@@ -70,6 +70,8 @@ major version requires an explicit baseline update.
 ./build.sh --target TestBuild
 ```
 
+To compile classic Morphir model JSON into F#, see the [Myriad getting-started article](docs/content/docs/getting-started/morphir-to-fsharp.md), [plugin reference](docs/content/docs/guides/myriad-fsharp.md), and [car rental tutorial](docs/content/docs/guides/car-rental-tutorial.md). The [runnable example](examples/car-rental/README.md) covers inventory, reservation, pickup, return and billing with one generated F# file per module.
+
 ### Quick Start
 
 Install Morphir using one of the following methods:

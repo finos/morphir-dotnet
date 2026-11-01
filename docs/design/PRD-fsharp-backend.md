@@ -2,11 +2,39 @@
 
 **Document Version**: 1.0
 **Created**: 2025-12-31
-**Status**: Draft
+**Status**: In Progress
 **Owner**: Morphir Architecture Team
 **Epic**: F# Code Generation Backend
 
 ---
+
+## Current delivery: Myriad and classic IR
+
+Implementation follows [add-myriad-morphir-fsharp](../../openspec/changes/add-myriad-morphir-fsharp/proposal.md). The user approved implementation of this delivery. The remaining sections retain the broader backend roadmap; CLI integration, generated codecs/lenses, IR 4+ and document-tree support are later initiatives.
+
+This delivery supports explicit classic IR versions 1, 2 and 3, produces one F# file per Morphir module through Myriad, and rejects open extensible records and cross-module cycles rather than losing semantics. It includes a runnable car rental model covering inventory, reservation, pickup, return and billing, a plugin reference, a getting-started article and a complete tutorial.
+
+### Feature status tracking
+
+| Feature | Status | Evidence / current task |
+|---------|--------|-------------------------|
+| First packaged JSON-to-F# build | Implemented | Real packaged Myriad consumers compile and execute generated rules |
+| Classic v1/v2/v3 decoder and F# backend | Implemented | 45 backend tests; 91.9% backend line coverage in Release; canonical fixture schema checks |
+| Per-module Myriad build integration | Implemented | 4 adapter tests and 11 cold-package lifecycle checks |
+| Car rental example and lifecycle tests | Implemented | 12 Reqnroll scenarios, including version compatibility, rate regeneration and rejected rebuilds |
+| Reference, getting started and tutorial | Implemented | Linked articles and runnable example; documentation site builds |
+| Full compatibility, coverage and AOT verification | Verified for this delivery | Local solution, test-runner and generated-consumer trimming/AOT checks; see OpenSpec evidence |
+| Morphir CLI, codecs/lenses, IR 4+, document trees | Deferred | Separate initiatives |
+
+### Implementation notes
+
+- 2026-10-31: Reuse classic Morphir.Models ADTs in a separate backend, with a thin Myriad plugin and an MSBuild coordinator for one output file per module. Preserve the existing internal generators.
+- Start with a real locally packed plugin consumed by a clean F# project. The initial failing Reqnroll test establishes the missing implementation before production changes.
+- Use the OpenSpec task checkboxes as the detailed implementation record. No GitHub issue number was supplied; none has been invented or published.
+- The package bundles the matched Myriad host with FSharp.Core 10 alignment so first builds work with a cold NuGet cache. Package notices retain upstream attribution.
+- Complete JSON fixtures live in resource files. Tests embed shared fixtures and the example models; substitutions use JsonNode. Generation/verification scripts use F#, without Python.
+- Returning a car releases inventory while preserving its pending billing obligation. Billing an earlier rental does not overwrite a new reservation.
+- This first delivery is implemented. The broader CLI/backend roadmap below remains separate; this PRD's overall status stays In Progress until that roadmap is reconciled through later initiatives.
 
 ## Executive Summary
 
@@ -81,8 +109,8 @@ morphir-dotnet currently consumes and validates Morphir IR but lacks the ability
 2. ❌ **IR optimization**: Assume IR is already optimized
 3. ❌ **C# backend**: Separate PRD (future work)
 4. ❌ **Custom Morphir runtime**: Use F# standard library + Morphir.SDK
-5. ❌ **IDE integration**: CLI-first, editor support is out of scope
-6. ❌ **Backwards compatibility with IR v1/v2**: Focus on v3 (current standard)
+5. ❌ **IDE integration**: Editor-specific features are out of scope; the current delivery uses Myriad/MSBuild
+6. ❌ **IR 4+ and document trees**: Deferred; the current Myriad delivery supports classic v1/v2/v3
 
 ---
 
@@ -564,10 +592,10 @@ module Codecs =
    - **Resolution**: Use backtick escaping (`` `module` ``)
 
 2. **Extensible records**: F# doesn't have extensible records - how do we handle them?
-   - **Resolution**: Map to regular records (ignore extensibility)
+   - **Resolution**: Reject open extensible records with a typed diagnostic in the current delivery; do not erase row information
 
 3. **Circular dependencies**: How do we handle mutually recursive modules?
-   - **Resolution**: Use `rec module` or consolidate into single file
+   - **Resolution**: Reject cross-module cycles in the current per-module-file delivery; within-module recursive declarations remain supported
 
 4. **Generated file organization**: One file per module or consolidate?
    - **Resolution**: One file per Morphir module (matches morphir-elm pattern)
