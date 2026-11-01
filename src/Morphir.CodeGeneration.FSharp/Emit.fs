@@ -312,6 +312,15 @@ module internal Emit =
                 let moduleName = modulePath path
                 let mutable dependencies = Set.empty
 
+                // IR references and lexical variables have separate identities.
+                // Keep locals away from module value names, including recursive ones.
+                let localIdent name =
+                    if Map.containsKey name controlled.Value.Values then
+                        "__morphirLocal_"
+                        + camel name
+                    else
+                        ident (camel name)
+
                 let qualify name local =
                     if
                         name.PackagePath
@@ -567,12 +576,12 @@ module internal Emit =
                 let rec pattern p =
                     match p with
                     | WildcardPattern _ -> "_"
-                    | AsPattern(_, WildcardPattern _, name) -> ident (camel name)
+                    | AsPattern(_, WildcardPattern _, name) -> localIdent name
                     | AsPattern(_, nested, name) ->
                         "("
                         + pattern nested
                         + " as "
-                        + ident (camel name)
+                        + localIdent name
                         + ")"
                     | TuplePattern(_, elements) ->
                         "("
@@ -621,7 +630,7 @@ module internal Emit =
 
                     match value with
                     | Value.Literal(_, value) -> literal value
-                    | Value.Variable(_, name) -> ident (camel name)
+                    | Value.Variable(_, name) -> localIdent name
                     | Value.Reference(_, q) -> reference q
                     | Value.Constructor(_, q) ->
                         let name, arity = ctor q
@@ -952,7 +961,7 @@ module internal Emit =
                         + ")"
                     | Value.LetDefinition(_, name, definition, body) ->
                         "(let "
-                        + binding name definition
+                        + binding (localIdent name) definition
                         + " in "
                         + expression expected body
                         + ")"
@@ -960,7 +969,9 @@ module internal Emit =
                         let bindings =
                             definitions
                             |> Map.toList
-                            |> List.map (fun (name, definition) -> binding name definition)
+                            |> List.map (fun (name, definition) ->
+                                binding (localIdent name) definition
+                            )
                             |> String.concat " and "
 
                         "(let rec "
@@ -982,14 +993,14 @@ module internal Emit =
                         definition.InputTypes
                         |> List.map (fun (n, _, t) ->
                             "("
-                            + ident (camel n)
+                            + localIdent n
                             + " : "
                             + typ t
                             + ")"
                         )
                         |> String.concat " "
 
-                    ident (camel name)
+                    name
                     + " "
                     + parameters
                     + " : "
@@ -1118,7 +1129,7 @@ module internal Emit =
                                    "internal "
                                else
                                    "")
-                            + binding name definition
+                            + binding (ident (camel name)) definition
                         )
                     )
 

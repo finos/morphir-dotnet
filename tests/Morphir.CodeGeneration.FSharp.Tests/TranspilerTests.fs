@@ -224,6 +224,96 @@ let tests =
                         "printfn \"%d %s\" Car.Rental.Generic.anInt Car.Rental.Generic.aString")
                     "3 hello"
                     "generic use at distinct types"
+        testCase "module references remain distinct from same-named parameters"
+        <| fun _ ->
+            let json =
+                F.model [
+                    "capture",
+                    [],
+                    [
+                        F.binding "rate" [] F.intType (F.integer 5000)
+                        F.binding
+                            "charge"
+                            [ "rate", F.intType ]
+                            F.intType
+                            (F.op "add" (F.reference "capture" "rate") (F.variable "rate"))
+                    ]
+                ]
+
+            match Transpiler.Generate("capture.json", json) with
+            | Error errors -> failtestf "%A" errors
+            | Ok modules ->
+                Expect.equal
+                    (execute modules "printfn \"%d\" (Car.Rental.Capture.charge 7)")
+                    "5007"
+                    "qualified references retain module identity while variables retain lexical identity"
+        testCase "module references survive every lexical binding form"
+        <| fun _ ->
+            let capture = F.op "add" (F.reference "capture" "rate") (F.variable "rate")
+
+            let argument =
+                F.a [ box "AsPattern"; null; F.a [ box "WildcardPattern"; null ]; F.n "rate" ]
+
+            let local =
+                F.a [
+                    box "LetDefinition"
+                    null
+                    F.n "rate"
+                    F.definition [] F.intType (F.integer 7)
+                    capture
+                ]
+
+            let lambda = F.apply (F.a [ box "Lambda"; null; argument; capture ]) [ F.integer 7 ]
+
+            let matched =
+                F.a [ box "PatternMatch"; null; F.integer 7; F.a [ F.a [ argument; capture ] ] ]
+
+            let destructured = F.a [ box "Destructure"; null; argument; F.integer 7; capture ]
+
+            let recursiveBody =
+                F.a [
+                    box "IfThenElse"
+                    null
+                    F.op "equal" (F.variable "n") (F.integer 0)
+                    F.reference "capture" "rate"
+                    F.apply (F.variable "rate") [ F.op "subtract" (F.variable "n") (F.integer 1) ]
+                ]
+
+            let recursive =
+                F.a [
+                    box "LetRecursion"
+                    null
+                    F.a [
+                        F.a [ F.n "rate"; F.definition [ "n", F.intType ] F.intType recursiveBody ]
+                    ]
+                    F.apply (F.variable "rate") [ F.integer 3 ]
+                ]
+
+            let json =
+                F.model [
+                    "capture",
+                    [],
+                    [
+                        F.binding "rate" [] F.intType (F.integer 5000)
+                        F.binding
+                            "locals"
+                            []
+                            (F.tTuple (List.replicate 5 F.intType))
+                            (F.a [
+                                box "Tuple"
+                                null
+                                F.a [ local; lambda; matched; destructured; recursive ]
+                            ])
+                    ]
+                ]
+
+            match Transpiler.Generate("capture.json", json) with
+            | Error errors -> failtestf "%A" errors
+            | Ok modules ->
+                Expect.equal
+                    (execute modules "printfn \"%A\" Car.Rental.Capture.locals")
+                    "(5007, 5007, 5007, 5007, 5000)"
+                    "local lets, lambdas, matches, destructuring and recursion preserve reference identity"
         testCase "unbound variables are generation errors"
         <| fun _ ->
             let json =
@@ -1028,9 +1118,21 @@ let contractTests =
                     $"<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><NuGetAudit>false</NuGetAudit></PropertyGroup><ItemGroup>{compile}</ItemGroup></Project>"
                 )
 
-                let code, diagnostics = run [ "build"; "Privacy.fsproj"; "--nologo" ]
+                let outputDirectory = Path.Combine(directory, "compiled")
+
+                let code, diagnostics =
+                    run [
+                        "build"
+                        "Privacy.fsproj"
+                        "-c"
+                        "Release"
+                        "-o"
+                        outputDirectory
+                        "--nologo"
+                    ]
+
                 Expect.equal code 0 diagnostics
-                let assembly = Path.Combine(directory, "bin/Debug/net10.0/Privacy.dll")
+                let assembly = Path.Combine(outputDirectory, "Privacy.dll")
 
                 let compileConsumer body =
                     let script = Path.Combine(directory, "Consumer.fsx")

@@ -146,7 +146,7 @@ public sealed class GenerateMorphirModules : Microsoft.Build.Utilities.Task
         var configured = model.GetMetadata("OutputDirectory");
         if (!string.IsNullOrWhiteSpace(configured))
         {
-            return Path.GetFullPath(configured, ProjectDirectory);
+            return Path.TrimEndingDirectorySeparator(Path.GetFullPath(configured, ProjectDirectory));
         }
 
         var relative = Path.GetRelativePath(ProjectDirectory, inputPath).Replace('\\', '/');
@@ -172,7 +172,7 @@ public sealed class GenerateMorphirModules : Microsoft.Build.Utilities.Task
             File.Copy(file, destination);
         }
 
-        // Myriad 0.85.0 bundles FSharp.Core 9. Backend assemblies target Core 10.
+        // Myriad 0.85.0 bundles FSharp.Core 9. Align it with the backend runtime.
         // A single higher-version Core must load before the host and plugin share
         // Fantomas async APIs. Never modify the restored tool in the NuGet cache.
         var sharedCore = Path.Combine(Path.GetDirectoryName(PluginPath)!, "FSharp.Core.dll");
@@ -237,8 +237,10 @@ public sealed class GenerateMorphirModules : Microsoft.Build.Utilities.Task
             throw new InvalidOperationException($"Invalid generated relative path '{relative}'.");
         }
 
-        var path = Path.GetFullPath(Path.Combine(root, relative));
-        if (!path.StartsWith(Path.GetFullPath(root) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        var fullRoot = Path.GetFullPath(root);
+        var prefix = Path.EndsInDirectorySeparator(fullRoot) ? fullRoot : fullRoot + Path.DirectorySeparatorChar;
+        var path = Path.GetFullPath(Path.Combine(fullRoot, relative));
+        if (!path.StartsWith(prefix, StringComparison.Ordinal))
         {
             throw new InvalidOperationException($"Generated path '{relative}' escapes '{root}'.");
         }

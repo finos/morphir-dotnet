@@ -19,7 +19,7 @@ This delivery supports explicit classic IR versions 1, 2 and 3, produces one F# 
 | Feature | Status | Evidence / current task |
 |---------|--------|-------------------------|
 | First packaged JSON-to-F# build | Implemented | Real packaged Myriad consumers compile and execute generated rules |
-| Classic v1/v2/v3 decoder and F# backend | Implemented | 43 backend tests; 92.6% backend line coverage; canonical fixture schema checks |
+| Classic v1/v2/v3 decoder and F# backend | Implemented | 45 backend tests; 91.9% backend line coverage in Release; canonical fixture schema checks |
 | Per-module Myriad build integration | Implemented | 4 adapter tests and 11 cold-package lifecycle checks |
 | Car rental example and lifecycle tests | Implemented | 12 Reqnroll scenarios, including version compatibility, rate regeneration and rejected rebuilds |
 | Reference, getting started and tutorial | Implemented | Linked articles and runnable example; documentation site builds |

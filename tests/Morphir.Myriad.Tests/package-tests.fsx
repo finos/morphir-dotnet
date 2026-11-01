@@ -123,7 +123,26 @@ let editProject consumer (before: string) (after: string) =
     File.WriteAllText(project, File.ReadAllText(project).Replace(before, after))
 
 let tests =
-    [ "repeat builds preserve source and manifest timestamps",
+    [ "configured output directories accept trailing separators",
+      fun () ->
+          withConsumer
+          <| fun consumer ->
+              writeModel consumer (model [ moduleJson "inventory" 5000 ])
+              let item = "<MorphirModel Include=\"model.json\" />"
+              let mutable previous = item
+
+              for output in [ "generated"; Path.Combine(consumer, "generated") ] do
+                  let directory = output + string Path.DirectorySeparatorChar
+
+                  let next =
+                      $"<MorphirModel Include=\"model.json\" OutputDirectory=\"{directory}\" />"
+
+                  editProject consumer previous next
+                  previous <- next
+                  build consumer true |> ignore
+                  assertEqual "5000" (execute consumer)
+                  assertEqual true (File.Exists(Path.Combine(consumer, "generated", "Inventory.fs")))
+      "repeat builds preserve source and manifest timestamps",
       fun () ->
           withConsumer
           <| fun consumer ->
@@ -232,7 +251,7 @@ let tests =
               editProject
                   consumer
                   "<MorphirModel Include=\"model.json\" />"
-                  "<MorphirModel Include=\"model.json\" OutputDirectory=\"same\" /><MorphirModel Include=\"other.json\" OutputDirectory=\"same\" />"
+                  "<MorphirModel Include=\"model.json\" OutputDirectory=\"same\" /><MorphirModel Include=\"other.json\" OutputDirectory=\"same/\" />"
 
               build consumer false |> assertContains "output collision"
               assertEqual false (Directory.Exists(Path.Combine(consumer, "same")))
