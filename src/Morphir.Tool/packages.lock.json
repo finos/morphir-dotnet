@@ -44,9 +44,9 @@
       },
       "System.CommandLine": {
         "type": "Direct",
-        "requested": "[2.0.8, )",
-        "resolved": "2.0.8",
-        "contentHash": "FbpgF8p/ClXnoXEWLjQB34kNh5rsLewEgIgLyVzLDucAOQ4cNs7ec9Cam7gdKPruSb6zp4Mx8htZGTL4/5PJPg=="
+        "requested": "[2.0.14, )",
+        "resolved": "2.0.14",
+        "contentHash": "15fyVO4aG6poR6IKmhM74zf7PUzaU6FZAGm2d3SQSO9yIyGAeo44e6t9qeKjjaqyMEqYdqcb2G1B0gpLoDU2cA=="
       },
       "Foundatio.Mediator.Abstractions": {
         "type": "Transitive",
@@ -337,8 +337,8 @@
       },
       "System.IO.Hashing": {
         "type": "Transitive",
-        "resolved": "10.0.7",
-        "contentHash": "6hsjdSr4VOXSOnhALkYplHpAxnTG1J33YN42IB6nH2fEg4QnJqrZ4Ft+qn7mkrKAOYC8pCSFYwVWw6rQbmwgLQ=="
+        "resolved": "10.0.11",
+        "contentHash": "OzKDcIRkeNJeC8qAsbn8yJXnfTLP1dtkWILe+T56Gf/z+IkAASi7sMqLqJQat08j5z/mRN5xVtoAwbkMNMoBUQ=="
       },
       "morphir": {
         "type": "Project",
@@ -349,7 +349,7 @@
           "Serilog": "[4.3.1, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
-          "System.CommandLine": "[2.0.8, )"
+          "System.CommandLine": "[2.0.14, )"
         }
       },
       "morphir.configuration": {
@@ -364,13 +364,13 @@
           "Dunet": "[1.16.2, )",
           "Generator.Equals": "[3.3.0, )",
           "LanguageExt.Core": "[5.0.0-beta-77, )",
-          "Vogen": "[8.0.5, )"
+          "Vogen": "[8.0.7, )"
         }
       },
       "morphir.tooling": {
         "type": "Project",
         "dependencies": {
-          "CsToml": "[1.8.3, )",
+          "CsToml": "[1.8.6, )",
           "FluentValidation": "[11.12.0, )",
           "Foundatio.Mediator": "[1.2.1, )",
           "Json.More.Net": "[2.2.0, )",
@@ -381,16 +381,16 @@
           "Serilog": "[4.3.1, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
-          "System.CommandLine": "[2.0.8, )"
+          "System.CommandLine": "[2.0.14, )"
         }
       },
       "CsToml": {
         "type": "CentralTransitive",
-        "requested": "[1.8.3, )",
-        "resolved": "1.8.3",
-        "contentHash": "k79Y/5SbN1ovaRDxLsPMxWNhk66sIJ8lv35RjkJ8YMhvcwjQgbH72SIwzNZZWs/ACEvfUPIqGyeDoxJ4SE2Esg==",
+        "requested": "[1.8.6, )",
+        "resolved": "1.8.6",
+        "contentHash": "rHRpAxkpQBDRlUTg+TCfpQbyJ+QDnlZBO1At8HMgHGrfpyQnik0GK17f95zmNK4vQacRNkXz2xvsdfWuC5Z+Ww==",
         "dependencies": {
-          "System.IO.Hashing": "10.0.7"
+          "System.IO.Hashing": "10.0.11"
         }
       },
       "Dunet": {
@@ -497,9 +497,9 @@
       },
       "Vogen": {
         "type": "CentralTransitive",
-        "requested": "[8.0.5, )",
-        "resolved": "8.0.5",
-        "contentHash": "hUGafk0LpUn3ooZNOOczByhVSGqBaI96bCn0DkreSd2bwHGrMfdRoCqNrB4w0/y5bufyYaABqQ8wWBPgx5QdNw=="
+        "requested": "[8.0.7, )",
+        "resolved": "8.0.7",
+        "contentHash": "0DrJ2ZPEGoJlzwqhum2LaZJ2FzJzgy5HP0km+XYL2MC/hS4Sn5/C35oRyob146Yjlf5xit2tmPx5xhI2BXkhLw=="
       }
     }
   }

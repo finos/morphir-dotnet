@@ -508,9 +508,9 @@
       },
       "Azure.Security.KeyVault.Keys": {
         "type": "CentralTransitive",
-        "requested": "[4.10.1, )",
-        "resolved": "4.10.1",
-        "contentHash": "RAFXuB5dWDTrfU5kw/uLH9IMeW7wL2ZgpR6sBcZZ/jJ0LOuKQ+ScEy2S8KeTr+BWnDIyIHtLLDPzEAPtbBZf5w==",
+        "requested": "[4.10.2, )",
+        "resolved": "4.10.2",
+        "contentHash": "Md0YYVe0cGgLbgVW5tdOn3f78Pdp93rJ6DJZGKQbdBbjEysKdTLn8X5uTml/TTxJ1j1e6pY2kRV6iT7Ry+Z8Jg==",
         "dependencies": {
           "Azure.Core": "1.54.0"
         }
