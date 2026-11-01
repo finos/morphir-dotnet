@@ -91,12 +91,24 @@
       "groupName": "rust-major"
     },
     {
-      "description": "Update global.json and mise.toml SDK pins in the same PR, overriding the generic tooling group. Major SDK upgrades stay separate.",
+      "description": "Update global.json and mise.toml SDK pins together on .NET 10 LTS. Review the next LTS baseline explicitly instead of taking an STS major upgrade.",
       "matchDatasources": [
         "dotnet-version"
       ],
       "groupName": "dotnet-sdk",
-      "groupSingleUpdates": true
+      "groupSingleUpdates": true,
+      "allowedVersions": "/^10\\./"
+    },
+    {
+      "description": "Keep the development-container SDK on the same .NET 10 LTS baseline and in the same update PR as global.json and mise.toml.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "mcr.microsoft.com/dotnet/sdk"
+      ],
+      "groupName": "dotnet-sdk",
+      "allowedVersions": "/^10\\./"
     },
     {
       "description": "Fabulous.AST requires an exact Fantomas.Core version. Keep their available updates together even when their update types differ, overriding the generic NuGet groups. Review the required Fantomas.Core version before merging.",
