@@ -8,24 +8,9 @@ namespace Morphir.Build.Tests;
 public static class TestFixture
 {
     /// <summary>
-    /// Get the repository root directory (where .git folder exists)
+    /// Get the repository root directory
     /// </summary>
-    public static string GetRepositoryRoot()
-    {
-        var currentDir = Directory.GetCurrentDirectory();
-        var dir = new DirectoryInfo(currentDir);
-
-        while (dir != null)
-        {
-            if (Directory.Exists(Path.Combine(dir.FullName, ".git")))
-            {
-                return dir.FullName;
-            }
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("Could not find repository root directory");
-    }
+    public static string GetRepositoryRoot() => Morphir.Build.Helpers.PathHelper.GetRepositoryRoot();
 
     /// <summary>
     /// Get the artifacts/packages directory

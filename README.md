@@ -108,7 +108,7 @@ This project uses [Nuke](https://nuke.build/) for build orchestration, providing
 
 ### Requirements
 
-- [.NET SDK 10.0](https://dotnet.microsoft.com/download) or higher
+- [.NET SDK 10.0.403](https://dotnet.microsoft.com/download) or a later patch in the same feature band, as specified in `global.json`
 
 ### Basic Commands
 
@@ -385,3 +385,9 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 - [NuGet Packages](https://www.nuget.org/packages?q=morphir)
 - [Morphir Project](https://github.com/finos/morphir)
 - [Morphir Docs](https://morphir.finos.org/)
+
+## OpenSpec change proposals
+
+This repository uses the shared `html-design` OpenSpec workflow. New proposals
+produce capability specs, a standalone `design.html`, and implementation tasks.
+See [the OpenSpec guide](docs/openspec.md) for setup, verification and updates.

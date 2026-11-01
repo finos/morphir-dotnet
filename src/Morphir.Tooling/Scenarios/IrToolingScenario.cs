@@ -83,7 +83,7 @@ public class IrToolingScenario : IMorphirCliScenario
 
             // Create temporary host for this command
             // Note: In the future, we'll use the app-wide host from MorphirCliApp
-            using var host = CreateCommandHost();
+            using var host = CreateCommandHost(quiet);
             await host.StartAsync();
 
             var mediator = host.Services.GetRequiredService<IMediator>();
@@ -175,20 +175,25 @@ public class IrToolingScenario : IMorphirCliScenario
     /// Creates a temporary host for command execution.
     /// This is a temporary solution until we refactor to use app-wide host.
     /// </summary>
-    private static IHost CreateCommandHost()
+    private static IHost CreateCommandHost(bool quiet)
     {
         var builder = Host.CreateApplicationBuilder();
 
         // Configure logging
         builder.Logging.ClearProviders();
 
-        Serilog.Log.Logger = new Serilog.LoggerConfiguration()
-            .MinimumLevel.Information()
-            .WriteTo.Console(
+        var loggerConfiguration = new Serilog.LoggerConfiguration()
+            .MinimumLevel.Information();
+
+        if (!quiet)
+        {
+            loggerConfiguration.WriteTo.Console(
                 standardErrorFromLevel: Serilog.Events.LogEventLevel.Verbose,
                 outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
-            )
-            .CreateLogger();
+            );
+        }
+
+        Serilog.Log.Logger = loggerConfiguration.CreateLogger();
 
         builder.Logging.AddSerilog(Serilog.Log.Logger, dispose: true);
 

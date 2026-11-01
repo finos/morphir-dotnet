@@ -1,0 +1,132 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "timezone": "UTC",
+  "schedule": [
+    "* 0-5 * * 1,4"
+  ],
+  "updateNotScheduled": false,
+  "automerge": false,
+  "separateMajorMinor": true,
+  "groupSingleUpdates": true,
+  "labels": [
+    "dependencies"
+  ],
+  "customManagers": [
+    {
+      "description": "The mise manager does not support the dotnet tool. Track its SDK pin alongside global.json so both declarations move together.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^mise\\.toml$/"
+      ],
+      "matchStrings": [
+        "(?:^|\\n)dotnet\\s*=\\s*\"(?<currentValue>[^\"\\r\\n]+)\""
+      ],
+      "depNameTemplate": "dotnet-sdk",
+      "datasourceTemplate": "dotnet-version"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Group build and documentation tooling together, following morphir-rust. Major tooling updates stay separate from non-major updates.",
+      "matchManagers": [
+        "github-actions",
+        "mise",
+        "npm",
+        "dockerfile",
+        "gomod"
+      ],
+      "groupName": "tooling"
+    },
+    {
+      "description": "Group NuGet patches across centrally managed packages and dotnet tools. Keep them separate from minor upgrades that may need code changes.",
+      "matchDatasources": [
+        "nuget"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "groupName": "dotnet-patch"
+    },
+    {
+      "description": "Group NuGet minor updates separately from patches. Major NuGet upgrades retain the recommended per-package or related-package groups.",
+      "matchDatasources": [
+        "nuget"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "groupName": "dotnet-minor"
+    },
+    {
+      "description": "Group Rust plugin patch updates separately from minor and major updates.",
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "groupName": "rust-patch"
+    },
+    {
+      "description": "Group Rust plugin minor updates separately; pre-1.0 minor releases can be breaking changes.",
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "groupName": "rust-minor"
+    },
+    {
+      "description": "Group Rust plugin major updates separately from non-major updates.",
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "groupName": "rust-major"
+    },
+    {
+      "description": "Update global.json and mise.toml SDK pins in the same PR, overriding the generic tooling group. Major SDK upgrades stay separate.",
+      "matchDatasources": [
+        "dotnet-version"
+      ],
+      "groupName": "dotnet-sdk",
+      "groupSingleUpdates": true
+    },
+    {
+      "description": "Fabulous.AST requires an exact Fantomas.Core version. Keep their available updates together even when their update types differ, overriding the generic NuGet groups. Review the required Fantomas.Core version before merging.",
+      "matchDatasources": [
+        "nuget"
+      ],
+      "matchPackageNames": [
+        "Fabulous.AST",
+        "Fantomas.Core"
+      ],
+      "groupName": "fsharp-codegen",
+      "separateMajorMinor": false
+    },
+    {
+      "description": "Verify.TUnit can raise its TUnit.Core minimum in a patch release. Update TUnit, Verify, Reqnroll and their testing-platform dependencies together so the engine, generators and runtime stay compatible, even when their update types differ.",
+      "matchDatasources": [
+        "nuget"
+      ],
+      "matchPackageNames": [
+        "TUnit",
+        "TUnit.*",
+        "Verify",
+        "Verify.*",
+        "Reqnroll",
+        "Reqnroll.*",
+        "Microsoft.Testing.*",
+        "Microsoft.NET.Test.Sdk"
+      ],
+      "groupName": "dotnet-testing",
+      "separateMajorMinor": false
+    }
+  ]
+}
