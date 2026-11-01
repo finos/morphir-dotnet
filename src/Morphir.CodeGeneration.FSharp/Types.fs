@@ -1,15 +1,15 @@
 namespace Morphir.CodeGeneration.FSharp
 
-/// A generation failure tied to its model source.
-type Diagnostic = {
-    Category: string
-    InputPath: string
+/// One generated file in the manifest.
+type ManifestEntry = {
+    /// The module's dotted path, which selects it for the Myriad host
+    ModulePath: string
+    /// The generated file's location in the tree
     Location: string
-    Message: string
 }
 
-/// One module source and its path in the ordered compilation manifest.
-type GeneratedModule = {
+/// One module source and its path, as emission produces it.
+type internal GeneratedModule = {
     ModulePath: string
     RelativePath: string
     Source: string

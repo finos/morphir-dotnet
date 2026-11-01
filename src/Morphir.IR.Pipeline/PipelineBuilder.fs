@@ -3,7 +3,7 @@ namespace Morphir.IR.Pipeline
 /// <summary>
 /// Computation expression builder for creating MorphirProcessor pipelines.
 /// Provides a declarative, F#-idiomatic API for pipeline construction.
-/// Pipelines are frozen (immutable) by default.
+/// The model type is inferred from the stages. Pipelines are frozen (immutable) by default.
 /// </summary>
 /// <example>
 /// <code>
@@ -20,29 +20,22 @@ type PipelineBuilder() =
     /// <summary>
     /// Yields an empty processor as the starting point.
     /// </summary>
-    member _.Yield(_) = MorphirProcessor.empty
+    member _.Yield(_) : MorphirProcessor<'T> = MorphirProcessor.empty
 
     /// <summary>
     /// Returns an empty processor for empty pipeline blocks.
     /// </summary>
-    member _.Zero() = MorphirProcessor.empty
+    member _.Zero() : MorphirProcessor<'T> = MorphirProcessor.empty
 
     /// <summary>
     /// Returns the processor, frozen by default.
     /// Pipelines are immutable unless explicitly marked as mutable.
     /// </summary>
-    member _.Run(proc: MorphirProcessor) : MorphirProcessor =
-        // Check if pipeline is marked as mutable
-        let stayMutable =
-            match MorphirProcessor.getDataAs<bool> "__stay_mutable__" proc with
-            | Some true -> true
-            | _ -> false
-
+    member _.Run(proc: MorphirProcessor<'T>) : MorphirProcessor<'T> =
         if proc.Frozen then
             proc
-        elif stayMutable then
-            // Remove the marker and return unfrozen processor
-            { proc with Data = proc.Data.Remove("__stay_mutable__") }
+        elif proc.StayUnfrozen then
+            { proc with StayUnfrozen = false }
         else
             MorphirProcessor.freeze proc
 
@@ -52,7 +45,7 @@ type PipelineBuilder() =
     /// <param name="proc">The current processor</param>
     /// <param name="parser">The parser to add</param>
     [<CustomOperation("parse")>]
-    member _.Parse(proc: MorphirProcessor, parser: Parser): MorphirProcessor =
+    member _.Parse(proc: MorphirProcessor<'T>, parser: Parser<'T>): MorphirProcessor<'T> =
         MorphirProcessor.parse parser proc
 
     /// <summary>
@@ -61,7 +54,7 @@ type PipelineBuilder() =
     /// <param name="proc">The current processor</param>
     /// <param name="plugin">The plugin to add</param>
     [<CustomOperation("uses")>]
-    member _.Uses(proc: MorphirProcessor, plugin: Plugin): MorphirProcessor =
+    member _.Uses(proc: MorphirProcessor<'T>, plugin: Plugin<'T>): MorphirProcessor<'T> =
         MorphirProcessor.plugin plugin proc
 
     /// <summary>
@@ -70,7 +63,7 @@ type PipelineBuilder() =
     /// <param name="proc">The current processor</param>
     /// <param name="compiler">The compiler to add</param>
     [<CustomOperation("stringify")>]
-    member _.Stringify(proc: MorphirProcessor, compiler: Compiler): MorphirProcessor =
+    member _.Stringify(proc: MorphirProcessor<'T>, compiler: Compiler<'T>): MorphirProcessor<'T> =
         MorphirProcessor.stringify compiler proc
 
     /// <summary>
@@ -80,7 +73,7 @@ type PipelineBuilder() =
     /// </summary>
     /// <param name="proc">The current processor</param>
     [<CustomOperation("freeze")>]
-    member _.Freeze(proc: MorphirProcessor): MorphirProcessor =
+    member _.Freeze(proc: MorphirProcessor<'T>): MorphirProcessor<'T> =
         MorphirProcessor.freeze proc
 
     /// <summary>
@@ -89,18 +82,18 @@ type PipelineBuilder() =
     /// </summary>
     /// <param name="proc">The current processor</param>
     [<CustomOperation("unfrozen")>]
-    member _.Unfrozen(proc: MorphirProcessor): MorphirProcessor =
-        MorphirProcessor.setData "__stay_mutable__" (box true) proc
+    member _.Unfrozen(proc: MorphirProcessor<'T>): MorphirProcessor<'T> =
+        { proc with StayUnfrozen = true }
 
     /// <summary>
-    /// Sets data in the processor's data dictionary.
+    /// Stores a typed value on the processor.
     /// </summary>
     /// <param name="proc">The current processor</param>
-    /// <param name="key">The data key</param>
-    /// <param name="value">The data value</param>
+    /// <param name="property">The property</param>
+    /// <param name="value">The value</param>
     [<CustomOperation("data")>]
-    member _.Data(proc: MorphirProcessor, key: string, value: obj): MorphirProcessor =
-        MorphirProcessor.setData key value proc
+    member _.Data(proc: MorphirProcessor<'T>, property: Property<'V>, value: 'V): MorphirProcessor<'T> =
+        MorphirProcessor.set property value proc
 
 /// <summary>
 /// Global pipeline builder instance.
@@ -151,37 +144,37 @@ module PipelineBuilderInstance =
     /// Creates frozen (immutable) pipelines explicitly.
     /// </summary>
     type FrozenPipelineBuilder() =
-        member _.Yield(_) = MorphirProcessor.empty
-        member _.Zero() = MorphirProcessor.empty
-        member _.Run(proc: MorphirProcessor) =
+        member _.Yield(_) : MorphirProcessor<'T> = MorphirProcessor.empty
+        member _.Zero() : MorphirProcessor<'T> = MorphirProcessor.empty
+        member _.Run(proc: MorphirProcessor<'T>) : MorphirProcessor<'T> =
             if proc.Frozen then proc else MorphirProcessor.freeze proc
         [<CustomOperation("parse")>]
-        member _.Parse(proc: MorphirProcessor, parser: Parser) = MorphirProcessor.parse parser proc
+        member _.Parse(proc: MorphirProcessor<'T>, parser: Parser<'T>) : MorphirProcessor<'T> = MorphirProcessor.parse parser proc
         [<CustomOperation("uses")>]
-        member _.Uses(proc: MorphirProcessor, plugin: Plugin) = MorphirProcessor.plugin plugin proc
+        member _.Uses(proc: MorphirProcessor<'T>, plugin: Plugin<'T>) : MorphirProcessor<'T> = MorphirProcessor.plugin plugin proc
         [<CustomOperation("stringify")>]
-        member _.Stringify(proc: MorphirProcessor, compiler: Compiler) = MorphirProcessor.stringify compiler proc
+        member _.Stringify(proc: MorphirProcessor<'T>, compiler: Compiler<'T>) : MorphirProcessor<'T> = MorphirProcessor.stringify compiler proc
         [<CustomOperation("data")>]
-        member _.Data(proc: MorphirProcessor, key: string, value: obj) = MorphirProcessor.setData key value proc
+        member _.Data(proc: MorphirProcessor<'T>, property: Property<'V>, value: 'V) : MorphirProcessor<'T> = MorphirProcessor.set property value proc
 
     /// <summary>
     /// Helper type for Pipeline.mut { ... } syntax.
     /// Creates unfrozen (mutable) pipelines that can be modified after creation.
     /// </summary>
     type MutablePipelineBuilder() =
-        member _.Yield(_) = MorphirProcessor.empty
-        member _.Zero() = MorphirProcessor.empty
-        member _.Run(proc: MorphirProcessor) =
+        member _.Yield(_) : MorphirProcessor<'T> = MorphirProcessor.empty
+        member _.Zero() : MorphirProcessor<'T> = MorphirProcessor.empty
+        member _.Run(proc: MorphirProcessor<'T>) : MorphirProcessor<'T> =
             // Never auto-freeze - always return unfrozen
             if proc.Frozen then MorphirProcessor.unfreeze proc else proc
         [<CustomOperation("parse")>]
-        member _.Parse(proc: MorphirProcessor, parser: Parser) = MorphirProcessor.parse parser proc
+        member _.Parse(proc: MorphirProcessor<'T>, parser: Parser<'T>) : MorphirProcessor<'T> = MorphirProcessor.parse parser proc
         [<CustomOperation("uses")>]
-        member _.Uses(proc: MorphirProcessor, plugin: Plugin) = MorphirProcessor.plugin plugin proc
+        member _.Uses(proc: MorphirProcessor<'T>, plugin: Plugin<'T>) : MorphirProcessor<'T> = MorphirProcessor.plugin plugin proc
         [<CustomOperation("stringify")>]
-        member _.Stringify(proc: MorphirProcessor, compiler: Compiler) = MorphirProcessor.stringify compiler proc
+        member _.Stringify(proc: MorphirProcessor<'T>, compiler: Compiler<'T>) : MorphirProcessor<'T> = MorphirProcessor.stringify compiler proc
         [<CustomOperation("data")>]
-        member _.Data(proc: MorphirProcessor, key: string, value: obj) = MorphirProcessor.setData key value proc
+        member _.Data(proc: MorphirProcessor<'T>, property: Property<'V>, value: 'V) : MorphirProcessor<'T> = MorphirProcessor.set property value proc
 
     /// <summary>
     /// Module providing explicit pipeline builder variations.

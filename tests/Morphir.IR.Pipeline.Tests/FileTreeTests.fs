@@ -1,7 +1,36 @@
 module Morphir.IR.Pipeline.Tests.FileTreeTests
 
+open System.IO
 open Expecto
 open Morphir.IR.Pipeline
+
+let private testKey = Property.create<string> "test.key"
+let private buildKey = Property.create<string> "test.build"
+
+/// A file's content as text, failing the test if it cannot be read.
+let private textOf (file: VFile) =
+    match VFile.readText file with
+    | Ok text -> text
+    | Result.Error error -> failtestf "could not read %A: %A" file.Path error
+
+/// A tree as a location to text map, failing the test if any file cannot be read.
+let private stringMap (tree: VFileTree) =
+    match VFileTree.toStringMap tree with
+    | Ok map -> map
+    | Result.Error error -> failtestf "could not read the tree: %A" error
+
+/// Keys of a file map, in map order.
+let private mapKeys (fileMap: Map<string, VFile>) =
+    fileMap |> Map.toList |> List.map fst
+
+/// Runs a test in a new temporary directory and removes the directory afterwards.
+let private withTempDir (run: string -> unit) =
+    let temp = Directory.CreateTempSubdirectory("morphir-filetree-").FullName
+
+    try
+        run temp
+    finally
+        Directory.Delete(temp, true)
 
 [<Tests>]
 let treeConfigTests =
@@ -332,86 +361,617 @@ let vfileTreeTransformationTests =
 [<Tests>]
 let vfileTreeConversionTests =
     testList "VFileTree Conversions" [
-        test "toFileMap should flatten tree to Map" {
-            let file1 = VFile.create "file1.fs" "code1"
-            let file2 = VFile.create "file2.fs" "code2"
+        test "toFileMap keys should be forward-slash paths relative to the tree root" {
+            let subSubTree =
+                VFileTree.create "deep" TreeConfig.empty
+                |> VFileTree.addFile (VFile.create "file3.fs" "code3")
 
             let subTree =
                 VFileTree.create "subdir" TreeConfig.empty
-                |> VFileTree.addFile file2
-            
+                |> VFileTree.addFile (VFile.create "file2.fs" "code2")
+                |> VFileTree.addDirectory subSubTree
+
             let tree =
                 VFileTree.empty
-                |> VFileTree.addFile file1
+                |> VFileTree.addFile (VFile.create "file1.fs" "code1")
                 |> VFileTree.addDirectory subTree
 
-            let fileMap = VFileTree.toFileMap tree
-            
-            Expect.isGreaterThanOrEqual (Map.count fileMap) 1 "should have at least 1 file"
+            Expect.equal
+                (mapKeys (VFileTree.toFileMap tree))
+                [ "file1.fs"; "subdir/deep/file3.fs"; "subdir/file2.fs" ]
+                "keys should be relative and use forward slashes"
         }
 
-        test "fromFileMap should build tree from Map" {
-            let fileMap =
-                Map.empty
-                |> Map.add "file1.fs" (VFile.create "file1.fs" "code1")
-                |> Map.add "file2.fs" (VFile.create "file2.fs" "code2")
+        test "toFileMap keys should exclude the root tree path" {
+            let tree =
+                VFileTree.create "/project/MyProject.fsproj" TreeConfig.empty
+                |> VFileTree.addFile (VFile.create "file1.fs" "code1")
 
-            let tree = VFileTree.fromFileMap fileMap
-            
-            Expect.equal (VFileTree.fileCount tree) 2 "should have 2 files"
+            Expect.equal (mapKeys (VFileTree.toFileMap tree)) [ "file1.fs" ] "root path should not appear in keys"
         }
 
-        test "toStringMap should flatten to string map" {
-            let file1 = VFile.create "file1.fs" "code1"
-            let file2 = VFile.create "file2.fs" "code2"
-            
+        test "toFileMap should normalize backslashes and dot segments in file paths" {
             let tree =
                 VFileTree.empty
-                |> VFileTree.addFile file1
-                |> VFileTree.addFile file2
+                |> VFileTree.addFile (VFile.create @".\src\.\a.fs" "code")
 
-            let stringMap = VFileTree.toStringMap tree
-            
-            Expect.isGreaterThanOrEqual (Map.count stringMap) 1 "should have at least 1 entry"
+            Expect.equal (mapKeys (VFileTree.toFileMap tree)) [ "src/a.fs" ] "key should be normalized"
+        }
+
+        test "toFileMap should omit files that have no path" {
+            let tree =
+                VFileTree.empty
+                |> VFileTree.addFile (VFile.fromContent "orphan")
+                |> VFileTree.addFile (VFile.create "file1.fs" "code1")
+
+            Expect.equal (mapKeys (VFileTree.toFileMap tree)) [ "file1.fs" ] "pathless file has no key"
+        }
+
+        test "toFileMap should keep rooted file paths rather than rebasing them" {
+            let subTree =
+                VFileTree.create "subdir" TreeConfig.empty
+                |> VFileTree.addFile (VFile.create "/abs/a.fs" "code")
+
+            let tree = VFileTree.empty |> VFileTree.addDirectory subTree
+
+            Expect.equal (mapKeys (VFileTree.toFileMap tree)) [ "/abs/a.fs" ] "rooted path should be kept"
+        }
+
+        test "fromFileMap should infer nested directories from key segments" {
+            let fileMap =
+                Map.ofList [
+                    "README.md", VFile.create "README.md" "readme"
+                    "src/Types.fs", VFile.create "src/Types.fs" "types"
+                    "src/Domain/Orders.fs", VFile.create "src/Domain/Orders.fs" "orders"
+                ]
+
+            let tree = VFileTree.fromFileMap fileMap
+
+            Expect.equal tree.Path "." "root path should be '.'"
+            Expect.equal (VFileTree.fileCount tree) 3 "should keep all files"
+            Expect.equal (VFileTree.directoryCount tree) 2 "should create src and src/Domain"
+
+            match tree.Content with
+            | [ File readme; Directory src ] ->
+                Expect.equal readme.Path (Some "README.md") "root file comes first"
+                Expect.equal src.Path "src" "first level directory"
+
+                match src.Content with
+                | [ File types; Directory domain ] ->
+                    Expect.equal types.Path (Some "Types.fs") "file path should be relative to its directory"
+                    Expect.equal domain.Path "Domain" "second level directory"
+
+                    match domain.Content with
+                    | [ File orders ] ->
+                        Expect.equal orders.Path (Some "Orders.fs") "file path should be relative to its directory"
+                    | other -> failtestf "unexpected Domain content: %A" other
+                | other -> failtestf "unexpected src content: %A" other
+            | other -> failtestf "unexpected root content: %A" other
+        }
+
+        test "fromFileMap should split keys on backslashes" {
+            let tree =
+                Map.ofList [ @"src\a.fs", VFile.fromContent "code" ]
+                |> VFileTree.fromFileMap
+
+            Expect.equal (mapKeys (VFileTree.toFileMap tree)) [ "src/a.fs" ] "backslash should separate directories"
+            Expect.equal (VFileTree.directoryCount tree) 1 "should create src"
+        }
+
+        test "fromFileMap should round trip string content with toStringMap" {
+            let tree =
+                Map.ofList [
+                    "a.fs", VFile.create "a.fs" "A"
+                    "x/b.fs", VFile.create "x/b.fs" "B"
+                    "x/y/c.fs", VFile.create "x/y/c.fs" "C"
+                ]
+                |> VFileTree.fromFileMap
+
+            Expect.equal
+                (stringMap tree)
+                (Map.ofList [ "a.fs", "A"; "x/b.fs", "B"; "x/y/c.fs", "C" ])
+                "keys and content should survive the round trip"
+        }
+
+        test "fromFileMap should use the key as the location of a pathless file" {
+            let tree =
+                Map.ofList [ "x/b.fs", VFile.fromContent "B" ]
+                |> VFileTree.fromFileMap
+
+            Expect.equal (stringMap tree) (Map.ofList [ "x/b.fs", "B" ]) "key should give the location"
+        }
+
+        test "fromFileMap should prefer the key over a different VFile path" {
+            let tree =
+                Map.ofList [ "x/b.fs", VFile.create "other/name.fs" "B" ]
+                |> VFileTree.fromFileMap
+
+            Expect.equal (stringMap tree) (Map.ofList [ "x/b.fs", "B" ]) "key should win"
+        }
+
+        test "fromFileMap should keep rooted keys at the top of the tree" {
+            let tree =
+                Map.ofList [ "/abs/a.fs", VFile.fromContent "A" ]
+                |> VFileTree.fromFileMap
+
+            Expect.equal (VFileTree.directoryCount tree) 0 "rooted key should not become directories"
+            Expect.equal (stringMap tree) (Map.ofList [ "/abs/a.fs", "A" ]) "rooted key should survive"
+        }
+
+        test "fromFileMap should record the relocation in file history and keep diagnostics" {
+            let original =
+                VFile.create "src/a.fs" "code"
+                |> VFile.warn "careful" None
+                |> VFile.set testKey "value"
+
+            let tree = Map.ofList [ "src/a.fs", original ] |> VFileTree.fromFileMap
+
+            match VFileTree.allFiles tree with
+            | [ file ] ->
+                Expect.equal file.Path (Some "a.fs") "path should be relative to src"
+                Expect.equal file.History [ "src/a.fs"; "a.fs" ] "history should record the move"
+                Expect.hasLength file.Messages 1 "messages should be kept"
+                Expect.equal (VFile.tryGet testKey file) (Some "value") "data should be kept"
+            | other -> failtestf "expected one file, got %A" other
+        }
+
+        test "fromFileMap should leave a file unchanged when its key names no location" {
+            let file = VFile.create "a.fs" "A"
+            let tree = Map.ofList [ ".", file ] |> VFileTree.fromFileMap
+
+            Expect.equal (VFileTree.allFiles tree) [ file ] "file should stay at the top with its own path"
+        }
+
+        test "fromFileMap should build an empty tree from an empty map" {
+            let tree = VFileTree.fromFileMap Map.empty
+
+            Expect.isEmpty tree.Content "content should be empty"
+        }
+
+        test "toStringMap should flatten nested files to exact keys and content" {
+            let subTree =
+                VFileTree.create "subdir" TreeConfig.empty
+                |> VFileTree.addFile (VFile.create "file2.fs" "code2")
+
+            let tree =
+                VFileTree.empty
+                |> VFileTree.addFile (VFile.create "file1.fs" "code1")
+                |> VFileTree.addDirectory subTree
+
+            Expect.equal
+                (stringMap tree)
+                (Map.ofList [ "file1.fs", "code1"; "subdir/file2.fs", "code2" ])
+                "should match the morphir-elm Dict FilePath FileContent shape"
+        }
+
+        test "toStringMap should read every kind of content and default missing content to empty" {
+            let source = StreamSource(fun () -> new MemoryStream("streamed"B) :> Stream)
+
+            let tree =
+                VFileTree.empty
+                |> VFileTree.addFile (VFile.create "stream.txt" source)
+                |> VFileTree.addFile (VFile.create "bytes.txt" "bytes"B)
+                |> VFileTree.addFile (VFile.fromPath "missing.txt")
+
+            Expect.equal
+                (stringMap tree)
+                (Map.ofList [ "bytes.txt", "bytes"; "missing.txt", ""; "stream.txt", "streamed" ])
+                "content should be read as text"
+        }
+
+        test "toStringMap should return a typed error when a file cannot be read" {
+            let source = StreamSource(fun () -> raise (IOException "gone"))
+            let tree = VFileTree.empty |> VFileTree.addFile (VFile.create "bad.txt" source)
+
+            match VFileTree.toStringMap tree with
+            | Result.Error (ContentError.ReadFailed (path, cause)) ->
+                Expect.equal path (Some "bad.txt") "should name the file"
+                Expect.equal cause.Message "gone" "should keep the cause"
+            | other -> failtestf "expected a read failure, got %A" other
+        }
+    ]
+
+[<Tests>]
+let vfileTreePathAddressingTests =
+    /// A tree holding two files named a.fs, with the nested one first.
+    let treeWithTwoSameNamedFiles =
+        let subTree =
+            VFileTree.create "subdir" TreeConfig.empty
+            |> VFileTree.addFile (VFile.create "a.fs" "nested")
+
+        VFileTree.empty
+        |> VFileTree.addDirectory subTree
+        |> VFileTree.addFile (VFile.create "a.fs" "top")
+
+    let contentOf (file: VFile option) = file |> Option.map textOf
+
+    testList "VFileTree Path Addressing" [
+        test "findFile should accept a path qualified by its directories" {
+            Expect.equal
+                (treeWithTwoSameNamedFiles |> VFileTree.findFile "subdir/a.fs" |> contentOf)
+                (Some "nested")
+                "should find the nested file"
+        }
+
+        test "findFile should accept backslashes in a qualified path" {
+            Expect.equal
+                (treeWithTwoSameNamedFiles |> VFileTree.findFile @"subdir\a.fs" |> contentOf)
+                (Some "nested")
+                "should normalize the lookup path"
+        }
+
+        test "findFile should prefer the exact location over a same-named nested file" {
+            Expect.equal
+                (treeWithTwoSameNamedFiles |> VFileTree.findFile "a.fs" |> contentOf)
+                (Some "top")
+                "should find the top-level file"
+        }
+
+        test "findFile should find files by flat map key after fromFileMap" {
+            let tree =
+                Map.ofList [ "src/Domain/Orders.fs", VFile.create "src/Domain/Orders.fs" "orders" ]
+                |> VFileTree.fromFileMap
+
+            Expect.equal
+                (tree |> VFileTree.findFile "src/Domain/Orders.fs" |> contentOf)
+                (Some "orders")
+                "should find by the original key"
+        }
+
+        test "updateFile should accept a path qualified by its directories" {
+            let updated =
+                treeWithTwoSameNamedFiles
+                |> VFileTree.updateFile "subdir/a.fs" (VFile.info "touched")
+
+            let messages =
+                updated
+                |> VFileTree.toFileMap
+                |> Map.map (fun _ file -> file.Messages.Length)
+
+            Expect.equal messages (Map.ofList [ "a.fs", 0; "subdir/a.fs", 1 ]) "only the nested file should change"
+        }
+
+        test "updateFile should change only the file findFile would return" {
+            let updated =
+                treeWithTwoSameNamedFiles
+                |> VFileTree.updateFile "a.fs" (VFile.info "touched")
+
+            let messages =
+                updated
+                |> VFileTree.toFileMap
+                |> Map.map (fun _ file -> file.Messages.Length)
+
+            Expect.equal messages (Map.ofList [ "a.fs", 1; "subdir/a.fs", 0 ]) "only the top-level file should change"
+        }
+
+        test "updateFile should find a nested file by its own path" {
+            let subTree =
+                VFileTree.create "subdir" TreeConfig.empty
+                |> VFileTree.addFile (VFile.create "nested.fs" "code")
+
+            let updated =
+                VFileTree.empty
+                |> VFileTree.addDirectory subTree
+                |> VFileTree.updateFile "nested.fs" (VFile.info "touched")
+
+            let messages = updated |> VFileTree.collectMessages
+
+            Expect.hasLength messages 1 "nested file should be updated"
+        }
+
+        test "updateFile should leave the tree unchanged for an unknown path" {
+            let updated =
+                treeWithTwoSameNamedFiles
+                |> VFileTree.updateFile "missing.fs" (VFile.info "touched")
+
+            Expect.isEmpty (VFileTree.collectMessages updated) "no file should change"
+        }
+
+        test "filter should apply to nested files and keep their directory" {
+            let subTree =
+                VFileTree.create "subdir" TreeConfig.empty
+                |> VFileTree.addFile (VFile.create "keep.fs" "code")
+                |> VFileTree.addFile (VFile.create "drop.txt" "text")
+
+            let filtered =
+                VFileTree.empty
+                |> VFileTree.addDirectory subTree
+                |> VFileTree.filter (fun f -> f.Path = Some "keep.fs")
+
+            Expect.equal (mapKeys (VFileTree.toFileMap filtered)) [ "subdir/keep.fs" ] "only keep.fs should remain"
+            Expect.equal (VFileTree.directoryCount filtered) 1 "directory should remain"
+        }
+    ]
+
+[<Tests>]
+let vfileTreeWriteToDiskTests =
+    testList "VFileTree writeToDisk" [
+        test "should write nested files under the output directory" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+
+                let subTree =
+                    VFileTree.create "subdir" TreeConfig.empty
+                    |> VFileTree.addFile (VFile.create "file2.fs" "code2")
+
+                let result =
+                    VFileTree.empty
+                    |> VFileTree.addFile (VFile.create "file1.fs" "code1")
+                    |> VFileTree.addDirectory subTree
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal result (Ok ()) "write should succeed"
+                Expect.equal (File.ReadAllText(Path.Combine(output, "file1.fs"))) "code1" "top-level file"
+                Expect.equal (File.ReadAllText(Path.Combine(output, "subdir", "file2.fs"))) "code2" "nested file")
+        }
+
+        test "should not create a directory for a relative root path" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+
+                let result =
+                    VFileTree.create "generated" TreeConfig.empty
+                    |> VFileTree.addFile (VFile.create "file1.fs" "code1")
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal result (Ok ()) "write should succeed"
+                Expect.isTrue (File.Exists(Path.Combine(output, "file1.fs"))) "file should be directly under output")
+        }
+
+        test "should stay under the output directory when the root path is absolute" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+                let absoluteRoot = Path.Combine(temp, "source")
+
+                let result =
+                    VFileTree.create absoluteRoot TreeConfig.empty
+                    |> VFileTree.addFile (VFile.create "file1.fs" "code1")
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal result (Ok ()) "write should succeed"
+                Expect.isTrue (File.Exists(Path.Combine(output, "file1.fs"))) "file should be under output"
+                Expect.isFalse (Directory.Exists absoluteRoot) "root path should not be written to")
+        }
+
+        test "should write an empty file when content is missing" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+
+                let result =
+                    VFileTree.empty
+                    |> VFileTree.addFile (VFile.fromPath "empty.txt")
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal result (Ok ()) "write should succeed"
+                Expect.equal (File.ReadAllText(Path.Combine(output, "empty.txt"))) "" "file should be empty")
+        }
+
+        test "should reject a parent-relative path and write nothing" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+
+                let result =
+                    VFileTree.empty
+                    |> VFileTree.addFile (VFile.create "good.fs" "good")
+                    |> VFileTree.addFile (VFile.create "../evil.fs" "evil")
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal
+                    result
+                    (Result.Error (TreeWriteError.InvalidTree [ TreeWriteProblem.PathOutsideOutputDirectory "../evil.fs" ]))
+                    "traversal should be rejected"
+
+                Expect.isFalse (File.Exists(Path.Combine(temp, "evil.fs"))) "should not escape the output directory"
+                Expect.isFalse (Directory.Exists output) "should not write anything")
+        }
+
+        test "should reject an absolute file path and write nothing" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+                let outside = Path.Combine(temp, "outside.fs")
+
+                let result =
+                    VFileTree.empty
+                    |> VFileTree.addFile (VFile.create outside "evil")
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal
+                    result
+                    (Result.Error (
+                        TreeWriteError.InvalidTree [
+                            TreeWriteProblem.PathOutsideOutputDirectory (outside.Replace('\\', '/'))
+                        ]
+                    ))
+                    "absolute path should be rejected"
+
+                Expect.isFalse (File.Exists outside) "should not write outside the output directory")
+        }
+
+        test "should reject two files with the same path and write nothing" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+
+                let subTree =
+                    VFileTree.create "subdir" TreeConfig.empty
+                    |> VFileTree.addFile (VFile.create "a.fs" "first")
+
+                let result =
+                    VFileTree.empty
+                    |> VFileTree.addDirectory subTree
+                    |> VFileTree.addFile (VFile.create "subdir/a.fs" "second")
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal
+                    result
+                    (Result.Error (TreeWriteError.InvalidTree [ TreeWriteProblem.DuplicateLocation "subdir/a.fs" ]))
+                    "duplicate should be rejected rather than losing a file"
+
+                Expect.isFalse (Directory.Exists output) "should not write anything")
+        }
+
+        test "should reject a file with no path and write nothing" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+
+                let orphan = VFile.fromContent "orphan"
+
+                let result =
+                    VFileTree.empty
+                    |> VFileTree.addFile (VFile.create "good.fs" "good")
+                    |> VFileTree.addFile orphan
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal
+                    result
+                    (Result.Error (TreeWriteError.InvalidTree [ TreeWriteProblem.FileWithoutPath orphan ]))
+                    "pathless file cannot be written"
+
+                Expect.isFalse (Directory.Exists output) "should not write anything")
+        }
+
+        test "should reject a file whose path names no location" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+
+                let dot = VFile.create "." "dot"
+
+                let subTree =
+                    VFileTree.create "subdir" TreeConfig.empty
+                    |> VFileTree.addFile dot
+
+                let result =
+                    VFileTree.empty
+                    |> VFileTree.addDirectory subTree
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal
+                    result
+                    (Result.Error (TreeWriteError.InvalidTree [ TreeWriteProblem.FileWithoutPath dot ]))
+                    "a directory path cannot be written as a file"
+
+                Expect.isFalse (Directory.Exists output) "should not write anything")
+        }
+
+        test "should report every problem in the tree" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+                let orphan = VFile.fromContent "orphan"
+
+                let result =
+                    VFileTree.empty
+                    |> VFileTree.addFile orphan
+                    |> VFileTree.addFile (VFile.create "../evil.fs" "evil")
+                    |> VFileTree.addFile (VFile.create "twice.fs" "first")
+                    |> VFileTree.addFile (VFile.create "twice.fs" "second")
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal
+                    result
+                    (Result.Error (
+                        TreeWriteError.InvalidTree [
+                            TreeWriteProblem.FileWithoutPath orphan
+                            TreeWriteProblem.PathOutsideOutputDirectory "../evil.fs"
+                            TreeWriteProblem.DuplicateLocation "twice.fs"
+                        ]
+                    ))
+                    "all problems should be listed, not only the first")
+        }
+
+        test "should keep the cause when the output path is an existing file" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "taken")
+                File.WriteAllText(output, "already here")
+
+                let result =
+                    VFileTree.empty
+                    |> VFileTree.addFile (VFile.create "file1.fs" "code1")
+                    |> VFileTree.writeToDisk output
+
+                match result with
+                | Result.Error (TreeWriteError.WriteFailed (outputDir, cause)) ->
+                    Expect.equal outputDir output "should name the output directory"
+                    Expect.isTrue (cause :? IOException) "should keep the I/O exception"
+                | other -> failtestf "expected WriteFailed, got %A" other)
+        }
+
+        test "describe should name each invalid location and every problem" {
+            let description =
+                TreeWriteError.InvalidTree [
+                    TreeWriteProblem.FileWithoutPath (VFile.fromContent "orphan")
+                    TreeWriteProblem.PathOutsideOutputDirectory "../evil.fs"
+                    TreeWriteProblem.DuplicateLocation "twice.fs"
+                ]
+                |> TreeWriteError.describe
+
+            Expect.stringContains description "no path" "should mention the file without a path"
+            Expect.stringContains description "../evil.fs" "should name the outside location"
+            Expect.stringContains description "twice.fs" "should name the duplicate location"
+        }
+
+        test "describe should name the directory and cause of a write failure" {
+            let description =
+                TreeWriteError.WriteFailed ("out", IOException "disk full")
+                |> TreeWriteError.describe
+
+            Expect.stringContains description "out" "should name the directory"
+            Expect.stringContains description "disk full" "should include the cause"
         }
     ]
 
 [<Tests>]
 let vfileTreeMetadataTests =
+    let name = Property.create<string> "test.name"
+    let count = Property.create<int> "test.count"
+
     testList "VFileTree Metadata" [
-        test "setMetadata should store metadata value" {
-            let tree =
-                VFileTree.empty
-                |> VFileTree.setMetadata "key1" (box "value1")
+        test "set and tryGet should round trip a typed value" {
+            let tree = VFileTree.empty |> VFileTree.set name "value1"
 
-            let value = VFileTree.getMetadata "key1" tree
-            
-            Expect.isSome value "value should be Some"
-            Expect.equal value (Some (box "value1")) "value should match"
+            Expect.equal (VFileTree.tryGet name tree) (Some "value1") "value should match"
         }
 
-        test "getMetadata should return None for missing key" {
-            let tree = VFileTree.empty
-
-            let value = VFileTree.getMetadata "missing" tree
-            
-            Expect.isNone value "value should be None"
+        test "tryGet should return None when no value is stored" {
+            Expect.isNone (VFileTree.tryGet name VFileTree.empty) "value should be None"
         }
 
-        test "should support multiple metadata values" {
+        test "remove should remove the value" {
             let tree =
                 VFileTree.empty
-                |> VFileTree.setMetadata "string" (box "text")
-                |> VFileTree.setMetadata "number" (box 123)
-                |> VFileTree.setMetadata "flag" (box true)
+                |> VFileTree.set name "value1"
+                |> VFileTree.remove name
 
-            let str = VFileTree.getMetadata "string" tree
-            let num = VFileTree.getMetadata "number" tree
-            let flag = VFileTree.getMetadata "flag" tree
-            
-            Expect.isSome str "string should be Some"
-            Expect.isSome num "number should be Some"
-            Expect.isSome flag "flag should be Some"
+            Expect.isNone (VFileTree.tryGet name tree) "value should be None"
+        }
+
+        test "should support values of different types" {
+            let tree =
+                VFileTree.empty
+                |> VFileTree.set name "text"
+                |> VFileTree.set count 123
+
+            Expect.equal (VFileTree.tryGet name tree) (Some "text") "string should match"
+            Expect.equal (VFileTree.tryGet count tree) (Some 123) "number should match"
+        }
+    ]
+
+[<Tests>]
+let treeConfigExtensionTests =
+    let plugin = Property.create<string> "test.plugin"
+
+    testList "TreeConfig Extensions" [
+        test "set and tryGet should round trip a typed value" {
+            let config = TreeConfig.empty |> TreeConfig.set plugin "fsharp"
+
+            Expect.equal (TreeConfig.tryGet plugin config) (Some "fsharp") "value should match"
+        }
+
+        test "remove should remove the value" {
+            let config =
+                TreeConfig.empty
+                |> TreeConfig.set plugin "fsharp"
+                |> TreeConfig.remove plugin
+
+            Expect.isNone (TreeConfig.tryGet plugin config) "value should be None"
         }
     ]
 
@@ -481,6 +1041,245 @@ let vfileTreeStatisticsTests =
     ]
 
 [<Tests>]
+let vfileTreeLoadFromDiskTests =
+    let writeFile (root: string) (relativePath: string) (content: string) =
+        let fullPath = Path.Combine(root, relativePath)
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)) |> ignore
+        File.WriteAllText(fullPath, content)
+
+    /// Creates a symbolic link, skipping the test where the OS does not allow it.
+    let createLinkOrSkip (create: unit -> unit) =
+        try
+            create ()
+        with
+        | :? IOException
+        | :? System.UnauthorizedAccessException -> skiptest "symbolic links are not available"
+
+    let loaded (result: Result<VFileTree, TreeLoadError>) =
+        match result with
+        | Ok tree -> tree
+        | Result.Error problem -> failtestf "expected a tree, got error: %A" problem
+
+    testList "VFileTree loadFromDisk" [
+        test "should load nested files as a hierarchy with files before directories" {
+            withTempDir (fun temp ->
+                writeFile temp "b.fs" "B"
+                writeFile temp "a.fs" "A"
+                writeFile temp "zeta/deep/d.fs" "D"
+                writeFile temp "alpha/c.fs" "C"
+
+                let tree = VFileTree.loadFromDisk temp |> loaded
+
+                Expect.equal tree.Path temp "root path should be the directory given"
+
+                match tree.Content with
+                | [ File a; File b; Directory alpha; Directory zeta ] ->
+                    Expect.equal a.Path (Some "a.fs") "files should be sorted by name"
+                    Expect.equal b.Path (Some "b.fs") "files should be sorted by name"
+                    Expect.equal alpha.Path "alpha" "directory path should be its name"
+                    Expect.equal zeta.Path "zeta" "directories should be sorted by name"
+
+                    match zeta.Content with
+                    | [ Directory deep ] ->
+                        Expect.equal deep.Path "deep" "nested directory path should be its name"
+
+                        match deep.Content with
+                        | [ File d ] -> Expect.equal d.Path (Some "d.fs") "nested file path should be its name"
+                        | other -> failtestf "unexpected deep content: %A" other
+                    | other -> failtestf "unexpected zeta content: %A" other
+                | other -> failtestf "unexpected root content: %A" other)
+        }
+
+        test "should load file text as string content" {
+            withTempDir (fun temp ->
+                writeFile temp "top.fs" "top"
+                writeFile temp "sub/nested.fs" "nested"
+
+                let tree = VFileTree.loadFromDisk temp |> loaded
+
+                Expect.equal
+                    (stringMap tree)
+                    (Map.ofList [ "sub/nested.fs", "nested"; "top.fs", "top" ])
+                    "keys should be relative to the directory"
+
+                Expect.equal
+                    (VFileTree.findFile "sub/nested.fs" tree |> Option.map textOf)
+                    (Some "nested")
+                    "content should be readable as text")
+        }
+
+        test "should include hidden-style dotfiles" {
+            withTempDir (fun temp ->
+                writeFile temp ".gitignore" "bin/"
+
+                let tree = VFileTree.loadFromDisk temp |> loaded
+
+                Expect.equal (stringMap tree) (Map.ofList [ ".gitignore", "bin/" ]) "dotfile should load")
+        }
+
+        test "should keep empty directories" {
+            withTempDir (fun temp ->
+                Directory.CreateDirectory(Path.Combine(temp, "empty")) |> ignore
+
+                let tree = VFileTree.loadFromDisk temp |> loaded
+
+                Expect.equal (VFileTree.directoryCount tree) 1 "empty directory should be in the tree"
+                Expect.equal (VFileTree.fileCount tree) 0 "there are no files")
+        }
+
+        test "should return an error for a missing directory" {
+            withTempDir (fun temp ->
+                let missing = Path.Combine(temp, "missing")
+
+                Expect.equal
+                    (VFileTree.loadFromDisk missing)
+                    (Result.Error (TreeLoadError.DirectoryNotFound missing))
+                    "missing directory")
+        }
+
+        test "should return an error when the path is a file" {
+            withTempDir (fun temp ->
+                writeFile temp "a.fs" "A"
+                let filePath = Path.Combine(temp, "a.fs")
+
+                Expect.equal
+                    (VFileTree.loadFromDisk filePath)
+                    (Result.Error (TreeLoadError.DirectoryNotFound filePath))
+                    "a file is not a directory")
+        }
+
+        test "describe should name the missing directory" {
+            let description =
+                TreeLoadError.DirectoryNotFound "some/dir" |> TreeLoadError.describe
+
+            Expect.stringContains description "some/dir" "should name the directory"
+        }
+
+        test "describe should name the path and cause of a load failure" {
+            let description =
+                TreeLoadError.LoadFailed ("some/dir", IOException "access lost")
+                |> TreeLoadError.describe
+
+            Expect.stringContains description "some/dir" "should name the path"
+            Expect.stringContains description "access lost" "should include the cause"
+        }
+
+        test "should round trip through writeToDisk keeping exact text" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+
+                let expected =
+                    Map.ofList [
+                        "a.fs", "line1\r\nline2\n"
+                        "sub/deep/b.fs", "café 世界"
+                        "sub/empty.txt", ""
+                    ]
+
+                let written =
+                    expected
+                    |> Map.map (fun key content -> VFile.create key content)
+                    |> VFileTree.fromFileMap
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal written (Ok ()) "write should succeed"
+
+                Expect.equal
+                    (VFileTree.loadFromDisk output |> loaded |> stringMap)
+                    expected
+                    "keys and text should match")
+        }
+
+        test "should not follow a symbolic link to a directory" {
+            withTempDir (fun temp ->
+                let root = Path.Combine(temp, "root")
+                writeFile root "a.fs" "A"
+
+                createLinkOrSkip (fun () ->
+                    Directory.CreateSymbolicLink(Path.Combine(root, "loop"), root) |> ignore)
+
+                let tree = VFileTree.loadFromDisk root |> loaded
+
+                Expect.equal (stringMap tree) (Map.ofList [ "a.fs", "A" ]) "the link should be skipped"
+                Expect.equal (VFileTree.directoryCount tree) 0 "the link should not become a directory")
+        }
+
+        test "should load an unreadable file and surface the failure when it is read" {
+            withTempDir (fun temp ->
+                createLinkOrSkip (fun () ->
+                    File.CreateSymbolicLink(Path.Combine(temp, "broken.fs"), Path.Combine(temp, "missing.fs"))
+                    |> ignore)
+
+                let tree = VFileTree.loadFromDisk temp |> loaded
+
+                match VFileTree.allFiles tree with
+                | [ file ] ->
+                    match VFile.readText file with
+                    | Result.Error (ContentError.ReadFailed (path, cause)) ->
+                        Expect.equal path (Some "broken.fs") "should name the file"
+                        Expect.isTrue (cause :? IOException) "should keep the I/O exception"
+                    | other -> failtestf "expected a read failure, got %A" other
+                | other -> failtestf "expected one file, got %A" other)
+        }
+
+        test "should not read file content while loading" {
+            withTempDir (fun temp ->
+                writeFile temp "a.fs" "A"
+                let tree = VFileTree.loadFromDisk temp |> loaded
+
+                // Deleting succeeds only because loading left nothing open, and the content
+                // is only missed when it is read.
+                File.Delete(Path.Combine(temp, "a.fs"))
+
+                match VFileTree.allFiles tree with
+                | [ file ] -> Expect.isError (VFile.readText file) "content was not captured at load time"
+                | other -> failtestf "expected one file, got %A" other)
+        }
+
+        test "should keep binary content byte for byte through writeToDisk" {
+            withTempDir (fun temp ->
+                let bytes = [| 0xFFuy; 0x00uy; 0xFEuy; 0x80uy; 0x0Auy |]
+                let input = Path.Combine(temp, "in")
+                let output = Path.Combine(temp, "out")
+                Directory.CreateDirectory input |> ignore
+                File.WriteAllBytes(Path.Combine(input, "a.bin"), bytes)
+
+                let result = VFileTree.loadFromDisk input |> loaded |> VFileTree.writeToDisk output
+
+                Expect.equal result (Ok ()) "write should succeed"
+                Expect.equal (File.ReadAllBytes(Path.Combine(output, "a.bin"))) bytes "bytes should be identical")
+        }
+
+        test "writeToDisk should write text as UTF-8 without a byte order mark" {
+            withTempDir (fun temp ->
+                let output = Path.Combine(temp, "out")
+
+                let result =
+                    VFileTree.empty
+                    |> VFileTree.addFile (VFile.create "a.txt" "\u00e9")
+                    |> VFileTree.writeToDisk output
+
+                Expect.equal result (Ok ()) "write should succeed"
+                Expect.equal (File.ReadAllBytes(Path.Combine(output, "a.txt"))) [| 0xC3uy; 0xA9uy |] "exact bytes")
+        }
+
+        test "writeToDisk should return a write failure when a source cannot be read" {
+            withTempDir (fun temp ->
+                let failure = IOException "gone"
+                let source = StreamSource(fun () -> raise failure)
+
+                let result =
+                    VFileTree.empty
+                    |> VFileTree.addFile (VFile.create "a.bin" source)
+                    |> VFileTree.writeToDisk (Path.Combine(temp, "out"))
+
+                match result with
+                | Result.Error (TreeWriteError.WriteFailed (_, cause)) ->
+                    Expect.isTrue (obj.ReferenceEquals(cause, failure)) "should keep the original exception"
+                | other -> failtestf "expected a write failure, got %A" other)
+        }
+    ]
+
+[<Tests>]
 let vfileTreeIntegrationTests =
     testList "VFileTree Integration" [
         test "should support complex tree operations" {
@@ -507,7 +1306,7 @@ let vfileTreeIntegrationTests =
                 VFileTree.create "root" config
                 |> VFileTree.addFile file1
                 |> VFileTree.addDirectory subTree
-                |> VFileTree.setMetadata "build" (box "debug")
+                |> VFileTree.set buildKey "debug"
 
             Expect.equal tree.Path "root" "path should be root"
             Expect.equal tree.Config config "config should match"
@@ -520,7 +1319,7 @@ let vfileTreeIntegrationTests =
             Expect.equal stats.WarningCount 1 "stats should show 1 warning"
             Expect.equal stats.InfoCount 2 "stats should show 2 info messages"
             
-            let buildMetadata = VFileTree.getMetadata "build" tree
-            Expect.equal buildMetadata (Some (box "debug")) "build metadata should be 'debug'"
+            let buildMetadata = VFileTree.tryGet buildKey tree
+            Expect.equal buildMetadata (Some "debug") "build metadata should be 'debug'"
         }
     ]

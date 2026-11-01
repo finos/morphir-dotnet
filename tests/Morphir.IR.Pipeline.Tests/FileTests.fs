@@ -71,6 +71,8 @@ let morphirMessageTests =
                 {
                     Severity = Error
                     Message = "Type mismatch"
+                    Path = None
+                    Location = None
                     Position = None
                     Source = None
                     RuleId = None
@@ -89,6 +91,8 @@ let morphirMessageTests =
                 {
                     Severity = Warning
                     Message = "Deprecated usage"
+                    Path = None
+                    Location = None
                     Position = Some range
                     Source = None
                     RuleId = None
@@ -102,6 +106,8 @@ let morphirMessageTests =
                 {
                     Severity = Error
                     Message = "Invalid IR"
+                    Path = None
+                    Location = None
                     Position = None
                     Source = Some "validator"
                     RuleId = Some "IR-001"
@@ -330,82 +336,53 @@ let morphirFileQueryTests =
 
 [<Tests>]
 let morphirFileDataTests =
+    let parserName = Property.create<string> "test.parser"
+    let count = Property.create<int> "test.count"
+
     testList "VFile Data" [
-        test "setData should store data value" {
-            let file =
-                VFile.empty
-                |> VFile.setData "key1" (box "value1")
+        test "set and tryGet should round trip a typed value" {
+            let file = VFile.empty |> VFile.set count 42
 
-            let value = VFile.getData "key1" file
-
-            Expect.isSome value "value should be Some"
-            Expect.equal value (Some (box "value1")) "value should match"
+            Expect.equal (VFile.tryGet count file) (Some 42) "value should be 42"
         }
 
-        test "getData should return None for missing key" {
-            let file = VFile.empty
-
-            let value = VFile.getData "missing" file
-
-            Expect.isNone value "value should be None"
+        test "tryGet should return None when no value is stored" {
+            Expect.isNone (VFile.tryGet count VFile.empty) "value should be None"
         }
 
-        test "getDataAs should return typed value" {
+        test "remove should remove the value" {
             let file =
                 VFile.empty
-                |> VFile.setData "count" (box 42)
+                |> VFile.set count 42
+                |> VFile.remove count
 
-            let value = VFile.getDataAs<int> "count" file
-
-            Expect.equal value (Some 42) "value should be 42"
+            Expect.isNone (VFile.tryGet count file) "value should be None after removal"
         }
 
-        test "getDataAs should return None for wrong type" {
+        test "should support values of different types" {
             let file =
                 VFile.empty
-                |> VFile.setData "value" (box "string")
+                |> VFile.set parserName "text"
+                |> VFile.set count 123
 
-            let value = VFile.getDataAs<int> "value" file
-
-            Expect.isNone value "value should be None (wrong type)"
+            Expect.equal (VFile.tryGet parserName file) (Some "text") "string should match"
+            Expect.equal (VFile.tryGet count file) (Some 123) "number should match"
         }
 
-        test "removeData should remove data value" {
+        test "set should replace an earlier value" {
             let file =
                 VFile.empty
-                |> VFile.setData "key1" (box "value1")
-                |> VFile.removeData "key1"
+                |> VFile.set count 1
+                |> VFile.set count 2
 
-            let value = VFile.getData "key1" file
-
-            Expect.isNone value "value should be None after removal"
+            Expect.equal (VFile.tryGet count file) (Some 2) "value should be updated"
         }
 
-        test "should support multiple data values" {
-            let file =
-                VFile.empty
-                |> VFile.setData "string" (box "text")
-                |> VFile.setData "number" (box 123)
-                |> VFile.setData "flag" (box true)
+        test "files with equal fields and equal data should be equal" {
+            let first = VFile.fromPath "a.fs" |> VFile.set count 1
+            let second = VFile.fromPath "a.fs" |> VFile.set count 1
 
-            let str = VFile.getDataAs<string> "string" file
-            let num = VFile.getDataAs<int> "number" file
-            let flag = VFile.getDataAs<bool> "flag" file
-
-            Expect.equal str (Some "text") "string should match"
-            Expect.equal num (Some 123) "number should match"
-            Expect.equal flag (Some true) "flag should match"
-        }
-
-        test "should allow data updates" {
-            let file =
-                VFile.empty
-                |> VFile.setData "key" (box "value1")
-                |> VFile.setData "key" (box "value2")
-
-            let value = VFile.getDataAs<string> "key" file
-
-            Expect.equal value (Some "value2") "value should be updated to 'value2'"
+            Expect.equal first second "data compares by content"
         }
     ]
 
@@ -416,7 +393,7 @@ let morphirFileIntegrationTests =
             let file =
                 VFile.fromPath "/test/input.json"
                 |> VFile.info "Parsing started"
-                |> VFile.setData "parser" (box "json-parser")
+                |> VFile.set (Property.create<string> "test.parser") "json-parser"
                 |> VFile.info "Parsing complete"
                 |> VFile.warn "Deprecated pattern found" None
                 |> VFile.info "Validation started"
@@ -426,7 +403,7 @@ let morphirFileIntegrationTests =
             Expect.hasLength file.Messages 5 "should have 5 messages"
             Expect.isFalse (VFile.hasErrors file) "should not have errors"
 
-            let parserData = VFile.getDataAs<string> "parser" file
+            let parserData = VFile.tryGet (Property.create<string> "test.parser") file
             Expect.equal parserData (Some "json-parser") "parser data should be preserved"
         }
 

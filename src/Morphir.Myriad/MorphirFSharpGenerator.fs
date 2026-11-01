@@ -3,9 +3,9 @@
 namespace Morphir.Myriad
 
 open System
-open System.IO
 open Myriad.Core
 open Morphir.CodeGeneration.FSharp
+open Morphir.IR.Pipeline
 
 /// Converts one selected module from a classic Morphir library into F# source.
 [<MyriadGenerator("morphir-fsharp")>]
@@ -22,26 +22,31 @@ type MorphirFSharpGenerator() =
                         "MorphirModule"
                         "Select a module using the MorphirModule additional parameter."
 
-            match
-                Transpiler.Generate(context.InputFilename, File.ReadAllText context.InputFilename)
-            with
-            | Error diagnostics ->
+            let tree = Transpiler.generate (VFile.fromDisk context.InputFilename)
+
+            if VFileTree.hasErrors tree then
                 let message =
-                    diagnostics
-                    |> List.map (fun d ->
-                        $"{d.InputPath}: {d.Category} at {d.Location}: {d.Message}"
-                    )
+                    VFileTree.collectMessages tree
+                    |> List.filter (fun message ->
+                        message.Severity = MessageSeverity.Error
+                        || message.Severity = MessageSeverity.Fatal)
+                    |> List.map VMessage.describe
                     |> String.concat Environment.NewLine
 
                 Console.Error.WriteLine message
                 invalidOp message
-            | Ok modules ->
-                match
-                    modules
-                    |> List.tryFind (fun m -> m.ModulePath = selected)
-                with
-                | Some m -> Output.Source m.Source
+            else
+                let entry =
+                    VFileTree.tryGet Transpiler.manifest tree
+                    |> Option.defaultValue []
+                    |> List.tryFind (fun entry -> entry.ModulePath = selected)
+
+                match entry |> Option.bind (fun entry -> VFileTree.findFile entry.Location tree) with
                 | None ->
                     invalidArg
                         "MorphirModule"
                         $"Module '{selected}' does not exist in '{context.InputFilename}'."
+                | Some file ->
+                    match VFile.readText file with
+                    | Result.Ok source -> Output.Source source
+                    | Result.Error error -> invalidOp (ContentError.describe error)

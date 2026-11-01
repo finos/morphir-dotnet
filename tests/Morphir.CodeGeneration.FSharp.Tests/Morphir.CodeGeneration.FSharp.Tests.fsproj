@@ -20,6 +20,8 @@
   <ItemGroup>
     <Compile Include="../Fixtures/ResourceLoader.fs" Link="ResourceLoader.fs" />
     <Compile Include="Fixtures.fs" />
+    <Compile Include="TranspilerAdapter.fs" />
+    <Compile Include="PipelineGenerationTests.fs" />
     <Compile Include="TranspilerTests.fs" />
   </ItemGroup>
   <ItemGroup>

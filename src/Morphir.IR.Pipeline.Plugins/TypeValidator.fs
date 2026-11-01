@@ -5,15 +5,19 @@ open Morphir.IR.Classic
 open Morphir.IR.Pipeline
 
 /// <summary>
-/// Type validation plugin that checks Morphir IR type correctness.
-/// Reports type errors with source positions and accumulates all errors.
+/// Type validation plugin that reports definite type mismatches in a classic IR package.
 /// </summary>
+/// <remarks>
+/// A valid model must never be rejected, so this reports an error only when both sides are SDK
+/// primitive types that cannot match. Anything it cannot infer, including model types and aliases,
+/// counts as unknown and is silent. The F# compiler remains the full check for generated code.
+/// Unbound variables are not reported here.
+/// </remarks>
 [<RequireQualifiedAccess>]
 module TypeValidator =
 
     /// <summary>
     /// Creates an FQName from a colon-separated string (Package:Module:Name).
-    /// Uses the official FQName.fromString function.
     /// </summary>
     let private makeFQName (str: string): FQName =
         FQName.fromString str ":"
@@ -48,9 +52,9 @@ module TypeValidator =
         | Literal.BoolLiteral _ ->
             Type.Reference((), makeFQName "Morphir.SDK:Basics:Bool", [])
         | Literal.CharLiteral _ ->
-            Type.Reference((), makeFQName "Morphir.SDK:Basics:Char", [])
+            Type.Reference((), makeFQName "Morphir.SDK:Char:Char", [])
         | Literal.StringLiteral _ ->
-            Type.Reference((), makeFQName "Morphir.SDK:Basics:String", [])
+            Type.Reference((), makeFQName "Morphir.SDK:String:String", [])
         | Literal.WholeNumberLiteral _ ->
             Type.Reference((), makeFQName "Morphir.SDK:Basics:Int", [])
         | Literal.FloatLiteral _ ->
@@ -75,162 +79,234 @@ module TypeValidator =
         | Type.Unit _, Type.Unit _ -> true
         | _ -> false
 
+    /// <summary>Removes attributes, which do not affect whether types match.</summary>
+    let rec private withoutAttributes (typ: Type<'a>) : Type<unit> =
+        let fields (items: Field<'a> list) : Field<unit> list =
+            items |> List.map (fun field -> { Name = field.Name; Type = withoutAttributes field.Type })
+
+        match typ with
+        | Type.Variable(_, name) -> Type.Variable((), name)
+        | Type.Reference(_, name, args) -> Type.Reference((), name, args |> List.map withoutAttributes)
+        | Type.Tuple(_, items) -> Type.Tuple((), items |> List.map withoutAttributes)
+        | Type.Record(_, items) -> Type.Record((), fields items)
+        | Type.ExtensibleRecord(_, name, items) -> Type.ExtensibleRecord((), name, fields items)
+        | Type.Function(_, input, output) -> Type.Function((), withoutAttributes input, withoutAttributes output)
+        | Type.Unit _ -> Type.Unit()
+
+    /// <summary>The kind of an SDK primitive type. Other types have no kind and count as unknown.</summary>
+    let private primitiveKind (typ: Type<unit>) : string option =
+        match typ with
+        | Type.Reference(_, name, []) when ClassicPackage.isSdk name ->
+            match ClassicPackage.sdkName name with
+            // Numeric literals are written the same way for each of these, so they cannot conflict.
+            | "basics.int"
+            | "basics.float"
+            | "decimal.decimal" -> Some "number"
+            | "basics.bool"
+            | "bool.bool" -> Some "Bool"
+            | "string.string" -> Some "String"
+            | "char.char" -> Some "Char"
+            | _ -> None
+        | _ -> None
+
+    /// <summary>True only when both types are known primitives that cannot match.</summary>
+    let private definitelyDiffer (first: Type<unit> option) (second: Type<unit> option) : bool =
+        match first |> Option.bind primitiveKind, second |> Option.bind primitiveKind with
+        | Some a, Some b -> a <> b
+        | _ -> false
+
+    let private typeName (typ: Type<unit> option) =
+        match typ with
+        | Some(Type.Reference(_, name, _)) -> FQName.toString name
+        | _ -> "an unknown type"
+
+    /// <summary>The names a pattern binds, whose types are unknown here.</summary>
+    let rec private patternNames (pattern: Pattern<'a>) : Name list =
+        match pattern with
+        | Pattern.AsPattern(_, nested, name) -> name :: patternNames nested
+        | Pattern.TuplePattern(_, patterns)
+        | Pattern.ConstructorPattern(_, _, patterns) -> patterns |> List.collect patternNames
+        | Pattern.HeadTailPattern(_, head, tail) -> patternNames head @ patternNames tail
+        | Pattern.WildcardPattern _
+        | Pattern.EmptyListPattern _
+        | Pattern.LiteralPattern _
+        | Pattern.UnitPattern _ -> []
+
+    let private shadow (names: Name list) (env: TypeEnvironment) : TypeEnvironment =
+        names |> List.fold (fun current name -> Map.remove name current) env
+
     /// <summary>
-    /// Infers the type of a value expression.
-    /// Returns (inferredType, updatedFile) with any type errors reported.
+    /// Infers the type of a value, reporting definite mismatches on the file. Returns None when the
+    /// type is unknown.
     /// </summary>
-    let rec inferValueType (env: TypeEnvironment) (value: Value<unit, unit>) (file: VFile): (Type<unit> option * VFile) =
+    /// <param name="location">The value being checked, for messages</param>
+    /// <param name="env">The variables in scope with known types</param>
+    /// <param name="value">The value to check</param>
+    /// <param name="file">The file to report on</param>
+    let rec inferValueType
+        (location: string)
+        (env: TypeEnvironment)
+        (value: Value<'ta, 'va>)
+        (file: VFile)
+        : Type<unit> option * VFile =
+        let mismatch (text: string) (current: VFile) =
+            current
+            |> VFile.report
+                { VMessage.create Error text with
+                    Location = Some location
+                    RuleId = Some "type-mismatch"
+                    Source = Some "type-validator"
+                }
+
+        // Checks items only for the errors inside them.
+        let visit (items: Value<'ta, 'va> list) (current: VFile) =
+            items |> List.fold (fun inner item -> snd (inferValueType location env item inner)) current
+
         match value with
-        | Value.Literal(_, lit) ->
-            (Some (inferLiteralType lit), file)
+        | Value.Literal(_, lit) -> Some(inferLiteralType lit), file
+        | Value.Unit _ -> Some(Type.Unit()), file
+        | Value.Variable(_, name) -> lookupVar name env, file
+        | Value.Tuple(_, items) -> None, visit items file
+        | Value.Record(_, fields) -> None, visit (fields |> Map.toList |> List.map snd) file
+        | Value.Field(_, record, _) -> None, visit [ record ] file
+        | Value.UpdateRecord(_, target, fields) ->
+            None, visit (target :: (fields |> Map.toList |> List.map snd)) file
+        | Value.List(_, items) ->
+            let types, finalFile =
+                items
+                |> List.mapFold (fun inner item -> inferValueType location env item inner) file
 
-        | Value.Variable(_, name) ->
-            match lookupVar name env with
-            | Some typ ->
-                (Some typ, file)
-            | None ->
-                let errorMsg = sprintf "Undefined variable: %s" (Name.toTitleCase name)
-                (None, file |> VFile.error errorMsg None)
+            let reported =
+                match List.tryHead types with
+                | Some first ->
+                    types
+                    |> List.fold
+                        (fun inner other ->
+                            if definitelyDiffer first other then
+                                inner |> mismatch $"List elements have different types: {typeName first} and {typeName other}."
+                            else
+                                inner)
+                        finalFile
+                | None -> finalFile
 
-        | Value.Constructor(_, fqName) ->
-            // For now, assume constructors are valid
-            // A full implementation would look up the constructor in a type registry
-            let msg = sprintf "Constructor validation not yet implemented: %s" (FQName.toString fqName)
-            (None, file |> VFile.warn msg None)
+            None, reported
+        | Value.Apply(_, fn, argument) ->
+            let fnType, afterFn = inferValueType location env fn file
+            let argumentType, afterArgument = inferValueType location env argument afterFn
 
-        | Value.Reference(_, fqName) ->
-            // For now, assume references are valid
-            // A full implementation would look up the reference in a type registry
-            let msg = sprintf "Reference validation not yet implemented: %s" (FQName.toString fqName)
-            (None, file |> VFile.warn msg None)
-
-        | Value.Tuple(_, elements) ->
-            let (types, finalFile) =
-                elements
-                |> List.fold (fun (accTypes, accFile) elem ->
-                    let (elemType, newFile) = inferValueType env elem accFile
-                    match elemType with
-                    | Some t -> (t :: accTypes, newFile)
-                    | None -> (accTypes, newFile)
-                ) ([], file)
-            if List.length types = List.length elements then
-                (Some (Type.Tuple((), List.rev types)), finalFile)
-            else
-                (None, finalFile)  // Errors already reported
-
-        | Value.List(_, elements) ->
-            if List.isEmpty elements then
-                // Empty list - type is polymorphic
-                (Some (Type.Variable((), Name.fromString "a")), file)
-            else
-                let (firstType, file1) = inferValueType env elements.Head file
-                match firstType with
-                | None -> (None, file1)
-                | Some expectedType ->
-                    let finalFile =
-                        elements.Tail
-                        |> List.fold (fun accFile elem ->
-                            let (elemType, newFile) = inferValueType env elem accFile
-                            match elemType with
-                            | Some t when typesEqual t expectedType -> newFile
-                            | Some t ->
-                                let errorMsg = sprintf "List element type mismatch: expected %A, got %A" expectedType t
-                                newFile |> VFile.error errorMsg None
-                            | None -> newFile
-                        ) file1
-                    let listType = Type.Reference((), makeFQName "Morphir.SDK:List:List", [expectedType])
-                    (Some listType, finalFile)
-
-        | Value.Apply(_, func, arg) ->
-            let (funcType, file1) = inferValueType env func file
-            let (argType, file2) = inferValueType env arg file1
-            match funcType, argType with
-            | Some (Type.Function(_, inputType, outputType)), Some actualArgType ->
-                if typesEqual inputType actualArgType then
-                    (Some outputType, file2)
+            match fnType with
+            | Some(Type.Function(_, input, output)) ->
+                if definitelyDiffer (Some input) argumentType then
+                    Some output,
+                    afterArgument
+                    |> mismatch $"Function argument has type {typeName argumentType}, expected {typeName (Some input)}."
                 else
-                    let errorMsg = sprintf "Function argument type mismatch: expected %A, got %A" inputType actualArgType
-                    (None, file2 |> VFile.error errorMsg None)
-            | Some funcT, _ ->
-                let errorMsg = sprintf "Cannot apply non-function type: %A" funcT
-                (None, file2 |> VFile.error errorMsg None)
-            | _ -> (None, file2)  // Errors already reported
+                    Some output, afterArgument
+            | _ -> None, afterArgument
+        | Value.IfThenElse(_, condition, yes, no) ->
+            let conditionType, afterCondition = inferValueType location env condition file
+            let boolType: Type<unit> = Type.Reference((), makeFQName "Morphir.SDK:Basics:Bool", [])
 
+            let checkedCondition =
+                if definitelyDiffer conditionType (Some boolType) then
+                    afterCondition |> mismatch $"If condition has type {typeName conditionType}, expected Bool."
+                else
+                    afterCondition
+
+            let yesType, afterYes = inferValueType location env yes checkedCondition
+            let noType, afterNo = inferValueType location env no afterYes
+
+            if definitelyDiffer yesType noType then
+                None, afterNo |> mismatch $"If branches have different types: {typeName yesType} and {typeName noType}."
+            else
+                (match yesType with
+                 | Some _ -> yesType
+                 | None -> noType),
+                afterNo
         | Value.Lambda(_, pattern, body) ->
-            // For now, we'll infer a simple function type
-            // A full implementation would extract bindings from the pattern
-            let msg = "Lambda type inference not yet fully implemented"
-            (None, file |> VFile.warn msg None)
+            None, snd (inferValueType location (shadow (patternNames pattern) env) body file)
+        | Value.LetDefinition(_, name, definition, body) ->
+            let afterDefinition = validateDefinition location env definition file
 
-        | Value.IfThenElse(_, condition, thenBranch, elseBranch) ->
-            let (condType, file1) = inferValueType env condition file
-            let boolType = Type.Reference((), makeFQName "Morphir.SDK:Basics:Bool", [])
-            let file2 =
-                match condType with
-                | Some t when typesEqual t boolType -> file1
-                | Some t ->
-                    let errorMsg = sprintf "If condition must be Bool, got %A" t
-                    file1 |> VFile.error errorMsg None
-                | None -> file1
-
-            let (thenType, file3) = inferValueType env thenBranch file2
-            let (elseType, file4) = inferValueType env elseBranch file3
-            match thenType, elseType with
-            | Some thenT, Some elseT ->
-                if typesEqual thenT elseT then
-                    (Some thenT, file4)
+            let bound =
+                if List.isEmpty definition.InputTypes then
+                    addBinding name (withoutAttributes definition.OutputType) env
                 else
-                    let errorMsg = sprintf "If branches have different types: then = %A, else = %A" thenT elseT
-                    (None, file4 |> VFile.error errorMsg None)
-            | _ -> (None, file4)  // Errors already reported
+                    Map.remove name env
 
-        | Value.Unit _ ->
-            (Some (Type.Unit ()), file)
+            inferValueType location bound body afterDefinition
+        | Value.LetRecursion(_, definitions, body) ->
+            let scope = shadow (definitions |> Map.toList |> List.map fst) env
 
-        | _ ->
-            // Other cases not yet implemented
-            let msg = sprintf "Type inference not yet implemented for: %A" value
-            (None, file |> VFile.warn msg None)
+            let afterDefinitions =
+                definitions
+                |> Map.toList
+                |> List.fold (fun inner (_, definition) -> validateDefinition location scope definition inner) file
 
-    /// <summary>
-    /// Validates a value definition.
-    /// </summary>
-    let validateValueDefinition (env: TypeEnvironment) (def: ValueDefinition<unit, unit>) (file: VFile): VFile =
-        let (inferredType, file1) = inferValueType env def.Body file
-        match inferredType with
-        | Some infType ->
-            if typesEqual infType def.OutputType then
-                file1 |> VFile.info "Value definition type-checks successfully"
-            else
-                let errorMsg = sprintf "Value definition type mismatch: declared %A, inferred %A" def.OutputType infType
-                file1 |> VFile.error errorMsg None
-        | None ->
-            file1  // Errors already reported during inference
+            inferValueType location scope body afterDefinitions
+        | Value.Destructure(_, pattern, target, body) ->
+            let afterTarget = snd (inferValueType location env target file)
+            inferValueType location (shadow (patternNames pattern) env) body afterTarget
+        | Value.PatternMatch(_, target, cases) ->
+            let afterTarget = snd (inferValueType location env target file)
 
-    /// <summary>
-    /// Creates a type validator plugin.
-    /// </summary>
-    let create(): Plugin =
-        {
-            Name = "type-validator"
-            Configure = fun proc -> proc  // No configuration needed
-            Transform = fun node file ->
-                // For now, the node is just an object
-                // In a full implementation, we would cast to Value<unit, unit>
-                // and perform full type validation
-                let msg = "Type validation plugin executed (full validation pending IR integration)"
-                (Some node, file |> VFile.info msg)
-        }
+            None,
+            cases
+            |> List.fold
+                (fun inner (pattern, body) -> snd (inferValueType location (shadow (patternNames pattern) env) body inner))
+                afterTarget
+        | Value.Constructor _
+        | Value.Reference _
+        | Value.FieldFunction _ -> None, file
 
     /// <summary>
-    /// Creates a type validator plugin with a type environment.
+    /// Checks a value definition against its declared output type.
     /// </summary>
-    let createWithEnv (env: TypeEnvironment): Plugin =
-        {
-            Name = "type-validator-with-env"
-            Configure = fun proc -> proc
-            Transform = fun node file ->
-                // In a full implementation, this would use the environment
-                let msg = sprintf "Type validation with environment (size: %d)" (Map.count env)
-                (Some node, file |> VFile.info msg)
-        }
+    /// <param name="location">The value being checked, for messages</param>
+    /// <param name="env">The variables in scope with known types</param>
+    /// <param name="definition">The definition to check</param>
+    /// <param name="file">The file to report on</param>
+    and validateDefinition
+        (location: string)
+        (env: TypeEnvironment)
+        (definition: ValueDefinition<'ta, 'va>)
+        (file: VFile)
+        : VFile =
+        let scope =
+            definition.InputTypes
+            |> List.fold (fun current (name, _, typ) -> addBinding name (withoutAttributes typ) current) env
+
+        let inferred, checkedBody = inferValueType location scope definition.Body file
+        let declared = Some(withoutAttributes definition.OutputType)
+
+        if definitelyDiffer inferred declared then
+            checkedBody
+            |> VFile.report
+                { VMessage.create Error $"Value has type {typeName inferred}, declared {typeName declared}." with
+                    Location = Some location
+                    RuleId = Some "type-mismatch"
+                    Source = Some "type-validator"
+                }
+        else
+            checkedBody
+
+    /// <summary>
+    /// Creates a type validator plugin for a classic IR package, with extra bindings in scope. The
+    /// model is always kept, so later plugins can report more.
+    /// </summary>
+    /// <param name="env">Variables in scope for every value</param>
+    let createWithEnv (env: TypeEnvironment): Plugin<Package.PackageDefinition<'ta, 'va>> =
+        Plugin.create "type-validator" (fun package file ->
+            let _, finalFile =
+                ClassicPackage.mapDefinitions
+                    (fun location definition current -> definition, validateDefinition location env definition current)
+                    package
+                    file
+
+            Some package, finalFile)
+
+    /// <summary>
+    /// Creates a type validator plugin for a classic IR package.
+    /// </summary>
+    let create(): Plugin<Package.PackageDefinition<'ta, 'va>> =
+        createWithEnv emptyEnv

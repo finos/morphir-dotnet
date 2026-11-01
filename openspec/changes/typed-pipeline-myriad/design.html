@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>typed-pipeline-myriad</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>typed-pipeline-myriad</h1>
+<p class="meta">OpenSpec change | 2026-11-01 | Implemented and locally verified; ready for review</p>
+<p>Read with the <a href="proposal.md">proposal</a>, the specs for <a href="specs/pipeline-processing/spec.md">pipeline processing</a>, <a href="specs/typed-property-bags/spec.md">property bags</a>, <a href="specs/vfile-content-sources/spec.md">content sources</a>, <a href="specs/safe-tree-publication/spec.md">safe publication</a> and <a href="specs/myriad-pipeline-generation/spec.md">Myriad generation</a>, and the <a href="tasks.md">tasks</a>.</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See the <a href="proposal.md">proposal</a> for motivation. These facts about the current code constrain the design:</p>
+<ul>
+<li><strong>Attributes outlive decoding.</strong> <code>Decode.Model</code> holds <code>PackageDefinition&lt;JsonElement, JsonElement&gt;</code>, and <code>Emit.fs:537</code> reads those elements during generation. <code>Transpiler.fs:13</code> keeps the document alive with <code>use document</code> across decode and emit. A parser that returns the model must not dispose the document its elements point into.</li>
+<li><strong>Order is not structure.</strong> Backend module order is topological with module path as the tie-breaker, and it can alternate between directories. Directory order in a tree cannot express it, and today's <code>manifest.json</code> holds it.</li>
+<li><strong>Validation is inside emission.</strong> <code>Emit.generate</code> runs <code>Validate.scopes</code> and name-collision checks before emitting, and failures travel as the internal <code>GenerationFailure</code> exception.</li>
+<li><strong>The plugins are not ready.</strong> Their <code>Transform</code> functions are stubs over <code>Value&lt;unit, unit&gt;</code>. <code>Optimizer.optimizeValue</code> matches functions by local name only, folds <code>int64</code> although <code>Int</code> maps to <code>int32</code>, treats literals of different types as comparable, and does not descend into several value forms. <code>TypeValidator.inferValueType</code> reports an error for any variable not in its environment and a warning for every reference.</li>
+<li><strong>The host has one output path.</strong> Myriad runs once per module and returns one source file, so the task runs a planning pass and then the host N times.</li>
+<li><strong>C# calls these libraries.</strong> <code>GenerateMorphirModules.cs</code> is C#. It can use generics, unions and modules, but not inline SRTP functions.</li>
+<li><strong>Tests are not all reachable through plain <code>dotnet test</code>.</strong> TUnit projects fail under VSTest on the .NET 10 SDK, so verification uses each test project's configured runner or the Nuke targets.</li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> no <code>obj</code> in any public pipeline contract; one file and diagnostic model shared by the pipeline and the F# backend; no loss of the build task's safety behaviour; a real pipeline in production use through Myriad.</p>
+<p><strong>Non-goals:</strong></p>
+<ul>
+<li>Streaming JSON decoding or module-at-a-time processing. A stream source avoids holding raw bytes in the pipeline. Once decoded, the IR is in memory, and <code>JsonDocument</code> builds a full document first.</li>
+<li>Plugin chains that change the model type mid-run. A compiler is the one step that leaves the model type, and a typed composition step can be added when a second use needs it.</li>
+<li>Caching the N+1 decodes of the Myriad path, a Morphir CLI command, IR 4+ and document trees.</li>
+<li>A real F# frontend. The directory path and per-file runner are proven with small fixtures.</li>
+</ul>
+
+<svg viewBox="0 0 960 200" role="img" aria-labelledby="flow-title flow-desc">
+<title id="flow-title">Myriad generation through the pipeline</title>
+<desc id="flow-desc">A model file enters the parser, which produces a typed model. Three plugins validate and optimize it. A compiler produces a file tree, which Myriad and the build task read before publication.</desc>
+<g fill="var(--panel)" stroke="var(--line)">
+<rect x="5" y="40" width="150" height="95" rx="8"/><rect x="185" y="40" width="165" height="95" rx="8"/><rect x="380" y="40" width="195" height="95" rx="8"/><rect x="605" y="40" width="160" height="95" rx="8"/><rect x="795" y="40" width="160" height="95" rx="8"/>
+</g>
+<g fill="var(--fg)" font-family="system-ui, sans-serif" font-size="15" text-anchor="middle">
+<text x="80" y="75">TreeNode</text><text x="80" y="100">model JSON file</text>
+<text x="267" y="75">Parser&lt;Model&gt;</text><text x="267" y="100">decode, keep JSON</text>
+<text x="477" y="68">Plugin&lt;Model&gt; list</text><text x="477" y="92">scopes, types,</text><text x="477" y="114">optimizer</text>
+<text x="685" y="75">Compiler&lt;Model&gt;</text><text x="685" y="100">emit F#</text>
+<text x="875" y="75">VFileTree</text><text x="875" y="100">files, manifest</text>
+</g>
+<g stroke="var(--fg)" fill="none" stroke-width="2">
+<path d="M155 87 H178 l-8 -6 m8 6 l-8 6"/><path d="M350 87 H373 l-8 -6 m8 6 l-8 6"/><path d="M575 87 H598 l-8 -6 m8 6 l-8 6"/><path d="M765 87 H788 l-8 -6 m8 6 l-8 6"/>
+</g>
+<text x="480" y="170" fill="var(--muted)" font-family="system-ui, sans-serif" font-size="14" text-anchor="middle">Any error means compilers do not run, and the run returns a tree with no files and its diagnostics.</text>
+</svg>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="type-1">TYPE-1. Generics in the core, SRTPs and flexible types at the edges</h3>
+<p>Requested direction: no <code>obj</code> contracts, with generics, SRTPs or flexible types preferred. SRTP and flexible constraints exist only on inline or generic functions, so they cannot be held in a record or list. A processor must store its stages, and C# cannot call SRTP functions. Stored stages are therefore plain generics:</p>
+<pre><code class="language-fsharp">type Parser&lt;'T&gt;   = TreeNode -&gt; Result&lt;'T, ParseError&gt;
+type Plugin&lt;'T&gt;   = { Name: string
+                      Configure: PropertyBag -&gt; PropertyBag
+                      Transform: 'T -&gt; VFile -&gt; 'T option * VFile }
+type Compiler&lt;'T&gt; = 'T -&gt; VFile -&gt; VFileTree
+
+Parser.forFile : (VFile -&gt; Result&lt;'T, ParseError&gt;) -&gt; Parser&lt;'T&gt;
+Plugin.focus   : ('Outer -&gt; 'Inner) -&gt; ('Inner -&gt; 'Outer -&gt; 'Outer)
+                 -&gt; Plugin&lt;'Inner&gt; -&gt; Plugin&lt;'Outer&gt;</code></pre>
+<p>SRTPs and flexible types are used where a value is consumed immediately: an inline <code>VFile.create</code> that accepts a string, byte buffer or stream source through a static resolution helper; an inline <code>Parser.ofParseable</code> for any type with a suitable static <code>Parse</code> member; and <code>#seq&lt;_&gt;</code> parameters on functions such as <code>fromFiles</code> and <code>PropertyBag.ofSeq</code>. Each inline function has a non-inline equivalent (<code>VFile.ofText</code>, <code>ofBytes</code>, <code>ofStream</code>) for C#.</p>
+<p><code>Configure</code> narrows from the whole processor to the processor's data bag. A getter and setter cannot lift a <code>MorphirProcessor&lt;'Inner&gt;</code> to the outer type, so the old shape would make <code>Plugin.focus</code> impossible to write correctly. Every use in the repository only sets data, so no behaviour is lost, and the recursive type between plugins and processors goes away. A plugin that wants to add other plugins is left out until a real one exists.</p>
+<p><code>Plugin.focus</code> lets package-level plugins run on a larger model type without casts. Alternatives: an abstract class hierarchy would add ceremony and still need generics; a boxed core with typed wrappers would keep the failure the change exists to remove.</p>
+
+<h3 id="type-2">TYPE-2. One run produces one model, and the input is a tree node</h3>
+<p>Agreed with the requester. Rename <code>TreeContent</code> to <code>TreeNode</code> and use it as the input, with no new union.</p>
+<pre><code class="language-fsharp">MorphirProcessor.run         : TreeNode -&gt; MorphirProcessor&lt;'T&gt; -&gt; VFileTree
+MorphirProcessor.runEachFile : VFileTree -&gt; MorphirProcessor&lt;'T&gt; -&gt; VFileTree
+MorphirProcessor.processFile : VFile -&gt; MorphirProcessor&lt;'T&gt; -&gt; VFileTree   // run (File f)
+MorphirProcessor.processPath : string -&gt; MorphirProcessor&lt;'T&gt; -&gt; VFileTree</code></pre>
+<p>Plugins and compilers only see <code>'T</code>, so they never handle the union. <code>Parser.forFile</code> spares single-file parsers from matching on it. <code>runEachFile</code> keeps the location of each input file: outputs from a file in <code>sub/</code> are placed under <code>sub/</code>, and diagnostics move to the output tree with the failing path. A separate per-file <code>TreeProcessor</code> as written in #375 would duplicate this, and would not cover many-to-one input.</p>
+
+<h3 id="type-3">TYPE-3. <code>VFile</code> stays non-generic</h3>
+<p>The model travels through the processor, already separate from the file in <code>Transform</code>. The file carries only source content, path, history, messages and data. A generic <code>VFile&lt;'T&gt;</code> would spread a type parameter through <code>VFileTree</code> and force a change of type at each stage. An output tree holds generated content, and it never needs the model.</p>
+
+<h3 id="type-4">TYPE-4. Compilers merge, and a failed run has no files</h3>
+<p>Each compiler returns a tree. The run merges them in order: files from later compilers are appended, and <code>Metadata</code> is combined with later values winning. Duplicate locations are left for publication to reject rather than being silently resolved. The run does not catch unexpected exceptions from stages, because an expected failure has a typed path and a bug should surface as a bug.</p>
+<p><strong>When stages stop.</strong> Severity keeps the meaning documented in <code>File.fs</code>, where <code>Error</code> lets the pipeline continue collecting diagnostics and <code>Fatal</code> halts it. Plugins keep running after an <code>Error</code>, so one build can report scope and type problems together. A plugin returning <code>None</code> or a <code>Fatal</code> message stops the remaining plugins. Compilers run only when the file has no <code>Error</code> or <code>Fatal</code> message, so a failed run has no output files.</p>
+<p><strong>What reaches the output.</strong> The input file is not part of the output. Its messages move to the output tree's <code>Messages</code>, with <code>Path</code> set where it is empty, and its <code>Data</code> merges into the tree's <code>Metadata</code>, with compiler values winning, so data a plugin stores is still readable when the run ends. A failed tree has <code>Path</code> set to the input path and no files. <code>runEachFile</code> copies each run's metadata onto that run's output files, keeping a file's own values, so per-file data cannot collide in one root bag.</p>
+<p><strong>When every parser fails.</strong> Failures are warnings while another parser can still succeed. Once all have failed, <code>InvalidInput</code> and <code>Failed</code> results become <code>Error</code> messages with their own details, so the real cause leads the list. The generic "No parser succeeded" error is added only when every failure was <code>UnsupportedInput</code>, which says nothing about the content.</p>
+
+<h3 id="diag-1">DIAG-1. Tree-level diagnostics and richer messages</h3>
+<pre><code class="language-fsharp">type VMessage =
+    { Severity: MessageSeverity; Message: string
+      Path: string option        // new: file the message is about
+      Location: string option    // new: logical location, such as a JSON path or module
+      Position: SourceRange option
+      Source: string option      // stage that produced it
+      RuleId: string option }
+
+type VFileTree = { ...; Messages: VMessage list }  // new
+
+type ParseFailure =
+    { Path: string option; RuleId: string option; Location: string option
+      Message: string; Position: SourceRange option }
+
+[&lt;RequireQualifiedAccess&gt;]
+type ParseError =
+    | UnsupportedInput of reason: string
+    | InvalidInput of ParseFailure
+    | Failed of path: string option * cause: exn</code></pre>
+<p>This replaces <code>Diagnostic</code>: <code>InputPath</code> becomes <code>Path</code>, <code>Category</code> becomes <code>RuleId</code>, and <code>Location</code> stays. <code>VMessage.describe</code> produces the existing <code>path: rule at location: message</code> format, so build output stays recognizable. <code>hasErrors</code>, <code>collectMessages</code> and <code>statistics</code> include tree-level messages. <code>ParseError</code> carries the rule and location because a parser returns only a <code>Result</code> and has no file to add a message to; without them, Myriad's rejection rules such as <code>unsupported-version</code> would be lost. <code>VFile.warn</code>, <code>VFile.message</code> and friends keep their current signatures, with the new fields set to <code>None</code>, and a new <code>VFile.report : VMessage -&gt; VFile -&gt; VFile</code> adds a complete message. A union of location kinds was rejected for now, because the only consumer formats it as text.</p>
+
+<h3 id="bag-1">BAG-1. Typed property bag</h3>
+<p>Requested design. The bag is the last parameter of every function.</p>
+<pre><code class="language-fsharp">type Property&lt;'T&gt;     // name + value type, with member With: 'T -&gt; PropertyValue
+type PropertyValue    // a property with its value, non-generic so lists can mix types
+type PropertyBag      // opaque
+
+module Property =
+    val create  : name: string -&gt; Property&lt;'T&gt;
+    val valueOf : Property&lt;'T&gt; -&gt; 'T -&gt; PropertyValue
+
+module PropertyBag =
+    val empty    : PropertyBag
+    val ofSeq    : #seq&lt;PropertyValue&gt; -&gt; PropertyBag
+    val add      : PropertyValue -&gt; PropertyBag -&gt; PropertyBag
+    val set      : Property&lt;'T&gt; -&gt; 'T -&gt; PropertyBag -&gt; PropertyBag
+    val update   : Property&lt;'T&gt; -&gt; ('T option -&gt; 'T) -&gt; PropertyBag -&gt; PropertyBag
+    val remove   : Property&lt;'T&gt; -&gt; PropertyBag -&gt; PropertyBag
+    val tryGet   : Property&lt;'T&gt; -&gt; PropertyBag -&gt; 'T option
+    val getOr    : Property&lt;'T&gt; -&gt; 'T -&gt; PropertyBag -&gt; 'T
+    val contains : Property&lt;'T&gt; -&gt; PropertyBag -&gt; bool</code></pre>
+<p>Storage is an immutable dictionary keyed by name and <code>System.Type</code>, holding boxed values. That is the only <code>obj</code> in the design and it is private. Casts cannot fail, because the key includes the type. <code>typeof&lt;'T&gt;</code> is safe under trimming and AOT. A generic <code>VFile&lt;'Data&gt;</code> was rejected because plugins from different assemblies could not add data without changing that type. <code>PropertyBag</code> has custom equality comparing keys and values with <code>Object.Equals</code>, keeping <code>VFile</code> and <code>VFileTree</code> usable with <code>=</code>, and no comparison. <code>VFile</code>, <code>VFileTree</code>, <code>TreeConfig</code> and <code>MorphirProcessor</code> have matching <code>set</code>, <code>tryGet</code> and <code>remove</code> functions taking the owner last. <code>__stay_mutable__</code> becomes a real field on the builder's state.</p>
+<p>No custom operator is added. The docs note that <code>|&gt;</code> and <code>&lt;|</code> share precedence and group left to right, so mixing them in one expression needs parentheses.</p>
+
+<h3 id="src-1">SRC-1. Content as a union with re-openable streams</h3>
+<pre><code class="language-fsharp">[&lt;Sealed&gt;]
+type StreamSource(openStream: unit -&gt; Stream, ?length: int64)   // reference equality
+
+type VFileContent =
+    | Text of string
+    | Bytes of ReadOnlyMemory&lt;byte&gt;
+    | Stream of StreamSource
+
+type VFile = { Content: VFileContent option; ... }
+
+module VFileContent =
+    val openRead : VFileContent -&gt; Result&lt;Stream, ContentError&gt;
+    val readText : VFileContent option -&gt; Result&lt;string, ContentError&gt;
+
+type ContentError = ReadFailed of path: string option * cause: exn</code></pre>
+<p>Requested direction, going beyond unified, whose <code>value</code> is <code>string | Uint8Array</code> per <code>.agents/kbs/vfile-pattern.md</code>. It must be a re-openable source, not a live stream: parsers are tried in order, and an immutable file passed through a pipeline can be read more than once. A <code>StreamSource</code> is a class so that <code>VFile</code> keeps equality, which a function field would remove. <code>VFile.fromDisk path</code> makes a source over <code>File.OpenRead</code>. <code>loadFromDisk</code> uses it and reads nothing, so a missing or unreadable file surfaces when read. Its previous eager text load, including UTF-8 decoding of binary files, goes away. <code>toStringMap</code> returns <code>Result&lt;Map&lt;string, string&gt;, ContentError&gt;</code>, because reading can now fail. <code>Text</code> is written as UTF-8 without a byte order mark, and <code>readText</code> uses a <code>StreamReader</code> that honours a mark. <code>VFile.ofText</code> and its siblings replace the generic boxing constructors.</p>
+
+<h3 id="pub-1">PUB-1. One safe publish replaces <code>writeToDisk</code>'s write path</h3>
+<p>Required: do not lose <code>OwnedPath</code> or the other protections of <code>GenerateMorphirModules.cs</code>. They move to the pipeline, so every backend gets them. The task keeps only build concerns.</p>
+<pre><code class="language-fsharp">type ManifestMode = NoManifest | Manifest of fileName: string
+
+type PublishOptions = { OutputRoot: string; Manifest: ManifestMode }
+
+type PublishResult = { Written: string list; Unchanged: string list; Removed: string list }
+
+VFileTree.validatePublish : PublishOptions -&gt; VFileTree -&gt; Result&lt;unit, TreeWriteError&gt;
+VFileTree.publish         : PublishOptions -&gt; VFileTree -&gt; Result&lt;PublishResult, TreeWriteError&gt;
+VFileTree.writeToDisk     : string -&gt; VFileTree -&gt; Result&lt;unit, TreeWriteError&gt;   // publish with NoManifest
+VFileTree.readManifest    : PublishOptions -&gt; Result&lt;string list, TreeWriteError&gt;
+VFileTree.declaredOrder   : Property&lt;string list&gt;   // tree metadata</code></pre>
+<table>
+<thead><tr><th>Protection</th><th>Today in the task</th><th>In the pipeline</th></tr></thead>
+<tbody>
+<tr><td>Rooted and <code>..</code> paths</td><td><code>OwnedPath</code></td><td><code>validatePublish</code>, existing case <code>PathOutsideOutputDirectory</code></td></tr>
+<tr><td>Empty and <code>.</code> segments</td><td><code>OwnedPath</code> rejects</td><td>Normalized when a tree location is built, so <code>./src/a.fs</code> and <code>VFileTree.empty</code>'s <code>.</code> keep working. A path with no segments left is <code>FileWithoutPath</code>. Manifest entries are read from disk and checked strictly, with new case <code>InvalidManifestEntry</code></td></tr>
+<tr><td>Resolved path stays inside the root</td><td><code>OwnedPath</code></td><td><code>validatePublish</code>, as a check after resolving the full path</td></tr>
+<tr><td>Symlinked root or parent directory</td><td><code>OwnedPath</code></td><td><code>validatePublish</code>, new case <code>SymbolicLinkInPath</code>; rechecked immediately before moves</td></tr>
+<tr><td>Case-insensitive duplicates</td><td><code>HashSet</code> with <code>OrdinalIgnoreCase</code></td><td><code>DuplicateLocation</code>, case-insensitive on every platform</td></tr>
+<tr><td>All or nothing</td><td>Stage in <code>.stage-&lt;guid&gt;</code>, then publish</td><td>Same, with cleanup in <code>finally</code></td></tr>
+<tr><td>Serialized publication</td><td><code>.publish.lock</code> in the root, 100 retries</td><td>Same retries, held for publication only, but the lock file lives in a per-user temp directory and is named by a hash of the full output root. <code>writeToDisk</code> now shares this path and can target any directory, so a lock in the root would leave a stray file there and appear in a later <code>loadFromDisk</code></td></tr>
+<tr><td>Identical files untouched</td><td>Whole-file byte compare</td><td>Length check, then streamed compare</td></tr>
+<tr><td>Obsolete removal</td><td>Previous manifest entries through <code>OwnedPath</code></td><td>Same, and only after new files are in place</td></tr>
+</tbody>
+</table>
+<p>A new problem case <code>TreeHasErrors</code> blocks publishing a failed tree. The manifest is written in the order given by <code>declaredOrder</code>, falling back to sorted locations when the property is absent; a mismatch between the two sets is the new problem case <code>DeclaredOrderMismatch</code>. Staging inside the root keeps moves on one volume. As today, moving files is not a transaction: the staged set is complete before the first move, and an I/O failure during the moves can leave a mix of old and new, which the manifest (written last) and the next build correct. A separate <code>Morphir.IR.Pipeline.Publishing</code> project was rejected because <code>VFileTree</code> already performs I/O.</p>
+
+<h3 id="plg-1">PLG-1. Make the plugins real and safe</h3>
+<p>Generalize plugins and helpers from <code>unit</code> attributes to <code>'ta</code> and <code>'va</code>, operating on <code>PackageDefinition&lt;'ta, 'va&gt;</code>.</p>
+<ul>
+<li><strong>Optimizer.</strong> Match <code>Value.Reference</code> by fully qualified name against the <code>Morphir.SDK</code> modules. Fold only same-type literals. Skip whole-number results outside the <code>int32</code> range used by the emitted mapping, division by zero and any non-finite float. Fold only operations in the backend's mapping at <code>Emit.fs:451-473</code>, with semantics confirmed by executing both forms; <code>Basics.and</code> and <code>Basics.or</code> are not in it and are not folded. Traverse all value forms, including let, destructure, pattern match, record and update. Folded nodes keep the attributes of the expression they replace. Statistics become <code>Info</code> messages.</li>
+<li><strong>Optimizer rewrites beyond folding.</strong> The existing boolean short-circuit, literal <code>if</code> and identity lambda rewrites stay in the plugin behind <code>Optimizer.Options</code>, off by default, and the Myriad pipeline runs folding only. Those rewrites run before emission, so they could delete code emission would reject, letting <code>true &amp;&amp; x</code> start generating while <code>a &amp;&amp; b</code> stays rejected. That would change which models are accepted, which this change promises not to do. Turning them on is a later decision for the backend's supported-model contract.</li>
+<li><strong>TypeValidator.</strong> Build the environment from declared inputs and pattern and let bindings. An unresolved name or unsupported form returns unknown, quietly. Compare only SDK primitive types, and treat every other declared type as unknown, so an alias such as <code>type alias Cents = Int</code> with a body of <code>5</code> can never raise a false error on a valid model. Fix the literal types to match the backend's mapping: <code>TypeValidator.fs:52-53</code> uses <code>Basics:String</code> and <code>Basics:Char</code> while <code>Emit.fs:400-401</code> uses <code>String.String</code> and <code>Char.Char</code>. Scope errors stay with <code>Validate.scopes</code>, the source of the existing <code>unbound-variable</code> rule. Alias resolution can be added later, because it only finds more errors.</li>
+<li><strong>PrettyPrinter.</strong> Format the real package into a typed property, <code>PrettyPrinter.output</code>, stored on the file so that it reaches the output tree's metadata per <a href="#type-4">TYPE-4</a>. It is not added to the Myriad pipeline.</li>
+</ul>
+<p><code>Morphir.IR.Pipeline.Plugins</code> already references <code>Morphir.Models</code>, so it can name these types. Leaving the optimizer out of Myriad would be safer but would leave the plugin path unproven, and the requested first pipeline includes it. Its risks are limited by the equivalence test in <a href="#myr-1">MYR-1</a>.</p>
+
+<h3 id="myr-1">MYR-1. The backend becomes a pipeline</h3>
+<pre><code class="language-fsharp">let internal processor : MorphirProcessor&lt;Decode.Model&gt; =
+    pipeline {
+        parse (Parser.forFile modelParser)
+        uses scopeValidator
+        uses (Plugin.focus definition withDefinition (TypeValidator.create ()))
+        uses (Plugin.focus definition withDefinition (Optimizer.create Optimizer.foldingOnly))
+        stringify fsharpCompiler
+    }
+
+Transpiler.generate : VFile -&gt; VFileTree
+Transpiler.manifest : Property&lt;ManifestEntry list&gt;   // ModulePath, Location, in dependency order</code></pre>
+<p><strong>Keeping JSON alive.</strong> <code>modelParser</code> parses from the content's stream with <code>JsonDocument.Parse</code>, then decodes from <code>RootElement.Clone()</code> so that the model's elements do not depend on the disposed document. This costs a brief second copy of the JSON, which matches the memory non-goal. A disposable model or a parser that leaks the document would both add lifetime rules to every stage.</p>
+<p><strong>Splitting emission.</strong> <code>Validate.scopes</code> moves out of <code>Emit.generate</code> into <code>scopeValidator</code>. Name-collision checks stay with emission because they depend on emitted names. Internal <code>GenerationFailure</code> stays as the backend's internal signal. Each adapter catches it, along with the JSON and decode exceptions currently mapped in <code>Transpiler.fs</code>, keeping the same rule ids: the parser returns <code>ParseError.InvalidInput</code>, while the scope validator and compiler add a <code>VMessage</code> with <code>VFile.report</code>. The scope validator returns <code>None</code> on failure, because later plugins would be typing a broken model.</p>
+<p><strong>Removing the old types.</strong> <code>GeneratedModule</code> and <code>Diagnostic</code> go away, and <code>Transpiler.Generate(inputPath, json)</code> is replaced. Output files have text content, and <code>ManifestEntry</code> carries the module identity and order. Backend tests read through a small helper in <code>Fixtures.fs</code>, which keeps the mechanical churn in one place.</p>
+<p><strong>Proving behaviour.</strong> The optimizer's equivalence check compiles and executes car rental and a dedicated fixture with optimization on and off and compares results. This needs an internal option on the backend, <code>Transpiler.generateWith</code>, which is not exposed through Myriad. Reviewed Verify snapshots change only where folding applies, and those diffs are read as part of this work.</p>
+
+<h3 id="myr-2">MYR-2. The build task becomes a thin caller</h3>
+<ol>
+<li>Resolve paths and reject output-root collisions between models, as today.</li>
+<li>Run <code>Transpiler.generate</code> on a <code>VFile.fromDisk</code> of the model for the plan. On errors, log each with <code>VMessage.describe</code> and fail.</li>
+<li>Call <code>validatePublish</code> on the plan, so collisions and bad paths fail before the host starts.</li>
+<li>Prepare the host and run it once per manifest entry, writing to a private host output directory, as today. The host's plugin runs the same pipeline and returns the selected module's text.</li>
+<li>Build a new tree whose files are <code>StreamSource</code>s over the host output, with the manifest's order, and call <code>publish</code> with <code>Manifest "manifest.json"</code>.</li>
+<li>Return compile items in manifest order. Design-time builds read through <code>readManifest</code>.</li>
+</ol>
+<p>Publishing the host's output instead of the plan's keeps the existing contract that Myriad produces the compiled source. This also makes the task the first production user of stream sources. The host output directory stays separate from publication's staging directory, which means one extra copy per file. Merging them would let the task see publication internals, and these files are small. Requirements that the task log diagnostics to MSBuild, time out the host and align FSharp.Core stay in the task.</p>
+<p><code>Morphir.CodeGeneration.FSharp</code> references the pipeline and plugin projects, so they flow into <code>tools/plugin</code> and <code>tasks/net10.0</code> through the existing wildcard globs in <code>Morphir.Myriad.fsproj</code>. The cold-cache <code>package-tests.fsx</code> is the check that they do.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>The optimizer changes the behaviour of generated business logic.</td><td>Fold only fully qualified SDK functions with confirmed semantics, leave out-of-range results alone, compare on and off behaviour by execution, and review snapshot diffs.</td></tr>
+<tr><td>The type validator blocks a valid consumer build.</td><td>It reports only definite mismatches, and every supported fixture must pass with no warnings. Its coverage is intentionally partial; the F# compiler remains the full check.</td></tr>
+<tr><td>Cloning JSON raises peak memory for very large models.</td><td>Accepted and documented as a non-goal. Stream sources still avoid a separate in-memory string of the model. Measure with car rental and a generated large fixture, and record the numbers.</td></tr>
+<tr><td>Adding plugin stages raises the N+1 per-module build cost.</td><td>Each host invocation repeats the pipeline. Measure the build before and after, and keep the existing accepted-cost note. Caching stays deferred.</td></tr>
+<tr><td>Assemblies fail to load from the package because of task or host version conflicts.</td><td>Run <code>package-tests.fsx</code> early in the Myriad group, before the plugin rewrite is complete, and pin the failure before expanding.</td></tr>
+<tr><td>The public API churn invalidates a large number of tests.</td><td>Each group migrates its tests with it. Assertions that only proved <code>obj</code> plumbing, such as boxed test content, become typed instead of being preserved word for word.</td></tr>
+<tr><td>A stream source's file changes between planning and reading.</td><td>Reads surface as typed errors, and publication compares actual bytes. Consistency across files is not promised.</td></tr>
+<tr><td>Name-based property identity collides across libraries.</td><td>Same name and type means the same value by design. Document a dotted, library-prefixed naming convention.</td></tr>
+<tr><td>A temp-directory lock only serializes publishers running as the same user on the same machine.</td><td>Accepted. Output roots are normally per-project and per-user, staging still prevents partial files, and the alternatives leave a stray file in every output directory or need a writable parent.</td></tr>
+<tr><td>Case-insensitive collision checks reject trees that are valid on Linux.</td><td>Generated output has to work across platforms, and the task already enforces this. A strict option can be added if a real case appears.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<ol>
+<li>Land each task group in order on the feature branch. The repository builds and its tests pass at the end of each group.</li>
+<li>Update the pipeline README, plugin guide, backend PRD and <code>unified-file-architecture.md</code> as their groups land. The PRD's current-delivery section says the backend now runs on the pipeline. Leave the completed <code>add-myriad-morphir-fsharp</code> design as its historical record, and note here that this change supersedes its decision against routing through the pipeline.</li>
+<li>Consumer rollback: the package's build contract is unchanged, so reverting the commits restores previous behaviour with no consumer change. Generated output is rebuilt from the model on the next build.</li>
+<li>Reconcile #375 when this lands. No published packages contain these APIs, so no deprecation period is needed.</li>
+</ol>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>What is the largest model worth measuring? The requester did not name a worst case. The plan is to record peak memory and build time for car rental and a generated large fixture, then decide whether the deferred streaming decode is needed. The answer does not change this design.</li>
+</ul>
+
+</main>
+</body>
+</html>

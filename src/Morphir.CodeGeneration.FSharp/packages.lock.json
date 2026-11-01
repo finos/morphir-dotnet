@@ -35,6 +35,20 @@
           "FSharp.Core": "8.0.100"
         }
       },
+      "morphir.ir.pipeline": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )"
+        }
+      },
+      "morphir.ir.pipeline.plugins": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )",
+          "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.models": {
         "type": "Project",
         "dependencies": {

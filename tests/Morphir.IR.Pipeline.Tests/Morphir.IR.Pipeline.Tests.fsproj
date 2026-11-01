@@ -26,8 +26,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="PropertyBagTests.fs" />
         <Compile Include="FileTests.fs" />
+        <Compile Include="ContentTests.fs" />
         <Compile Include="FileTreeTests.fs" />
+        <Compile Include="PublicationTests.fs" />
         <Compile Include="ProcessorTests.fs" />
         <Compile Include="PipelineBuilderTests.fs" />
         <Compile Include="Program.fs" />

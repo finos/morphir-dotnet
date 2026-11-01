@@ -8,11 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `VFileTree.writeToDisk` no longer writes outside the output directory. It returns `TreeWriteError.InvalidTree` and writes nothing for rooted or `..` paths, files with no path, and duplicate locations, and it no longer adds the root tree path to output paths (#376)
+- `VFileTree.toFileMap` and `toStringMap` keys are now relative to the tree root and use forward slashes on every platform (#376)
+- `VFileTree.findFile` and `updateFile` accept a file's full location, and `updateFile` no longer changes same-named files in other directories (#376)
 - Claude Code skills now load correctly - renamed all `skill.md` files to `SKILL.md` (uppercase, case-sensitive requirement)
 - Updated all skill documentation references to use correct `SKILL.md` filename
 - **CRITICAL**: Removed contradictory Claude co-author example from AGENTS.md and strengthened CLA compliance warnings in both AGENTS.md and CLAUDE.md (issue #270)
 
 ### Added
+- `VFileTree` usage and morphir-elm migration guide in the `Morphir.IR.Pipeline` README (#376)
+- `VFileTree.fromFileMap` now infers nested directories from map keys (#376)
+- `VFileTree.loadFromDisk` loads a directory into a tree, returning `Result<VFileTree, TreeLoadError>` (#376)
+- `TreeWriteError`, `TreeWriteProblem` and `TreeLoadError` union types for file tree I/O failures, with `describe` functions for display (#376)
+- `ParseError` union type, which keeps the rule, location and source position of malformed input on the resulting diagnostic
+- Strongly typed pipeline: `Parser<'T>`, `Plugin<'T>`, `Compiler<'T>` and `MorphirProcessor<'T>` replace the `obj`-based contracts, and a run returns a `VFileTree`, so one input can produce many output files
+- `MorphirProcessor.run` accepts a file or a directory, and `MorphirProcessor.runEachFile` runs once per file in a tree
+- `Parser.forFile`, `Parser.ofParseable` and `Plugin.focus` for building typed stages
+- `Property<'T>` and `PropertyBag`, a typed replacement for string-keyed data on files, trees, tree configuration and processors, with functions that work with `|>`, `<|` and `>>`
+- `VFileContent` for text, bytes or a re-openable `StreamSource`, so file content does not have to be held in memory. `VFileTree.loadFromDisk` no longer reads files up front, and binary files survive a round trip
+- Tree-level diagnostics on `VFileTree`, and `Path` and `Location` on `VMessage`, with `VMessage.describe` for display
+- `VFileTree.publish`, `validatePublish`, `readManifest` and `declaredOrder`: path containment, symbolic link rejection, case-insensitive collision detection, staged publication, no rewriting of identical files, and manifest-based removal of obsolete files, moved from the Myriad build task so that every backend gets them
+- `Morphir.CodeGeneration.FSharp` now runs as a real pipeline through `Transpiler.generate`, with scope validation, type validation and constant folding. Definite type mismatches now fail the build, and folded literals appear in generated source. `GeneratedModule` and `Diagnostic` are removed in favour of `VFileTree` and `VMessage`
+- `Optimizer` and `TypeValidator` now process real packages: the optimizer matches SDK functions by fully qualified name and folds only where the result matches run-time behaviour, and the validator reports only definite mismatches
 - **Morphir.SDK F# Runtime Library** (`Morphir.SDK` NuGet package)
   - F# runtime library providing Morphir SDK types and functions for generated F# code
   - 14 core modules: Basics, Maybe, Result, List, String, Int, Bool, Char, Dict, Set, Tuple, LocalDate, LocalTime, Decimal

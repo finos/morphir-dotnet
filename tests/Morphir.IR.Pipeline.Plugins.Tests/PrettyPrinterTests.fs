@@ -1,48 +1,61 @@
 module Morphir.IR.Pipeline.Plugins.Tests.PrettyPrinterTests
 
 open Expecto
+open Morphir.IR
 open Morphir.IR.Classic
+open Morphir.IR.Classic.AccessControlled
+open Morphir.IR.Classic.Documented
 open Morphir.IR.Pipeline
 open Morphir.IR.Pipeline.Plugins
 
+let private package : Package.PackageDefinition<unit, unit> =
+    let definition: ValueDefinition<unit, unit> = {
+        InputTypes = []
+        OutputType = Type.Reference((), FQName.fromString "Morphir.SDK:Basics:Int" ":", [])
+        Body = Value.Literal((), Literal.WholeNumberLiteral 5000L)
+    }
+
+    let moduleDefinition: Module.ModuleDefinition<unit, unit> = {
+        Types = Map.empty
+        Values = Map.ofList [ Name.fromString "dailyRate", { Access = Public; Value = WithoutDocumentation definition } ]
+        Doc = None
+    }
+
+    { Modules = Map.ofList [ ModulePath.modulePath (Path [ Name.fromString "Inventory" ]), { Access = Public; Value = moduleDefinition } ] }
+
 [<Tests>]
-let prettyPrinterCreationTests =
-    testList "PrettyPrinter Creation" [
-        test "create should return a plugin" {
-            let plugin = PrettyPrinter.create()
-            Expect.equal plugin.Name "pretty-printer" "plugin name should be 'pretty-printer'"
+let prettyPrinterPluginTests =
+    testList "PrettyPrinter plugin" [
+        test "should keep the model and store the formatted package" {
+            let plugin = PrettyPrinter.create ()
+
+            let result, file = plugin.Transform package VFile.empty
+            let text = VFile.tryGet PrettyPrinter.output file |> Option.defaultValue ""
+
+            Expect.equal result (Some package) "the model should be unchanged"
+            Expect.stringContains text "Inventory.dailyRate" "should name the value"
+            Expect.stringContains text "5000" "should format the real body"
         }
 
-        test "createWithConfig should return a plugin with custom config" {
-            let config = PrettyPrinter.defaultConfig |> PrettyPrinter.withIndent 4
-            let plugin = PrettyPrinter.createWithConfig config
-            Expect.equal plugin.Name "pretty-printer" "plugin name should be 'pretty-printer'"
-        }
-    ]
+        test "should use custom configuration" {
+            let plugin = PrettyPrinter.createWithConfig (PrettyPrinter.defaultConfig |> PrettyPrinter.withoutTypes)
 
-[<Tests>]
-let prettyPrinterExecutionTests =
-    testList "PrettyPrinter Execution" [
-        test "plugin should execute without error" {
-            let plugin = PrettyPrinter.create()
-            let file = VFile.empty
-            let node = box "test-node"
+            let _, file = plugin.Transform package VFile.empty
+            let text = VFile.tryGet PrettyPrinter.output file |> Option.defaultValue ""
 
-            let (resultNode, resultFile) = plugin.Transform node file
-
-            Expect.isSome resultNode "result node should be Some"
-            Expect.hasLength resultFile.Messages 1 "should have one info message"
-            Expect.equal resultFile.Messages.[0].Severity Info "message should be Info"
+            Expect.isFalse (text.Contains "Morphir.SDK") "should hide type annotations"
         }
 
-        test "plugin should store formatted output in file data" {
-            let plugin = PrettyPrinter.create()
-            let file = VFile.empty
-            let node = box "test-node"
+        test "output should reach the run's tree" {
+            let parser: Parser<Package.PackageDefinition<unit, unit>> = fun _ -> Ok package
 
-            let (_, resultFile) = plugin.Transform node file
+            let tree =
+                MorphirProcessor.empty
+                |> MorphirProcessor.parse parser
+                |> MorphirProcessor.plugin (PrettyPrinter.create ())
+                |> MorphirProcessor.processFile VFile.empty
 
-            Expect.isTrue (resultFile.Data.ContainsKey "pretty-printed") "should have 'pretty-printed' data"
+            Expect.isSome (VFileTree.tryGet PrettyPrinter.output tree) "should be readable from the tree"
         }
     ]
 

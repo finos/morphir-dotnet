@@ -17,7 +17,9 @@ For a direct host invocation, use this package's `tools/host/Myriad.dll` with `d
 
 Generated files and their ordered `manifest.json` live under `obj/<configuration>/<target-framework>/morphir/<model-identity>/`. They precede handwritten F# compilation inputs. Relative JSON paths resolve from the project directory. The optional `OutputDirectory` metadata on `MorphirModel` selects a model-owned output directory.
 
-Input must declare integer `formatVersion` 1, 2 or 3 and contain a classic Library distribution. IR 4+, document trees and a Morphir CLI command are outside this delivery. Open extensible records, cross-module dependency cycles and unmapped SDK/external references produce build errors.
+Input must declare integer `formatVersion` 1, 2 or 3 and contain a classic Library distribution. IR 4+, document trees and a Morphir CLI command are outside this delivery. Open extensible records, cross-module dependency cycles, unmapped SDK/external references and definite type mismatches such as a string literal under a declared `Int` produce build errors.
+
+Generation folds SDK operations on literals where the result matches run-time behaviour, so `add 2 3` appears as `5` in generated source. It does not change which models are accepted.
 
 A failed generation blocks compilation, including when old generated files exist. Successful generation removes files owned by the previous manifest when their modules disappear. Identical source files are not rewritten on repeat builds. Ordinary builds generate; design-time builds can read the last successful manifest.
 

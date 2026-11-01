@@ -249,15 +249,6 @@ module internal Emit =
             )
             |> distinct location
 
-            controlled.Value.Values
-            |> Map.iter (fun name definition ->
-                Validate.scopes
-                    (location
-                     + "."
-                     + camel name)
-                    (Decode.unwrap definition.Value)
-            )
-
         let types =
             model.Definition.Modules
             |> Map.toList
