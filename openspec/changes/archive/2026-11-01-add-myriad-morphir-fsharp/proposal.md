@@ -28,7 +28,7 @@ None. The repository currently has no main OpenSpec capability specs.
 ## Tracking
 
 - This change records the approved first Myriad delivery. Implementation and verification evidence are tracked in [tasks.md](tasks.md).
-- Related planning: [existing F# backend PRD](../../../docs/design/PRD-fsharp-backend.md) and [backend milestones](../../../docs/design/fsharp-backend-maturity-milestones.md). Implementation must reconcile those documents and the PRD index with this narrower delivery before marking work in progress.
+- Related planning: [existing F# backend PRD](../../../../docs/design/PRD-fsharp-backend.md) and [backend milestones](../../../../docs/design/fsharp-backend-maturity-milestones.md). Implementation must reconcile those documents and the PRD index with this narrower delivery before marking work in progress.
 - This proposal deliberately changes the draft PRD's v3-only compatibility and CLI-first integration while retaining its per-module file layout. It replaces the PRD's lossy extensible-record fallback with an explicit error and rejects cross-module cycles that cannot compile across separate files. The broader backend roadmap remains separate.
 - No GitHub issue was supplied. Link an existing or newly authorized issue during implementation preparation; do not invent an issue number or publish issues as part of this proposal.
 
