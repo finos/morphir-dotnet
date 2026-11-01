@@ -1,0 +1,34 @@
+{
+  "formatVersion": 3,
+  "distribution": [
+    "Library",
+    [["car"], ["rental"]],
+    [],
+    {
+      "modules": [
+        [
+          [["inventory"]],
+          {
+            "access": "Public",
+            "value": {
+              "types": [],
+              "values": [
+                [
+                  ["daily", "rate"],
+                  {
+                    "access": "Public",
+                    "value": {
+                      "inputTypes": [],
+                      "outputType": ["Reference", {}, [[["morphir"], ["s", "d", "k"]], [["basics"]], ["int"]], []],
+                      "body": ["Literal", {}, ["WholeNumberLiteral", 5000]]
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

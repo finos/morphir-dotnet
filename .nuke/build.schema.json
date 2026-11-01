@@ -58,6 +58,7 @@
         "TestAll",
         "TestBuild",
         "TestE2E",
+        "TestMyriadPackages",
         "TestProtoPlugin"
       ]
     },

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <MorphirMyriadVersion Condition="'$(MorphirMyriadVersion)' == ''">0.1.0-local.5</MorphirMyriadVersion>
+    <MorphirModelFile Condition="'$(MorphirModelFile)' == ''">models/car-rental-v3.json</MorphirModelFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Morphir.Myriad" VersionOverride="[$(MorphirMyriadVersion)]" PrivateAssets="all" />
+    <PackageReference Include="FSharp.Core" />
+    <MorphirModel Include="$(MorphirModelFile)" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+</Project>

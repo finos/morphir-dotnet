@@ -5,6 +5,8 @@ weight: 20
 description: "Comprehensive guides for using Morphir .NET"
 ---
 
+Generate model code with the [Myriad F# reference]({{< relref "/docs/guides/myriad-fsharp" >}}), then follow the [car rental tutorial]({{< relref "/docs/guides/car-rental-tutorial" >}}) through a complete rental and invoice.
+
 Explore our guides to learn how to use Morphir .NET effectively.
 
 ## Available Guides

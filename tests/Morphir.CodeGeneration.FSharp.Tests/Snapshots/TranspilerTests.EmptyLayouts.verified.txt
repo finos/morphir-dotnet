@@ -1,0 +1,4 @@
+﻿Empty library module count: 0
+
+// Empty.fs
+module Car.Rental.Empty

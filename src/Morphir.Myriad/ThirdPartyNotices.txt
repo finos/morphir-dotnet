@@ -1,0 +1,271 @@
+Morphir.Myriad bundled third-party components
+===========================================
+
+Myriad 0.85.0 is bundled with its upstream runtime assets. Its bundled
+FSharp.Core.dll is replaced with FSharp.Core 11.0.100 for ABI compatibility
+with the .NET 10 backend. The upstream host source is otherwise unchanged.
+
+Apache-2.0 license terms are included in LICENSE.md at the package root.
+Package metadata and available original license/notice files follow.
+
+Myriad 0.85.0
+-------------
+authors: 7sharp9
+copyright: Dave Thomas
+license: Apache-2.0
+projectUrl: https://github.com/MoiraeSoftware/myriad
+licenseUrl: https://licenses.nuget.org/Apache-2.0
+
+Myriad.Core 0.85.0
+------------------
+authors: 7sharp9
+copyright: Dave Thomas
+license: Apache-2.0
+projectUrl: https://github.com/MoiraeSoftware/myriad
+licenseUrl: https://licenses.nuget.org/Apache-2.0
+
+Fantomas.Core 7.0.5
+-------------------
+authors: Florian Verdonck, Jindřich Ivánek, David Schaefer
+copyright: Copyright © 2025
+license: Apache-2.0
+projectUrl: https://fsprojects.github.io/fantomas/
+licenseUrl: https://licenses.nuget.org/Apache-2.0
+
+Fantomas.FCS 7.0.5
+------------------
+authors: Florian Verdonck, Jindřich Ivánek, David Schaefer
+copyright: Copyright © 2025
+license: Apache-2.0
+projectUrl: https://fsprojects.github.io/fantomas/
+licenseUrl: https://licenses.nuget.org/Apache-2.0
+
+Fabulous.AST 1.10.0
+-------------------
+authors: Edgar Gonzalez, Timothé Larivière
+license: Apache-2.0
+projectUrl: https://edgarfgp.github.io/Fabulous.AST/
+licenseUrl: https://licenses.nuget.org/Apache-2.0
+
+FSharp.Core 11.0.100
+--------------------
+authors: Microsoft
+copyright: © Microsoft Corporation. All rights reserved.
+license: MIT
+projectUrl: https://github.com/dotnet/fsharp
+licenseUrl: https://licenses.nuget.org/MIT
+
+FSharp.SystemTextJson 1.4.36
+----------------------------
+authors: Loic Denuziere
+license: MIT
+projectUrl: https://github.com/tarmil/FSharp.SystemTextJson
+licenseUrl: https://licenses.nuget.org/MIT
+
+Argu 6.2.5
+----------
+authors: Eirik Tsarpalis
+copyright: 2019
+license: MIT
+projectUrl: https://fsprojects.github.io/Argu/
+licenseUrl: https://licenses.nuget.org/MIT
+
+editorconfig 0.15.0
+-------------------
+authors: EditorConfig Team
+copyright: Elasticsearch BV
+license: MIT
+projectUrl: https://github.com/editorconfig/editorconfig-core-net
+licenseUrl: https://licenses.nuget.org/MIT
+
+Original LICENSE/LICENSE:
+
+The MIT License
+
+Copyright (c) 2016 EditorConfig Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+McMaster.NETCore.Plugins 2.0.0
+------------------------------
+authors: Nate McMaster
+copyright: Copyright © Nate McMaster
+license: Apache-2.0
+projectUrl: https://github.com/natemcmaster/DotNetCorePlugins
+licenseUrl: https://licenses.nuget.org/Apache-2.0
+
+Tomlyn 0.18.0
+-------------
+authors: Alexandre Mutel
+copyright: Alexandre Mutel
+license: BSD-2-Clause
+projectUrl: https://github.com/xoofx/Tomlyn
+licenseUrl: https://licenses.nuget.org/BSD-2-Clause
+
+System.Configuration.ConfigurationManager 9.0.1
+-----------------------------------------------
+authors: Microsoft
+copyright: © Microsoft Corporation. All rights reserved.
+license: MIT
+projectUrl: https://dot.net/
+licenseUrl: https://licenses.nuget.org/MIT
+
+Original LICENSE.TXT:
+
+The MIT License (MIT)
+
+Copyright (c) .NET Foundation and Contributors
+
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+System.Diagnostics.EventLog 9.0.1
+---------------------------------
+authors: Microsoft
+copyright: © Microsoft Corporation. All rights reserved.
+license: MIT
+projectUrl: https://dot.net/
+licenseUrl: https://licenses.nuget.org/MIT
+
+Original LICENSE.TXT:
+
+The MIT License (MIT)
+
+Copyright (c) .NET Foundation and Contributors
+
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+System.Security.Cryptography.ProtectedData 9.0.1
+------------------------------------------------
+authors: Microsoft
+copyright: © Microsoft Corporation. All rights reserved.
+license: MIT
+projectUrl: https://dot.net/
+licenseUrl: https://licenses.nuget.org/MIT
+
+Original LICENSE.TXT:
+
+The MIT License (MIT)
+
+Copyright (c) .NET Foundation and Contributors
+
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+MIT license terms for the MIT-licensed components listed above
+----------------------------------------------------------
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+BSD-2-Clause license terms for Tomlyn
+-----------------------------------
+Copyright Alexandre Mutel
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.

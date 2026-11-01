@@ -1,0 +1,23 @@
+<Project>
+  <PropertyGroup>
+    <MorphirMyriadHostPath Condition="'$(MorphirMyriadHostPath)' == ''">$(MSBuildThisFileDirectory)../tools/host/Myriad.dll</MorphirMyriadHostPath>
+    <_MorphirPluginPath>$(MSBuildThisFileDirectory)../tools/plugin/Morphir.Myriad.dll</_MorphirPluginPath>
+    <_MorphirOutputRoot>$(IntermediateOutputPath)morphir</_MorphirOutputRoot>
+  </PropertyGroup>
+  <UsingTask TaskName="Morphir.Myriad.Build.GenerateMorphirModules" AssemblyFile="$(MSBuildThisFileDirectory)../tasks/net10.0/Morphir.Myriad.Build.dll" />
+  <Target Name="GenerateMorphirModules" BeforeTargets="CoreCompile" Condition="'@(MorphirModel)' != ''">
+    <GenerateMorphirModules Models="@(MorphirModel)" ProjectDirectory="$(MSBuildProjectDirectory)" IntermediateDirectory="$(_MorphirOutputRoot)" HostPath="$(MorphirMyriadHostPath)" PluginPath="$(_MorphirPluginPath)" DotNetHost="$(DotNetHostPath)" DesignTimeBuild="$(DesignTimeBuild)">
+      <Output TaskParameter="GeneratedFiles" ItemName="_MorphirGeneratedFiles" />
+    </GenerateMorphirModules>
+    <ItemGroup>
+      <_MorphirOriginalCompile Include="@(Compile)" />
+      <Compile Remove="@(Compile)" />
+      <Compile Include="@(_MorphirGeneratedFiles)" />
+      <Compile Include="@(_MorphirOriginalCompile)" />
+      <FileWrites Include="@(_MorphirGeneratedFiles)" />
+    </ItemGroup>
+  </Target>
+  <Target Name="CleanMorphirModules" AfterTargets="CoreClean">
+    <RemoveDir Directories="$(_MorphirOutputRoot)" Condition="Exists('$(_MorphirOutputRoot)')" />
+  </Target>
+</Project>
