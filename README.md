@@ -52,6 +52,24 @@ Provides tooling for the Morphir ecosystem and .NET libraries that can be used t
 
 ## Getting Started
 
+### Building from source
+
+All projects target .NET 10 LTS. Install the SDK pinned in
+[`global.json`](./global.json), or use `mise install` to install the tools in
+[`mise.toml`](./mise.toml). CI uses the same SDK pin.
+
+VS Code users can run **Dev Containers: Reopen in Container** to use the
+Microsoft .NET SDK image in [`.devcontainer/Dockerfile`](./.devcontainer/Dockerfile).
+The SDK includes the C# and F# compilers. Renovate groups the container, global.json,
+and mise SDK updates together and keeps them on .NET 10 LTS. Moving to the next LTS
+major version requires an explicit baseline update.
+
+```bash
+./build.sh --target Test
+./build.sh --target PackAll
+./build.sh --target TestBuild
+```
+
 ### Quick Start
 
 Install Morphir using one of the following methods:
