@@ -109,6 +109,24 @@
       ],
       "groupName": "fsharp-codegen",
       "separateMajorMinor": false
+    },
+    {
+      "description": "Verify.TUnit can raise its TUnit.Core minimum in a patch release. Update TUnit, Verify, Reqnroll and their testing-platform dependencies together so the engine, generators and runtime stay compatible, even when their update types differ.",
+      "matchDatasources": [
+        "nuget"
+      ],
+      "matchPackageNames": [
+        "TUnit",
+        "TUnit.*",
+        "Verify",
+        "Verify.*",
+        "Reqnroll",
+        "Reqnroll.*",
+        "Microsoft.Testing.*",
+        "Microsoft.NET.Test.Sdk"
+      ],
+      "groupName": "dotnet-testing",
+      "separateMajorMinor": false
     }
   ]
 }

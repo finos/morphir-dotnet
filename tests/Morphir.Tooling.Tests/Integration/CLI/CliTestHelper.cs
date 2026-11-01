@@ -58,13 +58,13 @@ public class CliTestHelper
 
         process.OutputDataReceived += (sender, e) =>
         {
-            if (e.Data != null && !IsInfrastructureLogMessage(e.Data))
+            if (e.Data != null)
                 stdoutBuilder.AppendLine(e.Data);
         };
 
         process.ErrorDataReceived += (sender, e) =>
         {
-            if (e.Data != null && !IsInfrastructureLogMessage(e.Data))
+            if (e.Data != null)
             {
                 stderrBuilder.AppendLine(e.Data);
             }
@@ -81,37 +81,6 @@ public class CliTestHelper
             StandardOutput: stdoutBuilder.ToString().Trim(),
             StandardError: stderrBuilder.ToString().Trim()
         );
-    }
-
-    /// <summary>
-    /// Check if a line is an infrastructure log message that should be filtered
-    /// </summary>
-    private static bool IsInfrastructureLogMessage(string line)
-    {
-        if (string.IsNullOrWhiteSpace(line))
-            return true;
-
-        // Filter Wolverine and hosting INFO logs only (keep errors/failures)
-        if (line.Contains("fail:") || line.Contains("error:") || line.Contains("Error"))
-            return false;
-
-        return line.Contains("info: Wolverine") ||
-               line.Contains("info: Microsoft.Hosting") ||
-               line.Contains("Application started") ||
-               line.Contains("Application is shutting down") ||
-               line.Contains("Hosting environment:") ||
-               line.Contains("Content root path:") ||
-               line.Contains("Open Telemetry metrics") ||
-               line.Contains("Starting Wolverine messaging") ||
-               line.Contains("Wolverine code generation mode") ||
-               line.Contains("Wolverine assigned node id") ||
-               line.Contains("Searching assembly") ||
-               line.Contains("wolverine.netlify.app") ||
-               line.Contains("suitable for development") ||
-               line.Contains("disable automatic Wolverine extension finding") ||
-               line.Contains("disabling-assembly-scanning") ||
-               line.Contains("Started message listening") ||
-               line.Contains("Stopped message listener");
     }
 
     /// <summary>

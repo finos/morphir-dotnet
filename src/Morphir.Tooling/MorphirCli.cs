@@ -190,6 +190,7 @@ public sealed class MorphirCliBuilder
         // This is critical for CLI tools: stdout = data, stderr = diagnostics
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
+            .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Warning)
             .WriteTo.Console(
                 standardErrorFromLevel: LogEventLevel.Verbose,
                 outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"

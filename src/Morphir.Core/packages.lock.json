@@ -4,9 +4,9 @@
     "net10.0": {
       "Dunet": {
         "type": "Direct",
-        "requested": "[1.16.1, )",
-        "resolved": "1.16.1",
-        "contentHash": "ioVu/TMuXsbhskVkemzx/9UvKDAc+doPccKAkQckHe3ncjgBbPErsTE/MLdSRaTcZEK93+J9NsqUKeCWegbZyQ=="
+        "requested": "[1.16.2, )",
+        "resolved": "1.16.2",
+        "contentHash": "R4PEZo50RK76wRW1kq4xiQqX/hnrx8Gn+8T1XIEYuigyjVh3Guhtt3+b4GG2j3h+E3VadLINtbV+Id79nsFy/Q=="
       },
       "Funcky.DiscriminatedUnion": {
         "type": "Direct",
@@ -25,9 +25,9 @@
       },
       "InlineComposition": {
         "type": "Direct",
-        "requested": "[1.5.1, )",
-        "resolved": "1.5.1",
-        "contentHash": "42SW7EZuKpFWHjVzRWUKD7dQhhQgN12DyIkjw/5+0bj8YPDIpzGuo+J7CssP4bRZ/SPgx+UUONK0+UTOQip2Ig=="
+        "requested": "[1.5.3, )",
+        "resolved": "1.5.3",
+        "contentHash": "xnMGrgF3FjY1hHK0q4V3YYS1LJLWT03r2v2q4eM/T2VJgiIqlg+tXmNDRHGWI8P0N7pY46G0Q+0Yrgq9QgVoow=="
       },
       "Ionide.KeepAChangelog.Tasks": {
         "type": "Direct",
@@ -49,9 +49,9 @@
       },
       "Vogen": {
         "type": "Direct",
-        "requested": "[8.0.4, )",
-        "resolved": "8.0.4",
-        "contentHash": "pBrE2re4pjuvOJTsnApY2calA2VXEfk+GSXigCVvLpD3PL19a5NzhB4a//IlVtaL31jcY30WI8WDDHqhCaKxvw=="
+        "requested": "[8.0.5, )",
+        "resolved": "8.0.5",
+        "contentHash": "hUGafk0LpUn3ooZNOOczByhVSGqBaI96bCn0DkreSd2bwHGrMfdRoCqNrB4w0/y5bufyYaABqQ8wWBPgx5QdNw=="
       },
       "Generator.Equals.Runtime": {
         "type": "Transitive",
