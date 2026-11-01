@@ -58,7 +58,7 @@ Follow [the design](design.html) and the [processing](specs/pipeline-processing/
 
 Recorded 2026-11-01 on Windows arm64 with SDK 10.0.403. No commit, push, merge or archive was performed.
 
-- **Tests:** `Morphir.IR.Pipeline.Tests` 289, `Morphir.IR.Pipeline.Plugins.Tests` 125, `Morphir.CodeGeneration.FSharp.Tests` 80, `Morphir.Myriad.Tests` 4, `Morphir.Myriad.Integration.Tests` 12 and 15 cold-package checks all pass. Verify snapshots did not change.
+- **Tests:** `Morphir.IR.Pipeline.Tests` 299, `Morphir.IR.Pipeline.Plugins.Tests` 125, `Morphir.CodeGeneration.FSharp.Tests` 80, `Morphir.Myriad.Tests` 4, `Morphir.Myriad.Integration.Tests` 12 and 15 cold-package checks all pass. Verify snapshots did not change.
 - **Unrelated failures:** the Nuke `Test` target reports 2 failures in `Morphir.Tooling.Tests`: `DiscoverWorkspaceRoot_ShouldReturnNull_WhenNoWorkspaceFound` and `ResolveConfigAsync_ShouldReturnDefaults_WhenNoWorkspace`. They expect no workspace marker above the temp directory and find one at the user's home directory. That project references nothing changed here.
 - **Compile-time checks:** scripts confirm that an unsupported content type, a wrong property value type and mismatched stages, through both functions and the computation expression, each fail to compile, with a compiling control.
 - **`obj` scan:** the only `obj`, `box` and `unbox` in the pipeline, plugin, backend and Myriad sources are private to `PropertyBag`, plus the required `Equals(obj)` override.

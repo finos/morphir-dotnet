@@ -85,6 +85,8 @@ type TreeWriteProblem =
     | DeclaredOrderMismatch of unexpected: string list * missing: string list
     /// <summary>The previous manifest holds an entry that is not a safe location.</summary>
     | InvalidManifestEntry of entry: string
+    /// <summary>The manifest's name is not a plain file name directly under the output root.</summary>
+    | InvalidManifestName of name: string
 
 /// <summary>
 /// The reason publishing a tree failed.
@@ -169,6 +171,7 @@ module TreeWriteError =
                 + ". Not in the order: "
                 + String.Join(", ", missing)
             | TreeWriteProblem.InvalidManifestEntry entry -> "the previous manifest has an unsafe entry: " + entry
+            | TreeWriteProblem.InvalidManifestName name -> "the manifest name must be a plain file name: " + name
 
         match error with
         | TreeWriteError.InvalidTree problems -> String.Join("; ", problems |> List.map describeProblem)
@@ -613,7 +616,26 @@ module VFileTree =
         |> List.tail
         |> List.exists isSymbolicLink
 
-    /// <summary>Reads the raw entries of a manifest. A missing manifest has no entries.</summary>
+    /// <summary>True for a name that stays directly under the output root.</summary>
+    let private isPlainFileName (name: string): bool =
+        not (String.IsNullOrWhiteSpace name)
+        && not (isRooted name)
+        && name <> "."
+        && name <> ".."
+        && name.IndexOfAny [| '/'; '\\' |] < 0
+        && name.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) < 0
+
+    /// <summary>The problem with the manifest's name, if it has one.</summary>
+    let private manifestNameProblem (options: PublishOptions): TreeWriteProblem option =
+        match options.Manifest with
+        | ManifestMode.Manifest fileName when not (isPlainFileName fileName) ->
+            Some(TreeWriteProblem.InvalidManifestName fileName)
+        | _ -> None
+
+    /// <summary>
+    /// Reads the raw entries of a manifest. A missing manifest has no entries. Call this only after
+    /// checking the manifest's name, which decides what file gets read.
+    /// </summary>
     let private readManifestEntries (options: PublishOptions): string list =
         match options.Manifest with
         | ManifestMode.NoManifest -> []
@@ -626,6 +648,20 @@ module VFileTree =
                 [ for entry in document.RootElement.EnumerateArray() -> entry.GetString() ]
             else
                 []
+
+    /// <summary>
+    /// The problems with entries read back from a manifest. Entries get the same checks as new
+    /// locations, because a file on disk can change and publishing deletes through them.
+    /// </summary>
+    let private manifestEntryProblems (root: string) (entries: string list): TreeWriteProblem list =
+        entries
+        |> List.choose (fun entry ->
+            if not (isSafeManifestEntry entry) || not (staysInside root entry) then
+                Some(TreeWriteProblem.InvalidManifestEntry entry)
+            elif linkInPath root entry then
+                Some(TreeWriteProblem.SymbolicLinkInPath entry)
+            else
+                None)
 
     /// <summary>The order a tree's locations are listed in a manifest.</summary>
     let private manifestOrder (tree: VFileTree): string list =
@@ -690,10 +726,12 @@ module VFileTree =
                 else
                     [ TreeWriteProblem.DeclaredOrderMismatch (unexpected, missing) ]
 
-        let manifestEntries =
-            readManifestEntries options
-            |> List.filter (fun entry -> not (isSafeManifestEntry entry))
-            |> List.map TreeWriteProblem.InvalidManifestEntry
+        let manifest =
+            match manifestNameProblem options with
+            | Some problem -> [ problem ]
+            | None ->
+                manifestEntryProblems root (readManifestEntries options)
+                |> List.filter (fun problem -> not (List.contains problem links))
 
         pathless
         @ (outside |> List.map TreeWriteProblem.PathOutsideOutputDirectory)
@@ -702,7 +740,7 @@ module VFileTree =
         @ links
         @ errors
         @ order
-        @ manifestEntries
+        @ manifest
 
     /// <summary>
     /// Checks whether a tree can be published, without writing anything. Use this to fail early
@@ -726,11 +764,16 @@ module VFileTree =
     /// <param name="options">The output root and manifest</param>
     let readManifest (options: PublishOptions): Result<string list, TreeWriteError> =
         try
-            let entries = readManifestEntries options
+            match manifestNameProblem options with
+            | Some problem -> Result.Error (TreeWriteError.InvalidTree [ problem ])
+            | None when isSymbolicLink (fullRoot options.OutputRoot) ->
+                Result.Error (TreeWriteError.InvalidTree [ TreeWriteProblem.SymbolicLinkInPath options.OutputRoot ])
+            | None ->
+                let entries = readManifestEntries options
 
-            match entries |> List.filter (fun entry -> not (isSafeManifestEntry entry)) with
-            | [] -> Result.Ok entries
-            | invalid -> Result.Error (TreeWriteError.InvalidTree (invalid |> List.map TreeWriteProblem.InvalidManifestEntry))
+                match manifestEntryProblems options.OutputRoot entries with
+                | [] -> Result.Ok entries
+                | problems -> Result.Error (TreeWriteError.InvalidTree problems)
         with ex ->
             Result.Error (TreeWriteError.WriteFailed (options.OutputRoot, ex))
 

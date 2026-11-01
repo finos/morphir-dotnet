@@ -470,6 +470,90 @@ let manifestTests =
                     "dot segments are not allowed in a manifest")
         }
 
+        test "should not delete through a directory that became a symbolic link" {
+            withTempDir (fun temp ->
+                let root = Path.Combine(temp, "out")
+                let elsewhere = Path.Combine(temp, "elsewhere")
+                let external = Path.Combine(elsewhere, "old.fs")
+                Directory.CreateDirectory root |> ignore
+                Directory.CreateDirectory elsewhere |> ignore
+                File.WriteAllText(external, "keep me")
+                File.WriteAllText(Path.Combine(root, "manifest.json"), """["linked/old.fs"]""")
+
+                createLinkOrSkip (fun () ->
+                    Directory.CreateSymbolicLink(Path.Combine(root, "linked"), elsewhere) |> ignore)
+
+                Expect.equal
+                    (VFileTree.publish (tracked root) VFileTree.empty)
+                    (invalid [ TreeWriteProblem.SymbolicLinkInPath "linked/old.fs" ])
+                    "should name the entry"
+
+                Expect.isTrue (File.Exists external) "should not delete outside the root")
+        }
+
+        test "readManifest should reject an entry behind a symbolic link" {
+            withTempDir (fun temp ->
+                let root = Path.Combine(temp, "out")
+                let elsewhere = Path.Combine(temp, "elsewhere")
+                Directory.CreateDirectory root |> ignore
+                Directory.CreateDirectory elsewhere |> ignore
+                File.WriteAllText(Path.Combine(root, "manifest.json"), """["linked/old.fs"]""")
+
+                createLinkOrSkip (fun () ->
+                    Directory.CreateSymbolicLink(Path.Combine(root, "linked"), elsewhere) |> ignore)
+
+                Expect.equal
+                    (VFileTree.readManifest (tracked root))
+                    (Result.Error (TreeWriteError.InvalidTree [ TreeWriteProblem.SymbolicLinkInPath "linked/old.fs" ]))
+                    "should not hand back a path that leads outside the root")
+        }
+
+        testList "should reject a manifest name that is not a plain file name" [
+            for label, name in
+                [
+                    "a parent path", "../manifest.json"
+                    "a nested path", "sub/manifest.json"
+                    "a backslash path", @"sub\manifest.json"
+                    "a dot", "."
+                    "two dots", ".."
+                    "an empty name", ""
+                    "a rooted path", "/manifest.json"
+                ] do
+                test label {
+                    withTempDir (fun temp ->
+                        let root = Path.Combine(temp, "out")
+                        let options = { OutputRoot = root; Manifest = ManifestMode.Manifest name }
+
+                        Expect.equal
+                            (VFileTree.publish options (treeOf [ "a.fs", "A" ]))
+                            (invalid [ TreeWriteProblem.InvalidManifestName name ])
+                            "publish should name the problem"
+
+                        Expect.equal
+                            (VFileTree.readManifest options)
+                            (Result.Error (TreeWriteError.InvalidTree [ TreeWriteProblem.InvalidManifestName name ]))
+                            "readManifest should name the problem"
+
+                        Expect.isFalse (Directory.Exists root) "should write nothing"
+                        Expect.isEmpty (Directory.GetFiles temp) "should write nothing beside the root")
+                }
+        ]
+
+        test "an absolute manifest name should not overwrite the file it names" {
+            withTempDir (fun temp ->
+                let external = Path.Combine(temp, "external.json")
+                File.WriteAllText(external, "keep me")
+
+                let options = { OutputRoot = Path.Combine(temp, "out"); Manifest = ManifestMode.Manifest external }
+
+                Expect.equal
+                    (VFileTree.publish options (treeOf [ "a.fs", "A" ]))
+                    (invalid [ TreeWriteProblem.InvalidManifestName external ])
+                    "should name the problem"
+
+                Expect.equal (File.ReadAllText external) "keep me" "should leave the file alone")
+        }
+
         test "a malformed manifest should return a write failure" {
             withTempDir (fun temp ->
                 let root = Path.Combine(temp, "out")
@@ -497,6 +581,7 @@ let manifestTests =
 
             Expect.stringContains (describe (TreeWriteProblem.SymbolicLinkInPath "x/a.fs")) "x/a.fs" "link"
             Expect.stringContains (describe (TreeWriteProblem.InvalidManifestEntry "../a.fs")) "../a.fs" "entry"
+            Expect.stringContains (describe (TreeWriteProblem.InvalidManifestName "../m.json")) "../m.json" "name"
             Expect.stringContains (describe (TreeWriteProblem.TreeHasErrors [ VMessage.create Error "boom" ])) "boom" "errors"
 
             let mismatch = describe (TreeWriteProblem.DeclaredOrderMismatch ([ "extra.fs" ], [ "absent.fs" ]))

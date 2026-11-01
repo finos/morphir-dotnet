@@ -183,7 +183,8 @@ Inside code that opens this namespace, `Error` is the `MessageSeverity` case, so
 | `SymbolicLinkInPath location` | The root or a directory on the way to the location is a symbolic link. |
 | `TreeHasErrors errors` | The tree reports errors, so it must not replace existing output. |
 | `DeclaredOrderMismatch (unexpected, missing)` | The declared order does not list exactly the tree's locations. |
-| `InvalidManifestEntry entry` | The previous manifest holds an unsafe entry. |
+| `InvalidManifestEntry entry` | The previous manifest holds an unsafe entry. An entry behind a symbolic link is reported as `SymbolicLinkInPath`. |
+| `InvalidManifestName name` | The manifest's name is not a plain file name directly under the root. |
 
 `.` and empty path segments are normalized when a location is built, so `./src/a.fs` publishes at `src/a.fs`.
 

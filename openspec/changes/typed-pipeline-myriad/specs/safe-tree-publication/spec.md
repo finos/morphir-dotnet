@@ -128,6 +128,16 @@ When enabled, publication SHALL write a manifest of the current locations in the
 - **WHEN** the previous manifest lists `../outside.fs`
 - **THEN** publication returns an error and deletes nothing outside the output root
 
+#### Scenario: Directory became a symbolic link
+
+- **WHEN** the previous manifest lists `linked/old.fs` and `linked` is now a symbolic link to somewhere else
+- **THEN** publication returns an error naming that entry and deletes nothing through the link
+
+#### Scenario: Manifest name is not a plain file name
+
+- **WHEN** the manifest's name is a rooted path or contains a directory or `..`
+- **THEN** publication returns an error naming it and writes nothing
+
 #### Scenario: Declared order
 
 - **WHEN** a tree declares an order that differs from directory order
