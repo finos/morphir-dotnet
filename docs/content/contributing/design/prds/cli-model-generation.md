@@ -94,8 +94,10 @@ JSON decoding uses the public classic/v4 readers after a bounded token scan. Thi
 
 Ion decoding consumes captured bytes/entries through the existing readers, without a JSON bridge. Twelve tests cover native 3.0.0/3.1.0/4.0.0 views, text/binary/tree selection, malformed-Ion diagnostics, aggregate node limits and tree member locations. All pass; the full Nuke run retains only the 11 pending CLI cases.
 
-## Open questions
-
 Eleven profile tests refuse YAML models, JSON/YAML trees, JSON MEP envelopes and text/binary morphir_model wrappers with explicit format/profile diagnostics. They do not attempt admission or downgrade. The full Nuke run retains only the 11 pending CLI cases.
+
+The wire matrix extends the existing daily-rate and scalar inventory through the same `GenerationConformance.run` and FSI runner. Its 64 rows contain 40 compiled/executed programs, 12 expected integer-overflow refusals and 12 explicit unrepresentable Ion-version combinations. Same-version sources and declared order agree across formats, and deleting a required row fails matrix validation. All four matrix tests pass; full Nuke results retain only the 11 pending CLI cases.
+
+## Open questions
 
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.
