@@ -471,6 +471,11 @@
           "Microsoft.Testing.Platform": "2.2.3"
         }
       },
+      "Mono.Cecil": {
+        "type": "Transitive",
+        "resolved": "0.11.4",
+        "contentHash": "IC1h5g0NeJGHIUgzM1P82ld57knhP0IcQfrYITDPXlNpMYGUrsG5TxuaWTjaeqDNQMBDNZkB8L0rBnwsY6JHuQ=="
+      },
       "Reqnroll.Tools.MsBuild.Generation": {
         "type": "Transitive",
         "resolved": "3.3.4",
@@ -547,6 +552,13 @@
           "Vogen": "[8.0.5, )"
         }
       },
+      "morphir.testing": {
+        "type": "Project",
+        "dependencies": {
+          "Expecto": "[10.2.3, )",
+          "FSharp.Core": "[11.0.100, )"
+        }
+      },
       "morphir.tooling": {
         "type": "Project",
         "dependencies": {
@@ -578,6 +590,16 @@
         "requested": "[1.16.2, )",
         "resolved": "1.16.2",
         "contentHash": "R4PEZo50RK76wRW1kq4xiQqX/hnrx8Gn+8T1XIEYuigyjVh3Guhtt3+b4GG2j3h+E3VadLINtbV+Id79nsFy/Q=="
+      },
+      "Expecto": {
+        "type": "CentralTransitive",
+        "requested": "[10.2.3, )",
+        "resolved": "10.2.3",
+        "contentHash": "mwGOvtkKfMwakKeONwWYy5RgnO7Ijx/THt50GHh8mkSPySVOW/BsOppHzNwby45uaO6X0IKpqS76BrlYgOqcIg==",
+        "dependencies": {
+          "FSharp.Core": "7.0.200",
+          "Mono.Cecil": "[0.11.4, 1.0.0)"
+        }
       },
       "FluentValidation": {
         "type": "CentralTransitive",

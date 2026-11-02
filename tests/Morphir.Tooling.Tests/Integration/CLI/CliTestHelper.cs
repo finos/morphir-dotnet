@@ -74,7 +74,17 @@ public class CliTestHelper
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        await process.WaitForExitAsync(ct);
+        try
+        {
+            await process.WaitForExitAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            if (!process.WaitForExit(5000))
+                throw new InvalidOperationException("CLI process tree did not terminate after cancellation");
+            throw;
+        }
 
         return new CliExecutionResult(
             ExitCode: process.ExitCode,
