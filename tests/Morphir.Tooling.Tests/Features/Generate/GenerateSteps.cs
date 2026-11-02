@@ -123,11 +123,5 @@ public sealed class GenerateSteps : IDisposable
         return current?.FullName ?? throw new InvalidOperationException("Repository root not found");
     }
 
-    internal const string V4Model = """
-        {"formatVersion":4,"distribution":{"Library":{"packageName":"car/rental","dependencies":{},"def":{"modules":{
-          "inventory":{"access":"Public","types":{},"values":{
-            "daily-rate":{"access":"Public","ExpressionBody":{"inputTypes":{},"outputType":"morphir/SDK:basics#int","body":{"Literal":{"WholeNumberLiteral": 5000}}}}
-          }}
-        }}}}}
-        """;
+    internal static string V4Model => File.ReadAllText(Path.Combine(RepositoryRoot(), "tests", "Fixtures", "MorphirIR", "daily-rate-v4.json"));
 }

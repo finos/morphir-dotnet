@@ -3,7 +3,8 @@
 The generation command is being implemented under
 [add-generate-command](../../../../openspec/changes/add-generate-command/proposal.md).
 These contracts separate settings, model loading, backend selection, generation
-and publication. The command itself is not available at this stage.
+and publication. The CLI exposes them through `morphir generate`; see its
+[command reference](../../../../docs/content/docs/cli/generate.md).
 
 `CliGenerationSettingsResolver` accepts explicit input, target and output values.
 It resolves relative paths against `InvocationContext.WorkingDirectory`; it does

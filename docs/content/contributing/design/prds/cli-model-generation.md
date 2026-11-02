@@ -31,7 +31,7 @@ This is the implementation target, not a command already delivered by this PRD. 
 | Typed entry point and classic compatibility | Implemented | 3.1-3.4 | Existing consumers and shared corpus remain green |
 | Required v4 F# semantics | Implemented | 4.1-4.9 | Nonempty generated libraries compile and execute through the same harness |
 | Bounded JSON/Ion model loading | Implemented | 5.1-5.6 | Capture limits, retained originals, codec diagnostics and representation parity |
-| CLI generation and reporting | In Progress | 6.1-6.4 | BDD scenarios, typed exits, parseable JSON stdout and command documentation |
+| CLI generation and reporting | Implemented | 6.1-6.4 | BDD scenarios, typed exits, parseable JSON stdout and command documentation |
 | Owned artifact publication | Implemented | 7.1-7.3 | Ordered manifest, unchanged receipts, stale-owned removal and failure tests |
 | Coverage, trimming and Native AOT | Planned | 8.1-8.4 | Recorded test/coverage results and actual published-executable runs |
 | TOML/YAML generation configuration | Deferred | Follow-up | One canonical configuration model and settings resolver; no parser-specific generator API |
@@ -117,5 +117,7 @@ The existing host and source-generated mediator coordinate settings, captured-mo
 CLI binding adds explicit paths/target, constrained input format, repeated backend options and JSON mode. Seven subprocess tests cover unknown target/flags, invalid format/options, missing option values and last-value Boolean handling. Parser failures use the command's structured report and code 2. Command actions contain no target switches or separate host construction.
 
 Reports serialize through a source-generated context with plain DTO fields. Six reporting tests cover typed exit codes, a real operational CLI failure, parseable JSON and cancellation before publication. The cancellation test exposed the host's synchronous invocation and lost caller token; asynchronous invocation now forwards it and shutdown does not reuse the cancelled token. Full Nuke verification passes all suites, and the additional operational-report regression passes.
+
+The command reference, getting-started guide and troubleshooting entries document actual flags, profiles, output, exits and ownership guarantees. The v4 daily-rate JSON fixture is shared by examples and BDD/unit adapters. Ran classic JSON, v4 JSON with optimize=false, Ion file, Ion tree and CI/repeat examples with temporary output paths; each returned valid reports and nonempty artifacts, and repeat generation returned unchanged Inventory.fs. Full Nuke Test, including cold package-consumer checks, passed in 4 minutes 52 seconds.
 
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.
