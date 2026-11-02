@@ -216,46 +216,13 @@ let tests =
                 Expect.equal (execute modules oracle.Consumer) oracle.ExpectedOutput "shared behavior"
         testCase "SDK list Maybe and Result mappings preserve function and type argument order"
         <| fun _ ->
-            let increment =
-                F.a [ box "Lambda"; null; F.bind "x"; F.op "add" (F.variable "x") (F.integer 1) ]
-
-            let numbers = F.a [ box "List"; null; F.a [ F.integer 1; F.integer 2 ] ]
-
-            let map modName value =
-                F.apply (F.sdkReference modName "map") [ increment; value ]
-
-            let json =
-                F.model [
-                    "mappings",
-                    [],
-                    [
-                        F.binding "numbers" [] (F.listType F.intType) (map "list" numbers)
-                        F.binding
-                            "maybe"
-                            []
-                            (F.tRef (F.sdk "maybe" "maybe") [ F.intType ])
-                            (map
-                                "maybe"
-                                (F.apply (F.constructor (F.sdk "maybe" "just")) [ F.integer 3 ]))
-                        F.binding
-                            "result"
-                            []
-                            (F.tRef (F.sdk "result" "result") [ F.stringType; F.intType ])
-                            (map
-                                "result"
-                                (F.apply (F.constructor (F.sdk "result" "ok")) [ F.integer 4 ]))
-                    ]
-                ]
+            let json = ModelConformanceInputs.sdkMappingsJson ()
 
             match Transpiler.Generate("mappings.json", json) with
             | Error errors -> failtestf "%A" errors
             | Ok modules ->
-                Expect.equal
-                    (execute
-                        modules
-                        "printfn \"%A %A %A\" Car.Rental.Mappings.numbers Car.Rental.Mappings.maybe Car.Rental.Mappings.result")
-                    "[2; 3] Some 4 Ok 5"
-                    "SDK behavior"
+                let oracle: GenerationConformance.BehaviorCase<unit> = GenerationCases.sdkMappings [] []
+                Expect.equal (execute modules oracle.Consumer) oracle.ExpectedOutput "shared SDK behavior"
         testCase "non-function initialization cycles fail before returning source"
         <| fun _ ->
             let json =

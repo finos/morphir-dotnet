@@ -85,6 +85,7 @@ let tests =
                 GenerationCases.localRecursion, ModelConformanceInputs.localRecursion
                 GenerationCases.recordOperations, ModelConformanceInputs.recordOperations
                 GenerationCases.letRecOrder, ModelConformanceInputs.letRecOrder
+                GenerationCases.sdkMappings, ModelConformanceInputs.sdkMappings
             ] do
             let required = [
                 for version in [ "3"; "4.0.0" ] ->
@@ -147,6 +148,150 @@ let tests =
             <| fun () ->
                 GenerationConformance.run generate recursionCase row
                 |> ignore
+
+        for id, code, json in TypedValidationTests.failures do
+            let required = [
+                for version in [ "3"; "4.0.0" ] ->
+                    {
+                        Version = version
+                        Format = "typed"
+                        Layout = "memory"
+                        Optimize = true
+                    }
+            ]
+
+            let variants = [
+                for row in required ->
+                    {
+                        Representation = row
+                        Input =
+                            Refused(
+                                (fun () ->
+                                    ModelConformanceInputs.classic json
+                                    |> ModelConformanceInputs.forVersion row.Version
+                                ),
+                                code
+                            )
+                    }
+            ]
+
+            let case = {
+                Id =
+                    "diagnostics."
+                    + id
+                Consumer = ""
+                ExpectedOutput = ""
+                Required = required
+                Variants = variants
+            }
+
+            for row in variants do
+                testCase $"{case.Id}/{row.Representation.Version}"
+                <| fun () ->
+                    GenerationConformance.run generate case row
+                    |> ignore
+
+        for consistent in [ true; false ] do
+            let required = [
+                for version in [ "3"; "4.0.0" ] ->
+                    {
+                        Version = version
+                        Format = "typed"
+                        Layout = "memory"
+                        Optimize = true
+                    }
+            ]
+
+            let variants = [
+                for row in required do
+                    let input =
+                        if row.Version = "3" then
+                            Unrepresentable
+                                "Classic attributes do not define v4 inferred-type semantics"
+                        elif consistent then
+                            Supported(fun () -> ModelConformanceInputs.inferredLiteral true)
+                        else
+                            Refused(
+                                (fun () -> ModelConformanceInputs.inferredLiteral false),
+                                "type-mismatch"
+                            )
+
+                    yield { Representation = row; Input = input }
+            ]
+
+            let case = {
+                Id =
+                    (if consistent then
+                         "inferred.consistent"
+                     else
+                         "inferred.contradiction")
+                Consumer = "printfn \"%d\" Car.Rental.Literals.value"
+                ExpectedOutput = "42"
+                Required = required
+                Variants = variants
+            }
+
+            for row in variants do
+                testCase $"{case.Id}/{row.Representation.Version}"
+                <| fun () ->
+                    GenerationConformance.run generate case row
+                    |> ignore
+
+        testCase "inferred-type diagnostic retains its source range"
+        <| fun () ->
+            match (ModelConformanceInputs.inferredLiteral false).Distribution with
+            | DistributionModel.V4 distribution ->
+                try
+                    V4Emit.generate GenerationOptions.Default distribution
+                    |> ignore
+
+                    failtest "contradiction must fail without returning artifacts"
+                with GenerationFailure(code, location, _) ->
+                    Expect.equal code "type-mismatch" "common diagnostic category"
+                    Expect.stringContains location "7:3" "v4 source context"
+            | _ -> failtest "fixture must be v4"
+
+        for declaredNamed in [ true; false ] do
+            let required = [
+                for version in [ "3"; "4.0.0" ] ->
+                    {
+                        Version = version
+                        Format = "typed"
+                        Layout = "memory"
+                        Optimize = true
+                    }
+            ]
+
+            let variants = [
+                for row in required ->
+                    {
+                        Representation = row
+                        Input =
+                            (if row.Version = "3" then
+                                 Unrepresentable
+                                     "Classic attributes do not define v4 inferred-type semantics"
+                             else
+                                 Supported(fun () ->
+                                     ModelConformanceInputs.inferredRecord declaredNamed
+                                 ))
+                    }
+            ]
+
+            let case = {
+                Id =
+                    "inferred.record-context-"
+                    + string declaredNamed
+                Consumer = "printfn \"%d\" Car.Rental.Inferred.value.score"
+                ExpectedOutput = "9"
+                Required = required
+                Variants = variants
+            }
+
+            for row in variants do
+                testCase $"{case.Id}/{row.Representation.Version}"
+                <| fun () ->
+                    GenerationConformance.run generate case row
+                    |> ignore
 
         for scalar in GenerationScalars.cases do
             let required = [

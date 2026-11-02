@@ -33,7 +33,7 @@ let private generate json =
         model
         (VFile.fromPath "retained/source.ion")
 
-let private failures = [
+let failures = [
     "unbound",
     "unbound-variable",
     F.model [ "domain", [], [ F.binding "value" [] F.intType (F.variable "missing") ] ]

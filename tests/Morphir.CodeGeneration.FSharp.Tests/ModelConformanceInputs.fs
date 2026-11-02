@@ -395,6 +395,112 @@ let recordBilling version =
     |> classic
     |> forVersion version
 
+let inferredLiteral consistent =
+    let output =
+        Morphir.IR.V4.Type.Reference(Morphir.IR.V4.TypeAttributes.empty, sdk "basics" "int", [])
+
+    let inferred =
+        if consistent then
+            output
+        else
+            Morphir.IR.V4.Type.Reference(
+                Morphir.IR.V4.TypeAttributes.empty,
+                sdk "string" "string",
+                []
+            )
+
+    let attributes =
+        { Morphir.IR.V4.ValueAttributes.empty with
+            InferredType = Some inferred
+            Source =
+                Some
+                    {
+                        StartLine = 7
+                        StartColumn = 3
+                        EndLine = 7
+                        EndColumn = 5
+                    }
+        }
+
+    let value: Morphir.IR.V4.ValueDefinition = {
+        InputTypes = []
+        Body =
+            Morphir.IR.V4.ExpressionBody(
+                output,
+                Morphir.IR.V4.Value.Literal(attributes, Morphir.IR.V4.IntegerLiteral 42I)
+            )
+    }
+
+    let module': Morphir.IR.V4.ModuleDefinition = {
+        Types = ordered []
+        Values = ordered [ name "value", publicValue (documented value) ]
+        Doc = None
+    }
+
+    Morphir.IR.V4.Library(
+        package,
+        ordered [],
+        {
+            Modules = ordered [ modulePath "literals", publicValue module' ]
+        }
+    )
+    |> v4
+
+let inferredRecord declaredNamed =
+    let attributes = Morphir.IR.V4.TypeAttributes.empty
+    let intType = Morphir.IR.V4.Type.Reference(attributes, sdk "basics" "int", [])
+    let recordType = Morphir.IR.V4.Type.Record(attributes, [ name "score", intType ])
+
+    let aliasType =
+        Morphir.IR.V4.Type.Reference(attributes, own "inferred" "metric", [])
+
+    let declared, inferred =
+        if declaredNamed then
+            aliasType, recordType
+        else
+            recordType, aliasType
+
+    let valueAttributes =
+        { Morphir.IR.V4.ValueAttributes.empty with
+            InferredType = Some inferred
+        }
+
+    let body =
+        Morphir.IR.V4.Value.Record(
+            valueAttributes,
+            [
+                name "score",
+                Morphir.IR.V4.Value.Literal(
+                    Morphir.IR.V4.ValueAttributes.empty,
+                    Morphir.IR.V4.IntegerLiteral 9I
+                )
+            ]
+        )
+
+    let value: Morphir.IR.V4.ValueDefinition = {
+        InputTypes = []
+        Body = Morphir.IR.V4.ExpressionBody(declared, body)
+    }
+
+    let module': Morphir.IR.V4.ModuleDefinition = {
+        Types =
+            ordered [
+                name "metric",
+                publicValue (documented (Morphir.IR.V4.TypeAliasDefinition([], recordType)))
+            ]
+        Values = ordered [ name "value", publicValue (documented value) ]
+        Doc = None
+    }
+
+    Morphir.IR.V4.Library(
+        package,
+        ordered [],
+        {
+            Modules = ordered [ modulePath "inferred", publicValue module' ]
+        }
+    )
+    |> v4
+
 let lexicalCaptureJson () =
     let capture = F.op "add" (F.reference "capture" "rate") (F.variable "rate")
 
@@ -568,5 +674,40 @@ let letRecCycle version =
         ]
 
     F.model [ "locals", [], [ F.binding "ordered" [] F.intType body ] ]
+    |> classic
+    |> forVersion version
+
+let sdkMappingsJson () =
+    let increment =
+        F.a [ box "Lambda"; null; F.bind "x"; F.op "add" (F.variable "x") (F.integer 1) ]
+
+    let numbers = F.a [ box "List"; null; F.a [ F.integer 1; F.integer 2 ] ]
+
+    let map modName value =
+        F.apply (F.sdkReference modName "map") [ increment; value ]
+
+    let json =
+        F.model [
+            "mappings",
+            [],
+            [
+                F.binding "numbers" [] (F.listType F.intType) (map "list" numbers)
+                F.binding
+                    "maybe"
+                    []
+                    (F.tRef (F.sdk "maybe" "maybe") [ F.intType ])
+                    (map "maybe" (F.apply (F.constructor (F.sdk "maybe" "just")) [ F.integer 3 ]))
+                F.binding
+                    "result"
+                    []
+                    (F.tRef (F.sdk "result" "result") [ F.stringType; F.intType ])
+                    (map "result" (F.apply (F.constructor (F.sdk "result" "ok")) [ F.integer 4 ]))
+            ]
+        ]
+
+    json
+
+let sdkMappings version =
+    sdkMappingsJson ()
     |> classic
     |> forVersion version

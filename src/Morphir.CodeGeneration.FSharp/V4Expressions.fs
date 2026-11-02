@@ -265,6 +265,20 @@ module internal V4Expressions =
 
         let record expected = recordFields Set.empty expected
 
+        let recordContext expected inferred =
+            let nominal, fields = record expected
+
+            match expected with
+            | Some(Type.Record _) -> expected
+            | _ when
+                nominal
+                || not (List.isEmpty fields)
+                ->
+                expected
+            | _ ->
+                inferred
+                |> Option.orElse expected
+
         let rec inferred env value =
             match value with
             | Value.Variable(_, name) ->
@@ -459,9 +473,7 @@ module internal V4Expressions =
                    |> String.concat "; ")
                 + "]"
             | Value.Record(attributes, fields) ->
-                let expected =
-                    attributes.InferredType
-                    |> Option.orElse expected
+                let expected = recordContext expected attributes.InferredType
 
                 let nominal, types = record expected
 
@@ -671,8 +683,7 @@ module internal V4Expressions =
                 + ")"
             | Value.UpdateRecord(attributes, target, fields) ->
                 let expected =
-                    attributes.InferredType
-                    |> Option.orElse expected
+                    recordContext expected attributes.InferredType
                     |> Option.orElseWith (fun () -> inferred env target)
 
                 let nominal, types = record expected
