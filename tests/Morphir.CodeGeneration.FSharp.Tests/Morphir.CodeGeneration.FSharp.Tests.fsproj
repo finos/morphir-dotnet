@@ -16,11 +16,21 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.CodeGeneration.FSharp/Morphir.CodeGeneration.FSharp.fsproj" />
     <ProjectReference Include="../../src/Morphir.SDK/Morphir.SDK.fsproj" />
+    <ProjectReference Include="../../src/Morphir.Testing/Morphir.Testing.fsproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Fixtures/ResourceLoader.fs" Link="ResourceLoader.fs" />
     <Compile Include="Fixtures.fs" />
     <Compile Include="TranspilerAdapter.fs" />
+    <Compile Include="GenerationConformanceTests.fs" />
+    <Compile Include="TypedGenerationTests.fs" />
+    <Compile Include="TypedValidationTests.fs" />
+    <Compile Include="GenerationOptionsTests.fs" />
+    <Compile Include="ClassicToV4TestAdapter.fs" />
+    <Compile Include="ModelConformanceInputs.fs" />
+    <Compile Include="ModelRefusalInputs.fs" />
+    <Compile Include="GenerationRequirementsTests.fs" />
+    <Compile Include="ModelConformanceTests.fs" />
     <Compile Include="PipelineGenerationTests.fs" />
     <Compile Include="TranspilerTests.fs" />
   </ItemGroup>

@@ -12,9 +12,15 @@ public class CliTestHelper
 {
     private readonly string _cliProjectPath;
     private readonly string _testDataDirectory;
+    private readonly string? _executablePath;
 
-    public CliTestHelper()
+    public CliTestHelper(string? executablePath = null)
     {
+        if (executablePath is not null)
+        {
+            _executablePath = Path.GetFullPath(executablePath);
+            if (!File.Exists(_executablePath)) throw new FileNotFoundException("Published CLI executable not found.", _executablePath);
+        }
         // Navigate from test project to CLI project
         var currentDir = Directory.GetCurrentDirectory();
         var repoRoot = FindRepositoryRoot(currentDir);
@@ -43,8 +49,10 @@ public class CliTestHelper
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = "dotnet",
-            Arguments = $"run --project \"{_cliProjectPath}\" --configuration {typeof(CliTestHelper).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration} --no-build -- {arguments}",
+            FileName = _executablePath ?? "dotnet",
+            Arguments = _executablePath is null
+                ? $"run --project \"{_cliProjectPath}\" --configuration {typeof(CliTestHelper).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration} --no-build -- {arguments}"
+                : arguments,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -74,7 +82,17 @@ public class CliTestHelper
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        await process.WaitForExitAsync(ct);
+        try
+        {
+            await process.WaitForExitAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            if (!process.WaitForExit(5000))
+                throw new InvalidOperationException("CLI process tree did not terminate after cancellation");
+            throw;
+        }
 
         return new CliExecutionResult(
             ExitCode: process.ExitCode,

@@ -1,0 +1,76 @@
+using System.Text.Json;
+using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
+using Morphir.IR.Model;
+using Morphir.Tooling.Features.Generate;
+using Morphir.Tooling.Scenarios;
+using Morphir.Tooling.Tests.Integration.CLI;
+
+namespace Morphir.Tooling.Tests.Features.Generate;
+
+public sealed class GenerationReportingTests
+{
+    [Test]
+    [Arguments(GenerationFailureKind.Semantic, 1)]
+    [Arguments(GenerationFailureKind.Invocation, 2)]
+    [Arguments(GenerationFailureKind.Operational, 2)]
+    [Arguments(GenerationFailureKind.Cancelled, 130)]
+    public void SourceGeneratedFailureReportsHaveTypedExitCodes(GenerationFailureKind kind, int code)
+    {
+        var report = GenerationReport.From(new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(kind, "example-rule", "A structured failure.", "model.ion", "$[1]")), new(Input: "model.ion"));
+        report.ExitCode.Should().Be(code);
+        using var json = JsonDocument.Parse(report.ToJson());
+        json.RootElement.GetProperty("exitCode").GetInt32().Should().Be(code);
+        json.RootElement.GetProperty("diagnostics")[0].GetProperty("location").GetString().Should().Be("$[1]");
+        json.RootElement.GetProperty("artifacts").GetArrayLength().Should().Be(0);
+    }
+
+    [Test]
+    public async Task OperationalCliFailureReturnsTwoAndOneJsonDocument()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var missing = Path.Combine(Path.GetTempPath(), "missing-model-" + Guid.NewGuid().ToString("N") + ".json");
+        var output = Path.Combine(Path.GetTempPath(), "unused-output-" + Guid.NewGuid().ToString("N"));
+        var result = await new CliTestHelper().ExecuteCommandAsync($"generate --input \"{missing}\" --target fsharp --output \"{output}\" --json", timeout.Token);
+        result.ExitCode.Should().Be(2);
+        using var json = JsonDocument.Parse(result.StandardOutput);
+        json.RootElement.GetProperty("failureKind").GetString().Should().Be("operational");
+        Directory.Exists(output).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task HostCancellationReachesTheHandlerAndReturns130BeforePublication()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "morphir-cancel-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var input = GenerationInputFixtures.DailyRate(root, "3", "json");
+            var output = Path.Combine(root, "output");
+            var slow = new SlowBackend();
+            using var app = MorphirCli.CreateBuilder(["generate", "--input", input, "--target", "slow", "--output", output, "--json"])
+                .AddScenario<GenerationScenario>().ConfigureServices(services => services.AddSingleton<IGenerationBackend>(slow)).Build();
+            using var cancellation = new CancellationTokenSource();
+            var running = app.RunAsync(cancellation.Token);
+            await slow.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            cancellation.Cancel();
+            (await running.WaitAsync(TimeSpan.FromSeconds(5))).Should().Be(130);
+            Directory.Exists(output).Should().BeFalse();
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private sealed record Options : ValidatedBackendOptions;
+    private sealed class SlowBackend : IGenerationBackend
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public BackendDescriptor Descriptor { get; } = new("test.slow", new("slow"), [new(ModelFamily.Classic, ["3"], DistributionKind.Library)]);
+        public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options) => new Outcome<ValidatedBackendOptions>.Success(new Options());
+        public async ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct)
+        {
+            Entered.SetResult();
+            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            return new Outcome<GenerationArtifacts>.Failure(GenerationFailure.One(GenerationFailureKind.Operational, "token-not-propagated", "The host did not propagate cancellation."));
+        }
+    }
+}

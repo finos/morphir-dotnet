@@ -15,64 +15,87 @@ module Optimizer =
     /// <summary>
     /// Optimization statistics tracking applied transformations.
     /// </summary>
-    type OptimizationStats =
-        { ConstantFolds: int
-          DeadCodeEliminations: int
-          IdentityEliminations: int }
+    type OptimizationStats = {
+        ConstantFolds: int
+        DeadCodeEliminations: int
+        IdentityEliminations: int
+    }
 
     /// <summary>
     /// Creates empty optimization statistics.
     /// </summary>
-    let emptyStats: OptimizationStats =
-        { ConstantFolds = 0
-          DeadCodeEliminations = 0
-          IdentityEliminations = 0 }
+    let emptyStats: OptimizationStats = {
+        ConstantFolds = 0
+        DeadCodeEliminations = 0
+        IdentityEliminations = 0
+    }
 
     /// <summary>
     /// Which rewrites the optimizer applies.
     /// </summary>
-    type Options =
-        {
-            /// <summary>Fold SDK operations on literals</summary>
-            FoldConstants: bool
-            /// <summary>
-            /// Rewrite boolean short-circuits, if on a literal and identity lambdas. These can
-            /// remove code a later stage would have rejected, so they can change which models are
-            /// accepted.
-            /// </summary>
-            SimplifyControlFlow: bool
-        }
+    type Options = {
+        /// <summary>Fold SDK operations on literals</summary>
+        FoldConstants: bool
+        /// <summary>
+        /// Rewrite boolean short-circuits, if on a literal and identity lambdas. These can
+        /// remove code a later stage would have rejected, so they can change which models are
+        /// accepted.
+        /// </summary>
+        SimplifyControlFlow: bool
+    }
 
     /// <summary>
     /// Folds constants only. Never changes which models a later stage accepts.
     /// </summary>
-    let foldingOnly: Options = { FoldConstants = true; SimplifyControlFlow = false }
+    let foldingOnly: Options = {
+        FoldConstants = true
+        SimplifyControlFlow = false
+    }
 
     /// <summary>
     /// Applies every rewrite.
     /// </summary>
-    let all: Options = { FoldConstants = true; SimplifyControlFlow = true }
+    let all: Options = {
+        FoldConstants = true
+        SimplifyControlFlow = true
+    }
 
     /// <summary>The range of the F# type that Morphir Int maps to.</summary>
     let private inIntRange (value: int64) =
-        value >= int64 Int32.MinValue && value <= int64 Int32.MaxValue
+        value
+        >= int64 Int32.MinValue
+        && value
+           <= int64 Int32.MaxValue
 
     let private wholeResult (compute: int64 -> int64 -> int64) (left: int64) (right: int64) =
-        if inIntRange left && inIntRange right then
+        if
+            inIntRange left
+            && inIntRange right
+        then
             let result = compute left right
-            if inIntRange result then Some(Literal.WholeNumberLiteral result) else None
+
+            if inIntRange result then
+                Some(Literal.WholeNumberLiteral result)
+            else
+                None
         else
             None
 
-    let private floatResult (compute: float -> float -> float) (left: float) (right: float) =
-        let result = compute left right
-        if Double.IsFinite result then Some(Literal.FloatLiteral result) else None
+    let private floatResult operation left right =
+        ExactScalarFolding.tryFloat operation left right
+        |> Option.map Literal.FloatLiteral
 
     let private compareResult (compare: int -> bool) (left: Literal) (right: Literal) =
         match left, right with
-        | Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b when inIntRange a && inIntRange b ->
+        | Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b when
+            inIntRange a
+            && inIntRange b
+            ->
             Some(Literal.BoolLiteral(compare (Operators.compare a b)))
-        | Literal.FloatLiteral a, Literal.FloatLiteral b when Double.IsFinite a && Double.IsFinite b ->
+        | Literal.FloatLiteral a, Literal.FloatLiteral b when
+            Double.IsFinite a
+            && Double.IsFinite b
+            ->
             Some(Literal.BoolLiteral(compare (Operators.compare a b)))
         | _ -> None
 
@@ -80,7 +103,8 @@ module Optimizer =
         match left, right with
         | Literal.BoolLiteral _, Literal.BoolLiteral _
         | Literal.CharLiteral _, Literal.CharLiteral _
-        | Literal.StringLiteral _, Literal.StringLiteral _ -> Some(Literal.BoolLiteral((left = right) = expected))
+        | Literal.StringLiteral _, Literal.StringLiteral _ ->
+            Some(Literal.BoolLiteral((left = right) = expected))
         | _ -> compareResult (fun order -> (order = 0) = expected) left right
 
     /// <summary>
@@ -97,20 +121,31 @@ module Optimizer =
             None
         else
             match ClassicPackage.sdkName name, left, right with
-            | "basics.add", Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b -> wholeResult (+) a b
-            | "basics.subtract", Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b -> wholeResult (-) a b
-            | "basics.multiply", Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b -> wholeResult (*) a b
-            | "basics.divide", Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b when b <> 0L -> wholeResult (/) a b
-            | "basics.add", Literal.FloatLiteral a, Literal.FloatLiteral b -> floatResult (+) a b
-            | "basics.subtract", Literal.FloatLiteral a, Literal.FloatLiteral b -> floatResult (-) a b
-            | "basics.multiply", Literal.FloatLiteral a, Literal.FloatLiteral b -> floatResult (*) a b
-            | "basics.divide", Literal.FloatLiteral a, Literal.FloatLiteral b when b <> 0.0 -> floatResult (/) a b
+            | "basics.add", Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b ->
+                wholeResult (+) a b
+            | "basics.subtract", Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b ->
+                wholeResult (-) a b
+            | "basics.multiply", Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b ->
+                wholeResult (*) a b
+            | "basics.divide", Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b when
+                b <> 0L
+                ->
+                wholeResult (/) a b
+            | "basics.add", Literal.FloatLiteral a, Literal.FloatLiteral b ->
+                floatResult ArithmeticOperation.Add a b
+            | "basics.subtract", Literal.FloatLiteral a, Literal.FloatLiteral b ->
+                floatResult ArithmeticOperation.Subtract a b
+            | "basics.multiply", Literal.FloatLiteral a, Literal.FloatLiteral b ->
+                floatResult ArithmeticOperation.Multiply a b
+            | "basics.divide", Literal.FloatLiteral a, Literal.FloatLiteral b when b <> 0.0 ->
+                floatResult ArithmeticOperation.Divide a b
             | "basics.equal", _, _ -> equalityResult true left right
             | "basics.notequal", _, _ -> equalityResult false left right
             | "basics.lessthan", _, _ -> compareResult (fun order -> order < 0) left right
             | "basics.lessthanorequal", _, _ -> compareResult (fun order -> order <= 0) left right
             | "basics.greaterthan", _, _ -> compareResult (fun order -> order > 0) left right
-            | "basics.greaterthanorequal", _, _ -> compareResult (fun order -> order >= 0) left right
+            | "basics.greaterthanorequal", _, _ ->
+                compareResult (fun order -> order >= 0) left right
             | _ -> None
 
     /// <summary>
@@ -129,7 +164,11 @@ module Optimizer =
         (file: VFile)
         (stats: OptimizationStats)
         : Value<'ta, 'va> * VFile * OptimizationStats =
-        let note (text: string) (update: OptimizationStats -> OptimizationStats) (currentFile: VFile, currentStats) =
+        let note
+            (text: string)
+            (update: OptimizationStats -> OptimizationStats)
+            (currentFile: VFile, currentStats)
+            =
             let message =
                 { VMessage.create Info text with
                     Location = Some location
@@ -138,25 +177,60 @@ module Optimizer =
 
             VFile.report message currentFile, update currentStats
 
-        let folded = fun (s: OptimizationStats) -> { s with ConstantFolds = s.ConstantFolds + 1 }
-        let deadCode = fun (s: OptimizationStats) -> { s with DeadCodeEliminations = s.DeadCodeEliminations + 1 }
-        let identity = fun (s: OptimizationStats) -> { s with IdentityEliminations = s.IdentityEliminations + 1 }
+        let folded =
+            fun (s: OptimizationStats) ->
+                { s with
+                    ConstantFolds =
+                        s.ConstantFolds
+                        + 1
+                }
+
+        let deadCode =
+            fun (s: OptimizationStats) ->
+                { s with
+                    DeadCodeEliminations =
+                        s.DeadCodeEliminations
+                        + 1
+                }
+
+        let identity =
+            fun (s: OptimizationStats) ->
+                { s with
+                    IdentityEliminations =
+                        s.IdentityEliminations
+                        + 1
+                }
 
         let simplifyApply attrs fn argument state =
             match fn, argument with
-            | Value.Apply(_, Value.Reference(_, name), Value.Literal(_, Literal.BoolLiteral condition)), rest
-                when options.SimplifyControlFlow && ClassicPackage.isSdk name ->
+            | Value.Apply(_,
+                          Value.Reference(_, name),
+                          Value.Literal(_, Literal.BoolLiteral condition)),
+              rest when
+                options.SimplifyControlFlow
+                && ClassicPackage.isSdk name
+                ->
                 match ClassicPackage.sdkName name, condition with
-                | "basics.and", true -> rest, note "Identity elimination: true && x becomes x" identity state
-                | "basics.or", false -> rest, note "Identity elimination: false || x becomes x" identity state
+                | "basics.and", true ->
+                    rest, note "Identity elimination: true && x becomes x" identity state
+                | "basics.or", false ->
+                    rest, note "Identity elimination: false || x becomes x" identity state
                 | "basics.and", false ->
-                    Value.Literal(attrs, Literal.BoolLiteral false), note "Dead code elimination: false && x becomes false" deadCode state
+                    Value.Literal(attrs, Literal.BoolLiteral false),
+                    note "Dead code elimination: false && x becomes false" deadCode state
                 | "basics.or", true ->
-                    Value.Literal(attrs, Literal.BoolLiteral true), note "Dead code elimination: true || x becomes true" deadCode state
+                    Value.Literal(attrs, Literal.BoolLiteral true),
+                    note "Dead code elimination: true || x becomes true" deadCode state
                 | _ -> Value.Apply(attrs, fn, argument), state
-            | Value.Lambda(_, Pattern.AsPattern(_, Pattern.WildcardPattern _, parameter), Value.Variable(_, used)), rest
-                when options.SimplifyControlFlow && parameter = used ->
-                rest, note "Identity elimination: an identity lambda becomes its argument" identity state
+            | Value.Lambda(_,
+                           Pattern.AsPattern(_, Pattern.WildcardPattern _, parameter),
+                           Value.Variable(_, used)),
+              rest when
+                options.SimplifyControlFlow
+                && parameter = used
+                ->
+                rest,
+                note "Identity elimination: an identity lambda becomes its argument" identity state
             | _ -> Value.Apply(attrs, fn, argument), state
 
         let rec go (current: Value<'ta, 'va>) state =
@@ -178,11 +252,15 @@ module Optimizer =
                 let updatedArgument, afterArgument = go argument afterFn
 
                 match updatedFn, updatedArgument with
-                | Value.Apply(_, Value.Reference(_, name), Value.Literal(_, left)), Value.Literal(_, right) when options.FoldConstants ->
+                | Value.Apply(_, Value.Reference(_, name), Value.Literal(_, left)),
+                  Value.Literal(_, right) when options.FoldConstants ->
                     match tryFold name left right with
                     | Some result ->
                         Value.Literal(attrs, result),
-                        note $"Constant folding: {FQName.toString name} of two literals" folded afterArgument
+                        note
+                            $"Constant folding: {FQName.toString name} of two literals"
+                            folded
+                            afterArgument
                     | None -> simplifyApply attrs updatedFn updatedArgument afterArgument
                 | _ -> simplifyApply attrs updatedFn updatedArgument afterArgument
             | Value.Lambda(attrs, pattern, body) ->
@@ -199,7 +277,8 @@ module Optimizer =
                     |> List.mapFold
                         (fun inner (name, definition) ->
                             let updated, next = goDefinition definition inner
-                            (name, updated), next)
+                            (name, updated), next
+                        )
                         state
 
                 let updatedBody, next = go body afterDefinitions
@@ -216,7 +295,10 @@ module Optimizer =
                 match updatedCondition with
                 | Value.Literal(_, Literal.BoolLiteral literal) when options.SimplifyControlFlow ->
                     (if literal then updatedYes else updatedNo),
-                    note "Dead code elimination: if on a literal becomes its branch" deadCode afterNo
+                    note
+                        "Dead code elimination: if on a literal becomes its branch"
+                        deadCode
+                        afterNo
                 | _ -> Value.IfThenElse(attrs, updatedCondition, updatedYes, updatedNo), afterNo
             | Value.PatternMatch(attrs, target, cases) ->
                 let updatedTarget, afterTarget = go target state
@@ -226,7 +308,8 @@ module Optimizer =
                     |> List.mapFold
                         (fun inner (pattern, body) ->
                             let updated, afterBody = go body inner
-                            (pattern, updated), afterBody)
+                            (pattern, updated), afterBody
+                        )
                         afterTarget
 
                 Value.PatternMatch(attrs, updatedTarget, updatedCases), next
@@ -242,7 +325,8 @@ module Optimizer =
             | Value.Unit _ -> current, state
 
         and many items state =
-            items |> List.mapFold (fun inner item -> go item inner) state
+            items
+            |> List.mapFold (fun inner item -> go item inner) state
 
         and named fields state =
             let updated, next =
@@ -251,7 +335,8 @@ module Optimizer =
                 |> List.mapFold
                     (fun inner (name, item) ->
                         let result, afterItem = go item inner
-                        (name, result), afterItem)
+                        (name, result), afterItem
+                    )
                     state
 
             Map.ofList updated, next
@@ -268,13 +353,19 @@ module Optimizer =
     /// </summary>
     /// <param name="options">Which rewrites to apply</param>
     let create (options: Options) : Plugin<Package.PackageDefinition<'ta, 'va>> =
-        Plugin.create "optimizer" (fun package file ->
-            let optimized, (finalFile, _) =
-                ClassicPackage.mapDefinitions
-                    (fun location definition (currentFile, stats) ->
-                        let body, nextFile, nextStats = optimizeValue options location definition.Body currentFile stats
-                        { definition with Body = body }, (nextFile, nextStats))
-                    package
-                    (file, emptyStats)
+        Plugin.create
+            "optimizer"
+            (fun package file ->
+                let optimized, (finalFile, _) =
+                    ClassicPackage.mapDefinitions
+                        (fun location definition (currentFile, stats) ->
+                            let body, nextFile, nextStats =
+                                optimizeValue options location definition.Body currentFile stats
 
-            Some optimized, finalFile)
+                            { definition with Body = body }, (nextFile, nextStats)
+                        )
+                        package
+                        (file, emptyStats)
+
+                Some optimized, finalFile
+            )

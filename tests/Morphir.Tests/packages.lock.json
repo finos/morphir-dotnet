@@ -112,6 +112,14 @@
         "resolved": "3.8.4",
         "contentHash": "KlbpupRCz3Kf+P7gsiDvFXJ980i/9lfihMZFmmxIk0Gf6mopEjy74OTJZmdaKDQpE29eQDBnMZB5khyW3eugrg=="
       },
+      "Fantomas.FCS": {
+        "type": "Transitive",
+        "resolved": "7.0.5",
+        "contentHash": "WxifhpLkDuv/WronO8UcEe8gsSTuuMqrUjnke/kUd11vTJ9T8IYouGidT+sSDaf1dAMaf1bb6maz/h+/dSu6wg==",
+        "dependencies": {
+          "FSharp.Core": "8.0.100"
+        }
+      },
       "Foundatio.Mediator.Abstractions": {
         "type": "Transitive",
         "resolved": "1.2.1",
@@ -520,6 +528,17 @@
           "System.CommandLine": "[2.0.8, )"
         }
       },
+      "morphir.codegeneration.fsharp": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )",
+          "Fabulous.AST": "[1.10.0, )",
+          "Fantomas.Core": "[7.0.5, )",
+          "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.IR.Pipeline.Plugins": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.configuration": {
         "type": "Project",
         "dependencies": {
@@ -535,6 +554,36 @@
           "Vogen": "[8.0.5, )"
         }
       },
+      "morphir.ion": {
+        "type": "Project",
+        "dependencies": {
+          "Eleven19.IonDotnet": "[0.1.4, )",
+          "FSharp.Core": "[11.0.100, )",
+          "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
+      "morphir.ir.pipeline": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )"
+        }
+      },
+      "morphir.ir.pipeline.plugins": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )",
+          "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
+      "morphir.models": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )",
+          "FSharp.SystemTextJson": "[1.4.36, )"
+        }
+      },
       "morphir.tooling": {
         "type": "Project",
         "dependencies": {
@@ -544,8 +593,12 @@
           "Json.More.Net": "[2.2.0, )",
           "JsonSchema.Net": "[8.0.5, )",
           "Microsoft.Extensions.Hosting": "[10.0.14, )",
+          "Morphir.CodeGeneration.FSharp": "[1.0.0, )",
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
+          "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.Ion": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )",
           "Serilog": "[4.3.1, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
@@ -567,6 +620,31 @@
         "resolved": "1.16.2",
         "contentHash": "R4PEZo50RK76wRW1kq4xiQqX/hnrx8Gn+8T1XIEYuigyjVh3Guhtt3+b4GG2j3h+E3VadLINtbV+Id79nsFy/Q=="
       },
+      "Eleven19.IonDotnet": {
+        "type": "CentralTransitive",
+        "requested": "[0.1.4, )",
+        "resolved": "0.1.4",
+        "contentHash": "3kI2OE1a2XY/so02kTtpXoma4AAgSFmFjW5L9nRGLUbUarOdAZEWBAE5KRHpdPErLXszpznegwqQgQtEAL4/ZA=="
+      },
+      "Fabulous.AST": {
+        "type": "CentralTransitive",
+        "requested": "[1.10.0, )",
+        "resolved": "1.10.0",
+        "contentHash": "7Hr980JrpWQGLs/kiM+d0cCtaCtl8Za8SHMYbM9Xuc2+ICysHEwz3fAOidNMv8oAiA87gpGEfZArsaVUtK64Uw==",
+        "dependencies": {
+          "Fantomas.Core": "[7.0.1]"
+        }
+      },
+      "Fantomas.Core": {
+        "type": "CentralTransitive",
+        "requested": "[7.0.5, )",
+        "resolved": "7.0.5",
+        "contentHash": "wGbCsAqKhyhuDwMsOXh4p9GJvw7OzJX/OwoPAVw913Fae2rbczREl8L8U5hZIadoJmhuyIu0Dp/8UJToykZs6Q==",
+        "dependencies": {
+          "FSharp.Core": "8.0.100",
+          "Fantomas.FCS": "7.0.5"
+        }
+      },
       "FluentValidation": {
         "type": "CentralTransitive",
         "requested": "[11.12.0, )",
@@ -587,6 +665,15 @@
         "requested": "[11.0.100, )",
         "resolved": "11.0.100",
         "contentHash": "ijfOz8ihqkFNdKUY57l8YTrbJNfQW/6tFYAUU57ByZzmTxxf1o12cQaCqDOjNqAz4h86AKS7IwQkNhYcrjLeCQ=="
+      },
+      "FSharp.SystemTextJson": {
+        "type": "CentralTransitive",
+        "requested": "[1.4.36, )",
+        "resolved": "1.4.36",
+        "contentHash": "1xLk0SBF1nedD74B77rcArjD2d+DeZwbNI7BVCAyKwIBERo1VoX8Mf4AtX0OV2L3ZeM/XS1b6BuhXCyoh0KBnw==",
+        "dependencies": {
+          "FSharp.Core": "4.7.0"
+        }
       },
       "Generator.Equals": {
         "type": "CentralTransitive",

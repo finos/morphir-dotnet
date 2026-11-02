@@ -45,7 +45,7 @@ public static partial class Program
         builder.Logging.AddSerilog(Log.Logger, dispose: true);
 
         // Configure Foundatio.Mediator - uses source generators for handler discovery (trimming/AOT-friendly)
-        builder.Services.AddMediator();
+        Infrastructure.MediatorRegistration.Add(builder.Services);
 
         // Register infrastructure services
         builder.Services.AddSingleton<Infrastructure.JsonSchema.SchemaLoader>();
