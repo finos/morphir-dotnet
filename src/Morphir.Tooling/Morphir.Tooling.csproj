@@ -49,6 +49,8 @@
     <ProjectReference Include="..\Morphir.Core\Morphir.Core.csproj" />
     <!-- Reference to Morphir.Configuration for domain models -->
     <ProjectReference Include="..\Morphir.Configuration\Morphir.Configuration.fsproj" />
+    <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
+    <ProjectReference Include="..\Morphir.IR.Pipeline\Morphir.IR.Pipeline.fsproj" />
   </ItemGroup>
 
   <ItemGroup>
