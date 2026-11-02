@@ -58,7 +58,7 @@ All tests in this group extend the harness and case inventory from group 1. Vers
 
 - [x] 7.1 Adapt generated file trees to the existing publisher with a centralized ownership-manifest policy and preserved declared order; verify successful publication and repeat-generation unchanged receipts with no unnecessary rewrites.
 - [x] 7.2 Validate input/output separation and artifact paths before writes; verify overlap, traversal, rooted paths, case collisions, symlinks and generation errors leave previous output untouched.
-- [ ] 7.3 Verify stale owned-file removal, unowned-file preservation, staging failures and commit-time failure reporting using the existing publisher contract; document the ownership manifest and the absence of directory-wide rollback guarantees in the CLI reference.
+- [x] 7.3 Verify stale owned-file removal, unowned-file preservation, staging failures and commit-time failure reporting using the existing publisher contract; document the ownership manifest and the absence of directory-wide rollback guarantees in the CLI reference.
 
 ## 8. Integration and release-readiness checks
 
