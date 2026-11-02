@@ -1,6 +1,6 @@
 # Generation application contracts
 
-The generation command is being implemented under
+The generation command is implemented under
 [add-generate-command](../../../../openspec/changes/add-generate-command/proposal.md).
 These contracts separate settings, model loading, backend selection, generation
 and publication. The CLI exposes them through `morphir generate`; see its
@@ -113,8 +113,10 @@ Defaults are 64 MiB aggregate bytes, depth 128, 1,000,000 decoded nodes,
 must be positive. Tree entry counts include directories and ignored files.
 Byte limits cover every captured file. Tree depth counts path components below
 the root; codec depth counts the root node as one. JSON token and Ion reader
-budgets run before typed decoding. Links, linked ancestors and device entries
-are refused. Read failures identify the affected entry and return no model.
+budgets run before typed decoding. Links, linked ancestors and special files
+are refused. Unix file-kind inspection runs before opening files, so a FIFO
+without a writer cannot block capture. Read failures identify the affected
+entry and return no model.
 
 Capture owns file bytes before decoding and never reopens the original input
 to generate code. Changing the source afterward cannot change the retained

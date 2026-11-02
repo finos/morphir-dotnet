@@ -1,7 +1,7 @@
 ---
 title: "PRD: CLI model generation"
 description: "Versioned Morphir model generation through shared loading, backend and publication contracts."
-status: In Progress
+status: Completed
 created: 2026-11-02
 last_updated: 2026-11-02
 ---
@@ -33,7 +33,7 @@ Input, target and output are explicit. The command supports JSON and Ion model f
 | Bounded JSON/Ion model loading | Implemented | 5.1-5.6 | Capture limits, retained originals, codec diagnostics and representation parity |
 | CLI generation and reporting | Implemented | 6.1-6.4 | BDD scenarios, typed exits, parseable JSON stdout and command documentation |
 | Owned artifact publication | Implemented | 7.1-7.3 | Ordered manifest, unchanged receipts, stale-owned removal and failure tests |
-| Coverage, trimming and Native AOT | In Progress | 8.1-8.4 | Recorded test/coverage results and actual published-executable runs |
+| Coverage, trimming and Native AOT | Implemented | 8.1-8.4 | Coverage thresholds pass; trimmed/native executables pass the shared generation gates |
 | TOML/YAML generation configuration | Deferred | Follow-up | One canonical configuration model and settings resolver; no parser-specific generator API |
 | MEP host/guest adapters | Deferred | Follow-up | Reuse generation contracts with protocol admission and capability negotiation |
 
@@ -139,6 +139,14 @@ Actual native failures exposed assembly enumeration in mediator startup, dynamic
 Reviewed detailed warnings with `TrimmerSingleWarn=false`. The final trimmed publish reports 62 IL-warning lines and the native publish 87, including build/analysis repeats. None originate in the new generation implementation. Origins are existing Core JSON converter/serialization APIs, management and verify serialization, Foundatio reflective fallback/type-name helpers, FSharp.Core formatting/reflection, and, in the trimmed JIT build, Fantomas compiler resources and mediator discovery. No warning suppression was added. `TreatWarningsAsErrors=false` matches the repository's trimmed-build practice; these dependency/existing-command warnings remain visible and do not establish that unrelated commands are AOT-safe. Generation uses source-generated JSON and static first-party provider registration, with the actual native dispatch and output tested above.
 
 Publish commands used `-c Release -r win-arm64 --self-contained true`, `-p:PublishTrimmed=true`, and, for native, `-p:PublishAot=true`. The Visual Studio Installer directory was added only to the build process PATH for linker discovery. After a stalled reusable MSBuild worker, its complete process tree was terminated and verified stopped; isolated `-p:UseSharedCompilation=false -nodeReuse:false -m:1` publishes passed. Normal and locked solution restore passed after publishing, without retaining incidental runtime-specific lockfile changes.
+
+### Final capability audit, 2026-11-02
+
+Checked the three delta specs against the command, library APIs, shared inventory and delivered examples. Explicit CLI settings, exact version/distribution selection, typed classic/v4 generation, JSON/Ion loading, refusal diagnostics, ordered publication and typed reports match the delivered contracts. The final audit added dependency-signature constraint refusals and backend identity on failure reports. Required matrix rows remain enforced, including explicit reasons for genuinely unrepresentable encodings.
+
+Examples use supported fixtures and flags. TOML/YAML discovery and MEP syntax remain future-only; the command does not accept their proposed flags or envelopes. The library documentation distinguishes the legacy classic JSON wrapper from the versioned typed API and explains native formatting differences. Publication documentation states the observed staging guarantee and possible mixed output after a commit-time failure. No directory-wide rollback is claimed. `openspec validate add-generate-command --strict` passes. The change remains unarchived pending repository review.
+
+After the final report fix, repeated the full Nuke Test target and coverage collection. All 2,717 tests and cold package-consumer checks passed, with no ignored/skipped tests; Nuke completed in 4 minutes 54 seconds. Final normalized production coverage is 4,577/4,894 affected lines, 93.52%, and 14,036/16,948 overall lines, 82.82%. Formatting verification and locked restore pass. All 39 tracked implementation tasks are complete, each with its own commit.
 
 ## Open questions
 
