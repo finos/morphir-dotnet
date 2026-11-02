@@ -30,7 +30,7 @@ This is the implementation target, not a command already delivered by this PRD. 
 | Settings and backend resolution | Implemented | 2.3-2.5 | Explicit overrides, fake provider, incompatibility and ambiguity tests |
 | Typed entry point and classic compatibility | Implemented | 3.1-3.4 | Existing consumers and shared corpus remain green |
 | Required v4 F# semantics | Implemented | 4.1-4.9 | Nonempty generated libraries compile and execute through the same harness |
-| Bounded JSON/Ion model loading | In Progress | 5.1-5.6 | Capture limits, retained originals, codec diagnostics and representation parity |
+| Bounded JSON/Ion model loading | Implemented | 5.1-5.6 | Capture limits, retained originals, codec diagnostics and representation parity |
 | CLI generation and reporting | Planned | 6.1-6.4 | BDD scenarios, typed exits, parseable JSON stdout and command documentation |
 | Owned artifact publication | Planned | 7.1-7.3 | Ordered manifest, unchanged receipts, stale-owned removal and failure tests |
 | Coverage, trimming and Native AOT | Planned | 8.1-8.4 | Recorded test/coverage results and actual published-executable runs |
@@ -99,5 +99,7 @@ Eleven profile tests refuse YAML models, JSON/YAML trees, JSON MEP envelopes and
 The wire matrix extends the existing daily-rate and scalar inventory through the same `GenerationConformance.run` and FSI runner. Its 64 rows contain 40 compiled/executed programs, 12 expected integer-overflow refusals and 12 explicit unrepresentable Ion-version combinations. Same-version sources and declared order agree across formats, and deleting a required row fails matrix validation. All four matrix tests pass; full Nuke results retain only the 11 pending CLI cases.
 
 ## Open questions
+
+The Tooling generation README documents the public loader, tested format/version combinations, finite budgets and owned-byte versus semantic-view guarantees. Consumer tests also prove Specs/Application identity remains separate from backend selection. The full Nuke run retains only the 11 pending CLI cases.
 
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

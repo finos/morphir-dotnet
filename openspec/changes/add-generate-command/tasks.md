@@ -45,7 +45,7 @@ All tests in this group extend the harness and case inventory from group 1. Vers
 - [x] 5.3 Add Ion text/binary and tree adapters over existing readers without JSON serialization; verify binary-marker detection without suffix hints, tree-relative diagnostics and no fallback after recognized malformed Ion.
 - [x] 5.4 Add explicit unsupported-format/profile outcomes for YAML models, JSON/YAML trees and MEP envelopes; verify each reports its actual boundary rather than defaulting to JSON or v3.
 - [x] 5.5 Extend representation adapters for the shared nonempty behavior cases across applicable IR versions and JSON/Ion text/binary/tree formats; verify same-version source/manifest parity and common compiled behavior, with a completeness check for required matrix rows and explicit reasons for unsupported combinations.
-- [ ] 5.6 Document supported input/version combinations, limits and raw-retention versus semantic-view guarantees; verify every in-scope input example loads through the public adapter and unsupported examples receive the stated diagnostic.
+- [x] 5.6 Document supported input/version combinations, limits and raw-retention versus semantic-view guarantees; verify every in-scope input example loads through the public adapter and unsupported examples receive the stated diagnostic.
 
 ## 6. CLI handler and reporting
 
