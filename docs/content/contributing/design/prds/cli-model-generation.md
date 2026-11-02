@@ -26,8 +26,8 @@ This is the implementation target, not a command already delivered by this PRD. 
 | --- | --- | --- | --- |
 | Merged Ion baseline | Implemented | 1.1 | Fast-forward to `0a7f6ca`; solution locked restore passed |
 | Shared behavior corpus and compiler harness | Implemented | 1.3-1.4 | Required matrix coverage and independent expectations across supported versions/formats |
-| Versioned model and generation contracts | Planned | 2.1-2.2 | Public consumer examples and compatible existing APIs |
-| Settings and backend resolution | Planned | 2.3-2.5 | Explicit overrides, fake provider, incompatibility and ambiguity tests |
+| Versioned model and generation contracts | Implemented | 2.1-2.2 | Public consumer examples and compatible existing APIs |
+| Settings and backend resolution | Implemented | 2.3-2.5 | Explicit overrides, fake provider, incompatibility and ambiguity tests |
 | Typed entry point and classic compatibility | Planned | 3.1-3.4 | Existing consumers and shared corpus remain green |
 | Required v4 F# semantics | Planned | 4.1-4.9 | Nonempty generated libraries compile and execute through the same harness |
 | Bounded JSON/Ion model loading | Planned | 5.1-5.6 | Capture limits, retained originals, codec diagnostics and representation parity |
@@ -57,6 +57,10 @@ V4-only semantics use the same harness and diagnostics. The supported/refused fe
 - Extracted the existing FSI helper into Morphir.Testing; existing generator tests and new conformance cases use it. One rental expectation executes for classic JSON v1/v2/v3, with failing checks for missing/duplicate matrix rows and unexplained omissions. All 91 generator tests and the full Nuke Test target passed (3 minutes 9 seconds).
 
 - Added 11 parameterized CLI BDD scenarios before command implementation. Their observed red state is the absent `generate` command; all existing tests still pass in the full Nuke run. They remain active acceptance tests and must turn green when the CLI is integrated. JSON/classic/v4/Ion-tree paths share step definitions and the common daily-rate compiler/oracle.
+
+### Contracts and resolution, 2026-11-02
+
+- Added the common wrapper in `Morphir.IR.Model` to avoid colliding with the existing classic/v4 namespaces. Existing Ion/Myriad consumers compile. Contract tests compile C# and F# callers, and prove private input/option ownership. Ten settings tests and six registry tests pass. The full Nuke run passes existing suites and the new model/contract/resolution tests; only the 11 intentionally red command BDD cases remain failing.
 
 ## Open questions
 
