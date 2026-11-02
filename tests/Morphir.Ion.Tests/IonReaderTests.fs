@@ -54,6 +54,15 @@ let encodings =
               Expect.isOk binary "binary reads"
               Expect.equal binary readable "the two encodings give equal values"
 
+          testCase "an escape above U+FFFF reads like its binary spelling"
+          <| fun () ->
+              let emoji = "\U0001F600"
+              let binary = readBytes [| 0xE0uy; 0x01uy; 0x00uy; 0xEAuy; 0x84uy; 0xF0uy; 0x9Fuy; 0x98uy; 0x80uy |]
+              Expect.equal binary (Ok [ plain (IonData.String emoji) ]) "the binary spelling"
+              Expect.equal (read "\"\\U0001F600\"") binary "a double-quoted string"
+              Expect.equal (read "'''\\U0001F600'''") binary "a triple-quoted string"
+              Expect.equal (single "'\\U0001F600'").Data (IonData.Symbol(text emoji)) "a quoted symbol"
+
           testCase "unsupported text version marker"
           <| fun () -> Expect.equal (errorCode (read "$ion_1_1 {a:1}")) "unsupported_ion_version" "text marker"
 
@@ -304,6 +313,9 @@ let malformed =
                   (errorCode (readBytes [| byte '"'; 0xFFuy; 0xFEuy; byte '"' |]))
                   code
                   "no replacement characters"
+
+          testCase "an escape above U+10FFFF"
+          <| fun () -> Expect.equal (errorCode (read "\"\\U00110000\"")) code "not a Unicode scalar"
 
           testCase "no exception escapes for any truncation of the text fixture"
           <| fun () ->

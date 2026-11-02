@@ -136,7 +136,7 @@
       "morphir.ion": {
         "type": "Project",
         "dependencies": {
-          "Eleven19.IonDotnet": "[0.1.3, )",
+          "Eleven19.IonDotnet": "[0.1.4, )",
           "FSharp.Core": "[11.0.100, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
@@ -157,9 +157,9 @@
       },
       "Eleven19.IonDotnet": {
         "type": "CentralTransitive",
-        "requested": "[0.1.3, )",
-        "resolved": "0.1.3",
-        "contentHash": "KvHn8qFFNzfyef2/Ix8SGV4or/RT0IZPg0IjnWxkSd4fHwI0itv7y2mjaf80BinNVe6HIPoGOJJEDlSNpU+vgw=="
+        "requested": "[0.1.4, )",
+        "resolved": "0.1.4",
+        "contentHash": "3kI2OE1a2XY/so02kTtpXoma4AAgSFmFjW5L9nRGLUbUarOdAZEWBAE5KRHpdPErLXszpznegwqQgQtEAL4/ZA=="
       },
       "FSharp.SystemTextJson": {
         "type": "CentralTransitive",

@@ -4,9 +4,9 @@
     "net10.0": {
       "Eleven19.IonDotnet": {
         "type": "Direct",
-        "requested": "[0.1.3, )",
-        "resolved": "0.1.3",
-        "contentHash": "KvHn8qFFNzfyef2/Ix8SGV4or/RT0IZPg0IjnWxkSd4fHwI0itv7y2mjaf80BinNVe6HIPoGOJJEDlSNpU+vgw=="
+        "requested": "[0.1.4, )",
+        "resolved": "0.1.4",
+        "contentHash": "3kI2OE1a2XY/so02kTtpXoma4AAgSFmFjW5L9nRGLUbUarOdAZEWBAE5KRHpdPErLXszpznegwqQgQtEAL4/ZA=="
       },
       "FSharp.Core": {
         "type": "Direct",

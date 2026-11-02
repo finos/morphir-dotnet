@@ -152,12 +152,12 @@ and IonData =
 <table>
 <thead><tr><th>Package change</th><th>Needed for</th><th>If the fix slips</th></tr></thead>
 <tbody>
-<tr><td>Throw on invalid UTF-8 in binary strings (0.1.2)</td><td>Required by <code>ion-document-reading</code></td><td>No workaround. Blocks merge.</td></tr>
+<tr><td>Throw on invalid UTF-8 in binary strings (0.1.1)</td><td>Required by <code>ion-document-reading</code></td><td>No workaround. Blocks merge.</td></tr>
 <tr><td>Public <code>BigDecimal</code> coefficient and scale</td><td>Exact decimals</td><td>Parse <code>ToString</code>, which is value-preserving</td></tr>
 <tr><td>Fix <code>IonDatagram.IsEquivalentTo</code></td><td>Nothing here</td><td>Report only. Morphir does not call it.</td></tr>
 <tr><td><code>PackageLicenseExpression</code>; correct <code>README</code> status (0.1.2)</td><td>FINOS dependency review</td><td>Blocks merge</td></tr>
 <tr><td>Refuse truncated binary and invalid UTF-8 in text (0.1.3)</td><td>Required by <code>ion-document-reading</code>. Found while building the reader: many cut documents read as success with partial data</td><td>No workaround. Blocks merge.</td></tr>
-<tr><td>Read <code>\U</code> escapes above U+FFFF correctly (0.1.4, <a href="https://github.com/Eleven19/ion-dotnet/pull/3">Eleven19/ion-dotnet#3</a>)</td><td>Correct text reading. <code>"\U0001F600"</code> read as U+F600 with no error</td><td>Awaiting release. Reference files use raw UTF-8, so no test here depends on it</td></tr>
+<tr><td>Read <code>\U</code> escapes above U+FFFF correctly (0.1.4, <a href="https://github.com/Eleven19/ion-dotnet/pull/3">Eleven19/ion-dotnet#3</a>)</td><td>Required by <code>ion-document-reading</code>. <code>"\U0001F600"</code> read as U+F600 with no error</td><td>No workaround. Blocks merge.</td></tr>
 </tbody>
 </table>
 <p>The strict UTF-8 change alters the package's behavior for other users, which is correct under the Ion spec. It goes out as a minor version in the <code>0.y</code> line.</p>
