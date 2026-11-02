@@ -116,7 +116,7 @@ public sealed class GenerateSteps : IDisposable
         if (Directory.Exists(_directory)) Directory.Delete(_directory, true);
     }
 
-    private static string RepositoryRoot()
+    internal static string RepositoryRoot()
     {
         var current = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (current != null && !File.Exists(Path.Combine(current.FullName, "Morphir.slnx"))) current = current.Parent;

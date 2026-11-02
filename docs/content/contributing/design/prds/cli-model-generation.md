@@ -92,4 +92,6 @@ The generator README now maps supported/refused capabilities to the shared inven
 
 ## Open questions
 
+JSON decoding uses the public classic/v4 readers after a bounded token scan. Thirteen tests cover versions, exact source context, retained bytes, malformed/version diagnostics, explicit JSON selection and pre-DOM node/depth limits. The full Nuke run passes all existing suites and new loader tests, apart from the 11 pending CLI cases.
+
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.
