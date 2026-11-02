@@ -126,6 +126,14 @@ public sealed record BackendDescriptor
 public sealed record BackendGenerationRequest(LoadedModel Model, TargetId Target, ValidatedBackendOptions Options);
 public sealed record GenerationArtifacts(VFileTree Tree, ImmutableArray<GenerationDiagnostic> Diagnostics);
 
+public sealed record GenerationPublication(ImmutableArray<string> Artifacts, ImmutableArray<string> Written,
+    ImmutableArray<string> Unchanged, ImmutableArray<string> Removed);
+
+public interface IGenerationPublisher
+{
+    ValueTask<Outcome<GenerationPublication>> PublishAsync(GenerationArtifacts artifacts, ModelInput input, PublicationPolicy policy, CancellationToken ct);
+}
+
 public interface IGenerationSettingsResolver
 {
     ValueTask<Outcome<GenerationSettings>> ResolveAsync(GenerateOverrides overrides, InvocationContext context, CancellationToken ct);
