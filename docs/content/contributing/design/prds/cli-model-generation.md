@@ -18,7 +18,7 @@ The approved implementation plan is [add-generate-command](../../../../../opensp
 morphir generate --input models/pricing-v4.ion --target fsharp --output generated/pricing --json
 ```
 
-This is the implementation target, not a command already delivered by this PRD. Input, target and output are explicit. The first command supports JSON and Ion model files and Ion trees. Configuration file discovery, YAML model input and MEP admission/hosting remain follow-up work through the agreed contracts.
+Input, target and output are explicit. The command supports JSON and Ion model files and Ion trees. Configuration file discovery, YAML model input and MEP admission/hosting remain follow-up work through the agreed contracts.
 
 ## Feature status tracking
 
@@ -108,8 +108,6 @@ Publication preflight checks canonical input/output separation, linked ancestors
 
 Three additional publication tests verify stale-owned removal with unowned preservation, unchanged files/manifest after a staged content failure, and a real commit failure after one file has moved. The latter deliberately demonstrates mixed output and its operational diagnostic. The CLI reference states this limited guarantee. All pass in the full Nuke run, apart from the pending command acceptance cases.
 
-## Open questions
-
 ### Integration verification, 2026-11-02
 
 Added the previously omitted pipeline-plugin suite to Nuke Test. The complete run passed in 4 minutes 33 seconds: Core 237, Tooling 230, Internal 25, Models 791, Pipeline 299, Pipeline Plugins 136, SDK 175, F# Generation 270, Ion 463, Myriad 4 and Myriad Integration 12. Cold package-consumer checks passed. These suites report no ignored/skipped tests. Required representation rows and explicit unrepresentability reasons are enforced by the common inventory. Additional readiness regressions and published-runtime checks continue under 8.2/8.3.
@@ -124,4 +122,14 @@ Reports serialize through a source-generated context with plain DTO fields. Six 
 
 The command reference, getting-started guide and troubleshooting entries document actual flags, profiles, output, exits and ownership guarantees. The v4 daily-rate JSON fixture is shared by examples and BDD/unit adapters. Ran classic JSON, v4 JSON with optimize=false, Ion file, Ion tree and CI/repeat examples with temporary output paths; each returned valid reports and nonempty artifacts, and repeat generation returned unchanged Inventory.fs. Full Nuke Test, including cold package-consumer checks, passed in 4 minutes 52 seconds.
 
-No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.
+### Coverage and boundary regressions, 2026-11-02
+
+Repository Fantomas and `dotnet format` passed for affected F#/C# files. The complete Nuke Test target, including cold package consumers, passed in 4 minutes 44 seconds. Current suites include 325 generator tests, 245 Tooling tests and 141 pipeline-plugin tests, with no ignored/skipped tests. Shared regressions cover nested bindings, aliases, definite application/field errors, exact arithmetic proofs and constrained dependency signatures. Observed failing tests preceded the validation fixes.
+
+Collected production line coverage with Microsoft `dotnet-coverage` 18.7.0 around that complete run. After merging duplicate module/consumer entries by source path and line, affected production files cover 4,575/4,892 lines, 93.52%; all production files cover 14,034/16,946 lines, 82.82%. Generated `obj` sources, test projects and the test-support library are excluded. Both repository thresholds pass without a baseline exception.
+
+The special-file regression checks refusal before opening. The same ten capture tests also passed on Ubuntu 26.04 ARM64 using a self-contained published test executable; the Unix adapter creates a real FIFO without a writer and checks `/dev/null`. Unix inspection uses the normalized .NET 10 `System.Native` stat ABI before `FileStream` construction. Windows continues to check file attributes and opened handles. No second compiler or generation assertion strategy was introduced.
+
+## Open questions
+
+No unresolved scope decisions block the agreed plan. Required semantics remain caller/admission facts because v4 has no standard wire marker; this delivery does not invent one. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

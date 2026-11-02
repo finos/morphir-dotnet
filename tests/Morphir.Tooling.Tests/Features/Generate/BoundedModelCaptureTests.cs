@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Morphir.Tooling.Features.Generate;
+using System.Runtime.InteropServices;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
@@ -70,6 +71,29 @@ public sealed class BoundedModelCaptureTests : IDisposable
         error.Kind.Should().Be(GenerationFailureKind.Operational);
         error.Diagnostics[0].Path.Should().Be(path);
     }
+
+    [Test]
+    public async Task SpecialFilesAreRefusedBeforeOpeningThem()
+    {
+        var path = Path.Combine(_root, "special.ion");
+        BoundedModelCapture capture;
+        if (OperatingSystem.IsWindows())
+        {
+            Write("special.ion", "1");
+            capture = new BoundedModelCapture(_ => false);
+        }
+        else
+        {
+            MkFifo(path, 0x180).Should().Be(0); // owner read/write, with no writer opening the FIFO
+            capture = new BoundedModelCapture();
+            Error(await capture.CaptureAsync(new("/dev/null"), ModelReadLimits.Default, default), "unsupported-input-entry");
+        }
+        Error(await capture.CaptureAsync(new(path), ModelReadLimits.Default, default), "unsupported-input-entry");
+        Error(await capture.CaptureAsync(new(_root), ModelReadLimits.Default, default), "unsupported-input-entry");
+    }
+
+    [DllImport("libc", EntryPoint = "mkfifo", SetLastError = true)]
+    private static extern int MkFifo([MarshalAs(UnmanagedType.LPUTF8Str)] string path, uint mode);
 
     [Test]
     public async Task CancelledCaptureHasNoSuccessValue()

@@ -33,7 +33,84 @@ let private expression value = body (ExpressionBody(intType, value))
 let private v4Only id code reason materialize =
     id, code, [ "3", Unrepresentable reason; "4.0.0", Refused(materialize, code) ]
 
+let dependencySignature kind constrained =
+    let attributes =
+        if constrained then
+            { TypeAttributes.empty with
+                Constraints = Some(DocumentObject(ordered [ "minimum", DocumentNumber "0" ]))
+            }
+        else
+            TypeAttributes.empty
+
+    let constrainedType = Type.Reference(attributes, sdk "basics" "int", [])
+
+    let specification =
+        match kind with
+        | "alias" -> TypeAliasSpecification([], [], constrainedType)
+        | "custom" ->
+            CustomTypeSpecification(
+                [],
+                [],
+                ordered [ name "only", [ name "item", constrainedType ] ]
+            )
+        | "derived" ->
+            DerivedTypeSpecification(
+                [],
+                [],
+                constrainedType,
+                { own "signature" "fromBase" with
+                    PackagePath = PackageName(Path [ name "external" ])
+                },
+                { own "signature" "toBase" with
+                    PackagePath = PackageName(Path [ name "external" ])
+                }
+            )
+        | _ -> OpaqueTypeSpecification([], [])
+
+    let input, output =
+        if kind = "value-input" then constrainedType, intType
+        elif kind = "value-output" then intType, constrainedType
+        else intType, intType
+
+    let module': ModuleSpecification = {
+        Annotations = []
+        Types = ordered [ name "type", documented specification ]
+        Values =
+            ordered [
+                name "value",
+                documented
+                    {
+                        Annotations = []
+                        Inputs = [ name "input", input ]
+                        Output = output
+                    }
+            ]
+        Doc = None
+    }
+
+    match (expression literal).Distribution with
+    | DistributionModel.V4(Library(package, _, definition)) ->
+        Library(
+            package,
+            ordered [
+                PackageName(Path [ name "external" ]),
+                {
+                    Modules = ordered [ modulePath "signature", module' ]
+                }
+            ],
+            definition
+        )
+        |> v4
+    | _ -> failwith "The common fixture is a Library."
+
 let cases = [
+    for kind in [ "alias"; "custom"; "derived"; "value-input"; "value-output" ] do
+        v4Only
+            ("dependency-constraints-"
+             + kind)
+            "unsupported-constraints"
+            "Classic attributes do not define v4 constraint semantics"
+            (fun () -> dependencySignature kind true)
     "specs",
     "unsupported-distribution",
     [

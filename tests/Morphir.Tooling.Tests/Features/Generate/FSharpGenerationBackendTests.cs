@@ -10,6 +10,30 @@ namespace Morphir.Tooling.Tests.Features.Generate;
 
 public class FSharpGenerationBackendTests
 {
+    private sealed record OtherOptions : ValidatedBackendOptions;
+
+    [Test]
+    [Arguments("options")]
+    [Arguments("target")]
+    [Arguments("cancelled")]
+    [Arguments("requirements")]
+    public async Task DirectBackendRequestsRespectValidatedBoundaries(string boundary)
+    {
+        using var json = JsonDocument.Parse(GenerateSteps.V4Model);
+        var distribution = Morphir.Json.V4.V4Json.readDistribution(json.RootElement).ResultValue.Distribution;
+        var model = new VersionedModel(SourceFormatVersionModule.parse("4").ResultValue, DistributionModel.NewV4(distribution));
+        var descriptor = ModelDescriptor.From(model);
+        if (boundary == "requirements") descriptor = descriptor with { RequiredSemantics = ["example.required"] };
+        var loaded = new LoadedModel(model, descriptor, ModelRepresentation.Json, new RetainedInput.File("model.json", new RetainedEntry("model.json", [])));
+        var backend = new FSharpGenerationBackend();
+        var options = boundary == "options" ? new OtherOptions() : ((Outcome<ValidatedBackendOptions>.Success)backend.ValidateOptions(BackendOptions.Empty)).Value;
+        using var cancellation = new CancellationTokenSource();
+        if (boundary == "cancelled") cancellation.Cancel();
+        var result = await backend.GenerateAsync(new(loaded, new(boundary == "target" ? "other" : "fsharp"), options), cancellation.Token);
+        var error = ((Outcome<GenerationArtifacts>.Failure)result).Error;
+        error.Kind.Should().Be(boundary switch { "cancelled" => GenerationFailureKind.Cancelled, "requirements" => GenerationFailureKind.Semantic, _ => GenerationFailureKind.Invocation });
+    }
+
     [Test]
     public async Task RegisteredDescriptorGeneratesV4ThroughThePublicTypedApi()
     {

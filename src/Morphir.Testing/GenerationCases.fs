@@ -2,6 +2,14 @@ namespace Morphir.Testing
 
 /// Behavioral expectations are independent of the representation adapters that supply inputs.
 module GenerationCases =
+    let derivedDependency required variants : GenerationConformance.BehaviorCase<'Input> = {
+        Id = "metadata.derived-dependency"
+        Consumer = "printfn \"%d\" Car.Rental.Refusal.value"
+        ExpectedOutput = "42"
+        Required = required
+        Variants = variants
+    }
+
     let sdkMappings required variants : GenerationConformance.BehaviorCase<'Input> = {
         Id = "sdk.collection-mappings"
         Consumer =

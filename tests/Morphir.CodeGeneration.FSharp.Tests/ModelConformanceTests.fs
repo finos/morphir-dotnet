@@ -184,27 +184,35 @@ let tests =
                 GenerationCases.sdkMappings, ModelConformanceInputs.sdkMappings
             ] do
             let required = [
-                for version in [ "3"; "4.0.0" ] ->
-                    {
-                        Version = version
-                        Format = "typed"
-                        Layout = "memory"
-                        Optimize = true
-                    }
+                for version in [ "3"; "4.0.0" ] do
+                    for layout in [ "memory"; "nested-binding" ] ->
+                        {
+                            Version = version
+                            Format = "typed"
+                            Layout = layout
+                            Optimize = true
+                        }
             ]
 
             let variants = [
                 for row in required ->
                     {
                         Representation = row
-                        Input = Supported(fun () -> inputs row.Version)
+                        Input =
+                            Supported(fun () ->
+                                if row.Layout = "nested-binding" then
+                                    inputs "3"
+                                    |> ModelConformanceInputs.nestedBindings row.Version
+                                else
+                                    inputs row.Version
+                            )
                     }
             ]
 
             let case = caseBuilder required variants
 
             for row in variants do
-                testCase $"{case.Id}/{row.Representation.Version}"
+                testCase $"{case.Id}/{row.Representation.Version}/{row.Representation.Layout}"
                 <| fun () ->
                     GenerationConformance.run generate case row
                     |> ignore
@@ -388,6 +396,39 @@ let tests =
                 <| fun () ->
                     GenerationConformance.run generate case row
                     |> ignore
+
+        let dependencyRows: Representation list = [
+            for version in [ "3"; "4.0.0" ] ->
+                {
+                    Version = version
+                    Format = "typed"
+                    Layout = "derived-dependency"
+                    Optimize = true
+                }
+        ]
+
+        let dependencyVariants = [
+            for row in dependencyRows ->
+                {
+                    Representation = row
+                    Input =
+                        if row.Version = "3" then
+                            Unrepresentable "Classic has no DerivedTypeSpecification"
+                        else
+                            Supported(fun () ->
+                                ModelRefusalInputs.dependencySignature "derived" false
+                            )
+                }
+        ]
+
+        let dependencyCase =
+            GenerationCases.derivedDependency dependencyRows dependencyVariants
+
+        for row in dependencyVariants do
+            testCase $"{dependencyCase.Id}/{row.Representation.Version}"
+            <| fun () ->
+                GenerationConformance.run generate dependencyCase row
+                |> ignore
 
         for id, code, inputs in ModelRefusalInputs.cases do
             let variants = [

@@ -189,7 +189,47 @@ module internal V4Support =
                 "unsupported-distribution"
                 "$"
                 "F# generation requires Library implementations."
-        | Library(_, _, package) ->
+        | Library(_, dependencies, package) ->
+            for dependencyName, dependency in OrderedMap.toList dependencies do
+                for path, module' in OrderedMap.toList dependency.Modules do
+                    let location =
+                        "dependencies."
+                        + Emit.packagePath dependencyName
+                        + "."
+                        + Emit.modulePath path
+
+                    for name, specification in OrderedMap.toList module'.Types do
+                        let location =
+                            location
+                            + "."
+                            + Emit.pascal name
+
+                        match specification.Value with
+                        | TypeAliasSpecification(_, _, body)
+                        | DerivedTypeSpecification(_, _, body, _, _) -> typ location body
+                        | CustomTypeSpecification(_, _, constructors) ->
+                            for _, arguments in OrderedMap.toList constructors do
+                                arguments
+                                |> List.iter (
+                                    snd
+                                    >> typ location
+                                )
+                        | OpaqueTypeSpecification _ -> ()
+
+                    for name, specification in OrderedMap.toList module'.Values do
+                        let location =
+                            location
+                            + "."
+                            + Emit.camel name
+
+                        specification.Value.Inputs
+                        |> List.iter (
+                            snd
+                            >> typ location
+                        )
+
+                        typ location specification.Value.Output
+
             for path, module' in OrderedMap.toList package.Modules do
                 let location = Emit.modulePath path
 

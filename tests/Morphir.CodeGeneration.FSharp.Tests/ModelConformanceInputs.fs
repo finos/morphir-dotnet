@@ -749,3 +749,88 @@ let arithmetic version kind =
     ]
     |> classic
     |> forVersion version
+
+/// Moves each existing behavior through a local recursive binding without changing its oracle.
+/// Both model families use this same fixture transformation before their representation adapter.
+let nestedBindings version (model: VersionedModel) =
+    let attributes = Unchecked.defaultof<JsonElement>
+    let local = name "nestedValue"
+
+    let wrap (definition: Morphir.IR.Classic.ValueDefinition<JsonElement, JsonElement>) =
+        let body =
+            match definition.Body with
+            | Morphir.IR.Classic.Value.PatternMatch(a, target, cases) ->
+                Morphir.IR.Classic.Value.PatternMatch(
+                    a,
+                    target,
+                    cases
+                    |> List.map (fun (pattern, body) ->
+                        Morphir.IR.Classic.Pattern.AsPattern(
+                            attributes,
+                            pattern,
+                            name "matchedValue"
+                        ),
+                        body
+                    )
+                )
+            | body -> body
+
+        let nested = { definition with Body = body }
+
+        let invocation =
+            definition.InputTypes
+            |> List.fold
+                (fun fn (name, _, _) ->
+                    Morphir.IR.Classic.Value.Apply(
+                        attributes,
+                        fn,
+                        Morphir.IR.Classic.Value.Variable(attributes, name)
+                    )
+                )
+                (Morphir.IR.Classic.Value.Variable(attributes, local))
+
+        { definition with
+            Body =
+                Morphir.IR.Classic.Value.LetRecursion(
+                    attributes,
+                    Map.ofList [ local, nested ],
+                    invocation
+                )
+        }
+
+    match model.Distribution with
+    | DistributionModel.Classic(Morphir.IR.Classic.Distribution.Library(package,
+                                                                        dependencies,
+                                                                        definition)) ->
+        let modules =
+            definition.Modules
+            |> Map.map (fun _ controlled ->
+                let values =
+                    controlled.Value.Values
+                    |> Map.map (fun _ value ->
+                        { value with
+                            Value = Morphir.IR.Classic.Documented.map wrap value.Value
+                        }
+                    )
+
+                { controlled with
+                    Value =
+                        { controlled.Value with
+                            Values = values
+                        }
+                }
+            )
+
+        { model with
+            Distribution =
+                DistributionModel.Classic(
+                    Morphir.IR.Classic.Distribution.Library(
+                        package,
+                        dependencies,
+                        { definition with Modules = modules }
+                    )
+                )
+        }
+        |> forVersion version
+    | _ ->
+        invalidArg (nameof model) "The common fixture adapter starts from classic behavior inputs."

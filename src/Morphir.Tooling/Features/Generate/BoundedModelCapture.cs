@@ -3,6 +3,10 @@ namespace Morphir.Tooling.Features.Generate;
 /// <summary>Captures owned bytes before any codec runs. Enumeration and allocation share finite budgets.</summary>
 public sealed class BoundedModelCapture
 {
+    private readonly Func<string, bool> _isRegularFile;
+    public BoundedModelCapture() : this(UnixInputFile.IsRegular) { }
+    internal BoundedModelCapture(Func<string, bool> isRegularFile) => _isRegularFile = isRegularFile;
+
     private sealed class CaptureException(string code, string message) : Exception(message)
     {
         public string Code { get; } = code;
@@ -64,6 +68,9 @@ public sealed class BoundedModelCapture
             {
                 current = path;
                 ct.ThrowIfCancellationRequested();
+                // Opening a Unix FIFO can block before FileStream can test CanSeek.
+                if (!_isRegularFile(path))
+                    throw new CaptureException("unsupported-input-entry", "Only regular input files are supported.");
                 using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
                     64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
                 CheckAttributes(File.GetAttributes(stream.SafeFileHandle));

@@ -37,6 +37,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Morphir.Tooling.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Embed JSON schema files as resources -->
     <EmbeddedResource Include="Infrastructure\Schemas\*.json" />
 

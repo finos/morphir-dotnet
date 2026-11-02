@@ -178,10 +178,20 @@ module Transpiler =
             (fun definition model -> { model with Definition = definition })
             plugin
 
+    let private typeValidator: Plugin<Decode.Model> =
+        Plugin.create
+            "type-validator"
+            (fun model file ->
+                let _, checkedFile =
+                    (TypeValidator.createForPackage model.Package).Transform model.Definition file
+
+                Some model, checkedFile
+            )
+
     let private withoutOptimizer: MorphirProcessor<Decode.Model> = pipeline {
         parse (Parser.forFile parseModel)
         uses scopeValidator
-        uses (onPackage (TypeValidator.create ()))
+        uses typeValidator
         stringify compile
     }
 
@@ -190,7 +200,7 @@ module Transpiler =
     let private processor: MorphirProcessor<Decode.Model> = pipeline {
         parse (Parser.forFile parseModel)
         uses scopeValidator
-        uses (onPackage (TypeValidator.create ()))
+        uses typeValidator
         uses (onPackage (Optimizer.create Optimizer.foldingOnly))
         stringify compile
     }

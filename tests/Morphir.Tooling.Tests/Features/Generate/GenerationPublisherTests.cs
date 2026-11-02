@@ -101,6 +101,14 @@ public sealed class GenerationPublisherTests : IDisposable
     }
 
     [Test]
+    public async Task InvalidFilesystemPathsReturnStructuredFailures()
+    {
+        var result = await new GenerationPublisher().PublishAsync(Artifacts(("A.fs", "module A")), new(Path.Combine(_root, "source.json")), new("\0invalid"), default);
+        ((Outcome<GenerationPublication>.Failure)result).Error.Diagnostics[0].Code.Should().Be("publication-path");
+        Directory.Exists(Output).Should().BeFalse();
+    }
+
+    [Test]
     public async Task CancellationBeforePublicationCreatesNoOutput()
     {
         using var cancellation = new CancellationTokenSource(); cancellation.Cancel();

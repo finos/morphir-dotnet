@@ -66,6 +66,63 @@ let failures = [
     "type",
     "type-mismatch",
     F.model [ "domain", [], [ F.binding "value" [] F.intType (F.str "wrong") ] ]
+    "SDK-type",
+    "unsupported-sdk",
+    F.model [
+        "domain", [], [ F.binding "value" [] (F.tRef (F.sdk "unknown" "type") []) (F.integer 0) ]
+    ]
+    "missing-type",
+    "unresolved-reference",
+    F.model [
+        "domain", [], [ F.binding "value" [] (F.tRef (F.own "domain" "missing") []) (F.integer 0) ]
+    ]
+    "missing-value",
+    "unresolved-reference",
+    F.model [ "domain", [], [ F.binding "value" [] F.intType (F.reference "domain" "missing") ] ]
+    "SDK-constructor",
+    "unsupported-sdk",
+    F.model [
+        "domain", [], [ F.binding "value" [] F.intType (F.constructor (F.sdk "basics" "missing")) ]
+    ]
+    "missing-constructor",
+    "unresolved-reference",
+    F.model [
+        "domain", [], [ F.binding "value" [] F.intType (F.constructor (F.own "domain" "missing")) ]
+    ]
+    "apply-value",
+    "type-mismatch",
+    F.model [
+        "domain", [], [ F.binding "value" [] F.intType (F.apply (F.integer 1) [ F.integer 2 ]) ]
+    ]
+    "record-field",
+    "type-mismatch",
+    F.model [
+        "domain",
+        [ F.typeAlias "item" [] (F.tRecord [ "value", F.intType ]) ],
+        [
+            F.binding
+                "field"
+                [ "item", F.tRef (F.own "domain" "item") [] ]
+                F.intType
+                (F.a [ box "Field"; null; F.variable "item"; F.n "missing" ])
+        ]
+    ]
+    "constructor-pattern-arity",
+    "constructor-arity",
+    F.model [
+        "domain",
+        [ F.customType "box" [] [ "only", [ "item", F.intType ] ] ],
+        [
+            F.binding
+                "value"
+                []
+                F.intType
+                (F.matchCases (F.apply (F.constructor (F.own "domain" "only")) [ F.integer 1 ]) [
+                    F.a [ box "ConstructorPattern"; null; F.own "domain" "only"; F.a [] ],
+                    F.integer 0
+                ])
+        ]
+    ]
 ]
 
 [<Tests>]

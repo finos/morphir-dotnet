@@ -56,6 +56,32 @@ public sealed class GenerationIonLoaderTests : IDisposable
     }
 
     [Test]
+    [Arguments("line")]
+    [Arguments("block")]
+    [Arguments("quoted")]
+    public async Task ContentDetectionRecognizesHeadersAfterLongComments(string spelling)
+    {
+        var path = GenerationInputFixtures.DailyRate(_root, "4.0.0", "text");
+        var text = File.ReadAllText(path);
+        text = spelling switch
+        {
+            "line" => "//" + new string('x', 1024) + "\n" + text,
+            "block" => "/*" + new string('x', 1024) + "*/\n" + text,
+            _ => text.Replace("morphir::", "'morphir'::")
+        };
+        File.WriteAllText(path, text);
+        ((Outcome<LoadedModel>.Success)await Load(path)).Value.Representation.Should().Be(ModelRepresentation.IonText);
+    }
+
+    [Test]
+    public async Task ExplicitJsonRefusesAnIonTreeWithoutSwitchingReaders()
+    {
+        var path = GenerationInputFixtures.DailyRate(_root, "4.0.0", "tree");
+        var result = await new GenerationModelLoader(new BoundedModelCapture()).LoadAsync(new(path, InputFormat.Json), ModelReadLimits.Default, default);
+        ((Outcome<LoadedModel>.Failure)result).Error.Diagnostics[0].Code.Should().Be("unsupported-format");
+    }
+
+    [Test]
     public async Task IonNodeBudgetCoversTheWholeTree()
     {
         var path = GenerationInputFixtures.DailyRate(_root, "4.0.0", "tree");
