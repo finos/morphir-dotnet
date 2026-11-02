@@ -98,10 +98,21 @@ module internal V4JsonValues =
             emptyAttributes, decode location payload
 
     /// Reads a record payload: fields under a member, or the legacy map directly under the node.
-    let private recordPayload attributesOf (emptyAttributes: 'a) decode location payload =
+    /// A legacy map can hold a field named "fields", whose value is a type or value rather than
+    /// a field map, so the member is only the wrapper when it holds an object that is not a node.
+    let private recordPayload attributesOf (emptyAttributes: 'a) tags decode location payload =
         let values = members location payload
 
-        if hasMember "fields" values then
+        let holdsFieldMap =
+            values
+            |> List.exists (fun (key, element: JsonElement) ->
+                key = "fields"
+                && element.ValueKind = JsonValueKind.Object
+                && members (memberAt location key) element
+                   |> List.forall (fun (fieldName, _) -> not (List.contains fieldName tags))
+            )
+
+        if holdsFieldMap then
             closed
                 location
                 ("fields"
@@ -182,7 +193,7 @@ module internal V4JsonValues =
             Type.Tuple(attributes, elements)
         | "Record" ->
             let attributes, fields =
-                recordPayload typeAttributes TypeAttributes.empty typ location payload
+                recordPayload typeAttributes TypeAttributes.empty typeTags typ location payload
 
             Type.Record(attributes, fields)
         | "ExtensibleRecord" ->
@@ -689,7 +700,9 @@ module internal V4JsonValues =
         | "Tuple" -> Value.Tuple(compact "elements" (listOf value))
         | "List" -> Value.List(compact "items" (listOf value))
         | "Record" ->
-            Value.Record(recordPayload valueAttributes ValueAttributes.empty value location payload)
+            Value.Record(
+                recordPayload valueAttributes ValueAttributes.empty valueTags value location payload
+            )
         | "Variable" -> Value.Variable(compact "name" name)
         | "Reference" -> Value.Reference(compact "fqname" fqName)
         | "FieldFunction" -> Value.FieldFunction(compact "name" name)

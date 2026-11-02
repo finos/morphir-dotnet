@@ -884,6 +884,61 @@ let tests =
                 (ok (readType "\"a:b#c\""))
                 "A legacy FQName in a type"
 
+        testCase "A legacy record may hold a field named fields"
+        <| fun () ->
+            let sameType legacy canonical description =
+                Expect.equal (ok (readType legacy)) (ok (readType canonical)) description
+
+            let sameValue legacy canonical description =
+                Expect.equal (ok (readValue legacy)) (ok (readValue canonical)) description
+
+            sameType
+                """{ "Record": { "fields": "a" } }"""
+                """{ "Record": { "fields": { "fields": "a" } } }"""
+                "A type field holding a bare variable"
+
+            sameType
+                """{ "Record": { "fields": ["a", "b"] } }"""
+                """{ "Record": { "fields": { "fields": ["a", "b"] } } }"""
+                "A type field holding a tuple"
+
+            sameType
+                """{ "Record": { "fields": { "Variable": "a" } } }"""
+                """{ "Record": { "fields": { "fields": { "Variable": "a" } } } }"""
+                "A type field holding a tagged node"
+
+            sameType
+                """{ "Record": { "fields": "a", "other": "b" } }"""
+                """{ "Record": { "fields": { "fields": "a", "other": "b" } } }"""
+                "A type field beside another field"
+
+            sameValue
+                """{ "Record": { "fields": 1 } }"""
+                """{ "Record": { "fields": { "fields": 1 } } }"""
+                "A value field holding a number"
+
+            sameValue
+                """{ "Record": { "fields": { "Variable": "a" } } }"""
+                """{ "Record": { "fields": { "fields": { "Variable": "a" } } } }"""
+                "A value field holding a tagged node"
+
+        testCase "A fields member holding a field map is the expanded record"
+        <| fun () ->
+            Expect.equal
+                (ok (readType """{ "Record": { "fields": { "n": "a" } } }"""))
+                (ok (readType """{ "Record": { "n": "a" } }"""))
+                "A field map under the member"
+
+            Expect.equal
+                (ok (readValue """{ "Record": { "fields": {} } }"""))
+                (ok (readValue """{ "Record": {} }"""))
+                "An empty record"
+
+            Expect.equal
+                (rule (readType """{ "Record": { "fields": { "n": "a" }, "other": "b" } }"""))
+                "unknown_member"
+                "A field map beside an unknown member"
+
         testCase "The nested documentation wrapper may not state two docs"
         <| fun () ->
             Expect.equal
