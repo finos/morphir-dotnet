@@ -156,6 +156,12 @@ The full Nuke Test target and cold package-consumer checks passed again in 4 min
 
 Rebuilt the trimmed and Native AOT Windows ARM64 executables after these fixes; both passed all 245 Tooling tests through the existing published-executable adapters. No new IL warnings originate in the changed generation code. Formatting verification, strict OpenSpec validation and post-publish locked restore pass.
 
+### PR #457 macOS test environment, 2026-11-02
+
+The macOS CI job exposed a test-environment assumption introduced by strict ancestor-link checks. Its default temporary directory was under `/var/folders`, through the OS-provided `/var` link, so capture correctly refused otherwise ordinary fixtures and 78 Tooling tests failed. Windows was cancelled by matrix fail-fast; Ubuntu, lint, OpenSpec and CVE checks passed on that commit.
+
+The shared CI test job now sets TMPDIR, TEMP and TMP to RUNNER_TEMP before running the same workflow on every matrix OS. Production link/special-file refusal is unchanged. Reproduced the issue with the existing ten Linux capture tests: six failed with a linked temporary root, then all ten passed with the physical root. All 245 Windows Tooling tests passed using the same environment settings. Actionlint reports no new findings; both main and the changed workflow report the same existing required/default workflow-input warning. Strict OpenSpec validation and whitespace checks pass. The next macOS job verifies the hosted-runner path itself.
+
 ## Open questions
 
 No unresolved scope decisions block the agreed plan. Required semantics remain caller/admission facts because v4 has no standard wire marker; this delivery does not invent one. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

@@ -468,6 +468,9 @@ diagnostics. A codec error identifies the input or tree member and logical
 location. A semantic refusal returns exit 1 and preserves previous output.
 
 Keep input and output paths separate and remove links from output paths.
+Linked ancestors are also refused. On macOS, system temporary paths under
+`/var` can pass through an OS-provided link. Use the physical path or, in CI,
+a runner-owned temporary directory for model fixtures and generated output.
 Publication owns only paths listed in `.morphir-generated.json`. Staging
 failures preserve previous output; commit-time failures can leave mixed files.
 Fix the reported filesystem problem and rerun generation. In `--json` mode,
