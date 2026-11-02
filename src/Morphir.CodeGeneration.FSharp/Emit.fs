@@ -953,19 +953,40 @@ module internal Emit =
                         + expression expected body
                         + ")"
                     | Value.LetRecursion(_, definitions, body) ->
-                        let bindings =
-                            definitions
-                            |> Map.toList
-                            |> List.map (fun (name, definition) ->
-                                binding (localIdent name) definition
+                        let isFunction definition =
+                            not (List.isEmpty definition.InputTypes)
+                            || (
+                                match definition.Body with
+                                | Value.Lambda _ -> true
+                                | _ -> false
                             )
-                            |> String.concat " and "
 
-                        "(let rec "
-                        + bindings
-                        + " in "
-                        + expression expected body
-                        + ")"
+                        let groups =
+                            DependencyOrder.bindings
+                                moduleName
+                                Validate.freeVariables
+                                isFunction
+                                definitions
+
+                        let bindings =
+                            groups
+                            |> List.map (fun (recursive, entries) ->
+                                (if recursive then "let rec " else "let ")
+                                + (entries
+                                   |> List.map (fun (name, definition) ->
+                                       binding (localIdent name) definition
+                                   )
+                                   |> String.concat " and ")
+                            )
+
+                        if List.isEmpty bindings then
+                            expression expected body
+                        else
+                            "("
+                            + String.concat " in " bindings
+                            + " in "
+                            + expression expected body
+                            + ")"
                     | Value.Destructure(_, p, target, body) ->
                         "(let "
                         + pattern p

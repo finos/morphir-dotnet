@@ -71,13 +71,7 @@ let private attributes (value: JsonElement) =
 
     let inferred =
         if candidate.ValueKind = JsonValueKind.Array then
-            match
-                Morphir.Json.Codecs.TypeCodec.decode
-                    (fun (value: JsonElement) -> Ok(value.Clone()))
-                    candidate
-            with
-            | Ok value -> Some(typ value)
-            | Error error -> failwithf "Invalid fixture type attribute: %A" error
+            Some(typ (Morphir.CodeGeneration.FSharp.Decode.typ 3 "$" candidate))
         else
             None
 

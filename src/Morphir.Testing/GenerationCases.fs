@@ -2,6 +2,39 @@ namespace Morphir.Testing
 
 /// Behavioral expectations are independent of the representation adapters that supply inputs.
 module GenerationCases =
+    let letRecOrder required variants : GenerationConformance.BehaviorCase<'Input> = {
+        Id = "scope.letrec-dependency-order"
+        Consumer = "printfn \"%d\" Car.Rental.Locals.ordered"
+        ExpectedOutput = "7"
+        Required = required
+        Variants = variants
+    }
+
+    let lexicalCapture required variants : GenerationConformance.BehaviorCase<'Input> = {
+        Id = "scope.lexical-capture"
+        Consumer = "printfn \"%A\" Car.Rental.Capture.locals"
+        ExpectedOutput = "(5007, 5007, 5007, 5007, 5000)"
+        Required = required
+        Variants = variants
+    }
+
+    let localRecursion required variants : GenerationConformance.BehaviorCase<'Input> = {
+        Id = "scope.recursion-and-shadowing"
+        Consumer = "printfn \"%d %d\" (Car.Rental.Locals.countdown 5) (Car.Rental.Locals.shadow 2)"
+        ExpectedOutput = "0 9"
+        Required = required
+        Variants = variants
+    }
+
+    let recordOperations required variants : GenerationConformance.BehaviorCase<'Input> = {
+        Id = "record.update"
+        Consumer =
+            "let old = Car.Rental.Records.item\nlet changed = Car.Rental.Records.change old\nprintfn \"%d %d\" (Car.Rental.Records.accessor old) changed.value"
+        ExpectedOutput = "3 7"
+        Required = required
+        Variants = variants
+    }
+
     let expressionCore required variants : GenerationConformance.BehaviorCase<'Input> = {
         Id = "expressions.core"
         Consumer =

@@ -81,6 +81,10 @@ let tests =
             [
                 GenerationCases.expressionCore, ModelConformanceInputs.expressionCore
                 GenerationCases.recordBilling, ModelConformanceInputs.recordBilling
+                GenerationCases.lexicalCapture, ModelConformanceInputs.lexicalCapture
+                GenerationCases.localRecursion, ModelConformanceInputs.localRecursion
+                GenerationCases.recordOperations, ModelConformanceInputs.recordOperations
+                GenerationCases.letRecOrder, ModelConformanceInputs.letRecOrder
             ] do
             let required = [
                 for version in [ "3"; "4.0.0" ] ->
@@ -107,6 +111,42 @@ let tests =
                 <| fun () ->
                     GenerationConformance.run generate case row
                     |> ignore
+
+        let recursionRows = [
+            for version in [ "3"; "4.0.0" ] ->
+                {
+                    Version = version
+                    Format = "typed"
+                    Layout = "memory"
+                    Optimize = true
+                }
+        ]
+
+        let recursionVariants = [
+            for row in recursionRows ->
+                {
+                    Representation = row
+                    Input =
+                        Refused(
+                            (fun () -> ModelConformanceInputs.letRecCycle row.Version),
+                            "initialization-cycle"
+                        )
+                }
+        ]
+
+        let recursionCase = {
+            Id = "scope.recursive-value-cycle"
+            Consumer = ""
+            ExpectedOutput = ""
+            Required = recursionRows
+            Variants = recursionVariants
+        }
+
+        for row in recursionVariants do
+            testCase $"{recursionCase.Id}/{row.Representation.Version}"
+            <| fun () ->
+                GenerationConformance.run generate recursionCase row
+                |> ignore
 
         for scalar in GenerationScalars.cases do
             let required = [

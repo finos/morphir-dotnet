@@ -180,71 +180,13 @@ let tests =
                     "qualified references retain module identity while variables retain lexical identity"
         testCase "module references survive every lexical binding form"
         <| fun _ ->
-            let capture = F.op "add" (F.reference "capture" "rate") (F.variable "rate")
-
-            let argument =
-                F.a [ box "AsPattern"; null; F.a [ box "WildcardPattern"; null ]; F.n "rate" ]
-
-            let local =
-                F.a [
-                    box "LetDefinition"
-                    null
-                    F.n "rate"
-                    F.definition [] F.intType (F.integer 7)
-                    capture
-                ]
-
-            let lambda = F.apply (F.a [ box "Lambda"; null; argument; capture ]) [ F.integer 7 ]
-
-            let matched =
-                F.a [ box "PatternMatch"; null; F.integer 7; F.a [ F.a [ argument; capture ] ] ]
-
-            let destructured = F.a [ box "Destructure"; null; argument; F.integer 7; capture ]
-
-            let recursiveBody =
-                F.a [
-                    box "IfThenElse"
-                    null
-                    F.op "equal" (F.variable "n") (F.integer 0)
-                    F.reference "capture" "rate"
-                    F.apply (F.variable "rate") [ F.op "subtract" (F.variable "n") (F.integer 1) ]
-                ]
-
-            let recursive =
-                F.a [
-                    box "LetRecursion"
-                    null
-                    F.a [
-                        F.a [ F.n "rate"; F.definition [ "n", F.intType ] F.intType recursiveBody ]
-                    ]
-                    F.apply (F.variable "rate") [ F.integer 3 ]
-                ]
-
-            let json =
-                F.model [
-                    "capture",
-                    [],
-                    [
-                        F.binding "rate" [] F.intType (F.integer 5000)
-                        F.binding
-                            "locals"
-                            []
-                            (F.tTuple (List.replicate 5 F.intType))
-                            (F.a [
-                                box "Tuple"
-                                null
-                                F.a [ local; lambda; matched; destructured; recursive ]
-                            ])
-                    ]
-                ]
+            let json = ModelConformanceInputs.lexicalCaptureJson ()
 
             match Transpiler.Generate("capture.json", json) with
             | Error errors -> failtestf "%A" errors
             | Ok modules ->
-                Expect.equal
-                    (execute modules "printfn \"%A\" Car.Rental.Capture.locals")
-                    "(5007, 5007, 5007, 5007, 5000)"
-                    "local lets, lambdas, matches, destructuring and recursion preserve reference identity"
+                let oracle: GenerationConformance.BehaviorCase<unit> = GenerationCases.lexicalCapture [] []
+                Expect.equal (execute modules oracle.Consumer) oracle.ExpectedOutput "shared behavior"
         testCase "unbound variables are generation errors"
         <| fun _ ->
             let json =
@@ -256,90 +198,22 @@ let tests =
                 Expect.equal errors.Head.Category "unbound-variable" "scope diagnostic"
         testCase "local recursion and lexical shadowing execute"
         <| fun _ ->
-            let countdownBody =
-                F.a [
-                    box "IfThenElse"
-                    null
-                    F.op "equal" (F.variable "n") (F.integer 0)
-                    F.integer 0
-                    F.apply (F.variable "loop") [ F.op "subtract" (F.variable "n") (F.integer 1) ]
-                ]
-
-            let body =
-                F.a [
-                    box "LetRecursion"
-                    null
-                    F.a [
-                        F.a [ F.n "loop"; F.definition [ "n", F.intType ] F.intType countdownBody ]
-                    ]
-                    F.apply (F.variable "loop") [ F.variable "n" ]
-                ]
-
-            let shadow =
-                F.a [
-                    box "LetDefinition"
-                    null
-                    F.n "x"
-                    F.definition [] F.intType (F.integer 9)
-                    F.variable "x"
-                ]
-
-            let json =
-                F.model [
-                    "locals",
-                    [],
-                    [
-                        F.binding "countdown" [ "n", F.intType ] F.intType body
-                        F.binding "shadow" [ "x", F.intType ] F.intType shadow
-                    ]
-                ]
+            let json = ModelConformanceInputs.localRecursionJson ()
 
             match Transpiler.Generate("locals.json", json) with
             | Error errors -> failtestf "%A" errors
             | Ok modules ->
-                Expect.equal
-                    (execute
-                        modules
-                        "printfn \"%d %d\" (Car.Rental.Locals.countdown 5) (Car.Rental.Locals.shadow 2)")
-                    "0 9"
-                    "recursion and lexical binding"
+                let oracle: GenerationConformance.BehaviorCase<unit> = GenerationCases.localRecursion [] []
+                Expect.equal (execute modules oracle.Consumer) oracle.ExpectedOutput "shared behavior"
         testCase "anonymous records and field functions execute"
         <| fun _ ->
-            let recordType = F.tRecord [ "value", F.intType ]
-
-            let record =
-                F.a [ box "Record"; recordType; F.a [ F.a [ F.n "value"; F.integer 3 ] ] ]
-
-            let update =
-                F.a [
-                    box "UpdateRecord"
-                    recordType
-                    F.variable "record"
-                    F.a [ F.a [ F.n "value"; F.integer 7 ] ]
-                ]
-
-            let accessor = F.a [ box "FieldFunction"; null; F.n "value" ]
-
-            let json =
-                F.model [
-                    "records",
-                    [],
-                    [
-                        F.binding "item" [] recordType record
-                        F.binding "change" [ "record", recordType ] recordType update
-                        F.binding "accessor" [] (F.tFunction recordType F.intType) accessor
-                    ]
-                ]
+            let json = ModelConformanceInputs.recordOperationsJson ()
 
             match Transpiler.Generate("records.json", json) with
             | Error errors -> failtestf "%A" errors
             | Ok modules ->
-                Expect.equal
-                    (execute
-                        modules
-                        "let old = Car.Rental.Records.item\nlet changed = Car.Rental.Records.change old\nprintfn \"%d %d\" (Car.Rental.Records.accessor old) changed.value")
-                    "3 7"
-                    "anonymous record remains immutable"
+                let oracle: GenerationConformance.BehaviorCase<unit> = GenerationCases.recordOperations [] []
+                Expect.equal (execute modules oracle.Consumer) oracle.ExpectedOutput "shared behavior"
         testCase "SDK list Maybe and Result mappings preserve function and type argument order"
         <| fun _ ->
             let increment =

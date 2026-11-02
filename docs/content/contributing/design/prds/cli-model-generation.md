@@ -74,6 +74,8 @@ V4-only semantics use the same harness and diagnostics. The supported/refused fe
 
 - Core expression generation: native v4 traversal covers constructors and partial application, tuple/list/unit values, named/anonymous records, fields, references, lambdas, conditionals and ordered patterns. A shared expression consumer and record-billing case execute for classic/v4. Test-only representation adaptation reuses classic fixtures; production v4 emission never converts to classic IR. All 170 generator tests pass; the full Nuke run still has only the pending CLI failures.
 
+- Local definitions and updates: existing recursion, shadowing, lexical-capture and record-operation fixtures now share corpus consumers and expected values across classic/v4. A new acyclic letrec case exposed a binding-order failure in both emitters; shared dependency grouping fixes it and rejects cyclic non-functions. All 180 generator tests pass; full Nuke results retain only the 11 pending CLI acceptance failures.
+
 ## Open questions
 
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

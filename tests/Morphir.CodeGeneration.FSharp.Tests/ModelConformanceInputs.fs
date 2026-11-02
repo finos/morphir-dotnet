@@ -394,3 +394,179 @@ let recordBilling version =
     Morphir.Testing.ModelResources.read "record-billing-v3.json"
     |> classic
     |> forVersion version
+
+let lexicalCaptureJson () =
+    let capture = F.op "add" (F.reference "capture" "rate") (F.variable "rate")
+
+    let argument =
+        F.a [ box "AsPattern"; null; F.a [ box "WildcardPattern"; null ]; F.n "rate" ]
+
+    let local =
+        F.a [
+            box "LetDefinition"
+            null
+            F.n "rate"
+            F.definition [] F.intType (F.integer 7)
+            capture
+        ]
+
+    let lambda = F.apply (F.a [ box "Lambda"; null; argument; capture ]) [ F.integer 7 ]
+
+    let matched =
+        F.a [ box "PatternMatch"; null; F.integer 7; F.a [ F.a [ argument; capture ] ] ]
+
+    let destructured = F.a [ box "Destructure"; null; argument; F.integer 7; capture ]
+
+    let recursiveBody =
+        F.a [
+            box "IfThenElse"
+            null
+            F.op "equal" (F.variable "n") (F.integer 0)
+            F.reference "capture" "rate"
+            F.apply (F.variable "rate") [ F.op "subtract" (F.variable "n") (F.integer 1) ]
+        ]
+
+    let recursive =
+        F.a [
+            box "LetRecursion"
+            null
+            F.a [ F.a [ F.n "rate"; F.definition [ "n", F.intType ] F.intType recursiveBody ] ]
+            F.apply (F.variable "rate") [ F.integer 3 ]
+        ]
+
+    let json =
+        F.model [
+            "capture",
+            [],
+            [
+                F.binding "rate" [] F.intType (F.integer 5000)
+                F.binding
+                    "locals"
+                    []
+                    (F.tTuple (List.replicate 5 F.intType))
+                    (F.a [
+                        box "Tuple"
+                        null
+                        F.a [ local; lambda; matched; destructured; recursive ]
+                    ])
+            ]
+        ]
+
+    json
+
+let lexicalCapture version =
+    lexicalCaptureJson ()
+    |> classic
+    |> forVersion version
+
+
+let localRecursionJson () =
+    let countdownBody =
+        F.a [
+            box "IfThenElse"
+            null
+            F.op "equal" (F.variable "n") (F.integer 0)
+            F.integer 0
+            F.apply (F.variable "loop") [ F.op "subtract" (F.variable "n") (F.integer 1) ]
+        ]
+
+    let body =
+        F.a [
+            box "LetRecursion"
+            null
+            F.a [ F.a [ F.n "loop"; F.definition [ "n", F.intType ] F.intType countdownBody ] ]
+            F.apply (F.variable "loop") [ F.variable "n" ]
+        ]
+
+    let shadow =
+        F.a [
+            box "LetDefinition"
+            null
+            F.n "x"
+            F.definition [] F.intType (F.integer 9)
+            F.variable "x"
+        ]
+
+    let json =
+        F.model [
+            "locals",
+            [],
+            [
+                F.binding "countdown" [ "n", F.intType ] F.intType body
+                F.binding "shadow" [ "x", F.intType ] F.intType shadow
+            ]
+        ]
+
+    json
+
+let localRecursion version =
+    localRecursionJson ()
+    |> classic
+    |> forVersion version
+
+
+let recordOperationsJson () =
+    let recordType = F.tRecord [ "value", F.intType ]
+
+    let record =
+        F.a [ box "Record"; recordType; F.a [ F.a [ F.n "value"; F.integer 3 ] ] ]
+
+    let update =
+        F.a [
+            box "UpdateRecord"
+            recordType
+            F.variable "record"
+            F.a [ F.a [ F.n "value"; F.integer 7 ] ]
+        ]
+
+    let accessor = F.a [ box "FieldFunction"; null; F.n "value" ]
+
+    let json =
+        F.model [
+            "records",
+            [],
+            [
+                F.binding "item" [] recordType record
+                F.binding "change" [ "record", recordType ] recordType update
+                F.binding "accessor" [] (F.tFunction recordType F.intType) accessor
+            ]
+        ]
+
+    json
+
+let recordOperations version =
+    recordOperationsJson ()
+    |> classic
+    |> forVersion version
+
+let letRecOrder version =
+    let body =
+        F.a [
+            box "LetRecursion"
+            null
+            F.a [
+                F.a [ F.n "a"; F.definition [] F.intType (F.variable "b") ]
+                F.a [ F.n "b"; F.definition [] F.intType (F.integer 7) ]
+            ]
+            F.variable "a"
+        ]
+
+    F.model [ "locals", [], [ F.binding "ordered" [] F.intType body ] ]
+    |> classic
+    |> forVersion version
+
+let letRecCycle version =
+    let body =
+        F.a [
+            box "LetRecursion"
+            null
+            F.a [
+                F.a [ F.n "a"; F.definition [] F.intType (F.variable "b") ]
+                F.a [ F.n "b"; F.definition [] F.intType (F.variable "a") ]
+            ]
+            F.variable "a"
+        ]
+
+    F.model [ "locals", [], [ F.binding "ordered" [] F.intType body ] ]
+    |> classic
+    |> forVersion version

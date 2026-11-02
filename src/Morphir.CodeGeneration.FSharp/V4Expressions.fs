@@ -98,6 +98,88 @@ module internal V4Expressions =
         | Value.Unit _
         | Value.Hole _ -> []
 
+    let rec private patternNames =
+        function
+        | AsPattern(_, pattern, name) ->
+            name
+            :: patternNames pattern
+        | TuplePattern(_, patterns)
+        | ConstructorPattern(_, _, patterns) -> List.collect patternNames patterns
+        | HeadTailPattern(_, head, tail) ->
+            patternNames head
+            @ patternNames tail
+        | WildcardPattern _
+        | EmptyListPattern _
+        | LiteralPattern _
+        | UnitPattern _ -> []
+
+    let freeVariables (definition: ValueDefinition) =
+        let add names bound = Set.union bound (Set.ofList names)
+
+        let rec expression bound value =
+            let many values =
+                values
+                |> List.map (expression bound)
+                |> Set.unionMany
+
+            match value with
+            | Value.Variable(_, name) ->
+                if Set.contains name bound then
+                    Set.empty
+                else
+                    Set.singleton name
+            | Value.Tuple(_, values)
+            | Value.List(_, values) -> many values
+            | Value.Record(_, fields) ->
+                List.map snd fields
+                |> many
+            | Value.Field(_, target, _) -> expression bound target
+            | Value.Apply(_, fn, arg) -> many [ fn; arg ]
+            | Value.Lambda(_, pattern, body) -> expression (add (patternNames pattern) bound) body
+            | Value.LetDefinition(_, name, definition, body) ->
+                Set.union (binding bound definition.Value) (expression (Set.add name bound) body)
+            | Value.LetRecursion(_, definitions, body) ->
+                let definitions = OrderedMap.toList definitions
+                let bound = add (List.map fst definitions) bound
+
+                Set.union
+                    (definitions
+                     |> List.map (fun (_, definition) -> binding bound definition.Value)
+                     |> Set.unionMany)
+                    (expression bound body)
+            | Value.Destructure(_, pattern, target, body) ->
+                Set.union
+                    (expression bound target)
+                    (expression (add (patternNames pattern) bound) body)
+            | Value.IfThenElse(_, condition, yes, no) -> many [ condition; yes; no ]
+            | Value.PatternMatch(_, target, cases) ->
+                Set.union
+                    (expression bound target)
+                    (cases
+                     |> List.map (fun (pattern, body) ->
+                         expression (add (patternNames pattern) bound) body
+                     )
+                     |> Set.unionMany)
+            | Value.UpdateRecord(_, target, fields) ->
+                many (
+                    target
+                    :: List.map snd fields
+                )
+            | Value.Literal _
+            | Value.Constructor _
+            | Value.Reference _
+            | Value.FieldFunction _
+            | Value.Unit _
+            | Value.Hole _ -> Set.empty
+
+        and binding bound definition =
+            match definition.Body with
+            | ExpressionBody(_, body) ->
+                expression (add (List.map fst definition.InputTypes) bound) body
+            | _ -> Set.empty
+
+        binding Set.empty definition
+
     let declarations
         (context: Context)
         (entries: (Name * AccessControlled<Documented<ValueDefinition>>) list)
@@ -522,12 +604,129 @@ module internal V4Expressions =
                    )
                    |> String.concat " ")
                 + ")"
-            | Value.LetDefinition _
-            | Value.LetRecursion _
-            | Value.Destructure _
-            | Value.UpdateRecord _
+            | Value.LetDefinition(_, name, definition, body) ->
+                "(let "
+                + binding env name definition.Value
+                + " in "
+                + expression (Map.add name (signature definition.Value) env) expected body
+                + ")"
+            | Value.LetRecursion(_, definitions, body) ->
+                let definitions =
+                    OrderedMap.toList definitions
+                    |> List.sortBy fst
+
+                let recursiveEnv =
+                    definitions
+                    |> List.fold
+                        (fun env (name, definition) ->
+                            Map.add name (signature definition.Value) env
+                        )
+                        env
+
+                let isFunction definition =
+                    not (List.isEmpty definition.InputTypes)
+                    || (
+                        match definition.Body with
+                        | ExpressionBody(_, Value.Lambda _) -> true
+                        | _ -> false
+                    )
+
+                let groups =
+                    DependencyOrder.bindings
+                        context.Location
+                        freeVariables
+                        isFunction
+                        (definitions
+                         |> List.map (fun (name, value) -> name, value.Value)
+                         |> Map.ofList)
+
+                let bindings =
+                    groups
+                    |> List.map (fun (recursive, entries) ->
+                        (if recursive then "let rec " else "let ")
+                        + (entries
+                           |> List.map (fun (name, definition) ->
+                               binding recursiveEnv name definition
+                           )
+                           |> String.concat " and ")
+                    )
+
+                if List.isEmpty bindings then
+                    expression env expected body
+                else
+                    "("
+                    + String.concat " in " bindings
+                    + " in "
+                    + expression recursiveEnv expected body
+                    + ")"
+            | Value.Destructure(_, p, target, body) ->
+                let next = bindPattern env (inferred env target) p
+
+                "(let "
+                + pattern p
+                + " = "
+                + expr target
+                + " in "
+                + expression next expected body
+                + ")"
+            | Value.UpdateRecord(attributes, target, fields) ->
+                let expected =
+                    attributes.InferredType
+                    |> Option.orElse expected
+                    |> Option.orElseWith (fun () -> inferred env target)
+
+                let nominal, types = record expected
+
+                let fields =
+                    fields
+                    |> List.map (fun (name, value) ->
+                        Emit.ident (Emit.camel name)
+                        + " = "
+                        + expression env (fieldType types name) value
+                    )
+                    |> String.concat "; "
+
+                if nominal then
+                    "{ "
+                    + expr target
+                    + " with "
+                    + fields
+                    + " }"
+                else
+                    "{| "
+                    + expr target
+                    + " with "
+                    + fields
+                    + " |}"
             | Value.Hole _ ->
                 fail "unsupported-v4-expression" "This v4 expression is not implemented yet."
+
+        and binding env name definition =
+            match definition.Body with
+            | ExpressionBody(output, body) ->
+                let env =
+                    definition.InputTypes
+                    |> List.fold (fun env (name, t) -> Map.add name (Some t) env) env
+
+                let arguments =
+                    definition.InputTypes
+                    |> List.map (fun (name, t) ->
+                        "("
+                        + localName name
+                        + " : "
+                        + context.Typ t
+                        + ")"
+                    )
+                    |> String.concat " "
+
+                localName name
+                + " "
+                + arguments
+                + " : "
+                + context.Typ output
+                + " = "
+                + expression env (Some output) body
+            | _ -> fail "unsupported-v4-body" "A local definition requires an expression body."
 
         let definitions =
             entries

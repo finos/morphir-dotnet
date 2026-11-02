@@ -142,3 +142,44 @@ module internal DependencyOrder =
                          ))
 
         order Set.empty entries
+
+    /// Local definitions need dependency order too; only cycles of functions can be recursive F# bindings.
+    let bindings location freeVariables isFunction definitions =
+        let names =
+            definitions
+            |> Map.toList
+            |> List.map fst
+            |> Set.ofList
+
+        let graph =
+            definitions
+            |> Map.map (fun _ definition -> Set.intersect names (freeVariables definition))
+
+        groups graph
+        |> List.map (fun group ->
+            let recursive =
+                group.Count > 1
+                || (group
+                    |> Set.exists (fun name -> Set.contains name graph[name]))
+
+            let entries =
+                group
+                |> Set.toList
+                |> List.map (fun name -> name, Map.find name definitions)
+
+            if
+                recursive
+                && entries
+                   |> List.exists (
+                       snd
+                       >> isFunction
+                       >> not
+                   )
+            then
+                Decode.fail
+                    "initialization-cycle"
+                    location
+                    "Recursive non-function values cannot be initialized faithfully."
+
+            recursive, entries
+        )
