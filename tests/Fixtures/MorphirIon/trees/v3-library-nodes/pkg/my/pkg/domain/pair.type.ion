@@ -1,0 +1,10 @@
+private::def::alias::type::{
+  typeExp: tuple::[
+    "a",
+    "b",
+  ],
+  typeParams: [
+    "a",
+    "b",
+  ],
+}

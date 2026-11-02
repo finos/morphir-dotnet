@@ -1,0 +1,3 @@
+public::def::alias::type::{
+  typeExp: "morphir/SDK:basics#int",
+}

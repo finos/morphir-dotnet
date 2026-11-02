@@ -1,0 +1,24 @@
+public::def::custom::type::{
+  typeParams: [
+    "a",
+  ],
+  access: private,
+  constructors: [
+    {
+      name: "just",
+      args: [
+        {
+          name: "value",
+          type: "a",
+        },
+        {
+          name: "other",
+          type: "morphir/SDK:basics#int",
+        },
+      ],
+    },
+    {
+      name: "nothing",
+    },
+  ],
+}

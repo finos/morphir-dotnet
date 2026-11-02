@@ -1,0 +1,26 @@
+public::def::value::{
+  outputType: function::{
+    parameterType: "a",
+    returnType: reference::{
+      name: "my/pkg:domain#box",
+      arguments: [
+        "a",
+      ],
+    },
+  },
+  body: (
+    constructor
+    {
+      inferredType: function::{
+        parameterType: "a",
+        returnType: reference::{
+          name: "my/pkg:domain#box",
+          arguments: [
+            "a",
+          ],
+        },
+      },
+    }
+    'my/pkg:domain#full'
+  ),
+}

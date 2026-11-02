@@ -1,0 +1,127 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    list
+    (
+      apply
+      (
+        ref
+        'morphir/SDK:basics#negate'
+      )
+      1
+    )
+    (
+      lambda
+      score
+      score
+    )
+    (
+      lambda
+      (
+        tuple
+        a
+        b
+      )
+      a
+    )
+    (
+      if
+      true
+      1
+      2
+    )
+    (
+      let
+      x
+      {
+        outputType: "morphir/SDK:basics#int",
+        body: 1,
+      }
+      x
+    )
+    (
+      letrec
+      [
+        (
+          f
+          {
+            outputType: "morphir/SDK:basics#int",
+            body: f,
+          }
+        ),
+        (
+          g
+          {
+            outputType: "morphir/SDK:basics#int",
+            body: g,
+          }
+        ),
+      ]
+      f
+    )
+    (
+      destructure
+      (
+        tuple
+        a
+        _
+      )
+      pair
+      a
+    )
+    (
+      field
+      record
+      'field-name'
+    )
+    (
+      fieldFunction
+      name
+    )
+    (
+      record
+      (
+        name
+        x
+      )
+      (
+        age
+        25
+      )
+    )
+    (
+      update
+      record
+      (
+        name
+        (
+          string
+          "new"
+        )
+      )
+    )
+    (
+      tuple
+      x
+      1
+    )
+    (
+      list
+    )
+    (
+    )
+    (
+      constructor
+      'morphir/SDK:maybe#just'
+    )
+    (
+      ref
+      'morphir/SDK:basics#add'
+    )
+    false
+    (
+      string
+      "text with \"quotes\" and \n"
+    )
+  ),
+}

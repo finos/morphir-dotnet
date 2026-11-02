@@ -1,0 +1,11 @@
+public::def::value::{
+  outputType: unit::{
+  },
+  body: (
+    unit
+    {
+      inferredType: unit::{
+      },
+    }
+  ),
+}

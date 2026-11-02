@@ -1,0 +1,40 @@
+public::def::value::{
+  outputType: "morphir/SDK:document#document",
+  body: (
+    document
+    {
+      name: "Alice",
+      age: 30,
+      tags: [
+        "admin",
+        "user",
+      ],
+      metadata: null,
+      yes: true,
+      no: false,
+      id: 9007199254740993,
+      big: number::"123456789012345678901234567890123456789012345",
+      ratio: 0.10,
+      exp: number::"1.5e+2",
+      pos: number::"1e+2",
+      'plain-exp': number::"1e+2",
+      neg: 5.d-7,
+      small: 0.000001,
+      point: number::"0.0000001",
+      upper: number::"1e+5",
+      plain: 12.50,
+      'neg-zero': -0.0,
+      'neg-int-zero': 0,
+      nested: {
+        list: [
+          [
+          ],
+          {
+          },
+        ],
+        zero: 0,
+        neg: -1,
+      },
+    }
+  ),
+}

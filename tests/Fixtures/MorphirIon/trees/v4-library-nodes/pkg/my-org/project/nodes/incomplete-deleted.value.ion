@@ -1,0 +1,7 @@
+public::def::incomplete::value::{
+  incompleteness: hole::{
+    reason: deletedDuringRefactor::{
+      txId: "tx-42",
+    },
+  },
+}

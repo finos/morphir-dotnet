@@ -1,0 +1,13 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: library,
+  packageName: "my-org/project",
+  dependencies: [
+    package::spec::{ name: "morphir/SDK", modules: [ module::spec::{ name: "basics", annotations: ["my-org/project:annotations#stable"], doc: "Basics.", types: [ public::spec::opaque::type::{ name: "int" } ], values: [ public::spec::value::{ name: "add", inputs: { a: "morphir/SDK:basics#int", b: "morphir/SDK:basics#int" }, output: "morphir/SDK:basics#int" } ] } ] },
+  ],
+  modules: [
+    public::def::module::{ name: "main", doc: "Main.", types: [ public::def::alias::type::{ name: "score", typeExp: "morphir/SDK:basics#int" } ], values: [ public::def::value::{ name: "zero", outputType: "my-org/project:main#score", body: 0 }, private::def::native::value::{ name: "add", inputTypes: { a: "morphir/SDK:basics#int", b: "morphir/SDK:basics#int" }, outputType: "morphir/SDK:basics#int", hint: arithmetic } ] },
+    private::def::module::{ name: "hidden" },
+  ],
+}

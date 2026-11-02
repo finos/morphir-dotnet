@@ -1,0 +1,35 @@
+public::spec::alias::type::{
+  typeParams: [
+    "a",
+  ],
+  typeExp: reference::{
+    name: "morphir/SDK:list#list",
+    arguments: [
+      "a",
+    ],
+  },
+  annotations: [
+    "my-org/project:annotations#deprecated:Use user-v2 instead",
+    {
+      name: "my-org/project:annotations#since",
+      arguments: [
+        (
+          string
+          "1.2.0"
+        ),
+        {
+          name: "reason",
+          value: (
+            string
+            "renamed"
+          ),
+        },
+      ],
+    },
+    {
+      name: "my-org/project:annotations#internal",
+    },
+    "my-org/project:annotations#plain",
+  ],
+  doc: "Alias doc.",
+}

@@ -1,0 +1,18 @@
+public::spec::custom::type::{
+  constructors: [
+    {
+      name: "yes",
+      args: [
+      ],
+    },
+    {
+      name: "no",
+      args: [
+        {
+          name: "why",
+          type: "morphir/SDK:string#string",
+        },
+      ],
+    },
+  ],
+}

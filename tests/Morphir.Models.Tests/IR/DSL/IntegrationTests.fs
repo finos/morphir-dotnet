@@ -1,5 +1,8 @@
 namespace Morphir.Models.Tests.IR.DSL
 
+// These tests build distributions through Library-only builders, so each pattern has one possible case.
+#nowarn "25"
+
 open Expecto
 open Morphir.IR
 open Morphir.IR.Classic.Module

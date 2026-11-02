@@ -1,0 +1,189 @@
+public::def::value::{
+  outputType: "elm-compat:api#response",
+  body: (
+    let
+    {
+      inferredType: "elm-compat:api#response",
+    }
+    'status-str'
+    {
+      outputType: "morphir/SDK:string#string",
+      body: (
+        match
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+        (
+          field
+          {
+            inferredType: "elm-compat:main#order-status",
+          }
+          (
+            variable
+            {
+              inferredType: "elm-compat:main#customer-order",
+            }
+            order
+          )
+          status
+        )
+        [
+          (
+            constructor
+            {
+              inferredType: "elm-compat:main#order-status",
+            }
+            'elm-compat:main#pending'
+          ),
+          (
+            string
+            {
+              inferredType: "morphir/SDK:string#string",
+            }
+            "Order is pending"
+          ),
+        ]
+        [
+          (
+            constructor
+            {
+              inferredType: "elm-compat:main#order-status",
+            }
+            'elm-compat:main#confirmed'
+          ),
+          (
+            string
+            {
+              inferredType: "morphir/SDK:string#string",
+            }
+            "Order has been confirmed"
+          ),
+        ]
+        [
+          (
+            constructor
+            {
+              inferredType: "elm-compat:main#order-status",
+            }
+            'elm-compat:main#shipped'
+          ),
+          (
+            string
+            {
+              inferredType: "morphir/SDK:string#string",
+            }
+            "Order has been shipped"
+          ),
+        ]
+        [
+          (
+            constructor
+            {
+              inferredType: "elm-compat:main#order-status",
+            }
+            'elm-compat:main#delivered'
+          ),
+          (
+            string
+            {
+              inferredType: "morphir/SDK:string#string",
+            }
+            "Order has been delivered"
+          ),
+        ]
+        [
+          (
+            constructor
+            {
+              inferredType: "elm-compat:main#order-status",
+            }
+            'elm-compat:main#cancelled'
+          ),
+          (
+            string
+            {
+              inferredType: "morphir/SDK:string#string",
+            }
+            "Order was cancelled"
+          ),
+        ]
+      ),
+    }
+    (
+      record
+      {
+        inferredType: "elm-compat:api#response",
+      }
+      (
+        message
+        (
+          variable
+          {
+            inferredType: "morphir/SDK:string#string",
+          }
+          'status-str'
+        )
+      )
+      (
+        'order-id'
+        (
+          apply
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:maybe#maybe",
+              arguments: [
+                "morphir/SDK:string#string",
+              ],
+            },
+          }
+          (
+            constructor
+            {
+              inferredType: function::{
+                parameterType: "morphir/SDK:string#string",
+                returnType: reference::{
+                  name: "morphir/SDK:maybe#maybe",
+                  arguments: [
+                    "morphir/SDK:string#string",
+                  ],
+                },
+              },
+            }
+            'morphir/SDK:maybe#just'
+          )
+          (
+            field
+            {
+              inferredType: "morphir/SDK:string#string",
+            }
+            (
+              variable
+              {
+                inferredType: "elm-compat:main#customer-order",
+              }
+              order
+            )
+            'order-id'
+          )
+        )
+      )
+      (
+        success
+        (
+          bool
+          {
+            inferredType: "morphir/SDK:basics#bool",
+          }
+          true
+        )
+      )
+    )
+  ),
+  inputTypes: [
+    {
+      name: "order",
+      type: "elm-compat:main#customer-order",
+    },
+  ],
+  doc: " Get the status of an order as a string response.\n",
+}

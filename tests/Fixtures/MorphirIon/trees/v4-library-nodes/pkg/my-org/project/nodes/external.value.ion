@@ -1,0 +1,17 @@
+public::def::external::value::{
+  inputTypes: {
+    x: "morphir/SDK:basics#int",
+  },
+  outputType: "morphir/SDK:basics#int",
+  externals: [
+    {
+      targetPlatform: "erlang",
+      externalName: "math:abs",
+    },
+    {
+      targetPlatform: "javascript",
+      externalName: "Math.abs",
+    },
+  ],
+  body: x,
+}

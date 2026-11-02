@@ -1,0 +1,5 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#unit",
+  body: (
+  ),
+}

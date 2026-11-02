@@ -191,6 +191,21 @@ let tests =
             | Ok _ -> failtest "module file collision must fail before publication"
             | Error errors ->
                 Expect.equal errors.Head.Category "name-collision" "path collision category"
+        testCase "a name word that starts with a digit is refused by generation"
+        <| fun _ ->
+            // The shared classic reader accepts words such as ["arg", "1"], but generation never has.
+            let root = JsonNode.Parse(simpleModel)
+            let modules = root.["distribution"].[3].["modules"].AsArray()
+            modules.[0].[0] <- JsonNode.Parse("""[["arg", "1"]]""")
+
+            match Transpiler.Generate("digit-word.json", root.ToJsonString()) with
+            | Ok _ -> failtest "a digit word must not generate"
+            | Error errors ->
+                Expect.equal errors.Head.Category "invalid-name" "name diagnostic"
+                Expect.stringContains
+                    errors.Head.Message
+                    "Names must contain nonempty lowercase alphanumeric words."
+                    "the old message"
         testCase "independent generic functions remain polymorphic"
         <| fun _ ->
             let json =
@@ -512,6 +527,9 @@ let tests =
                 "unsupported distribution",
                 simpleModel.Replace("\"Library\"", "\"DocumentTree\""),
                 "unsupported-distribution"
+                "specs distribution",
+                simpleModel.Replace("\"Library\"", "\"Specs\""),
+                "unsupported-distribution"
                 "unmapped SDK",
                 F.model [
                     "unknown",
@@ -741,6 +759,30 @@ let tests =
                         "let a,b,c,d,e,f = Car.Rental.Literals.values\nprintfn \"%b %d %d %d %.1f %.2M\" a (int b) c.Length d e f")
                     "true 39 4 -2147483648 1.5 2.25"
                     "literal values"
+        testCase "generation keeps rounding a long decimal and refusing an exponent in a decimal string"
+        <| fun _ ->
+            let decimalType = F.tRef (F.sdk "decimal" "decimal") []
+
+            let generate text =
+                Transpiler.Generate(
+                    "decimals.json",
+                    F.model [
+                        "decimals",
+                        [],
+                        [
+                            F.binding "value" [] decimalType (F.literal "DecimalLiteral" (box (text: string)))
+                        ]
+                    ]
+                )
+
+            // 33 significant digits: Decimal.Parse rounds to 28 and generation has always accepted that.
+            match generate "1.00000000000000000000000000000001" with
+            | Error errors -> failtestf "%A" errors
+            | Ok modules ->
+                Expect.stringContains modules.Head.Source "1.0000000000000000000000000000M" "rounded as before"
+
+            Expect.isError (generate "1e2") "generation never read an exponent in a decimal string"
+
         testCase "unit-array record attributes do not become type annotations"
         <| fun _ ->
             let recordType = F.tRecord [ "value", F.intType ]

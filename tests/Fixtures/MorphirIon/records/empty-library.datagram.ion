@@ -1,0 +1,8 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: library,
+  packageName: "example",
+}
+morphir_footer::{
+}

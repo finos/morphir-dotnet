@@ -1,0 +1,463 @@
+public::def::value::{
+  outputType: "elm-compat:api#response",
+  body: (
+    match
+    {
+      inferredType: "elm-compat:api#response",
+    }
+    (
+      field
+      {
+        inferredType: "morphir/SDK:string#string",
+      }
+      (
+        variable
+        {
+          inferredType: "elm-compat:api#request",
+        }
+        request
+      )
+      action
+    )
+    [
+      (
+        string
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+        "create"
+      ),
+      (
+        if
+        {
+          inferredType: "elm-compat:api#response",
+        }
+        (
+          apply
+          {
+            inferredType: "morphir/SDK:basics#bool",
+          }
+          (
+            ref
+            {
+              inferredType: function::{
+                parameterType: reference::{
+                  name: "morphir/SDK:list#list",
+                  arguments: [
+                    tuple::                    [
+                      "elm-compat:main#product",
+                      "elm-compat:main#quantity",
+                    ],
+                  ],
+                },
+                returnType: "morphir/SDK:basics#bool",
+              },
+            }
+            'morphir/SDK:list#is-empty'
+          )
+          (
+            field
+            {
+              inferredType: reference::{
+                name: "morphir/SDK:list#list",
+                arguments: [
+                  tuple::                  [
+                    "elm-compat:main#product",
+                    "elm-compat:main#quantity",
+                  ],
+                ],
+              },
+            }
+            (
+              variable
+              {
+                inferredType: "elm-compat:api#request",
+              }
+              request
+            )
+            products
+          )
+        )
+        (
+          record
+          {
+            inferredType: "elm-compat:api#response",
+          }
+          (
+            message
+            (
+              string
+              {
+                inferredType: "morphir/SDK:string#string",
+              }
+              "Cannot create order with no products"
+            )
+          )
+          (
+            'order-id'
+            (
+              constructor
+              {
+                inferredType: reference::{
+                  name: "morphir/SDK:maybe#maybe",
+                  arguments: [
+                    "morphir/SDK:string#string",
+                  ],
+                },
+              }
+              'morphir/SDK:maybe#nothing'
+            )
+          )
+          (
+            success
+            (
+              bool
+              {
+                inferredType: "morphir/SDK:basics#bool",
+              }
+              false
+            )
+          )
+        )
+        (
+          record
+          {
+            inferredType: "elm-compat:api#response",
+          }
+          (
+            message
+            (
+              string
+              {
+                inferredType: "morphir/SDK:string#string",
+              }
+              "Order created successfully"
+            )
+          )
+          (
+            'order-id'
+            (
+              apply
+              {
+                inferredType: reference::{
+                  name: "morphir/SDK:maybe#maybe",
+                  arguments: [
+                    "morphir/SDK:string#string",
+                  ],
+                },
+              }
+              (
+                constructor
+                {
+                  inferredType: function::{
+                    parameterType: "morphir/SDK:string#string",
+                    returnType: reference::{
+                      name: "morphir/SDK:maybe#maybe",
+                      arguments: [
+                        "morphir/SDK:string#string",
+                      ],
+                    },
+                  },
+                }
+                'morphir/SDK:maybe#just'
+              )
+              (
+                string
+                {
+                  inferredType: "morphir/SDK:string#string",
+                }
+                "new-order-id"
+              )
+            )
+          )
+          (
+            success
+            (
+              bool
+              {
+                inferredType: "morphir/SDK:basics#bool",
+              }
+              true
+            )
+          )
+        )
+      ),
+    ]
+    [
+      (
+        string
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+        "status"
+      ),
+      (
+        match
+        {
+          inferredType: "elm-compat:api#response",
+        }
+        (
+          field
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:maybe#maybe",
+              arguments: [
+                "morphir/SDK:string#string",
+              ],
+            },
+          }
+          (
+            variable
+            {
+              inferredType: "elm-compat:api#request",
+            }
+            request
+          )
+          'order-id'
+        )
+        [
+          (
+            constructor
+            {
+              inferredType: reference::{
+                name: "morphir/SDK:maybe#maybe",
+                arguments: [
+                  "morphir/SDK:string#string",
+                ],
+              },
+            }
+            'morphir/SDK:maybe#just'
+            (
+              as
+              {
+                inferredType: "morphir/SDK:string#string",
+              }
+              (
+                wildcard
+                {
+                  inferredType: "morphir/SDK:string#string",
+                }
+              )
+              id
+            )
+          ),
+          (
+            record
+            {
+              inferredType: "elm-compat:api#response",
+            }
+            (
+              message
+              (
+                string
+                {
+                  inferredType: "morphir/SDK:string#string",
+                }
+                "Order status retrieved"
+              )
+            )
+            (
+              'order-id'
+              (
+                apply
+                {
+                  inferredType: reference::{
+                    name: "morphir/SDK:maybe#maybe",
+                    arguments: [
+                      "morphir/SDK:string#string",
+                    ],
+                  },
+                }
+                (
+                  constructor
+                  {
+                    inferredType: function::{
+                      parameterType: "morphir/SDK:string#string",
+                      returnType: reference::{
+                        name: "morphir/SDK:maybe#maybe",
+                        arguments: [
+                          "morphir/SDK:string#string",
+                        ],
+                      },
+                    },
+                  }
+                  'morphir/SDK:maybe#just'
+                )
+                (
+                  variable
+                  {
+                    inferredType: "morphir/SDK:string#string",
+                  }
+                  id
+                )
+              )
+            )
+            (
+              success
+              (
+                bool
+                {
+                  inferredType: "morphir/SDK:basics#bool",
+                }
+                true
+              )
+            )
+          ),
+        ]
+        [
+          (
+            constructor
+            {
+              inferredType: reference::{
+                name: "morphir/SDK:maybe#maybe",
+                arguments: [
+                  "morphir/SDK:string#string",
+                ],
+              },
+            }
+            'morphir/SDK:maybe#nothing'
+          ),
+          (
+            record
+            {
+              inferredType: "elm-compat:api#response",
+            }
+            (
+              message
+              (
+                string
+                {
+                  inferredType: "morphir/SDK:string#string",
+                }
+                "Order ID required for status check"
+              )
+            )
+            (
+              'order-id'
+              (
+                constructor
+                {
+                  inferredType: reference::{
+                    name: "morphir/SDK:maybe#maybe",
+                    arguments: [
+                      "morphir/SDK:string#string",
+                    ],
+                  },
+                }
+                'morphir/SDK:maybe#nothing'
+              )
+            )
+            (
+              success
+              (
+                bool
+                {
+                  inferredType: "morphir/SDK:basics#bool",
+                }
+                false
+              )
+            )
+          ),
+        ]
+      ),
+    ]
+    [
+      (
+        wildcard
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+      ),
+      (
+        record
+        {
+          inferredType: "elm-compat:api#response",
+        }
+        (
+          message
+          (
+            apply
+            {
+              inferredType: "morphir/SDK:string#string",
+            }
+            (
+              apply
+              {
+                inferredType: function::{
+                  parameterType: "morphir/SDK:string#string",
+                  returnType: "morphir/SDK:string#string",
+                },
+              }
+              (
+                ref
+                {
+                  inferredType: function::{
+                    parameterType: "morphir/SDK:string#string",
+                    returnType: function::{
+                      parameterType: "morphir/SDK:string#string",
+                      returnType: "morphir/SDK:string#string",
+                    },
+                  },
+                }
+                'morphir/SDK:basics#append'
+              )
+              (
+                string
+                {
+                  inferredType: "morphir/SDK:string#string",
+                }
+                "Unknown action: "
+              )
+            )
+            (
+              field
+              {
+                inferredType: "morphir/SDK:string#string",
+              }
+              (
+                variable
+                {
+                  inferredType: "elm-compat:api#request",
+                }
+                request
+              )
+              action
+            )
+          )
+        )
+        (
+          'order-id'
+          (
+            constructor
+            {
+              inferredType: reference::{
+                name: "morphir/SDK:maybe#maybe",
+                arguments: [
+                  "morphir/SDK:string#string",
+                ],
+              },
+            }
+            'morphir/SDK:maybe#nothing'
+          )
+        )
+        (
+          success
+          (
+            bool
+            {
+              inferredType: "morphir/SDK:basics#bool",
+            }
+            false
+          )
+        )
+      ),
+    ]
+  ),
+  inputTypes: [
+    {
+      name: "request",
+      type: "elm-compat:api#request",
+    },
+  ],
+  doc: " Process an API request and return a response.\n",
+}

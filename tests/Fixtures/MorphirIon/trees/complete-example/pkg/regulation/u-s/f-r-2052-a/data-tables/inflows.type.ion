@@ -1,0 +1,15 @@
+public::def::alias::type::{
+  typeExp: record::{
+    fields: [
+      {
+        name: "assets",
+        type: reference::{
+          name: "morphir/SDK:list#list",
+          arguments: [
+            "regulation:u-s/f-r-2052-a/data-tables/inflows#assets",
+          ],
+        },
+      },
+    ],
+  },
+}

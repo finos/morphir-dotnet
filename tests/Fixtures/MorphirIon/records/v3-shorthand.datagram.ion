@@ -1,0 +1,9 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "3.0.0",
+  kind: library,
+  packageName: "my/pkg",
+}
+public::def::module::{ name: "m", values: [ public::def::value::{ name: "v", inputTypes: [ { name: "a", type: "morphir/SDK:basics#int", inferredType: "morphir/SDK:basics#float" }, { name: "b", type: "morphir/SDK:basics#int" } ], outputType: "morphir/SDK:basics#int", body: (tuple 42 true 1.5e0 () x (variable y) (lambda [z] z) (lambda [p, q] p) (int 3) (float 2e0) (string "s") (char "c") (decimal "1.50") (let n { outputType: "morphir/SDK:basics#int", body: 1 } n) (letrec ((f { outputType: "morphir/SDK:basics#int", body: 1 })) f) (letrec [(g { outputType: "morphir/SDK:basics#int", body: 2 })] g) (match x [_, 1] [a, 2] [[], 3] [(), 4] [5, 6] [true, 7] [(as _ b), 8] [(wildcard { inferredType: "morphir/SDK:basics#int" }), 9])) } ] }
+morphir_footer::{
+}

@@ -1,0 +1,24 @@
+public::def::alias::type::{
+  typeExp: record::{
+    fields: [
+      {
+        name: "success",
+        type: "morphir/SDK:basics#bool",
+      },
+      {
+        name: "message",
+        type: "morphir/SDK:string#string",
+      },
+      {
+        name: "order-id",
+        type: reference::{
+          name: "morphir/SDK:maybe#maybe",
+          arguments: [
+            "morphir/SDK:string#string",
+          ],
+        },
+      },
+    ],
+  },
+  doc: " Represents an API response.\n",
+}

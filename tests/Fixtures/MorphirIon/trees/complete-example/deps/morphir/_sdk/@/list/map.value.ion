@@ -1,0 +1,20 @@
+public::spec::value::{
+  inputs: {
+    f: function::{
+      parameterType: "a",
+      returnType: "b",
+    },
+    list: reference::{
+      name: "morphir/SDK:list#list",
+      arguments: [
+        "a",
+      ],
+    },
+  },
+  output: reference::{
+    name: "morphir/SDK:list#list",
+    arguments: [
+      "b",
+    ],
+  },
+}

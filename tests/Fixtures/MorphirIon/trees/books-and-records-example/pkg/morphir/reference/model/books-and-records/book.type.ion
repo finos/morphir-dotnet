@@ -1,0 +1,9 @@
+public::def::alias::type::{
+  typeExp: reference::{
+    name: "morphir/SDK:dict#dict",
+    arguments: [
+      "morphir/reference/model:books-and-records#product-ID",
+      "morphir/reference/model:books-and-records#deal",
+    ],
+  },
+}

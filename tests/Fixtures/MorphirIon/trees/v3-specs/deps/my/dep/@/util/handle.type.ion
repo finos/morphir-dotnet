@@ -1,0 +1,6 @@
+public::spec::alias::type::{
+  typeExp: "a",
+  typeParams: [
+    "a",
+  ],
+}

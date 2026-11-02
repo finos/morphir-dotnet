@@ -1,0 +1,36 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: application,
+  packageName: "example",
+  entryPoints: {
+    start: {
+      target: "example:main#run",
+      kind: main,
+      doc: "The application entry point",
+    },
+    build: {
+      target: "example:main#run",
+      kind: command,
+    },
+    'on event': {
+      target: "example:main#run",
+      kind: handler,
+    },
+    nightly: {
+      target: "example:main#run",
+      kind: job,
+    },
+    guard: {
+      target: "example:main#run",
+      kind: policy,
+    },
+  },
+  pathBudget: 4000,
+}
+package::def::{
+  name: "my-org/shared",
+}
+package::def::{
+  name: "empty",
+}

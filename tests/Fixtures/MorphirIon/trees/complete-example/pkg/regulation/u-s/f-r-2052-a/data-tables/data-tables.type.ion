@@ -1,0 +1,18 @@
+public::def::alias::type::{
+  typeExp: record::{
+    fields: [
+      {
+        name: "inflows",
+        type: "regulation:u-s/f-r-2052-a/data-tables#inflows",
+      },
+      {
+        name: "outflows",
+        type: "regulation:u-s/f-r-2052-a/data-tables#outflows",
+      },
+      {
+        name: "supplemental",
+        type: "regulation:u-s/f-r-2052-a/data-tables#supplemental",
+      },
+    ],
+  },
+}

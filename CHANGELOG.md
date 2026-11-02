@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CRITICAL**: Removed contradictory Claude co-author example from AGENTS.md and strengthened CLA compliance warnings in both AGENTS.md and CLAUDE.md (issue #270)
 
 ### Added
+- `Morphir.Ion` library project: reads Ion 1.0 text and binary into immutable values, and reads the MEP `morphir_model` document with `ModelDocument.readPayload`, `readFile` and `decodeIr`. Reading keeps the exact bytes, annotations, numeric exactness and unknown data, and decodes the classic or v4 IR only on request
+- `IonIr.read` and `IonIrTree.read` read the draft Ion IR format `ionVersion` `0.1.0-draft.1` for IR 3.0.0, 3.1.0 and 4.0.0, from a single file or a document tree. `IonIrParser` plugs them into a pipeline
+- `Morphir.IR.V4`, an immutable IR v4 model, with the JSON reader `V4Json` and strict name parsing in `CanonicalNames`
+- `ClassicJson.readDistribution`, a public reader for complete classic IR JSON, including dependency specifications
 - `VFileTree` usage and morphir-elm migration guide in the `Morphir.IR.Pipeline` README (#376)
 - `VFileTree.fromFileMap` now infers nested directories from map keys (#376)
 - `VFileTree.loadFromDisk` loads a directory into a tree, returning `Result<VFileTree, TreeLoadError>` (#376)
@@ -47,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub issue #270** for F# script to automatically remove Claude co-author from commit history
 
 ### Changed
+- **BREAKING**: The classic `Distribution` has a `Specs` case for IR 3.1.0, and `Distribution.packageDefinition` returns an option because a `Specs` distribution has no definitions
+- The classic JSON decoder moved from `Morphir.CodeGeneration.FSharp` to `Morphir.Models`. F# generation keeps its acceptance rules and diagnostics
 - Ignore Reqnroll-generated `*.feature.cs` files per Reqnroll best practices
 - Configure `ReqnrollUseIntermediateOutputPathForCodeBehind` in test projects to generate code-behind files to obj/ directory
 - Refactored AGENTS.md skill invocation section - replaced verbose content (155 lines) with concise summary (29 lines) and link to detailed guide in skills-reference.md

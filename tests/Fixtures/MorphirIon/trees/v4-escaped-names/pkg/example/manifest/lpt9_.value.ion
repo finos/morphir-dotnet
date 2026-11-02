@@ -1,0 +1,4 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#int",
+  body: 1,
+}

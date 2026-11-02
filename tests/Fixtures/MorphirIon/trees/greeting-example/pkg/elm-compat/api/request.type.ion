@@ -1,0 +1,32 @@
+public::def::alias::type::{
+  typeExp: record::{
+    fields: [
+      {
+        name: "action",
+        type: "morphir/SDK:string#string",
+      },
+      {
+        name: "order-id",
+        type: reference::{
+          name: "morphir/SDK:maybe#maybe",
+          arguments: [
+            "morphir/SDK:string#string",
+          ],
+        },
+      },
+      {
+        name: "products",
+        type: reference::{
+          name: "morphir/SDK:list#list",
+          arguments: [
+            tuple::            [
+              "elm-compat:main#product",
+              "elm-compat:main#quantity",
+            ],
+          ],
+        },
+      },
+    ],
+  },
+  doc: " Represents an API request to create or modify an order.\n",
+}

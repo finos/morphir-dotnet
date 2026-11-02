@@ -1,0 +1,9 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: library,
+  packageName: "example",
+  modules: [
+    public::def::module::{ name: "main", values: [ public::def::value::{ name: "v", outputType: "morphir/SDK:document#document", body: (document [1, -1, 0, 0.10, 12., -12., 1d2, 15d1, 1.5d2, 5d-7, 15d-8, 0.000001, 0.0000001, 1234567., 123456., 0., -0.0, 0d3, 1.0d3, 1234.5678, 1., 1234.5678d3, 12345d-2, -1.5, -1234567., 1d-6, 10d-7, 100d-8, 0d-7, 0.00, null, true, false, "s", {a: 1, b: [2]}, number::"1.5e+2", number::"0.0000005", number::"123456789012345678901234567890123456789012345"]) } ] },
+  ],
+}

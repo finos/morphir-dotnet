@@ -1,0 +1,35 @@
+public::def::value::{
+  outputType: function::{
+    parameterType: "morphir/SDK:basics#int",
+    returnType: "morphir/SDK:basics#int",
+  },
+  body: (
+    lambda
+    {
+      inferredType: function::{
+        parameterType: "morphir/SDK:basics#int",
+        returnType: "morphir/SDK:basics#int",
+      },
+    }
+    (
+      as
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      (
+        wildcard
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+      )
+      n
+    )
+    (
+      variable
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      n
+    )
+  ),
+}

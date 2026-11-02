@@ -1,0 +1,6 @@
+public::def::native::value::{
+  outputType: "morphir/SDK:basics#int",
+  hint: platformSpecific::{
+    platform: "wasm",
+  },
+}

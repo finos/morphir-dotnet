@@ -1,0 +1,4 @@
+public::def::native::value::{
+  outputType: "morphir/SDK:basics#int",
+  hint: stringOp,
+}

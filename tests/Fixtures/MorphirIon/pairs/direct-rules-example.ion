@@ -1,0 +1,966 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "3.0.0",
+  kind: library,
+  packageName: "morphir/sample",
+}
+public::def::module::{
+  name: "rules/direct",
+}
+public::def::custom::type::{
+  module: "rules/direct",
+  name: "decision",
+  access: public,
+  constructors: [
+    {
+      name: "no",
+      args: [
+      ],
+    },
+    {
+      name: "yes",
+      args: [
+      ],
+    },
+  ],
+}
+public::def::custom::type::{
+  module: "rules/direct",
+  name: "document-type",
+  access: public,
+  constructors: [
+    {
+      name: "DRV",
+      args: [
+      ],
+    },
+    {
+      name: "french",
+      args: [
+      ],
+    },
+    {
+      name: "ISDA",
+      args: [
+      ],
+    },
+    {
+      name: "MSFTA",
+      args: [
+      ],
+    },
+  ],
+}
+public::def::alias::type::{
+  module: "rules/direct",
+  name: "facts",
+  typeExp: record::{
+    fields: [
+      {
+        name: "floored-at-zero",
+        type: reference::{
+          name: "morphir/SDK:maybe#maybe",
+          arguments: [
+            "morphir/SDK:basics#bool",
+          ],
+        },
+      },
+      {
+        name: "document-type",
+        type: "morphir/sample:rules/direct#document-type",
+      },
+      {
+        name: "negative-interest-protocol",
+        type: "morphir/sample:rules/direct#negative-interest-protocol",
+      },
+      {
+        name: "governing-law",
+        type: "morphir/sample:rules/direct#governing-law",
+      },
+    ],
+  },
+}
+public::def::custom::type::{
+  module: "rules/direct",
+  name: "governing-law",
+  access: public,
+  constructors: [
+    {
+      name: "england",
+      args: [
+      ],
+    },
+    {
+      name: "other",
+      args: [
+      ],
+    },
+  ],
+}
+public::def::custom::type::{
+  module: "rules/direct",
+  name: "match",
+  access: public,
+  constructors: [
+    {
+      name: "match",
+      args: [
+        {
+          name: "arg-1",
+          type: reference::{
+            name: "morphir/SDK:maybe#maybe",
+            arguments: [
+              "morphir/SDK:basics#bool",
+            ],
+          },
+        },
+        {
+          name: "arg-2",
+          type: "morphir/sample:rules/direct#document-type",
+        },
+        {
+          name: "arg-3",
+          type: "morphir/sample:rules/direct#negative-interest-protocol",
+        },
+        {
+          name: "arg-4",
+          type: "morphir/sample:rules/direct#governing-law",
+        },
+      ],
+    },
+  ],
+}
+public::def::custom::type::{
+  module: "rules/direct",
+  name: "negative-interest-protocol",
+  access: public,
+  constructors: [
+    {
+      name: "applicable",
+      args: [
+      ],
+    },
+    {
+      name: "not-applicable",
+      args: [
+      ],
+    },
+  ],
+}
+public::def::value::{
+  module: "rules/direct",
+  name: "decision-table",
+  outputType: "morphir/sample:rules/direct#decision",
+  body: (
+    match
+    {
+      inferredType: "morphir/sample:rules/direct#decision",
+    }
+    (
+      apply
+      {
+        inferredType: "morphir/sample:rules/direct#match",
+      }
+      (
+        apply
+        {
+          inferredType: function::{
+            parameterType: "morphir/sample:rules/direct#governing-law",
+            returnType: "morphir/sample:rules/direct#match",
+          },
+        }
+        (
+          apply
+          {
+            inferredType: function::{
+              parameterType: "morphir/sample:rules/direct#negative-interest-protocol",
+              returnType: function::{
+                parameterType: "morphir/sample:rules/direct#governing-law",
+                returnType: "morphir/sample:rules/direct#match",
+              },
+            },
+          }
+          (
+            apply
+            {
+              inferredType: function::{
+                parameterType: "morphir/sample:rules/direct#document-type",
+                returnType: function::{
+                  parameterType: "morphir/sample:rules/direct#negative-interest-protocol",
+                  returnType: function::{
+                    parameterType: "morphir/sample:rules/direct#governing-law",
+                    returnType: "morphir/sample:rules/direct#match",
+                  },
+                },
+              },
+            }
+            (
+              constructor
+              {
+                inferredType: function::{
+                  parameterType: reference::{
+                    name: "morphir/SDK:maybe#maybe",
+                    arguments: [
+                      "morphir/SDK:basics#bool",
+                    ],
+                  },
+                  returnType: function::{
+                    parameterType: "morphir/sample:rules/direct#document-type",
+                    returnType: function::{
+                      parameterType: "morphir/sample:rules/direct#negative-interest-protocol",
+                      returnType: function::{
+                        parameterType: "morphir/sample:rules/direct#governing-law",
+                        returnType: "morphir/sample:rules/direct#match",
+                      },
+                    },
+                  },
+                },
+              }
+              'morphir/sample:rules/direct#match'
+            )
+            (
+              field
+              {
+                inferredType: reference::{
+                  name: "morphir/SDK:maybe#maybe",
+                  arguments: [
+                    "morphir/SDK:basics#bool",
+                  ],
+                },
+              }
+              (
+                variable
+                {
+                  inferredType: "morphir/sample:rules/direct#facts",
+                }
+                f
+              )
+              'floored-at-zero'
+            )
+          )
+          (
+            field
+            {
+              inferredType: "morphir/sample:rules/direct#document-type",
+            }
+            (
+              variable
+              {
+                inferredType: "morphir/sample:rules/direct#facts",
+              }
+              f
+            )
+            'document-type'
+          )
+        )
+        (
+          field
+          {
+            inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+          }
+          (
+            variable
+            {
+              inferredType: "morphir/sample:rules/direct#facts",
+            }
+            f
+          )
+          'negative-interest-protocol'
+        )
+      )
+      (
+        field
+        {
+          inferredType: "morphir/sample:rules/direct#governing-law",
+        }
+        (
+          variable
+          {
+            inferredType: "morphir/sample:rules/direct#facts",
+          }
+          f
+        )
+        'governing-law'
+      )
+    )
+    [
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#match",
+        }
+        'morphir/sample:rules/direct#match'
+        (
+          constructor
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:maybe#maybe",
+              arguments: [
+                "morphir/SDK:basics#bool",
+              ],
+            },
+          }
+          'morphir/SDK:maybe#just'
+          (
+            bool
+            {
+              inferredType: "morphir/SDK:basics#bool",
+            }
+            true
+          )
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#document-type",
+          }
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+          }
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#governing-law",
+          }
+        )
+      ),
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#decision",
+        }
+        'morphir/sample:rules/direct#yes'
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#match",
+        }
+        'morphir/sample:rules/direct#match'
+        (
+          constructor
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:maybe#maybe",
+              arguments: [
+                "morphir/SDK:basics#bool",
+              ],
+            },
+          }
+          'morphir/SDK:maybe#just'
+          (
+            bool
+            {
+              inferredType: "morphir/SDK:basics#bool",
+            }
+            false
+          )
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#document-type",
+          }
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+          }
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#governing-law",
+          }
+        )
+      ),
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#decision",
+        }
+        'morphir/sample:rules/direct#no'
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#match",
+        }
+        'morphir/sample:rules/direct#match'
+        (
+          constructor
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:maybe#maybe",
+              arguments: [
+                "morphir/SDK:basics#bool",
+              ],
+            },
+          }
+          'morphir/SDK:maybe#nothing'
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/direct#document-type",
+          }
+          'morphir/sample:rules/direct#DRV'
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+          }
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#governing-law",
+          }
+        )
+      ),
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#decision",
+        }
+        'morphir/sample:rules/direct#yes'
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#match",
+        }
+        'morphir/sample:rules/direct#match'
+        (
+          constructor
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:maybe#maybe",
+              arguments: [
+                "morphir/SDK:basics#bool",
+              ],
+            },
+          }
+          'morphir/SDK:maybe#nothing'
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/direct#document-type",
+          }
+          'morphir/sample:rules/direct#french'
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+          }
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#governing-law",
+          }
+        )
+      ),
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#decision",
+        }
+        'morphir/sample:rules/direct#no'
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#match",
+        }
+        'morphir/sample:rules/direct#match'
+        (
+          constructor
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:maybe#maybe",
+              arguments: [
+                "morphir/SDK:basics#bool",
+              ],
+            },
+          }
+          'morphir/SDK:maybe#nothing'
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/direct#document-type",
+          }
+          'morphir/sample:rules/direct#MSFTA'
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+          }
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#governing-law",
+          }
+        )
+      ),
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#decision",
+        }
+        'morphir/sample:rules/direct#no'
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#match",
+        }
+        'morphir/sample:rules/direct#match'
+        (
+          constructor
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:maybe#maybe",
+              arguments: [
+                "morphir/SDK:basics#bool",
+              ],
+            },
+          }
+          'morphir/SDK:maybe#nothing'
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/direct#document-type",
+          }
+          'morphir/sample:rules/direct#ISDA'
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+          }
+          'morphir/sample:rules/direct#applicable'
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#governing-law",
+          }
+        )
+      ),
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#decision",
+        }
+        'morphir/sample:rules/direct#no'
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#match",
+        }
+        'morphir/sample:rules/direct#match'
+        (
+          constructor
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:maybe#maybe",
+              arguments: [
+                "morphir/SDK:basics#bool",
+              ],
+            },
+          }
+          'morphir/SDK:maybe#nothing'
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/direct#document-type",
+          }
+          'morphir/sample:rules/direct#ISDA'
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+          }
+          'morphir/sample:rules/direct#not-applicable'
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/direct#governing-law",
+          }
+          'morphir/sample:rules/direct#england'
+        )
+      ),
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#decision",
+        }
+        'morphir/sample:rules/direct#yes'
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#match",
+        }
+        'morphir/sample:rules/direct#match'
+        (
+          constructor
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:maybe#maybe",
+              arguments: [
+                "morphir/SDK:basics#bool",
+              ],
+            },
+          }
+          'morphir/SDK:maybe#nothing'
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/direct#document-type",
+          }
+          'morphir/sample:rules/direct#ISDA'
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+          }
+          'morphir/sample:rules/direct#not-applicable'
+        )
+        (
+          wildcard
+          {
+            inferredType: "morphir/sample:rules/direct#governing-law",
+          }
+        )
+      ),
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#decision",
+        }
+        'morphir/sample:rules/direct#no'
+      ),
+    ]
+  ),
+  inputTypes: [
+    {
+      name: "f",
+      type: "morphir/sample:rules/direct#facts",
+    },
+  ],
+}
+public::def::value::{
+  module: "rules/direct",
+  name: "decision-tree",
+  outputType: "morphir/sample:rules/direct#decision",
+  body: (
+    match
+    {
+      inferredType: "morphir/sample:rules/direct#decision",
+    }
+    (
+      field
+      {
+        inferredType: reference::{
+          name: "morphir/SDK:maybe#maybe",
+          arguments: [
+            "morphir/SDK:basics#bool",
+          ],
+        },
+      }
+      (
+        variable
+        {
+          inferredType: "morphir/sample:rules/direct#facts",
+        }
+        f
+      )
+      'floored-at-zero'
+    )
+    [
+      (
+        constructor
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:maybe#maybe",
+            arguments: [
+              "morphir/SDK:basics#bool",
+            ],
+          },
+        }
+        'morphir/SDK:maybe#just'
+        (
+          bool
+          {
+            inferredType: "morphir/SDK:basics#bool",
+          }
+          true
+        )
+      ),
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#decision",
+        }
+        'morphir/sample:rules/direct#yes'
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:maybe#maybe",
+            arguments: [
+              "morphir/SDK:basics#bool",
+            ],
+          },
+        }
+        'morphir/SDK:maybe#just'
+        (
+          bool
+          {
+            inferredType: "morphir/SDK:basics#bool",
+          }
+          false
+        )
+      ),
+      (
+        constructor
+        {
+          inferredType: "morphir/sample:rules/direct#decision",
+        }
+        'morphir/sample:rules/direct#no'
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:maybe#maybe",
+            arguments: [
+              "morphir/SDK:basics#bool",
+            ],
+          },
+        }
+        'morphir/SDK:maybe#nothing'
+      ),
+      (
+        match
+        {
+          inferredType: "morphir/sample:rules/direct#decision",
+        }
+        (
+          field
+          {
+            inferredType: "morphir/sample:rules/direct#document-type",
+          }
+          (
+            variable
+            {
+              inferredType: "morphir/sample:rules/direct#facts",
+            }
+            f
+          )
+          'document-type'
+        )
+        [
+          (
+            constructor
+            {
+              inferredType: "morphir/sample:rules/direct#document-type",
+            }
+            'morphir/sample:rules/direct#DRV'
+          ),
+          (
+            constructor
+            {
+              inferredType: "morphir/sample:rules/direct#decision",
+            }
+            'morphir/sample:rules/direct#yes'
+          ),
+        ]
+        [
+          (
+            constructor
+            {
+              inferredType: "morphir/sample:rules/direct#document-type",
+            }
+            'morphir/sample:rules/direct#french'
+          ),
+          (
+            constructor
+            {
+              inferredType: "morphir/sample:rules/direct#decision",
+            }
+            'morphir/sample:rules/direct#no'
+          ),
+        ]
+        [
+          (
+            constructor
+            {
+              inferredType: "morphir/sample:rules/direct#document-type",
+            }
+            'morphir/sample:rules/direct#MSFTA'
+          ),
+          (
+            constructor
+            {
+              inferredType: "morphir/sample:rules/direct#decision",
+            }
+            'morphir/sample:rules/direct#no'
+          ),
+        ]
+        [
+          (
+            constructor
+            {
+              inferredType: "morphir/sample:rules/direct#document-type",
+            }
+            'morphir/sample:rules/direct#ISDA'
+          ),
+          (
+            match
+            {
+              inferredType: "morphir/sample:rules/direct#decision",
+            }
+            (
+              field
+              {
+                inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+              }
+              (
+                variable
+                {
+                  inferredType: "morphir/sample:rules/direct#facts",
+                }
+                f
+              )
+              'negative-interest-protocol'
+            )
+            [
+              (
+                constructor
+                {
+                  inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+                }
+                'morphir/sample:rules/direct#applicable'
+              ),
+              (
+                constructor
+                {
+                  inferredType: "morphir/sample:rules/direct#decision",
+                }
+                'morphir/sample:rules/direct#no'
+              ),
+            ]
+            [
+              (
+                constructor
+                {
+                  inferredType: "morphir/sample:rules/direct#negative-interest-protocol",
+                }
+                'morphir/sample:rules/direct#not-applicable'
+              ),
+              (
+                match
+                {
+                  inferredType: "morphir/sample:rules/direct#decision",
+                }
+                (
+                  field
+                  {
+                    inferredType: "morphir/sample:rules/direct#governing-law",
+                  }
+                  (
+                    variable
+                    {
+                      inferredType: "morphir/sample:rules/direct#facts",
+                    }
+                    f
+                  )
+                  'governing-law'
+                )
+                [
+                  (
+                    constructor
+                    {
+                      inferredType: "morphir/sample:rules/direct#governing-law",
+                    }
+                    'morphir/sample:rules/direct#england'
+                  ),
+                  (
+                    constructor
+                    {
+                      inferredType: "morphir/sample:rules/direct#decision",
+                    }
+                    'morphir/sample:rules/direct#yes'
+                  ),
+                ]
+                [
+                  (
+                    wildcard
+                    {
+                      inferredType: "morphir/sample:rules/direct#governing-law",
+                    }
+                  ),
+                  (
+                    constructor
+                    {
+                      inferredType: "morphir/sample:rules/direct#decision",
+                    }
+                    'morphir/sample:rules/direct#no'
+                  ),
+                ]
+              ),
+            ]
+          ),
+        ]
+      ),
+    ]
+  ),
+  inputTypes: [
+    {
+      name: "f",
+      type: "morphir/sample:rules/direct#facts",
+    },
+  ],
+}
+morphir_footer::{
+}

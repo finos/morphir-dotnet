@@ -1,0 +1,14 @@
+public::def::alias::type::{
+  typeExp: record::{
+    fields: [
+      {
+        name: "x",
+        type: "morphir/SDK:basics#int",
+      },
+      {
+        name: "value-in-USD",
+        type: "morphir/SDK:basics#float",
+      },
+    ],
+  },
+}

@@ -1,0 +1,10 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: library,
+  packageName: "regulation",
+  pathBudget: 4000,
+}
+package::spec::{
+  name: "morphir/SDK",
+}

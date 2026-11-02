@@ -1,0 +1,13 @@
+public::spec::alias::type::{
+  typeParams: [
+    "k",
+    "v",
+  ],
+  typeExp: reference::{
+    name: "morphir/SDK:dict#dict",
+    arguments: [
+      "k",
+      "v",
+    ],
+  },
+}

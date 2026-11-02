@@ -1,0 +1,97 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "3.1.0",
+  kind: specs,
+  packageName: "my/pkg",
+}
+package::spec::{
+  name: "my/dep",
+  modules: [
+    module::spec::    {
+      name: "util",
+      doc: "Utilities.",
+      types: [
+        public::spec::opaque::type::        {
+          name: "id",
+          doc: "An identifier.",
+        },
+        public::spec::alias::type::        {
+          name: "handle",
+          typeExp: "a",
+          typeParams: [
+            "a",
+          ],
+        },
+        public::spec::custom::type::        {
+          name: "choice",
+          constructors: [
+            {
+              name: "yes",
+              args: [
+              ],
+            },
+            {
+              name: "no",
+              args: [
+                {
+                  name: "why",
+                  type: "morphir/SDK:string#string",
+                },
+              ],
+            },
+          ],
+        },
+        public::spec::derived::type::        {
+          name: "money",
+          baseType: "morphir/SDK:decimal#decimal",
+          fromBaseType: "my/dep:util#from-decimal",
+          toBaseType: "my/dep:util#to-decimal",
+        },
+      ],
+      values: [
+        public::spec::value::        {
+          name: "parse",
+          inputs: [
+            {
+              name: "text",
+              type: "morphir/SDK:string#string",
+            },
+          ],
+          output: "my/dep:util#id",
+        },
+        public::spec::value::        {
+          name: "now",
+          output: "morphir/SDK:basics#int",
+          doc: "Now.",
+        },
+      ],
+    },
+  ],
+}
+module::spec::{
+  name: "basics",
+  doc: "Basics.",
+  types: [
+    public::spec::opaque::type::    {
+      name: "int",
+    },
+  ],
+  values: [
+    public::spec::value::    {
+      name: "identity",
+      inputs: [
+        {
+          name: "a",
+          type: "a",
+        },
+      ],
+      output: "a",
+      doc: "Same.",
+    },
+  ],
+}
+module::spec::{
+  name: "empty",
+}
+morphir_footer::{
+}

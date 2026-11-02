@@ -180,6 +180,7 @@ partial class Build
         var myriadExitCodes = new[]
         {
             "Morphir.CodeGeneration.FSharp.Tests",
+            "Morphir.Ion.Tests",
             "Morphir.Myriad.Tests",
             "Morphir.Myriad.Integration.Tests",
         }.Select(project =>

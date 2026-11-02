@@ -1,0 +1,8 @@
+public::def::incomplete::value::{
+  incompleteness: hole::{
+    reason: typeMismatch::{
+      expected: "morphir/SDK:basics#int",
+      found: "morphir/SDK:string#string",
+    },
+  },
+}

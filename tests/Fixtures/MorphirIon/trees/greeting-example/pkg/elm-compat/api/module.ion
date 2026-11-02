@@ -1,0 +1,3 @@
+public::def::module::{
+  doc: " API module demonstrating request/response patterns.\n\nThis module provides types and functions for a simple API layer,\ndemonstrating how Morphir handles common API patterns.\n",
+}

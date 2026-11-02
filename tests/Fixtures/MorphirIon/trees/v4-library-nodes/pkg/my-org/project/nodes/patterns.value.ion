@@ -1,0 +1,185 @@
+public::def::value::{
+  inputTypes: {
+    v: "morphir/SDK:basics#int",
+  },
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    match
+    {
+      source: {
+        startLine: 1,
+        startColumn: 2,
+        endLine: 3,
+        endColumn: 4,
+      },
+    }
+    v
+    [
+      (
+        wildcard
+        {
+          source: {
+            startLine: 1,
+            startColumn: 2,
+            endLine: 3,
+            endColumn: 4,
+          },
+        }
+      ),
+      1,
+    ]
+    [
+      (
+        as
+        {
+          source: {
+            startLine: 1,
+            startColumn: 2,
+            endLine: 3,
+            endColumn: 4,
+          },
+        }
+        _
+        a
+      ),
+      2,
+    ]
+    [
+      (
+        tuple
+        {
+          source: {
+            startLine: 1,
+            startColumn: 2,
+            endLine: 3,
+            endColumn: 4,
+          },
+        }
+        _
+        b
+      ),
+      3,
+    ]
+    [
+      (
+        constructor
+        {
+          source: {
+            startLine: 1,
+            startColumn: 2,
+            endLine: 3,
+            endColumn: 4,
+          },
+        }
+        'morphir/SDK:maybe#just'
+        _
+      ),
+      4,
+    ]
+    [
+      (
+        emptyList
+        {
+          source: {
+            startLine: 1,
+            startColumn: 2,
+            endLine: 3,
+            endColumn: 4,
+          },
+        }
+      ),
+      5,
+    ]
+    [
+      (
+        headTail
+        {
+          source: {
+            startLine: 1,
+            startColumn: 2,
+            endLine: 3,
+            endColumn: 4,
+          },
+        }
+        h
+        _
+      ),
+      6,
+    ]
+    [
+      (
+        int
+        {
+          source: {
+            startLine: 1,
+            startColumn: 2,
+            endLine: 3,
+            endColumn: 4,
+          },
+        }
+        7
+      ),
+      7,
+    ]
+    [
+      (
+        unit
+        {
+          source: {
+            startLine: 1,
+            startColumn: 2,
+            endLine: 3,
+            endColumn: 4,
+          },
+        }
+      ),
+      8,
+    ]
+    [
+      false,
+      9,
+    ]
+    [
+      (
+        string
+        "s"
+      ),
+      10,
+    ]
+    [
+      (
+        char
+        "c"
+      ),
+      11,
+    ]
+    [
+      (
+        float
+        "1.5"
+      ),
+      12,
+    ]
+    [
+      (
+        decimal
+        "0.10"
+      ),
+      13,
+    ]
+    [
+      [
+      ],
+      14,
+    ]
+    [
+      (
+      ),
+      15,
+    ]
+    [
+      _,
+      16,
+    ]
+  ),
+}

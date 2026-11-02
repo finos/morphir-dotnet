@@ -1,0 +1,27 @@
+public::def::alias::type::{
+  typeExp: record::{
+    fields: [
+      {
+        name: "order-id",
+        type: "morphir/SDK:string#string",
+      },
+      {
+        name: "products",
+        type: reference::{
+          name: "morphir/SDK:list#list",
+          arguments: [
+            tuple::            [
+              "elm-compat:main#product",
+              "elm-compat:main#quantity",
+            ],
+          ],
+        },
+      },
+      {
+        name: "status",
+        type: "elm-compat:main#order-status",
+      },
+    ],
+  },
+  doc: " A customer order containing products and quantities.\n",
+}

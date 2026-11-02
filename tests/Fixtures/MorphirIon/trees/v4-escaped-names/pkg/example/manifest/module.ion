@@ -1,0 +1,3 @@
+public::def::module::{
+  doc: "A module named manifest.",
+}

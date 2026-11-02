@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.Ion.Tests</RootNamespace>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="altcover" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Morphir.Ion\Morphir.Ion.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="..\Fixtures\MorphirIon\**\*" LogicalName="Morphir.Ion.Fixtures.%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Fixtures.fs" />
+        <Compile Include="IonReaderTests.fs" />
+        <Compile Include="ModelDocumentTests.fs" />
+        <Compile Include="ClassicComparison.fs" />
+        <Compile Include="IonIrTests.fs" />
+        <Compile Include="IonIrPairTests.fs" />
+        <Compile Include="IonIrKitTests.fs" />
+        <Compile Include="IonIrReadmeTests.fs" />
+        <Compile Include="TreeStemTests.fs" />
+        <Compile Include="IonIrTreeTests.fs" />
+        <Compile Include="IonIrTreeReferenceTests.fs" />
+        <Compile Include="IonIrParserTests.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+</Project>

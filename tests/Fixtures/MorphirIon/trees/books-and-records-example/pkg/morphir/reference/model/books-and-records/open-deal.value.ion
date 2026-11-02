@@ -1,0 +1,13 @@
+public::def::incomplete::value::{
+  inputTypes: {
+    product: "morphir/reference/model:books-and-records#product-ID",
+    price: "morphir/reference/model:books-and-records#price",
+    quantity: "morphir/reference/model:books-and-records#quantity",
+    book: "morphir/reference/model:books-and-records#book",
+  },
+  outputType: tuple::[
+    "morphir/reference/model:books-and-records#book",
+    "morphir/reference/model:books-and-records#deal-event",
+  ],
+  incompleteness: draft,
+}

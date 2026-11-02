@@ -1,0 +1,4 @@
+public::def::incomplete::type::{
+  incompleteness: draft,
+  partialTypeExp: "morphir/SDK:basics#int",
+}

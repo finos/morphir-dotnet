@@ -1,0 +1,143 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#float",
+  body: (
+    let
+    {
+      inferredType: "morphir/SDK:basics#float",
+    }
+    discount
+    {
+      outputType: "t-8",
+      body: (
+        apply
+        {
+          inferredType: "morphir/SDK:basics#float",
+        }
+        (
+          apply
+          {
+            inferredType: function::{
+              parameterType: "morphir/SDK:basics#float",
+              returnType: "morphir/SDK:basics#float",
+            },
+          }
+          (
+            ref
+            {
+              inferredType: function::{
+                parameterType: "morphir/SDK:basics#float",
+                returnType: function::{
+                  parameterType: "morphir/SDK:basics#float",
+                  returnType: "morphir/SDK:basics#float",
+                },
+              },
+            }
+            'morphir/SDK:basics#multiply'
+          )
+          (
+            variable
+            {
+              inferredType: "morphir/SDK:basics#float",
+            }
+            'original-price'
+          )
+        )
+        (
+          apply
+          {
+            inferredType: "morphir/SDK:basics#float",
+          }
+          (
+            apply
+            {
+              inferredType: function::{
+                parameterType: "morphir/SDK:basics#float",
+                returnType: "morphir/SDK:basics#float",
+              },
+            }
+            (
+              ref
+              {
+                inferredType: function::{
+                  parameterType: "morphir/SDK:basics#float",
+                  returnType: function::{
+                    parameterType: "morphir/SDK:basics#float",
+                    returnType: "morphir/SDK:basics#float",
+                  },
+                },
+              }
+              'morphir/SDK:basics#divide'
+            )
+            (
+              variable
+              {
+                inferredType: "morphir/SDK:basics#float",
+              }
+              'discount-percent'
+            )
+          )
+          (
+            float
+            {
+              inferredType: "morphir/SDK:basics#float",
+            }
+            1e2
+          )
+        )
+      ),
+    }
+    (
+      apply
+      {
+        inferredType: "morphir/SDK:basics#float",
+      }
+      (
+        apply
+        {
+          inferredType: function::{
+            parameterType: "morphir/SDK:basics#float",
+            returnType: "morphir/SDK:basics#float",
+          },
+        }
+        (
+          ref
+          {
+            inferredType: function::{
+              parameterType: "morphir/SDK:basics#float",
+              returnType: function::{
+                parameterType: "morphir/SDK:basics#float",
+                returnType: "morphir/SDK:basics#float",
+              },
+            },
+          }
+          'morphir/SDK:basics#subtract'
+        )
+        (
+          variable
+          {
+            inferredType: "morphir/SDK:basics#float",
+          }
+          'original-price'
+        )
+      )
+      (
+        variable
+        {
+          inferredType: "morphir/SDK:basics#float",
+        }
+        discount
+      )
+    )
+  ),
+  inputTypes: [
+    {
+      name: "discount-percent",
+      type: "morphir/SDK:basics#float",
+    },
+    {
+      name: "original-price",
+      type: "morphir/SDK:basics#float",
+    },
+  ],
+  doc: " Apply a percentage discount to a price.\n\n    applyDiscount 10 100.0 == 90.0\n\n",
+}

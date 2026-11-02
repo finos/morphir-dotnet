@@ -1,0 +1,66 @@
+public::def::value::{
+  outputType: "elm-compat:main#customer-order",
+  body: (
+    record
+    {
+      inferredType: "elm-compat:main#customer-order",
+    }
+    (
+      'order-id'
+      (
+        variable
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+        'order-id'
+      )
+    )
+    (
+      products
+      (
+        variable
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              tuple::              [
+                "elm-compat:main#product",
+                "elm-compat:main#quantity",
+              ],
+            ],
+          },
+        }
+        products
+      )
+    )
+    (
+      status
+      (
+        constructor
+        {
+          inferredType: "elm-compat:main#order-status",
+        }
+        'elm-compat:main#pending'
+      )
+    )
+  ),
+  inputTypes: [
+    {
+      name: "order-id",
+      type: "morphir/SDK:string#string",
+    },
+    {
+      name: "products",
+      type: reference::{
+        name: "morphir/SDK:list#list",
+        arguments: [
+          tuple::          [
+            "elm-compat:main#product",
+            "elm-compat:main#quantity",
+          ],
+        ],
+      },
+    },
+  ],
+  doc: " Create a new order from a list of products.\n",
+}

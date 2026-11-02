@@ -1,0 +1,852 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "3.0.0",
+  kind: library,
+  packageName: "my/pkg",
+}
+package::spec::{
+  name: "my/dep",
+  modules: [
+    module::spec::    {
+      name: "util",
+      doc: "Utilities.",
+      types: [
+        public::spec::opaque::type::        {
+          name: "id",
+          doc: "An identifier.",
+        },
+        public::spec::alias::type::        {
+          name: "handle",
+          typeExp: "a",
+          typeParams: [
+            "a",
+          ],
+        },
+        public::spec::custom::type::        {
+          name: "choice",
+          constructors: [
+            {
+              name: "yes",
+              args: [
+              ],
+            },
+            {
+              name: "no",
+              args: [
+                {
+                  name: "why",
+                  type: "morphir/SDK:string#string",
+                },
+              ],
+            },
+          ],
+        },
+        public::spec::derived::type::        {
+          name: "money",
+          baseType: "morphir/SDK:decimal#decimal",
+          fromBaseType: "my/dep:util#from-decimal",
+          toBaseType: "my/dep:util#to-decimal",
+        },
+      ],
+      values: [
+        public::spec::value::        {
+          name: "parse",
+          inputs: [
+            {
+              name: "text",
+              type: "morphir/SDK:string#string",
+            },
+          ],
+          output: "my/dep:util#id",
+        },
+        public::spec::value::        {
+          name: "now",
+          output: "morphir/SDK:basics#int",
+          doc: "Now.",
+        },
+      ],
+    },
+  ],
+}
+public::def::module::{
+  name: "domain",
+  doc: "The domain.",
+}
+public::def::custom::type::{
+  module: "domain",
+  name: "box",
+  access: private,
+  constructors: [
+    {
+      name: "empty",
+      args: [
+      ],
+    },
+    {
+      name: "full",
+      args: [
+        {
+          name: "item",
+          type: "a",
+        },
+        {
+          name: "item-2",
+          type: "a",
+        },
+      ],
+    },
+  ],
+  typeParams: [
+    "a",
+  ],
+  doc: "A box.",
+}
+private::def::alias::type::{
+  module: "domain",
+  name: "pair",
+  typeExp: tuple::[
+    "a",
+    "b",
+  ],
+  typeParams: [
+    "a",
+    "b",
+  ],
+}
+public::def::alias::type::{
+  module: "domain",
+  name: "shape",
+  typeExp: record::{
+    fields: [
+      {
+        name: "x",
+        type: "morphir/SDK:basics#int",
+      },
+      {
+        name: "value-in-USD",
+        type: "morphir/SDK:basics#float",
+      },
+    ],
+  },
+}
+public::def::alias::type::{
+  module: "domain",
+  name: "open-record",
+  typeExp: extensibleRecord::{
+    variable: "r",
+    fields: [
+      {
+        name: "x",
+        type: "morphir/SDK:basics#int",
+      },
+    ],
+  },
+  typeParams: [
+    "r",
+  ],
+}
+public::def::alias::type::{
+  module: "domain",
+  name: "handler",
+  typeExp: function::{
+    parameterType: "morphir/SDK:basics#int",
+    returnType: unit::{
+    },
+  },
+}
+public::def::value::{
+  module: "domain",
+  name: "literals",
+  outputType: tuple::[
+    "morphir/SDK:basics#bool",
+    "morphir/SDK:char#char",
+    "morphir/SDK:string#string",
+    "morphir/SDK:basics#int",
+    "morphir/SDK:basics#float",
+    "morphir/SDK:decimal#decimal",
+  ],
+  body: (
+    tuple
+    {
+      inferredType: tuple::[
+        "morphir/SDK:basics#bool",
+        "morphir/SDK:char#char",
+        "morphir/SDK:string#string",
+        "morphir/SDK:basics#int",
+        "morphir/SDK:basics#float",
+        "morphir/SDK:decimal#decimal",
+      ],
+    }
+    (
+      bool
+      {
+        inferredType: "morphir/SDK:basics#bool",
+      }
+      true
+    )
+    (
+      char
+      {
+        inferredType: "morphir/SDK:char#char",
+      }
+      "c"
+    )
+    (
+      string
+      {
+        inferredType: "morphir/SDK:string#string",
+      }
+      "text"
+    )
+    (
+      int
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      -42
+    )
+    (
+      float
+      {
+        inferredType: "morphir/SDK:basics#float",
+      }
+      1.5e0
+    )
+    (
+      decimal
+      {
+        inferredType: "morphir/SDK:decimal#decimal",
+      }
+      "10.50"
+    )
+  ),
+  doc: "Every literal.",
+}
+public::def::value::{
+  module: "domain",
+  name: "references",
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    apply
+    {
+      inferredType: "morphir/SDK:basics#int",
+    }
+    (
+      apply
+      {
+        inferredType: function::{
+          parameterType: "morphir/SDK:basics#int",
+          returnType: "morphir/SDK:basics#int",
+        },
+      }
+      (
+        ref
+        {
+          inferredType: function::{
+            parameterType: "morphir/SDK:basics#int",
+            returnType: function::{
+              parameterType: "morphir/SDK:basics#int",
+              returnType: "morphir/SDK:basics#int",
+            },
+          },
+        }
+        'morphir/SDK:basics#add'
+      )
+      (
+        variable
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        p
+      )
+    )
+    (
+      int
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      1
+    )
+  ),
+  inputTypes: [
+    {
+      name: "p",
+      type: "morphir/SDK:basics#int",
+    },
+    {
+      name: "q",
+      type: "morphir/SDK:basics#float",
+    },
+  ],
+}
+private::def::value::{
+  module: "domain",
+  name: "control",
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    if
+    {
+      inferredType: "morphir/SDK:basics#int",
+    }
+    (
+      bool
+      {
+        inferredType: "morphir/SDK:basics#bool",
+      }
+      true
+    )
+    (
+      let
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      one
+      {
+        outputType: "morphir/SDK:basics#int",
+        body: (
+          int
+          {
+            inferredType: "morphir/SDK:basics#int",
+          }
+          1
+        ),
+      }
+      (
+        variable
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        one
+      )
+    )
+    (
+      letrec
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      [
+        (
+          f
+          {
+            outputType: "morphir/SDK:basics#int",
+            inputTypes: [
+              {
+                name: "n",
+                type: "morphir/SDK:basics#int",
+              },
+            ],
+            body: (
+              apply
+              {
+                inferredType: "morphir/SDK:basics#int",
+              }
+              (
+                variable
+                {
+                  inferredType: function::{
+                    parameterType: "morphir/SDK:basics#int",
+                    returnType: "morphir/SDK:basics#int",
+                  },
+                }
+                f
+              )
+              (
+                variable
+                {
+                  inferredType: "morphir/SDK:basics#int",
+                }
+                n
+              )
+            ),
+          }
+        ),
+        (
+          g
+          {
+            outputType: "morphir/SDK:basics#int",
+            body: (
+              int
+              {
+                inferredType: "morphir/SDK:basics#int",
+              }
+              2
+            ),
+          }
+        ),
+      ]
+      (
+        variable
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        g
+      )
+    )
+  ),
+}
+public::def::value::{
+  module: "domain",
+  name: "destructured",
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    destructure
+    {
+      inferredType: "morphir/SDK:basics#int",
+    }
+    (
+      tuple
+      {
+        inferredType: tuple::[
+          "morphir/SDK:basics#int",
+          "morphir/SDK:basics#int",
+        ],
+      }
+      (
+        as
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        (
+          wildcard
+          {
+            inferredType: "morphir/SDK:basics#int",
+          }
+        )
+        l
+      )
+      (
+        wildcard
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+      )
+    )
+    (
+      tuple
+      {
+        inferredType: tuple::[
+          "morphir/SDK:basics#int",
+          "morphir/SDK:basics#int",
+        ],
+      }
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        1
+      )
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        2
+      )
+    )
+    (
+      variable
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      l
+    )
+  ),
+}
+public::def::value::{
+  module: "domain",
+  name: "records",
+  outputType: record::{
+    fields: [
+      {
+        name: "x",
+        type: "morphir/SDK:basics#int",
+      },
+      {
+        name: "value-in-USD",
+        type: "morphir/SDK:basics#float",
+      },
+    ],
+  },
+  body: (
+    record
+    {
+      inferredType: record::{
+        fields: [
+          {
+            name: "x",
+            type: "morphir/SDK:basics#int",
+          },
+          {
+            name: "value-in-USD",
+            type: "morphir/SDK:basics#float",
+          },
+        ],
+      },
+    }
+    (
+      x
+      (
+        field
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        (
+          variable
+          {
+            inferredType: record::{
+              fields: [
+                {
+                  name: "x",
+                  type: "morphir/SDK:basics#int",
+                },
+                {
+                  name: "value-in-USD",
+                  type: "morphir/SDK:basics#float",
+                },
+              ],
+            },
+          }
+          r
+        )
+        x
+      )
+    )
+    (
+      'value-in-USD'
+      (
+        float
+        {
+          inferredType: "morphir/SDK:basics#float",
+        }
+        2.5e0
+      )
+    )
+  ),
+}
+public::def::value::{
+  module: "domain",
+  name: "accessors",
+  outputType: function::{
+    parameterType: record::{
+      fields: [
+        {
+          name: "x",
+          type: "morphir/SDK:basics#int",
+        },
+        {
+          name: "value-in-USD",
+          type: "morphir/SDK:basics#float",
+        },
+      ],
+    },
+    returnType: "morphir/SDK:basics#int",
+  },
+  body: (
+    fieldFunction
+    {
+      inferredType: function::{
+        parameterType: record::{
+          fields: [
+            {
+              name: "x",
+              type: "morphir/SDK:basics#int",
+            },
+            {
+              name: "value-in-USD",
+              type: "morphir/SDK:basics#float",
+            },
+          ],
+        },
+        returnType: "morphir/SDK:basics#int",
+      },
+    }
+    x
+  ),
+}
+public::def::value::{
+  module: "domain",
+  name: "unit-value",
+  outputType: unit::{
+  },
+  body: (
+    unit
+    {
+      inferredType: unit::{
+      },
+    }
+  ),
+}
+public::def::value::{
+  module: "domain",
+  name: "list-value",
+  outputType: reference::{
+    name: "morphir/SDK:list#list",
+    arguments: [
+      "morphir/SDK:basics#int",
+    ],
+  },
+  body: (
+    list
+    {
+      inferredType: reference::{
+        name: "morphir/SDK:list#list",
+        arguments: [
+          "morphir/SDK:basics#int",
+        ],
+      },
+    }
+    (
+      int
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      1
+    )
+    (
+      int
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      2
+    )
+  ),
+}
+public::def::value::{
+  module: "domain",
+  name: "lambda-value",
+  outputType: function::{
+    parameterType: "morphir/SDK:basics#int",
+    returnType: "morphir/SDK:basics#int",
+  },
+  body: (
+    lambda
+    {
+      inferredType: function::{
+        parameterType: "morphir/SDK:basics#int",
+        returnType: "morphir/SDK:basics#int",
+      },
+    }
+    (
+      as
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      (
+        wildcard
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+      )
+      n
+    )
+    (
+      variable
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      n
+    )
+  ),
+}
+public::def::value::{
+  module: "domain",
+  name: "maker",
+  outputType: function::{
+    parameterType: "a",
+    returnType: reference::{
+      name: "my/pkg:domain#box",
+      arguments: [
+        "a",
+      ],
+    },
+  },
+  body: (
+    constructor
+    {
+      inferredType: function::{
+        parameterType: "a",
+        returnType: reference::{
+          name: "my/pkg:domain#box",
+          arguments: [
+            "a",
+          ],
+        },
+      },
+    }
+    'my/pkg:domain#full'
+  ),
+}
+public::def::value::{
+  module: "domain",
+  name: "patterns",
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    match
+    {
+      inferredType: "morphir/SDK:basics#int",
+    }
+    (
+      variable
+      {
+        inferredType: reference::{
+          name: "morphir/SDK:list#list",
+          arguments: [
+            "morphir/SDK:basics#int",
+          ],
+        },
+      }
+      v
+    )
+    [
+      (
+        emptyList
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              "morphir/SDK:basics#int",
+            ],
+          },
+        }
+      ),
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        0
+      ),
+    ]
+    [
+      (
+        headTail
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              "morphir/SDK:basics#int",
+            ],
+          },
+        }
+        (
+          as
+          {
+            inferredType: "morphir/SDK:basics#int",
+          }
+          (
+            wildcard
+            {
+              inferredType: "morphir/SDK:basics#int",
+            }
+          )
+          h
+        )
+        (
+          wildcard
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:list#list",
+              arguments: [
+                "morphir/SDK:basics#int",
+              ],
+            },
+          }
+        )
+      ),
+      (
+        variable
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        h
+      ),
+    ]
+    [
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        3
+      ),
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        3
+      ),
+    ]
+    [
+      (
+        string
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+        "s"
+      ),
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        4
+      ),
+    ]
+    [
+      (
+        unit
+        {
+          inferredType: unit::{
+          },
+        }
+      ),
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        5
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        'my/pkg:domain#full'
+        (
+          wildcard
+          {
+            inferredType: "a",
+          }
+        )
+      ),
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        6
+      ),
+    ]
+  ),
+  inputTypes: [
+    {
+      name: "v",
+      type: reference::{
+        name: "morphir/SDK:list#list",
+        arguments: [
+          "morphir/SDK:basics#int",
+        ],
+      },
+    },
+  ],
+}
+private::def::module::{
+  name: "hidden",
+}
+morphir_footer::{
+}

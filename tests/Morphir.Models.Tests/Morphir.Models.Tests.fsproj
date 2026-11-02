@@ -28,6 +28,7 @@
         <Compile Include="IR/PackageNameTests.fs" />
         <Compile Include="IR/ModulePathTests.fs" />
         <Compile Include="IR/FQNameTests.fs" />
+        <Compile Include="IR/CanonicalNamesTests.fs" />
         <Compile Include="IR/Classic/AccessControlledTests.fs" />
         <Compile Include="IR/Classic/TypeTests.fs" />
         <Compile Include="IR/Classic/LiteralTests.fs" />
@@ -37,6 +38,7 @@
         <Compile Include="IR/Classic/ModuleTests.fs" />
         <Compile Include="IR/Classic/PackageTests.fs" />
         <Compile Include="IR/Classic/DistributionTests.fs" />
+        <Compile Include="IR/V4/ModelTests.fs" />
         <Compile Include="IR/DSL/NamesTests.fs" />
         <Compile Include="IR/DSL/TypesTests.fs" />
         <Compile Include="IR/DSL/ValuesTests.fs" />
@@ -47,6 +49,10 @@
         <Compile Include="IR/DSL/DistributionsTests.fs" />
         <Compile Include="IR/DSL/IntegrationTests.fs" />
         <Compile Include="Json/CodecTests.fs" />
+        <Compile Include="Json/ClassicJsonTests.fs" />
+        <Compile Include="Json/V4/KitCases.fs" />
+        <Compile Include="Json/V4/V4KitTests.fs" />
+        <Compile Include="Json/V4/V4JsonTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

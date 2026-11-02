@@ -1,0 +1,127 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: library,
+  packageName: "example",
+}
+package::spec::{
+  name: "morphir/SDK",
+  modules: [
+    module::spec::    {
+      name: "basics",
+      types: [
+        public::spec::opaque::type::        {
+          name: "int",
+        },
+      ],
+    },
+    module::spec::    {
+      name: "con",
+      types: [
+        public::spec::opaque::type::        {
+          name: "aux",
+        },
+        public::spec::opaque::type::        {
+          name: "value-in-USD",
+        },
+      ],
+    },
+  ],
+}
+package::spec::{
+  name: "acme/XML",
+  modules: [
+    module::spec::    {
+      name: "manifest",
+      types: [
+        public::spec::opaque::type::        {
+          name: "module",
+        },
+      ],
+    },
+  ],
+}
+public::def::module::{
+  name: "manifest",
+  doc: "A module named manifest.",
+  types: [
+    public::def::alias::type::    {
+      name: "manifest",
+      typeExp: "morphir/SDK:basics#int",
+    },
+    public::def::alias::type::    {
+      name: "module",
+      typeExp: "morphir/SDK:basics#int",
+    },
+    public::def::alias::type::    {
+      name: "con",
+      typeExp: "morphir/SDK:basics#int",
+    },
+    public::def::alias::type::    {
+      name: "aux",
+      typeExp: "morphir/SDK:basics#int",
+    },
+    public::def::alias::type::    {
+      name: "nul",
+      typeExp: "morphir/SDK:basics#int",
+    },
+    public::def::alias::type::    {
+      name: "com1",
+      typeExp: "morphir/SDK:basics#int",
+    },
+    public::def::alias::type::    {
+      name: "value-in-USD",
+      typeExp: "morphir/SDK:basics#int",
+    },
+    public::def::alias::type::    {
+      name: "user-ID",
+      typeExp: "morphir/SDK:basics#int",
+    },
+  ],
+  values: [
+    public::def::value::    {
+      name: "lpt9",
+      outputType: "morphir/SDK:basics#int",
+      body: 1,
+    },
+    public::def::value::    {
+      name: "manifest",
+      outputType: "morphir/SDK:basics#int",
+      body: 2,
+    },
+    public::def::value::    {
+      name: "rate-in-USD",
+      outputType: "morphir/SDK:basics#int",
+      body: 3,
+    },
+  ],
+}
+public::def::module::{
+  name: "manifest/module",
+  types: [
+    public::def::alias::type::    {
+      name: "item",
+      typeExp: "morphir/SDK:basics#int",
+    },
+  ],
+}
+public::def::module::{
+  name: "con",
+  types: [
+    public::def::alias::type::    {
+      name: "thing",
+      typeExp: "morphir/SDK:basics#int",
+    },
+  ],
+}
+public::def::module::{
+  name: "ID",
+  types: [
+    public::def::alias::type::    {
+      name: "key",
+      typeExp: "morphir/SDK:basics#int",
+    },
+  ],
+}
+morphir_footer::{
+}

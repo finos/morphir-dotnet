@@ -1,5 +1,8 @@
 module Morphir.IR.Classic.Tests.DistributionTests
 
+// These tests build distributions through Library-only builders, so each pattern has one possible case.
+#nowarn "25"
+
 open Expecto
 open Morphir.IR
 open Morphir.IR.Classic
@@ -75,10 +78,31 @@ let tests =
                 let modules = Map.empty |> Map.add modulePath (AccessControlled.public' moduleDef)
                 let packageDef = Package.packageDefinition modules
                 let distribution = Distribution.library packageName Map.empty packageDef
-                let retrievedDef = Distribution.packageDefinition distribution
+                let retrievedDef = Distribution.packageDefinition distribution |> Option.get
 
                 retrievedDef.Modules.Count |> Expect.equal 1
                 retrievedDef.Modules.ContainsKey(modulePath) |> Expect.isTrue
+
+            testCase "A Specs distribution has no package definition"
+            <| fun _ ->
+                let packageName = PackageName.packageNameFromList [ Name.fromList [ "my"; "package" ] ]
+                let specification = Package.packageSpecification Map.empty
+                let distribution: Distribution.Distribution<unit, unit> = Distribution.Specs(packageName, Map.empty, specification)
+
+                Distribution.packageDefinition distribution |> Option.isNone |> Expect.isTrue
+        ]
+
+        testList "Specs accessors" [
+            testCase "Gets the package name and dependencies"
+            <| fun _ ->
+                let packageName = PackageName.packageNameFromList [ Name.fromList [ "my"; "package" ] ]
+                let dependencyName = PackageName.packageNameFromList [ Name.fromList [ "other" ] ]
+                let specification: Package.PackageSpecification<unit> = Package.packageSpecification Map.empty
+                let dependencies = Map.empty |> Map.add dependencyName specification
+                let distribution: Distribution.Distribution<unit, unit> = Distribution.Specs(packageName, dependencies, specification)
+
+                Distribution.packageName distribution |> Expect.equal packageName
+                (Distribution.dependencies distribution).ContainsKey(dependencyName) |> Expect.isTrue
         ]
     ]
 

@@ -1,0 +1,6 @@
+public::spec::value::{
+  inputs: {
+    name: "morphir/SDK:string#string",
+  },
+  output: "morphir/SDK:string#string",
+}

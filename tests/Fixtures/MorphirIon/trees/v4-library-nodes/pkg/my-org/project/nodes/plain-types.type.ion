@@ -1,0 +1,45 @@
+private::def::alias::type::{
+  typeExp: tuple::[
+    "a",
+    "morphir/SDK:basics#int",
+    reference::    {
+      name: "morphir/SDK:list#list",
+      arguments: [
+        "morphir/SDK:basics#int",
+      ],
+    },
+    record::    {
+      fields: [
+        {
+          name: "name",
+          type: "morphir/SDK:string#string",
+        },
+        {
+          name: "value-in-USD",
+          type: "morphir/SDK:basics#float",
+        },
+      ],
+    },
+    extensibleRecord::    {
+      variable: "r",
+      fields: [
+        {
+          name: "email",
+          type: "morphir/SDK:string#string",
+        },
+      ],
+    },
+    function::    {
+      parameterType: "morphir/SDK:basics#int",
+      returnType: "morphir/SDK:string#string",
+    },
+    unit::    {
+    },
+    tuple::    [
+    ],
+    record::    {
+      fields: [
+      ],
+    },
+  ],
+}

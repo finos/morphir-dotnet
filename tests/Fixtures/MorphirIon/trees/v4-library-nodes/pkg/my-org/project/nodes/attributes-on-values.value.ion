@@ -1,0 +1,332 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    tuple
+    {
+      source: {
+        startLine: 5,
+        startColumn: 6,
+        endLine: 7,
+        endColumn: 8,
+      },
+      inferredType: "morphir/SDK:basics#int",
+      extensions: {
+        tool: {
+          n: 1,
+          ratio: 0.10,
+        },
+      },
+    }
+    (
+      variable
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      x
+    )
+    (
+      unit
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+    )
+    (
+      ref
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      'morphir/SDK:basics#add'
+    )
+    (
+      constructor
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      'morphir/SDK:maybe#just'
+    )
+    (
+      int
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      1
+    )
+    (
+      bool
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      true
+    )
+    (
+      string
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      "s"
+    )
+    (
+      char
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      "c"
+    )
+    (
+      float
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      "1.5"
+    )
+    (
+      decimal
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      "1.50"
+    )
+    (
+      document
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      {
+        a: 1,
+      }
+    )
+    (
+      list
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      1
+    )
+    (
+      record
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      (
+        a
+        1
+      )
+    )
+    (
+      apply
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      f
+      1
+    )
+    (
+      field
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      r
+      a
+    )
+    (
+      fieldFunction
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      a
+    )
+    (
+      lambda
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      n
+      n
+    )
+    (
+      if
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      true
+      1
+      2
+    )
+    (
+      let
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      y
+      {
+        inputTypes: {
+          p: "morphir/SDK:basics#int",
+        },
+        outputType: "morphir/SDK:basics#int",
+        body: p,
+      }
+      y
+    )
+    (
+      letrec
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      [
+        (
+          f
+          {
+            outputType: "morphir/SDK:basics#int",
+            body: f,
+          }
+        ),
+      ]
+      f
+    )
+    (
+      destructure
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      d
+      1
+      d
+    )
+    (
+      update
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      r
+      (
+        a
+        1
+      )
+    )
+    (
+      hole
+      {
+        source: {
+          startLine: 1,
+          startColumn: 2,
+          endLine: 3,
+          endColumn: 4,
+        },
+      }
+      unresolvedReference::      {
+        target: "my-org/project:module#deleted",
+      }
+    )
+  ),
+  doc: "Attributes force the long forms.",
+}

@@ -1,0 +1,32 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    tuple
+    (
+      hole
+      unresolvedReference::      {
+        target: "my-org/project:module#deleted",
+      }
+    )
+    (
+      hole
+      deletedDuringRefactor::      {
+        txId: "tx-1",
+      }
+      "morphir/SDK:string#string"
+    )
+    (
+      hole
+      typeMismatch::      {
+        expected: "morphir/SDK:basics#int",
+        found: "morphir/SDK:string#string",
+      }
+      reference::      {
+        name: "morphir/SDK:list#list",
+        arguments: [
+          "a",
+        ],
+      }
+    )
+  ),
+}

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-morphir-ion-reading: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+svg text { fill: currentColor; font: 13px system-ui, sans-serif; }
+svg rect { fill: var(--panel); stroke: var(--line); }
+svg path { stroke: var(--muted); fill: none; }
+svg polygon { fill: var(--muted); }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-morphir-ion-reading: design</h1>
+<p class="meta">OpenSpec change | 2026-11-01 | proposed</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#formats">The formats</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for motivation. These facts shape the approach:</p>
+<ul>
+<li><code>Morphir.Models</code> models classic IR only. Its <code>Distribution</code> has one case, <code>Library</code>. Literals are <code>int64</code>, <code>decimal</code> and <code>char</code>.</li>
+<li>The only complete classic JSON decoder is <code>Decode.fs</code> in <code>Morphir.CodeGeneration.FSharp</code>. It is internal, raises <code>GenerationFailure</code>, and checks the shape of dependencies without decoding them. The public codecs in <code>Morphir.Models/Json/Codecs</code> stop at types and literals.</li>
+<li><code>Morphir.IR.Pipeline</code> already has what a tree reader needs: <code>VFileTree</code>, lazy re-openable <code>VFileContent</code>, <code>ParseError</code> and <code>Parser&lt;'T&gt;</code>.</li>
+<li>The Ion IR format is a draft. <code>0.1.0-draft.1</code> matches only that exact string, and the spelling can change.</li>
+</ul>
+<p>I probed <code>Eleven19.IonDotnet</code> 0.1.0 from NuGet against the finos/morphir fixtures before writing this:</p>
+<table>
+<thead><tr><th>Checked</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td><code>rich-model.ionb</code>, <code>rich-model.ion</code>, <code>v4-rich-source.ion</code>, <code>value.ion</code></td><td>All read. Ordered annotations, <code>9007199254740993</code>, a 26-digit integer, <code>123.4500</code>, typed nulls and repeated fields survive.</td></tr>
+<tr><td>Draft spellings</td><td>Canonical datagrams, S-expressions with embedded lists and structs, and every symbol escape the draft lists all read. Malformed text and binary raise exceptions.</td></tr>
+<tr><td>Binary tree round trip</td><td>Rewriting the fixture through the tree API gave identical bytes, with the SHA-256 the corpus records.</td></tr>
+<tr><td>Trimming</td><td>A trimmed <code>win-x64</code> publish reported no IL warnings. Native AOT was not run.</td></tr>
+<tr><td>Depth</td><td>The reader stepped into 5000 nested lists with no limit, so bounds are ours to enforce.</td></tr>
+<tr><td>Invalid UTF-8 in binary</td><td><strong>Defect.</strong> <code>RawBinaryReader</code> calls <code>Encoding.UTF8.GetString</code>, which substitutes U+FFFD with no error.</td></tr>
+<tr><td>Timestamps</td><td>Usable. <code>ToString</code> pads <code>.004</code> to <code>.0040000</code>, but <code>TimestampPrecision</code> and <code>FractionalSecond</code> keep <code>.004</code>, <code>.000</code> and no fraction distinct, in text and binary. <code>IonValue</code> reads those fields and never parses <code>ToString</code>.</td></tr>
+<tr><td><code>BigDecimal</code></td><td><strong>Gap.</strong> <code>IntVal</code> and <code>Scale</code> are internal. <code>ToString</code> normalizes <code>1.5d2</code> to <code>15d1</code> and prints <code>0d-3</code> as <code>0.d-3</code>.</td></tr>
+<tr><td><code>IonDatagram.IsEquivalentTo</code></td><td><strong>Defect.</strong> False for two identical <code>{a:1}</code> datagrams. Element comparison works.</td></tr>
+</tbody>
+</table>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> one lossless Ion layer under every Morphir format, with no <code>Eleven19.IonDotnet</code> type in a public signature. Exact-draft behavior, tested against output from the reference CLI, not against our own reading of the draft.</p>
+<p><strong>Non-goals:</strong> the scope limits in the proposal, plus:</p>
+<ul>
+<li>A typed form of enrichments. They stay Ion values.</li>
+<li>The workbench <code>morphir_pipeline</code> profile and the linked-metadata draft. A linked-metadata file carries a different <code>ionVersion</code> and is refused.</li>
+<li>Migrating between v3 and v4.</li>
+<li>Classic literal widening. Out-of-range values are refused until a separate change widens them.</li>
+</ul>
+
+<h2 id="formats">The formats</h2>
+<p>Morphir has two Ion formats that look alike and are unrelated in structure. The MEP corpus says so: the <code>morphir_model</code> body is "not a redefinition of the separate Ion IR spelling". This is why they get separate decoders.</p>
+<table>
+<thead><tr><th></th><th>Ion IR format</th><th>MEP <code>morphir_model</code></th></tr></thead>
+<tbody>
+<tr><td>Contract</td><td><code>ionVersion</code> <code>0.1.0-draft.1</code></td><td>MEP <code>0.2.0-draft.1</code>, envelope <code>0.1.0-draft.1</code></td></tr>
+<tr><td>Encoding</td><td>Text from writers</td><td>Binary on the wire</td></tr>
+<tr><td>Top level</td><td><code>morphir::</code> header, elements, <code>morphir_footer::</code>, or a tree of files</td><td>One <code>morphir_model::</code> struct</td></tr>
+<tr><td>IR shape</td><td>Annotated elements and S-expressions</td><td>The JSON object structure, in Ion</td></tr>
+<tr><td>Extra data</td><td>None</td><td><code>enrichments</code>, <code>provenance</code>, kept intact</td></tr>
+<tr><td>Goes through</td><td>Ion spelling decoders</td><td>The JSON readers, after a JSON projection</td></tr>
+</tbody>
+</table>
+
+<svg viewBox="0 0 760 330" role="img" aria-label="Data flow: Ion bytes are read into IonValue. The IR format decoders produce classic or v4 IR directly. The MEP reader retains bytes and sends the ir member through a JSON projection to the JSON readers, which produce the same IR types.">
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><polygon points="0 0, 8 4, 0 8"/></marker></defs>
+<rect x="20" y="20" width="150" height="46" rx="5"/><text x="95" y="48" text-anchor="middle">.ion file or datagram</text>
+<rect x="20" y="82" width="150" height="46" rx="5"/><text x="95" y="110" text-anchor="middle">Ion tree (VFileTree)</text>
+<rect x="20" y="144" width="150" height="46" rx="5"/><text x="95" y="172" text-anchor="middle">ion-binary payload</text>
+<rect x="230" y="82" width="130" height="46" rx="5"/><text x="295" y="103" text-anchor="middle">Bounded reader</text><text x="295" y="120" text-anchor="middle">IonValue</text>
+<rect x="420" y="20" width="150" height="46" rx="5"/><text x="495" y="48" text-anchor="middle">IR format decoders</text>
+<rect x="420" y="144" width="150" height="46" rx="5"/><text x="495" y="172" text-anchor="middle">Model document</text>
+<rect x="420" y="214" width="150" height="46" rx="5"/><text x="495" y="242" text-anchor="middle">JSON projection</text>
+<rect x="420" y="274" width="150" height="46" rx="5"/><text x="495" y="302" text-anchor="middle">JSON readers</text>
+<rect x="620" y="82" width="125" height="46" rx="5"/><text x="682" y="103" text-anchor="middle">Classic or V4</text><text x="682" y="120" text-anchor="middle">distribution</text>
+<rect x="620" y="144" width="125" height="46" rx="5"/><text x="682" y="165" text-anchor="middle">Retained bytes,</text><text x="682" y="182" text-anchor="middle">enrichments</text>
+<path d="M170 43 L225 95" marker-end="url(#arrow)"/><path d="M170 105 L225 105" marker-end="url(#arrow)"/><path d="M170 167 L225 115" marker-end="url(#arrow)"/>
+<path d="M360 95 L415 43" marker-end="url(#arrow)"/><path d="M360 115 L415 167" marker-end="url(#arrow)"/>
+<path d="M570 43 L645 78" marker-end="url(#arrow)"/><path d="M570 167 L615 167" marker-end="url(#arrow)"/>
+<path d="M495 190 L495 209" marker-end="url(#arrow)"/><path d="M495 260 L495 269" marker-end="url(#arrow)"/>
+<path d="M570 297 L605 297 L682 297 L682 133" marker-end="url(#arrow)"/>
+</svg>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="ion-1">ION-1. A new <code>Morphir.Ion</code> project owns everything Ion</h3>
+<p><code>Morphir.Ion</code> references <code>Morphir.Models</code>, <code>Morphir.IR.Pipeline</code> and <code>Eleven19.IonDotnet</code>. <code>Morphir.Models</code> stays free of Ion, because many callers want the model without a parser. Adding Ion to <code>Morphir.Models</code> would be less to build, but would make every model consumer restore an Ion library.</p>
+
+<h3 id="ion-2">ION-2. Our own <code>IonValue</code>, built with the streaming reader</h3>
+<p>Read with <code>IIonReader</code> into an immutable F# union. Every case carries its annotations. Struct fields are an ordered list, so repeats survive.</p>
+<pre><code class="language-fsharp">type IonValue = { Annotations: string list; Value: IonData }
+and IonData =
+    | Null of IonType
+    | Bool of bool
+    | Int of BigInteger
+    | Float of double
+    | Decimal of IonDecimal      // coefficient, exponent, negative zero
+    | Timestamp of IonTimestamp  // keeps declared precision
+    | Symbol of string
+    | String of string
+    | Clob of byte[]
+    | Blob of byte[]
+    | List of IonValue list
+    | Sexp of IonValue list
+    | Struct of (string * IonValue) list</code></pre>
+<p>The library's mutable <code>IIonValue</code> tree was the alternative. It has no limits on the way in, its equivalence on datagrams is broken, and exposing it would tie our public API to a package we may have to change. Our type also gives structural equality for tests.</p>
+
+<h3 id="ion-3">ION-3. Limits are checked by our reader, with depth checked before each step</h3>
+<p><code>IonReadLimits</code> holds <code>MaxDecodedBytes</code>, <code>MaxDepth</code> and <code>MaxNodes</code>, using MEP's counting rules so one type serves both formats. Bytes are checked before the reader is built, which also bounds symbol tables, as MEP requires. The defaults for local files are 256 MiB, depth 512 and 50 million nodes. MEP callers pass negotiated limits. These defaults are starting figures. Our decoders recurse, so a test decodes a document at exactly the depth limit to prove 512 fits on a default .NET stack. Every library exception is caught at this one boundary and turned into <code>malformed_ion</code> with the exception's message, so nothing above this layer sees an exception. Fatal errors such as <code>OutOfMemoryException</code> are not caught.</p>
+
+<h3 id="ion-4">ION-4. Fix the package first, and consume it only from NuGet</h3>
+<p>Fix the defects in <code>Eleven19/ion-dotnet</code> and publish through its trusted-publishing workflow before this change's reader lands. Morphir pins that version in <code>Directory.Packages.props</code>. A project reference or local feed would break locked restore in CI and hide release problems.</p>
+<table>
+<thead><tr><th>Package change</th><th>Needed for</th><th>If the fix slips</th></tr></thead>
+<tbody>
+<tr><td>Throw on invalid UTF-8 in binary strings (0.1.2)</td><td>Required by <code>ion-document-reading</code></td><td>No workaround. Blocks merge.</td></tr>
+<tr><td>Public <code>BigDecimal</code> coefficient and scale</td><td>Exact decimals</td><td>Parse <code>ToString</code>, which is value-preserving</td></tr>
+<tr><td>Fix <code>IonDatagram.IsEquivalentTo</code></td><td>Nothing here</td><td>Report only. Morphir does not call it.</td></tr>
+<tr><td><code>PackageLicenseExpression</code>; correct <code>README</code> status (0.1.2)</td><td>FINOS dependency review</td><td>Blocks merge</td></tr>
+<tr><td>Refuse truncated binary and invalid UTF-8 in text (0.1.3)</td><td>Required by <code>ion-document-reading</code>. Found while building the reader: many cut documents read as success with partial data</td><td>No workaround. Blocks merge.</td></tr>
+<tr><td>Read <code>\U</code> escapes above U+FFFF correctly (0.1.4, <a href="https://github.com/Eleven19/ion-dotnet/pull/3">Eleven19/ion-dotnet#3</a>)</td><td>Correct text reading. <code>"\U0001F600"</code> read as U+F600 with no error</td><td>Awaiting release. Reference files use raw UTF-8, so no test here depends on it</td></tr>
+</tbody>
+</table>
+<p>The strict UTF-8 change alters the package's behavior for other users, which is correct under the Ion spec. It goes out as a minor version in the <code>0.y</code> line.</p>
+
+<h3 id="irf-1">IRF-1. Normalize layouts first, then decode one document shape</h3>
+<p>All layouts reduce to one internal <code>NormalizedDocument</code>: header, merged dependencies, and modules with members inline. A record expands to it. A datagram groups into it. A tree builds the datagram its files stand for and then does the same, as the draft describes, so version decoders never see a layout. Merge and duplicate rules live in that one step.</p>
+
+<h3 id="irf-2">IRF-2. Decode Ion directly into typed IR, with separate v3 and v4 decoders</h3>
+<p>The v3 and v4 decoders share annotation parsing and name handling, and nothing else. Their value spellings overlap, but the attribute rules, literals and node sets differ enough that one decoder would need a version check in most branches. Transcoding Ion to JSON and using the JSON reader was the alternative. It would save writing the decoders, but the JSON would need canonical v4 spellings the reader then has to undo, and errors could not name the Ion node. Reference pairs (<a href="#tst-1">TST-1</a>) hold the two paths together.</p>
+<p>Classic attributes decode to <code>JsonElement</code>, matching the attribute type the transpiler already uses. Classic generic parameters stay untouched.</p>
+
+<h3 id="irf-3">IRF-3. Accept collapsed records for v3 and v4, and binary Ion</h3>
+<p>A record holds the header members plus optional <code>dependencies</code> and <code>modules</code> lists, whose items are the elements a datagram writes at the top level. The draft requires readers to accept one but does not spell out those members. The knowledge base says the Rust v4 reader refuses records (<code>morphir-vvgi.8</code>), but that note is out of date: <code>morphir</code> v0.4.0-beta.12 read a v4 record with a dependency, a module, a type and a value, and produced JSON byte-identical to the equivalent datagram. The CLI's writer does not emit records, so these test vectors are hand-written, and each is checked by reading it with that CLI. We also accept binary Ion for this format, because binary and text share one data model and the reader handles both. Writers still emit text.</p>
+
+<h3 id="spec-1">SPEC-1. Spec issues are discussed, then corrected here and upstream</h3>
+<p>When implementation or testing finds an issue in the Morphir Ion spec, it stops at a discussion with the maintainer, with the evidence and a recommendation. Once agreed, the correction goes into both this repository (specs, code, fixtures) and finos/morphir. Neither side changes alone, so the .NET reader and the contract stay in agreement. <code>PROVENANCE.md</code> records each issue and links its upstream change. A local workaround with no upstream correction was rejected, because it would let the two drift apart unnoticed.</p>
+<p>Two issues are already agreed. The draft's <code>match</code> row writes <code>[pattern body]</code>, which is not legal Ion: the package rejects <code>[_ ()]</code>, and the reference writer emits <code>[_, 1,]</code>. The reader takes the comma form. The draft also needs to define the collapsed record's members (<a href="#irf-3">IRF-3</a>), and the knowledge base note on v4 records needs correcting.</p>
+
+<h3 id="irf-4">IRF-4. Result type and error codes</h3>
+<pre><code class="language-fsharp">type IrDocument =
+    | ClassicIr of FormatVersion * Distribution&lt;JsonElement, JsonElement&gt;
+    | V4Ir of FormatVersion * V4.Distribution
+
+type IonIrError =
+    { Code: string; Message: string; Path: string option; Location: string option }</code></pre>
+<p>Codes the draft or MCK names keep those names: <code>specs_before_3_1</code>, <code>definition_in_specs</code>, <code>duplicate_name</code>, <code>unsupported_node</code>, <code>invalid_name</code>, <code>unknown_member</code>. Codes the upstream documents leave unnamed, such as <code>unsupported_ion_version</code>, are ours, and the README lists them as draft. <code>Parser&lt;'T&gt;</code> integration maps <code>Code</code> to <code>RuleId</code> and <code>Path</code> to <code>InvalidInput.Path</code>. Non-Ion input returns <code>UnsupportedInput</code>, so the next parser in a pipeline gets its turn.</p>
+
+<h3 id="tree-1">TREE-1. Trees read from <code>VFileTree</code>, with one shared budget</h3>
+<p>Taking a <code>VFileTree</code> keeps file access outside the reader, and lazy sources open one file at a time. A budget object carries the limits across all files in a tree, so many small files cannot bypass them. Stem handling follows decisions 0001, 0012 and 0015 in the finos/morphir knowledge base: escape handling, the <code>__</code> plus eight hex digest of a cut stem, and the <code>@</code> version segment. Reading does not stream a module at a time. That matches the Rust sink and is acceptable for a first reader.</p>
+<p>The reader looks for JSON and YAML manifests only to report <code>ambiguous_manifest</code>. It does not read those trees.</p>
+
+<h3 id="mep-1">MEP-1. Retain bytes, decode the IR on request</h3>
+<pre><code class="language-fsharp">type ModelDocument =
+    { Bytes: ReadOnlyMemory&lt;byte&gt;
+      Ir: IonValue
+      Enrichments: Enrichment list
+      Provenance: IonValue list }
+
+module ModelDocument =
+    val readPayload : IonReadLimits -&gt; ReadOnlyMemory&lt;byte&gt; -&gt; Result&lt;ModelDocument, ModelReadError&gt;
+    val readFile    : IonReadLimits -&gt; ReadOnlyMemory&lt;byte&gt; -&gt; Result&lt;ModelDocument, ModelReadError&gt;
+    val decodeIr    : FormatVersion -&gt; ModelDocument -&gt; Result&lt;IrDocument, IonIrError&gt;</code></pre>
+<p>The IR view is a separate call because MEP separates retention from admission, and an extension can forward a model whose IR it cannot read. <code>decodeIr</code> projects the <code>ir</code> member to JSON with <code>Utf8JsonWriter</code> and hands it to the JSON reader. The projection writes integers and decimals as raw lexemes, and refuses anything JSON has no form for: Ion-only types, annotations and repeated fields. "Namespaced" for an enrichment <code>owner</code> means the string contains <code>:</code>, which the corpus's <code>urn:</code> owner meets. Base64, length and digest checks belong to later MEP work, and the byte input here is what those checks would produce.</p>
+
+<h3 id="v4-1">V4-1. V4 model in <code>Morphir.IR.V4</code>, non-generic, sharing name types</h3>
+<p>The model reuses <code>Name</code>, <code>Path</code>, <code>PackageName</code>, <code>ModulePath</code> and <code>FQName</code>. Attributes are the concrete <code>TypeAttributes</code> and <code>ValueAttributes</code> that v4 defines, so the generic parameters classic carries are not needed. Modeling attributes as JSON was rejected because it would tie the model to one format. Instead, <code>constraints</code>, <code>extensions</code> and document literals use a small <code>DocumentValue</code> union whose numbers hold lexemes.</p>
+<pre><code class="language-fsharp">type Literal =
+    | BoolLiteral of bool
+    | CharLiteral of string          // one Unicode scalar, may be astral
+    | StringLiteral of string
+    | IntegerLiteral of BigInteger
+    | FloatLiteral of FloatValue     // finite value, optional lexeme
+    | DecimalLiteral of DecimalLexeme
+    | DocumentLiteral of DocumentValue
+
+type ValueBody =
+    | ExpressionBody of outputType: Type * body: Value
+    | NativeBody of outputType: Type * info: NativeInfo
+    | ExternalBody of outputType: Type * info: ExternalInfo
+    | IncompleteBody of outputType: Type option * incompleteness: Incompleteness * partialBody: Value option</code></pre>
+
+<h3 id="v4-2">V4-2. An insertion-ordered map with two equalities</h3>
+<p>Parameter maps, record fields and entry points use an ordered list of pairs, so order counts in equality. Modules, types, values and dependencies use <code>OrderedMap</code>, which rejects duplicate keys, keeps insertion order and compares without regard to order. The v4 semantic model says map key order is not meaningful, while a future canonical writer must emit document order, and this type satisfies both. Using <code>Map</code> as classic does would lose the order. A plain list would make two equal distributions compare as different.</p>
+
+<h3 id="v4-3">V4-3. Hand-written JSON readers over <code>JsonElement</code></h3>
+<p>Readers walk <code>JsonElement</code> by hand, as <code>Decode.fs</code> does, and collect a JSON location. <code>JsonDocumentOptions</code> does not reject duplicates, so the reader checks them per object. FSharp.SystemTextJson was rejected because <code>EnableTrimAnalyzer</code> is on for this project and the spelling variety needs custom code anyway. Canonical strings get strict parsers: <code>Name</code> following decision 0001, and <code>FQName</code> built on the existing <code>fromStringStrict</code>.</p>
+
+<h3 id="cls-1">CLS-1. Add <code>Specs</code> to the classic <code>Distribution</code> and move the JSON decoder</h3>
+<p>Adding a case makes illegal states unrepresentable and matches IR 3.1.0. A second wrapper type was the alternative, but every caller would then hold two distribution types. <code>packageDefinition</code> becomes an option. Only the classic DSL builds <code>Distribution</code> today, and it builds <code>Library</code>, so the break is small. No tag contains the type.</p>
+<p>The decoder moves to <code>Morphir.Models</code> and returns <code>Result</code>. <code>Decode.fs</code> becomes an adapter that turns those errors into <code>GenerationFailure</code> with the same category and location, then applies the transpiler's own rules. The move is a refactor first, with existing transpiler tests passing before dependency decoding is added.</p>
+
+<h3 id="tst-1">TST-1. Test against reference output, vendored with provenance</h3>
+<p>The reader's expected values must not come from the reader. Three vendored sources in <code>tests/Fixtures/MorphirIon</code>, each with its commit and SHA-256 in <code>PROVENANCE.md</code>, and a test that fails if a file's hash changes:</p>
+<ul>
+<li>The MEP corpus and fixtures from <code>spec/mep/mck</code>.</li>
+<li>JSON and Ion pairs, and trees, from the pinned <code>morphir</code> CLI, run over <code>website/static/ir/examples</code> and <code>daily-rate-v3.json</code>.</li>
+<li>Ion and JSON spellings from <code>spec/ir/mck/values.feature</code>, extracted to a data file by a checked-in script.</li>
+</ul>
+<p>Tests are Expecto, like the other F# projects, and each spec scenario names a test.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>The change is large: a v4 model, two JSON readers, two decoders, a tree reader and package fixes</td><td>Task groups land separately and in dependency order. The MEP reader needs groups 1 to 4, and can ship before the Ion spelling decoders if they run long.</td></tr>
+<tr><td>The draft changes after this lands</td><td>The exact <code>ionVersion</code> match refuses any new draft. Spelling code is isolated in the two decoders, and new fixtures show what moved.</td></tr>
+<tr><td>The CLI installed on this machine refused <code>--output-format ion</code> with "no codec is registered"</td><td>Task 6.1 pins the v0.4.0-beta.12 release, which reads and writes Ion, and checks its published SHA-256.</td></tr>
+<tr><td>Reference CLI bugs become our expected values</td><td>Disagreements with the draft follow <a href="#spec-1">SPEC-1</a> and are not copied silently.</td></tr>
+<tr><td>Morphir depends on a fork whose README still says "Deprecated" and whose text-error messages lack positions</td><td>The maintainer owns the package. The README gets corrected. All library use sits behind <code>Morphir.Ion</code>, so a later switch stays internal.</td></tr>
+<tr><td>Native AOT was not run. The package is <code>netstandard2.0</code> with <code>AllowUnsafeBlocks</code></td><td>Task 2.4 publishes a small consumer with <code>PublishAot</code> and fails on IL warnings. No reflection use was found in package source.</td></tr>
+<tr><td>Classic literals cannot hold every v3 value</td><td>The reader refuses with <code>literal_out_of_range</code>. It never rounds.</td></tr>
+<tr><td>Reading loads whole documents into memory</td><td>Limits bound the cost. Streaming can come later without changing results.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<p>Publish the package fix first. Everything else is additive except <code>Distribution.packageDefinition</code>, whose callers in this repository change in the same commit. Note the break in <code>CHANGELOG.md</code>. To roll back, revert the merge. No data or wire format changes.</p>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>Whether the planned F# frontend for Morphir can help settle remaining Ion or v4 questions, for example as a second producer of v4 IR for these tests. Nothing here depends on it.</li>
+<li>Whether upstream names a code for an unknown <code>ionVersion</code>. If it does, rename ours.</li>
+</ul>
+</main>
+</body>
+</html>

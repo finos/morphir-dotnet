@@ -1,0 +1,67 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: application,
+  packageName: "example",
+  entryPoints: {
+    start: {
+      target: "example:main#run",
+      kind: main,
+      doc: "The application entry point",
+    },
+    build: {
+      target: "example:main#run",
+      kind: command,
+    },
+    'on event': {
+      target: "example:main#run",
+      kind: handler,
+    },
+    nightly: {
+      target: "example:main#run",
+      kind: job,
+    },
+    guard: {
+      target: "example:main#run",
+      kind: policy,
+    },
+  },
+}
+package::def::{
+  name: "my-org/shared",
+  modules: [
+    public::def::module::    {
+      name: "util",
+      values: [
+        public::def::value::        {
+          name: "identity",
+          inputTypes: {
+            x: "morphir/SDK:basics#int",
+          },
+          outputType: "morphir/SDK:basics#int",
+          body: x,
+        },
+      ],
+    },
+    private::def::module::    {
+      name: "secret",
+      doc: "Hidden.",
+    },
+  ],
+}
+package::def::{
+  name: "empty",
+}
+public::def::module::{
+  name: "main",
+  values: [
+    public::def::value::    {
+      name: "run",
+      outputType: "morphir/SDK:basics#unit",
+      body: (
+      ),
+    },
+  ],
+}
+morphir_footer::{
+}

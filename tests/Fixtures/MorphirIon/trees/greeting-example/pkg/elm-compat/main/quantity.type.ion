@@ -1,0 +1,4 @@
+public::def::alias::type::{
+  typeExp: "morphir/SDK:basics#int",
+  doc: " Represents a quantity of items.\n",
+}
