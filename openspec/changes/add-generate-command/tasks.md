@@ -22,7 +22,7 @@ Related work: [#363](https://github.com/finos/morphir-dotnet/issues/363), [#368]
 - [x] 3.1 Add the typed classic generation path while preserving the existing strict JSON-file wrapper; verify existing v1/v2/v3 representations of shared corpus cases produce equivalent source, diagnostics and ordered manifests through both APIs, using the common runner.
 - [x] 3.2 Carry existing scope/type/naming/dependency/SDK validation into the typed path and retain original input context; verify invalid typed models, unmapped references and cross-module cycles fail without successful files.
 - [x] 3.3 Expose typed generation options with Boolean optimize defaulting to true; verify the existing optimized/unoptimized compiler-behavior tests and Myriad/source snapshots remain valid without caller changes.
-- [ ] 3.4 Document the additive typed API and the legacy JSON-only wrapper contract; compile the supported public usage sample as a consumer test.
+- [x] 3.4 Document the additive typed API and the legacy JSON-only wrapper contract; compile the supported public usage sample as a consumer test.
 
 ## 4. Extend generation semantics and the shared corpus through v4
 

@@ -28,7 +28,7 @@ This is the implementation target, not a command already delivered by this PRD. 
 | Shared behavior corpus and compiler harness | Implemented | 1.3-1.4 | Required matrix coverage and independent expectations across supported versions/formats |
 | Versioned model and generation contracts | Implemented | 2.1-2.2 | Public consumer examples and compatible existing APIs |
 | Settings and backend resolution | Implemented | 2.3-2.5 | Explicit overrides, fake provider, incompatibility and ambiguity tests |
-| Typed entry point and classic compatibility | Planned | 3.1-3.4 | Existing consumers and shared corpus remain green |
+| Typed entry point and classic compatibility | Implemented | 3.1-3.4 | Existing consumers and shared corpus remain green |
 | Required v4 F# semantics | Planned | 4.1-4.9 | Nonempty generated libraries compile and execute through the same harness |
 | Bounded JSON/Ion model loading | Planned | 5.1-5.6 | Capture limits, retained originals, codec diagnostics and representation parity |
 | CLI generation and reporting | Planned | 6.1-6.4 | BDD scenarios, typed exits, parseable JSON stdout and command documentation |
@@ -61,6 +61,10 @@ V4-only semantics use the same harness and diagnostics. The supported/refused fe
 ### Contracts and resolution, 2026-11-02
 
 - Added the common wrapper in `Morphir.IR.Model` to avoid colliding with the existing classic/v4 namespaces. Existing Ion/Myriad consumers compile. Contract tests compile C# and F# callers, and prove private input/option ownership. Ten settings tests and six registry tests pass. The full Nuke run passes existing suites and the new model/contract/resolution tests; only the 11 intentionally red command BDD cases remain failing.
+
+### Typed classic generation, 2026-11-02
+
+- Added public typed generation with source context and shared options while preserving the strict JSON wrapper. Shared rental cases cover classic versions and typed/file APIs with optimization enabled and disabled. Regression tests exposed and closed typed name and type-arity bypasses. All 120 generator tests pass; the full Nuke run has only the same 11 pending CLI acceptance failures, and existing Ion/Myriad suites pass.
 
 ## Open questions
 
