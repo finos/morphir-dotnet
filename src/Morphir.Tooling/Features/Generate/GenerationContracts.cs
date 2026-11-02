@@ -88,6 +88,7 @@ public abstract record RetainedInput(string SourcePath)
 
 public sealed record ModelDescriptor(SourceFormatVersion Version, ModelFamily Family, DistributionKind Kind)
 {
+    public ImmutableArray<string> RequiredSemantics { get; init; } = [];
     public static ModelDescriptor From(VersionedModel model) => new(model.SourceVersion, model.Family, model.Kind);
 }
 
@@ -109,6 +110,7 @@ public sealed record BackendCapability
 
 public sealed record BackendDescriptor
 {
+    public ImmutableHashSet<string> SupportedSemantics { get; init; } = ImmutableHashSet<string>.Empty.WithComparer(StringComparer.Ordinal);
     public string Identity { get; }
     public TargetId Target { get; }
     public ImmutableArray<BackendCapability> Capabilities { get; }

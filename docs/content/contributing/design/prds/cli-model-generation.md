@@ -78,6 +78,8 @@ V4-only semantics use the same harness and diagnostics. The supported/refused fe
 
 - V4 validation: the common diagnostic inventory now runs scope, name, arity, SDK, cycle and type failures for classic/v4. Inferred-type cases use explicit v4 applicability and retain source ranges. Compatible structural/named record hints compile using the declared target representation. Existing SDK List/Maybe/Result fixtures and their oracle now run through the shared inventory. All 205 generator tests pass; full Nuke results retain only the pending CLI failures.
 
+- Refusal profile: shared rows cover Specs/Application, documents, holes, incomplete types/bodies, native/external bodies, open records and nonempty constraints. Every applicable refusal also exercises the existing publisher against prior output and its ownership manifest. Required semantics are explicit admission/context facts rather than an invented IR extension key; provider declarations are checked before invocation, and direct generation honors the same requirement boundary. Optional opaque metadata remains usable. All 241 generator tests and 8 resolver tests pass; full Nuke results retain only the 11 pending CLI cases.
+
 ## Open questions
 
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

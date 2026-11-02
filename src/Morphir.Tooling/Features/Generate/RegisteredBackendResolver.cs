@@ -17,6 +17,12 @@ public sealed class RegisteredBackendResolver(IEnumerable<IGenerationBackend> ba
         }
 
         var compatible = candidates.Where(backend => backend.Descriptor.Capabilities.Any(capability => capability.Supports(model))).ToArray();
+        if (compatible.Length > 0 && !model.RequiredSemantics.IsDefaultOrEmpty)
+        {
+            compatible = compatible.Where(backend => backend.Descriptor.SupportedSemantics.IsSupersetOf(model.RequiredSemantics)).ToArray();
+            if (compatible.Length == 0)
+                return Fail(GenerationFailureKind.Semantic, "unsupported-required-semantics", "No compatible provider declares all semantics required by this model.");
+        }
         return compatible.Length switch
         {
             0 => Fail(GenerationFailureKind.Semantic, "incompatible-model", $"Target '{target.Value}' does not support {model.Family} {model.Version.Text} {model.Kind}."),

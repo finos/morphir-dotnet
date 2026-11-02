@@ -13,6 +13,30 @@ module Transpiler =
     /// The generated modules in dependency order, stored as tree metadata.
     let manifest = Property.create<ManifestEntry list> "morphir.fsharp.manifest"
 
+    /// Requirements supplied by admission/callers, separately from opaque IR extension data.
+    let requiredSemantics =
+        Property.create<Set<string>> "morphir.generation.required-semantics"
+
+    let private requirementsFailure (context: VFile) =
+        let required =
+            VFile.tryGet requiredSemantics context
+            |> Option.defaultValue Set.empty
+
+        if Set.isEmpty required then
+            None
+        else
+            VFileTree.empty
+            |> VFileTree.report
+                { VMessage.create
+                      MessageSeverity.Error
+                      "F# generation has no declared mapping for the required semantics." with
+                    Path = context.Path
+                    Location = Some "$"
+                    RuleId = Some "unsupported-required-semantics"
+                    Source = Some "fsharp-model"
+                }
+            |> Some
+
     /// The rule, location and message for an expected generation failure.
     let private (|ExpectedFailure|_|) (error: exn) =
         match error with
@@ -191,7 +215,9 @@ module Transpiler =
     /// </summary>
     /// <param name="input">The model file</param>
     let generateWithOptions (options: GenerationOptions) (input: VFile) : VFileTree =
-        run (if options.Optimize then processor else withoutOptimizer) input
+        match requirementsFailure input with
+        | Some failure -> failure
+        | None -> run (if options.Optimize then processor else withoutOptimizer) input
 
     /// Generates with the existing optimization default.
     let generate (input: VFile) : VFileTree =
@@ -214,8 +240,9 @@ module Transpiler =
                     Source = Some "fsharp-model"
                 }
 
-        match model.Distribution with
-        | DistributionModel.Classic(Distribution.Library(package, _, definition)) ->
+        match requirementsFailure context, model.Distribution with
+        | Some failure, _ -> failure
+        | None, DistributionModel.Classic(Distribution.Library(package, _, definition)) ->
             let version =
                 match model.SourceVersion.Text with
                 | "1" -> Some 1
@@ -244,11 +271,11 @@ module Transpiler =
                         Parsers = [ Parser.forFile (fun _ -> Ok decoded) ]
                     }
                     context
-        | DistributionModel.Classic(Distribution.Specs _) ->
+        | None, DistributionModel.Classic(Distribution.Specs _) ->
             failure
                 "unsupported-distribution"
                 "F# generation requires Library implementations; Specs has no executable bodies."
-        | DistributionModel.V4 _ ->
+        | None, DistributionModel.V4 _ ->
             failure "unsupported-version" "The v4 generation implementation is not registered yet."
 
     /// Generates from a typed model with the existing optimization default.

@@ -19,6 +19,7 @@ module internal V4Emit =
         | Private -> "internal "
 
     let generate (_options: GenerationOptions) (distribution: Distribution) : GeneratedModule list =
+        V4Support.validate distribution
         V4Check.validate distribution
 
         let package, definition =

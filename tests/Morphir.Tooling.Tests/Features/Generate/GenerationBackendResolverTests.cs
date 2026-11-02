@@ -1,4 +1,5 @@
 using FluentAssertions;
+using System.Collections.Immutable;
 using Morphir.IR;
 using Morphir.IR.Model;
 using Morphir.Tooling.Features.Generate;
@@ -8,6 +9,25 @@ namespace Morphir.Tooling.Tests.Features.Generate;
 public class GenerationBackendResolverTests
 {
     private static readonly ModelDescriptor Model = new(SourceFormatVersionModule.parse("4.0.0").ResultValue, ModelFamily.V4, DistributionKind.Library);
+
+    [Test]
+    public void RequiredSemanticsAreExplicitCapabilitiesRatherThanExtensionKeys()
+    {
+        var model = Model with { RequiredSemantics = ["example.numeric-profile"] };
+        var provider = new FakeBackend("plain", "fsharp");
+        var result = new RegisteredBackendResolver([provider]).Resolve(new("fsharp"), model);
+        ((Outcome<IGenerationBackend>.Failure)result).Error.Diagnostics[0].Code.Should().Be("unsupported-required-semantics");
+        provider.Invocations.Should().Be(0);
+    }
+
+    [Test]
+    public void AProviderCanExplicitlyAdvertiseARequiredSemanticCapability()
+    {
+        var model = Model with { RequiredSemantics = ["example.numeric-profile"] };
+        var provider = new FakeBackend("capable", "fsharp", "example.numeric-profile");
+        var result = new RegisteredBackendResolver([provider]).Resolve(new("fsharp"), model);
+        ((Outcome<IGenerationBackend>.Success)result).Value.Should().BeSameAs(provider);
+    }
 
     [Test]
     public void ASecondTargetNeedsOnlyARegistration()
@@ -62,10 +82,11 @@ public class GenerationBackendResolverTests
         second.Invocations.Should().Be(0);
     }
 
-    private sealed class FakeBackend(string identity, string target) : IGenerationBackend
+    private sealed class FakeBackend(string identity, string target, string? semantic = null) : IGenerationBackend
     {
         public int Invocations { get; private set; }
-        public BackendDescriptor Descriptor { get; } = new(identity, new(target), [new(ModelFamily.V4, ["4.0.0"], DistributionKind.Library)]);
+        public BackendDescriptor Descriptor { get; } = new(identity, new(target), [new(ModelFamily.V4, ["4.0.0"], DistributionKind.Library)])
+        { SupportedSemantics = semantic is null ? ImmutableHashSet<string>.Empty : ImmutableHashSet.Create(StringComparer.Ordinal, semantic) };
         public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options) { Invocations++; throw new InvalidOperationException("Resolver must not invoke the provider"); }
         public ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct) { Invocations++; throw new InvalidOperationException("Resolver must not invoke the provider"); }
     }

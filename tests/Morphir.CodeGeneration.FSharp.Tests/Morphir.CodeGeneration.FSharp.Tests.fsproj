@@ -28,6 +28,8 @@
     <Compile Include="GenerationOptionsTests.fs" />
     <Compile Include="ClassicToV4TestAdapter.fs" />
     <Compile Include="ModelConformanceInputs.fs" />
+    <Compile Include="ModelRefusalInputs.fs" />
+    <Compile Include="GenerationRequirementsTests.fs" />
     <Compile Include="ModelConformanceTests.fs" />
     <Compile Include="PipelineGenerationTests.fs" />
     <Compile Include="TranspilerTests.fs" />

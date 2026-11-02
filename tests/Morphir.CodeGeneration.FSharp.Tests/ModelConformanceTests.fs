@@ -32,6 +32,68 @@ let private generate model =
         with GenerationFailure(code, _, _) ->
             Result.Error [ code ]
 
+let private publishResult output result =
+    let tree =
+        match result with
+        | Ok files ->
+            files
+            |> List.map (fun (path, source) -> path, VFile.ofText path source)
+            |> Map.ofList
+            |> VFileTree.fromFileMap
+            |> VFileTree.set VFileTree.declaredOrder (List.map fst files)
+        | Result.Error codes ->
+            codes
+            |> List.fold
+                (fun tree code ->
+                    tree
+                    |> VFileTree.report
+                        { VMessage.create MessageSeverity.Error "Generation refused" with
+                            RuleId = Some code
+                        }
+                )
+                VFileTree.empty
+
+    VFileTree.publish
+        {
+            OutputRoot = output
+            Manifest = ManifestMode.Manifest "test-ownership.json"
+        }
+        tree
+
+let private preservesPublication materialize =
+    let directory =
+        System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "morphir-refusal-"
+            + System.Guid.NewGuid().ToString("N")
+        )
+
+    try
+        publishResult directory (Ok [ "prior.fs", "module Prior\nlet value = 1" ])
+        |> ModelConformanceInputs.ok
+        |> ignore
+
+        let snapshot () =
+            System.IO.Directory.GetFiles(directory, "*", System.IO.SearchOption.AllDirectories)
+            |> Array.map (fun file ->
+                System.IO.Path.GetRelativePath(directory, file),
+                System.Convert.ToBase64String(System.IO.File.ReadAllBytes file)
+            )
+            |> Array.sort
+
+        let before = snapshot ()
+
+        match
+            generate (materialize ())
+            |> publishResult directory
+        with
+        | Ok _ -> failtest "A refused model must never publish artifacts"
+        | Result.Error _ ->
+            Expect.equal (snapshot ()) before "common publication contract preserves earlier output"
+    finally
+        if System.IO.Directory.Exists directory then
+            System.IO.Directory.Delete(directory, true)
+
 [<Tests>]
 let tests =
     testList "Model conformance" [
@@ -292,6 +354,67 @@ let tests =
                 <| fun () ->
                     GenerationConformance.run generate case row
                     |> ignore
+
+        for id, code, inputs in ModelRefusalInputs.cases do
+            let variants = [
+                for version, input in inputs ->
+                    {
+                        Representation = {
+                            Version = version
+                            Format = "typed"
+                            Layout = "memory"
+                            Optimize = true
+                        }
+                        Input = input
+                    }
+            ]
+
+            let case = {
+                Id =
+                    "refusal."
+                    + id
+                Consumer = ""
+                ExpectedOutput = ""
+                Required =
+                    variants
+                    |> List.map (fun row -> row.Representation)
+                Variants = variants
+            }
+
+            for row in variants do
+                testCase $"{case.Id}/{row.Representation.Version}"
+                <| fun () ->
+                    GenerationConformance.run generate case row
+                    |> ignore
+
+                match row.Input with
+                | Refused(materialize, _) ->
+                    testCase $"publication/{case.Id}/{row.Representation.Version}"
+                    <| fun () -> preservesPublication materialize
+                | _ -> ()
+
+        testCase "opaque optional metadata is retained without becoming code"
+        <| fun () ->
+            let row = {
+                Representation = {
+                    Version = "4.0.0"
+                    Format = "typed"
+                    Layout = "memory"
+                    Optimize = true
+                }
+                Input = Supported ModelRefusalInputs.opaqueMetadata
+            }
+
+            let case = {
+                Id = "metadata.opaque"
+                Consumer = "printfn \"%d\" Car.Rental.Refusal.value"
+                ExpectedOutput = "42"
+                Required = [ row.Representation ]
+                Variants = [ row ]
+            }
+
+            GenerationConformance.run generate case row
+            |> ignore
 
         for scalar in GenerationScalars.cases do
             let required = [

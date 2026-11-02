@@ -135,6 +135,17 @@ V4 holes, incomplete definitions and native/external bodies SHALL fail with spec
 - **WHEN** a v4 definition has NativeBody or ExternalBody
 - **THEN** generation reports unsupported-native-body or unsupported-external-body and does not invent a binding
 
+#### Scenario: Required semantics are explicit admission facts
+
+- **WHEN** a caller supplies required semantic capability IDs through the generation context
+- **THEN** generation refuses IDs without declared mappings before producing source
+- **AND** opaque extension-object keys do not become an invented required-semantics wire convention
+
+#### Scenario: Optional opaque metadata
+
+- **WHEN** a supported library carries optional opaque extension metadata without additional required capabilities
+- **THEN** generation preserves the supported executable behavior without treating that metadata as code
+
 ### Requirement: Optimization choice preserves behavior
 
 Both entry points SHALL share an explicit optimization setting that defaults to the existing constant-folding behavior. Disabling optimization SHALL retain required validation and emission rules. Existing callers that do not supply options SHALL retain their current generated behavior.

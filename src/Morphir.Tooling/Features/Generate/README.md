@@ -48,6 +48,12 @@ does not invoke any provider. Each provider validates its own options and
 returns `GenerationArtifacts`; `BackendGenerationRequest` has no output path.
 The host owns publication through the existing tree publisher.
 
+`ModelDescriptor.RequiredSemantics` carries explicit capability requirements from
+callers or future admission adapters. Providers advertise
+`BackendDescriptor.SupportedSemantics`; unmet requirements fail before provider
+invocation. Bare IR loaders leave requirements empty and retain opaque extension
+data. No IR extension key is reserved or interpreted as a required marker.
+
 The C# provider example and F# settings example compile and run in
 `GenerationContractsTests`. Resolver tests include a second target that needs
 only registration, without changes to the command.

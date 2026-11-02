@@ -41,6 +41,13 @@ Success returns one file per module. `Transpiler.manifest` and
 Errors return no successful files and carry the context path and available
 logical location. The caller owns publication; generation writes no files.
 
+Callers can set `Transpiler.requiredSemantics` in the context file's typed
+metadata. This profile refuses nonempty requirements until a mapping is declared.
+Opaque IR extension objects do not implicitly declare such requirements. Native,
+external, incomplete and hole nodes are refused, including external fallbacks.
+Nonempty type constraints are unsupported; optional opaque metadata is retained
+without becoming executable behavior.
+
 Tests extend the [common conformance inventory](../Morphir.Testing/README.md).
 One rental expectation covers classic versions, typed/file APIs and optimization
 on/off. New v4 or Ion adapters must use that compiler and expectation approach.
