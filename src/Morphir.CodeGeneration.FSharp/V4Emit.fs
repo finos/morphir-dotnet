@@ -18,9 +18,15 @@ module internal V4Emit =
         | Public -> ""
         | Private -> "internal "
 
-    let generate (_options: GenerationOptions) (distribution: Distribution) : GeneratedModule list =
+    let generate (options: GenerationOptions) (distribution: Distribution) : GeneratedModule list =
         V4Support.validate distribution
         V4Check.validate distribution
+
+        let distribution =
+            if options.Optimize then
+                V4Optimizer.optimize distribution
+            else
+                distribution
 
         let package, definition =
             match distribution with

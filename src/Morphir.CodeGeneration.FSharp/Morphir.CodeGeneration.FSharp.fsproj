@@ -13,5 +13,5 @@
     <PackageReference Include="Fantomas.Core" />
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="Morphir.CodeGeneration.FSharp.Tests" /></ItemGroup>
-  <ItemGroup><Compile Include="Types.fs" /><Compile Include="Decode.fs" /><Compile Include="DependencyOrder.fs" /><Compile Include="Validate.fs" /><Compile Include="TargetSyntax.fs" /><Compile Include="ScalarProfile.fs" /><Compile Include="Emit.fs" /><Compile Include="V4Support.fs" /><Compile Include="V4Check.fs" /><Compile Include="V4Expressions.fs" /><Compile Include="V4Emit.fs" /><Compile Include="Transpiler.fs" /></ItemGroup>
+  <ItemGroup><Compile Include="Types.fs" /><Compile Include="Decode.fs" /><Compile Include="DependencyOrder.fs" /><Compile Include="Validate.fs" /><Compile Include="TargetSyntax.fs" /><Compile Include="ScalarProfile.fs" /><Compile Include="Emit.fs" /><Compile Include="V4Support.fs" /><Compile Include="V4Check.fs" /><Compile Include="V4Expressions.fs" /><Compile Include="V4Optimizer.fs" /><Compile Include="V4Emit.fs" /><Compile Include="Transpiler.fs" /></ItemGroup>
 </Project>

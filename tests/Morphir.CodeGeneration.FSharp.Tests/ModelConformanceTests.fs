@@ -8,11 +8,14 @@ open Morphir.Testing.GenerationConformance
 open Morphir.CodeGeneration.FSharp
 open Morphir.CodeGeneration.FSharp.Tests.TranspilerAdapter
 
-let private generate model =
+let private generateWith optimize model =
     match model.Distribution with
     | DistributionModel.Classic _ ->
         let tree =
-            Morphir.CodeGeneration.FSharp.Transpiler.generateModel model (VFile.fromPath "model")
+            Morphir.CodeGeneration.FSharp.Transpiler.generateModelWith
+                { Optimize = optimize }
+                model
+                (VFile.fromPath "model")
 
         if VFileTree.hasErrors tree then
             Result.Error(
@@ -26,11 +29,13 @@ let private generate model =
             )
     | DistributionModel.V4 distribution ->
         try
-            V4Emit.generate GenerationOptions.Default distribution
+            V4Emit.generate { Optimize = optimize } distribution
             |> List.map (fun file -> file.RelativePath, file.Source)
             |> Ok
         with GenerationFailure(code, _, _) ->
             Result.Error [ code ]
+
+let private generate = generateWith true
 
 let private publishResult output result =
     let tree =
@@ -415,6 +420,65 @@ let tests =
 
             GenerationConformance.run generate case row
             |> ignore
+
+        for arithmetic in GenerationArithmetic.cases do
+            let required = [
+                for version in [ "3"; "4.0.0" ] do
+                    for optimize in [ true; false ] ->
+                        {
+                            Version = version
+                            Format = "typed"
+                            Layout = "memory"
+                            Optimize = optimize
+                        }
+            ]
+
+            let variants = [
+                for row in required ->
+                    {
+                        Representation = row
+                        Input =
+                            Supported(fun () ->
+                                ModelConformanceInputs.arithmetic row.Version arithmetic.Kind
+                            )
+                    }
+            ]
+
+            let case = {
+                Id = arithmetic.Id
+                Consumer = arithmetic.Consumer
+                ExpectedOutput = arithmetic.Expected
+                Required = required
+                Variants = variants
+            }
+
+            for row in variants do
+                testCase
+                    $"{case.Id}/{row.Representation.Version}/optimize={row.Representation.Optimize}"
+                <| fun () ->
+                    GenerationConformance.run (generateWith row.Representation.Optimize) case row
+                    |> ignore
+
+                    if
+                        arithmetic.Kind
+                        <> "user"
+                    then
+                        let source =
+                            ModelConformanceInputs.arithmetic
+                                row.Representation.Version
+                                arithmetic.Kind
+                            |> generateWith row.Representation.Optimize
+                            |> ModelConformanceInputs.ok
+                            |> List.map snd
+                            |> String.concat "\n"
+
+                        Expect.equal
+                            (source.Contains "+")
+                            (not (
+                                row.Representation.Optimize
+                                && arithmetic.Folds
+                            ))
+                            "only proven exact folds replace operations"
 
         for scalar in GenerationScalars.cases do
             let required = [

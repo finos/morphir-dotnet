@@ -82,4 +82,6 @@ V4-only semantics use the same harness and diagnostics. The supported/refused fe
 
 ## Open questions
 
+Exact optimization uses shared arithmetic proofs over scalar values, with native v4 traversal. Twenty common compiler/execution rows cover optimization on/off, exact integer/float folds, inexact float/decimal preservation and user-function isolation. The matrix exposed a rounded classic float fold; both versions now require exact binary-rational equality. All 261 generator tests and 136 pipeline-plugin tests pass. The full Nuke run has only the same 11 pending CLI acceptance failures.
+
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

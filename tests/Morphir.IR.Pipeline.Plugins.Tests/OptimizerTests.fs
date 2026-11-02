@@ -8,6 +8,48 @@ open Morphir.IR.Classic.Documented
 open Morphir.IR.Pipeline
 open Morphir.IR.Pipeline.Plugins
 
+[<Tests>]
+let exactScalarTests =
+    testList "Exact scalar folding" [
+        for name, operation, left, right, expected in
+            [
+                "subtraction", ArithmeticOperation.Subtract, 4.5, 0.5, Some 4.0
+                "multiplication", ArithmeticOperation.Multiply, 1.5, 2.0, Some 3.0
+                "division", ArithmeticOperation.Divide, 3.0, 2.0, Some 1.5
+                "rounded division", ArithmeticOperation.Divide, 1.0, 3.0, None
+                "rounded addition", ArithmeticOperation.Add, 0.1, 0.2, None
+                "overflow", ArithmeticOperation.Multiply, System.Double.MaxValue, 2.0, None
+                "zero divisor", ArithmeticOperation.Divide, 1.0, 0.0, None
+                "nonfinite input", ArithmeticOperation.Add, infinity, 0.0, None
+            ] do
+            test name {
+                Expect.equal
+                    (ExactScalarFolding.tryFloat operation left right)
+                    expected
+                    "only proved exact results fold"
+            }
+        test "negative zero retains its sign" {
+            let result =
+                ExactScalarFolding.tryFloat ArithmeticOperation.Multiply -0.0 2.0
+                |> Option.get
+
+            Expect.equal
+                (System.BitConverter.DoubleToInt64Bits result)
+                System.Int64.MinValue
+                "IEEE sign bit"
+        }
+        test "integer overflow preserves the operation" {
+            Expect.isNone
+                (ExactScalarFolding.tryInt32 ArithmeticOperation.Add 2147483647I 1I)
+                "Int32 result required"
+        }
+        test "out of profile integer operands cannot fold into range" {
+            Expect.isNone
+                (ExactScalarFolding.tryInt32 ArithmeticOperation.Subtract 2147483648I 1I)
+                "validate operands too"
+        }
+    ]
+
 let private sdkFn name = FQName.fromString ("Morphir.SDK:Basics:" + name) ":"
 let private userFn name = FQName.fromString ("My.App:Rules:" + name) ":"
 

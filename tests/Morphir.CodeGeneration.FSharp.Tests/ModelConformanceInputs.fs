@@ -711,3 +711,41 @@ let sdkMappings version =
     sdkMappingsJson ()
     |> classic
     |> forVersion version
+
+let arithmetic version kind =
+    let numberType, left, right =
+        match kind with
+        | "float" ->
+            F.tRef (F.sdk "basics" "float") [],
+            F.literal "FloatLiteral" (box 1.5),
+            F.literal "FloatLiteral" (box 2.5)
+        | "inexact-float" ->
+            F.tRef (F.sdk "basics" "float") [],
+            F.literal "FloatLiteral" (box 9007199254740992.0),
+            F.literal "FloatLiteral" (box 1.0)
+        | "inexact-decimal" ->
+            F.tRef (F.sdk "decimal" "decimal") [],
+            F.literal "DecimalLiteral" (box "7922816251426433759354395033.5"),
+            F.literal "DecimalLiteral" (box "0.01")
+        | _ -> F.intType, F.integer 20, F.integer 22
+
+    let helpers =
+        if kind = "user" then
+            [ F.binding "add" [ "left", F.intType; "right", F.intType ] F.intType (F.integer 99) ]
+        else
+            []
+
+    let function' =
+        if kind = "user" then
+            F.reference "arithmetic" "add"
+        else
+            F.sdkReference "basics" "add"
+
+    F.model [
+        "arithmetic",
+        [],
+        helpers
+        @ [ F.binding "answer" [] numberType (F.apply function' [ left; right ]) ]
+    ]
+    |> classic
+    |> forVersion version

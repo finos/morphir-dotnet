@@ -17,6 +17,7 @@
         <Compile Include="GenerationConformance.fs" />
         <Compile Include="GenerationCases.fs" />
         <Compile Include="GenerationScalars.fs" />
+        <Compile Include="GenerationArithmetic.fs" />
     </ItemGroup>
 
 </Project>

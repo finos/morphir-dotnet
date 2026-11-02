@@ -64,9 +64,9 @@ module Optimizer =
         else
             None
 
-    let private floatResult (compute: float -> float -> float) (left: float) (right: float) =
-        let result = compute left right
-        if Double.IsFinite result then Some(Literal.FloatLiteral result) else None
+    let private floatResult operation left right =
+        ExactScalarFolding.tryFloat operation left right
+        |> Option.map Literal.FloatLiteral
 
     let private compareResult (compare: int -> bool) (left: Literal) (right: Literal) =
         match left, right with
@@ -101,10 +101,10 @@ module Optimizer =
             | "basics.subtract", Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b -> wholeResult (-) a b
             | "basics.multiply", Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b -> wholeResult (*) a b
             | "basics.divide", Literal.WholeNumberLiteral a, Literal.WholeNumberLiteral b when b <> 0L -> wholeResult (/) a b
-            | "basics.add", Literal.FloatLiteral a, Literal.FloatLiteral b -> floatResult (+) a b
-            | "basics.subtract", Literal.FloatLiteral a, Literal.FloatLiteral b -> floatResult (-) a b
-            | "basics.multiply", Literal.FloatLiteral a, Literal.FloatLiteral b -> floatResult (*) a b
-            | "basics.divide", Literal.FloatLiteral a, Literal.FloatLiteral b when b <> 0.0 -> floatResult (/) a b
+            | "basics.add", Literal.FloatLiteral a, Literal.FloatLiteral b -> floatResult ArithmeticOperation.Add a b
+            | "basics.subtract", Literal.FloatLiteral a, Literal.FloatLiteral b -> floatResult ArithmeticOperation.Subtract a b
+            | "basics.multiply", Literal.FloatLiteral a, Literal.FloatLiteral b -> floatResult ArithmeticOperation.Multiply a b
+            | "basics.divide", Literal.FloatLiteral a, Literal.FloatLiteral b when b <> 0.0 -> floatResult ArithmeticOperation.Divide a b
             | "basics.equal", _, _ -> equalityResult true left right
             | "basics.notequal", _, _ -> equalityResult false left right
             | "basics.lessthan", _, _ -> compareResult (fun order -> order < 0) left right
