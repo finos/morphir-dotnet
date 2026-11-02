@@ -34,7 +34,7 @@ module internal TargetSyntax =
         | "basics.lessthanorequal" -> Some "(<=)"
         | "basics.greaterthanorequal" -> Some "(>=)"
         | "basics.compare" -> Some "Morphir.SDK.Basics.compare"
-        | "basics.identity" -> Some "id"
+        | "basics.identity" -> Some "global.Microsoft.FSharp.Core.Operators.id"
         | "list.map" -> Some "List.map"
         | "maybe.map" -> Some "Option.map"
         | "result.map" -> Some "Result.map"

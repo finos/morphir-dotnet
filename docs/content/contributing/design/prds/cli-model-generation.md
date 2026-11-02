@@ -148,6 +148,14 @@ Examples use supported fixtures and flags. TOML/YAML discovery and MEP syntax re
 
 After the final report fix, repeated the full Nuke Test target and coverage collection. All 2,717 tests and cold package-consumer checks passed, with no ignored/skipped tests; Nuke completed in 4 minutes 54 seconds. Final normalized production coverage is 4,577/4,894 affected lines, 93.52%, and 14,036/16,948 overall lines, 82.82%. Formatting verification and locked restore pass. All 39 tracked implementation tasks are complete, each with its own commit.
 
+### PR #457 SDK regression fixes, 2026-11-02
+
+Reproduced both SDK review findings through the common corpus. V4 Maybe/Result constructors lost the expected nominal record payload type; an argument named `id` captured the emitted SDK identity function in both classic and v4. Six representation rows failed before the fixes. Constructor argument types now follow the expected SDK Maybe/Result type, and the shared identity spelling uses the fully qualified FSharp.Core function. All 201 focused model-conformance cases pass, including eight added classic/v4 rows with ordinary and nested bindings. The three payload branches share one independent expected result; there is no new version-specific compiler or assertion path.
+
+The full Nuke Test target and cold package-consumer checks passed again in 4 minutes 51 seconds: all 2,725 tests passed, including 333 generator tests, with zero ignored/skipped tests. Refreshed production coverage is 4,595/4,906 affected lines, 93.66%, and 14,054/16,960 overall lines, 82.87%.
+
+Rebuilt the trimmed and Native AOT Windows ARM64 executables after these fixes; both passed all 245 Tooling tests through the existing published-executable adapters. No new IL warnings originate in the changed generation code. Formatting verification, strict OpenSpec validation and post-publish locked restore pass.
+
 ## Open questions
 
 No unresolved scope decisions block the agreed plan. Required semantics remain caller/admission facts because v4 has no standard wire marker; this delivery does not invent one. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

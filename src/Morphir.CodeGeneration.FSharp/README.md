@@ -65,7 +65,7 @@ must use that compiler and expectation approach.
 | Aliases, unions, generics, tuples, closed records, functions, unit and visibility | `typeStructure` |
 | Constructors, lists, records, fields, applications, lambdas, conditionals and ordered patterns | `expressionCore`, `recordBilling` |
 | Local definitions, recursion, destructuring, lexical scope and updates | `lexicalCapture`, `localRecursion`, `recordOperations`, `letRecOrder` |
-| SDK Basics, List, Maybe and Result mappings | `sdkMappings`, pricing and arithmetic cases |
+| SDK Basics, List, Maybe and Result mappings | `sdkMappings`, `sdkRecordPayloads`, `sdkIdentityCapture`, pricing and arithmetic cases |
 | Name, scope, type arity, inferred/declared consistency and dependency checks | `TypedValidationTests.failures`, inferred-type rows in `ModelConformanceTests` |
 | Exact constant folding with the same observable behavior when disabled | `GenerationArithmetic.cases`, pricing rows |
 | Scalar boundaries and representability | `GenerationScalars.cases` |

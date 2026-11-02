@@ -712,6 +712,54 @@ let sdkMappings version =
     |> classic
     |> forVersion version
 
+let sdkRecordPayloads version =
+    let personType = F.tRef (F.own "sdk_payloads" "person") []
+
+    let record age =
+        F.a [ box "Record"; null; F.a [ F.a [ F.n "age"; F.integer age ] ] ]
+
+    let construct moduleName caseName age =
+        F.apply (F.constructor (F.sdk moduleName caseName)) [ record age ]
+
+    F.model [
+        "sdk_payloads",
+        [ F.typeAlias "person" [] (F.tRecord [ "age", F.intType ]) ],
+        [
+            F.binding
+                "maybe_person"
+                []
+                (F.tRef (F.sdk "maybe" "maybe") [ personType ])
+                (construct "maybe" "just" 3)
+            F.binding
+                "ok_person"
+                []
+                (F.tRef (F.sdk "result" "result") [ F.stringType; personType ])
+                (construct "result" "ok" 4)
+            F.binding
+                "error_person"
+                []
+                (F.tRef (F.sdk "result" "result") [ personType; F.intType ])
+                (construct "result" "err" 5)
+        ]
+    ]
+    |> classic
+    |> forVersion version
+
+let sdkIdentityCapture version =
+    F.model [
+        "sdk_capture",
+        [],
+        [
+            F.binding
+                "value"
+                [ "id", F.tFunction F.intType F.intType ]
+                F.intType
+                (F.apply (F.sdkReference "basics" "identity") [ F.integer 3 ])
+        ]
+    ]
+    |> classic
+    |> forVersion version
+
 let arithmetic version kind =
     let numberType, left, right =
         match kind with

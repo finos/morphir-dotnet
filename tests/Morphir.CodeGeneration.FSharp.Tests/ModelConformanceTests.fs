@@ -182,6 +182,8 @@ let tests =
                 GenerationCases.recordOperations, ModelConformanceInputs.recordOperations
                 GenerationCases.letRecOrder, ModelConformanceInputs.letRecOrder
                 GenerationCases.sdkMappings, ModelConformanceInputs.sdkMappings
+                GenerationCases.sdkRecordPayloads, ModelConformanceInputs.sdkRecordPayloads
+                GenerationCases.sdkIdentityCapture, ModelConformanceInputs.sdkIdentityCapture
             ] do
             let required = [
                 for version in [ "3"; "4.0.0" ] do

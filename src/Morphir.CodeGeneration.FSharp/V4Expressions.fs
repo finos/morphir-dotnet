@@ -302,7 +302,7 @@ module internal V4Expressions =
             | Value.Unit _ -> Some(Type.Unit TypeAttributes.empty)
             | _ -> None
 
-        let constructorArguments expected q =
+        let modelConstructorArguments expected q =
             match Map.tryFind q constructors, expected with
             | Some(owner, parameters, args), Some(Type.Reference(_, target, arguments)) when
                 owner = target
@@ -323,6 +323,27 @@ module internal V4Expressions =
                     >> Some
                 )
             | _ -> []
+
+        let constructorArguments expected q =
+            let sdkName = if Emit.sdk q then Some(Emit.sdkName q) else None
+
+            match sdkName, expected with
+            | Some "maybe.just", Some(Type.Reference(_, target, [ element ])) when
+                Emit.sdk target
+                && Emit.sdkName target = "maybe.maybe"
+                  ->
+                  [ Some element ]
+            | Some "result.ok", Some(Type.Reference(_, target, [ _; success ])) when
+                Emit.sdk target
+                && Emit.sdkName target = "result.result"
+                  ->
+                  [ Some success ]
+            | Some "result.err", Some(Type.Reference(_, target, [ error; _ ])) when
+                Emit.sdk target
+                && Emit.sdkName target = "result.result"
+                  ->
+                  [ Some error ]
+            | _ -> modelConstructorArguments expected q
 
         let rec bindPattern env expected pattern =
             match pattern with
