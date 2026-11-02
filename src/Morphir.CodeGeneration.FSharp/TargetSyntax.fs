@@ -1,7 +1,58 @@
 namespace Morphir.CodeGeneration.FSharp
 
+open System
+open System.Globalization
+open System.Numerics
+open System.Text.Json
+
 /// F# target spellings shared by both semantic-model adapters.
 module internal TargetSyntax =
+    let stringLiteral (value: string) =
+        "\""
+        + JsonEncodedText.Encode(value).ToString()
+        + "\""
+
+    let charLiteral (value: char) = $"'\\u{int value:X4}'"
+
+    let integer (value: BigInteger) =
+        if
+            value < BigInteger Int32.MinValue
+            || value > BigInteger Int32.MaxValue
+        then
+            Decode.fail "literal-range" "$" "The mapped Morphir Int range is Int32."
+
+        value.ToString(CultureInfo.InvariantCulture)
+
+    let floatLiteral (value: float) =
+        if not (Double.IsFinite value) then
+            Decode.fail "literal-range" "$" "Non-finite float literal."
+
+        let text = value.ToString("R", CultureInfo.InvariantCulture)
+
+        if
+            text.Contains('.')
+            || text.Contains('E')
+        then
+            text
+        else
+            text
+            + ".0"
+
+    let decimalLiteral (value: decimal) =
+        let text =
+            value.ToString(CultureInfo.InvariantCulture)
+            + "M"
+
+        let bits = Decimal.GetBits value
+
+        if
+            value = 0M
+            && bits.[3] < 0
+        then
+            "-" + text
+        else
+            text
+
     let sdkType name arguments =
         let application target =
             target

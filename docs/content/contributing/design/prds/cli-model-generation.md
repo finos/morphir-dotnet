@@ -70,6 +70,8 @@ V4-only semantics use the same harness and diagnostics. The supported/refused fe
 
 - Added v4 type emission with shared F# naming, SDK type spellings, AST formatting and dependency ordering. A single generic-record/union consumer compiles and executes classic/v4 inputs; visibility assertions use the same adapters. All 124 generator tests pass. V4 remains unregistered until the required expressions, validation, refusals and optimizer checks are complete.
 
+- Scalar profile: 42 common rows cover Int32 boundaries, overflow, exact decimal precision/scale and exponents, decimal signed zero, floating-point bit patterns and extremes, escaped strings, BMP and supplementary characters. Explicit reasons account for values classic typed IR cannot represent. The negative-zero case exposed and fixed a shared decimal rendering defect. All 166 generator tests pass; the full Nuke run retains only the 11 pending CLI BDD failures.
+
 ## Open questions
 
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

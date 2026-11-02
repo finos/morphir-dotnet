@@ -76,4 +76,43 @@ let tests =
                     sources
                     "internal Hidden"
                     "private definitions retain assembly visibility"
+
+        for scalar in GenerationScalars.cases do
+            let required = [
+                for version in [ "3"; "4.0.0" ] ->
+                    {
+                        Version = version
+                        Format = "typed"
+                        Layout = "memory"
+                        Optimize = true
+                    }
+            ]
+
+            let variants = [
+                for row in required do
+                    let materialize () =
+                        ModelConformanceInputs.scalar row.Version scalar.Input
+
+                    let input =
+                        match row.Version, scalar.ClassicUnavailable, scalar.Refusal with
+                        | "3", Some reason, _ -> Unrepresentable reason
+                        | _, _, Some code -> Refused(materialize, code)
+                        | _ -> Supported materialize
+
+                    yield { Representation = row; Input = input }
+            ]
+
+            let case = {
+                Id = scalar.Id
+                Consumer = scalar.Consumer
+                ExpectedOutput = scalar.Expected
+                Required = required
+                Variants = variants
+            }
+
+            for row in variants do
+                testCase $"{case.Id}/{row.Representation.Version}"
+                <| fun () ->
+                    GenerationConformance.run generate case row
+                    |> ignore
     ]

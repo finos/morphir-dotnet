@@ -199,33 +199,11 @@ module internal Emit =
     let literal value =
         match value with
         | BoolLiteral value -> if value then "true" else "false"
-        | CharLiteral value -> $"'\\u{int value:X4}'"
-        | StringLiteral value -> JsonSerializer.Serialize(value)
-        | WholeNumberLiteral value ->
-            if
-                value < int64 Int32.MinValue
-                || value > int64 Int32.MaxValue
-            then
-                Decode.fail "literal-range" "$" "The mapped Morphir Int range is Int32."
-
-            value.ToString(CultureInfo.InvariantCulture)
-        | FloatLiteral value ->
-            if not (Double.IsFinite value) then
-                Decode.fail "literal-range" "$" "Non-finite float literal."
-
-            let text = value.ToString("R", CultureInfo.InvariantCulture)
-
-            if
-                text.Contains('.')
-                || text.Contains('E')
-            then
-                text
-            else
-                text
-                + ".0"
-        | DecimalLiteral value ->
-            value.ToString(CultureInfo.InvariantCulture)
-            + "M"
+        | CharLiteral value -> TargetSyntax.charLiteral value
+        | StringLiteral value -> TargetSyntax.stringLiteral value
+        | WholeNumberLiteral value -> TargetSyntax.integer (System.Numerics.BigInteger value)
+        | FloatLiteral value -> TargetSyntax.floatLiteral value
+        | DecimalLiteral value -> TargetSyntax.decimalLiteral value
 
     let private formatCore source =
         let parsed =

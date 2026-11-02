@@ -246,14 +246,41 @@ module internal V4Emit =
                         + body
                     )
 
-                if
-                    OrderedMap.count controlled.Value.Values
-                    <> 0
-                then
-                    Decode.fail
-                        "unsupported-v4-expression"
-                        moduleName
-                        "V4 expression emission is not available yet."
+                let values =
+                    OrderedMap.toList controlled.Value.Values
+                    |> List.sortBy fst
+
+                values
+                |> List.map (
+                    fst
+                    >> Emit.camel
+                )
+                |> distinct moduleName
+
+                let valueDeclarations =
+                    values
+                    |> List.map (fun (name, controlled) ->
+                        let definition = controlled.Value.Value
+
+                        match definition.InputTypes, definition.Body with
+                        | [], ExpressionBody(output, Value.Literal(_, literal)) ->
+                            "let "
+                            + internalAccess controlled.Access
+                            + Emit.ident (Emit.camel name)
+                            + " : "
+                            + typ output
+                            + " = "
+                            + ScalarProfile.render
+                                (moduleName
+                                 + "."
+                                 + Emit.camel name)
+                                literal
+                        | _ ->
+                            Decode.fail
+                                "unsupported-v4-expression"
+                                moduleName
+                                "This v4 expression is not implemented yet."
+                    )
 
                 let source =
                     "module "
@@ -262,7 +289,10 @@ module internal V4Emit =
                     + "."
                     + moduleName
                     + "\n\n"
-                    + String.concat "\n\n" typeDeclarations
+                    + String.concat
+                        "\n\n"
+                        (typeDeclarations
+                         @ valueDeclarations)
                     + "\n"
 
                 path,

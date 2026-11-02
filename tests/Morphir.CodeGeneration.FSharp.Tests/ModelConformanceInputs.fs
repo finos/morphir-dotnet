@@ -3,6 +3,7 @@ module Morphir.CodeGeneration.FSharp.Tests.ModelConformanceInputs
 open System.Text.Json
 open Morphir.IR
 open Morphir.IR.Model
+open Morphir.Testing
 
 module F = Morphir.CodeGeneration.FSharp.Tests.Fixtures
 
@@ -58,6 +59,113 @@ let classic json =
             |> ok
         Distribution = DistributionModel.Classic decoded.Distribution
     }
+
+let scalar version input =
+    let moduleName, localName =
+        match input with
+        | GenerationScalars.Integer _ -> "basics", "int"
+        | GenerationScalars.Decimal _ -> "decimal", "decimal"
+        | GenerationScalars.Float _ -> "basics", "float"
+        | GenerationScalars.Character _ -> "char", "char"
+        | GenerationScalars.Text _ -> "string", "string"
+        | GenerationScalars.Boolean _ -> "basics", "bool"
+
+    let reference = sdk moduleName localName
+
+    if version = "3" then
+        let attributes = Unchecked.defaultof<JsonElement>
+
+        let literal =
+            match input with
+            | GenerationScalars.Integer value -> Morphir.IR.Classic.WholeNumberLiteral(int64 value)
+            | GenerationScalars.Decimal lexeme ->
+                Morphir.IR.Classic.DecimalLiteral(
+                    System.Decimal.Parse(
+                        lexeme,
+                        System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture
+                    )
+                )
+            | GenerationScalars.Float value -> Morphir.IR.Classic.FloatLiteral value
+            | GenerationScalars.Character value -> Morphir.IR.Classic.CharLiteral value[0]
+            | GenerationScalars.Text value -> Morphir.IR.Classic.StringLiteral value
+            | GenerationScalars.Boolean value -> Morphir.IR.Classic.BoolLiteral value
+
+        let value: Morphir.IR.Classic.ValueDefinition<JsonElement, JsonElement> = {
+            InputTypes = []
+            OutputType = Morphir.IR.Classic.Type.Reference(attributes, reference, [])
+            Body = Morphir.IR.Classic.Value.Literal(attributes, literal)
+        }
+
+        let controlled value : Morphir.IR.Classic.AccessControlled.AccessControlled<_> = {
+            Access = Morphir.IR.Classic.AccessControlled.Public
+            Value = value
+        }
+
+        let module': Morphir.IR.Classic.Module.ModuleDefinition<JsonElement, JsonElement> = {
+            Types = Map.empty
+            Values =
+                Map.ofList[name "value",
+                           controlled (Morphir.IR.Classic.Documented.WithoutDocumentation value)]
+            Doc = None
+        }
+
+        {
+            SourceVersion =
+                SourceFormatVersion.parse version
+                |> ok
+            Distribution =
+                DistributionModel.Classic(
+                    Morphir.IR.Classic.Distribution.Library(
+                        package,
+                        Map.empty,
+                        {
+                            Modules = Map.ofList[modulePath "literals", controlled module']
+                        }
+                    )
+                )
+        }
+    else
+        let literal =
+            match input with
+            | GenerationScalars.Integer value -> Morphir.IR.V4.IntegerLiteral value
+            | GenerationScalars.Decimal lexeme ->
+                Morphir.IR.V4.DecimalLiteral(
+                    Morphir.IR.V4.DecimalLexeme.create lexeme
+                    |> ok
+                )
+            | GenerationScalars.Float value ->
+                Morphir.IR.V4.FloatLiteral(
+                    Morphir.IR.V4.FloatValue.create value None
+                    |> ok
+                )
+            | GenerationScalars.Character value -> Morphir.IR.V4.CharLiteral value
+            | GenerationScalars.Text value -> Morphir.IR.V4.StringLiteral value
+            | GenerationScalars.Boolean value -> Morphir.IR.V4.BoolLiteral value
+
+        let value: Morphir.IR.V4.ValueDefinition = {
+            InputTypes = []
+            Body =
+                Morphir.IR.V4.ExpressionBody(
+                    Morphir.IR.V4.Type.Reference(Morphir.IR.V4.TypeAttributes.empty, reference, []),
+                    Morphir.IR.V4.Value.Literal(Morphir.IR.V4.ValueAttributes.empty, literal)
+                )
+        }
+
+        let module': Morphir.IR.V4.ModuleDefinition = {
+            Types = ordered []
+            Values = ordered[name "value", publicValue (documented value)]
+            Doc = None
+        }
+
+        Morphir.IR.V4.Library(
+            package,
+            ordered [],
+            {
+                Modules = ordered[modulePath "literals", publicValue module']
+            }
+        )
+        |> v4
 
 let typeStructure version =
     if version = "3" then
