@@ -16,11 +16,13 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.CodeGeneration.FSharp/Morphir.CodeGeneration.FSharp.fsproj" />
     <ProjectReference Include="../../src/Morphir.SDK/Morphir.SDK.fsproj" />
+    <ProjectReference Include="../../src/Morphir.Testing/Morphir.Testing.fsproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Fixtures/ResourceLoader.fs" Link="ResourceLoader.fs" />
     <Compile Include="Fixtures.fs" />
     <Compile Include="TranspilerAdapter.fs" />
+    <Compile Include="GenerationConformanceTests.fs" />
     <Compile Include="PipelineGenerationTests.fs" />
     <Compile Include="TranspilerTests.fs" />
   </ItemGroup>

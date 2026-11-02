@@ -13,6 +13,9 @@
 
     <ItemGroup>
         <Compile Include="Assertions.fs" />
+        <Compile Include="GenerationCompiler.fs" />
+        <Compile Include="GenerationConformance.fs" />
+        <Compile Include="GenerationCases.fs" />
     </ItemGroup>
 
 </Project>

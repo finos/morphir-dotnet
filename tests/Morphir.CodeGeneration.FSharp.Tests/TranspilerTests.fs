@@ -12,92 +12,7 @@ open Morphir.CodeGeneration.FSharp.Tests.TranspilerAdapter
 module F = Morphir.CodeGeneration.FSharp.Tests.Fixtures
 
 let executeWithReferences references (modules: GeneratedModule list) code =
-    let directory =
-        Path.Combine(
-            Path.GetTempPath(),
-            "morphir-backend-"
-            + Guid.NewGuid().ToString("N")
-        )
-
-    Directory.CreateDirectory(directory)
-    |> ignore
-
-    try
-        for m in modules do
-            let file = Path.Combine(directory, m.RelativePath)
-
-            Directory.CreateDirectory(Path.GetDirectoryName file)
-            |> ignore
-
-            File.WriteAllText(file, m.Source)
-
-        let loads =
-            modules
-            |> List.map (fun m ->
-                "#load @\""
-                + Path.Combine(directory, m.RelativePath)
-                + "\""
-            )
-            |> String.concat "\n"
-
-        let script = Path.Combine(directory, "consumer.fsx")
-
-        File.WriteAllText(
-            script,
-            (references
-             |> List.map (fun reference ->
-                 "#r @\""
-                 + reference
-                 + "\""
-             )
-             |> String.concat "\n")
-            + "\n"
-            + loads
-            + "\n"
-            + code
-        )
-
-        let dotnetHost =
-            Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")
-            |> Option.ofObj
-            |> Option.defaultWith (fun () ->
-                Path.GetFullPath(
-                    Path.Combine(
-                        System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory(),
-                        "../../..",
-                        if OperatingSystem.IsWindows() then
-                            "dotnet.exe"
-                        else
-                            "dotnet"
-                    )
-                )
-            )
-
-        let start = ProcessStartInfo(dotnetHost)
-        start.ArgumentList.Add("fsi")
-        start.ArgumentList.Add("--warnaserror+")
-        start.ArgumentList.Add("--exec")
-        start.ArgumentList.Add(script)
-        start.RedirectStandardOutput <- true
-        start.RedirectStandardError <- true
-        use child = Process.Start(start)
-        let output = child.StandardOutput.ReadToEndAsync()
-        let error = child.StandardError.ReadToEndAsync()
-
-        if not (child.WaitForExit(60000)) then
-            child.Kill(true)
-            failtest "compiler timeout"
-
-        Expect.equal
-            child.ExitCode
-            0
-            (error.Result
-             + "\n"
-             + output.Result)
-
-        output.Result.Trim()
-    finally
-        Directory.Delete(directory, true)
+    GenerationCompiler.executeWithReferences references (modules |> List.map (fun file -> file.RelativePath, file.Source)) code
 
 let execute modules code = executeWithReferences [] modules code
 
@@ -1272,6 +1187,7 @@ let main argv =
         []
         argv
         (testList "Backend" [
+            GenerationConformanceTests.tests
             tests
             contractTests
             optimizationEquivalenceTests

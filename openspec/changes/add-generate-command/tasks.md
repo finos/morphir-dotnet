@@ -6,7 +6,7 @@ Related work: [#363](https://github.com/finos/morphir-dotnet/issues/363), [#368]
 
 - [x] 1.1 Integrate the merged PR #456 baseline into the implementation branch without reset or loss of local work; verify the history contains `0a7f6ca` or an equivalent reviewed integration and locked restore succeeds.
 - [x] 1.2 Create the feature PRD and index entry under `docs/content/contributing/design/prds/`, linking this change, #363 and #368; verify the status table distinguishes implemented generation from future MEP/configuration work and includes v4 in the first delivery.
-- [ ] 1.3 Extend the existing generator/compiler helpers into the common TEST-1 harness and behavior inventory before adding version-specific generation work; verify one independently specified case runs through multiple representation adapters and matrix completeness checks fail on missing required rows while accounting for unrepresentable combinations with reasons.
+- [x] 1.3 Extend the existing generator/compiler helpers into the common TEST-1 harness and behavior inventory before adding version-specific generation work; verify one independently specified case runs through multiple representation adapters and matrix completeness checks fail on missing required rows while accounting for unrepresentable combinations with reasons.
 - [ ] 1.4 Add parameterized generation BDD scenarios under `tests/Morphir.Tooling.Tests/Features/Generate/` before production changes, reusing the same runner and step definitions across versions; verify red cases cover explicit CLI input, nonempty classic/v4 success, format parity, expected refusals, failed-output preservation and JSON stdout purity.
 
 ## 2. Typed contracts, settings and backend selection

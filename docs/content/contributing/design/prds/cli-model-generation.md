@@ -25,7 +25,7 @@ This is the implementation target, not a command already delivered by this PRD. 
 | Feature | Status | Tasks | Completion evidence |
 | --- | --- | --- | --- |
 | Merged Ion baseline | Implemented | 1.1 | Fast-forward to `0a7f6ca`; solution locked restore passed |
-| Shared behavior corpus and compiler harness | Planned | 1.3-1.4 | Required matrix coverage and independent expectations across supported versions/formats |
+| Shared behavior corpus and compiler harness | In Progress | 1.3-1.4 | Required matrix coverage and independent expectations across supported versions/formats |
 | Versioned model and generation contracts | Planned | 2.1-2.2 | Public consumer examples and compatible existing APIs |
 | Settings and backend resolution | Planned | 2.3-2.5 | Explicit overrides, fake provider, incompatibility and ambiguity tests |
 | Typed entry point and classic compatibility | Planned | 3.1-3.4 | Existing consumers and shared corpus remain green |
@@ -51,6 +51,10 @@ V4-only semantics use the same harness and diagnostics. The supported/refused fe
 - `dotnet restore Morphir.slnx --locked-mode --nologo` passed with existing package warnings.
 - Plain `dotnet test` is incompatible with this repository's mixed .NET 10 testing setup. Use its Nuke Test target, which invokes TUnit and Expecto executables.
 - The first Nuke baseline run exposed two environmental Tooling failures: temporary directories under the user's profile discover its ancestor `.morphir` directory. With process-local TEMP/TMP set to an isolated root under `C:\Users\Public`, all 111 Tooling tests passed. No user configuration was modified. The full isolated Nuke baseline passed, including cold package-consumer checks (2 minutes 55 seconds).
+
+### Shared acceptance infrastructure, 2026-11-02
+
+- Extracted the existing FSI helper into Morphir.Testing; existing generator tests and new conformance cases use it. One rental expectation executes for classic JSON v1/v2/v3, with failing checks for missing/duplicate matrix rows and unexplained omissions. All 91 generator tests and the full Nuke Test target passed (3 minutes 9 seconds).
 
 ## Open questions
 
