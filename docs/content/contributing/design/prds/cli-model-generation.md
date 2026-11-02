@@ -106,4 +106,6 @@ Publication is implemented before CLI orchestration so its handler can use a tes
 
 ## Open questions
 
+Publication preflight checks canonical input/output separation, linked ancestors and leaf files, current artifacts and previous manifest entries before writes. Eleven publisher tests cover ordering, cancellation, overlap, traversal, rooted paths, case collisions, links, generation errors and sibling-prefix handling. They pass in the full Nuke run; only the 11 pending CLI cases remain red.
+
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

@@ -38,6 +38,69 @@ public sealed class GenerationPublisherTests : IDisposable
     }
 
     [Test]
+    [Arguments("same")]
+    [Arguments("input-below-output")]
+    [Arguments("output-below-input")]
+    public async Task InputOutputOverlapCannotReplaceEarlierOutput(string relation)
+    {
+        await Publish(Artifacts(("prior.fs", "prior")));
+        var input = relation switch { "same" => Output, "input-below-output" => Path.Combine(Output, "prior.fs"), _ => _root };
+        var before = File.ReadAllBytes(Path.Combine(Output, GenerationDefaults.OwnershipManifest));
+        var result = await new GenerationPublisher().PublishAsync(Artifacts(("next.fs", "next")), new(input), new(Output), default);
+        ((Outcome<GenerationPublication>.Failure)result).Error.Diagnostics[0].Code.Should().Be("input-output-overlap");
+        File.ReadAllText(Path.Combine(Output, "prior.fs")).Should().Be("prior");
+        File.ReadAllBytes(Path.Combine(Output, GenerationDefaults.OwnershipManifest)).Should().Equal(before);
+        File.Exists(Path.Combine(Output, "next.fs")).Should().BeFalse();
+    }
+
+    [Test]
+    [Arguments("traversal")]
+    [Arguments("rooted")]
+    [Arguments("case-collision")]
+    [Arguments("generation-errors")]
+    public async Task UnsafeArtifactsPreserveFilesAndOwnership(string problem)
+    {
+        await Publish(Artifacts(("prior.fs", "prior")));
+        var artifacts = problem switch
+        {
+            "traversal" => Artifacts(("../escape.fs", "bad")),
+            "rooted" => Artifacts((Path.Combine(_root, "escape.fs"), "bad")),
+            "case-collision" => Artifacts(("A.fs", "one"), ("a.fs", "two")),
+            _ => Artifacts(("next.fs", "next"))
+        };
+        if (problem == "generation-errors") artifacts = artifacts with { Tree = VFileTreeModule.report(VMessageModule.create(MessageSeverity.Error, "refused"), artifacts.Tree) };
+        var before = Directory.GetFiles(Output).ToDictionary(path => path, File.ReadAllText);
+        (await Publish(artifacts)).Should().BeOfType<Outcome<GenerationPublication>.Failure>();
+        Directory.GetFiles(Output).ToDictionary(path => path, File.ReadAllText).Should().Equal(before);
+        File.Exists(Path.Combine(_root, "escape.fs")).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task OutputLinksIncludingAncestorsAndExistingLeafFilesAreRefused()
+    {
+        var outside = Path.Combine(_root, "outside"); Directory.CreateDirectory(outside);
+        var link = Path.Combine(_root, "linked"); Directory.CreateSymbolicLink(link, outside);
+        var result = await new GenerationPublisher().PublishAsync(Artifacts(("A.fs", "module A")), new(Path.Combine(_root, "source.json")), new(Path.Combine(link, "output")), default);
+        result.Should().BeOfType<Outcome<GenerationPublication>.Failure>();
+        Directory.Exists(Path.Combine(outside, "output")).Should().BeFalse();
+        Directory.Delete(link);
+        Directory.CreateDirectory(Output);
+        var original = Path.Combine(outside, "A.fs"); File.WriteAllText(original, "original");
+        File.CreateSymbolicLink(Path.Combine(Output, "A.fs"), original);
+        (await Publish(Artifacts(("A.fs", "replacement")))).Should().BeOfType<Outcome<GenerationPublication>.Failure>();
+        File.ReadAllText(original).Should().Be("original");
+        File.Delete(Path.Combine(Output, "A.fs"));
+    }
+
+    [Test]
+    public async Task SiblingNamesWithACommonPrefixDoNotCountAsOverlap()
+    {
+        var input = Path.Combine(_root, "output-model.json"); File.WriteAllText(input, "{}");
+        var result = await new GenerationPublisher().PublishAsync(Artifacts(("A.fs", "module A")), new(input), new(Output), default);
+        result.Should().BeOfType<Outcome<GenerationPublication>.Success>();
+    }
+
+    [Test]
     public async Task CancellationBeforePublicationCreatesNoOutput()
     {
         using var cancellation = new CancellationTokenSource(); cancellation.Cancel();
