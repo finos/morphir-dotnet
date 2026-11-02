@@ -51,7 +51,7 @@ All tests in this group extend the harness and case inventory from group 1. Vers
 
 - [x] 6.1 Implement generation orchestration in the existing mediator/host and register the first-party F# adapter through a generation scenario; verify the BDD success path reaches settings, loader, resolver and backend without target switches in command actions.
 - [x] 6.2 Add `--input`, `--target`, `--output`, `--input-format`, repeated `--option` and `--json` binding; verify missing settings, unsupported flags and unknown/invalid backend options return code 2 without publication.
-- [ ] 6.3 Add source-generated generation report serialization and typed exit mapping; verify stdout is one JSON document for parsed JSON-mode success/failure, logs stay on stderr, semantic failures return 1, operational failures return 2 and cancellation before publication returns 130.
+- [x] 6.3 Add source-generated generation report serialization and typed exit mapping; verify stdout is one JSON document for parsed JSON-mode success/failure, logs stay on stderr, semantic failures return 1, operational failures return 2 and cancellation before publication returns 130.
 - [ ] 6.4 Add the command reference, getting-started examples and troubleshooting entries under `docs/content/docs/`; run each delivered CLI example against fixtures and verify future config/MEP syntax is not advertised as available.
 
 ## 7. Owned publication

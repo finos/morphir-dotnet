@@ -253,11 +253,14 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
         await _host.StartAsync(cancellationToken);
         try
         {
-            return Invoke(_rootCommand.Parse(_args));
+            var result = _rootCommand.Parse(_args);
+            return result.Errors.Count > 0 && result.CommandResult.Command is IMorphirParseErrorHandler handler
+                ? handler.HandleParseErrors(result)
+                : await result.InvokeAsync(cancellationToken: cancellationToken);
         }
         finally
         {
-            await _host.StopAsync(cancellationToken);
+            await _host.StopAsync(CancellationToken.None);
         }
     }
 

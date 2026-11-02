@@ -116,4 +116,6 @@ The existing host and source-generated mediator coordinate settings, captured-mo
 
 CLI binding adds explicit paths/target, constrained input format, repeated backend options and JSON mode. Seven subprocess tests cover unknown target/flags, invalid format/options, missing option values and last-value Boolean handling. Parser failures use the command's structured report and code 2. Command actions contain no target switches or separate host construction.
 
+Reports serialize through a source-generated context with plain DTO fields. Six reporting tests cover typed exit codes, a real operational CLI failure, parseable JSON and cancellation before publication. The cancellation test exposed the host's synchronous invocation and lost caller token; asynchronous invocation now forwards it and shutdown does not reuse the cancelled token. Full Nuke verification passes all suites, and the additional operational-report regression passes.
+
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.
