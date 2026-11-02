@@ -424,24 +424,9 @@ module internal Emit =
                                 + ">"
 
                         if sdk q then
-                            match sdkName q, rendered with
-                            | "basics.int", [] -> "int"
-                            | "basics.float", [] -> "float"
-                            | "basics.bool", []
-                            | "bool.bool", [] -> "bool"
-                            | "basics.order", [] -> "Morphir.SDK.Order"
-                            | "string.string", [] -> "string"
-                            | "char.char", [] -> "char"
-                            | "decimal.decimal", [] -> "decimal"
-                            | "list.list", [ _ ] -> application "list"
-                            | "maybe.maybe", [ _ ] -> application "option"
-                            | "result.result", [ error; success ] ->
-                                "Result<"
-                                + success
-                                + ", "
-                                + error
-                                + ">"
-                            | _ ->
+                            match TargetSyntax.sdkType (sdkName q) rendered with
+                            | Some target -> target
+                            | None ->
                                 Decode.fail
                                     "unsupported-sdk"
                                     moduleName
@@ -1209,32 +1194,4 @@ module internal Emit =
                 }
             )
 
-        let rec order donePaths remaining =
-            match remaining with
-            | [] -> []
-            | _ ->
-                match
-                    remaining
-                    |> List.tryFind (fun (_, dependencies, _) ->
-                        Set.isSubset dependencies donePaths
-                    )
-                with
-                | None ->
-                    Decode.fail
-                        "module-cycle"
-                        "$"
-                        ("Cyclic module dependencies: "
-                         + (remaining
-                            |> List.map (fun (path, _, _) -> modulePath path)
-                            |> String.concat ", "))
-                | Some(path, _, generated) ->
-                    generated
-                    :: order
-                        (Set.add path donePaths)
-                        (remaining
-                         |> List.filter (fun (other, _, _) ->
-                             other
-                             <> path
-                         ))
-
-        order Set.empty emitted
+        DependencyOrder.modules modulePath emitted

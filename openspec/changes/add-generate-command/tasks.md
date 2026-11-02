@@ -28,7 +28,7 @@ Related work: [#363](https://github.com/finos/morphir-dotnet/issues/363), [#368]
 
 All tests in this group extend the harness and case inventory from group 1. Version-specific input adapters and explicit applicability data are allowed; a second fixture strategy, compiler runner, behavioral oracle or assertion path is not.
 
-- [ ] 4.1 Add v4 type validation and emission for aliases, custom unions, generics, tuples, closed records, functions, unit, visibility and dependency order; add v4 representations of the shared type cases, observe red, and verify the common compiler runner accepts the generated output.
+- [x] 4.1 Add v4 type validation and emission for aliases, custom unions, generics, tuples, closed records, functions, unit, visibility and dependency order; add v4 representations of the shared type cases, observe red, and verify the common compiler runner accepts the generated output.
 - [ ] 4.2 Add v4 scalar emission using the documented exact F# scalar profile; extend common literal cases with version applicability and expected outcomes for Int32 boundaries, finite floats, decimal exactness/scale, BMP characters, overflow, rounding and supplementary-plane Char refusal.
 - [ ] 4.3 Add v4 expression/pattern emission for constructors, tuples/lists/records, variables/references, field access, application, lambdas, conditionals and ordered matching; verify each applicable representation against the case's single independently specified expected behavior through the shared runner.
 - [ ] 4.4 Add v4 let/letrec, destructuring and record-update behavior; run existing recursion, shadowing, currying and record-operation cases through added v4 representations using the same compile/invoke/assert steps.

@@ -110,3 +110,35 @@ module internal DependencyOrder =
                      |> List.filter ((<>) next))
 
         order Set.empty components
+
+    /// Dependency order shared by model-family emitters.
+    let modules renderPath entries =
+        let rec order donePaths remaining =
+            match remaining with
+            | [] -> []
+            | _ ->
+                match
+                    remaining
+                    |> List.tryFind (fun (_, dependencies, _) ->
+                        Set.isSubset dependencies donePaths
+                    )
+                with
+                | None ->
+                    Decode.fail
+                        "module-cycle"
+                        "$"
+                        ("Cyclic module dependencies: "
+                         + (remaining
+                            |> List.map (fun (path, _, _) -> renderPath path)
+                            |> String.concat ", "))
+                | Some(path, _, generated) ->
+                    generated
+                    :: order
+                        (Set.add path donePaths)
+                        (remaining
+                         |> List.filter (fun (other, _, _) ->
+                             other
+                             <> path
+                         ))
+
+        order Set.empty entries

@@ -1191,6 +1191,7 @@ let main argv =
             TypedGenerationTests.tests
             TypedValidationTests.tests
             GenerationOptionsTests.tests
+            ModelConformanceTests.tests
             tests
             contractTests
             optimizationEquivalenceTests

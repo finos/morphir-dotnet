@@ -2,6 +2,17 @@ namespace Morphir.Testing
 
 /// Behavioral expectations are independent of the representation adapters that supply inputs.
 module GenerationCases =
+    let typeStructure required variants : GenerationConformance.BehaviorCase<'Input> = {
+        Id = "types.generic-record-and-union"
+        Consumer =
+            "let box: Car.Rental.Higher.Boxed = { value = 21 }\n"
+            + "let envelope: Car.Rental.Types.Envelope<int> = Car.Rental.Types.Wrapped box\n"
+            + "match envelope with Car.Rental.Types.Wrapped item -> printfn \"%d\" (item.value * 2)"
+        ExpectedOutput = "42"
+        Required = required
+        Variants = variants
+    }
+
     let dailyRate required variants : GenerationConformance.BehaviorCase<'Input> = {
         Id = "inventory.daily-rate"
         Consumer = "printfn \"%d\" Car.Rental.Inventory.dailyRate"

@@ -29,7 +29,7 @@ This is the implementation target, not a command already delivered by this PRD. 
 | Versioned model and generation contracts | Implemented | 2.1-2.2 | Public consumer examples and compatible existing APIs |
 | Settings and backend resolution | Implemented | 2.3-2.5 | Explicit overrides, fake provider, incompatibility and ambiguity tests |
 | Typed entry point and classic compatibility | Implemented | 3.1-3.4 | Existing consumers and shared corpus remain green |
-| Required v4 F# semantics | Planned | 4.1-4.9 | Nonempty generated libraries compile and execute through the same harness |
+| Required v4 F# semantics | In Progress | 4.1-4.9 | Nonempty generated libraries compile and execute through the same harness |
 | Bounded JSON/Ion model loading | Planned | 5.1-5.6 | Capture limits, retained originals, codec diagnostics and representation parity |
 | CLI generation and reporting | Planned | 6.1-6.4 | BDD scenarios, typed exits, parseable JSON stdout and command documentation |
 | Owned artifact publication | Planned | 7.1-7.3 | Ordered manifest, unchanged receipts, stale-owned removal and failure tests |
@@ -65,6 +65,10 @@ V4-only semantics use the same harness and diagnostics. The supported/refused fe
 ### Typed classic generation, 2026-11-02
 
 - Added public typed generation with source context and shared options while preserving the strict JSON wrapper. Shared rental cases cover classic versions and typed/file APIs with optimization enabled and disabled. Regression tests exposed and closed typed name and type-arity bypasses. All 120 generator tests pass; the full Nuke run has only the same 11 pending CLI acceptance failures, and existing Ion/Myriad suites pass.
+
+### Direct v4 generation, 2026-11-02
+
+- Added v4 type emission with shared F# naming, SDK type spellings, AST formatting and dependency ordering. A single generic-record/union consumer compiles and executes classic/v4 inputs; visibility assertions use the same adapters. All 124 generator tests pass. V4 remains unregistered until the required expressions, validation, refusals and optimizer checks are complete.
 
 ## Open questions
 
