@@ -33,7 +33,7 @@ This is the implementation target, not a command already delivered by this PRD. 
 | Bounded JSON/Ion model loading | Implemented | 5.1-5.6 | Capture limits, retained originals, codec diagnostics and representation parity |
 | CLI generation and reporting | Implemented | 6.1-6.4 | BDD scenarios, typed exits, parseable JSON stdout and command documentation |
 | Owned artifact publication | Implemented | 7.1-7.3 | Ordered manifest, unchanged receipts, stale-owned removal and failure tests |
-| Coverage, trimming and Native AOT | Planned | 8.1-8.4 | Recorded test/coverage results and actual published-executable runs |
+| Coverage, trimming and Native AOT | In Progress | 8.1-8.4 | Recorded test/coverage results and actual published-executable runs |
 | TOML/YAML generation configuration | Deferred | Follow-up | One canonical configuration model and settings resolver; no parser-specific generator API |
 | MEP host/guest adapters | Deferred | Follow-up | Reuse generation contracts with protocol admission and capability negotiation |
 
@@ -109,6 +109,10 @@ Publication preflight checks canonical input/output separation, linked ancestors
 Three additional publication tests verify stale-owned removal with unowned preservation, unchanged files/manifest after a staged content failure, and a real commit failure after one file has moved. The latter deliberately demonstrates mixed output and its operational diagnostic. The CLI reference states this limited guarantee. All pass in the full Nuke run, apart from the pending command acceptance cases.
 
 ## Open questions
+
+### Integration verification, 2026-11-02
+
+Added the previously omitted pipeline-plugin suite to Nuke Test. The complete run passed in 4 minutes 33 seconds: Core 237, Tooling 230, Internal 25, Models 791, Pipeline 299, Pipeline Plugins 136, SDK 175, F# Generation 270, Ion 463, Myriad 4 and Myriad Integration 12. Cold package-consumer checks passed. These suites report no ignored/skipped tests. Required representation rows and explicit unrepresentability reasons are enforced by the common inventory. Additional readiness regressions and published-runtime checks continue under 8.2/8.3.
 
 ### CLI orchestration, 2026-11-02
 

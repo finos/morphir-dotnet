@@ -62,7 +62,7 @@ All tests in this group extend the harness and case inventory from group 1. Vers
 
 ## 8. Integration and release-readiness checks
 
-- [ ] 8.1 Run the complete relevant model, Ion, pipeline, F# generator, Tooling and Myriad suites plus the repository's full test command; verify the shared behavior/version/format matrix covers nonempty generation, compilation, execution and refusals, reject unexplained skips or missing required rows, and record real results in the PRD.
+- [x] 8.1 Run the complete relevant model, Ion, pipeline, F# generator, Tooling and Myriad suites plus the repository's full test command; verify the shared behavior/version/format matrix covers nonempty generation, compilation, execution and refusals, reject unexplained skips or missing required rows, and record real results in the PRD.
 - [ ] 8.2 Run repository formatting and required coverage collection; verify affected unit coverage meets the repository's >90% requirement and overall coverage remains at least 80%, or record an existing unrelated baseline gap for maintainer review.
 - [ ] 8.3 Publish representative trimmed and Native AOT CLI builds using the repository's supported host/toolchain; run selected shared corpus cases across applicable versions/formats through those published CLI executables, verify parseable JSON reports, and review every new trimming/AOT warning in affected code.
 - [ ] 8.4 Check all current examples, spec scenarios, publication guarantees and capability claims against implementation; verify `openspec validate add-generate-command --strict` passes and update the PRD's feature status and implementation notes.
