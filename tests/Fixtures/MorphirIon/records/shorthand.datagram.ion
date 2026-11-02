@@ -1,0 +1,9 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: library,
+  packageName: "example",
+}
+public::def::module::{ name: "main", values: [ public::def::value::{ name: "v", outputType: "morphir/SDK:basics#int", body: (tuple 42 x true () 1.5e0 (lambda [score] score) (lambda [a, b] a) (lambda (as (wildcard) c) c) (match x [_, 1] [y, 2] [[], 3] [(), 4] [5, 6] [true, 7] [1.5e0, 8]) (variable { source: { startLine: 1, startColumn: 1, endLine: 1, endColumn: 2 } } x) (int { source: { startLine: 1, startColumn: 1, endLine: 1, endColumn: 2 } } 1) (unit { source: { startLine: 1, startColumn: 1, endLine: 1, endColumn: 2 } }) (lambda (wildcard { source: { startLine: 1, startColumn: 1, endLine: 1, endColumn: 2 } }) 1) (lambda (emptyList { source: { startLine: 1, startColumn: 1, endLine: 1, endColumn: 2 } }) 1) (let score { outputType: "morphir/SDK:basics#int", body: 70 } score) (letrec [(f { outputType: "morphir/SDK:basics#int", body: f })] f) (int "99999999999999999999999999") (float "4e+0") (decimal "10.50") (string "hello") (char "a") (bool true) (document { source: { startLine: 1, startColumn: 1, endLine: 1, endColumn: 2 } } { a: 1 }) (hole unresolvedReference::{ target: "a:b#c" } "morphir/SDK:basics#int")) } ] }
+morphir_footer::{
+}

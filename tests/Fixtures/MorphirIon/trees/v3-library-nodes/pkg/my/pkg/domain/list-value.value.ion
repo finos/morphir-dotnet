@@ -1,0 +1,33 @@
+public::def::value::{
+  outputType: reference::{
+    name: "morphir/SDK:list#list",
+    arguments: [
+      "morphir/SDK:basics#int",
+    ],
+  },
+  body: (
+    list
+    {
+      inferredType: reference::{
+        name: "morphir/SDK:list#list",
+        arguments: [
+          "morphir/SDK:basics#int",
+        ],
+      },
+    }
+    (
+      int
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      1
+    )
+    (
+      int
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      2
+    )
+  ),
+}

@@ -1,0 +1,13 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "3.0.0",
+  kind: library,
+  packageName: "my/pkg",
+  dependencies: [
+    package::spec::{ name: "my/dep", modules: [ module::spec::{ name: "util", doc: "Util.", types: [ public::spec::opaque::type::{ name: "id" } ], values: [ public::spec::value::{ name: "parse", inputs: [ { name: "text", type: "morphir/SDK:string#string" } ], output: "my/dep:util#id" } ] } ] },
+  ],
+  modules: [
+    public::def::module::{ name: "domain", doc: "Domain.", types: [ public::def::alias::type::{ name: "score", typeExp: "morphir/SDK:basics#int" } ], values: [ public::def::value::{ name: "zero", inputTypes: [ { name: "a", type: "morphir/SDK:basics#int" } ], outputType: "morphir/SDK:basics#int", body: (int { inferredType: "morphir/SDK:basics#int" } 0) } ] },
+    private::def::module::{ name: "hidden" },
+  ],
+}

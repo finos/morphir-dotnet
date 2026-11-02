@@ -1,0 +1,10 @@
+public::def::native::value::{
+  inputTypes: {
+    a: "morphir/SDK:basics#int",
+    b: "morphir/SDK:basics#int",
+  },
+  outputType: "morphir/SDK:basics#int",
+  hint: arithmetic,
+  description: "Addition",
+  doc: "Adds.",
+}

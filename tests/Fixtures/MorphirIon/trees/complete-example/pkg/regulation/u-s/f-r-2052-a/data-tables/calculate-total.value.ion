@@ -1,0 +1,10 @@
+public::def::value::{
+  inputTypes: {
+    tables: "regulation:u-s/f-r-2052-a/data-tables#data-tables",
+  },
+  outputType: "morphir/SDK:basics#float",
+  body: (
+    float
+    "0.0"
+  ),
+}

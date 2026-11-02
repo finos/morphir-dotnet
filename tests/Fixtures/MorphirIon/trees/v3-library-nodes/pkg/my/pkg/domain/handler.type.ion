@@ -1,0 +1,7 @@
+public::def::alias::type::{
+  typeExp: function::{
+    parameterType: "morphir/SDK:basics#int",
+    returnType: unit::{
+    },
+  },
+}

@@ -1,0 +1,44 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    tuple
+    18446744073709551616
+    -9223372036854775809
+    (
+      int
+      "99999999999999999999999999999999999999999"
+    )
+    (
+      float
+      "4.0"
+    )
+    (
+      float
+      "4e+0"
+    )
+    (
+      float
+      "1.5e+300"
+    )
+    (
+      float
+      "-0.5"
+    )
+    (
+      decimal
+      "10.50"
+    )
+    (
+      decimal
+      "-0.00"
+    )
+    (
+      decimal
+      "1e-7"
+    )
+    (
+      char
+      "😀"
+    )
+  ),
+}

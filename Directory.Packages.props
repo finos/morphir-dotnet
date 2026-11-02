@@ -96,6 +96,7 @@
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
     <PackageVersion Include="TUnit" Version="1.48.0" />
+    <PackageVersion Include="Eleven19.IonDotnet" Version="0.1.4" />
     <PackageVersion Include="Expecto" Version="10.2.3" />
     <PackageVersion Include="Expecto.FsCheck" Version="10.2.3" />
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />

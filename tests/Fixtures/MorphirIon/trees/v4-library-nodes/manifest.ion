@@ -1,0 +1,13 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: library,
+  packageName: "my-org/project",
+  pathBudget: 4000,
+}
+package::spec::{
+  name: "my-org/shared",
+}
+package::spec::{
+  name: "morphir/SDK",
+}

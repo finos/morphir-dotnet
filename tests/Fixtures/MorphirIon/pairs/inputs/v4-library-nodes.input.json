@@ -1,0 +1,1808 @@
+{
+ "formatVersion": 4,
+ "distribution": {
+  "Library": {
+   "packageName": "my-org/project",
+   "dependencies": {
+    "my-org/shared": {
+     "modules": {
+      "annotated": {
+       "annotations": [
+        "my-org/project:annotations#stable"
+       ],
+       "types": {
+        "opaque": {
+         "OpaqueTypeSpecification": {
+          "annotations": [
+           "my-org/project:annotations#deprecated:Use user-v2 instead",
+           {
+            "name": "my-org/project:annotations#since",
+            "arguments": [
+             {
+              "Literal": {
+               "StringLiteral": "1.2.0"
+              }
+             },
+             {
+              "name": "reason",
+              "value": {
+               "Literal": {
+                "StringLiteral": "renamed"
+               }
+              }
+             }
+            ]
+           },
+           {
+            "name": "my-org/project:annotations#internal"
+           },
+           "my-org/project:annotations#plain"
+          ],
+          "typeParams": [
+           "a"
+          ]
+         }
+        },
+        "alias": {
+         "doc": "Alias doc.",
+         "TypeAliasSpecification": {
+          "annotations": [
+           "my-org/project:annotations#deprecated:Use user-v2 instead",
+           {
+            "name": "my-org/project:annotations#since",
+            "arguments": [
+             {
+              "Literal": {
+               "StringLiteral": "1.2.0"
+              }
+             },
+             {
+              "name": "reason",
+              "value": {
+               "Literal": {
+                "StringLiteral": "renamed"
+               }
+              }
+             }
+            ]
+           },
+           {
+            "name": "my-org/project:annotations#internal"
+           },
+           "my-org/project:annotations#plain"
+          ],
+          "typeParams": [
+           "a"
+          ],
+          "typeExp": {
+           "Reference": [
+            "morphir/SDK:list#list",
+            "a"
+           ]
+          }
+         }
+        },
+        "custom": {
+         "CustomTypeSpecification": {
+          "annotations": [
+           "my-org/project:annotations#deprecated:Use user-v2 instead",
+           {
+            "name": "my-org/project:annotations#since",
+            "arguments": [
+             {
+              "Literal": {
+               "StringLiteral": "1.2.0"
+              }
+             },
+             {
+              "name": "reason",
+              "value": {
+               "Literal": {
+                "StringLiteral": "renamed"
+               }
+              }
+             }
+            ]
+           },
+           {
+            "name": "my-org/project:annotations#internal"
+           },
+           "my-org/project:annotations#plain"
+          ],
+          "typeParams": [
+           "a"
+          ],
+          "constructors": {
+           "just": [
+            [
+             "value",
+             "a"
+            ]
+           ],
+           "nothing": []
+          }
+         }
+        },
+        "derived": {
+         "DerivedTypeSpecification": {
+          "annotations": [
+           "my-org/project:annotations#deprecated:Use user-v2 instead",
+           {
+            "name": "my-org/project:annotations#since",
+            "arguments": [
+             {
+              "Literal": {
+               "StringLiteral": "1.2.0"
+              }
+             },
+             {
+              "name": "reason",
+              "value": {
+               "Literal": {
+                "StringLiteral": "renamed"
+               }
+              }
+             }
+            ]
+           },
+           {
+            "name": "my-org/project:annotations#internal"
+           },
+           "my-org/project:annotations#plain"
+          ],
+          "typeParams": [],
+          "baseType": "morphir/SDK:string#string",
+          "fromBaseType": "my-org/project:module#from-string",
+          "toBaseType": "my-org/project:module#to-string"
+         }
+        }
+       },
+       "values": {
+        "add": {
+         "doc": "Adds.",
+         "annotations": [
+          "my-org/project:annotations#pure"
+         ],
+         "inputs": {
+          "a": "morphir/SDK:basics#int",
+          "b": "morphir/SDK:basics#int"
+         },
+         "output": "morphir/SDK:basics#int"
+        },
+        "zero": {
+         "output": "morphir/SDK:basics#int"
+        }
+       },
+       "doc": "The domain module"
+      },
+      "plain": {
+       "types": {},
+       "values": {}
+      }
+     }
+    },
+    "morphir/SDK": {
+     "modules": {}
+    }
+   },
+   "def": {
+    "modules": {
+     "nodes": {
+      "Public": {
+       "doc": "All nodes.",
+       "types": {
+        "attributes-on-types": {
+         "Public": {
+          "doc": "Type attributes.",
+          "TypeAliasDefinition": {
+           "typeParams": [
+            "a"
+           ],
+           "typeExp": {
+            "Tuple": {
+             "attributes": {
+              "source": {
+               "startLine": 1,
+               "startColumn": 1,
+               "endLine": 1,
+               "endColumn": 2
+              },
+              "constraints": {
+               "min": 0
+              },
+              "extensions": {
+               "k": "v"
+              }
+             },
+             "elements": [
+              {
+               "Variable": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
+                 },
+                 "constraints": {
+                  "min": 0
+                 },
+                 "extensions": {
+                  "k": "v"
+                 }
+                },
+                "name": "a"
+               }
+              },
+              {
+               "Reference": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
+                 },
+                 "constraints": {
+                  "min": 0
+                 },
+                 "extensions": {
+                  "k": "v"
+                 }
+                },
+                "fqname": "morphir/SDK:list#list",
+                "args": [
+                 "a"
+                ]
+               }
+              },
+              {
+               "Record": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
+                 },
+                 "constraints": {
+                  "min": 0
+                 },
+                 "extensions": {
+                  "k": "v"
+                 }
+                },
+                "fields": {
+                 "x": "morphir/SDK:basics#int"
+                }
+               }
+              },
+              {
+               "ExtensibleRecord": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
+                 },
+                 "constraints": {
+                  "min": 0
+                 },
+                 "extensions": {
+                  "k": "v"
+                 }
+                },
+                "variable": "r",
+                "fields": {
+                 "x": "morphir/SDK:basics#int"
+                }
+               }
+              },
+              {
+               "Function": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
+                 },
+                 "constraints": {
+                  "min": 0
+                 },
+                 "extensions": {
+                  "k": "v"
+                 }
+                },
+                "parameterType": "morphir/SDK:basics#int",
+                "returnType": "morphir/SDK:string#string"
+               }
+              },
+              {
+               "Unit": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
+                 },
+                 "constraints": {
+                  "min": 0
+                 },
+                 "extensions": {
+                  "k": "v"
+                 }
+                }
+               }
+              }
+             ]
+            }
+           }
+          }
+         }
+        },
+        "plain-types": {
+         "Private": {
+          "TypeAliasDefinition": {
+           "typeParams": [],
+           "typeExp": {
+            "Tuple": [
+             "a",
+             "morphir/SDK:basics#int",
+             {
+              "Reference": [
+               "morphir/SDK:list#list",
+               "morphir/SDK:basics#int"
+              ]
+             },
+             {
+              "Record": {
+               "fields": {
+                "name": "morphir/SDK:string#string",
+                "value-in-USD": "morphir/SDK:basics#float"
+               }
+              }
+             },
+             {
+              "ExtensibleRecord": {
+               "variable": "r",
+               "fields": {
+                "email": "morphir/SDK:string#string"
+               }
+              }
+             },
+             {
+              "Function": {
+               "parameterType": "morphir/SDK:basics#int",
+               "returnType": "morphir/SDK:string#string"
+              }
+             },
+             {
+              "Unit": {}
+             },
+             {
+              "Tuple": []
+             },
+             {
+              "Record": {
+               "fields": {}
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        "custom": {
+         "Public": {
+          "CustomTypeDefinition": {
+           "typeParams": [
+            "a"
+           ],
+           "access": "Private",
+           "constructors": {
+            "just": [
+             [
+              "value",
+              "a"
+             ],
+             [
+              "other",
+              "morphir/SDK:basics#int"
+             ]
+            ],
+            "nothing": []
+           }
+          }
+         }
+        },
+        "custom-public": {
+         "Private": {
+          "doc": "Custom.",
+          "CustomTypeDefinition": {
+           "typeParams": [],
+           "access": "Public",
+           "constructors": {}
+          }
+         }
+        },
+        "incomplete-draft-type": {
+         "Public": {
+          "IncompleteTypeDefinition": {
+           "typeParams": [],
+           "incompleteness": {
+            "Draft": {}
+           },
+           "partialTypeExp": "morphir/SDK:basics#int"
+          }
+         }
+        },
+        "incomplete-hole-type": {
+         "Private": {
+          "doc": "Hole.",
+          "IncompleteTypeDefinition": {
+           "typeParams": [
+            "a"
+           ],
+           "incompleteness": {
+            "Hole": {
+             "reason": {
+              "TypeMismatch": {
+               "expected": "morphir/SDK:basics#int",
+               "found": "morphir/SDK:string#string"
+              }
+             },
+             "partialBody": "morphir/SDK:basics#int"
+            }
+           }
+          }
+         }
+        }
+       },
+       "values": {
+        "attributes-on-values": {
+         "Public": {
+          "doc": "Attributes force the long forms.",
+          "ExpressionBody": {
+           "inputTypes": {},
+           "outputType": "morphir/SDK:basics#int",
+           "body": {
+            "Tuple": {
+             "attributes": {
+              "source": {
+               "startLine": 5,
+               "startColumn": 6,
+               "endLine": 7,
+               "endColumn": 8
+              },
+              "inferredType": "morphir/SDK:basics#int",
+              "extensions": {
+               "tool": {
+                "n": 1,
+                "ratio": 0.10
+               }
+              }
+             },
+             "elements": [
+              {
+               "Variable": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "name": "x"
+               }
+              },
+              {
+               "Unit": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                }
+               }
+              },
+              {
+               "Reference": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "fqname": "morphir/SDK:basics#add"
+               }
+              },
+              {
+               "Constructor": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "fqname": "morphir/SDK:maybe#just"
+               }
+              },
+              {
+               "Literal": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "literal": {
+                 "IntegerLiteral": 1
+                }
+               }
+              },
+              {
+               "Literal": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "literal": {
+                 "BoolLiteral": true
+                }
+               }
+              },
+              {
+               "Literal": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "literal": {
+                 "StringLiteral": "s"
+                }
+               }
+              },
+              {
+               "Literal": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "literal": {
+                 "CharLiteral": "c"
+                }
+               }
+              },
+              {
+               "Literal": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "literal": {
+                 "FloatLiteral": 1.5
+                }
+               }
+              },
+              {
+               "Literal": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "literal": {
+                 "DecimalLiteral": "1.50"
+                }
+               }
+              },
+              {
+               "Literal": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "literal": {
+                 "DocumentLiteral": {
+                  "a": 1
+                 }
+                }
+               }
+              },
+              {
+               "List": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "items": [
+                 {
+                  "Literal": {
+                   "IntegerLiteral": 1
+                  }
+                 }
+                ]
+               }
+              },
+              {
+               "Record": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "fields": {
+                 "a": {
+                  "Literal": {
+                   "IntegerLiteral": 1
+                  }
+                 }
+                }
+               }
+              },
+              {
+               "Apply": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "function": {
+                 "Variable": "f"
+                },
+                "argument": {
+                 "Literal": {
+                  "IntegerLiteral": 1
+                 }
+                }
+               }
+              },
+              {
+               "Field": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "target": {
+                 "Variable": "r"
+                },
+                "name": "a"
+               }
+              },
+              {
+               "FieldFunction": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "name": "a"
+               }
+              },
+              {
+               "Lambda": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "pattern": {
+                 "AsPattern": {
+                  "pattern": {
+                   "WildcardPattern": {}
+                  },
+                  "name": "n"
+                 }
+                },
+                "body": {
+                 "Variable": "n"
+                }
+               }
+              },
+              {
+               "IfThenElse": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "condition": {
+                 "Literal": {
+                  "BoolLiteral": true
+                 }
+                },
+                "then": {
+                 "Literal": {
+                  "IntegerLiteral": 1
+                 }
+                },
+                "else": {
+                 "Literal": {
+                  "IntegerLiteral": 2
+                 }
+                }
+               }
+              },
+              {
+               "LetDefinition": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "name": "y",
+                "definition": {
+                 "ExpressionBody": {
+                  "inputTypes": {
+                   "p": "morphir/SDK:basics#int"
+                  },
+                  "outputType": "morphir/SDK:basics#int",
+                  "body": {
+                   "Variable": "p"
+                  }
+                 }
+                },
+                "in": {
+                 "Variable": "y"
+                }
+               }
+              },
+              {
+               "LetRecursion": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "definitions": {
+                 "f": {
+                  "ExpressionBody": {
+                   "inputTypes": {},
+                   "outputType": "morphir/SDK:basics#int",
+                   "body": {
+                    "Variable": "f"
+                   }
+                  }
+                 }
+                },
+                "in": {
+                 "Variable": "f"
+                }
+               }
+              },
+              {
+               "Destructure": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "pattern": {
+                 "AsPattern": {
+                  "pattern": {
+                   "WildcardPattern": {}
+                  },
+                  "name": "d"
+                 }
+                },
+                "value": {
+                 "Literal": {
+                  "IntegerLiteral": 1
+                 }
+                },
+                "in": {
+                 "Variable": "d"
+                }
+               }
+              },
+              {
+               "UpdateRecord": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "target": {
+                 "Variable": "r"
+                },
+                "fields": {
+                 "a": {
+                  "Literal": {
+                   "IntegerLiteral": 1
+                  }
+                 }
+                }
+               }
+              },
+              {
+               "Hole": {
+                "attributes": {
+                 "source": {
+                  "startLine": 1,
+                  "startColumn": 2,
+                  "endLine": 3,
+                  "endColumn": 4
+                 }
+                },
+                "reason": {
+                 "UnresolvedReference": {
+                  "target": "my-org/project:module#deleted"
+                 }
+                }
+               }
+              }
+             ]
+            }
+           }
+          }
+         }
+        },
+        "patterns": {
+         "Public": {
+          "ExpressionBody": {
+           "inputTypes": {
+            "v": "morphir/SDK:basics#int"
+           },
+           "outputType": "morphir/SDK:basics#int",
+           "body": {
+            "PatternMatch": {
+             "attributes": {
+              "source": {
+               "startLine": 1,
+               "startColumn": 2,
+               "endLine": 3,
+               "endColumn": 4
+              }
+             },
+             "value": {
+              "Variable": "v"
+             },
+             "cases": [
+              {
+               "pattern": {
+                "WildcardPattern": {
+                 "attributes": {
+                  "source": {
+                   "startLine": 1,
+                   "startColumn": 2,
+                   "endLine": 3,
+                   "endColumn": 4
+                  }
+                 }
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 1
+                }
+               }
+              },
+              {
+               "pattern": {
+                "AsPattern": {
+                 "attributes": {
+                  "source": {
+                   "startLine": 1,
+                   "startColumn": 2,
+                   "endLine": 3,
+                   "endColumn": 4
+                  }
+                 },
+                 "pattern": {
+                  "WildcardPattern": {}
+                 },
+                 "name": "a"
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 2
+                }
+               }
+              },
+              {
+               "pattern": {
+                "TuplePattern": {
+                 "attributes": {
+                  "source": {
+                   "startLine": 1,
+                   "startColumn": 2,
+                   "endLine": 3,
+                   "endColumn": 4
+                  }
+                 },
+                 "patterns": [
+                  {
+                   "WildcardPattern": {}
+                  },
+                  {
+                   "AsPattern": {
+                    "pattern": {
+                     "WildcardPattern": {}
+                    },
+                    "name": "b"
+                   }
+                  }
+                 ]
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 3
+                }
+               }
+              },
+              {
+               "pattern": {
+                "ConstructorPattern": {
+                 "attributes": {
+                  "source": {
+                   "startLine": 1,
+                   "startColumn": 2,
+                   "endLine": 3,
+                   "endColumn": 4
+                  }
+                 },
+                 "fqname": "morphir/SDK:maybe#just",
+                 "patterns": [
+                  {
+                   "WildcardPattern": {}
+                  }
+                 ]
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 4
+                }
+               }
+              },
+              {
+               "pattern": {
+                "EmptyListPattern": {
+                 "attributes": {
+                  "source": {
+                   "startLine": 1,
+                   "startColumn": 2,
+                   "endLine": 3,
+                   "endColumn": 4
+                  }
+                 }
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 5
+                }
+               }
+              },
+              {
+               "pattern": {
+                "HeadTailPattern": {
+                 "attributes": {
+                  "source": {
+                   "startLine": 1,
+                   "startColumn": 2,
+                   "endLine": 3,
+                   "endColumn": 4
+                  }
+                 },
+                 "head": {
+                  "AsPattern": {
+                   "pattern": {
+                    "WildcardPattern": {}
+                   },
+                   "name": "h"
+                  }
+                 },
+                 "tail": {
+                  "WildcardPattern": {}
+                 }
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 6
+                }
+               }
+              },
+              {
+               "pattern": {
+                "LiteralPattern": {
+                 "attributes": {
+                  "source": {
+                   "startLine": 1,
+                   "startColumn": 2,
+                   "endLine": 3,
+                   "endColumn": 4
+                  }
+                 },
+                 "literal": {
+                  "IntegerLiteral": 7
+                 }
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 7
+                }
+               }
+              },
+              {
+               "pattern": {
+                "UnitPattern": {
+                 "attributes": {
+                  "source": {
+                   "startLine": 1,
+                   "startColumn": 2,
+                   "endLine": 3,
+                   "endColumn": 4
+                  }
+                 }
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 8
+                }
+               }
+              },
+              {
+               "pattern": {
+                "LiteralPattern": {
+                 "BoolLiteral": false
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 9
+                }
+               }
+              },
+              {
+               "pattern": {
+                "LiteralPattern": {
+                 "StringLiteral": "s"
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 10
+                }
+               }
+              },
+              {
+               "pattern": {
+                "LiteralPattern": {
+                 "CharLiteral": "c"
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 11
+                }
+               }
+              },
+              {
+               "pattern": {
+                "LiteralPattern": {
+                 "FloatLiteral": 1.5
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 12
+                }
+               }
+              },
+              {
+               "pattern": {
+                "LiteralPattern": {
+                 "DecimalLiteral": "0.10"
+                }
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 13
+                }
+               }
+              },
+              {
+               "pattern": {
+                "EmptyListPattern": {}
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 14
+                }
+               }
+              },
+              {
+               "pattern": {
+                "UnitPattern": {}
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 15
+                }
+               }
+              },
+              {
+               "pattern": {
+                "WildcardPattern": {}
+               },
+               "body": {
+                "Literal": {
+                 "IntegerLiteral": 16
+                }
+               }
+              }
+             ]
+            }
+           }
+          }
+         }
+        },
+        "numbers": {
+         "Public": {
+          "ExpressionBody": {
+           "inputTypes": {},
+           "outputType": "morphir/SDK:basics#int",
+           "body": {
+            "Tuple": [
+             {
+              "Literal": {
+               "IntegerLiteral": 18446744073709551616
+              }
+             },
+             {
+              "Literal": {
+               "IntegerLiteral": -9223372036854775809
+              }
+             },
+             {
+              "Literal": {
+               "IntegerLiteral": 99999999999999999999999999999999999999999
+              }
+             },
+             {
+              "Literal": {
+               "FloatLiteral": 4.0
+              }
+             },
+             {
+              "Literal": {
+               "FloatLiteral": 4e+0
+              }
+             },
+             {
+              "Literal": {
+               "FloatLiteral": 1.5e300
+              }
+             },
+             {
+              "Literal": {
+               "FloatLiteral": -0.5
+              }
+             },
+             {
+              "Literal": {
+               "DecimalLiteral": "10.50"
+              }
+             },
+             {
+              "Literal": {
+               "DecimalLiteral": "-0.00"
+              }
+             },
+             {
+              "Literal": {
+               "DecimalLiteral": "1e-7"
+              }
+             },
+             {
+              "Literal": {
+               "CharLiteral": "😀"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        "document": {
+         "Public": {
+          "ExpressionBody": {
+           "inputTypes": {},
+           "outputType": "morphir/SDK:document#document",
+           "body": {
+            "Literal": {
+             "DocumentLiteral": {
+              "name": "Alice",
+              "age": 30,
+              "tags": [
+               "admin",
+               "user"
+              ],
+              "metadata": null,
+              "yes": true,
+              "no": false,
+              "id": 9007199254740993,
+              "big": 123456789012345678901234567890123456789012345,
+              "ratio": 0.10,
+              "exp": 1.5e+2,
+              "pos": 1e+2,
+              "plain-exp": 1e2,
+              "neg": 5e-7,
+              "small": 0.000001,
+              "point": 0.0000001,
+              "upper": 1E5,
+              "plain": 12.50,
+              "neg-zero": -0.0,
+              "neg-int-zero": -0,
+              "nested": {
+               "list": [
+                [],
+                {}
+               ],
+               "zero": 0,
+               "neg": -1
+              }
+             }
+            }
+           }
+          }
+         }
+        },
+        "native": {
+         "Public": {
+          "doc": "Adds.",
+          "NativeBody": {
+           "inputTypes": {
+            "a": "morphir/SDK:basics#int",
+            "b": "morphir/SDK:basics#int"
+           },
+           "outputType": "morphir/SDK:basics#int",
+           "nativeInfo": {
+            "hint": {
+             "Arithmetic": {}
+            },
+            "description": "Addition"
+           }
+          }
+         }
+        },
+        "native-compare": {
+         "Private": {
+          "NativeBody": {
+           "inputTypes": {},
+           "outputType": "morphir/SDK:basics#int",
+           "nativeInfo": {
+            "hint": {
+             "Comparison": {}
+            }
+           }
+          }
+         }
+        },
+        "native-string": {
+         "Public": {
+          "NativeBody": {
+           "inputTypes": {},
+           "outputType": "morphir/SDK:basics#int",
+           "nativeInfo": {
+            "hint": {
+             "StringOp": {}
+            }
+           }
+          }
+         }
+        },
+        "native-collection": {
+         "Public": {
+          "NativeBody": {
+           "inputTypes": {},
+           "outputType": "morphir/SDK:basics#int",
+           "nativeInfo": {
+            "hint": {
+             "CollectionOp": {}
+            }
+           }
+          }
+         }
+        },
+        "native-platform": {
+         "Public": {
+          "NativeBody": {
+           "inputTypes": {},
+           "outputType": "morphir/SDK:basics#int",
+           "nativeInfo": {
+            "hint": {
+             "PlatformSpecific": {
+              "platform": "wasm"
+             }
+            }
+           }
+          }
+         }
+        },
+        "external": {
+         "Public": {
+          "ExternalBody": {
+           "inputTypes": {
+            "x": "morphir/SDK:basics#int"
+           },
+           "outputType": "morphir/SDK:basics#int",
+           "externals": [
+            {
+             "targetPlatform": "erlang",
+             "externalName": "math:abs"
+            },
+            {
+             "targetPlatform": "javascript",
+             "externalName": "Math.abs"
+            }
+           ],
+           "body": {
+            "Variable": "x"
+           }
+          }
+         }
+        },
+        "external-plain": {
+         "Public": {
+          "doc": "Logs.",
+          "ExternalBody": {
+           "inputTypes": {
+            "msg": "morphir/SDK:string#string"
+           },
+           "outputType": "morphir/SDK:basics#unit",
+           "externals": [
+            {
+             "targetPlatform": "javascript",
+             "externalName": "console.log"
+            }
+           ]
+          }
+         }
+        },
+        "incomplete-draft": {
+         "Public": {
+          "IncompleteBody": {
+           "inputTypes": {},
+           "incompleteness": {
+            "Draft": {}
+           }
+          }
+         }
+        },
+        "incomplete-partial": {
+         "Private": {
+          "doc": "Not done.",
+          "IncompleteBody": {
+           "inputTypes": {
+            "x": "morphir/SDK:basics#int"
+           },
+           "outputType": "morphir/SDK:basics#int",
+           "incompleteness": {
+            "Draft": {}
+           },
+           "partialBody": {
+            "Literal": {
+             "IntegerLiteral": 1
+            }
+           }
+          }
+         }
+        },
+        "incomplete-unresolved": {
+         "Public": {
+          "IncompleteBody": {
+           "inputTypes": {},
+           "outputType": "morphir/SDK:basics#int",
+           "incompleteness": {
+            "Hole": {
+             "reason": {
+              "UnresolvedReference": {
+               "target": "my-org/project:module#missing"
+              }
+             },
+             "partialBody": "morphir/SDK:basics#int"
+            }
+           }
+          }
+         }
+        },
+        "incomplete-deleted": {
+         "Public": {
+          "IncompleteBody": {
+           "inputTypes": {},
+           "incompleteness": {
+            "Hole": {
+             "reason": {
+              "DeletedDuringRefactor": {
+               "tx-id": "tx-42"
+              }
+             }
+            }
+           }
+          }
+         }
+        },
+        "incomplete-mismatch": {
+         "Public": {
+          "IncompleteBody": {
+           "inputTypes": {},
+           "incompleteness": {
+            "Hole": {
+             "reason": {
+              "TypeMismatch": {
+               "expected": "morphir/SDK:basics#int",
+               "found": "morphir/SDK:string#string"
+              }
+             }
+            }
+           }
+          }
+         }
+        },
+        "holes": {
+         "Public": {
+          "ExpressionBody": {
+           "inputTypes": {},
+           "outputType": "morphir/SDK:basics#int",
+           "body": {
+            "Tuple": [
+             {
+              "Hole": {
+               "reason": {
+                "UnresolvedReference": {
+                 "target": "my-org/project:module#deleted"
+                }
+               }
+              }
+             },
+             {
+              "Hole": {
+               "reason": {
+                "DeletedDuringRefactor": {
+                 "tx-id": "tx-1"
+                }
+               },
+               "expectedType": "morphir/SDK:string#string"
+              }
+             },
+             {
+              "Hole": {
+               "reason": {
+                "TypeMismatch": {
+                 "expected": "morphir/SDK:basics#int",
+                 "found": "morphir/SDK:string#string"
+                }
+               },
+               "expectedType": {
+                "Reference": [
+                 "morphir/SDK:list#list",
+                 "a"
+                ]
+               }
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        "plain-expressions": {
+         "Public": {
+          "ExpressionBody": {
+           "inputTypes": {},
+           "outputType": "morphir/SDK:basics#int",
+           "body": {
+            "List": [
+             {
+              "Apply": {
+               "function": {
+                "Reference": "morphir/SDK:basics#negate"
+               },
+               "argument": {
+                "Literal": {
+                 "IntegerLiteral": 1
+                }
+               }
+              }
+             },
+             {
+              "Lambda": {
+               "pattern": {
+                "AsPattern": {
+                 "pattern": {
+                  "WildcardPattern": {}
+                 },
+                 "name": "score"
+                }
+               },
+               "body": {
+                "Variable": "score"
+               }
+              }
+             },
+             {
+              "Lambda": {
+               "pattern": {
+                "TuplePattern": [
+                 {
+                  "AsPattern": {
+                   "pattern": {
+                    "WildcardPattern": {}
+                   },
+                   "name": "a"
+                  }
+                 },
+                 {
+                  "AsPattern": {
+                   "pattern": {
+                    "WildcardPattern": {}
+                   },
+                   "name": "b"
+                  }
+                 }
+                ]
+               },
+               "body": {
+                "Variable": "a"
+               }
+              }
+             },
+             {
+              "IfThenElse": {
+               "condition": {
+                "Literal": {
+                 "BoolLiteral": true
+                }
+               },
+               "then": {
+                "Literal": {
+                 "IntegerLiteral": 1
+                }
+               },
+               "else": {
+                "Literal": {
+                 "IntegerLiteral": 2
+                }
+               }
+              }
+             },
+             {
+              "LetDefinition": {
+               "name": "x",
+               "definition": {
+                "ExpressionBody": {
+                 "inputTypes": {},
+                 "outputType": "morphir/SDK:basics#int",
+                 "body": {
+                  "Literal": {
+                   "IntegerLiteral": 1
+                  }
+                 }
+                }
+               },
+               "in": {
+                "Variable": "x"
+               }
+              }
+             },
+             {
+              "LetRecursion": {
+               "definitions": {
+                "f": {
+                 "ExpressionBody": {
+                  "inputTypes": {},
+                  "outputType": "morphir/SDK:basics#int",
+                  "body": {
+                   "Variable": "f"
+                  }
+                 }
+                },
+                "g": {
+                 "ExpressionBody": {
+                  "inputTypes": {},
+                  "outputType": "morphir/SDK:basics#int",
+                  "body": {
+                   "Variable": "g"
+                  }
+                 }
+                }
+               },
+               "in": {
+                "Variable": "f"
+               }
+              }
+             },
+             {
+              "Destructure": {
+               "pattern": {
+                "TuplePattern": [
+                 {
+                  "AsPattern": {
+                   "pattern": {
+                    "WildcardPattern": {}
+                   },
+                   "name": "a"
+                  }
+                 },
+                 {
+                  "WildcardPattern": {}
+                 }
+                ]
+               },
+               "value": {
+                "Variable": "pair"
+               },
+               "in": {
+                "Variable": "a"
+               }
+              }
+             },
+             {
+              "Field": {
+               "target": {
+                "Variable": "record"
+               },
+               "name": "field-name"
+              }
+             },
+             {
+              "FieldFunction": "name"
+             },
+             {
+              "Record": {
+               "fields": {
+                "name": {
+                 "Variable": "x"
+                },
+                "age": {
+                 "Literal": {
+                  "IntegerLiteral": 25
+                 }
+                }
+               }
+              }
+             },
+             {
+              "UpdateRecord": {
+               "target": {
+                "Variable": "record"
+               },
+               "fields": {
+                "name": {
+                 "Literal": {
+                  "StringLiteral": "new"
+                 }
+                }
+               }
+              }
+             },
+             {
+              "Tuple": [
+               {
+                "Variable": "x"
+               },
+               {
+                "Literal": {
+                 "IntegerLiteral": 1
+                }
+               }
+              ]
+             },
+             {
+              "List": []
+             },
+             {
+              "Unit": {}
+             },
+             {
+              "Constructor": "morphir/SDK:maybe#just"
+             },
+             {
+              "Reference": "morphir/SDK:basics#add"
+             },
+             {
+              "Literal": {
+               "BoolLiteral": false
+              }
+             },
+             {
+              "Literal": {
+               "StringLiteral": "text with \"quotes\" and \n"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "hidden": {
+      "Private": {
+       "types": {},
+       "values": {}
+      }
+     }
+    }
+   }
+  }
+ }
+}

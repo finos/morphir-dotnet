@@ -1,0 +1,231 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#bool",
+  body: (
+    match
+    {
+      inferredType: "morphir/SDK:basics#bool",
+    }
+    (
+      field
+      {
+        inferredType: reference::{
+          name: "morphir/SDK:list#list",
+          arguments: [
+            tuple::            [
+              "elm-compat:main#product",
+              "elm-compat:main#quantity",
+            ],
+          ],
+        },
+      }
+      (
+        variable
+        {
+          inferredType: "elm-compat:main#customer-order",
+        }
+        order
+      )
+      products
+    )
+    [
+      (
+        emptyList
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              tuple::              [
+                "elm-compat:main#product",
+                "elm-compat:main#quantity",
+              ],
+            ],
+          },
+        }
+      ),
+      (
+        bool
+        {
+          inferredType: "morphir/SDK:basics#bool",
+        }
+        false
+      ),
+    ]
+    [
+      (
+        wildcard
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              tuple::              [
+                "elm-compat:main#product",
+                "elm-compat:main#quantity",
+              ],
+            ],
+          },
+        }
+      ),
+      (
+        apply
+        {
+          inferredType: "morphir/SDK:basics#bool",
+        }
+        (
+          apply
+          {
+            inferredType: function::{
+              parameterType: reference::{
+                name: "morphir/SDK:list#list",
+                arguments: [
+                  tuple::                  [
+                    "elm-compat:main#product",
+                    "elm-compat:main#quantity",
+                  ],
+                ],
+              },
+              returnType: "morphir/SDK:basics#bool",
+            },
+          }
+          (
+            ref
+            {
+              inferredType: function::{
+                parameterType: function::{
+                  parameterType: tuple::[
+                    "elm-compat:main#product",
+                    "elm-compat:main#quantity",
+                  ],
+                  returnType: "morphir/SDK:basics#bool",
+                },
+                returnType: function::{
+                  parameterType: reference::{
+                    name: "morphir/SDK:list#list",
+                    arguments: [
+                      tuple::                      [
+                        "elm-compat:main#product",
+                        "elm-compat:main#quantity",
+                      ],
+                    ],
+                  },
+                  returnType: "morphir/SDK:basics#bool",
+                },
+              },
+            }
+            'morphir/SDK:list#all'
+          )
+          (
+            lambda
+            {
+              inferredType: function::{
+                parameterType: tuple::[
+                  "elm-compat:main#product",
+                  "elm-compat:main#quantity",
+                ],
+                returnType: "morphir/SDK:basics#bool",
+              },
+            }
+            (
+              tuple
+              {
+                inferredType: tuple::[
+                  "elm-compat:main#product",
+                  "elm-compat:main#quantity",
+                ],
+              }
+              (
+                wildcard
+                {
+                  inferredType: "elm-compat:main#product",
+                }
+              )
+              (
+                as
+                {
+                  inferredType: "elm-compat:main#quantity",
+                }
+                (
+                  wildcard
+                  {
+                    inferredType: "elm-compat:main#quantity",
+                  }
+                )
+                qty
+              )
+            )
+            (
+              apply
+              {
+                inferredType: "morphir/SDK:basics#bool",
+              }
+              (
+                apply
+                {
+                  inferredType: function::{
+                    parameterType: "elm-compat:main#quantity",
+                    returnType: "morphir/SDK:basics#bool",
+                  },
+                }
+                (
+                  ref
+                  {
+                    inferredType: function::{
+                      parameterType: "elm-compat:main#quantity",
+                      returnType: function::{
+                        parameterType: "elm-compat:main#quantity",
+                        returnType: "morphir/SDK:basics#bool",
+                      },
+                    },
+                  }
+                  'morphir/SDK:basics#greater-than'
+                )
+                (
+                  variable
+                  {
+                    inferredType: "elm-compat:main#quantity",
+                  }
+                  qty
+                )
+              )
+              (
+                int
+                {
+                  inferredType: "elm-compat:main#quantity",
+                }
+                0
+              )
+            )
+          )
+        )
+        (
+          field
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:list#list",
+              arguments: [
+                tuple::                [
+                  "elm-compat:main#product",
+                  "elm-compat:main#quantity",
+                ],
+              ],
+            },
+          }
+          (
+            variable
+            {
+              inferredType: "elm-compat:main#customer-order",
+            }
+            order
+          )
+          products
+        )
+      ),
+    ]
+  ),
+  inputTypes: [
+    {
+      name: "order",
+      type: "elm-compat:main#customer-order",
+    },
+  ],
+  doc: " Check if an order is valid (has at least one product with positive quantity).\n",
+}

@@ -1,0 +1,126 @@
+public::def::alias::type::{
+  typeParams: [
+    "a",
+  ],
+  typeExp: tuple::{
+    elements: [
+      variable::      {
+        name: "a",
+        source: {
+          startLine: 1,
+          startColumn: 1,
+          endLine: 1,
+          endColumn: 2,
+        },
+        constraints: {
+          min: 0,
+        },
+        extensions: {
+          k: "v",
+        },
+      },
+      reference::      {
+        name: "morphir/SDK:list#list",
+        arguments: [
+          "a",
+        ],
+        source: {
+          startLine: 1,
+          startColumn: 1,
+          endLine: 1,
+          endColumn: 2,
+        },
+        constraints: {
+          min: 0,
+        },
+        extensions: {
+          k: "v",
+        },
+      },
+      record::      {
+        fields: [
+          {
+            name: "x",
+            type: "morphir/SDK:basics#int",
+          },
+        ],
+        source: {
+          startLine: 1,
+          startColumn: 1,
+          endLine: 1,
+          endColumn: 2,
+        },
+        constraints: {
+          min: 0,
+        },
+        extensions: {
+          k: "v",
+        },
+      },
+      extensibleRecord::      {
+        variable: "r",
+        fields: [
+          {
+            name: "x",
+            type: "morphir/SDK:basics#int",
+          },
+        ],
+        source: {
+          startLine: 1,
+          startColumn: 1,
+          endLine: 1,
+          endColumn: 2,
+        },
+        constraints: {
+          min: 0,
+        },
+        extensions: {
+          k: "v",
+        },
+      },
+      function::      {
+        parameterType: "morphir/SDK:basics#int",
+        returnType: "morphir/SDK:string#string",
+        source: {
+          startLine: 1,
+          startColumn: 1,
+          endLine: 1,
+          endColumn: 2,
+        },
+        constraints: {
+          min: 0,
+        },
+        extensions: {
+          k: "v",
+        },
+      },
+      unit::      {
+        source: {
+          startLine: 1,
+          startColumn: 1,
+          endLine: 1,
+          endColumn: 2,
+        },
+        constraints: {
+          min: 0,
+        },
+        extensions: {
+          k: "v",
+        },
+      },
+    ],
+    source: {
+      startLine: 1,
+      startColumn: 1,
+      endLine: 1,
+      endColumn: 2,
+    },
+    constraints: {
+      min: 0,
+    },
+    extensions: {
+      k: "v",
+    },
+  },
+  doc: "Type attributes.",
+}

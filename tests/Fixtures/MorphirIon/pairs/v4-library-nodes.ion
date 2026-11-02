@@ -1,0 +1,1288 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: library,
+  packageName: "my-org/project",
+}
+package::spec::{
+  name: "my-org/shared",
+  modules: [
+    module::spec::    {
+      name: "annotated",
+      annotations: [
+        "my-org/project:annotations#stable",
+      ],
+      doc: "The domain module",
+      types: [
+        public::spec::opaque::type::        {
+          name: "opaque",
+          typeParams: [
+            "a",
+          ],
+          annotations: [
+            "my-org/project:annotations#deprecated:Use user-v2 instead",
+            {
+              name: "my-org/project:annotations#since",
+              arguments: [
+                (
+                  string
+                  "1.2.0"
+                ),
+                {
+                  name: "reason",
+                  value: (
+                    string
+                    "renamed"
+                  ),
+                },
+              ],
+            },
+            {
+              name: "my-org/project:annotations#internal",
+            },
+            "my-org/project:annotations#plain",
+          ],
+        },
+        public::spec::alias::type::        {
+          name: "alias",
+          typeParams: [
+            "a",
+          ],
+          typeExp: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              "a",
+            ],
+          },
+          annotations: [
+            "my-org/project:annotations#deprecated:Use user-v2 instead",
+            {
+              name: "my-org/project:annotations#since",
+              arguments: [
+                (
+                  string
+                  "1.2.0"
+                ),
+                {
+                  name: "reason",
+                  value: (
+                    string
+                    "renamed"
+                  ),
+                },
+              ],
+            },
+            {
+              name: "my-org/project:annotations#internal",
+            },
+            "my-org/project:annotations#plain",
+          ],
+          doc: "Alias doc.",
+        },
+        public::spec::custom::type::        {
+          name: "custom",
+          typeParams: [
+            "a",
+          ],
+          constructors: [
+            {
+              name: "just",
+              args: [
+                {
+                  name: "value",
+                  type: "a",
+                },
+              ],
+            },
+            {
+              name: "nothing",
+            },
+          ],
+          annotations: [
+            "my-org/project:annotations#deprecated:Use user-v2 instead",
+            {
+              name: "my-org/project:annotations#since",
+              arguments: [
+                (
+                  string
+                  "1.2.0"
+                ),
+                {
+                  name: "reason",
+                  value: (
+                    string
+                    "renamed"
+                  ),
+                },
+              ],
+            },
+            {
+              name: "my-org/project:annotations#internal",
+            },
+            "my-org/project:annotations#plain",
+          ],
+        },
+        public::spec::derived::type::        {
+          name: "derived",
+          baseType: "morphir/SDK:string#string",
+          fromBaseType: "my-org/project:module#from-string",
+          toBaseType: "my-org/project:module#to-string",
+          annotations: [
+            "my-org/project:annotations#deprecated:Use user-v2 instead",
+            {
+              name: "my-org/project:annotations#since",
+              arguments: [
+                (
+                  string
+                  "1.2.0"
+                ),
+                {
+                  name: "reason",
+                  value: (
+                    string
+                    "renamed"
+                  ),
+                },
+              ],
+            },
+            {
+              name: "my-org/project:annotations#internal",
+            },
+            "my-org/project:annotations#plain",
+          ],
+        },
+      ],
+      values: [
+        public::spec::value::        {
+          name: "add",
+          annotations: [
+            "my-org/project:annotations#pure",
+          ],
+          inputs: {
+            a: "morphir/SDK:basics#int",
+            b: "morphir/SDK:basics#int",
+          },
+          output: "morphir/SDK:basics#int",
+          doc: "Adds.",
+        },
+        public::spec::value::        {
+          name: "zero",
+          output: "morphir/SDK:basics#int",
+        },
+      ],
+    },
+    module::spec::    {
+      name: "plain",
+    },
+  ],
+}
+package::spec::{
+  name: "morphir/SDK",
+}
+public::def::module::{
+  name: "nodes",
+  doc: "All nodes.",
+  types: [
+    public::def::alias::type::    {
+      name: "attributes-on-types",
+      typeParams: [
+        "a",
+      ],
+      typeExp: tuple::{
+        elements: [
+          variable::          {
+            name: "a",
+            source: {
+              startLine: 1,
+              startColumn: 1,
+              endLine: 1,
+              endColumn: 2,
+            },
+            constraints: {
+              min: 0,
+            },
+            extensions: {
+              k: "v",
+            },
+          },
+          reference::          {
+            name: "morphir/SDK:list#list",
+            arguments: [
+              "a",
+            ],
+            source: {
+              startLine: 1,
+              startColumn: 1,
+              endLine: 1,
+              endColumn: 2,
+            },
+            constraints: {
+              min: 0,
+            },
+            extensions: {
+              k: "v",
+            },
+          },
+          record::          {
+            fields: [
+              {
+                name: "x",
+                type: "morphir/SDK:basics#int",
+              },
+            ],
+            source: {
+              startLine: 1,
+              startColumn: 1,
+              endLine: 1,
+              endColumn: 2,
+            },
+            constraints: {
+              min: 0,
+            },
+            extensions: {
+              k: "v",
+            },
+          },
+          extensibleRecord::          {
+            variable: "r",
+            fields: [
+              {
+                name: "x",
+                type: "morphir/SDK:basics#int",
+              },
+            ],
+            source: {
+              startLine: 1,
+              startColumn: 1,
+              endLine: 1,
+              endColumn: 2,
+            },
+            constraints: {
+              min: 0,
+            },
+            extensions: {
+              k: "v",
+            },
+          },
+          function::          {
+            parameterType: "morphir/SDK:basics#int",
+            returnType: "morphir/SDK:string#string",
+            source: {
+              startLine: 1,
+              startColumn: 1,
+              endLine: 1,
+              endColumn: 2,
+            },
+            constraints: {
+              min: 0,
+            },
+            extensions: {
+              k: "v",
+            },
+          },
+          unit::          {
+            source: {
+              startLine: 1,
+              startColumn: 1,
+              endLine: 1,
+              endColumn: 2,
+            },
+            constraints: {
+              min: 0,
+            },
+            extensions: {
+              k: "v",
+            },
+          },
+        ],
+        source: {
+          startLine: 1,
+          startColumn: 1,
+          endLine: 1,
+          endColumn: 2,
+        },
+        constraints: {
+          min: 0,
+        },
+        extensions: {
+          k: "v",
+        },
+      },
+      doc: "Type attributes.",
+    },
+    private::def::alias::type::    {
+      name: "plain-types",
+      typeExp: tuple::[
+        "a",
+        "morphir/SDK:basics#int",
+        reference::        {
+          name: "morphir/SDK:list#list",
+          arguments: [
+            "morphir/SDK:basics#int",
+          ],
+        },
+        record::        {
+          fields: [
+            {
+              name: "name",
+              type: "morphir/SDK:string#string",
+            },
+            {
+              name: "value-in-USD",
+              type: "morphir/SDK:basics#float",
+            },
+          ],
+        },
+        extensibleRecord::        {
+          variable: "r",
+          fields: [
+            {
+              name: "email",
+              type: "morphir/SDK:string#string",
+            },
+          ],
+        },
+        function::        {
+          parameterType: "morphir/SDK:basics#int",
+          returnType: "morphir/SDK:string#string",
+        },
+        unit::        {
+        },
+        tuple::        [
+        ],
+        record::        {
+          fields: [
+          ],
+        },
+      ],
+    },
+    public::def::custom::type::    {
+      name: "custom",
+      typeParams: [
+        "a",
+      ],
+      access: private,
+      constructors: [
+        {
+          name: "just",
+          args: [
+            {
+              name: "value",
+              type: "a",
+            },
+            {
+              name: "other",
+              type: "morphir/SDK:basics#int",
+            },
+          ],
+        },
+        {
+          name: "nothing",
+        },
+      ],
+    },
+    private::def::custom::type::    {
+      name: "custom-public",
+      access: public,
+      doc: "Custom.",
+    },
+    public::def::incomplete::type::    {
+      name: "incomplete-draft-type",
+      incompleteness: draft,
+      partialTypeExp: "morphir/SDK:basics#int",
+    },
+    private::def::incomplete::type::    {
+      name: "incomplete-hole-type",
+      typeParams: [
+        "a",
+      ],
+      incompleteness: hole::{
+        reason: typeMismatch::{
+          expected: "morphir/SDK:basics#int",
+          found: "morphir/SDK:string#string",
+        },
+        partialBody: "morphir/SDK:basics#int",
+      },
+      doc: "Hole.",
+    },
+  ],
+  values: [
+    public::def::value::    {
+      name: "attributes-on-values",
+      outputType: "morphir/SDK:basics#int",
+      body: (
+        tuple
+        {
+          source: {
+            startLine: 5,
+            startColumn: 6,
+            endLine: 7,
+            endColumn: 8,
+          },
+          inferredType: "morphir/SDK:basics#int",
+          extensions: {
+            tool: {
+              n: 1,
+              ratio: 0.10,
+            },
+          },
+        }
+        (
+          variable
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          x
+        )
+        (
+          unit
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+        )
+        (
+          ref
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          'morphir/SDK:basics#add'
+        )
+        (
+          constructor
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          'morphir/SDK:maybe#just'
+        )
+        (
+          int
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          1
+        )
+        (
+          bool
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          true
+        )
+        (
+          string
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          "s"
+        )
+        (
+          char
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          "c"
+        )
+        (
+          float
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          "1.5"
+        )
+        (
+          decimal
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          "1.50"
+        )
+        (
+          document
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          {
+            a: 1,
+          }
+        )
+        (
+          list
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          1
+        )
+        (
+          record
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          (
+            a
+            1
+          )
+        )
+        (
+          apply
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          f
+          1
+        )
+        (
+          field
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          r
+          a
+        )
+        (
+          fieldFunction
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          a
+        )
+        (
+          lambda
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          n
+          n
+        )
+        (
+          if
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          true
+          1
+          2
+        )
+        (
+          let
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          y
+          {
+            inputTypes: {
+              p: "morphir/SDK:basics#int",
+            },
+            outputType: "morphir/SDK:basics#int",
+            body: p,
+          }
+          y
+        )
+        (
+          letrec
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          [
+            (
+              f
+              {
+                outputType: "morphir/SDK:basics#int",
+                body: f,
+              }
+            ),
+          ]
+          f
+        )
+        (
+          destructure
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          d
+          1
+          d
+        )
+        (
+          update
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          r
+          (
+            a
+            1
+          )
+        )
+        (
+          hole
+          {
+            source: {
+              startLine: 1,
+              startColumn: 2,
+              endLine: 3,
+              endColumn: 4,
+            },
+          }
+          unresolvedReference::          {
+            target: "my-org/project:module#deleted",
+          }
+        )
+      ),
+      doc: "Attributes force the long forms.",
+    },
+    public::def::value::    {
+      name: "patterns",
+      inputTypes: {
+        v: "morphir/SDK:basics#int",
+      },
+      outputType: "morphir/SDK:basics#int",
+      body: (
+        match
+        {
+          source: {
+            startLine: 1,
+            startColumn: 2,
+            endLine: 3,
+            endColumn: 4,
+          },
+        }
+        v
+        [
+          (
+            wildcard
+            {
+              source: {
+                startLine: 1,
+                startColumn: 2,
+                endLine: 3,
+                endColumn: 4,
+              },
+            }
+          ),
+          1,
+        ]
+        [
+          (
+            as
+            {
+              source: {
+                startLine: 1,
+                startColumn: 2,
+                endLine: 3,
+                endColumn: 4,
+              },
+            }
+            _
+            a
+          ),
+          2,
+        ]
+        [
+          (
+            tuple
+            {
+              source: {
+                startLine: 1,
+                startColumn: 2,
+                endLine: 3,
+                endColumn: 4,
+              },
+            }
+            _
+            b
+          ),
+          3,
+        ]
+        [
+          (
+            constructor
+            {
+              source: {
+                startLine: 1,
+                startColumn: 2,
+                endLine: 3,
+                endColumn: 4,
+              },
+            }
+            'morphir/SDK:maybe#just'
+            _
+          ),
+          4,
+        ]
+        [
+          (
+            emptyList
+            {
+              source: {
+                startLine: 1,
+                startColumn: 2,
+                endLine: 3,
+                endColumn: 4,
+              },
+            }
+          ),
+          5,
+        ]
+        [
+          (
+            headTail
+            {
+              source: {
+                startLine: 1,
+                startColumn: 2,
+                endLine: 3,
+                endColumn: 4,
+              },
+            }
+            h
+            _
+          ),
+          6,
+        ]
+        [
+          (
+            int
+            {
+              source: {
+                startLine: 1,
+                startColumn: 2,
+                endLine: 3,
+                endColumn: 4,
+              },
+            }
+            7
+          ),
+          7,
+        ]
+        [
+          (
+            unit
+            {
+              source: {
+                startLine: 1,
+                startColumn: 2,
+                endLine: 3,
+                endColumn: 4,
+              },
+            }
+          ),
+          8,
+        ]
+        [
+          false,
+          9,
+        ]
+        [
+          (
+            string
+            "s"
+          ),
+          10,
+        ]
+        [
+          (
+            char
+            "c"
+          ),
+          11,
+        ]
+        [
+          (
+            float
+            "1.5"
+          ),
+          12,
+        ]
+        [
+          (
+            decimal
+            "0.10"
+          ),
+          13,
+        ]
+        [
+          [
+          ],
+          14,
+        ]
+        [
+          (
+          ),
+          15,
+        ]
+        [
+          _,
+          16,
+        ]
+      ),
+    },
+    public::def::value::    {
+      name: "numbers",
+      outputType: "morphir/SDK:basics#int",
+      body: (
+        tuple
+        18446744073709551616
+        -9223372036854775809
+        (
+          int
+          "99999999999999999999999999999999999999999"
+        )
+        (
+          float
+          "4.0"
+        )
+        (
+          float
+          "4e+0"
+        )
+        (
+          float
+          "1.5e+300"
+        )
+        (
+          float
+          "-0.5"
+        )
+        (
+          decimal
+          "10.50"
+        )
+        (
+          decimal
+          "-0.00"
+        )
+        (
+          decimal
+          "1e-7"
+        )
+        (
+          char
+          "😀"
+        )
+      ),
+    },
+    public::def::value::    {
+      name: "document",
+      outputType: "morphir/SDK:document#document",
+      body: (
+        document
+        {
+          name: "Alice",
+          age: 30,
+          tags: [
+            "admin",
+            "user",
+          ],
+          metadata: null,
+          yes: true,
+          no: false,
+          id: 9007199254740993,
+          big: number::"123456789012345678901234567890123456789012345",
+          ratio: 0.10,
+          exp: number::"1.5e+2",
+          pos: number::"1e+2",
+          'plain-exp': number::"1e+2",
+          neg: 5.d-7,
+          small: 0.000001,
+          point: number::"0.0000001",
+          upper: number::"1e+5",
+          plain: 12.50,
+          'neg-zero': -0.0,
+          'neg-int-zero': 0,
+          nested: {
+            list: [
+              [
+              ],
+              {
+              },
+            ],
+            zero: 0,
+            neg: -1,
+          },
+        }
+      ),
+    },
+    public::def::native::value::    {
+      name: "native",
+      inputTypes: {
+        a: "morphir/SDK:basics#int",
+        b: "morphir/SDK:basics#int",
+      },
+      outputType: "morphir/SDK:basics#int",
+      hint: arithmetic,
+      description: "Addition",
+      doc: "Adds.",
+    },
+    private::def::native::value::    {
+      name: "native-compare",
+      outputType: "morphir/SDK:basics#int",
+      hint: comparison,
+    },
+    public::def::native::value::    {
+      name: "native-string",
+      outputType: "morphir/SDK:basics#int",
+      hint: stringOp,
+    },
+    public::def::native::value::    {
+      name: "native-collection",
+      outputType: "morphir/SDK:basics#int",
+      hint: collectionOp,
+    },
+    public::def::native::value::    {
+      name: "native-platform",
+      outputType: "morphir/SDK:basics#int",
+      hint: platformSpecific::{
+        platform: "wasm",
+      },
+    },
+    public::def::external::value::    {
+      name: "external",
+      inputTypes: {
+        x: "morphir/SDK:basics#int",
+      },
+      outputType: "morphir/SDK:basics#int",
+      externals: [
+        {
+          targetPlatform: "erlang",
+          externalName: "math:abs",
+        },
+        {
+          targetPlatform: "javascript",
+          externalName: "Math.abs",
+        },
+      ],
+      body: x,
+    },
+    public::def::external::value::    {
+      name: "external-plain",
+      inputTypes: {
+        msg: "morphir/SDK:string#string",
+      },
+      outputType: "morphir/SDK:basics#unit",
+      externals: [
+        {
+          targetPlatform: "javascript",
+          externalName: "console.log",
+        },
+      ],
+      doc: "Logs.",
+    },
+    public::def::incomplete::value::    {
+      name: "incomplete-draft",
+      incompleteness: draft,
+    },
+    private::def::incomplete::value::    {
+      name: "incomplete-partial",
+      inputTypes: {
+        x: "morphir/SDK:basics#int",
+      },
+      outputType: "morphir/SDK:basics#int",
+      incompleteness: draft,
+      body: 1,
+      doc: "Not done.",
+    },
+    public::def::incomplete::value::    {
+      name: "incomplete-unresolved",
+      outputType: "morphir/SDK:basics#int",
+      incompleteness: hole::{
+        reason: unresolvedReference::{
+          target: "my-org/project:module#missing",
+        },
+        partialBody: "morphir/SDK:basics#int",
+      },
+    },
+    public::def::incomplete::value::    {
+      name: "incomplete-deleted",
+      incompleteness: hole::{
+        reason: deletedDuringRefactor::{
+          txId: "tx-42",
+        },
+      },
+    },
+    public::def::incomplete::value::    {
+      name: "incomplete-mismatch",
+      incompleteness: hole::{
+        reason: typeMismatch::{
+          expected: "morphir/SDK:basics#int",
+          found: "morphir/SDK:string#string",
+        },
+      },
+    },
+    public::def::value::    {
+      name: "holes",
+      outputType: "morphir/SDK:basics#int",
+      body: (
+        tuple
+        (
+          hole
+          unresolvedReference::          {
+            target: "my-org/project:module#deleted",
+          }
+        )
+        (
+          hole
+          deletedDuringRefactor::          {
+            txId: "tx-1",
+          }
+          "morphir/SDK:string#string"
+        )
+        (
+          hole
+          typeMismatch::          {
+            expected: "morphir/SDK:basics#int",
+            found: "morphir/SDK:string#string",
+          }
+          reference::          {
+            name: "morphir/SDK:list#list",
+            arguments: [
+              "a",
+            ],
+          }
+        )
+      ),
+    },
+    public::def::value::    {
+      name: "plain-expressions",
+      outputType: "morphir/SDK:basics#int",
+      body: (
+        list
+        (
+          apply
+          (
+            ref
+            'morphir/SDK:basics#negate'
+          )
+          1
+        )
+        (
+          lambda
+          score
+          score
+        )
+        (
+          lambda
+          (
+            tuple
+            a
+            b
+          )
+          a
+        )
+        (
+          if
+          true
+          1
+          2
+        )
+        (
+          let
+          x
+          {
+            outputType: "morphir/SDK:basics#int",
+            body: 1,
+          }
+          x
+        )
+        (
+          letrec
+          [
+            (
+              f
+              {
+                outputType: "morphir/SDK:basics#int",
+                body: f,
+              }
+            ),
+            (
+              g
+              {
+                outputType: "morphir/SDK:basics#int",
+                body: g,
+              }
+            ),
+          ]
+          f
+        )
+        (
+          destructure
+          (
+            tuple
+            a
+            _
+          )
+          pair
+          a
+        )
+        (
+          field
+          record
+          'field-name'
+        )
+        (
+          fieldFunction
+          name
+        )
+        (
+          record
+          (
+            name
+            x
+          )
+          (
+            age
+            25
+          )
+        )
+        (
+          update
+          record
+          (
+            name
+            (
+              string
+              "new"
+            )
+          )
+        )
+        (
+          tuple
+          x
+          1
+        )
+        (
+          list
+        )
+        (
+        )
+        (
+          constructor
+          'morphir/SDK:maybe#just'
+        )
+        (
+          ref
+          'morphir/SDK:basics#add'
+        )
+        false
+        (
+          string
+          "text with \"quotes\" and \n"
+        )
+      ),
+    },
+  ],
+}
+private::def::module::{
+  name: "hidden",
+}
+morphir_footer::{
+}

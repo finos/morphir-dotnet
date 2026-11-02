@@ -1,0 +1,4 @@
+public::spec::value::{
+  output: "morphir/SDK:basics#int",
+  doc: "Now.",
+}

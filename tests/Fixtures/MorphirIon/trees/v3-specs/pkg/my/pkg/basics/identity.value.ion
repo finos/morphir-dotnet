@@ -1,0 +1,10 @@
+public::spec::value::{
+  inputs: [
+    {
+      name: "a",
+      type: "a",
+    },
+  ],
+  output: "a",
+  doc: "Same.",
+}

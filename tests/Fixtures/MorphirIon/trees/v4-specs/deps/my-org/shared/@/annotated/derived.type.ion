@@ -1,0 +1,28 @@
+public::spec::derived::type::{
+  baseType: "morphir/SDK:string#string",
+  fromBaseType: "my-org/project:module#from-string",
+  toBaseType: "my-org/project:module#to-string",
+  annotations: [
+    "my-org/project:annotations#deprecated:Use user-v2 instead",
+    {
+      name: "my-org/project:annotations#since",
+      arguments: [
+        (
+          string
+          "1.2.0"
+        ),
+        {
+          name: "reason",
+          value: (
+            string
+            "renamed"
+          ),
+        },
+      ],
+    },
+    {
+      name: "my-org/project:annotations#internal",
+    },
+    "my-org/project:annotations#plain",
+  ],
+}

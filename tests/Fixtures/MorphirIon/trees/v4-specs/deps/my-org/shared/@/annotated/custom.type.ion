@@ -1,0 +1,42 @@
+public::spec::custom::type::{
+  typeParams: [
+    "a",
+  ],
+  constructors: [
+    {
+      name: "just",
+      args: [
+        {
+          name: "value",
+          type: "a",
+        },
+      ],
+    },
+    {
+      name: "nothing",
+    },
+  ],
+  annotations: [
+    "my-org/project:annotations#deprecated:Use user-v2 instead",
+    {
+      name: "my-org/project:annotations#since",
+      arguments: [
+        (
+          string
+          "1.2.0"
+        ),
+        {
+          name: "reason",
+          value: (
+            string
+            "renamed"
+          ),
+        },
+      ],
+    },
+    {
+      name: "my-org/project:annotations#internal",
+    },
+    "my-org/project:annotations#plain",
+  ],
+}

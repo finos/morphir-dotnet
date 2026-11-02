@@ -1,0 +1,19 @@
+public::def::alias::type::{
+  typeExp: record::{
+    fields: [
+      {
+        name: "id",
+        type: "elm-compat:main#product-id",
+      },
+      {
+        name: "name",
+        type: "morphir/SDK:string#string",
+      },
+      {
+        name: "price",
+        type: "morphir/SDK:basics#float",
+      },
+    ],
+  },
+  doc: " A product with price information.\n",
+}

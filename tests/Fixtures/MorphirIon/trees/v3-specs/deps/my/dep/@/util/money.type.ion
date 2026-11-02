@@ -1,0 +1,5 @@
+public::spec::derived::type::{
+  baseType: "morphir/SDK:decimal#decimal",
+  fromBaseType: "my/dep:util#from-decimal",
+  toBaseType: "my/dep:util#to-decimal",
+}

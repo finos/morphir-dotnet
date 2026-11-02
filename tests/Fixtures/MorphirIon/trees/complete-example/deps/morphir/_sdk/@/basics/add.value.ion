@@ -1,0 +1,7 @@
+public::spec::value::{
+  inputs: {
+    a: "morphir/SDK:basics#int",
+    b: "morphir/SDK:basics#int",
+  },
+  output: "morphir/SDK:basics#int",
+}

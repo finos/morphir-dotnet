@@ -1,0 +1,103 @@
+public::def::value::{
+  outputType: "morphir/SDK:string#string",
+  body: (
+    match
+    {
+      inferredType: "morphir/SDK:string#string",
+    }
+    (
+      variable
+      {
+        inferredType: "elm-compat:main#order-status",
+      }
+      status
+    )
+    [
+      (
+        constructor
+        {
+          inferredType: "elm-compat:main#order-status",
+        }
+        'elm-compat:main#pending'
+      ),
+      (
+        string
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+        "Pending"
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "elm-compat:main#order-status",
+        }
+        'elm-compat:main#confirmed'
+      ),
+      (
+        string
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+        "Confirmed"
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "elm-compat:main#order-status",
+        }
+        'elm-compat:main#shipped'
+      ),
+      (
+        string
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+        "Shipped"
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "elm-compat:main#order-status",
+        }
+        'elm-compat:main#delivered'
+      ),
+      (
+        string
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+        "Delivered"
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "elm-compat:main#order-status",
+        }
+        'elm-compat:main#cancelled'
+      ),
+      (
+        string
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+        "Cancelled"
+      ),
+    ]
+  ),
+  inputTypes: [
+    {
+      name: "status",
+      type: "elm-compat:main#order-status",
+    },
+  ],
+  doc: " Convert an order status to a human-readable string.\n",
+}

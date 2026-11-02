@@ -1,0 +1,230 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#float",
+  body: (
+    apply
+    {
+      inferredType: "morphir/SDK:basics#float",
+    }
+    (
+      ref
+      {
+        inferredType: function::{
+          parameterType: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              "morphir/SDK:basics#float",
+            ],
+          },
+          returnType: "morphir/SDK:basics#float",
+        },
+      }
+      'morphir/SDK:list#sum'
+    )
+    (
+      apply
+      {
+        inferredType: reference::{
+          name: "morphir/SDK:list#list",
+          arguments: [
+            "morphir/SDK:basics#float",
+          ],
+        },
+      }
+      (
+        apply
+        {
+          inferredType: function::{
+            parameterType: reference::{
+              name: "morphir/SDK:list#list",
+              arguments: [
+                tuple::                [
+                  "elm-compat:main#product",
+                  "morphir/SDK:basics#int",
+                ],
+              ],
+            },
+            returnType: reference::{
+              name: "morphir/SDK:list#list",
+              arguments: [
+                "morphir/SDK:basics#float",
+              ],
+            },
+          },
+        }
+        (
+          ref
+          {
+            inferredType: function::{
+              parameterType: function::{
+                parameterType: tuple::[
+                  "elm-compat:main#product",
+                  "morphir/SDK:basics#int",
+                ],
+                returnType: "morphir/SDK:basics#float",
+              },
+              returnType: function::{
+                parameterType: reference::{
+                  name: "morphir/SDK:list#list",
+                  arguments: [
+                    tuple::                    [
+                      "elm-compat:main#product",
+                      "morphir/SDK:basics#int",
+                    ],
+                  ],
+                },
+                returnType: reference::{
+                  name: "morphir/SDK:list#list",
+                  arguments: [
+                    "morphir/SDK:basics#float",
+                  ],
+                },
+              },
+            },
+          }
+          'morphir/SDK:list#map'
+        )
+        (
+          lambda
+          {
+            inferredType: function::{
+              parameterType: tuple::[
+                "elm-compat:main#product",
+                "morphir/SDK:basics#int",
+              ],
+              returnType: "morphir/SDK:basics#float",
+            },
+          }
+          (
+            tuple
+            {
+              inferredType: tuple::[
+                "elm-compat:main#product",
+                "morphir/SDK:basics#int",
+              ],
+            }
+            (
+              as
+              {
+                inferredType: "elm-compat:main#product",
+              }
+              (
+                wildcard
+                {
+                  inferredType: "elm-compat:main#product",
+                }
+              )
+              product
+            )
+            (
+              as
+              {
+                inferredType: "morphir/SDK:basics#int",
+              }
+              (
+                wildcard
+                {
+                  inferredType: "morphir/SDK:basics#int",
+                }
+              )
+              qty
+            )
+          )
+          (
+            apply
+            {
+              inferredType: "morphir/SDK:basics#float",
+            }
+            (
+              apply
+              {
+                inferredType: function::{
+                  parameterType: "morphir/SDK:basics#float",
+                  returnType: "morphir/SDK:basics#float",
+                },
+              }
+              (
+                ref
+                {
+                  inferredType: function::{
+                    parameterType: "morphir/SDK:basics#float",
+                    returnType: function::{
+                      parameterType: "morphir/SDK:basics#float",
+                      returnType: "morphir/SDK:basics#float",
+                    },
+                  },
+                }
+                'morphir/SDK:basics#multiply'
+              )
+              (
+                field
+                {
+                  inferredType: "morphir/SDK:basics#float",
+                }
+                (
+                  variable
+                  {
+                    inferredType: "elm-compat:main#product",
+                  }
+                  product
+                )
+                price
+              )
+            )
+            (
+              apply
+              {
+                inferredType: "morphir/SDK:basics#float",
+              }
+              (
+                ref
+                {
+                  inferredType: function::{
+                    parameterType: "morphir/SDK:basics#int",
+                    returnType: "morphir/SDK:basics#float",
+                  },
+                }
+                'morphir/SDK:basics#to-float'
+              )
+              (
+                variable
+                {
+                  inferredType: "morphir/SDK:basics#int",
+                }
+                qty
+              )
+            )
+          )
+        )
+      )
+      (
+        field
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              tuple::              [
+                "elm-compat:main#product",
+                "morphir/SDK:basics#int",
+              ],
+            ],
+          },
+        }
+        (
+          variable
+          {
+            inferredType: "elm-compat:main#customer-order",
+          }
+          order
+        )
+        products
+      )
+    )
+  ),
+  inputTypes: [
+    {
+      name: "order",
+      type: "elm-compat:main#customer-order",
+    },
+  ],
+  doc: " Calculate the total price of an order.\n\n    calculateTotal { orderId = \"1\", products = [ ( product, 2 ) ], status = Pending }\n\n",
+}

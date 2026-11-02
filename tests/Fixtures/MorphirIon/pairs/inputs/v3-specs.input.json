@@ -1,0 +1,387 @@
+{
+ "formatVersion": "3.1.0",
+ "distribution": [
+  "Specs",
+  [
+   [
+    "my"
+   ],
+   [
+    "pkg"
+   ]
+  ],
+  [
+   [
+    [
+     [
+      "my"
+     ],
+     [
+      "dep"
+     ]
+    ],
+    {
+     "modules": [
+      [
+       [
+        [
+         "util"
+        ]
+       ],
+       {
+        "types": [
+         [
+          [
+           "id"
+          ],
+          {
+           "doc": "An identifier.",
+           "value": [
+            "OpaqueTypeSpecification",
+            []
+           ]
+          }
+         ],
+         [
+          [
+           "handle"
+          ],
+          {
+           "doc": "",
+           "value": [
+            "TypeAliasSpecification",
+            [
+             [
+              "a"
+             ]
+            ],
+            [
+             "Variable",
+             {},
+             [
+              "a"
+             ]
+            ]
+           ]
+          }
+         ],
+         [
+          [
+           "choice"
+          ],
+          {
+           "doc": "",
+           "value": [
+            "CustomTypeSpecification",
+            [],
+            [
+             [
+              [
+               "yes"
+              ],
+              []
+             ],
+             [
+              [
+               "no"
+              ],
+              [
+               [
+                [
+                 "why"
+                ],
+                [
+                 "Reference",
+                 {},
+                 [
+                  [
+                   [
+                    "morphir"
+                   ],
+                   [
+                    "s",
+                    "d",
+                    "k"
+                   ]
+                  ],
+                  [
+                   [
+                    "string"
+                   ]
+                  ],
+                  [
+                   "string"
+                  ]
+                 ],
+                 []
+                ]
+               ]
+              ]
+             ]
+            ]
+           ]
+          }
+         ],
+         [
+          [
+           "money"
+          ],
+          {
+           "doc": "",
+           "value": [
+            "DerivedTypeSpecification",
+            [],
+            {
+             "baseType": [
+              "Reference",
+              {},
+              [
+               [
+                [
+                 "morphir"
+                ],
+                [
+                 "s",
+                 "d",
+                 "k"
+                ]
+               ],
+               [
+                [
+                 "decimal"
+                ]
+               ],
+               [
+                "decimal"
+               ]
+              ],
+              []
+             ],
+             "fromBaseType": [
+              [
+               [
+                "my"
+               ],
+               [
+                "dep"
+               ]
+              ],
+              [
+               [
+                "util"
+               ]
+              ],
+              [
+               "from",
+               "decimal"
+              ]
+             ],
+             "toBaseType": [
+              [
+               [
+                "my"
+               ],
+               [
+                "dep"
+               ]
+              ],
+              [
+               [
+                "util"
+               ]
+              ],
+              [
+               "to",
+               "decimal"
+              ]
+             ]
+            }
+           ]
+          }
+         ]
+        ],
+        "values": [
+         [
+          [
+           "parse"
+          ],
+          {
+           "doc": "",
+           "value": {
+            "inputs": [
+             [
+              [
+               "text"
+              ],
+              [
+               "Reference",
+               {},
+               [
+                [
+                 [
+                  "morphir"
+                 ],
+                 [
+                  "s",
+                  "d",
+                  "k"
+                 ]
+                ],
+                [
+                 [
+                  "string"
+                 ]
+                ],
+                [
+                 "string"
+                ]
+               ],
+               []
+              ]
+             ]
+            ],
+            "output": [
+             "Reference",
+             {},
+             [
+              [
+               [
+                "my"
+               ],
+               [
+                "dep"
+               ]
+              ],
+              [
+               [
+                "util"
+               ]
+              ],
+              [
+               "id"
+              ]
+             ],
+             []
+            ]
+           }
+          }
+         ],
+         [
+          [
+           "now"
+          ],
+          {
+           "doc": "Now.",
+           "value": {
+            "inputs": [],
+            "output": [
+             "Reference",
+             {},
+             [
+              [
+               [
+                "morphir"
+               ],
+               [
+                "s",
+                "d",
+                "k"
+               ]
+              ],
+              [
+               [
+                "basics"
+               ]
+              ],
+              [
+               "int"
+              ]
+             ],
+             []
+            ]
+           }
+          }
+         ]
+        ],
+        "doc": "Utilities."
+       }
+      ]
+     ]
+    }
+   ]
+  ],
+  {
+   "modules": [
+    [
+     [
+      [
+       "basics"
+      ]
+     ],
+     {
+      "types": [
+       [
+        [
+         "int"
+        ],
+        {
+         "doc": "",
+         "value": [
+          "OpaqueTypeSpecification",
+          []
+         ]
+        }
+       ]
+      ],
+      "values": [
+       [
+        [
+         "identity"
+        ],
+        {
+         "doc": "Same.",
+         "value": {
+          "inputs": [
+           [
+            [
+             "a"
+            ],
+            [
+             "Variable",
+             {},
+             [
+              "a"
+             ]
+            ]
+           ]
+          ],
+          "output": [
+           "Variable",
+           {},
+           [
+            "a"
+           ]
+          ]
+         }
+        }
+       ]
+      ],
+      "doc": "Basics."
+     }
+    ],
+    [
+     [
+      [
+       "empty"
+      ]
+     ],
+     {
+      "types": [],
+      "values": [],
+      "doc": null
+     }
+    ]
+   ]
+  }
+ ]
+}

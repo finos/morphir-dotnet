@@ -1,0 +1,7 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "3.0.0",
+  kind: library,
+  packageName: "elm-compat",
+  pathBudget: 4000,
+}

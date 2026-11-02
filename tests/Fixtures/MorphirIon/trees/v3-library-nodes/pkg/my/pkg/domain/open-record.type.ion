@@ -1,0 +1,14 @@
+public::def::alias::type::{
+  typeExp: extensibleRecord::{
+    variable: "r",
+    fields: [
+      {
+        name: "x",
+        type: "morphir/SDK:basics#int",
+      },
+    ],
+  },
+  typeParams: [
+    "r",
+  ],
+}

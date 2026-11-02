@@ -1,0 +1,66 @@
+public::def::value::{
+  outputType: tuple::[
+    "morphir/SDK:basics#bool",
+    "morphir/SDK:char#char",
+    "morphir/SDK:string#string",
+    "morphir/SDK:basics#int",
+    "morphir/SDK:basics#float",
+    "morphir/SDK:decimal#decimal",
+  ],
+  body: (
+    tuple
+    {
+      inferredType: tuple::[
+        "morphir/SDK:basics#bool",
+        "morphir/SDK:char#char",
+        "morphir/SDK:string#string",
+        "morphir/SDK:basics#int",
+        "morphir/SDK:basics#float",
+        "morphir/SDK:decimal#decimal",
+      ],
+    }
+    (
+      bool
+      {
+        inferredType: "morphir/SDK:basics#bool",
+      }
+      true
+    )
+    (
+      char
+      {
+        inferredType: "morphir/SDK:char#char",
+      }
+      "c"
+    )
+    (
+      string
+      {
+        inferredType: "morphir/SDK:string#string",
+      }
+      "text"
+    )
+    (
+      int
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      -42
+    )
+    (
+      float
+      {
+        inferredType: "morphir/SDK:basics#float",
+      }
+      1.5e0
+    )
+    (
+      decimal
+      {
+        inferredType: "morphir/SDK:decimal#decimal",
+      }
+      "10.50"
+    )
+  ),
+  doc: "Every literal.",
+}

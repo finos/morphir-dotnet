@@ -1,0 +1,229 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: library,
+  packageName: "morphir/reference/model",
+}
+package::spec::{
+  name: "morphir/SDK",
+  modules: [
+    module::spec::    {
+      name: "basics",
+      types: [
+        public::spec::opaque::type::        {
+          name: "int",
+        },
+        public::spec::opaque::type::        {
+          name: "float",
+        },
+        public::spec::opaque::type::        {
+          name: "bool",
+        },
+      ],
+    },
+    module::spec::    {
+      name: "string",
+      types: [
+        public::spec::opaque::type::        {
+          name: "string",
+        },
+      ],
+    },
+    module::spec::    {
+      name: "dict",
+      types: [
+        public::spec::alias::type::        {
+          name: "dict",
+          typeParams: [
+            "k",
+            "v",
+          ],
+          typeExp: reference::{
+            name: "morphir/SDK:dict#dict",
+            arguments: [
+              "k",
+              "v",
+            ],
+          },
+        },
+      ],
+    },
+  ],
+}
+public::def::module::{
+  name: "books-and-records",
+  doc: "Books and Records module - manages deal lifecycle including opening, closing, and tracking deals.",
+  types: [
+    public::def::alias::type::    {
+      name: "product-ID",
+      typeExp: "morphir/SDK:string#string",
+    },
+    public::def::alias::type::    {
+      name: "price",
+      typeExp: "morphir/SDK:basics#float",
+    },
+    public::def::alias::type::    {
+      name: "quantity",
+      typeExp: "morphir/SDK:basics#int",
+    },
+    public::def::alias::type::    {
+      name: "deal",
+      typeExp: record::{
+        fields: [
+          {
+            name: "product",
+            type: "morphir/reference/model:books-and-records#product-ID",
+          },
+          {
+            name: "price",
+            type: "morphir/reference/model:books-and-records#price",
+          },
+          {
+            name: "quantity",
+            type: "morphir/reference/model:books-and-records#quantity",
+          },
+        ],
+      },
+    },
+    public::def::custom::type::    {
+      name: "deal-cmd",
+      access: public,
+      constructors: [
+        {
+          name: "open-deal",
+          args: [
+            {
+              name: "product",
+              type: "morphir/reference/model:books-and-records#product-ID",
+            },
+            {
+              name: "price",
+              type: "morphir/reference/model:books-and-records#price",
+            },
+            {
+              name: "quantity",
+              type: "morphir/reference/model:books-and-records#quantity",
+            },
+          ],
+        },
+        {
+          name: "close-deal",
+          args: [
+            {
+              name: "product",
+              type: "morphir/reference/model:books-and-records#product-ID",
+            },
+          ],
+        },
+      ],
+    },
+    public::def::custom::type::    {
+      name: "deal-event",
+      access: public,
+      constructors: [
+        {
+          name: "deal-opened",
+          args: [
+            {
+              name: "product",
+              type: "morphir/reference/model:books-and-records#product-ID",
+            },
+            {
+              name: "price",
+              type: "morphir/reference/model:books-and-records#price",
+            },
+            {
+              name: "quantity",
+              type: "morphir/reference/model:books-and-records#quantity",
+            },
+          ],
+        },
+        {
+          name: "deal-closed",
+          args: [
+            {
+              name: "product",
+              type: "morphir/reference/model:books-and-records#product-ID",
+            },
+          ],
+        },
+        {
+          name: "deal-not-found",
+          args: [
+            {
+              name: "product",
+              type: "morphir/reference/model:books-and-records#product-ID",
+            },
+          ],
+        },
+        {
+          name: "duplicate-deal",
+          args: [
+            {
+              name: "product",
+              type: "morphir/reference/model:books-and-records#product-ID",
+            },
+          ],
+        },
+        {
+          name: "invalid-price",
+          args: [
+            {
+              name: "price",
+              type: "morphir/reference/model:books-and-records#price",
+            },
+          ],
+        },
+        {
+          name: "invalid-quantity",
+          args: [
+            {
+              name: "quantity",
+              type: "morphir/reference/model:books-and-records#quantity",
+            },
+          ],
+        },
+      ],
+    },
+    public::def::alias::type::    {
+      name: "book",
+      typeExp: reference::{
+        name: "morphir/SDK:dict#dict",
+        arguments: [
+          "morphir/reference/model:books-and-records#product-ID",
+          "morphir/reference/model:books-and-records#deal",
+        ],
+      },
+    },
+  ],
+  values: [
+    public::def::incomplete::value::    {
+      name: "open-deal",
+      inputTypes: {
+        product: "morphir/reference/model:books-and-records#product-ID",
+        price: "morphir/reference/model:books-and-records#price",
+        quantity: "morphir/reference/model:books-and-records#quantity",
+        book: "morphir/reference/model:books-and-records#book",
+      },
+      outputType: tuple::[
+        "morphir/reference/model:books-and-records#book",
+        "morphir/reference/model:books-and-records#deal-event",
+      ],
+      incompleteness: draft,
+    },
+    public::def::incomplete::value::    {
+      name: "close-deal",
+      inputTypes: {
+        product: "morphir/reference/model:books-and-records#product-ID",
+        book: "morphir/reference/model:books-and-records#book",
+      },
+      outputType: tuple::[
+        "morphir/reference/model:books-and-records#book",
+        "morphir/reference/model:books-and-records#deal-event",
+      ],
+      incompleteness: draft,
+    },
+  ],
+}
+morphir_footer::{
+}

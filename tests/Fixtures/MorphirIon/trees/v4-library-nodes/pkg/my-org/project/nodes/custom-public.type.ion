@@ -1,0 +1,4 @@
+private::def::custom::type::{
+  access: public,
+  doc: "Custom.",
+}

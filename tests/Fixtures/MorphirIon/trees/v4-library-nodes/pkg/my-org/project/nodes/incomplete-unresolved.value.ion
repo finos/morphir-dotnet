@@ -1,0 +1,9 @@
+public::def::incomplete::value::{
+  outputType: "morphir/SDK:basics#int",
+  incompleteness: hole::{
+    reason: unresolvedReference::{
+      target: "my-org/project:module#missing",
+    },
+    partialBody: "morphir/SDK:basics#int",
+  },
+}

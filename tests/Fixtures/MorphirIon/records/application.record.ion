@@ -1,0 +1,13 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: application,
+  packageName: "example",
+  entryPoints: { start: { target: "example:main#run", kind: main, doc: "Start." }, build: { target: "example:main#run", kind: command } },
+  dependencies: [
+    package::def::{ name: "my-org/shared", modules: [ public::def::module::{ name: "util", values: [ public::def::value::{ name: "identity", inputTypes: { x: "morphir/SDK:basics#int" }, outputType: "morphir/SDK:basics#int", body: x } ] } ] },
+  ],
+  modules: [
+    public::def::module::{ name: "main", values: [ public::def::value::{ name: "run", outputType: "morphir/SDK:basics#unit", body: () } ] },
+  ],
+}

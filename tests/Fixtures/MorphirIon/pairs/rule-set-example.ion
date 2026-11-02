@@ -1,0 +1,1085 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "3.0.0",
+  kind: library,
+  packageName: "morphir/sample",
+}
+public::def::module::{
+  name: "rules/rule-set",
+}
+public::def::custom::type::{
+  module: "rules/rule-set",
+  name: "category",
+  access: private,
+  constructors: [
+    {
+      name: "book-borrow",
+      args: [
+      ],
+    },
+    {
+      name: "book-loan",
+      args: [
+      ],
+    },
+    {
+      name: "street-borrow",
+      args: [
+      ],
+    },
+    {
+      name: "street-loan",
+      args: [
+      ],
+    },
+  ],
+  doc: " The result of the rule set can be any type. In this case we simply enumerate the possible\nclassifications of a trade.\n",
+}
+private::def::custom::type::{
+  module: "rules/rule-set",
+  name: "side",
+  access: private,
+  constructors: [
+    {
+      name: "borrow",
+      args: [
+      ],
+    },
+    {
+      name: "loan",
+      args: [
+      ],
+    },
+  ],
+  doc: " Utility type to describe which side the trade is on.\n",
+}
+public::def::alias::type::{
+  module: "rules/rule-set",
+  name: "trade",
+  typeExp: record::{
+    fields: [
+      {
+        name: "side",
+        type: "morphir/sample:rules/rule-set#side",
+      },
+      {
+        name: "entity-code",
+        type: "morphir/SDK:string#string",
+      },
+      {
+        name: "account",
+        type: "morphir/SDK:string#string",
+      },
+    ],
+  },
+  doc: " The input to the rule set is usually represented with a record type where each field\ncorresponds to a fact in the fact set in traditional rule engine terms.\n",
+}
+private::def::value::{
+  module: "rules/rule-set",
+  name: "rule",
+  outputType: reference::{
+    name: "morphir/SDK:maybe#maybe",
+    arguments: [
+      "morphir/sample:rules/rule-set#category",
+    ],
+  },
+  body: (
+    if
+    {
+      inferredType: reference::{
+        name: "morphir/SDK:maybe#maybe",
+        arguments: [
+          "morphir/sample:rules/rule-set#category",
+        ],
+      },
+    }
+    (
+      apply
+      {
+        inferredType: "morphir/SDK:basics#bool",
+      }
+      (
+        apply
+        {
+          inferredType: function::{
+            parameterType: "morphir/SDK:basics#bool",
+            returnType: "morphir/SDK:basics#bool",
+          },
+        }
+        (
+          ref
+          {
+            inferredType: function::{
+              parameterType: "morphir/SDK:basics#bool",
+              returnType: function::{
+                parameterType: "morphir/SDK:basics#bool",
+                returnType: "morphir/SDK:basics#bool",
+              },
+            },
+          }
+          'morphir/SDK:basics#and'
+        )
+        (
+          apply
+          {
+            inferredType: "morphir/SDK:basics#bool",
+          }
+          (
+            apply
+            {
+              inferredType: function::{
+                parameterType: "morphir/sample:rules/rule-set#side",
+                returnType: "morphir/SDK:basics#bool",
+              },
+            }
+            (
+              ref
+              {
+                inferredType: function::{
+                  parameterType: "morphir/sample:rules/rule-set#side",
+                  returnType: function::{
+                    parameterType: "morphir/sample:rules/rule-set#side",
+                    returnType: "morphir/SDK:basics#bool",
+                  },
+                },
+              }
+              'morphir/SDK:basics#equal'
+            )
+            (
+              variable
+              {
+                inferredType: "morphir/sample:rules/rule-set#side",
+              }
+              side
+            )
+          )
+          (
+            field
+            {
+              inferredType: "morphir/sample:rules/rule-set#side",
+            }
+            (
+              variable
+              {
+                inferredType: "morphir/sample:rules/rule-set#trade",
+              }
+              trade
+            )
+            side
+          )
+        )
+      )
+      (
+        apply
+        {
+          inferredType: "morphir/SDK:basics#bool",
+        }
+        (
+          apply
+          {
+            inferredType: function::{
+              parameterType: "morphir/SDK:basics#bool",
+              returnType: "morphir/SDK:basics#bool",
+            },
+          }
+          (
+            ref
+            {
+              inferredType: function::{
+                parameterType: "morphir/SDK:basics#bool",
+                returnType: function::{
+                  parameterType: "morphir/SDK:basics#bool",
+                  returnType: "morphir/SDK:basics#bool",
+                },
+              },
+            }
+            'morphir/SDK:basics#and'
+          )
+          (
+            apply
+            {
+              inferredType: "morphir/SDK:basics#bool",
+            }
+            (
+              variable
+              {
+                inferredType: function::{
+                  parameterType: "morphir/SDK:string#string",
+                  returnType: "morphir/SDK:basics#bool",
+                },
+              }
+              'match-entity-code'
+            )
+            (
+              field
+              {
+                inferredType: "morphir/SDK:string#string",
+              }
+              (
+                variable
+                {
+                  inferredType: "morphir/sample:rules/rule-set#trade",
+                }
+                trade
+              )
+              'entity-code'
+            )
+          )
+        )
+        (
+          apply
+          {
+            inferredType: "morphir/SDK:basics#bool",
+          }
+          (
+            variable
+            {
+              inferredType: function::{
+                parameterType: "morphir/SDK:string#string",
+                returnType: "morphir/SDK:basics#bool",
+              },
+            }
+            'match-account'
+          )
+          (
+            field
+            {
+              inferredType: "morphir/SDK:string#string",
+            }
+            (
+              variable
+              {
+                inferredType: "morphir/sample:rules/rule-set#trade",
+              }
+              trade
+            )
+            account
+          )
+        )
+      )
+    )
+    (
+      apply
+      {
+        inferredType: reference::{
+          name: "morphir/SDK:maybe#maybe",
+          arguments: [
+            "morphir/sample:rules/rule-set#category",
+          ],
+        },
+      }
+      (
+        constructor
+        {
+          inferredType: function::{
+            parameterType: "morphir/sample:rules/rule-set#category",
+            returnType: reference::{
+              name: "morphir/SDK:maybe#maybe",
+              arguments: [
+                "morphir/sample:rules/rule-set#category",
+              ],
+            },
+          },
+        }
+        'morphir/SDK:maybe#just'
+      )
+      (
+        variable
+        {
+          inferredType: "morphir/sample:rules/rule-set#category",
+        }
+        category
+      )
+    )
+    (
+      constructor
+      {
+        inferredType: reference::{
+          name: "morphir/SDK:maybe#maybe",
+          arguments: [
+            "morphir/sample:rules/rule-set#category",
+          ],
+        },
+      }
+      'morphir/SDK:maybe#nothing'
+    )
+  ),
+  inputTypes: [
+    {
+      name: "side",
+      type: "morphir/sample:rules/rule-set#side",
+    },
+    {
+      name: "match-entity-code",
+      type: function::{
+        parameterType: "morphir/SDK:string#string",
+        returnType: "morphir/SDK:basics#bool",
+      },
+    },
+    {
+      name: "match-account",
+      type: function::{
+        parameterType: "morphir/SDK:string#string",
+        returnType: "morphir/SDK:basics#bool",
+      },
+    },
+    {
+      name: "category",
+      type: "morphir/sample:rules/rule-set#category",
+    },
+    {
+      name: "trade",
+      type: "morphir/sample:rules/rule-set#trade",
+    },
+  ],
+  doc: " Utility function that defines the specific behavior of rules. Inputs are chosen explicitly to\nmake rule definition easier and cleaner by using either a specific value to match against or a predicate\nfunction for flexibility.\n",
+}
+public::def::value::{
+  module: "rules/rule-set",
+  name: "rule-set",
+  outputType: reference::{
+    name: "morphir/SDK:rule#rule",
+    arguments: [
+      "morphir/sample:rules/rule-set#trade",
+      "morphir/sample:rules/rule-set#category",
+    ],
+  },
+  body: (
+    apply
+    {
+      inferredType: reference::{
+        name: "morphir/SDK:rule#rule",
+        arguments: [
+          "morphir/sample:rules/rule-set#trade",
+          "morphir/sample:rules/rule-set#category",
+        ],
+      },
+    }
+    (
+      ref
+      {
+        inferredType: function::{
+          parameterType: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              reference::              {
+                name: "morphir/SDK:rule#rule",
+                arguments: [
+                  "morphir/sample:rules/rule-set#trade",
+                  "morphir/sample:rules/rule-set#category",
+                ],
+              },
+            ],
+          },
+          returnType: reference::{
+            name: "morphir/SDK:rule#rule",
+            arguments: [
+              "morphir/sample:rules/rule-set#trade",
+              "morphir/sample:rules/rule-set#category",
+            ],
+          },
+        },
+      }
+      'morphir/SDK:rule#chain'
+    )
+    (
+      list
+      {
+        inferredType: reference::{
+          name: "morphir/SDK:list#list",
+          arguments: [
+            reference::            {
+              name: "morphir/SDK:rule#rule",
+              arguments: [
+                "morphir/sample:rules/rule-set#trade",
+                "morphir/sample:rules/rule-set#category",
+              ],
+            },
+          ],
+        },
+      }
+      (
+        apply
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:rule#rule",
+            arguments: [
+              "morphir/sample:rules/rule-set#trade",
+              "morphir/sample:rules/rule-set#category",
+            ],
+          },
+        }
+        (
+          apply
+          {
+            inferredType: function::{
+              parameterType: "morphir/sample:rules/rule-set#category",
+              returnType: reference::{
+                name: "morphir/SDK:rule#rule",
+                arguments: [
+                  "morphir/sample:rules/rule-set#trade",
+                  "morphir/sample:rules/rule-set#category",
+                ],
+              },
+            },
+          }
+          (
+            apply
+            {
+              inferredType: function::{
+                parameterType: function::{
+                  parameterType: "morphir/SDK:string#string",
+                  returnType: "morphir/SDK:basics#bool",
+                },
+                returnType: function::{
+                  parameterType: "morphir/sample:rules/rule-set#category",
+                  returnType: reference::{
+                    name: "morphir/SDK:rule#rule",
+                    arguments: [
+                      "morphir/sample:rules/rule-set#trade",
+                      "morphir/sample:rules/rule-set#category",
+                    ],
+                  },
+                },
+              },
+            }
+            (
+              apply
+              {
+                inferredType: function::{
+                  parameterType: function::{
+                    parameterType: "morphir/SDK:string#string",
+                    returnType: "morphir/SDK:basics#bool",
+                  },
+                  returnType: function::{
+                    parameterType: function::{
+                      parameterType: "morphir/SDK:string#string",
+                      returnType: "morphir/SDK:basics#bool",
+                    },
+                    returnType: function::{
+                      parameterType: "morphir/sample:rules/rule-set#category",
+                      returnType: reference::{
+                        name: "morphir/SDK:rule#rule",
+                        arguments: [
+                          "morphir/sample:rules/rule-set#trade",
+                          "morphir/sample:rules/rule-set#category",
+                        ],
+                      },
+                    },
+                  },
+                },
+              }
+              (
+                ref
+                {
+                  inferredType: function::{
+                    parameterType: "morphir/sample:rules/rule-set#side",
+                    returnType: function::{
+                      parameterType: function::{
+                        parameterType: "morphir/SDK:string#string",
+                        returnType: "morphir/SDK:basics#bool",
+                      },
+                      returnType: function::{
+                        parameterType: function::{
+                          parameterType: "morphir/SDK:string#string",
+                          returnType: "morphir/SDK:basics#bool",
+                        },
+                        returnType: function::{
+                          parameterType: "morphir/sample:rules/rule-set#category",
+                          returnType: reference::{
+                            name: "morphir/SDK:rule#rule",
+                            arguments: [
+                              "morphir/sample:rules/rule-set#trade",
+                              "morphir/sample:rules/rule-set#category",
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                }
+                'morphir/sample:rules/rule-set#rule'
+              )
+              (
+                constructor
+                {
+                  inferredType: "morphir/sample:rules/rule-set#side",
+                }
+                'morphir/sample:rules/rule-set#borrow'
+              )
+            )
+            (
+              apply
+              {
+                inferredType: function::{
+                  parameterType: "morphir/SDK:string#string",
+                  returnType: "morphir/SDK:basics#bool",
+                },
+              }
+              (
+                ref
+                {
+                  inferredType: function::{
+                    parameterType: reference::{
+                      name: "morphir/SDK:list#list",
+                      arguments: [
+                        "morphir/SDK:string#string",
+                      ],
+                    },
+                    returnType: function::{
+                      parameterType: "morphir/SDK:string#string",
+                      returnType: "morphir/SDK:basics#bool",
+                    },
+                  },
+                }
+                'morphir/SDK:rule#none-of'
+              )
+              (
+                list
+                {
+                  inferredType: reference::{
+                    name: "morphir/SDK:list#list",
+                    arguments: [
+                      "morphir/SDK:string#string",
+                    ],
+                  },
+                }
+                (
+                  string
+                  {
+                    inferredType: "morphir/SDK:string#string",
+                  }
+                  "12345"
+                )
+                (
+                  string
+                  {
+                    inferredType: "morphir/SDK:string#string",
+                  }
+                  "23456"
+                )
+              )
+            )
+          )
+          (
+            apply
+            {
+              inferredType: function::{
+                parameterType: "morphir/SDK:string#string",
+                returnType: "morphir/SDK:basics#bool",
+              },
+            }
+            (
+              ref
+              {
+                inferredType: function::{
+                  parameterType: "morphir/SDK:string#string",
+                  returnType: function::{
+                    parameterType: "morphir/SDK:string#string",
+                    returnType: "morphir/SDK:basics#bool",
+                  },
+                },
+              }
+              'morphir/SDK:string#starts-with'
+            )
+            (
+              string
+              {
+                inferredType: "morphir/SDK:string#string",
+              }
+              "00"
+            )
+          )
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/rule-set#category",
+          }
+          'morphir/sample:rules/rule-set#street-borrow'
+        )
+      )
+      (
+        apply
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:rule#rule",
+            arguments: [
+              "morphir/sample:rules/rule-set#trade",
+              "morphir/sample:rules/rule-set#category",
+            ],
+          },
+        }
+        (
+          apply
+          {
+            inferredType: function::{
+              parameterType: "morphir/sample:rules/rule-set#category",
+              returnType: function::{
+                parameterType: "morphir/sample:rules/rule-set#trade",
+                returnType: reference::{
+                  name: "morphir/SDK:maybe#maybe",
+                  arguments: [
+                    "morphir/sample:rules/rule-set#category",
+                  ],
+                },
+              },
+            },
+          }
+          (
+            apply
+            {
+              inferredType: function::{
+                parameterType: function::{
+                  parameterType: "morphir/SDK:string#string",
+                  returnType: "morphir/SDK:basics#bool",
+                },
+                returnType: function::{
+                  parameterType: "morphir/sample:rules/rule-set#category",
+                  returnType: function::{
+                    parameterType: "morphir/sample:rules/rule-set#trade",
+                    returnType: reference::{
+                      name: "morphir/SDK:maybe#maybe",
+                      arguments: [
+                        "morphir/sample:rules/rule-set#category",
+                      ],
+                    },
+                  },
+                },
+              },
+            }
+            (
+              apply
+              {
+                inferredType: function::{
+                  parameterType: function::{
+                    parameterType: "morphir/SDK:string#string",
+                    returnType: "morphir/SDK:basics#bool",
+                  },
+                  returnType: function::{
+                    parameterType: function::{
+                      parameterType: "morphir/SDK:string#string",
+                      returnType: "morphir/SDK:basics#bool",
+                    },
+                    returnType: function::{
+                      parameterType: "morphir/sample:rules/rule-set#category",
+                      returnType: function::{
+                        parameterType: "morphir/sample:rules/rule-set#trade",
+                        returnType: reference::{
+                          name: "morphir/SDK:maybe#maybe",
+                          arguments: [
+                            "morphir/sample:rules/rule-set#category",
+                          ],
+                        },
+                      },
+                    },
+                  },
+                },
+              }
+              (
+                ref
+                {
+                  inferredType: function::{
+                    parameterType: "morphir/sample:rules/rule-set#side",
+                    returnType: function::{
+                      parameterType: function::{
+                        parameterType: "morphir/SDK:string#string",
+                        returnType: "morphir/SDK:basics#bool",
+                      },
+                      returnType: function::{
+                        parameterType: function::{
+                          parameterType: "morphir/SDK:string#string",
+                          returnType: "morphir/SDK:basics#bool",
+                        },
+                        returnType: function::{
+                          parameterType: "morphir/sample:rules/rule-set#category",
+                          returnType: function::{
+                            parameterType: "morphir/sample:rules/rule-set#trade",
+                            returnType: reference::{
+                              name: "morphir/SDK:maybe#maybe",
+                              arguments: [
+                                "morphir/sample:rules/rule-set#category",
+                              ],
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                }
+                'morphir/sample:rules/rule-set#rule'
+              )
+              (
+                constructor
+                {
+                  inferredType: "morphir/sample:rules/rule-set#side",
+                }
+                'morphir/sample:rules/rule-set#borrow'
+              )
+            )
+            (
+              ref
+              {
+                inferredType: function::{
+                  parameterType: "morphir/SDK:string#string",
+                  returnType: "morphir/SDK:basics#bool",
+                },
+              }
+              'morphir/SDK:rule#any'
+            )
+          )
+          (
+            ref
+            {
+              inferredType: function::{
+                parameterType: "morphir/SDK:string#string",
+                returnType: "morphir/SDK:basics#bool",
+              },
+            }
+            'morphir/SDK:rule#any'
+          )
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/rule-set#category",
+          }
+          'morphir/sample:rules/rule-set#book-borrow'
+        )
+      )
+      (
+        apply
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:rule#rule",
+            arguments: [
+              "morphir/sample:rules/rule-set#trade",
+              "morphir/sample:rules/rule-set#category",
+            ],
+          },
+        }
+        (
+          apply
+          {
+            inferredType: function::{
+              parameterType: "morphir/sample:rules/rule-set#category",
+              returnType: reference::{
+                name: "morphir/SDK:rule#rule",
+                arguments: [
+                  "morphir/sample:rules/rule-set#trade",
+                  "morphir/sample:rules/rule-set#category",
+                ],
+              },
+            },
+          }
+          (
+            apply
+            {
+              inferredType: function::{
+                parameterType: function::{
+                  parameterType: "morphir/SDK:string#string",
+                  returnType: "morphir/SDK:basics#bool",
+                },
+                returnType: function::{
+                  parameterType: "morphir/sample:rules/rule-set#category",
+                  returnType: reference::{
+                    name: "morphir/SDK:rule#rule",
+                    arguments: [
+                      "morphir/sample:rules/rule-set#trade",
+                      "morphir/sample:rules/rule-set#category",
+                    ],
+                  },
+                },
+              },
+            }
+            (
+              apply
+              {
+                inferredType: function::{
+                  parameterType: function::{
+                    parameterType: "morphir/SDK:string#string",
+                    returnType: "morphir/SDK:basics#bool",
+                  },
+                  returnType: function::{
+                    parameterType: function::{
+                      parameterType: "morphir/SDK:string#string",
+                      returnType: "morphir/SDK:basics#bool",
+                    },
+                    returnType: function::{
+                      parameterType: "morphir/sample:rules/rule-set#category",
+                      returnType: reference::{
+                        name: "morphir/SDK:rule#rule",
+                        arguments: [
+                          "morphir/sample:rules/rule-set#trade",
+                          "morphir/sample:rules/rule-set#category",
+                        ],
+                      },
+                    },
+                  },
+                },
+              }
+              (
+                ref
+                {
+                  inferredType: function::{
+                    parameterType: "morphir/sample:rules/rule-set#side",
+                    returnType: function::{
+                      parameterType: function::{
+                        parameterType: "morphir/SDK:string#string",
+                        returnType: "morphir/SDK:basics#bool",
+                      },
+                      returnType: function::{
+                        parameterType: function::{
+                          parameterType: "morphir/SDK:string#string",
+                          returnType: "morphir/SDK:basics#bool",
+                        },
+                        returnType: function::{
+                          parameterType: "morphir/sample:rules/rule-set#category",
+                          returnType: reference::{
+                            name: "morphir/SDK:rule#rule",
+                            arguments: [
+                              "morphir/sample:rules/rule-set#trade",
+                              "morphir/sample:rules/rule-set#category",
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                }
+                'morphir/sample:rules/rule-set#rule'
+              )
+              (
+                constructor
+                {
+                  inferredType: "morphir/sample:rules/rule-set#side",
+                }
+                'morphir/sample:rules/rule-set#loan'
+              )
+            )
+            (
+              apply
+              {
+                inferredType: function::{
+                  parameterType: "morphir/SDK:string#string",
+                  returnType: "morphir/SDK:basics#bool",
+                },
+              }
+              (
+                ref
+                {
+                  inferredType: function::{
+                    parameterType: reference::{
+                      name: "morphir/SDK:list#list",
+                      arguments: [
+                        "morphir/SDK:string#string",
+                      ],
+                    },
+                    returnType: function::{
+                      parameterType: "morphir/SDK:string#string",
+                      returnType: "morphir/SDK:basics#bool",
+                    },
+                  },
+                }
+                'morphir/SDK:rule#any-of'
+              )
+              (
+                list
+                {
+                  inferredType: reference::{
+                    name: "morphir/SDK:list#list",
+                    arguments: [
+                      "morphir/SDK:string#string",
+                    ],
+                  },
+                }
+                (
+                  string
+                  {
+                    inferredType: "morphir/SDK:string#string",
+                  }
+                  "00110"
+                )
+                (
+                  string
+                  {
+                    inferredType: "morphir/SDK:string#string",
+                  }
+                  "22556"
+                )
+              )
+            )
+          )
+          (
+            ref
+            {
+              inferredType: function::{
+                parameterType: "morphir/SDK:string#string",
+                returnType: "morphir/SDK:basics#bool",
+              },
+            }
+            'morphir/SDK:rule#any'
+          )
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/rule-set#category",
+          }
+          'morphir/sample:rules/rule-set#street-loan'
+        )
+      )
+      (
+        apply
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:rule#rule",
+            arguments: [
+              "morphir/sample:rules/rule-set#trade",
+              "morphir/sample:rules/rule-set#category",
+            ],
+          },
+        }
+        (
+          apply
+          {
+            inferredType: function::{
+              parameterType: "morphir/sample:rules/rule-set#category",
+              returnType: function::{
+                parameterType: "morphir/sample:rules/rule-set#trade",
+                returnType: reference::{
+                  name: "morphir/SDK:maybe#maybe",
+                  arguments: [
+                    "morphir/sample:rules/rule-set#category",
+                  ],
+                },
+              },
+            },
+          }
+          (
+            apply
+            {
+              inferredType: function::{
+                parameterType: function::{
+                  parameterType: "morphir/SDK:string#string",
+                  returnType: "morphir/SDK:basics#bool",
+                },
+                returnType: function::{
+                  parameterType: "morphir/sample:rules/rule-set#category",
+                  returnType: function::{
+                    parameterType: "morphir/sample:rules/rule-set#trade",
+                    returnType: reference::{
+                      name: "morphir/SDK:maybe#maybe",
+                      arguments: [
+                        "morphir/sample:rules/rule-set#category",
+                      ],
+                    },
+                  },
+                },
+              },
+            }
+            (
+              apply
+              {
+                inferredType: function::{
+                  parameterType: function::{
+                    parameterType: "morphir/SDK:string#string",
+                    returnType: "morphir/SDK:basics#bool",
+                  },
+                  returnType: function::{
+                    parameterType: function::{
+                      parameterType: "morphir/SDK:string#string",
+                      returnType: "morphir/SDK:basics#bool",
+                    },
+                    returnType: function::{
+                      parameterType: "morphir/sample:rules/rule-set#category",
+                      returnType: function::{
+                        parameterType: "morphir/sample:rules/rule-set#trade",
+                        returnType: reference::{
+                          name: "morphir/SDK:maybe#maybe",
+                          arguments: [
+                            "morphir/sample:rules/rule-set#category",
+                          ],
+                        },
+                      },
+                    },
+                  },
+                },
+              }
+              (
+                ref
+                {
+                  inferredType: function::{
+                    parameterType: "morphir/sample:rules/rule-set#side",
+                    returnType: function::{
+                      parameterType: function::{
+                        parameterType: "morphir/SDK:string#string",
+                        returnType: "morphir/SDK:basics#bool",
+                      },
+                      returnType: function::{
+                        parameterType: function::{
+                          parameterType: "morphir/SDK:string#string",
+                          returnType: "morphir/SDK:basics#bool",
+                        },
+                        returnType: function::{
+                          parameterType: "morphir/sample:rules/rule-set#category",
+                          returnType: function::{
+                            parameterType: "morphir/sample:rules/rule-set#trade",
+                            returnType: reference::{
+                              name: "morphir/SDK:maybe#maybe",
+                              arguments: [
+                                "morphir/sample:rules/rule-set#category",
+                              ],
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                }
+                'morphir/sample:rules/rule-set#rule'
+              )
+              (
+                constructor
+                {
+                  inferredType: "morphir/sample:rules/rule-set#side",
+                }
+                'morphir/sample:rules/rule-set#loan'
+              )
+            )
+            (
+              ref
+              {
+                inferredType: function::{
+                  parameterType: "morphir/SDK:string#string",
+                  returnType: "morphir/SDK:basics#bool",
+                },
+              }
+              'morphir/SDK:rule#any'
+            )
+          )
+          (
+            ref
+            {
+              inferredType: function::{
+                parameterType: "morphir/SDK:string#string",
+                returnType: "morphir/SDK:basics#bool",
+              },
+            }
+            'morphir/SDK:rule#any'
+          )
+        )
+        (
+          constructor
+          {
+            inferredType: "morphir/sample:rules/rule-set#category",
+          }
+          'morphir/sample:rules/rule-set#book-loan'
+        )
+      )
+    )
+  ),
+  doc: " A rule set is represented as a list of partial functions. Each entry in the rule set is\ncreated using the same helper function that turns the list of predicates into a single predicate\nand also specifies the output of the rule. This provides an easy to read tabular format for\nthe rule set while still supporting very complex matching rules if needed.\n\nUsing the power of functional programming we can go beyond simple exact matches and apply more\ncomplex matching rules such as `noneOf`, `anyOf` or `startsWith` directly in the decision table.\n\n",
+}
+morphir_footer::{
+}

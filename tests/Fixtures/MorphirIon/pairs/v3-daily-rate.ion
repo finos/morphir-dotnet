@@ -1,0 +1,23 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "3.0.0",
+  kind: library,
+  packageName: "car/rental",
+}
+public::def::module::{
+  name: "inventory",
+}
+public::def::value::{
+  module: "inventory",
+  name: "daily-rate",
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    int
+    {
+      inferredType: "morphir/SDK:basics#int",
+    }
+    5000
+  ),
+}
+morphir_footer::{
+}

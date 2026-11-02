@@ -24,6 +24,7 @@
         <Compile Include="IR/ModulePath.fs" />
         <Compile Include="IR/FQName.fs" />
         <Compile Include="IR/QName.fs" />
+        <Compile Include="IR/CanonicalNames.fs" />
         <Compile Include="IR/Versioning.fs" />
         <Compile Include="IR/Classic/AccessControlled.fs" />
         <Compile Include="IR/Classic/Type.fs" />
@@ -43,6 +44,13 @@
         <Compile Include="IR/Classic/DSL/Modules.fs" />
         <Compile Include="IR/Classic/DSL/Packages.fs" />
         <Compile Include="IR/Classic/DSL/Distributions.fs" />
+        <Compile Include="IR/V4/OrderedMap.fs" />
+        <Compile Include="IR/V4/Common.fs" />
+        <Compile Include="IR/V4/Literal.fs" />
+        <Compile Include="IR/V4/Type.fs" />
+        <Compile Include="IR/V4/Value.fs" />
+        <Compile Include="IR/V4/Module.fs" />
+        <Compile Include="IR/V4/Distribution.fs" />
         <Compile Include="IR/DSL/Names.fs" />
         <Compile Include="IR/DSL/DSL.fs" />
         <Compile Include="Json/MorphirJsonOptions.fs" />
@@ -54,10 +62,16 @@
         <Compile Include="Json/Codecs/LiteralCodec.fs" />
         <Compile Include="Json/Codecs/TypeCodec.fs" />
         <Compile Include="Json/Codecs/RawTypeCodec.fs" />
+        <Compile Include="Json/Classic/ClassicJson.fs" />
+        <Compile Include="Json/V4/V4JsonDecoding.fs" />
+        <Compile Include="Json/V4/V4JsonValues.fs" />
+        <Compile Include="Json/V4/V4JsonDistributions.fs" />
+        <Compile Include="Json/V4/V4Json.fs" />
     </ItemGroup>
 
     <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Models.Tests" />
+        <InternalsVisibleTo Include="Morphir.CodeGeneration.FSharp" />
     </ItemGroup>
 
 </Project>

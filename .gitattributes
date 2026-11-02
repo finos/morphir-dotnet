@@ -43,3 +43,6 @@ openspec/schemas/html-design/** text eol=lf
 openspec/extensions.lock.json text eol=lf
 scripts/openspec-ext.mbtx text eol=lf
 scripts/features/openspec_ext.feature text eol=lf
+
+# Vendored Morphir Ion fixtures are checked by SHA-256, so their bytes must not change
+tests/Fixtures/MorphirIon/** -text

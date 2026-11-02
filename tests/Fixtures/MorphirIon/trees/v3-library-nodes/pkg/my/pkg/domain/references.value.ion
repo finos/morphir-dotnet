@@ -1,0 +1,55 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    apply
+    {
+      inferredType: "morphir/SDK:basics#int",
+    }
+    (
+      apply
+      {
+        inferredType: function::{
+          parameterType: "morphir/SDK:basics#int",
+          returnType: "morphir/SDK:basics#int",
+        },
+      }
+      (
+        ref
+        {
+          inferredType: function::{
+            parameterType: "morphir/SDK:basics#int",
+            returnType: function::{
+              parameterType: "morphir/SDK:basics#int",
+              returnType: "morphir/SDK:basics#int",
+            },
+          },
+        }
+        'morphir/SDK:basics#add'
+      )
+      (
+        variable
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        p
+      )
+    )
+    (
+      int
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      1
+    )
+  ),
+  inputTypes: [
+    {
+      name: "p",
+      type: "morphir/SDK:basics#int",
+    },
+    {
+      name: "q",
+      type: "morphir/SDK:basics#float",
+    },
+  ],
+}

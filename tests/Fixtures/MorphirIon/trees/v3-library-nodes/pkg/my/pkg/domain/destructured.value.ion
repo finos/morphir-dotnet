@@ -1,0 +1,67 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    destructure
+    {
+      inferredType: "morphir/SDK:basics#int",
+    }
+    (
+      tuple
+      {
+        inferredType: tuple::[
+          "morphir/SDK:basics#int",
+          "morphir/SDK:basics#int",
+        ],
+      }
+      (
+        as
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        (
+          wildcard
+          {
+            inferredType: "morphir/SDK:basics#int",
+          }
+        )
+        l
+      )
+      (
+        wildcard
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+      )
+    )
+    (
+      tuple
+      {
+        inferredType: tuple::[
+          "morphir/SDK:basics#int",
+          "morphir/SDK:basics#int",
+        ],
+      }
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        1
+      )
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        2
+      )
+    )
+    (
+      variable
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      l
+    )
+  ),
+}

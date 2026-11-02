@@ -1,0 +1,29 @@
+public::def::custom::type::{
+  access: public,
+  constructors: [
+    {
+      name: "internal-error",
+      args: [
+      ],
+    },
+    {
+      name: "invalid-request",
+      args: [
+        {
+          name: "arg-1",
+          type: "morphir/SDK:string#string",
+        },
+      ],
+    },
+    {
+      name: "order-not-found",
+      args: [
+        {
+          name: "arg-1",
+          type: "morphir/SDK:string#string",
+        },
+      ],
+    },
+  ],
+  doc: " Possible API errors.\n",
+}

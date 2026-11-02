@@ -1,0 +1,214 @@
+{
+  "formatVersion": 4,
+  "distribution": {
+    "Library": {
+      "packageName": "example",
+      "dependencies": {
+        "morphir/SDK": {
+          "modules": {
+            "basics": {
+              "types": {
+                "int": {
+                  "OpaqueTypeSpecification": {
+                    "typeParams": []
+                  }
+                }
+              },
+              "values": {}
+            },
+            "con": {
+              "types": {
+                "aux": {
+                  "OpaqueTypeSpecification": {
+                    "typeParams": []
+                  }
+                },
+                "value-in-USD": {
+                  "OpaqueTypeSpecification": {
+                    "typeParams": []
+                  }
+                }
+              },
+              "values": {}
+            }
+          }
+        },
+        "acme/XML": {
+          "modules": {
+            "manifest": {
+              "types": {
+                "module": {
+                  "OpaqueTypeSpecification": {
+                    "typeParams": []
+                  }
+                }
+              },
+              "values": {}
+            }
+          }
+        }
+      },
+      "def": {
+        "modules": {
+          "manifest": {
+            "Public": {
+              "doc": "A module named manifest.",
+              "types": {
+                "manifest": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeExp": "morphir/SDK:basics#int",
+                      "typeParams": []
+                    }
+                  }
+                },
+                "module": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeExp": "morphir/SDK:basics#int",
+                      "typeParams": []
+                    }
+                  }
+                },
+                "con": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeExp": "morphir/SDK:basics#int",
+                      "typeParams": []
+                    }
+                  }
+                },
+                "aux": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeExp": "morphir/SDK:basics#int",
+                      "typeParams": []
+                    }
+                  }
+                },
+                "nul": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeExp": "morphir/SDK:basics#int",
+                      "typeParams": []
+                    }
+                  }
+                },
+                "com1": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeExp": "morphir/SDK:basics#int",
+                      "typeParams": []
+                    }
+                  }
+                },
+                "value-in-USD": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeExp": "morphir/SDK:basics#int",
+                      "typeParams": []
+                    }
+                  }
+                },
+                "user-ID": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeExp": "morphir/SDK:basics#int",
+                      "typeParams": []
+                    }
+                  }
+                }
+              },
+              "values": {
+                "lpt9": {
+                  "Public": {
+                    "ExpressionBody": {
+                      "body": {
+                        "Literal": {
+                          "IntegerLiteral": 1
+                        }
+                      },
+                      "outputType": "morphir/SDK:basics#int",
+                      "inputTypes": {}
+                    }
+                  }
+                },
+                "manifest": {
+                  "Public": {
+                    "ExpressionBody": {
+                      "body": {
+                        "Literal": {
+                          "IntegerLiteral": 2
+                        }
+                      },
+                      "outputType": "morphir/SDK:basics#int",
+                      "inputTypes": {}
+                    }
+                  }
+                },
+                "rate-in-USD": {
+                  "Public": {
+                    "ExpressionBody": {
+                      "body": {
+                        "Literal": {
+                          "IntegerLiteral": 3
+                        }
+                      },
+                      "outputType": "morphir/SDK:basics#int",
+                      "inputTypes": {}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "manifest/module": {
+            "Public": {
+              "types": {
+                "item": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeExp": "morphir/SDK:basics#int",
+                      "typeParams": []
+                    }
+                  }
+                }
+              },
+              "values": {}
+            }
+          },
+          "con": {
+            "Public": {
+              "types": {
+                "thing": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeExp": "morphir/SDK:basics#int",
+                      "typeParams": []
+                    }
+                  }
+                }
+              },
+              "values": {}
+            }
+          },
+          "ID": {
+            "Public": {
+              "types": {
+                "key": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeExp": "morphir/SDK:basics#int",
+                      "typeParams": []
+                    }
+                  }
+                }
+              },
+              "values": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}

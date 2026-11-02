@@ -1,0 +1,3 @@
+public::def::module::{
+  doc: "Books and Records module - manages deal lifecycle including opening, closing, and tracking deals.",
+}

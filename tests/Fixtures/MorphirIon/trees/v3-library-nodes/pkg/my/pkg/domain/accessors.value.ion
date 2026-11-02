@@ -1,0 +1,38 @@
+public::def::value::{
+  outputType: function::{
+    parameterType: record::{
+      fields: [
+        {
+          name: "x",
+          type: "morphir/SDK:basics#int",
+        },
+        {
+          name: "value-in-USD",
+          type: "morphir/SDK:basics#float",
+        },
+      ],
+    },
+    returnType: "morphir/SDK:basics#int",
+  },
+  body: (
+    fieldFunction
+    {
+      inferredType: function::{
+        parameterType: record::{
+          fields: [
+            {
+              name: "x",
+              type: "morphir/SDK:basics#int",
+            },
+            {
+              name: "value-in-USD",
+              type: "morphir/SDK:basics#float",
+            },
+          ],
+        },
+        returnType: "morphir/SDK:basics#int",
+      },
+    }
+    x
+  ),
+}

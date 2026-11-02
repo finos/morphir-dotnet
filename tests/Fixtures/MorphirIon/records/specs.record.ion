@@ -1,0 +1,12 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: specs,
+  packageName: "example",
+  dependencies: [
+    package::spec::{ name: "morphir/SDK", modules: [ module::spec::{ name: "basics", annotations: ["my-org/project:annotations#stable"], doc: "Basics.", types: [ public::spec::opaque::type::{ name: "int" } ], values: [ public::spec::value::{ name: "add", inputs: { a: "morphir/SDK:basics#int", b: "morphir/SDK:basics#int" }, output: "morphir/SDK:basics#int" } ] } ] },
+  ],
+  modules: [
+    module::spec::{ name: "main", doc: "Own.", values: [ public::spec::value::{ name: "greet", inputs: { name: "morphir/SDK:string#string" }, output: "morphir/SDK:string#string" } ] },
+  ],
+}

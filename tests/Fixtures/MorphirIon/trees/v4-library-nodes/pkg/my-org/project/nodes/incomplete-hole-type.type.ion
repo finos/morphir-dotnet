@@ -1,0 +1,13 @@
+private::def::incomplete::type::{
+  typeParams: [
+    "a",
+  ],
+  incompleteness: hole::{
+    reason: typeMismatch::{
+      expected: "morphir/SDK:basics#int",
+      found: "morphir/SDK:string#string",
+    },
+    partialBody: "morphir/SDK:basics#int",
+  },
+  doc: "Hole.",
+}

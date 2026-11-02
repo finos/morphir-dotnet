@@ -1,0 +1,27 @@
+public::def::custom::type::{
+  access: private,
+  constructors: [
+    {
+      name: "empty",
+      args: [
+      ],
+    },
+    {
+      name: "full",
+      args: [
+        {
+          name: "item",
+          type: "a",
+        },
+        {
+          name: "item-2",
+          type: "a",
+        },
+      ],
+    },
+  ],
+  typeParams: [
+    "a",
+  ],
+  doc: "A box.",
+}

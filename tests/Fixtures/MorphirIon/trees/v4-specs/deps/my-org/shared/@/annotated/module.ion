@@ -1,0 +1,6 @@
+module::spec::{
+  annotations: [
+    "my-org/project:annotations#stable",
+  ],
+  doc: "The domain module",
+}

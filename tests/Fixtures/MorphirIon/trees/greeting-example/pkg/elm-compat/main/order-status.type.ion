@@ -1,0 +1,31 @@
+public::def::custom::type::{
+  access: public,
+  constructors: [
+    {
+      name: "cancelled",
+      args: [
+      ],
+    },
+    {
+      name: "confirmed",
+      args: [
+      ],
+    },
+    {
+      name: "delivered",
+      args: [
+      ],
+    },
+    {
+      name: "pending",
+      args: [
+      ],
+    },
+    {
+      name: "shipped",
+      args: [
+      ],
+    },
+  ],
+  doc: " Possible states of an order.\n",
+}

@@ -1,0 +1,103 @@
+private::def::value::{
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    if
+    {
+      inferredType: "morphir/SDK:basics#int",
+    }
+    (
+      bool
+      {
+        inferredType: "morphir/SDK:basics#bool",
+      }
+      true
+    )
+    (
+      let
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      one
+      {
+        outputType: "morphir/SDK:basics#int",
+        body: (
+          int
+          {
+            inferredType: "morphir/SDK:basics#int",
+          }
+          1
+        ),
+      }
+      (
+        variable
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        one
+      )
+    )
+    (
+      letrec
+      {
+        inferredType: "morphir/SDK:basics#int",
+      }
+      [
+        (
+          f
+          {
+            outputType: "morphir/SDK:basics#int",
+            inputTypes: [
+              {
+                name: "n",
+                type: "morphir/SDK:basics#int",
+              },
+            ],
+            body: (
+              apply
+              {
+                inferredType: "morphir/SDK:basics#int",
+              }
+              (
+                variable
+                {
+                  inferredType: function::{
+                    parameterType: "morphir/SDK:basics#int",
+                    returnType: "morphir/SDK:basics#int",
+                  },
+                }
+                f
+              )
+              (
+                variable
+                {
+                  inferredType: "morphir/SDK:basics#int",
+                }
+                n
+              )
+            ),
+          }
+        ),
+        (
+          g
+          {
+            outputType: "morphir/SDK:basics#int",
+            body: (
+              int
+              {
+                inferredType: "morphir/SDK:basics#int",
+              }
+              2
+            ),
+          }
+        ),
+      ]
+      (
+        variable
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        g
+      )
+    )
+  ),
+}

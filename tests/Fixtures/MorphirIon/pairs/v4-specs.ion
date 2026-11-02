@@ -1,0 +1,360 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: specs,
+  packageName: "example",
+}
+package::spec::{
+  name: "morphir/SDK",
+}
+package::spec::{
+  name: "my-org/shared",
+  modules: [
+    module::spec::    {
+      name: "annotated",
+      annotations: [
+        "my-org/project:annotations#stable",
+      ],
+      doc: "The domain module",
+      types: [
+        public::spec::opaque::type::        {
+          name: "opaque",
+          typeParams: [
+            "a",
+          ],
+          annotations: [
+            "my-org/project:annotations#deprecated:Use user-v2 instead",
+            {
+              name: "my-org/project:annotations#since",
+              arguments: [
+                (
+                  string
+                  "1.2.0"
+                ),
+                {
+                  name: "reason",
+                  value: (
+                    string
+                    "renamed"
+                  ),
+                },
+              ],
+            },
+            {
+              name: "my-org/project:annotations#internal",
+            },
+            "my-org/project:annotations#plain",
+          ],
+        },
+        public::spec::alias::type::        {
+          name: "alias",
+          typeParams: [
+            "a",
+          ],
+          typeExp: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              "a",
+            ],
+          },
+          annotations: [
+            "my-org/project:annotations#deprecated:Use user-v2 instead",
+            {
+              name: "my-org/project:annotations#since",
+              arguments: [
+                (
+                  string
+                  "1.2.0"
+                ),
+                {
+                  name: "reason",
+                  value: (
+                    string
+                    "renamed"
+                  ),
+                },
+              ],
+            },
+            {
+              name: "my-org/project:annotations#internal",
+            },
+            "my-org/project:annotations#plain",
+          ],
+          doc: "Alias doc.",
+        },
+        public::spec::custom::type::        {
+          name: "custom",
+          typeParams: [
+            "a",
+          ],
+          constructors: [
+            {
+              name: "just",
+              args: [
+                {
+                  name: "value",
+                  type: "a",
+                },
+              ],
+            },
+            {
+              name: "nothing",
+            },
+          ],
+          annotations: [
+            "my-org/project:annotations#deprecated:Use user-v2 instead",
+            {
+              name: "my-org/project:annotations#since",
+              arguments: [
+                (
+                  string
+                  "1.2.0"
+                ),
+                {
+                  name: "reason",
+                  value: (
+                    string
+                    "renamed"
+                  ),
+                },
+              ],
+            },
+            {
+              name: "my-org/project:annotations#internal",
+            },
+            "my-org/project:annotations#plain",
+          ],
+        },
+        public::spec::derived::type::        {
+          name: "derived",
+          baseType: "morphir/SDK:string#string",
+          fromBaseType: "my-org/project:module#from-string",
+          toBaseType: "my-org/project:module#to-string",
+          annotations: [
+            "my-org/project:annotations#deprecated:Use user-v2 instead",
+            {
+              name: "my-org/project:annotations#since",
+              arguments: [
+                (
+                  string
+                  "1.2.0"
+                ),
+                {
+                  name: "reason",
+                  value: (
+                    string
+                    "renamed"
+                  ),
+                },
+              ],
+            },
+            {
+              name: "my-org/project:annotations#internal",
+            },
+            "my-org/project:annotations#plain",
+          ],
+        },
+      ],
+      values: [
+        public::spec::value::        {
+          name: "add",
+          annotations: [
+            "my-org/project:annotations#pure",
+          ],
+          inputs: {
+            a: "morphir/SDK:basics#int",
+            b: "morphir/SDK:basics#int",
+          },
+          output: "morphir/SDK:basics#int",
+          doc: "Adds.",
+        },
+        public::spec::value::        {
+          name: "zero",
+          output: "morphir/SDK:basics#int",
+        },
+      ],
+    },
+    module::spec::    {
+      name: "plain",
+    },
+  ],
+}
+module::spec::{
+  name: "main",
+  annotations: [
+    "my-org/project:annotations#stable",
+  ],
+  doc: "The domain module",
+  types: [
+    public::spec::opaque::type::    {
+      name: "opaque",
+      typeParams: [
+        "a",
+      ],
+      annotations: [
+        "my-org/project:annotations#deprecated:Use user-v2 instead",
+        {
+          name: "my-org/project:annotations#since",
+          arguments: [
+            (
+              string
+              "1.2.0"
+            ),
+            {
+              name: "reason",
+              value: (
+                string
+                "renamed"
+              ),
+            },
+          ],
+        },
+        {
+          name: "my-org/project:annotations#internal",
+        },
+        "my-org/project:annotations#plain",
+      ],
+    },
+    public::spec::alias::type::    {
+      name: "alias",
+      typeParams: [
+        "a",
+      ],
+      typeExp: reference::{
+        name: "morphir/SDK:list#list",
+        arguments: [
+          "a",
+        ],
+      },
+      annotations: [
+        "my-org/project:annotations#deprecated:Use user-v2 instead",
+        {
+          name: "my-org/project:annotations#since",
+          arguments: [
+            (
+              string
+              "1.2.0"
+            ),
+            {
+              name: "reason",
+              value: (
+                string
+                "renamed"
+              ),
+            },
+          ],
+        },
+        {
+          name: "my-org/project:annotations#internal",
+        },
+        "my-org/project:annotations#plain",
+      ],
+      doc: "Alias doc.",
+    },
+    public::spec::custom::type::    {
+      name: "custom",
+      typeParams: [
+        "a",
+      ],
+      constructors: [
+        {
+          name: "just",
+          args: [
+            {
+              name: "value",
+              type: "a",
+            },
+          ],
+        },
+        {
+          name: "nothing",
+        },
+      ],
+      annotations: [
+        "my-org/project:annotations#deprecated:Use user-v2 instead",
+        {
+          name: "my-org/project:annotations#since",
+          arguments: [
+            (
+              string
+              "1.2.0"
+            ),
+            {
+              name: "reason",
+              value: (
+                string
+                "renamed"
+              ),
+            },
+          ],
+        },
+        {
+          name: "my-org/project:annotations#internal",
+        },
+        "my-org/project:annotations#plain",
+      ],
+    },
+    public::spec::derived::type::    {
+      name: "derived",
+      baseType: "morphir/SDK:string#string",
+      fromBaseType: "my-org/project:module#from-string",
+      toBaseType: "my-org/project:module#to-string",
+      annotations: [
+        "my-org/project:annotations#deprecated:Use user-v2 instead",
+        {
+          name: "my-org/project:annotations#since",
+          arguments: [
+            (
+              string
+              "1.2.0"
+            ),
+            {
+              name: "reason",
+              value: (
+                string
+                "renamed"
+              ),
+            },
+          ],
+        },
+        {
+          name: "my-org/project:annotations#internal",
+        },
+        "my-org/project:annotations#plain",
+      ],
+    },
+  ],
+  values: [
+    public::spec::value::    {
+      name: "add",
+      annotations: [
+        "my-org/project:annotations#pure",
+      ],
+      inputs: {
+        a: "morphir/SDK:basics#int",
+        b: "morphir/SDK:basics#int",
+      },
+      output: "morphir/SDK:basics#int",
+      doc: "Adds.",
+    },
+    public::spec::value::    {
+      name: "zero",
+      output: "morphir/SDK:basics#int",
+    },
+  ],
+}
+module::spec::{
+  name: "other",
+  doc: "Other.",
+  values: [
+    public::spec::value::    {
+      name: "greet",
+      inputs: {
+        name: "morphir/SDK:string#string",
+      },
+      output: "morphir/SDK:string#string",
+    },
+  ],
+}
+morphir_footer::{
+}

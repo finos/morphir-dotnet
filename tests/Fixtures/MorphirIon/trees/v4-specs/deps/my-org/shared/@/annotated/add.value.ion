@@ -1,0 +1,11 @@
+public::spec::value::{
+  annotations: [
+    "my-org/project:annotations#pure",
+  ],
+  inputs: {
+    a: "morphir/SDK:basics#int",
+    b: "morphir/SDK:basics#int",
+  },
+  output: "morphir/SDK:basics#int",
+  doc: "Adds.",
+}

@@ -1,0 +1,9 @@
+public::spec::value::{
+  inputs: [
+    {
+      name: "text",
+      type: "morphir/SDK:string#string",
+    },
+  ],
+  output: "my/dep:util#id",
+}

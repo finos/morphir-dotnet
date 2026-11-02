@@ -1,0 +1,11 @@
+public::spec::alias::type::{
+  typeParams: [
+    "a",
+  ],
+  typeExp: reference::{
+    name: "morphir/SDK:list#list",
+    arguments: [
+      "a",
+    ],
+  },
+}

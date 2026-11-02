@@ -1,0 +1,18 @@
+public::def::alias::type::{
+  typeExp: record::{
+    fields: [
+      {
+        name: "product",
+        type: "morphir/reference/model:books-and-records#product-ID",
+      },
+      {
+        name: "price",
+        type: "morphir/reference/model:books-and-records#price",
+      },
+      {
+        name: "quantity",
+        type: "morphir/reference/model:books-and-records#quantity",
+      },
+    ],
+  },
+}

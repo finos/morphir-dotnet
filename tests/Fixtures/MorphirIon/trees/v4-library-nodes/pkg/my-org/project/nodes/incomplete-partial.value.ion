@@ -1,0 +1,9 @@
+private::def::incomplete::value::{
+  inputTypes: {
+    x: "morphir/SDK:basics#int",
+  },
+  outputType: "morphir/SDK:basics#int",
+  incompleteness: draft,
+  body: 1,
+  doc: "Not done.",
+}

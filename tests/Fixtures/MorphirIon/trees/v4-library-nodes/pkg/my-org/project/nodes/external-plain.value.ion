@@ -1,0 +1,13 @@
+public::def::external::value::{
+  inputTypes: {
+    msg: "morphir/SDK:string#string",
+  },
+  outputType: "morphir/SDK:basics#unit",
+  externals: [
+    {
+      targetPlatform: "javascript",
+      externalName: "console.log",
+    },
+  ],
+  doc: "Logs.",
+}

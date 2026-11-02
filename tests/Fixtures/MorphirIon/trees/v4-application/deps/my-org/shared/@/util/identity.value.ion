@@ -1,0 +1,7 @@
+public::def::value::{
+  inputTypes: {
+    x: "morphir/SDK:basics#int",
+  },
+  outputType: "morphir/SDK:basics#int",
+  body: x,
+}

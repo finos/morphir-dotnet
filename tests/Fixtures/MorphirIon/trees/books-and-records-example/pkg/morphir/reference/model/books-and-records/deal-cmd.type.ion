@@ -1,0 +1,31 @@
+public::def::custom::type::{
+  access: public,
+  constructors: [
+    {
+      name: "open-deal",
+      args: [
+        {
+          name: "product",
+          type: "morphir/reference/model:books-and-records#product-ID",
+        },
+        {
+          name: "price",
+          type: "morphir/reference/model:books-and-records#price",
+        },
+        {
+          name: "quantity",
+          type: "morphir/reference/model:books-and-records#quantity",
+        },
+      ],
+    },
+    {
+      name: "close-deal",
+      args: [
+        {
+          name: "product",
+          type: "morphir/reference/model:books-and-records#product-ID",
+        },
+      ],
+    },
+  ],
+}

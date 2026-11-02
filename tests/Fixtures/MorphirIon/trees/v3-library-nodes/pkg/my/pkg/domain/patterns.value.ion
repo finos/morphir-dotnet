@@ -1,0 +1,166 @@
+public::def::value::{
+  outputType: "morphir/SDK:basics#int",
+  body: (
+    match
+    {
+      inferredType: "morphir/SDK:basics#int",
+    }
+    (
+      variable
+      {
+        inferredType: reference::{
+          name: "morphir/SDK:list#list",
+          arguments: [
+            "morphir/SDK:basics#int",
+          ],
+        },
+      }
+      v
+    )
+    [
+      (
+        emptyList
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              "morphir/SDK:basics#int",
+            ],
+          },
+        }
+      ),
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        0
+      ),
+    ]
+    [
+      (
+        headTail
+        {
+          inferredType: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              "morphir/SDK:basics#int",
+            ],
+          },
+        }
+        (
+          as
+          {
+            inferredType: "morphir/SDK:basics#int",
+          }
+          (
+            wildcard
+            {
+              inferredType: "morphir/SDK:basics#int",
+            }
+          )
+          h
+        )
+        (
+          wildcard
+          {
+            inferredType: reference::{
+              name: "morphir/SDK:list#list",
+              arguments: [
+                "morphir/SDK:basics#int",
+              ],
+            },
+          }
+        )
+      ),
+      (
+        variable
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        h
+      ),
+    ]
+    [
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        3
+      ),
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        3
+      ),
+    ]
+    [
+      (
+        string
+        {
+          inferredType: "morphir/SDK:string#string",
+        }
+        "s"
+      ),
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        4
+      ),
+    ]
+    [
+      (
+        unit
+        {
+          inferredType: unit::{
+          },
+        }
+      ),
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        5
+      ),
+    ]
+    [
+      (
+        constructor
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        'my/pkg:domain#full'
+        (
+          wildcard
+          {
+            inferredType: "a",
+          }
+        )
+      ),
+      (
+        int
+        {
+          inferredType: "morphir/SDK:basics#int",
+        }
+        6
+      ),
+    ]
+  ),
+  inputTypes: [
+    {
+      name: "v",
+      type: reference::{
+        name: "morphir/SDK:list#list",
+        arguments: [
+          "morphir/SDK:basics#int",
+        ],
+      },
+    },
+  ],
+}

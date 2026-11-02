@@ -1,0 +1,131 @@
+morphir::{
+  ionVersion: "0.1.0-draft.1",
+  formatVersion: "4.0.0",
+  kind: library,
+  packageName: "regulation",
+}
+package::spec::{
+  name: "morphir/SDK",
+  modules: [
+    module::spec::    {
+      name: "basics",
+      types: [
+        public::spec::opaque::type::        {
+          name: "int",
+        },
+        public::spec::opaque::type::        {
+          name: "float",
+        },
+        public::spec::opaque::type::        {
+          name: "bool",
+        },
+      ],
+      values: [
+        public::spec::value::        {
+          name: "add",
+          inputs: {
+            a: "morphir/SDK:basics#int",
+            b: "morphir/SDK:basics#int",
+          },
+          output: "morphir/SDK:basics#int",
+        },
+      ],
+    },
+    module::spec::    {
+      name: "list",
+      types: [
+        public::spec::alias::type::        {
+          name: "list",
+          typeParams: [
+            "a",
+          ],
+          typeExp: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              "a",
+            ],
+          },
+        },
+      ],
+      values: [
+        public::spec::value::        {
+          name: "map",
+          inputs: {
+            f: function::{
+              parameterType: "a",
+              returnType: "b",
+            },
+            list: reference::{
+              name: "morphir/SDK:list#list",
+              arguments: [
+                "a",
+              ],
+            },
+          },
+          output: reference::{
+            name: "morphir/SDK:list#list",
+            arguments: [
+              "b",
+            ],
+          },
+        },
+      ],
+    },
+  ],
+}
+public::def::module::{
+  name: "u-s/f-r-2052-a/data-tables",
+  doc: "Data tables module for regulatory reporting",
+  types: [
+    public::def::alias::type::    {
+      name: "data-tables",
+      typeExp: record::{
+        fields: [
+          {
+            name: "inflows",
+            type: "regulation:u-s/f-r-2052-a/data-tables#inflows",
+          },
+          {
+            name: "outflows",
+            type: "regulation:u-s/f-r-2052-a/data-tables#outflows",
+          },
+          {
+            name: "supplemental",
+            type: "regulation:u-s/f-r-2052-a/data-tables#supplemental",
+          },
+        ],
+      },
+    },
+    public::def::alias::type::    {
+      name: "inflows",
+      typeExp: record::{
+        fields: [
+          {
+            name: "assets",
+            type: reference::{
+              name: "morphir/SDK:list#list",
+              arguments: [
+                "regulation:u-s/f-r-2052-a/data-tables/inflows#assets",
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+  values: [
+    public::def::value::    {
+      name: "calculate-total",
+      inputTypes: {
+        tables: "regulation:u-s/f-r-2052-a/data-tables#data-tables",
+      },
+      outputType: "morphir/SDK:basics#float",
+      body: (
+        float
+        "0.0"
+      ),
+    },
+  ],
+}
+morphir_footer::{
+}
