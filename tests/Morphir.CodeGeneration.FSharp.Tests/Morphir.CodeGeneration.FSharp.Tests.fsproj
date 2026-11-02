@@ -23,6 +23,7 @@
     <Compile Include="Fixtures.fs" />
     <Compile Include="TranspilerAdapter.fs" />
     <Compile Include="GenerationConformanceTests.fs" />
+    <Compile Include="TypedGenerationTests.fs" />
     <Compile Include="PipelineGenerationTests.fs" />
     <Compile Include="TranspilerTests.fs" />
   </ItemGroup>

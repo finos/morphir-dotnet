@@ -3,6 +3,7 @@ namespace Morphir.CodeGeneration.FSharp
 open System.IO
 open System.Text.Json
 open Morphir.IR.Classic
+open Morphir.IR.Model
 open Morphir.IR.Pipeline
 open Morphir.IR.Pipeline.Plugins
 
@@ -163,6 +164,36 @@ module Transpiler =
     /// </summary>
     /// <param name="input">The model file</param>
     let generate (input: VFile) : VFileTree = run processor input
+
+    /// Generates from an already decoded library without reading or serializing its source.
+    /// The context file supplies paths and caller metadata, not model content.
+    let generateModel (model: VersionedModel) (context: VFile) : VFileTree =
+        let failure code message =
+            VFileTree.empty
+            |> VFileTree.report
+                { VMessage.create MessageSeverity.Error message with
+                    Path = context.Path
+                    Location = Some "$"
+                    RuleId = Some code
+                    Source = Some "fsharp-model"
+                }
+
+        match model.Distribution with
+        | DistributionModel.Classic(Distribution.Library(package, _, definition)) ->
+            let version =
+                match model.SourceVersion.Text with
+                | "1" -> Some 1
+                | "2" -> Some 2
+                | "3" | "3.0.0" | "3.1.0" -> Some 3
+                | _ -> None
+            match version with
+            | None -> failure "unsupported-version" $"Unsupported classic generation version '{model.SourceVersion.Text}'."
+            | Some version ->
+                let decoded: Decode.Model = { Version = version; Package = package; Definition = definition }
+                run { processor with Parsers = [ Parser.forFile (fun _ -> Ok decoded) ] } context
+        | DistributionModel.Classic(Distribution.Specs _) ->
+            failure "unsupported-distribution" "F# generation requires Library implementations; Specs has no executable bodies."
+        | DistributionModel.V4 _ -> failure "unsupported-version" "The v4 generation implementation is not registered yet."
 
     /// Generates with the optimizer on or off, so tests can compare behaviour.
     let internal generateWith (optimize: bool) (input: VFile) : VFileTree =
