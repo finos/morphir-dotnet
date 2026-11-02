@@ -253,7 +253,7 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
         await _host.StartAsync(cancellationToken);
         try
         {
-            return _rootCommand.Parse(_args).Invoke();
+            return Invoke(_rootCommand.Parse(_args));
         }
         finally
         {
@@ -270,7 +270,7 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
         _host.Start();
         try
         {
-            return _rootCommand.Parse(_args).Invoke();
+            return Invoke(_rootCommand.Parse(_args));
         }
         finally
         {
@@ -282,6 +282,11 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
     /// Disposes the application and its underlying host.
     /// </summary>
     public void Dispose() => _host.Dispose();
+
+    private static int Invoke(System.CommandLine.ParseResult result) =>
+        result.Errors.Count > 0 && result.CommandResult.Command is IMorphirParseErrorHandler handler
+            ? handler.HandleParseErrors(result)
+            : result.Invoke();
 
     /// <summary>
     /// Asynchronously disposes the application and its underlying host.

@@ -114,4 +114,6 @@ Three additional publication tests verify stale-owned removal with unowned prese
 
 The existing host and source-generated mediator coordinate settings, captured-model loading, static backend selection, validation, generation and owned publication. Hosted command factories receive that same service provider. Three host/handler tests pass, and all 11 original BDD cases now pass with the command binding. The full run exposed the new cancellation regression, now corrected and verified in the reporting task. All 229 current Tooling tests pass; other full-run suites pass.
 
+CLI binding adds explicit paths/target, constrained input format, repeated backend options and JSON mode. Seven subprocess tests cover unknown target/flags, invalid format/options, missing option values and last-value Boolean handling. Parser failures use the command's structured report and code 2. Command actions contain no target switches or separate host construction.
+
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

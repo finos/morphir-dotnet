@@ -18,5 +18,6 @@ public sealed class GenerationScenario : IMorphirCliScenario
             services.TryAddSingleton<IGenerationBackendResolver, RegisteredBackendResolver>();
             services.TryAddSingleton<IGenerationPublisher, GenerationPublisher>();
         });
+        builder.AddCommand((IServiceProvider services) => new GenerateCommand(services));
     }
 }
