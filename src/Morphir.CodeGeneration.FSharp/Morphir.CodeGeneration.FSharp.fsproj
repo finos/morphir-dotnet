@@ -2,15 +2,15 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Description>Morphir classic IR to F# code generation</Description>
+    <Description>Morphir classic and v4 IR to F# code generation</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Morphir.Models/Morphir.Models.fsproj" />
     <ProjectReference Include="../Morphir.IR.Pipeline/Morphir.IR.Pipeline.fsproj" />
     <ProjectReference Include="../Morphir.IR.Pipeline.Plugins/Morphir.IR.Pipeline.Plugins.fsproj" />
     <PackageReference Include="FSharp.Core" />
-    <PackageReference Include="Fabulous.AST" />
-    <PackageReference Include="Fantomas.Core" />
+    <PackageReference Include="Fabulous.AST" PrivateAssets="compile" />
+    <PackageReference Include="Fantomas.Core" PrivateAssets="compile" />
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="Morphir.CodeGeneration.FSharp.Tests" /></ItemGroup>
   <ItemGroup><Compile Include="Types.fs" /><Compile Include="Decode.fs" /><Compile Include="DependencyOrder.fs" /><Compile Include="Validate.fs" /><Compile Include="TargetSyntax.fs" /><Compile Include="ScalarProfile.fs" /><Compile Include="Emit.fs" /><Compile Include="V4Support.fs" /><Compile Include="V4Check.fs" /><Compile Include="V4Expressions.fs" /><Compile Include="V4Optimizer.fs" /><Compile Include="V4Emit.fs" /><Compile Include="Transpiler.fs" /></ItemGroup>

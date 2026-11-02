@@ -80,8 +80,10 @@ V4-only semantics use the same harness and diagnostics. The supported/refused fe
 
 - Refusal profile: shared rows cover Specs/Application, documents, holes, incomplete types/bodies, native/external bodies, open records and nonempty constraints. Every applicable refusal also exercises the existing publisher against prior output and its ownership manifest. Required semantics are explicit admission/context facts rather than an invented IR extension key; provider declarations are checked before invocation, and direct generation honors the same requirement boundary. Optional opaque metadata remains usable. All 241 generator tests and 8 resolver tests pass; full Nuke results retain only the 11 pending CLI cases.
 
-## Open questions
-
 Exact optimization uses shared arithmetic proofs over scalar values, with native v4 traversal. Twenty common compiler/execution rows cover optimization on/off, exact integer/float folds, inexact float/decimal preservation and user-function isolation. The matrix exposed a rounded classic float fold; both versions now require exact binary-rational equality. All 261 generator tests and 136 pipeline-plugin tests pass. The full Nuke run has only the same 11 pending CLI acceptance failures.
+
+- Public v4 entry point: the entire common model corpus now uses `generateModelWith`, with no internal v4 test bypass. Eight pricing rows execute classic/v4 with folding on/off. The static F# provider advertises exact versions and validates its Boolean option. Integrating its dependency exposed a Fantomas compiler type collision in C#; keeping implementation-only AST/formatter compile assets private resolves it while preserving runtime dependencies. Corrected an invalid mixed-case name in the pending v4 CLI fixture. All 269 generator tests pass; the full run passed other suites, and the corrected complete Tooling rerun has 137 passing tests and only the 11 pending CLI cases.
+
+## Open questions
 
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

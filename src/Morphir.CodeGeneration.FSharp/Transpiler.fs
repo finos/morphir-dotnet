@@ -7,7 +7,7 @@ open Morphir.IR.Model
 open Morphir.IR.Pipeline
 open Morphir.IR.Pipeline.Plugins
 
-/// Converts a classic Morphir model to a tree of F# module files through a pipeline.
+/// Converts a versioned Morphir model to a tree of F# module files.
 [<RequireQualifiedAccess>]
 module Transpiler =
     /// The generated modules in dependency order, stored as tree metadata.
@@ -107,31 +107,32 @@ module Transpiler =
             with ExpectedFailure(rule, location, message) ->
                 invalid rule location message
 
+    let private artifacts (modules: GeneratedModule list) =
+        let tree =
+            modules
+            |> List.map (fun generated ->
+                generated.RelativePath, VFile.ofText generated.RelativePath generated.Source
+            )
+            |> Map.ofList
+            |> VFileTree.fromFileMap
+
+        tree
+        |> VFileTree.set
+            VFileTree.declaredOrder
+            (modules
+             |> List.map (fun generated -> generated.RelativePath))
+        |> VFileTree.set
+            manifest
+            (modules
+             |> List.map (fun generated -> {
+                 ManifestEntry.ModulePath = generated.ModulePath
+                 Location = generated.RelativePath
+             }))
+
     /// Emits one file per module, declaring dependency order separately from directory structure.
     let private compile (model: Decode.Model) (_: VFile) : VFileTree =
         try
-            let modules = Emit.generate model
-
-            let tree =
-                modules
-                |> List.map (fun generated ->
-                    generated.RelativePath, VFile.ofText generated.RelativePath generated.Source
-                )
-                |> Map.ofList
-                |> VFileTree.fromFileMap
-
-            tree
-            |> VFileTree.set
-                VFileTree.declaredOrder
-                (modules
-                 |> List.map (fun generated -> generated.RelativePath))
-            |> VFileTree.set
-                manifest
-                (modules
-                 |> List.map (fun generated -> {
-                     ManifestEntry.ModulePath = generated.ModulePath
-                     Location = generated.RelativePath
-                 }))
+            artifacts (Emit.generate model)
         with ExpectedFailure(rule, location, message) ->
             VFileTree.empty
             |> VFileTree.report
@@ -275,8 +276,23 @@ module Transpiler =
             failure
                 "unsupported-distribution"
                 "F# generation requires Library implementations; Specs has no executable bodies."
-        | None, DistributionModel.V4 _ ->
-            failure "unsupported-version" "The v4 generation implementation is not registered yet."
+        | None, DistributionModel.V4 distribution ->
+            match model.SourceVersion.Text with
+            | "4"
+            | "4.0.0" ->
+                try
+                    artifacts (V4Emit.generate options distribution)
+                with ExpectedFailure(rule, location, message) ->
+                    VFileTree.empty
+                    |> VFileTree.report
+                        { VMessage.create MessageSeverity.Error message with
+                            Path = context.Path
+                            Location = Some location
+                            RuleId = Some rule
+                            Source = Some "fsharp-model"
+                        }
+            | version ->
+                failure "unsupported-version" $"Unsupported v4 generation version '{version}'."
 
     /// Generates from a typed model with the existing optimization default.
     let generateModel (model: VersionedModel) (context: VFile) : VFileTree =

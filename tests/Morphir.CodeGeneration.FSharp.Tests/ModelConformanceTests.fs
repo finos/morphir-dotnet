@@ -9,31 +9,22 @@ open Morphir.CodeGeneration.FSharp
 open Morphir.CodeGeneration.FSharp.Tests.TranspilerAdapter
 
 let private generateWith optimize model =
-    match model.Distribution with
-    | DistributionModel.Classic _ ->
-        let tree =
-            Morphir.CodeGeneration.FSharp.Transpiler.generateModelWith
-                { Optimize = optimize }
-                model
-                (VFile.fromPath "model")
+    let tree =
+        Morphir.CodeGeneration.FSharp.Transpiler.generateModelWith
+            { Optimize = optimize }
+            model
+            (VFile.fromPath "model")
 
-        if VFileTree.hasErrors tree then
-            Result.Error(
-                diagnosticsOf tree
-                |> List.map (fun diagnostic -> diagnostic.Category)
-            )
-        else
-            Ok(
-                modulesOf tree
-                |> List.map (fun file -> file.RelativePath, file.Source)
-            )
-    | DistributionModel.V4 distribution ->
-        try
-            V4Emit.generate { Optimize = optimize } distribution
+    if VFileTree.hasErrors tree then
+        Result.Error(
+            diagnosticsOf tree
+            |> List.map (fun diagnostic -> diagnostic.Category)
+        )
+    else
+        Ok(
+            modulesOf tree
             |> List.map (fun file -> file.RelativePath, file.Source)
-            |> Ok
-        with GenerationFailure(code, _, _) ->
-            Result.Error [ code ]
+        )
 
 let private generate = generateWith true
 
@@ -102,6 +93,44 @@ let private preservesPublication materialize =
 [<Tests>]
 let tests =
     testList "Model conformance" [
+        let rentalRows: Representation list = [
+            for version in [ "1"; "2"; "3"; "4.0.0" ] do
+                for optimize in [ false; true ] ->
+                    {
+                        Version = version
+                        Format = "typed"
+                        Layout = "memory"
+                        Optimize = optimize
+                    }
+        ]
+
+        let rentalInputs = [
+            for row in rentalRows ->
+                {
+                    Representation = row
+                    Input =
+                        Supported(fun () ->
+                            let version = if row.Version = "4.0.0" then "3" else row.Version
+                            let json = ModelResources.read $"car-rental-v{version}.json"
+                            let model = ModelConformanceInputs.classic json
+
+                            if row.Version = "4.0.0" then
+                                ClassicToV4TestAdapter.promote model
+                            else
+                                model
+                        )
+                }
+        ]
+
+        let rental = GenerationCases.rentalTotal rentalRows rentalInputs
+
+        for row in rentalInputs do
+            testCase
+                $"public pricing/{row.Representation.Version}/optimize={row.Representation.Optimize}"
+            <| fun () ->
+                GenerationConformance.run (generateWith row.Representation.Optimize) rental row
+                |> ignore
+
         let required = [
             for version in [ "3"; "4.0.0" ] ->
                 {
