@@ -17,6 +17,15 @@ To extend a case:
 
 `rental.total` runs classic JSON versions 1, 2 and 3 and classic/v4 typed models
 against the same expected total of 15000 cents, with optimization on and off.
-Add Ion adapters as those paths become available. Do not copy its consumer or introduce a version-specific
+The wire inventory also runs daily-rate and scalar cases through JSON and Ion
+text, binary and trees. Do not copy a consumer or introduce a version-specific
 expected value. Cases unique to a model family belong in this inventory with
 explicit applicability, using the same compiler and diagnostic assertions.
+
+To exercise a published CLI, set `MORPHIR_GENERATION_CLI` to its absolute
+executable path and run `Morphir.Tooling.Tests`. The existing generation BDD,
+command and wire tests use that executable. The wire adapter reads its JSON
+report and ordered source files, then passes them to the same
+`GenerationConformance.run` and FSI runner. This is also the trimmed/Native AOT
+gate; it does not have separate version or runtime expectations. Unset the
+variable to use the ordinary development adapters.

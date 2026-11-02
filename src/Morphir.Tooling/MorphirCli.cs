@@ -214,7 +214,7 @@ public sealed class MorphirCliBuilder
     private void ConfigureDefaultServices()
     {
         // Configure Foundatio.Mediator - uses source generators for handler discovery (trimming/AOT-friendly)
-        _hostBuilder.Services.AddMediator();
+        Infrastructure.MediatorRegistration.Add(_hostBuilder.Services);
 
         // Register infrastructure services
         _hostBuilder.Services.AddSingleton<Infrastructure.JsonSchema.SchemaLoader>();

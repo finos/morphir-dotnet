@@ -48,6 +48,11 @@ external, incomplete and hole nodes are refused, including external fallbacks.
 Nonempty type constraints are unsupported; optional opaque metadata is retained
 without becoming executable behavior.
 
+Native AOT hosts emit the generator's complete F# source without Fantomas,
+whose formatter requires dynamic generic reflection. JIT hosts also apply
+Fantomas. Whitespace can therefore differ between these runtimes; generated
+behavior and declared artifact order use the same conformance checks.
+
 Tests extend the [common conformance inventory](../Morphir.Testing/README.md).
 One rental expectation covers classic and v4 typed models and optimization on/off.
 The legacy file path uses the same expectation for classic JSON. Ion adapters
@@ -82,6 +87,8 @@ calculation. Validation runs before any fold, including for unused expressions.
 
 Open extensible records, holes, incomplete types or bodies, native bodies,
 external bodies including fallbacks, and nonempty constraints are refused.
+Constraint checks include dependency type and value signatures, even when a
+dependency is unused by the generated modules.
 Optional opaque extension objects do not request executable semantics. Callers
 that require an extension must supply a capability requirement explicitly.
 

@@ -221,7 +221,12 @@ module internal Emit =
 
     let format source =
         try
-            formatCore source
+            // The emitter already produces complete F# source. Fantomas requires dynamic generic
+            // reflection, so native hosts retain that source and validate it through the same corpus.
+            if System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported then
+                formatCore source
+            else
+                source
         with error ->
             Decode.fail
                 "fsharp-generation"

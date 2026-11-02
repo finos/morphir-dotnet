@@ -25,7 +25,7 @@ public sealed class RegisteredBackendResolver(IEnumerable<IGenerationBackend> ba
         }
         return compatible.Length switch
         {
-            0 => Fail(GenerationFailureKind.Semantic, "incompatible-model", $"Target '{target.Value}' does not support {model.Family} {model.Version.Text} {model.Kind}."),
+            0 => Fail(GenerationFailureKind.Semantic, "incompatible-model", $"Target '{target.Value}' does not support {ModelLabels.Family(model.Family)} {model.Version.Text} {ModelLabels.Kind(model.Kind)}."),
             1 => new Outcome<IGenerationBackend>.Success(compatible[0]),
             _ => Fail(GenerationFailureKind.Invocation, "ambiguous-backend", $"Multiple compatible providers for '{target.Value}': {string.Join(", ", compatible.Select(backend => backend.Descriptor.Identity).Order(StringComparer.Ordinal))}.")
         };

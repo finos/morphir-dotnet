@@ -9,7 +9,7 @@ namespace Morphir.Tooling.Tests.Features.Generate;
 public sealed class GenerateSteps : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "morphir-generate-" + Guid.NewGuid().ToString("N"));
-    private readonly CliTestHelper _cli = new();
+    private readonly CliTestHelper _cli = new(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI"));
     private string _input = "";
     private string _version = "";
     private string _format = "";

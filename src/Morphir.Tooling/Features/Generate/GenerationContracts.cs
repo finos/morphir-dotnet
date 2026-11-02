@@ -13,6 +13,7 @@ public enum ModelRepresentation { Json, IonText, IonBinary, IonTree }
 public sealed record GenerationDiagnostic(string Code, string Message, string? Path = null, string? Location = null, string Severity = "error");
 public sealed record GenerationFailure(GenerationFailureKind Kind, ImmutableArray<GenerationDiagnostic> Diagnostics)
 {
+    public string? Backend { get; init; }
     public static GenerationFailure One(GenerationFailureKind kind, string code, string message, string? path = null, string? location = null) =>
         new(kind, [new(code, message, path, location)]);
 }
@@ -128,6 +129,20 @@ public sealed record GenerationArtifacts(VFileTree Tree, ImmutableArray<Generati
 
 public sealed record GenerationPublication(ImmutableArray<string> Artifacts, ImmutableArray<string> Written,
     ImmutableArray<string> Unchanged, ImmutableArray<string> Removed);
+
+internal static class ModelLabels
+{
+    public static string Family(ModelFamily family) => family switch
+    {
+        { IsClassic: true } => "Classic", { IsV4: true } => "V4",
+        _ => throw new ArgumentOutOfRangeException(nameof(family))
+    };
+    public static string Kind(DistributionKind kind) => kind switch
+    {
+        { IsLibrary: true } => "Library", { IsSpecs: true } => "Specs", { IsApplication: true } => "Application",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
+    };
+}
 
 public interface IGenerationPublisher
 {

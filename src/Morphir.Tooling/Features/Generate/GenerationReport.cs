@@ -14,7 +14,7 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
             success.Value.OutputDirectory, success.Value.SourceVersion, success.Value.Family, success.Value.DistributionKind, success.Value.Representation,
             success.Value.Publication.Artifacts.ToArray(), success.Value.Publication.Written.ToArray(), success.Value.Publication.Unchanged.ToArray(),
             success.Value.Publication.Removed.ToArray(), success.Value.Diagnostics.ToArray(), null),
-        Outcome<GenerationSuccess>.Failure failure => new(false, Exit(failure.Error.Kind), invocation.Target, null, invocation.Input, invocation.Output,
+        Outcome<GenerationSuccess>.Failure failure => new(false, Exit(failure.Error.Kind), invocation.Target, failure.Error.Backend, invocation.Input, invocation.Output,
             null, null, null, null, [], [], [], [], failure.Error.Diagnostics.ToArray(), failure.Error.Kind.ToString().ToLowerInvariant()),
         _ => throw new ArgumentException("Unknown generation outcome.", nameof(outcome))
     };
