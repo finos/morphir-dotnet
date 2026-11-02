@@ -14,7 +14,7 @@ Related work: [#363](https://github.com/finos/morphir-dotnet/issues/363), [#368]
 - [x] 2.1 Add an additive versioned semantic wrapper over existing classic/v4 distributions in Morphir.Models, preserving exact source version context; verify model tests distinguish family, version and distribution kind without a Morphir.Ion reference or wire-format change.
 - [x] 2.2 Add the Tooling resolved-settings, retained-input, typed outcome, backend descriptor/request/result contracts from APP-1 and MDL-1; compile representative C#/F# consumer snippets and verify existing public Ion and Myriad consumers still compile.
 - [x] 2.3 Implement the CLI-only settings resolver after failing tests for missing values, explicit false, invocation-relative paths and JSON-first option parsing; verify last-option-wins, parse-value ownership and outside-project invocation without reading config files.
-- [ ] 2.4 Implement exact target/version/distribution resolution over statically registered providers; verify a fake second backend works without changing the command and that unknown, ambiguous and incompatible provider cases invoke no backend.
+- [x] 2.4 Implement exact target/version/distribution resolution over statically registered providers; verify a fake second backend works without changing the command and that unknown, ambiguous and incompatible provider cases invoke no backend.
 - [ ] 2.5 Document the contracts and CLI-only resolution in the relevant library/Tooling documentation; verify examples compile and TOML/YAML/MEP examples are labeled future-only with no claim of implemented discovery.
 
 ## 3. Typed F# entry point and existing-consumer compatibility
