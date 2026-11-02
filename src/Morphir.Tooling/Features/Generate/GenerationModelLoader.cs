@@ -19,6 +19,8 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         try
         {
             ct.ThrowIfCancellationRequested();
+            if (input.Format == InputFormat.Auto && original is RetainedInput.File candidate && !IsBinary(candidate.Entry.Memory.Span) && IsYaml(candidate))
+                return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
             var result = original switch
             {
                 RetainedInput.Tree tree when input.Format != InputFormat.Json => DecodeIonTree(tree, limits),
@@ -65,15 +67,33 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
     private static IonReadLimits IonLimits(ModelReadLimits limits) =>
         new((int)Math.Min(limits.MaxBytes, int.MaxValue), limits.MaxDepth, limits.MaxNodes);
 
+    private static bool IsYaml(RetainedInput.File file)
+    {
+        if (Path.GetExtension(file.SourcePath).ToLowerInvariant() is ".yaml" or ".yml") return true;
+        var prefix = System.Text.Encoding.UTF8.GetString(file.Entry.Memory.Span[..Math.Min(256, file.Entry.Memory.Length)]).TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
+        return prefix.StartsWith("---", StringComparison.Ordinal) || prefix.StartsWith("formatVersion:", StringComparison.Ordinal) || prefix.StartsWith("distribution:", StringComparison.Ordinal);
+    }
+
     private static Outcome<LoadedModel> DecodeIon(RetainedInput.File file, ModelReadLimits limits)
     {
         var result = IonIr.read(IonLimits(limits), file.Entry.Memory);
-        if (result.IsError) return IonFailure(result.ErrorValue, file.SourcePath);
+        if (result.IsError)
+        {
+            if (result.ErrorValue.Code == "invalid_document")
+            {
+                var values = IonReader.read(IonLimits(limits), file.Entry.Memory);
+                if (values.IsOk && !values.ResultValue.IsEmpty && values.ResultValue.Head.Annotations.Any(annotation => annotation is IonSymbol.Text text && text.Item == "morphir_model"))
+                    return Failure("unsupported-profile", "MEP morphir_model admission is unavailable; supply bare IR.", file.SourcePath);
+            }
+            return IonFailure(result.ErrorValue, file.SourcePath);
+        }
         return IonModel(result.ResultValue, file, IsBinary(file.Entry.Memory.Span) ? ModelRepresentation.IonBinary : ModelRepresentation.IonText);
     }
 
     private static Outcome<LoadedModel> DecodeIonTree(RetainedInput.Tree tree, ModelReadLimits limits)
     {
+        if (!tree.Entries.Any(entry => entry.RelativePath == "manifest.ion") && tree.Entries.Any(entry => entry.RelativePath is "manifest.json" or "manifest.yaml" or "manifest.yml" or "morphir-ir.json" or "morphir-ir.yaml" or "morphir-ir.yml"))
+            return Failure("unsupported-format", "JSON and YAML model trees are unsupported; use an Ion tree with manifest.ion.", tree.SourcePath);
         var files = tree.Entries.Select(entry => VFileModule.ofBytes(entry.RelativePath, entry.Memory));
         var result = IonIrTree.readDetailed(IonLimits(limits), VFileTreeModule.fromFiles(ListModule.OfSeq(files)));
         if (result.IsOk) return IonModel(result.ResultValue, tree, ModelRepresentation.IonTree);
@@ -108,6 +128,8 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         CheckJsonBudget(bytes.Span, limits, ct);
         using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = limits.MaxDepth });
         var root = document.RootElement;
+        if (root.ValueKind == JsonValueKind.Object && (root.TryGetProperty("envelopeVersion", out _) || root.TryGetProperty("morphir_model", out _) || root.TryGetProperty("jsonrpc", out _)))
+            return Failure("unsupported-profile", "MEP model-envelope admission is unavailable; supply bare IR.", file.SourcePath);
         if (root.ValueKind == JsonValueKind.Object && root.EnumerateObject().Count(property => property.NameEquals("formatVersion")) > 1)
             return Failure("duplicate_format_version", "The model declares formatVersion more than once.", file.SourcePath, "$.formatVersion");
         var text = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("formatVersion", out var version)

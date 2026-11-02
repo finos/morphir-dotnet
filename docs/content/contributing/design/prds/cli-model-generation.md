@@ -96,4 +96,6 @@ Ion decoding consumes captured bytes/entries through the existing readers, witho
 
 ## Open questions
 
+Eleven profile tests refuse YAML models, JSON/YAML trees, JSON MEP envelopes and text/binary morphir_model wrappers with explicit format/profile diagnostics. They do not attempt admission or downgrade. The full Nuke run retains only the 11 pending CLI cases.
+
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.
