@@ -17,7 +17,8 @@ module Transpiler =
     let private (|ExpectedFailure|_|) (error: exn) =
         match error with
         | GenerationFailure(category, location, message) -> Some(category, location, message)
-        | :? JsonException as ex -> Some("parse", (if isNull ex.Path then "$" else ex.Path), ex.Message)
+        | :? JsonException as ex ->
+            Some("parse", (if isNull ex.Path then "$" else ex.Path), ex.Message)
         | :? System.InvalidOperationException as ex -> Some("decode", "$", ex.Message)
         | :? System.FormatException as ex -> Some("decode", "$", ex.Message)
         | _ -> None
@@ -30,16 +31,26 @@ module Transpiler =
             use stream = stream
             let first = stream.ReadByte()
             let second = stream.ReadByte()
-            (first = 0xFF && second = 0xFE) || (first = 0xFE && second = 0xFF)
+
+            (first = 0xFF
+             && second = 0xFE)
+            || (first = 0xFE
+                && second = 0xFF)
 
     /// Parses the file's JSON, from its stream where that is possible.
-    let private parseDocument (file: VFile) (content: VFileContent) : Result<JsonDocument, ContentError> =
+    let private parseDocument
+        (file: VFile)
+        (content: VFileContent)
+        : Result<JsonDocument, ContentError> =
         match content with
         | VFileContent.Text text -> Result.Ok(JsonDocument.Parse text)
-        | _ when hasUtf16Mark content -> VFile.readText file |> Result.map (fun (text: string) -> JsonDocument.Parse text)
+        | _ when hasUtf16Mark content ->
+            VFile.readText file
+            |> Result.map (fun (text: string) -> JsonDocument.Parse text)
         | _ ->
             match VFileContent.openRead content with
-            | Result.Error(ContentError.ReadFailed(_, cause)) -> Result.Error(ContentError.ReadFailed(file.Path, cause))
+            | Result.Error(ContentError.ReadFailed(_, cause)) ->
+                Result.Error(ContentError.ReadFailed(file.Path, cause))
             | Result.Ok stream ->
                 use stream = stream
                 Result.Ok(JsonDocument.Parse stream)
@@ -64,7 +75,8 @@ module Transpiler =
         | Some content ->
             try
                 match parseDocument file content with
-                | Result.Error(ContentError.ReadFailed(path, cause)) -> Result.Error(ParseError.Failed(path, cause))
+                | Result.Error(ContentError.ReadFailed(path, cause)) ->
+                    Result.Error(ParseError.Failed(path, cause))
                 | Result.Ok document ->
                     use document = document
                     Result.Ok(Decode.model (document.RootElement.Clone()))
@@ -78,20 +90,24 @@ module Transpiler =
 
             let tree =
                 modules
-                |> List.map (fun generated -> generated.RelativePath, VFile.ofText generated.RelativePath generated.Source)
+                |> List.map (fun generated ->
+                    generated.RelativePath, VFile.ofText generated.RelativePath generated.Source
+                )
                 |> Map.ofList
                 |> VFileTree.fromFileMap
 
             tree
-            |> VFileTree.set VFileTree.declaredOrder (modules |> List.map (fun generated -> generated.RelativePath))
+            |> VFileTree.set
+                VFileTree.declaredOrder
+                (modules
+                 |> List.map (fun generated -> generated.RelativePath))
             |> VFileTree.set
                 manifest
                 (modules
-                 |> List.map (fun generated ->
-                     {
-                         ManifestEntry.ModulePath = generated.ModulePath
-                         Location = generated.RelativePath
-                     }))
+                 |> List.map (fun generated -> {
+                     ManifestEntry.ModulePath = generated.ModulePath
+                     Location = generated.RelativePath
+                 }))
         with ExpectedFailure(rule, location, message) ->
             VFileTree.empty
             |> VFileTree.report
@@ -104,45 +120,55 @@ module Transpiler =
     /// Reports the first variable that is not bound in its lexical scope. Later plugins would be
     /// typing a broken model, so this stops the run.
     let private scopeValidator: Plugin<Decode.Model> =
-        Plugin.create "scope-validator" (fun model file ->
-            try
-                for path, controlled in Map.toList model.Definition.Modules do
-                    for name, definition in Map.toList controlled.Value.Values do
-                        Validate.scopes (Emit.modulePath path + "." + Emit.camel name) (Decode.unwrap definition.Value)
+        Plugin.create
+            "scope-validator"
+            (fun model file ->
+                try
+                    for path, controlled in Map.toList model.Definition.Modules do
+                        for name, definition in Map.toList controlled.Value.Values do
+                            Validate.scopes
+                                (Emit.modulePath path
+                                 + "."
+                                 + Emit.camel name)
+                                (Decode.unwrap definition.Value)
 
-                Some model, file
-            with ExpectedFailure(rule, location, message) ->
-                None,
-                file
-                |> VFile.report
-                    { VMessage.create MessageSeverity.Error message with
-                        Location = Some location
-                        RuleId = Some rule
-                        Source = Some "scope-validator"
-                    })
+                    Some model, file
+                with ExpectedFailure(rule, location, message) ->
+                    None,
+                    file
+                    |> VFile.report
+                        { VMessage.create MessageSeverity.Error message with
+                            Location = Some location
+                            RuleId = Some rule
+                            Source = Some "scope-validator"
+                        }
+            )
 
     /// Runs a package plugin on the model's package.
-    let private onPackage (plugin: Plugin<Package.PackageDefinition<JsonElement, JsonElement>>) : Plugin<Decode.Model> =
-        Plugin.focus (fun (model: Decode.Model) -> model.Definition) (fun definition model -> { model with Definition = definition }) plugin
+    let private onPackage
+        (plugin: Plugin<Package.PackageDefinition<JsonElement, JsonElement>>)
+        : Plugin<Decode.Model> =
+        Plugin.focus
+            (fun (model: Decode.Model) -> model.Definition)
+            (fun definition model -> { model with Definition = definition })
+            plugin
 
-    let private withoutOptimizer: MorphirProcessor<Decode.Model> =
-        pipeline {
-            parse (Parser.forFile parseModel)
-            uses scopeValidator
-            uses (onPackage (TypeValidator.create ()))
-            stringify compile
-        }
+    let private withoutOptimizer: MorphirProcessor<Decode.Model> = pipeline {
+        parse (Parser.forFile parseModel)
+        uses scopeValidator
+        uses (onPackage (TypeValidator.create ()))
+        stringify compile
+    }
 
     // Folding only: other rewrites could delete code that emission would reject, which would change
     // which models are accepted.
-    let private processor: MorphirProcessor<Decode.Model> =
-        pipeline {
-            parse (Parser.forFile parseModel)
-            uses scopeValidator
-            uses (onPackage (TypeValidator.create ()))
-            uses (onPackage (Optimizer.create Optimizer.foldingOnly))
-            stringify compile
-        }
+    let private processor: MorphirProcessor<Decode.Model> = pipeline {
+        parse (Parser.forFile parseModel)
+        uses scopeValidator
+        uses (onPackage (TypeValidator.create ()))
+        uses (onPackage (Optimizer.create Optimizer.foldingOnly))
+        stringify compile
+    }
 
     let private run (selected: MorphirProcessor<Decode.Model>) (input: VFile) : VFileTree =
         let tree = MorphirProcessor.processFile input selected
@@ -154,7 +180,8 @@ module Transpiler =
                 |> List.map (fun message ->
                     match message.Path with
                     | Some _ -> message
-                    | None -> { message with Path = input.Path })
+                    | None -> { message with Path = input.Path }
+                )
         }
 
     /// <summary>
@@ -163,11 +190,20 @@ module Transpiler =
     /// returns a tree with no files and error messages naming the rule and location.
     /// </summary>
     /// <param name="input">The model file</param>
-    let generate (input: VFile) : VFileTree = run processor input
+    let generateWithOptions (options: GenerationOptions) (input: VFile) : VFileTree =
+        run (if options.Optimize then processor else withoutOptimizer) input
+
+    /// Generates with the existing optimization default.
+    let generate (input: VFile) : VFileTree =
+        generateWithOptions GenerationOptions.Default input
 
     /// Generates from an already decoded library without reading or serializing its source.
     /// The context file supplies paths and caller metadata, not model content.
-    let generateModel (model: VersionedModel) (context: VFile) : VFileTree =
+    let generateModelWith
+        (options: GenerationOptions)
+        (model: VersionedModel)
+        (context: VFile)
+        : VFileTree =
         let failure code message =
             VFileTree.empty
             |> VFileTree.report
@@ -184,20 +220,41 @@ module Transpiler =
                 match model.SourceVersion.Text with
                 | "1" -> Some 1
                 | "2" -> Some 2
-                | "3" | "3.0.0" | "3.1.0" -> Some 3
+                | "3"
+                | "3.0.0"
+                | "3.1.0" -> Some 3
                 | _ -> None
+
             match version with
-            | None -> failure "unsupported-version" $"Unsupported classic generation version '{model.SourceVersion.Text}'."
+            | None ->
+                failure
+                    "unsupported-version"
+                    $"Unsupported classic generation version '{model.SourceVersion.Text}'."
             | Some version ->
-                let decoded: Decode.Model = { Version = version; Package = package; Definition = definition }
-                run { processor with Parsers = [ Parser.forFile (fun _ -> Ok decoded) ] } context
+                let decoded: Decode.Model = {
+                    Version = version
+                    Package = package
+                    Definition = definition
+                }
+
+                let selected = if options.Optimize then processor else withoutOptimizer
+
+                run
+                    { selected with
+                        Parsers = [ Parser.forFile (fun _ -> Ok decoded) ]
+                    }
+                    context
         | DistributionModel.Classic(Distribution.Specs _) ->
-            failure "unsupported-distribution" "F# generation requires Library implementations; Specs has no executable bodies."
-        | DistributionModel.V4 _ -> failure "unsupported-version" "The v4 generation implementation is not registered yet."
+            failure
+                "unsupported-distribution"
+                "F# generation requires Library implementations; Specs has no executable bodies."
+        | DistributionModel.V4 _ ->
+            failure "unsupported-version" "The v4 generation implementation is not registered yet."
+
+    /// Generates from a typed model with the existing optimization default.
+    let generateModel (model: VersionedModel) (context: VFile) : VFileTree =
+        generateModelWith GenerationOptions.Default model context
 
     /// Generates with the optimizer on or off, so tests can compare behaviour.
     let internal generateWith (optimize: bool) (input: VFile) : VFileTree =
-        if optimize then
-            generate input
-        else
-            run withoutOptimizer input
+        generateWithOptions { Optimize = optimize } input

@@ -9,6 +9,7 @@ module GenerationConformance =
         Version: string
         Format: string
         Layout: string
+        Optimize: bool
     }
 
     type InputExpectation<'Input> =

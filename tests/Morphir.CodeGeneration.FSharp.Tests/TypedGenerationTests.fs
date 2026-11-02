@@ -55,6 +55,7 @@ let tests =
                     Version = version
                     Format = "json"
                     Layout = "typed"
+                    Optimize = true
                 }
         ]
 
@@ -111,6 +112,7 @@ let tests =
                         Version = version
                         Format = "typed"
                         Layout = "memory"
+                        Optimize = true
                     }
                     Input = Supported(fun () -> version, "model.ion", json)
                 }

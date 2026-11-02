@@ -9,6 +9,7 @@ let private representation version : Representation = {
     Version = version
     Format = "json"
     Layout = "file"
+    Optimize = true
 }
 
 let private rentalCase =
@@ -69,6 +70,7 @@ let tests =
                     Version = "1"
                     Format = "ion"
                     Layout = "file"
+                    Optimize = true
                 }
                 Input = GenerationConformance.Unrepresentable "Ion IR does not define a v1 encoding"
             }

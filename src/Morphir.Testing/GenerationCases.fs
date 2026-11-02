@@ -21,9 +21,10 @@ module GenerationCases =
             Version = version
             Format = format
             Layout = layout
+            Optimize = true
         }
 
-        let row : GenerationConformance.Variant<(string * string) list> = {
+        let row: GenerationConformance.Variant<(string * string) list> = {
             Representation = representation
             Input = GenerationConformance.Supported(fun () -> Seq.toList files)
         }

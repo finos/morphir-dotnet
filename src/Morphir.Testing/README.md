@@ -8,7 +8,7 @@ Existing generator tests call the same compiler helper.
 To extend a case:
 
 1. Specify the consumer and expected output independently of generated source.
-2. Declare required version/format/layout rows, then provide an adapter for each.
+2. Declare required version/format/layout/optimization rows, then provide an adapter for each.
 3. Use `Supported`, `Refused` with a diagnostic code, or `Unrepresentable` with
    an explanation. Missing rows and duplicate rows fail; there are no ignored
    tests for unrepresentable encodings.

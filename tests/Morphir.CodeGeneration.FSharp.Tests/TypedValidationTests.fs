@@ -78,6 +78,7 @@ let tests =
                     Version = "3"
                     Format = "typed"
                     Layout = "memory"
+                    Optimize = true
                 }
 
                 let row = {
