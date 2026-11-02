@@ -10,7 +10,35 @@ open Fabulous.AST
 open type Fabulous.AST.Ast
 
 module internal Emit =
-    let words (Name value) = value
+    let words (Name value) =
+        if
+            List.isEmpty value
+            || value
+               |> List.exists (fun word ->
+                   String.IsNullOrEmpty word
+                   || word[0] < 'a'
+                   || word[0] > 'z'
+                   || word
+                      |> Seq.exists (fun character ->
+                          not (
+                              character
+                              >= 'a'
+                              && character
+                                 <= 'z'
+                              || character
+                                 >= '0'
+                                 && character
+                                    <= '9'
+                          )
+                      )
+               )
+        then
+            Decode.fail
+                "invalid-name"
+                "$"
+                "Generation names require nonempty lowercase alphanumeric words starting with a letter."
+
+        value
 
     let capitalize (value: string) =
         value.Substring(0, 1).ToUpperInvariant()
@@ -132,7 +160,18 @@ module internal Emit =
         else
             text
 
-    let namesOfPath (Path names) = names
+    let namesOfPath (Path names) =
+        if List.isEmpty names then
+            Decode.fail "invalid-name" "$" "Generation paths require at least one name."
+
+        names
+        |> List.iter (
+            words
+            >> ignore
+        )
+
+        names
+
     let moduleNames (ModulePath path) = namesOfPath path
     let packageNames (PackageName path) = namesOfPath path
 
@@ -213,6 +252,9 @@ module internal Emit =
                  + error.Message)
 
     let generate (model: Decode.Model) =
+        packageNames model.Package
+        |> ignore
+
         let distinct location names =
             names
             |> List.fold
@@ -405,6 +447,20 @@ module internal Emit =
                                     moduleName
                                     $"Unmapped SDK type {FQName.toString q}."
                         elif Map.containsKey q types then
+                            let parameters =
+                                match Map.find q types with
+                                | Type.TypeAliasDefinition(parameters, _)
+                                | Type.CustomTypeDefinition(parameters, _) -> parameters
+
+                            if
+                                parameters.Length
+                                <> args.Length
+                            then
+                                Decode.fail
+                                    "type-arity"
+                                    moduleName
+                                    $"Wrong type argument count for {FQName.toString q}."
+
                             application (qualify q (pascal q.LocalName))
                         else
                             Decode.fail

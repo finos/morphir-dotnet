@@ -1189,6 +1189,7 @@ let main argv =
         (testList "Backend" [
             GenerationConformanceTests.tests
             TypedGenerationTests.tests
+            TypedValidationTests.tests
             tests
             contractTests
             optimizationEquivalenceTests
