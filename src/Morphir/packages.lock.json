@@ -383,6 +383,15 @@
           "Vogen": "[8.0.5, )"
         }
       },
+      "morphir.ion": {
+        "type": "Project",
+        "dependencies": {
+          "Eleven19.IonDotnet": "[0.1.4, )",
+          "FSharp.Core": "[11.0.100, )",
+          "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.ir.pipeline": {
         "type": "Project",
         "dependencies": {
@@ -417,6 +426,7 @@
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.Ion": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )",
           "Serilog": "[4.3.1, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
@@ -438,6 +448,12 @@
         "requested": "[1.16.2, )",
         "resolved": "1.16.2",
         "contentHash": "R4PEZo50RK76wRW1kq4xiQqX/hnrx8Gn+8T1XIEYuigyjVh3Guhtt3+b4GG2j3h+E3VadLINtbV+Id79nsFy/Q=="
+      },
+      "Eleven19.IonDotnet": {
+        "type": "CentralTransitive",
+        "requested": "[0.1.4, )",
+        "resolved": "0.1.4",
+        "contentHash": "3kI2OE1a2XY/so02kTtpXoma4AAgSFmFjW5L9nRGLUbUarOdAZEWBAE5KRHpdPErLXszpznegwqQgQtEAL4/ZA=="
       },
       "Fabulous.AST": {
         "type": "CentralTransitive",

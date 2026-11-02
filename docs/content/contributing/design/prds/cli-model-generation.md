@@ -90,8 +90,10 @@ The generator README now maps supported/refused capabilities to the shared inven
 
 - Owned capture enforces aggregate bytes before allocation and entry, depth and path limits while enumerating. It refuses reparse points and device entries, checks ancestors and opened handles, and reports locked/unreadable members without returning partial input. Nine tests cover boundaries, mutation, cancellation and native Windows links. The full Nuke run still has only the 11 pending CLI cases.
 
-## Open questions
-
 JSON decoding uses the public classic/v4 readers after a bounded token scan. Thirteen tests cover versions, exact source context, retained bytes, malformed/version diagnostics, explicit JSON selection and pre-DOM node/depth limits. The full Nuke run passes all existing suites and new loader tests, apart from the 11 pending CLI cases.
+
+Ion decoding consumes captured bytes/entries through the existing readers, without a JSON bridge. Twelve tests cover native 3.0.0/3.1.0/4.0.0 views, text/binary/tree selection, malformed-Ion diagnostics, aggregate node limits and tree member locations. All pass; the full Nuke run retains only the 11 pending CLI cases.
+
+## Open questions
 
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

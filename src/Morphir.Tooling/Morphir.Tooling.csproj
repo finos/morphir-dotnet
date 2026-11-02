@@ -52,6 +52,7 @@
     <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
     <ProjectReference Include="..\Morphir.IR.Pipeline\Morphir.IR.Pipeline.fsproj" />
     <ProjectReference Include="..\Morphir.CodeGeneration.FSharp\Morphir.CodeGeneration.FSharp.fsproj" />
+    <ProjectReference Include="..\Morphir.Ion\Morphir.Ion.fsproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,5 +1,8 @@
 using System.Text.Json;
+using Microsoft.FSharp.Collections;
 using Morphir.IR.Model;
+using Morphir.IR.Pipeline;
+using Morphir.Ion;
 
 namespace Morphir.Tooling.Features.Generate;
 
@@ -16,11 +19,14 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         try
         {
             ct.ThrowIfCancellationRequested();
-            if (original is not RetainedInput.File file)
-                return Failure("unsupported-format", "Tree decoding is not available for this input format.", original.SourcePath);
-            if (input.Format == InputFormat.Ion || input.Format == InputFormat.Auto && IsIon(file))
-                return Failure("unsupported-format", "Ion decoding is not available for this input format.", original.SourcePath);
-            var result = DecodeJson(file, limits, ct);
+            var result = original switch
+            {
+                RetainedInput.Tree tree when input.Format != InputFormat.Json => DecodeIonTree(tree, limits),
+                RetainedInput.Tree => Failure("unsupported-format", "JSON document trees are unsupported; use a JSON file or Ion tree.", original.SourcePath),
+                RetainedInput.File file when input.Format == InputFormat.Ion || input.Format == InputFormat.Auto && IsIon(file) => DecodeIon(file, limits),
+                RetainedInput.File file => DecodeJson(file, limits, ct),
+                _ => Failure("unsupported-format", "Unsupported input capture.", original.SourcePath)
+            };
             ct.ThrowIfCancellationRequested();
             return result;
         }
@@ -29,10 +35,71 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         catch (JsonException error) { return Failure("malformed-json", "The input is not a complete JSON document.", original.SourcePath, error.Path ?? "$"); }
     }
 
-    private static bool IsIon(RetainedInput.File file) =>
-        file.Entry.Memory.Span.StartsWith(new byte[] { 0xE0, 0x01, 0x00, 0xEA }) ||
-        Path.GetExtension(file.SourcePath).Equals(".ion", StringComparison.OrdinalIgnoreCase) ||
-        System.Text.Encoding.UTF8.GetString(file.Entry.Memory.Span[..Math.Min(file.Entry.Memory.Length, 128)]).TrimStart().StartsWith("$ion_", StringComparison.Ordinal);
+    private static bool IsBinary(ReadOnlySpan<byte> bytes) => bytes.StartsWith(new byte[] { 0xE0, 0x01, 0x00, 0xEA });
+
+    private static bool IsIon(RetainedInput.File file)
+    {
+        var bytes = file.Entry.Memory.Span;
+        if (IsBinary(bytes)) return true;
+        if (Path.GetExtension(file.SourcePath).ToLowerInvariant() is ".ion" or ".ionb") return true;
+        if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) bytes = bytes[3..];
+        // Content hints may follow arbitrarily long comments. Scan within the already bounded capture.
+        while (!bytes.IsEmpty)
+        {
+            if (bytes[0] is 9 or 10 or 13 or 32) { bytes = bytes[1..]; continue; }
+            if (bytes.StartsWith("//"u8))
+            {
+                var end = bytes.IndexOf((byte)'\n'); if (end < 0) return false;
+                bytes = bytes[(end + 1)..]; continue;
+            }
+            if (bytes.StartsWith("/*"u8))
+            {
+                var end = bytes[2..].IndexOf("*/"u8); if (end < 0) return false;
+                bytes = bytes[(end + 4)..]; continue;
+            }
+            return bytes.StartsWith("$ion_"u8) || bytes.StartsWith("morphir::"u8) || bytes.StartsWith("'morphir'::"u8) || bytes.StartsWith("morphir_model::"u8);
+        }
+        return false;
+    }
+
+    private static IonReadLimits IonLimits(ModelReadLimits limits) =>
+        new((int)Math.Min(limits.MaxBytes, int.MaxValue), limits.MaxDepth, limits.MaxNodes);
+
+    private static Outcome<LoadedModel> DecodeIon(RetainedInput.File file, ModelReadLimits limits)
+    {
+        var result = IonIr.read(IonLimits(limits), file.Entry.Memory);
+        if (result.IsError) return IonFailure(result.ErrorValue, file.SourcePath);
+        return IonModel(result.ResultValue, file, IsBinary(file.Entry.Memory.Span) ? ModelRepresentation.IonBinary : ModelRepresentation.IonText);
+    }
+
+    private static Outcome<LoadedModel> DecodeIonTree(RetainedInput.Tree tree, ModelReadLimits limits)
+    {
+        var files = tree.Entries.Select(entry => VFileModule.ofBytes(entry.RelativePath, entry.Memory));
+        var result = IonIrTree.readDetailed(IonLimits(limits), VFileTreeModule.fromFiles(ListModule.OfSeq(files)));
+        if (result.IsOk) return IonModel(result.ResultValue, tree, ModelRepresentation.IonTree);
+        return result.ErrorValue switch
+        {
+            IonIrTreeError.Invalid invalid => Failure(invalid.Item.Code, invalid.Item.Message,
+                invalid.Item.Path?.Value ?? tree.SourcePath, invalid.Item.Location?.Value ?? "$"),
+            IonIrTreeError.SourceFailed source => Failure("input-read", "The captured tree entry could not be read.", source.path, kind: GenerationFailureKind.Operational),
+            _ => Failure("ion-tree", "The Ion tree could not be decoded.", tree.SourcePath)
+        };
+    }
+
+    private static Outcome<LoadedModel> IonModel(IrDocument document, RetainedInput original, ModelRepresentation representation)
+    {
+        var (version, distribution) = document switch
+        {
+            IrDocument.ClassicIr classic => (classic.formatVersion, DistributionModel.NewClassic(classic.Item2)),
+            IrDocument.V4Ir v4 => (v4.formatVersion, DistributionModel.NewV4(v4.Item2)),
+            _ => throw new InvalidOperationException("The Ion reader returned an unknown model family.")
+        };
+        var model = new VersionedModel(SourceFormatVersionModule.parse(version).ResultValue, distribution);
+        return new Outcome<LoadedModel>.Success(new(model, ModelDescriptor.From(model), representation, original));
+    }
+
+    private static Outcome<LoadedModel> IonFailure(IonIrError error, string path) =>
+        Failure(error.Code, error.Message, path, error.Location?.Value ?? error.Path?.Value ?? "$");
 
     private static Outcome<LoadedModel> DecodeJson(RetainedInput.File file, ModelReadLimits limits, CancellationToken ct)
     {
