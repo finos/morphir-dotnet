@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-generate-command</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-generate-command</h1>
+<p class="meta">OpenSpec design | 2026-11-02 | Proposed, not implemented</p>
+<nav class="toc" aria-label="Contents"><ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#examples">CLI and output examples</a></li>
+<li><a href="#decisions">Decisions and contract sketches</a></li>
+<li><a href="#configuration">Future TOML and YAML integration</a></li>
+<li><a href="#mep">Future MEP integration</a></li>
+<li><a href="#testing">Unified testing approach</a></li>
+<li><a href="#acceptance">Acceptance examples</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+</ul></nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for motivation and tracking. The reviewed baseline is merged PR #456, commit <code>0a7f6ca</code>. This planning checkout is older; implementation first integrates that baseline.</p>
+<ul>
+<li><code>IrToolingScenario</code> currently registers only JSON schema verification. The CLI already has a shared host, scenario registration and Foundatio mediator.</li>
+<li><code>Transpiler.generate : VFile -&gt; VFileTree</code> parses classic JSON itself. Its internal model, validators and emitter use classic types. V4 generation therefore requires implementation, not just a new parser or a capability flag.</li>
+<li><code>Morphir.Models</code> has classic and v4 types/readers. <code>Morphir.Ion</code> reads Ion IR files and trees; its current <code>IrDocument</code> wraps those two families. Do not move that public type in a breaking change.</li>
+<li>The configuration record currently models cache paths. Its resolver directly reads layered TOML files. It is not yet an ecosystem-compatible generation/project configuration resolver.</li>
+<li><code>VFileTree.publish</code> already checks paths, stages files, preserves identical output, tracks ownership and reports changes. Commit-time I/O failure can leave mixed old/new files; this proposal does not claim directory-wide atomic replacement.</li>
+</ul>
+<p>Behavior contracts: <a href="specs/cli-model-generation/spec.md">CLI generation</a>, <a href="specs/generation-model-loading/spec.md">model loading</a>, and <a href="specs/morphir-fsharp-transpilation/spec.md">F# generation changes</a>.</p>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p>Make a resolved generation request reusable by CLI, library and later MEP callers. F# generation from both classic and v4 Libraries is required in this delivery. Every physical representation feeds the same version-appropriate semantic generation path.</p>
+<p>Keep configuration codecs, model codecs, generators and filesystem publication independently replaceable. Do not introduce dynamic plugin loading, a new execution engine, a second IR definition, a MEP runtime, project-file generation or configuration discovery in this change.</p>
+<p>Source generation targets reusable Libraries. Specs-only generation and Application packaging are not first-delivery capabilities. Unsupported individual v4 constructs have the explicit behavior in GEN-2 below; v4 as a version is supported, not deferred.</p>
+
+<h2 id="examples">CLI and output examples</h2>
+<p><strong>Acceptance targets for this change.</strong> All required paths are explicit, and no configuration file or Git repository is needed. Input and output paths are relative to the invocation directory. The examples use nonempty fixtures delivered with the change.</p>
+<pre><code class="language-console">morphir generate --input models/pricing-v3.json --target fsharp --output generated/pricing
+morphir generate --input models/pricing-v4.json --target fsharp --output generated/pricing
+morphir generate --input models/pricing-v4.ion --target fsharp --output generated/pricing --json
+morphir generate --input models/pricing-v4.ionb --target fsharp --output generated/pricing
+morphir generate --input models/pricing-v4-tree --target fsharp --output generated/pricing
+morphir generate --input models/pricing-v4.ion --input-format ion --target fsharp --output generated/pricing --option optimize=false</code></pre>
+<p>Auto detection recognizes the Ion binary marker regardless of suffix. Explicit <code>--input-format json</code> or <code>ion</code> constrains the codec. Both text and binary use <code>ion</code>; encoding is a codec concern. YAML configuration examples below do not imply YAML model input.</p>
+<p>Output paths below are illustrative; the existing package/module layout remains authoritative. The ownership manifest lists source paths in compilation order. No <code>.fsproj</code> is generated.</p>
+<pre><code class="language-console">generated/pricing/
+  .morphir-generated.json
+  Pricing/Domain.fs
+  Pricing/Rules.fs</code></pre>
+<p>Proposed success envelope, with artifact paths relative to output and lists reflecting completed publication:</p>
+<pre><code class="language-json">{
+  "success": true,
+  "target": "fsharp",
+  "provider": "morphir-dotnet-fsharp",
+  "input": "models/pricing-v4.ion",
+  "output": "generated/pricing",
+  "modelVersion": "4.0.0",
+  "artifacts": ["Pricing/Domain.fs", "Pricing/Rules.fs"],
+  "publication": {
+    "status": "published",
+    "written": ["Pricing/Domain.fs", "Pricing/Rules.fs"],
+    "unchanged": [],
+    "removed": [],
+    "manifest": ".morphir-generated.json"
+  },
+  "diagnostics": []
+}</code></pre>
+<p>Failure envelopes use <code>success: false</code>, nullable unresolved facts, no claimed published artifacts, and diagnostics with <code>code</code>, <code>message</code>, <code>severity</code>, <code>path</code> and <code>location</code>. Status is <code>not-published</code> or <code>failed</code> as appropriate. Retained model payloads and raw exceptions never enter the report.</p>
+
+<h2 id="decisions">Decisions and contract sketches</h2>
+<p>Snippets describe intended additive APIs. Supporting result/value types are abbreviated; implementation must compile representative consumer snippets as tests. They are not existing APIs or literal MEP wire types.</p>
+
+<h3 id="app-1">APP-1. One application handler owns orchestration</h3>
+<p>Register a generation scenario in the existing CLI builder and a mediator handler in Tooling. The command action only captures overrides, invokes the handler and renders its typed result. Reuse the app host instead of creating a second host for this command. Alternative: calling F# directly from the command action couples flags, codecs and publication to one language.</p>
+<pre><code class="language-csharp">// Proposed application contracts. Outcome&lt;T&gt; is a typed success/error result.
+public interface IGenerationSettingsResolver
+{
+    ValueTask&lt;Outcome&lt;GenerationSettings&gt;&gt; ResolveAsync(
+        GenerateOverrides overrides, InvocationContext context, CancellationToken ct);
+}
+public interface IModelLoader
+{
+    ValueTask&lt;Outcome&lt;LoadedModel&gt;&gt; LoadAsync(
+        ModelInput input, ModelReadLimits limits, CancellationToken ct);
+}
+public interface IGenerationBackend
+{
+    BackendDescriptor Descriptor { get; }
+    Outcome&lt;ValidatedBackendOptions&gt; ValidateOptions(BackendOptions options);
+    ValueTask&lt;Outcome&lt;GenerationArtifacts&gt;&gt; GenerateAsync(
+        BackendGenerationRequest request, CancellationToken ct);
+}
+public interface IGenerationBackendResolver
+{
+    Outcome&lt;IGenerationBackend&gt; Resolve(TargetId target, ModelDescriptor model);
+}</code></pre>
+<p><code>GenerationSettings</code> contains a resolved input, exact target, structured options and publication policy. <code>BackendGenerationRequest</code> contains the loaded model, target and validated options, but no output directory. <code>GenerationArtifacts</code> holds the output tree and diagnostics. The publisher is a thin host adapter over the existing API, not a new publication algorithm.</p>
+<pre><code class="language-console">CLI overrides --&gt; settings resolver --&gt; resolved request
+resolved input --&gt; bounded capture + codec --&gt; retained typed model
+target + model --&gt; backend resolver --&gt; F# classic or v4 generation
+generated tree --&gt; existing publisher --&gt; publication report</code></pre>
+<p>Handle each typed failure before the next stage. Cancellation flows through the handler and adapters; it is checked before starting publication. No automatic codec fallback after recognized malformed input and no automatic backend fallback after provider selection.</p>
+
+<h3 id="mdl-1">MDL-1. Keep semantic IR and retained input together</h3>
+<p>Add a transport-neutral versioned semantic wrapper in <code>Morphir.Models</code> that references existing classic/v4 distributions. Keep capture and representation descriptors in Tooling. A loader maps the existing Ion result into this wrapper, preserving the original API. Alternative: making all consumers reference <code>Morphir.Ion.IrDocument</code> would bind semantic generation to a serialization package.</p>
+<pre><code class="language-fsharp">// Proposed Morphir.Models shape, using existing distribution definitions.
+type DistributionModel =
+    | Classic of Morphir.IR.Classic.Distribution.Distribution&lt;JsonElement, JsonElement&gt;
+    | V4 of Morphir.IR.V4.Distribution
+
+type VersionedModel = {
+    SourceVersion: SourceFormatVersion
+    Distribution: DistributionModel
+}
+
+// Tooling owns immutable, bounded file/tree snapshots.
+// LoadedModel = VersionedModel + ModelDescriptor + RetainedInput.
+// RetainedInput retains bytes; it does not claim those bytes equal a JSON view.</code></pre>
+<p>Capture once into privately owned bounded storage, then decode that capture. Tree capture bounds entries, aggregate bytes, path length and depth while enumerating, before constructing the virtual tree. Reject links/special files and preserve tree-relative paths. Do not call an unbounded recursive loader and check budgets only after it finishes. Reuse Ion reader limits and add explicit JSON/capture limits, applied before allocation.</p>
+<p>JSON uses <code>ClassicJson.readDistribution</code> or the v4 reader. Ion uses <code>IonIr.read</code> or <code>IonIrTree.readDetailed</code>. Exact declared versions remain in <code>SourceFormatVersion</code> even when classic decoder context uses integer 3. A MEP wrapper receives an explicit unsupported-profile diagnostic in this delivery, not a bare-IR parse attempt.</p>
+
+<h3 id="gen-1">GEN-1. Register providers and declare compatibility</h3>
+<p>Register one first-party provider, identity <code>morphir-dotnet-fsharp</code>, target <code>fsharp</code>. Its descriptor advertises classic JSON v1/v2/v3 and supported classic 3.0.0/3.1.0 and v4 4.0.0 Libraries. Codec support is declared separately by loaders. Ambiguous providers fail; registration order never selects a winner.</p>
+<pre><code class="language-csharp">// Composition root, not target-selection logic in the command.
+services.AddSingleton&lt;IGenerationBackend, FSharpGenerationBackend&gt;();
+services.AddSingleton&lt;IGenerationBackendResolver, RegisteredBackendResolver&gt;();
+services.AddSingleton&lt;IModelLoader, RegisteredModelLoader&gt;();
+services.AddSingleton&lt;IGenerationSettingsResolver, CliGenerationSettingsResolver&gt;();</code></pre>
+<p>Alternative: a <code>switch (target)</code> in the CLI would require modifying the command for every future provider. Static DI registration avoids reflection scanning and keeps trimming/AOT behavior reviewable. A MEP adapter can later implement the same backend contract.</p>
+
+<h3 id="gen-2">GEN-2. Generate v4 directly through typed version-specific paths</h3>
+<p>Add a versioned typed entry point. Preserve <code>Transpiler.generate</code> as the strict classic JSON wrapper so Myriad and existing consumers retain their behavior. Dispatch on the semantic model family inside the F# backend, where version semantics belong. Extend the classic path additively and implement v4 validation/emission over v4 types. Share naming, SDK mappings where semantics agree, dependency-order helpers, AST construction and manifest assembly. Do not route v4 through classic JSON or a lossy downgrade.</p>
+<pre><code class="language-fsharp">// Proposed public F# API; existing generate remains available.
+type GenerationOptions = { Optimize: bool }
+
+val generateModel:
+    options: GenerationOptions -&gt;
+    model: VersionedModel -&gt;
+    source: VFile -&gt;
+    VFileTree
+
+// Intended use after either JSON or Ion loading:
+let tree =
+    Transpiler.generateModel
+        { Optimize = true }
+        loaded.Model
+        sourceContext</code></pre>
+<table><thead><tr><th>V4 feature</th><th>First-delivery behavior</th></tr></thead><tbody>
+<tr><td>Library aliases, custom unions, generics, records and visibility</td><td>Generate F# and preserve public type/constructor meaning.</td></tr>
+<tr><td>Expression bodies and common value/pattern forms</td><td>Generate executable F# for the forms listed in the delta spec, including recursion, currying, field operations and ordered cases.</td></tr>
+<tr><td>Attributes, inferred types and source locations</td><td>Keep the original model; carry locations to diagnostics and reject inferred/declared type contradictions. Optional opaque metadata is retained, not advertised as executed semantics.</td></tr>
+<tr><td>Scalars</td><td>Use the current F# scalar profile: Int32-backed Int, finite double Float, .NET decimal and UTF-16 char. Refuse v4 integers outside Int32, decimal precision/scale outside the exact representation, and supplementary-plane Char literals. Never narrow, round or truncate. Broader scalar profiles require a later explicit ABI decision.</td></tr>
+<tr><td>DocumentLiteral, open extensible records</td><td>Specific unsupported diagnostic; no placeholder or stringification.</td></tr>
+<tr><td>Hole, IncompleteBody, IncompleteTypeDefinition</td><td>Specific incomplete-model diagnostic, no successful source.</td></tr>
+<tr><td>NativeBody and ExternalBody</td><td>Specific unsupported-body diagnostic. Neither a hint nor a target name is an implementation, including external fallbacks in this delivery.</td></tr>
+<tr><td>Specs and Application</td><td>Explicit distribution diagnostic. Library generation does not invent an executable application entry point.</td></tr>
+<tr><td>Constraints and extensions with required semantics</td><td>Refuse unsupported required semantics; retain the original data. Nonempty type constraints are conservatively unsupported until a defined F# mapping exists.</td></tr>
+</tbody></table>
+<p>Constant folding is configurable for both families and defaults to enabled. V4 folding must preserve literal fidelity; when an exact fold cannot be proven, leave the expression unchanged. Validation still runs with optimization disabled. Version-specific implementation paths do not imply version-specific test strategies: TEST-1 defines the common corpus and harness that prove real output and behavior for every supported version.</p>
+
+<h3 id="cfg-1">CFG-1. Resolve settings before invoking generation</h3>
+<p>In this delivery, <code>CliGenerationSettingsResolver</code> resolves explicit CLI input/target/output and structured backend options. It works outside a project and applies application defaults such as format <code>auto</code>. Backend option validation applies backend defaults such as F# <code>optimize=true</code>. Neither policy lives in the command action.</p>
+<p>Model optional overrides separately from resolved settings; avoid using an empty string or Boolean false to mean "not supplied." Relative CLI paths resolve against captured invocation cwd. Future config paths resolve relative to the declaring document, independent of cwd. That distinction belongs in resolver inputs and provenance.</p>
+<p>Parse each <code>--option</code> value as JSON first and otherwise keep it as a string; later occurrences replace earlier keys. Clone structured values so they outlive parsing documents. F# accepts Boolean <code>optimize</code> only. Alternatives: backend-specific CLI flags and TOML objects inside the generator would couple transport syntax to public generation APIs.</p>
+
+<h3 id="pub-1">PUB-1. Reuse owned tree publication</h3>
+<p>Publish through <code>VFileTree.publish</code> with <code>ManifestMode.Manifest ".morphir-generated.json"</code> and preserve declared compile order. Return its written/unchanged/removed lists. The manifest name is a centralized publication-policy default that future configuration can override, not a literal in the F# emitter.</p>
+<pre><code class="language-fsharp">// Existing publisher API, proposed command policy.
+let policy = {
+    OutputRoot = resolvedOutput
+    Manifest = ManifestMode.Manifest ".morphir-generated.json"
+}
+match VFileTree.publish policy generatedTree with
+| Ok receipt -&gt; reportPublished receipt
+| Error error -&gt; reportPublicationFailure error</code></pre>
+<p>Reject input/output overlap before publication, especially output equal to or inside an input tree. Backend errors or invalid paths prevent writing. Staging failure preserves old output. Commit-time failure reports possible partial replacement using the existing contract. Do not promise rollback the publisher cannot provide; do not add a second directory replacement engine.</p>
+
+<h3 id="out-1">OUT-1. Typed outcomes and source-generated reports</h3>
+<p>Keep expected failures as typed results and map at the CLI edge. Exit 0 means publication succeeded; 1 means invalid/incompatible model or semantic generation failure; 2 means invocation, option/provider resolution or operational failure; 130 means cancellation. Source-generate serialization metadata for the concrete JSON report DTOs and keep logs on stderr. Parser syntax errors retain System.CommandLine behavior and exit 2; the structured result contract starts after successful argument parsing.</p>
+<p>Map reader and generator diagnostics once. Preserve stable existing codes when possible; use <code>generation.unknown_target</code>, <code>generation.ambiguous_backend</code>, <code>generation.unsupported_distribution</code>, <code>generation.invalid_option</code> and <code>publication.failed</code> for application failures. A valid v4 Library is not an unsupported-version failure. New v4 semantic failures use specific unsupported/incomplete/literal-range categories.</p>
+
+<h2 id="configuration">Future TOML and YAML integration</h2>
+<p><strong>Illustrative follow-up, not implemented by this change.</strong> Equivalent documents should feed the same resolver. The keys below illustrate the canonical settings shape; this proposal does not standardize ecosystem-wide discovery or merge precedence. Reconcile that policy with finos/morphir before adding file-backed resolution.</p>
+<pre><code class="language-toml"># Future morphir.toml
+[codegen]
+input = "models/pricing-v4.ion"
+input_format = "auto"
+targets = ["fsharp"]
+output = "generated/pricing"
+
+[codegen.fsharp]
+optimize = true</code></pre>
+<pre><code class="language-yaml"># Future morphir.yml, equivalent settings
+codegen:
+  input: models/pricing-v4.ion
+  input_format: auto
+  targets: [fsharp]
+  output: generated/pricing
+  fsharp:
+    optimize: true</code></pre>
+<pre><code class="language-console"># Future only, after configuration support is implemented:
+morphir generate --config morphir.toml
+morphir generate --config morphir.yml --option optimize=false</code></pre>
+<p>Document codecs parse into one canonical configuration model; one resolver merges selected sources and CLI overrides. Future CLI values win over file values, and diagnostics retain which document supplied a setting. Do not independently implement discovery or YAML/TOML precedence inside generation. The first command selects one target; multi-target execution requires its own output-collision and partial-failure policy.</p>
+
+<h2 id="mep">Future MEP integration</h2>
+<p><strong>Adapter mapping, not a wire implementation.</strong> A future host selects a negotiated target/model tuple before calling a MEP-backed provider. A future F# MEP guest admits its input and invokes the same typed generation service. Neither route needs command-line parsing or output-directory access inside the generator.</p>
+<table><thead><tr><th>Local concept</th><th>MEP mapping</th></tr></thead><tbody>
+<tr><td>Exact target and structured options</td><td>Generate request target and options.</td></tr>
+<tr><td>LoadedModel plus original representation</td><td>Semantic projection plus a retained model; future admission checks identity, revision, codec/profile, byte limits and required guarantees.</td></tr>
+<tr><td>Backend descriptor</td><td>Versioned capability claims; negotiated support still requires session validation.</td></tr>
+<tr><td>Relative artifact paths with text/binary content</td><td>Artifact results; only the wire adapter performs base64 encoding for binary content.</td></tr>
+<tr><td>Structured diagnostics</td><td>Diagnostic results; adapt position conventions explicitly rather than copying offsets between formats.</td></tr>
+<tr><td>Publication receipt</td><td>Host-local outcome, not a claim that the remote generator wrote local files.</td></tr>
+</tbody></table>
+<p>Retaining original bytes now avoids a future JSON-only contract that loses enrichments, annotations, precision or provenance. It does not implement MEP envelope admission, evidence validation, capability negotiation or generation conversion policy. Lossless projection and source generation are distinct operations. Any future lossy host conversion must follow the protocol and explicit user policy, never a silent fallback.</p>
+<p>References: <a href="https://github.com/finos/morphir/blob/main/spec/mep/smithy/model/generate.smithy">generation contract</a> and <a href="https://github.com/finos/morphir/blob/main/spec/mep/model-transport.md">retained-model transport</a>. Their evolving wire DTOs stay outside first-party generator contracts.</p>
+
+<h2 id="testing">Unified testing approach</h2>
+<h3 id="test-1">TEST-1. Organize tests by behavior, parameterize representation</h3>
+<p>Extend the existing generator tests and compiler/execution helpers into one shared conformance approach. A behavior such as pricing, recursion, visibility or record update has one case identity and one independently specified behavioral oracle. Supported IR versions, codec/layout, API entry point, optimization and publication mode are dimensions of that case. They do not get separate runners, BDD step implementations, evaluators, assertion libraries or testing policies.</p>
+<p>Representation adapters can construct or load version-specific fixtures because the schemas differ. They prepare input only. Shared code generates, checks diagnostics, orders/compiles F# files, invokes the generated API and asserts expected behavior. Adapters must not obtain v4 expectations by downgrading to v3 or use one implementation's output as the sole oracle. Cross-version parity supplements independently chosen expected values.</p>
+<pre><code class="language-fsharp">// Illustrative common test shape, not separate v3/v4 suites.
+type GenerationCase = {
+    Id: string
+    Representations: RepresentationExpectation list
+    ExpectedBehavior: BehaviorExpectation
+}
+
+let cases = [ pricing; recursion; recordUpdates; incompleteBodies ]
+
+for case in cases do
+    for representation in case.Representations do
+        // The same runner handles success, refusal and explicit non-applicability.
+        runGenerationCase sharedHarness case representation</code></pre>
+<p>The expectation matrix records supported combinations, expected refusal codes, and genuinely unrepresentable combinations with reasons. Historical v1/v2 JSON coverage does not imply an invented Ion v1/v2 encoding. Required combinations missing from the matrix fail a coverage assertion. Declared incompatibility is visible in the case inventory and report, not an unexplained runtime skip or blanket expected failure.</p>
+<p>V4-only semantics, such as inferred-type contradictions or incomplete bodies, add cases to this corpus with explicit applicability. They still use the same runner, diagnostic assertions and reporting. Focused codec/version adapter unit tests remain appropriate; they do not form an alternate end-to-end strategy. Preserve existing regression snapshots and share behavioral assertions. Separate source snapshots require a genuine expected representation difference, not copied per-version baselines.</p>
+<p>Alternative rejected: independent classic/v4 test suites with their own fixture catalogues, compiler runners and expected results. That duplicates infrastructure and permits behavior and quality gates to drift. Group 4 in tasks.md is an implementation sequence for v4 semantics, not authorization to build a second testing system.</p>
+
+<h2 id="acceptance">Acceptance examples</h2>
+<p>BDD scenarios come before production changes. Each implementation group adds cases to the common corpus and owns its documentation; broader final checks run that same corpus through integrated adapters.</p>
+<pre><code class="language-gherkin">Scenario Outline: Generate executable F# for pricing behavior
+  Given pricing case "pricing.total" as IR &lt;version&gt; in &lt;format&gt;
+  When I generate target "fsharp" into a temporary directory
+  Then the CLI succeeds
+  And its JSON report contains no diagnostic log text
+  And its ordered F# files compile
+  And calling the generated pricing functions returns the expected results
+
+  Examples:
+    | version | format     |
+    | 1       | JSON       |
+    | 2       | JSON       |
+    | 3       | JSON       |
+    | 3.0.0   | Ion text   |
+    | 3.0.0   | Ion binary |
+    | 3.1.0   | Ion tree   |
+    | 4.0.0   | JSON       |
+    | 4.0.0   | Ion text   |
+    | 4.0.0   | Ion binary |
+    | 4.0.0   | Ion tree   |
+
+Scenario: Incomplete v4 body never replaces good output
+  Given previously generated pricing files
+  And a v4 Library containing an IncompleteBody
+  When I generate target "fsharp" into the same directory
+  Then the command fails with an incomplete-model diagnostic
+  And the previous output bytes remain unchanged</code></pre>
+<p>The rows above illustrate one scenario; the capability matrix enumerates every required supported combination rather than treating these sample rows as exhaustive. The common corpus covers aliases, unions, generic records, public/private declarations, curried calls, lexical shadowing, recursion, pattern branches and SDK mappings across their applicable versions. Add ordered fields/inputs, inferred-type contradictions, literal boundaries, document/native/external/incomplete refusals and source locations as cases in that corpus. Compile and execute optimized and unoptimized output through the same runner; preserve classic/Myriad regressions.</p>
+<p>Additional gates cover codec ambiguity, bounded capture and caller mutation; fake registered providers and typed failures; outside-project use; path/case collisions, stale owned files and unowned preservation; JSON stdout purity; and representative classic/v4 generation from trimmed and Native AOT CLI builds. Verify required coverage and relevant existing suites. Snippets labeled future-only are documentation examples, not claims of implemented commands.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody>
+<tr><td>V4 support becomes a parser-only claim</td><td>Require nonempty v4 compilation/execution and JSON/Ion/tree parity before completion.</td></tr>
+<tr><td>Classic and v4 emission drift</td><td>Keep typed version-specific semantics, share target helpers, and run cross-version behavior fixtures. Do not force v4 through a narrower classic model.</td></tr>
+<tr><td>Testing fragments into version-specific strategies</td><td>Enforce TEST-1: one behavior corpus, runner, oracle approach and quality gates; explicit version/format applicability and refusal expectations.</td></tr>
+<tr><td>V4 literals exceed current F# ABI</td><td>Document the scalar profile and prove exactness or reject. Never round decimals or split Unicode scalars.</td></tr>
+<tr><td>Raw retention doubles memory or captures changing input</td><td>Capture once within finite budgets; use privately owned snapshots and decode from those bytes.</td></tr>
+<tr><td>Public contracts mimic an unstable MEP draft</td><td>Use small semantic/application contracts and protocol adapters; preserve representation data without copying wire DTOs.</td></tr>
+<tr><td>Config examples are mistaken for delivered functionality</td><td>Mark every file-backed example future-only; first-delivery parser refuses unimplemented flags.</td></tr>
+<tr><td>Publisher commit failure is mistaken for atomic rollback</td><td>Report publication failure honestly and preserve its existing documented staging/commit distinction.</td></tr>
+<tr><td>Native AOT exposes new trimming issues</td><td>Static provider registration, source-generated report serialization and published-executable acceptance tests.</td></tr>
+</tbody></table>
+
+<h2 id="migration">Migration plan</h2>
+<ol>
+<li>Integrate merged PR #456 into the implementation branch without destructive reset, and establish the feature PRD and status table.</li>
+<li>Add the model/settings/backend contracts and typed classic entry point while keeping existing callers and snapshots passing.</li>
+<li>Implement v4 validation and generation with nonempty executable fixtures before advertising v4 capability.</li>
+<li>Add bounded codec adapters, CLI orchestration and owned publication with matching tests/docs at each stage.</li>
+<li>Run the <a href="tasks.md">implementation checklist</a>, including full relevant tests, formatting, coverage and trimmed/AOT generation. Review before landing.</li>
+</ol>
+<p>No IR wire format, installed-tool state or production data migration is required. Roll back by reverting the additive command/adapters and new generation path while retaining the legacy API. Generated output changes are governed by its ownership manifest; do not delete unowned files during rollback. Future MEP/configuration implementations are separate changes.</p>
+</main>
+</body>
+</html>
+
