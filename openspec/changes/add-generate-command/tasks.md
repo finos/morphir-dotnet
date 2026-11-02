@@ -40,7 +40,7 @@ All tests in this group extend the harness and case inventory from group 1. Vers
 
 ## 5. Shared bounded model loading
 
-- [ ] 5.1 Implement privately owned bounded file/tree capture before decoding, with cancellation, aggregate byte/entry/depth/path budgets and link/special-file refusal; verify limit boundaries, unreadable entries and post-load input mutation cannot produce a partial or changing model.
+- [x] 5.1 Implement privately owned bounded file/tree capture before decoding, with cancellation, aggregate byte/entry/depth/path budgets and link/special-file refusal; verify limit boundaries, unreadable entries and post-load input mutation cannot produce a partial or changing model.
 - [ ] 5.2 Add JSON codec adapters over shared classic/v4 readers and deterministic format selection; verify all supported versions, explicit format conflicts, missing/unknown versions, malformed input and exact source-version retention.
 - [ ] 5.3 Add Ion text/binary and tree adapters over existing readers without JSON serialization; verify binary-marker detection without suffix hints, tree-relative diagnostics and no fallback after recognized malformed Ion.
 - [ ] 5.4 Add explicit unsupported-format/profile outcomes for YAML models, JSON/YAML trees and MEP envelopes; verify each reports its actual boundary rather than defaulting to JSON or v3.
