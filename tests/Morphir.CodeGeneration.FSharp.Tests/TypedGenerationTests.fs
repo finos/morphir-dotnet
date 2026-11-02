@@ -49,6 +49,31 @@ let private generate (version, path, json) =
 [<Tests>]
 let tests =
     testList "Typed model generation" [
+        testCase "documented public typed-model consumer compiles"
+        <| fun () ->
+            let references = [
+                typeof<VersionedModel>.Assembly.Location
+                typeof<VFile>.Assembly.Location
+                typeof<GenerationOptions>.Assembly.Location
+            ]
+
+            let actual =
+                GenerationCompiler.executeWithReferences
+                    references
+                    []
+                    """
+open Morphir.IR.Model
+open Morphir.IR.Pipeline
+open Morphir.CodeGeneration.FSharp
+let generateLibrary (model: VersionedModel) =
+    Transpiler.generateModel model (VFile.fromPath "retained/model.ion")
+let generateWithoutFolding (model: VersionedModel) =
+    Transpiler.generateModelWith { Optimize = false } model (VFile.fromPath "retained/model.ion")
+printfn "%b" GenerationOptions.Default.Optimize
+"""
+
+            Expect.equal actual "true" "public usage compiles without internal adapters"
+
         let required = [
             for version in [ "1"; "2"; "3" ] ->
                 {

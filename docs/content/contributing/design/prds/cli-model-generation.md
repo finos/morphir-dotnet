@@ -29,7 +29,7 @@ This is the implementation target, not a command already delivered by this PRD. 
 | Versioned model and generation contracts | Implemented | 2.1-2.2 | Public consumer examples and compatible existing APIs |
 | Settings and backend resolution | Implemented | 2.3-2.5 | Explicit overrides, fake provider, incompatibility and ambiguity tests |
 | Typed entry point and classic compatibility | Implemented | 3.1-3.4 | Existing consumers and shared corpus remain green |
-| Required v4 F# semantics | In Progress | 4.1-4.9 | Nonempty generated libraries compile and execute through the same harness |
+| Required v4 F# semantics | Implemented | 4.1-4.9 | Nonempty generated libraries compile and execute through the same harness |
 | Bounded JSON/Ion model loading | Planned | 5.1-5.6 | Capture limits, retained originals, codec diagnostics and representation parity |
 | CLI generation and reporting | Planned | 6.1-6.4 | BDD scenarios, typed exits, parseable JSON stdout and command documentation |
 | Owned artifact publication | Planned | 7.1-7.3 | Ordered manifest, unchanged receipts, stale-owned removal and failure tests |
@@ -85,5 +85,7 @@ Exact optimization uses shared arithmetic proofs over scalar values, with native
 - Public v4 entry point: the entire common model corpus now uses `generateModelWith`, with no internal v4 test bypass. Eight pricing rows execute classic/v4 with folding on/off. The static F# provider advertises exact versions and validates its Boolean option. Integrating its dependency exposed a Fantomas compiler type collision in C#; keeping implementation-only AST/formatter compile assets private resolves it while preserving runtime dependencies. Corrected an invalid mixed-case name in the pending v4 CLI fixture. All 269 generator tests pass; the full run passed other suites, and the corrected complete Tooling rerun has 137 passing tests and only the 11 pending CLI cases.
 
 ## Open questions
+
+The generator README now maps supported/refused capabilities to the shared inventory and states the scalar ABI and TEST-1 extension procedure. A standalone FSI consumer compiles the documented public functions. All 270 generator tests pass in the full Nuke run; only the 11 command acceptance cases remain red.
 
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

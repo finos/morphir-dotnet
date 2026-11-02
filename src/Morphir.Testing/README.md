@@ -15,8 +15,8 @@ To extend a case:
 4. Run each row through `GenerationConformance.run`. A CLI adapter can return
    the published, ordered file contents to the same runner.
 
-`rental.total` currently runs classic JSON versions 1, 2 and 3 against the same
-expected total of 15000 cents. Add v4 and Ion adapters to this case as those
-paths become available. Do not copy its consumer or introduce a version-specific
+`rental.total` runs classic JSON versions 1, 2 and 3 and classic/v4 typed models
+against the same expected total of 15000 cents, with optimization on and off.
+Add Ion adapters as those paths become available. Do not copy its consumer or introduce a version-specific
 expected value. Cases unique to a model family belong in this inventory with
 explicit applicability, using the same compiler and diagnostic assertions.
