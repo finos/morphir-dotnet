@@ -72,6 +72,8 @@ V4-only semantics use the same harness and diagnostics. The supported/refused fe
 
 - Scalar profile: 42 common rows cover Int32 boundaries, overflow, exact decimal precision/scale and exponents, decimal signed zero, floating-point bit patterns and extremes, escaped strings, BMP and supplementary characters. Explicit reasons account for values classic typed IR cannot represent. The negative-zero case exposed and fixed a shared decimal rendering defect. All 166 generator tests pass; the full Nuke run retains only the 11 pending CLI BDD failures.
 
+- Core expression generation: native v4 traversal covers constructors and partial application, tuple/list/unit values, named/anonymous records, fields, references, lambdas, conditionals and ordered patterns. A shared expression consumer and record-billing case execute for classic/v4. Test-only representation adaptation reuses classic fixtures; production v4 emission never converts to classic IR. All 170 generator tests pass; the full Nuke run still has only the pending CLI failures.
+
 ## Open questions
 
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

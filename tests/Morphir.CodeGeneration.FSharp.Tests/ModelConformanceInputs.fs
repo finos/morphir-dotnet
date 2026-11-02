@@ -270,3 +270,127 @@ let typeStructure version =
             }
         )
         |> v4
+
+let forVersion version model =
+    if version = "3" then
+        model
+    else
+        Morphir.CodeGeneration.FSharp.Tests.ClassicToV4TestAdapter.promote model
+
+let expressionCore version =
+    let pattern tag fields =
+        F.a (
+            box tag
+            :: null
+            :: fields
+        )
+
+    let constructorPattern local patterns =
+        pattern "ConstructorPattern" [ F.own "expressions" local; F.a patterns ]
+
+    let record value =
+        F.a [ box "Record"; null; F.a [ F.a [ F.n "score"; F.integer value ] ] ]
+
+    let outcome = F.tRef (F.own "expressions" "outcome") []
+    let metric = F.tRef (F.own "expressions" "metric") []
+
+    let json =
+        F.model [
+            "expressions",
+            [
+                F.customType "outcome" [] [
+                    "good", [ "amount", F.intType; "label", F.stringType ]
+                    "bad", []
+                ]
+                F.typeAlias "metric" [] (F.tRecord [ "score", F.intType ])
+            ],
+            [
+                F.binding
+                    "choose"
+                    [ "n", F.intType ]
+                    outcome
+                    (F.a [
+                        box "IfThenElse"
+                        null
+                        F.op "greater_than_or_equal" (F.variable "n") (F.integer 0)
+                        F.apply (F.constructor (F.own "expressions" "good")) [
+                            F.variable "n"
+                            F.str "ok"
+                        ]
+                        F.constructor (F.own "expressions" "bad")
+                    ])
+                F.binding
+                    "partial_good"
+                    []
+                    (F.tFunction F.stringType outcome)
+                    (F.apply (F.constructor (F.own "expressions" "good")) [ F.integer 7 ])
+                F.binding
+                    "pair"
+                    []
+                    (F.tTuple [ F.intType; F.stringType ])
+                    (F.a [ box "Tuple"; null; F.a [ F.integer 3; F.str "hi" ] ])
+                F.binding "unit_value" [] F.unitType (F.a [ box "Unit"; null ])
+                F.binding
+                    "report"
+                    [ "n", F.intType ]
+                    F.stringType
+                    (F.matchCases (F.apply (F.reference "expressions" "choose") [ F.variable "n" ]) [
+                        constructorPattern "good" [
+                            pattern "LiteralPattern" [ F.a [ box "WholeNumberLiteral"; box 0 ] ]
+                            F.wildcard
+                        ],
+                        F.str "zero"
+                        constructorPattern "good" [ F.wildcard; F.wildcard ], F.str "good"
+                        constructorPattern "bad" [], F.str "bad"
+                    ])
+                F.binding
+                    "mapped"
+                    []
+                    (F.listType F.intType)
+                    (F.apply (F.sdkReference "list" "map") [
+                        F.a [
+                            box "Lambda"
+                            null
+                            F.bind "x"
+                            F.op "add" (F.variable "x") (F.integer 1)
+                        ]
+                        F.a [ box "List"; null; F.a [ F.integer 1; F.integer 2 ] ]
+                    ])
+                F.binding "record" [] metric (record 3)
+                F.binding "anonymous" [] (F.tRecord [ "score", F.intType ]) (record 4)
+                F.binding
+                    "score_of"
+                    []
+                    (F.tFunction metric F.intType)
+                    (F.a [ box "FieldFunction"; null; F.n "score" ])
+                F.binding
+                    "pair_text"
+                    [ "pair", F.tTuple [ F.intType; F.stringType ] ]
+                    F.stringType
+                    (F.matchCases (F.variable "pair") [
+                        pattern "TuplePattern" [ F.a [ F.bind "n"; F.bind "label" ] ],
+                        F.variable "label"
+                    ])
+                F.binding
+                    "unit_to_zero"
+                    [ "u", F.unitType ]
+                    F.intType
+                    (F.matchCases (F.variable "u") [ pattern "UnitPattern" [], F.integer 0 ])
+                F.binding
+                    "head_or_zero"
+                    [ "items", F.listType F.intType ]
+                    F.intType
+                    (F.matchCases (F.variable "items") [
+                        pattern "EmptyListPattern" [], F.integer 0
+                        pattern "HeadTailPattern" [ F.bind "h"; F.wildcard ], F.variable "h"
+                    ])
+            ]
+        ]
+
+    classic json
+    |> forVersion version
+
+let recordBilling version =
+    Morphir.Testing.ModelResources.read "record-billing-v3.json"
+    |> classic
+    |> forVersion version

@@ -7,6 +7,39 @@ open System.Text.Json
 
 /// F# target spellings shared by both semantic-model adapters.
 module internal TargetSyntax =
+    let sdkConstructor =
+        function
+        | "maybe.just" -> Some("Some", 1)
+        | "maybe.nothing" -> Some("None", 0)
+        | "result.ok" -> Some("Ok", 1)
+        | "result.err" -> Some("Error", 1)
+        | "basics.l_t"
+        | "basics.lt" -> Some("Morphir.SDK.LT", 0)
+        | "basics.e_q"
+        | "basics.eq" -> Some("Morphir.SDK.EQ", 0)
+        | "basics.g_t"
+        | "basics.gt" -> Some("Morphir.SDK.GT", 0)
+        | _ -> None
+
+    let sdkValue =
+        function
+        | "basics.add" -> Some "(+)"
+        | "basics.subtract" -> Some "(-)"
+        | "basics.multiply" -> Some "(*)"
+        | "basics.divide" -> Some "(/)"
+        | "basics.equal" -> Some "(=)"
+        | "basics.notequal" -> Some "(<>)"
+        | "basics.lessthan" -> Some "(<)"
+        | "basics.greaterthan" -> Some "(>)"
+        | "basics.lessthanorequal" -> Some "(<=)"
+        | "basics.greaterthanorequal" -> Some "(>=)"
+        | "basics.compare" -> Some "Morphir.SDK.Basics.compare"
+        | "basics.identity" -> Some "id"
+        | "list.map" -> Some "List.map"
+        | "maybe.map" -> Some "Option.map"
+        | "result.map" -> Some "Result.map"
+        | _ -> None
+
     let stringLiteral (value: string) =
         "\""
         + JsonEncodedText.Encode(value).ToString()

@@ -77,6 +77,37 @@ let tests =
                     "internal Hidden"
                     "private definitions retain assembly visibility"
 
+        for caseBuilder, inputs in
+            [
+                GenerationCases.expressionCore, ModelConformanceInputs.expressionCore
+                GenerationCases.recordBilling, ModelConformanceInputs.recordBilling
+            ] do
+            let required = [
+                for version in [ "3"; "4.0.0" ] ->
+                    {
+                        Version = version
+                        Format = "typed"
+                        Layout = "memory"
+                        Optimize = true
+                    }
+            ]
+
+            let variants = [
+                for row in required ->
+                    {
+                        Representation = row
+                        Input = Supported(fun () -> inputs row.Version)
+                    }
+            ]
+
+            let case = caseBuilder required variants
+
+            for row in variants do
+                testCase $"{case.Id}/{row.Representation.Version}"
+                <| fun () ->
+                    GenerationConformance.run generate case row
+                    |> ignore
+
         for scalar in GenerationScalars.cases do
             let required = [
                 for version in [ "3"; "4.0.0" ] ->

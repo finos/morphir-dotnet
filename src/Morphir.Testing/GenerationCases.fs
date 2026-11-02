@@ -2,6 +2,27 @@ namespace Morphir.Testing
 
 /// Behavioral expectations are independent of the representation adapters that supply inputs.
 module GenerationCases =
+    let expressionCore required variants : GenerationConformance.BehaviorCase<'Input> = {
+        Id = "expressions.core"
+        Consumer =
+            "open Car.Rental.Expressions\n"
+            + "let reports = [report 0; report 2; report (-1)] |> String.concat \"|\"\n"
+            + "let items = mapped |> List.map string |> String.concat \",\"\n"
+            + "let partialText = match partialGood \"ok\" with Good(n, label) -> string n + \":\" + label | Bad -> \"bad\"\n"
+            + "printfn \"%s|%s|%d|%s|%d|%d|%d|%s\" reports items (scoreOf record) (pairText pair) (headOrZero mapped) (unitToZero unitValue) anonymous.score partialText"
+        ExpectedOutput = "zero|good|bad|2,3|3|hi|2|0|4|7:ok"
+        Required = required
+        Variants = variants
+    }
+
+    let recordBilling required variants : GenerationConformance.BehaviorCase<'Input> = {
+        Id = "record.billing"
+        Consumer = "printfn \"%d\" (Car.Rental.Workflow.bill 3 Car.Rental.Workflow.car)"
+        ExpectedOutput = "15000"
+        Required = required
+        Variants = variants
+    }
+
     let typeStructure required variants : GenerationConformance.BehaviorCase<'Input> = {
         Id = "types.generic-record-and-union"
         Consumer =

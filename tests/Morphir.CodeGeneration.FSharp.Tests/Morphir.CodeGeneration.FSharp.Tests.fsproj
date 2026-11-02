@@ -26,6 +26,7 @@
     <Compile Include="TypedGenerationTests.fs" />
     <Compile Include="TypedValidationTests.fs" />
     <Compile Include="GenerationOptionsTests.fs" />
+    <Compile Include="ClassicToV4TestAdapter.fs" />
     <Compile Include="ModelConformanceInputs.fs" />
     <Compile Include="ModelConformanceTests.fs" />
     <Compile Include="PipelineGenerationTests.fs" />

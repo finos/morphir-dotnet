@@ -433,18 +433,9 @@ module internal Emit =
 
                 let ctor q =
                     if sdk q then
-                        match sdkName q with
-                        | "maybe.just" -> "Some", 1
-                        | "maybe.nothing" -> "None", 0
-                        | "result.ok" -> "Ok", 1
-                        | "result.err" -> "Error", 1
-                        | "basics.l_t"
-                        | "basics.lt" -> "Morphir.SDK.LT", 0
-                        | "basics.e_q"
-                        | "basics.eq" -> "Morphir.SDK.EQ", 0
-                        | "basics.g_t"
-                        | "basics.gt" -> "Morphir.SDK.GT", 0
-                        | _ ->
+                        match TargetSyntax.sdkConstructor (sdkName q) with
+                        | Some mapped -> mapped
+                        | None ->
                             Decode.fail
                                 "unsupported-sdk"
                                 moduleName
@@ -460,23 +451,9 @@ module internal Emit =
 
                 let reference q =
                     if sdk q then
-                        match sdkName q with
-                        | "basics.add" -> "(+)"
-                        | "basics.subtract" -> "(-)"
-                        | "basics.multiply" -> "(*)"
-                        | "basics.divide" -> "(/)"
-                        | "basics.equal" -> "(=)"
-                        | "basics.notequal" -> "(<>)"
-                        | "basics.lessthan" -> "(<)"
-                        | "basics.greaterthan" -> "(>)"
-                        | "basics.lessthanorequal" -> "(<=)"
-                        | "basics.greaterthanorequal" -> "(>=)"
-                        | "basics.compare" -> "Morphir.SDK.Basics.compare"
-                        | "basics.identity" -> "id"
-                        | "list.map" -> "List.map"
-                        | "maybe.map" -> "Option.map"
-                        | "result.map" -> "Result.map"
-                        | _ ->
+                        match TargetSyntax.sdkValue (sdkName q) with
+                        | Some mapped -> mapped
+                        | None ->
                             Decode.fail
                                 "unsupported-sdk"
                                 moduleName

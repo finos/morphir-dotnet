@@ -55,15 +55,30 @@ module internal V4Emit =
             )
             |> Map.ofList
 
+        let values =
+            modules
+            |> List.collect (fun (path, module') ->
+                OrderedMap.toList module'.Value.Values
+                |> List.map (fun (name, value) ->
+                    {
+                        PackagePath = package
+                        ModulePath = path
+                        LocalName = name
+                    },
+                    value.Value.Value
+                )
+            )
+            |> Map.ofList
+
         let emitted =
             modules
             |> List.map (fun (path, controlled) ->
                 let moduleName = Emit.modulePath path
                 let mutable dependencies = Set.empty
 
-                let qualify q =
+                let qualify q local =
                     if q.ModulePath = path then
-                        Emit.ident (Emit.pascal q.LocalName)
+                        local
                     else
                         dependencies <- Set.add q.ModulePath dependencies
 
@@ -71,7 +86,7 @@ module internal V4Emit =
                         + "."
                         + Emit.modulePath q.ModulePath
                         + "."
-                        + Emit.ident (Emit.pascal q.LocalName)
+                        + local
 
                 let rec typ value =
                     let renderFields fields =
@@ -144,7 +159,7 @@ module internal V4Emit =
                                         moduleName
                                         $"Wrong type argument count for {FQName.toString q}."
 
-                                let target = qualify q
+                                let target = qualify q (Emit.ident (Emit.pascal q.LocalName))
 
                                 if List.isEmpty rendered then
                                     target
@@ -246,11 +261,11 @@ module internal V4Emit =
                         + body
                     )
 
-                let values =
+                let entries =
                     OrderedMap.toList controlled.Value.Values
                     |> List.sortBy fst
 
-                values
+                entries
                 |> List.map (
                     fst
                     >> Emit.camel
@@ -258,29 +273,17 @@ module internal V4Emit =
                 |> distinct moduleName
 
                 let valueDeclarations =
-                    values
-                    |> List.map (fun (name, controlled) ->
-                        let definition = controlled.Value.Value
-
-                        match definition.InputTypes, definition.Body with
-                        | [], ExpressionBody(output, Value.Literal(_, literal)) ->
-                            "let "
-                            + internalAccess controlled.Access
-                            + Emit.ident (Emit.camel name)
-                            + " : "
-                            + typ output
-                            + " = "
-                            + ScalarProfile.render
-                                (moduleName
-                                 + "."
-                                 + Emit.camel name)
-                                literal
-                        | _ ->
-                            Decode.fail
-                                "unsupported-v4-expression"
-                                moduleName
-                                "This v4 expression is not implemented yet."
-                    )
+                    V4Expressions.declarations
+                        {
+                            Package = package
+                            Module = path
+                            Location = moduleName
+                            Types = types
+                            Values = values
+                            Typ = typ
+                            Qualify = qualify
+                        }
+                        entries
 
                 let source =
                     "module "
