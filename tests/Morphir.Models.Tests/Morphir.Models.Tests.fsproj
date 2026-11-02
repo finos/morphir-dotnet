@@ -29,6 +29,7 @@
         <Compile Include="IR/ModulePathTests.fs" />
         <Compile Include="IR/FQNameTests.fs" />
         <Compile Include="IR/CanonicalNamesTests.fs" />
+        <Compile Include="IR/VersionedModelTests.fs" />
         <Compile Include="IR/Classic/AccessControlledTests.fs" />
         <Compile Include="IR/Classic/TypeTests.fs" />
         <Compile Include="IR/Classic/LiteralTests.fs" />

@@ -51,6 +51,7 @@
         <Compile Include="IR/V4/Value.fs" />
         <Compile Include="IR/V4/Module.fs" />
         <Compile Include="IR/V4/Distribution.fs" />
+        <Compile Include="IR/VersionedModel.fs" />
         <Compile Include="IR/DSL/Names.fs" />
         <Compile Include="IR/DSL/DSL.fs" />
         <Compile Include="Json/MorphirJsonOptions.fs" />
