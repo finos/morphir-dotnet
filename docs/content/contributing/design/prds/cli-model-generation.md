@@ -31,7 +31,7 @@ This is the implementation target, not a command already delivered by this PRD. 
 | Typed entry point and classic compatibility | Implemented | 3.1-3.4 | Existing consumers and shared corpus remain green |
 | Required v4 F# semantics | Implemented | 4.1-4.9 | Nonempty generated libraries compile and execute through the same harness |
 | Bounded JSON/Ion model loading | Implemented | 5.1-5.6 | Capture limits, retained originals, codec diagnostics and representation parity |
-| CLI generation and reporting | Planned | 6.1-6.4 | BDD scenarios, typed exits, parseable JSON stdout and command documentation |
+| CLI generation and reporting | In Progress | 6.1-6.4 | BDD scenarios, typed exits, parseable JSON stdout and command documentation |
 | Owned artifact publication | Implemented | 7.1-7.3 | Ordered manifest, unchanged receipts, stale-owned removal and failure tests |
 | Coverage, trimming and Native AOT | Planned | 8.1-8.4 | Recorded test/coverage results and actual published-executable runs |
 | TOML/YAML generation configuration | Deferred | Follow-up | One canonical configuration model and settings resolver; no parser-specific generator API |
@@ -109,5 +109,9 @@ Publication preflight checks canonical input/output separation, linked ancestors
 Three additional publication tests verify stale-owned removal with unowned preservation, unchanged files/manifest after a staged content failure, and a real commit failure after one file has moved. The latter deliberately demonstrates mixed output and its operational diagnostic. The CLI reference states this limited guarantee. All pass in the full Nuke run, apart from the pending command acceptance cases.
 
 ## Open questions
+
+### CLI orchestration, 2026-11-02
+
+The existing host and source-generated mediator coordinate settings, captured-model loading, static backend selection, validation, generation and owned publication. Hosted command factories receive that same service provider. Three host/handler tests pass, and all 11 original BDD cases now pass with the command binding. The full run exposed the new cancellation regression, now corrected and verified in the reporting task. All 229 current Tooling tests pass; other full-run suites pass.
 
 No unresolved scope decisions block the agreed plan. Wider scalar ABI profiles, Application packaging and ecosystem-wide configuration precedence belong to separately reviewed changes.

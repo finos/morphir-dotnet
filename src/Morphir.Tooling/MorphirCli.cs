@@ -48,6 +48,7 @@ public sealed class MorphirCliBuilder
     private readonly RootCommand _rootCommand;
     private readonly List<Action<IServiceCollection>> _serviceConfigurations = new();
     private readonly List<Action<RootCommand>> _commandConfigurations = new();
+    private readonly List<Func<IServiceProvider, Command>> _hostedCommands = new();
     private readonly List<ICommandProvider> _commandProviders = new();
 
     internal MorphirCliBuilder(string[] args, string description = "Morphir CLI")
@@ -102,6 +103,13 @@ public sealed class MorphirCliBuilder
     public MorphirCliBuilder AddCommand(Command command)
     {
         _rootCommand.Subcommands.Add(command);
+        return this;
+    }
+
+    /// <summary>Adds a command whose action uses this application's service provider.</summary>
+    public MorphirCliBuilder AddCommand(Func<IServiceProvider, Command> createCommand)
+    {
+        _hostedCommands.Add(createCommand);
         return this;
     }
 
@@ -176,6 +184,8 @@ public sealed class MorphirCliBuilder
         }
 
         var host = _hostBuilder.Build();
+        foreach (var createCommand in _hostedCommands)
+            _rootCommand.Subcommands.Add(createCommand(host.Services));
         return new MorphirCliApp(host, _rootCommand, Args);
     }
 
