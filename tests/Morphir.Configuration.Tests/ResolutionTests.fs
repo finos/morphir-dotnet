@@ -234,6 +234,57 @@ let tests =
                 ))
                 "structured environment values"
         }
+        test "environment secret references replace lower objects atomically" {
+            let lower = source "morphir.json" SourceRole.RootPrimary DocumentFormat.Json
+            let secret = ConfigValue.SecretReference(Map.ofList [ "env", text "TOKEN" ])
+
+            let result =
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [
+                            supplied
+                                lower
+                                (obj [
+                                    "custom", obj [ "credential", obj [ "stale", text "value" ] ]
+                                ])
+                        ]
+                        Environment =
+                            Map.ofList [ "MORPHIR_CUSTOM__CREDENTIAL", "{\"env\":\"TOKEN\"}" ]
+                    }
+
+            Expect.equal
+                (ConfigTree.tryFind [ "custom"; "credential" ] result.Effective)
+                (Some secret)
+                "the environment reference retains its type and replaces every lower field"
+
+            Expect.equal
+                result.Origins.[[ "custom"; "credential" ]].Source.Role
+                SourceRole.Environment
+                "the reference is an environment-owned leaf"
+        }
+        test "logging file remains an ordinary setting when levels are overlaid" {
+            let lower = source "logging.json" SourceRole.RootPrimary DocumentFormat.Json
+            let raw = obj [ "logging", obj [ "file", text "app.log" ] ]
+            let document = Normalization.normalize lower raw Map.empty
+
+            let result =
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [
+                            {
+                                Source = lower
+                                Required = false
+                                Content = SourceContent.Available document
+                            }
+                        ]
+                        Environment = Map.ofList [ "MORPHIR_LOGGING", "{\"level\":\"debug\"}" ]
+                    }
+
+            Expect.equal
+                (ConfigTree.tryFind [ "logging"; "file" ] result.Effective)
+                (Some(text "app.log"))
+                "logging.file is an output path and survives the ordinary map overlay"
+        }
         test "empty arrays and shape changes erase stale winning children" {
             let lower = source "lower" SourceRole.RootPrimary DocumentFormat.Json
             let higher = source "higher" SourceRole.RootPrimary DocumentFormat.Toml

@@ -46,16 +46,39 @@ module Normalization =
                     |> Option.exists nonemptyString)
             | _ -> false
 
-    let rec private normalizeSecrets value =
+    let rec internal normalizeSecrets path value =
         match value with
         | ConfigValue.Object fields ->
-            let normalized = Map.map (fun _ child -> normalizeSecrets child) fields
+            let normalized =
+                Map.map
+                    (fun key child ->
+                        normalizeSecrets
+                            (path
+                             @ [ key ])
+                            child
+                    )
+                    fields
 
-            if secretReference normalized then
+            // The document root is always a mapping. The schema's logging.file
+            // is an output path, so the logging container also keeps map semantics.
+            if
+                not path.IsEmpty
+                && path
+                   <> [ "logging" ]
+                && secretReference normalized
+            then
                 ConfigValue.SecretReference normalized
             else
                 ConfigValue.Object normalized
-        | ConfigValue.Array values -> ConfigValue.Array(List.map normalizeSecrets values)
+        | ConfigValue.Array values ->
+            values
+            |> List.mapi (fun index child ->
+                normalizeSecrets
+                    (path
+                     @ [ string index ])
+                    child
+            )
+            |> ConfigValue.Array
         | _ -> value
 
     let normalize source raw positions =
@@ -222,7 +245,7 @@ module Normalization =
         {
             Source = source
             Raw = raw
-            Values = normalizeSecrets values
+            Values = normalizeSecrets [] values
             Positions = canonicalPositions
             Diagnostics = diagnostics
             LegacyFields = notes

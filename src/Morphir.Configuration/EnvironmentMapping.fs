@@ -114,7 +114,8 @@ module EnvironmentMapping =
                 Profile = None
             }
 
-            let tree = ConfigTree.set path (parse value) DocumentDefaults.emptyValue
+            let parsed = parse value
+            let tree = ConfigTree.set path parsed DocumentDefaults.emptyValue
 
             {
                 Source = source
@@ -124,7 +125,11 @@ module EnvironmentMapping =
                         {
                             Source = source
                             Raw = tree
-                            Values = tree
+                            Values =
+                                ConfigTree.set
+                                    path
+                                    (Normalization.normalizeSecrets path parsed)
+                                    DocumentDefaults.emptyValue
                             Positions = Map.empty
                             Diagnostics = []
                             LegacyFields = []
