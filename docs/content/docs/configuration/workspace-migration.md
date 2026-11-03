@@ -45,6 +45,13 @@ empty filters and `..` segments are invalid. Excluded directories are pruned.
 Existing `workspace.exclude` patterns retain their declared workspace-base
 anchor and cannot be overridden by an include filter.
 
+Filters select conversions; they do not remove existing declared members. Shared
+discovery still inspects those members to verify their unchanged ownership and
+selection. If a retained membership glob would enter a skipped output/dependency
+tree or nested workspace, the plan reports `workspace.migrate_membership_boundary`
+and blocks. Refine the declared membership or exclusions explicitly; migration
+does not silently narrow a glob to the projects it happened to inventory.
+
 Version control directories `.git`, `.hg`, `.svn`, dependency directories
 `node_modules`, `elm-stuff`, `vendor`, `.nuget`, `packages`, and output directories
 `bin`, `obj`, `dist`, `build`, `target` are skipped. Primary layout directories
@@ -72,6 +79,10 @@ undeclared empty root reports that adoption is impossible.
 project's `Presentation` for logs. The canonical `Plan.Candidate` and `Plan.Edits`
 contain application values, including secrets; do not log them. Secret references
 remain opaque leaves. Unsupported values cannot be dropped to make a batch pass.
+The classic source contract is the same as project migration: a supported `.json`
+manifest can contain full accepted JSON5 syntax. Legacy-shaped primaries in other
+extensions are reported as blockers by the project service, rather than falsely
+labeled already migrated. Canonical multi-format primaries remain readable.
 
 Every conversion receives explicit proposed base workspace context. Verification
 disables activation and compares declared profile controls separately. The
@@ -80,6 +91,13 @@ shared discovery and distinct-path selection. It must preserve project source
 paths and non-adoption settings. Intended ownership, membership, default selection
 and shared output-root changes appear separately in `AdoptionEffects`. They do
 not authorize other value changes. Existing generated files stay where they are.
+
+Root classic conversion uses the original target for conflict and loss checks,
+then composes the reviewed member additions in the common workspace context.
+Existing conflicting membership values still block. Declared workspace bases and
+output roots do not reanchor the root project's source directory. The additive
+`ProjectMigrationService.PlanInWorkspace` API supplies component plans for this
+composition; these read-only components cannot bypass aggregate application.
 
 ## Application and recovery
 

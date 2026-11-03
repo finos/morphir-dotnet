@@ -151,7 +151,7 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
             // Existing declarations are preserved verbatim. Only append explicit paths not already represented.
             var originalMembers = Strings(rootLocation.Values, "workspace", "members").ToArray();
             members.AddRange(originalMembers);
-            var bounded = new InventoryTree(observed, root, availableDirectories);
+            var bounded = new MembershipTree(observed, root, availableDirectories, outputDirectory);
             var existingDiscovery = declared ? ProjectSystem.Discover(bounded, root).Discovery : null;
             if (existingDiscovery is not null)
             {
@@ -162,7 +162,8 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
                     if (!ProjectPath.contains(root, old.Path) || inventory.Any(i => i.Kind == WorkspaceInventoryKind.Boundary && ProjectPath.contains(i.Path, old.Path)))
                         Error(old.Path, "workspace.migrate_membership", "Existing membership crosses the operation or nested-workspace boundary.");
                     if (!inventory.Any(i => i.Path == old.Path))
-                        inventory.Add(new(old.Path, ProjectPath.relative(root, old.Path), WorkspaceInventoryKind.AlreadyMigrated, "Existing declared member retained.", old.Name?.Value));
+                        inventory.Add(new(old.Path, ProjectPath.relative(root, old.Path), Classics(old.Location).Any() ? WorkspaceInventoryKind.Excluded : WorkspaceInventoryKind.AlreadyMigrated,
+                            "Existing declared member retained without conversion.", old.Name?.Value));
                 }
             }
             var existingPaths = existingDiscovery?.Projects.Select(p => p.Path).ToHashSet(StringComparer.Ordinal) ?? [];
@@ -194,12 +195,30 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
                 workspaceText = rendered.Text;
             }
             var overlay = new CandidateTree(bounded, root);
-            overlay.Set(target, workspaceText);
+            if (edits.Count > 0) overlay.Set(target, workspaceText);
             // Convert root first so all members resolve against its final proposed canonical base.
             if (locations.TryGetValue(root, out var selectedRoot) && Classics(selectedRoot).Any())
             {
                 var service = new ProjectMigrationService(overlay);
-                var rootPreview = service.PlanInWorkspace(root, Context(overlay, root, Classics(selectedRoot).Select(s => s.Source.Path)), Classics(selectedRoot).Single().Source.Path, target);
+                var originalTarget = rootTomls.FirstOrDefault() ?? new SourceInput(new SourceIdentity(target, DocumentFormat.Toml, SourceRole.RootPrimary, 4, null), SourceContent.Missing, false);
+                var rootContext = Context(overlay, root, Classics(selectedRoot).Select(s => s.Source.Path),
+                    edits.Count > 0 ? members : null, originalTarget);
+                var projected = rootContext.RootSources.FirstOrDefault(s => s.Source.Path == target)?.Content is SourceContent.Available projectedDocument
+                    ? projectedDocument.Item.Raw : DocumentDefaults.emptyValue;
+                // Carry declared ownership controls without retaining the converted classic as a base layer.
+                // All remaining root conversion values still come through the unchanged loss/equivalence mapper.
+                foreach (var control in new[] { "root", "out_dir" })
+                {
+                    var key = ReaderValues.List(new[] { "workspace", control });
+                    var value = ConfigTree.tryFind(key, rootLocation.Values);
+                    if (value is not null) projected = ConfigTree.set(key, value.Value, projected);
+                }
+                var projectedIdentity = new SourceIdentity(target, DocumentFormat.Toml, SourceRole.RootPrimary, 4, null);
+                var projectedInput = new SourceInput(projectedIdentity, SourceContent.NewAvailable(Normalization.normalize(projectedIdentity, projected,
+                    MapModule.Empty<FSharpList<string>, SourcePosition>())), false);
+                rootContext = new ProjectMigrationContext(root, rootContext.Workspace,
+                    rootContext.RootSources.Where(s => s.Source.Path != target).Append(projectedInput), edits.Count > 0 ? members : null, originalTarget);
+                var rootPreview = service.PlanInWorkspace(root, rootContext, Classics(selectedRoot).Single().Source.Path, target);
                 projects.Add(rootPreview); diagnostics.AddRange(rootPreview.Diagnostics);
                 if (rootPreview.CanApply)
                 {
@@ -230,6 +249,8 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
                 if (index >= 0) inventory[index] = inventory[index] with { Kind = WorkspaceInventoryKind.AlreadyMigrated, Reason = "Equivalent migrated project retained without rewriting." };
             }
             if (projects.Any(p => !p.CanApply) || diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error)) return Result();
+            if (projects.Count > 1 && projects.Any(p => !Equals(p.Verification!.BaseWorkspace, projects[0].Verification!.BaseWorkspace)))
+            { Error(root, "workspace.migrate_context", "Conversions do not share the same proposed base workspace context."); return Result(); }
             if (!declared)
             {
                 // Adoption may change topology/output roots, but never unrelated values.
@@ -245,10 +266,15 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
                         Error(path, "workspace.migrate_adoption_value", "Adoption changes a non-adoption setting; review the project and proposed shared base settings.");
                 }
             }
+            // Check the actual retained-source view as well as independent conversion discovery.
+            var retained = ProjectSystem.Discover(overlay, root).Discovery;
             // Remove every converted classic input together. Rerun actual discovery/selection over the whole candidate.
             foreach (var project in projects) overlay.Hide(project.SourcePath!);
             var candidate = ProjectSystem.Discover(overlay, root).Discovery;
             diagnostics.AddRange(candidate.Diagnostics);
+            if (retained.Location != candidate.Location || !Equals(retained.Workspace, candidate.Workspace)
+                || !retained.Projects.Select(p => (p.Path, p.Name?.Value, p.IsValid)).SequenceEqual(candidate.Projects.Select(p => (p.Path, p.Name?.Value, p.IsValid))))
+                Error(root, "workspace.migrate_verification", "Retained-source discovery differs from the independently converted workspace.");
             if (candidate.Location != root || candidate.Workspace is null || candidate.Projects.Any(p => !p.IsValid))
                 Error(root, "workspace.migrate_verification", "Proposed workspace discovery is invalid.");
             var expectedPaths = locations.Keys.Concat(existingPaths).Concat(rootProject ? new[] { root } : []).Where(p => p == root || ProjectPath.contains(workspaceBase, p)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
@@ -262,6 +288,10 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
             }
             var beforeSelection = existingDiscovery is null ? null : DiscoveryPolicy.select(existingDiscovery, null);
             var afterSelection = DiscoveryPolicy.select(candidate, null);
+            var retainedSelection = DiscoveryPolicy.select(retained, null);
+            if (!retainedSelection.Projects.Select(p => p.Path).SequenceEqual(afterSelection.Projects.Select(p => p.Path))
+                || !retainedSelection.Diagnostics.Select(d => d.Code).SequenceEqual(afterSelection.Diagnostics.Select(d => d.Code)))
+                Error(root, "workspace.migrate_selection", "Retained-source default selection differs from the independently converted workspace.");
             if (Has(rootLocation.Values, "workspace", "default_member") && afterSelection.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
                 Error(root, "workspace.migrate_default", "The declared default member is not a valid unambiguous project in the proposed workspace.");
             var beforeSelected = beforeSelection is null ? "" : string.Join(",", beforeSelection.Projects.Select(p => p.Path));
@@ -298,6 +328,10 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
             var transaction = storage is null ? null : new ConfigurationTransactionPlan(observed.Evidence.Values, changes);
             return Result(verified, changed, transaction);
         }
+        catch (MembershipBoundaryException boundary)
+        { Error(boundary.BoundaryPath, boundary.Code, boundary.Message); return Result(); }
+        catch (RegexMatchTimeoutException)
+        { Error(root, "workspace.migrate_filter_limit", "Filter evaluation exceeded its bounded matching time. Simplify the include/exclude patterns."); return Result(); }
         catch (ObservationConflictException) { Error(root, "workspace.migrate_stale", "Inventory or source changed while planning."); return Result(); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or InvalidOperationException)
         { Error(root, "workspace.migrate_io", "Unable to inventory, parse or compose workspace migration. Check paths and permissions."); return Result(); }
@@ -326,11 +360,12 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
         var entries = DiscoveryPolicy.candidates(path).Select(p => Tuple.Create(p, tree.Observe(p)));
         return DiscoveryPolicy.inspectLocation(path, new ProjectSnapshot(MapModule.OfSeq(entries)));
     }
-    private static ProjectMigrationContext Context(IProjectTree tree, string root, IEnumerable<string> convertedSources)
+    private static ProjectMigrationContext Context(IProjectTree tree, string root, IEnumerable<string> convertedSources,
+        IEnumerable<string>? proposedMembers = null, SourceInput? originalTarget = null)
     {
         var found = ProjectSystem.Discover(tree, root).Discovery;
         var converted = convertedSources.ToHashSet(StringComparer.Ordinal);
-        return new(root, found.Workspace, found.Root.Sources.Where(s => !converted.Contains(s.Source.Path)));
+        return new(root, found.Workspace, found.Root.Sources.Where(s => !converted.Contains(s.Source.Path)), proposedMembers, originalTarget);
     }
     private static IEnumerable<SourceInput> Classics(ProjectLocation location) => location.Sources.Where(s =>
         s.Content is SourceContent.Available a
@@ -343,21 +378,21 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
     private static ConfigValue ArrayValue(IEnumerable<string> values) => ConfigValue.NewArray(ReaderValues.List(values.Select(ConfigValue.NewString)));
     private static bool Skipped(string name) => name is ".git" or ".hg" or ".svn" or "node_modules" or "elm-stuff" or "bin" or "obj" or "dist" or "build" or "target" or "vendor" or ".nuget" or "packages";
     private static bool ValidPattern(string pattern) => !string.IsNullOrWhiteSpace(pattern) && !ProjectPath.isAbsolute(pattern)
-        && !pattern.Replace('\\','/').Split('/').Contains("..", StringComparer.Ordinal) && !pattern.Contains(':');
+        && !pattern.Replace('\\', '/').Split('/').Contains("..", StringComparer.Ordinal) && !pattern.Contains(':');
     internal static bool Glob(string pattern, string relative)
     {
-        var parts = pattern.Replace('\\','/').Split('/', StringSplitOptions.RemoveEmptyEntries).Where(s => s != ".").ToArray();
+        var parts = pattern.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries).Where(s => s != ".").ToArray();
         var path = relative.Split('/', StringSplitOptions.RemoveEmptyEntries).Where(s => s != ".").ToArray();
-        var memo = new Dictionary<(int,int),bool>();
-        bool Match(int p,int v)
+        var memo = new Dictionary<(int, int), bool>();
+        bool Match(int p, int v)
         {
-            if (memo.TryGetValue((p,v),out var found)) return found;
+            if (memo.TryGetValue((p, v), out var found)) return found;
             var result = p == parts.Length ? v == path.Length : parts[p] == "**"
-                ? Match(p+1,v) || v < path.Length && Match(p,v+1)
-                : v < path.Length && Regex.IsMatch(path[v], "\\A" + Regex.Escape(parts[p]).Replace("\\*", ".*").Replace("\\?", ".") + "\\z", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)) && Match(p+1,v+1);
-            memo[(p,v)] = result; return result;
+                ? Match(p + 1, v) || v < path.Length && Match(p, v + 1)
+                : v < path.Length && Regex.IsMatch(path[v], "\\A" + Regex.Escape(parts[p]).Replace("\\*", ".*").Replace("\\?", ".") + "\\z", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)) && Match(p + 1, v + 1);
+            memo[(p, v)] = result; return result;
         }
-        return Match(0,0);
+        return Match(0, 0);
     }
     private static bool Excluded(string relative, IEnumerable<string> patterns) => patterns.Any(p => Glob(p, relative));
     private static ConfigDiagnostic Diagnostic(string path, string code, string message) => new(code, message, DiagnosticSeverity.Error,
@@ -384,7 +419,7 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
         }
         var text = "";
         if (raw is ConfigValue.Object fields)
-            foreach (var field in fields.Item) text = Render(text, [new(ReaderValues.List(new[] { field.Key }),field.Value)]);
+            foreach (var field in fields.Item) text = Render(text, [new(ReaderValues.List(new[] { field.Key }), field.Value)]);
         return TextBuffer.Decode(Encoding.UTF8.GetBytes(text));
     }
     private sealed class ObservationConflictException : IOException;
@@ -392,66 +427,97 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
     {
         public string Boundary => root;
         public IConfigurationTransactionHost? Storage => storage;
-        public Dictionary<string,ConfigurationObservation> Evidence { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, ConfigurationObservation> Evidence { get; } = new(StringComparer.Ordinal);
         private readonly Dictionary<string, ProjectEntry> entries = new(StringComparer.Ordinal);
         public ProjectEntry Observe(string path)
         {
-            if (!ProjectPath.contains(root,path)) return ProjectEntry.NewFailure("Outside operation boundary");
+            if (!ProjectPath.contains(root, path)) return ProjectEntry.NewFailure("Outside operation boundary");
             var before = storage?.Observe(path);
-            if (before is not null && Evidence.TryGetValue(path,out var prior) && prior != before) throw new ObservationConflictException();
-            var entry=inner.Observe(path);
+            if (before is not null && Evidence.TryGetValue(path, out var prior) && prior != before) throw new ObservationConflictException();
+            var entry = inner.Observe(path);
             if (entry is ProjectEntry.File && before?.Kind == ConfigurationObservationKind.File)
             {
-                var bytes=storage!.ReadFile(path);
-                if (NativeConfigurationTransactionHost.Hash(bytes)!=before.Identity) throw new ObservationConflictException();
-                entry=ProjectEntry.NewFile(ConfigurationReader.ReadText(path,TextBuffer.Decode(bytes).Text).Content);
+                var bytes = storage!.ReadFile(path);
+                if (NativeConfigurationTransactionHost.Hash(bytes) != before.Identity) throw new ObservationConflictException();
+                entry = ProjectEntry.NewFile(ConfigurationReader.ReadText(path, TextBuffer.Decode(bytes).Text).Content);
             }
             if (storage is not null)
             {
-                if (storage.Observe(path)!=before) throw new ObservationConflictException();
-                Evidence[path]=before!;
+                if (storage.Observe(path) != before) throw new ObservationConflictException();
+                Evidence[path] = before!;
             }
-            if (entries.TryGetValue(path,out var old) && !old.Equals(entry)) throw new ObservationConflictException();
-            entries[path]=entry;
+            if (entries.TryGetValue(path, out var old) && !old.Equals(entry)) throw new ObservationConflictException();
+            entries[path] = entry;
             return entry;
         }
     }
-    // Reuse discovery over exactly the inventoried directories. Globs must not reopen
-    // excluded output trees or nested workspace boundaries during aggregate verification.
-    private sealed class InventoryTree(IProjectTree inner, string root, HashSet<string> directories) : IProjectTree
+    // Keep the real shared discovery semantics. Existing ownership may require reading
+    // filtered members, but a declaration cannot force reads across hard boundaries.
+    private sealed class MembershipBoundaryException(string path, string code, string message) : IOException(message)
+    {
+        public string BoundaryPath { get; } = path;
+        public string Code { get; } = code;
+    }
+    private sealed class MembershipTree(IProjectTree inner, string root, HashSet<string> inventoried, string? outputDirectory) : IProjectTree
     {
         public string Boundary => root;
-        private readonly HashSet<string> primaries = directories.SelectMany(DiscoveryPolicy.candidates).ToHashSet(StringComparer.Ordinal);
+        private readonly HashSet<string> checkedDirectories = new(inventoried, StringComparer.Ordinal);
         public ProjectEntry Observe(string path)
         {
-            if (!directories.Contains(path) && !primaries.Contains(path)) return ProjectEntry.Missing;
-            var entry = inner.Observe(path);
-            return entry is ProjectEntry.Directory directory
-                ? ProjectEntry.NewDirectory(ReaderValues.List(directory.children.Where(directories.Contains))) : entry;
+            if (!ProjectPath.contains(root, path)) return inner.Observe(path);
+            var anchor = path;
+            // Resolve hidden primary ownership exactly as the single-project input policy does.
+            for (var directory = ProjectPath.parent(path); ProjectPath.contains(root, directory); directory = ProjectPath.parent(directory))
+            {
+                if (DiscoveryPolicy.candidates(directory).Contains(path)) anchor = directory;
+                if (directory == root) break;
+            }
+            var ancestors = new Stack<string>();
+            for (var directory = anchor; directory != root && ProjectPath.contains(root, directory); directory = ProjectPath.parent(directory)) ancestors.Push(directory);
+            while (ancestors.TryPop(out var directory))
+            {
+                if (checkedDirectories.Contains(directory)) continue;
+                if (Skipped(Path.GetFileName(directory)) || Path.GetFileName(directory) is ".morphir" or ".config"
+                    || outputDirectory is not null && ProjectPath.contains(outputDirectory, directory)) throw Conflict(directory);
+                var entry = inner.Observe(directory);
+                if (entry.IsLink)
+                {
+                    if (directory != anchor || path != anchor) throw Conflict(directory);
+                    break;
+                }
+                if (entry is not ProjectEntry.Directory) break;
+                if (Has(Inspect(inner, directory).Values, "workspace")) throw Conflict(directory);
+                if (checkedDirectories.Count >= 100000)
+                    throw new MembershipBoundaryException(directory, "workspace.migrate_inventory_limit", "Inventory directory limit exceeded while verifying existing membership.");
+                checkedDirectories.Add(directory);
+            }
+            return inner.Observe(path);
         }
+        private static MembershipBoundaryException Conflict(string path) => new(path, "workspace.migrate_membership_boundary",
+            "Existing membership reaches a skipped directory or nested declared workspace. Refine its declarations or exclusions before migration.");
     }
-    private sealed class CandidateTree(IProjectTree inner,string root) : IProjectTree
+    private sealed class CandidateTree(IProjectTree inner, string root) : IProjectTree
     {
         public string Boundary => root;
-        public Dictionary<string,string> Texts { get; }=new(StringComparer.Ordinal);
+        public Dictionary<string, string> Texts { get; } = new(StringComparer.Ordinal);
         private readonly HashSet<string> hidden = new(StringComparer.Ordinal);
-        public void Set(string path,string text) => Texts[path]=text;
+        public void Set(string path, string text) => Texts[path] = text;
         public void Hide(string path) => hidden.Add(path);
         public ProjectEntry Observe(string path) => hidden.Contains(path) ? ProjectEntry.Missing
-            : Texts.TryGetValue(path,out var text) ? ProjectEntry.NewFile(ConfigurationReader.ReadText(path,text).Content) : inner.Observe(path);
+            : Texts.TryGetValue(path, out var text) ? ProjectEntry.NewFile(ConfigurationReader.ReadText(path, text).Content) : inner.Observe(path);
     }
     private sealed record TextBuffer(string Text, Encoding Encoding, byte[] Preamble)
     {
-        public byte[] Encode(string text) => [.. Preamble,.. Encoding.GetBytes(text)];
+        public byte[] Encode(string text) => [.. Preamble, .. Encoding.GetBytes(text)];
         public static TextBuffer Decode(byte[] bytes)
         {
-            Encoding[] encodings=[new UTF32Encoding(false,true,true),new UTF32Encoding(true,true,true),new UTF8Encoding(true,true),new UnicodeEncoding(false,true,true),new UnicodeEncoding(true,true,true)];
-            foreach(var encoding in encodings)
+            Encoding[] encodings = [new UTF32Encoding(false, true, true), new UTF32Encoding(true, true, true), new UTF8Encoding(true, true), new UnicodeEncoding(false, true, true), new UnicodeEncoding(true, true, true)];
+            foreach (var encoding in encodings)
             {
-                var preamble=encoding.GetPreamble();
-                if(bytes.AsSpan().StartsWith(preamble)) return new(encoding.GetString(bytes.AsSpan(preamble.Length)),encoding,preamble);
+                var preamble = encoding.GetPreamble();
+                if (bytes.AsSpan().StartsWith(preamble)) return new(encoding.GetString(bytes.AsSpan(preamble.Length)), encoding, preamble);
             }
-            var utf8=new UTF8Encoding(false,true);return new(utf8.GetString(bytes),utf8,[]);
+            var utf8 = new UTF8Encoding(false, true); return new(utf8.GetString(bytes), utf8, []);
         }
     }
 }

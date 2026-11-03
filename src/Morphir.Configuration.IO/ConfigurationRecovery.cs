@@ -23,6 +23,8 @@ internal sealed record RecoveryDocument(string TransactionId, bool Committed,
     ImmutableArray<ConfigurationArtifact> Artifacts)
 {
     internal ImmutableArray<string> PendingDirectories { get; init; } = [];
+    internal ImmutableArray<string> PlannedDirectories { get; init; } = [];
+    internal ImmutableArray<string> UnverifiedPaths { get; init; } = [];
 
     // A committed witness must remain above every destination while cleanup runs.
     internal string MetadataDestination => ProjectPath.join(Guards.First(g => Entries.All(e => ProjectPath.contains(g, e.Target))), ".morphir-transaction");
@@ -41,6 +43,8 @@ internal sealed record RecoveryDocument(string TransactionId, bool Committed,
         {
             writer.WriteStartObject(); writer.WriteNumber("version", 2);
             writer.WriteString("transactionId", TransactionId); writer.WriteBoolean("committed", Committed);
+            writer.WriteStartArray("plannedDirectories"); foreach (var path in PlannedDirectories) writer.WriteStringValue(path); writer.WriteEndArray();
+            writer.WriteStartArray("unverifiedPaths"); foreach (var path in UnverifiedPaths) writer.WriteStringValue(path); writer.WriteEndArray();
             writer.WriteStartArray("pendingDirectories"); foreach (var path in PendingDirectories) writer.WriteStringValue(path); writer.WriteEndArray();
             writer.WriteStartArray("guards"); foreach (var path in Guards) writer.WriteStringValue(path); writer.WriteEndArray();
             writer.WriteStartArray("entries");
@@ -71,6 +75,8 @@ internal sealed record RecoveryDocument(string TransactionId, bool Committed,
         if (id.Length != 32 || id.Any(c => !Uri.IsHexDigit(c))) throw new InvalidDataException("Invalid journal owner");
         var pendingDirectories = root.TryGetProperty("pendingDirectories", out var pending)
             ? pending.EnumerateArray().Select(Text).ToImmutableArray() : [];
+        var plannedDirectories = root.GetProperty("plannedDirectories").EnumerateArray().Select(Text).ToImmutableArray();
+        var unverifiedPaths = root.GetProperty("unverifiedPaths").EnumerateArray().Select(Text).ToImmutableArray();
         var guards = root.GetProperty("guards").EnumerateArray().Select(Text).ToImmutableArray();
         var entries = root.GetProperty("entries").EnumerateArray().Select(e => new RecoveryEntry(
             Text(e.GetProperty("target")), Enum.Parse<ConfigurationObservationKind>(Text(e.GetProperty("originalKind"))),
@@ -82,6 +88,19 @@ internal sealed record RecoveryDocument(string TransactionId, bool Committed,
         static bool Hash(string value) => value.Length == 64 && value.All(Uri.IsHexDigit);
         bool Owned(string path) => Canonical(path) && Path.GetFileName(path).StartsWith(".morphir-edit-" + id + "-", StringComparison.Ordinal)
             && guards.Contains(ProjectPath.parent(path), StringComparer.Ordinal);
+        var result = new RecoveryDocument(id, root.GetProperty("committed").GetBoolean(), guards, entries, artifacts)
+        { PendingDirectories = pendingDirectories, PlannedDirectories = plannedDirectories, UnverifiedPaths = unverifiedPaths };
+        var knownJournals = guards.Select(g => ArtifactPath(ProjectPath.join(g, ".morphir-transaction"), id, "journal"))
+            .Concat(new[] { "journal-directories", "journal-ready", "journal-committed", "journal-recovery" }
+                .Select(role => ArtifactPath(result.MetadataDestination, id, role))).ToHashSet(StringComparer.Ordinal);
+        bool ExpectedArtifact(ConfigurationArtifact artifact) => artifact.Kind switch
+        {
+            ConfigurationArtifactKind.Stage => entries.Any(e => e.Stage == artifact.Path),
+            ConfigurationArtifactKind.Backup => entries.Any(e => e.Backup == artifact.Path),
+            ConfigurationArtifactKind.Journal => knownJournals.Contains(artifact.Path),
+            ConfigurationArtifactKind.Directory => plannedDirectories.Contains(artifact.Path, StringComparer.Ordinal),
+            _ => false
+        };
         if (guards.IsDefaultOrEmpty || guards.Any(p => !Canonical(p)) || entries.IsDefaultOrEmpty
             || entries.Select(e => e.Target).Distinct(StringComparer.Ordinal).Count() != entries.Length
             || entries.Any(e => !Canonical(e.Target) || !Hash(e.CandidateIdentity)
@@ -91,14 +110,17 @@ internal sealed record RecoveryDocument(string TransactionId, bool Committed,
                 || !Owned(e.Stage) || e.Stage != ArtifactPath(e.Target, id, "stage")
                 || e.Backup is not null && (!Owned(e.Backup) || e.Backup != ArtifactPath(e.Target, id, "backup"))
                 || !guards.Contains(ProjectPath.parent(e.Target), StringComparer.Ordinal))
-            || pendingDirectories.Any(p => !Canonical(p) || !entries.Any(e => e.Target != p && ProjectPath.contains(p, e.Target)))
+            || plannedDirectories.Any(p => !Canonical(p) || !entries.Any(e => e.Target != p && ProjectPath.contains(p, e.Target)))
+            || pendingDirectories.Any(p => !plannedDirectories.Contains(p, StringComparer.Ordinal))
+            || artifacts.Any(a => !ExpectedArtifact(a))
             || artifacts.Any(a => !Enum.IsDefined(a.Kind))
             || artifacts.Any(a => a.Kind == ConfigurationArtifactKind.Directory
                 ? !Canonical(a.Path) || !guards.Any(g => ProjectPath.contains(a.Path, g))
                 : !Owned(a.Path))
-            || !Owned(journalPath) || !IsJournal(journalPath))
+            || !Owned(journalPath) || !knownJournals.Contains(journalPath)
+            || result.Committed != journalPath.EndsWith("-journal-committed", StringComparison.Ordinal))
             throw new InvalidDataException("Invalid journal ownership");
-        return new(id, root.GetProperty("committed").GetBoolean(), guards, entries, artifacts) { PendingDirectories = pendingDirectories };
+        return result;
     }
 }
 
@@ -155,7 +177,7 @@ public sealed partial class ConfigurationTransaction
             var document = LatestRecoveryDocument(ReadRecovery(journalPath));
             if (preserved.Any(p => !document.PendingDirectories.Contains(p, StringComparer.Ordinal)
                 || host.Observe(p).Kind != ConfigurationObservationKind.Directory)) return Required("config.recovery_invalid_options");
-            if (RecoveryUnresolved(document, RecoveryArtifacts(document, journalPath), preserved).Length > 0) return Required(inspection.Code);
+            if (RecoveryUnresolved(document, RecoveryArtifacts(document, journalPath), preserved, ignoreUnverified: true).Length > 0) return Required(inspection.Code);
             if (!SameOperation(initial, document)) return Required("config.recovery_changed");
             if (document.Guards.Any(g => host.EnumerateTransactionArtifacts(g, document.TransactionId) is null))
                 return Required("config.recovery_host_capability");
@@ -193,7 +215,7 @@ public sealed partial class ConfigurationTransaction
                 }
             }
             var artifacts = RecoveryArtifacts(document, journalPath).ToList();
-            if (unresolved.Count > 0 || !TryCleanup(artifacts, document.Committed, document))
+            if (unresolved.Count > 0 || !TryCleanup(artifacts, document.Committed, document, preservedDirectories: preserved))
                 return new(ConfigurationTransactionStatus.RecoveryRequired, "config.recovery_required", inspection.Targets, Retained(artifacts))
                 { RestoredPaths = restored.ToImmutableArray(), UnresolvedPaths = unresolved.Count > 0 ? unresolved.ToImmutableArray() : inspection.Targets };
             return new(document.Committed ? ConfigurationTransactionStatus.Written : ConfigurationTransactionStatus.RolledBack,
@@ -205,7 +227,7 @@ public sealed partial class ConfigurationTransaction
 
     private RecoveryDocument LatestRecoveryDocument(RecoveryDocument initial)
     {
-        foreach (var role in new[] { "journal-committed", "journal-ready", "journal-directories" })
+        foreach (var role in new[] { "journal-committed", "journal-recovery", "journal-ready", "journal-directories" })
         {
             var path = RecoveryDocument.ArtifactPath(initial.MetadataDestination, initial.TransactionId, role);
             if (host.Observe(path).Kind == ConfigurationObservationKind.Missing) continue;
@@ -224,7 +246,9 @@ public sealed partial class ConfigurationTransaction
         var bytes = host.ReadFile(path);
         if (NativeConfigurationTransactionHost.Hash(bytes) != observed.Identity || host.Observe(path) != observed)
             throw new InvalidDataException("Journal changed");
-        return RecoveryDocument.Decode(bytes, path);
+        var document = RecoveryDocument.Decode(bytes, path);
+        if (!document.Encode().AsSpan().SequenceEqual(bytes)) throw new InvalidDataException("Journal bytes are not canonical");
+        return document;
     }
 
     private ImmutableArray<ConfigurationArtifact> RecoveryArtifacts(RecoveryDocument document, string journalPath)
@@ -238,13 +262,13 @@ public sealed partial class ConfigurationTransaction
                 known.Add(new(path, RecoveryDocument.IsJournal(path) ? ConfigurationArtifactKind.Journal
                     : path.EndsWith("-backup", StringComparison.Ordinal) ? ConfigurationArtifactKind.Backup : ConfigurationArtifactKind.Stage, document.TransactionId));
         }
-        return known.Distinct().ToImmutableArray();
+        return known.Where(a => !document.UnverifiedPaths.Contains(a.Path, StringComparer.Ordinal)).Distinct().ToImmutableArray();
     }
 
     private ImmutableArray<string> RecoveryUnresolved(RecoveryDocument document, IEnumerable<ConfigurationArtifact> artifacts,
-        IReadOnlySet<string>? preservedDirectories = null)
+        IReadOnlySet<string>? preservedDirectories = null, bool ignoreUnverified = false)
     {
-        var unresolved = new HashSet<string>(StringComparer.Ordinal);
+        var unresolved = new HashSet<string>(ignoreUnverified ? [] : document.UnverifiedPaths, StringComparer.Ordinal);
         foreach (var path in document.PendingDirectories)
         {
             var observed = host.Observe(path);
@@ -284,6 +308,7 @@ public sealed partial class ConfigurationTransaction
 
     private static bool SameOperation(RecoveryDocument first, RecoveryDocument second) => first.TransactionId == second.TransactionId
         && first.Guards.SequenceEqual(second.Guards)
-        && first.Entries.SequenceEqual(second.Entries);
+        && first.Entries.SequenceEqual(second.Entries)
+        && first.PlannedDirectories.SequenceEqual(second.PlannedDirectories);
     private static bool IsRecoveryError(Exception error) => IsIo(error) || error is JsonException or InvalidDataException or InvalidOperationException or ArgumentException or KeyNotFoundException or FormatException or OverflowException;
 }

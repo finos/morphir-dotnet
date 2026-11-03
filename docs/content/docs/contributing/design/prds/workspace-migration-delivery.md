@@ -133,3 +133,82 @@ build retains two existing package warnings; tooling retains three existing
 package/generated warnings. `cli/format-03.log` passes own C# formatter verification.
 `cli/final-receipt.json` and `cli/final-source-sha256.json` record exact commands,
 counts and source identity. Task 4.1 was checked at its refreshed returned location.
+
+### Live artifact ownership review
+
+During final qualification, lead review identified two unverified live-application
+ownership boundaries. `Stage` return paths were registered as owned without
+checking their deterministic target/role identity, and live cleanup did not first
+check whether a backup/journal had changed. Eight new regressions are written
+before fixes. Tasks 3.2 and 3.3 were explicitly reopened at fresh returned
+checkbox locations; earlier passing receipts are source checkpoints, not final
+qualification of these guards. Broad runner evidence is retained as an initial
+checkpoint while the new cases are reproduced and resolved.
+
+The initial broad run completed all 17 configured executable runners successfully
+before the live-ownership fixes. Its receipts are preserved in
+`validation-initial/`; they are not substituted for final-source qualification.
+Counts include core 177, IO 371, tooling 433 and Microsoft 22. The initial full
+solution build has 11 existing dependency/generated warnings and no errors.
+C# full formatter verification and changed F# Fantomas checks pass. The final
+ownership regression set reproduces all ten failures in
+`transactions/live-ownership-red-run.log`, with a clean preceding build.
+
+### Coverage-driven public API qualification
+
+Fresh managed non-CLI qualification passes 28 workspace checks, 32 project
+migration checks, 44 editing checks, 228 JSON5 grammar cases and 26 pinned Morphir
+documents. The compiled host exercises batch preview/application, safe generated
+report serialization, source retention, output retention, byte/timestamp repeats,
+drift and explicit recovery. `qualification-first-summary.json` records exact
+commands and exits; all six format/build/smoke/collector gates pass.
+
+The first current-source coverage union is core 4188/4345, 96.39%, and IO
+2367/2459, 96.26%. IO is below prerequisite 97.15%, so final qualification remains
+open. Public API boundary tests were added for bounded invalid inputs, mounted
+listing/read/drift failures, native staging/parent failures, explicit recovery
+faults/capabilities/options, encodings and full JSON5 escaped values/opaque arrays.
+
+That work also reproduced a real multi-format no-op defect: an existing declared
+workspace without root TOML could stage an empty primary despite `Changed=false`.
+`format-noop-red-run.log` fails all six YAML/YML/JSON/JSON5/supplemental/hidden
+variants before the fix. The aggregate now overlays a root file only when it
+has workspace edits or an actual root conversion. `format-noop-green-run.log`
+passes all six with unchanged source bytes and no new primary. Task 2.2 was
+explicitly reopened for this finding before the minimal production fix.
+
+### Final discovery and composition corrections
+
+`discovery-verification/actual-discovery-probe.json` records the initial defect:
+application could discover four members after a preview verified only one through
+a sanitized inventory tree. The native discovery regression suite first fails
+three of four cases, then passes all four. Verification now uses actual shared
+discovery listings, retains filtered existing membership and rejects declared
+globs that cross a hard dependency/output/nested-workspace boundary. It verifies
+both retained-classic and source-excluded views. No generic discovery semantics
+or existing member declarations are changed to make verification pass.
+
+`root-composition-red-run.log` reproduces a root classic manifest's original
+membership being rejected against adoption's own new members. Shared component
+planning now maps against the original target, validates explicit proposed
+membership against discovery, and composes only the reviewed membership edit.
+A fabricated original target and undeclared membership are rejected. A separate
+red case proves component plans must not independently apply hypothetical
+workspace context; components are now read-only and aggregate application owns
+all writes. Existing target membership conflicts remain blockers.
+
+`root-base-run.log` passes all seven composition cases after actual rebuilding,
+including custom output roots and `workspace.root='sub'` with a root source path.
+The common model uses canonical ownership controls without rendering temporary
+configuration or weakening raw unsupported-value accounting. Every member uses
+the same base workspace; ordinary source paths/settings retain the shared
+single-project verifier. `root-composition-green-io.log` passes the preceding
+428-case full IO checkpoint; final qualification below supersedes it.
+
+Live artifact ownership regressions now pass. Stage and directory receipts must
+match predeclared deterministic ownership; cleanup validates every owned artifact
+before removing any. Altered backups/journals and unverified foreign stage paths
+retain evidence and durable overlap guards. Inspection exposes unresolved paths
+after process-local result loss. Deliberately unresolved fault fixtures remain
+under the owned external artifact root for parent inspection; they are not
+silently cleaned or represented as successful recovery.

@@ -37,11 +37,14 @@ public sealed class ProjectMigrationPreview
 
 /// <summary>Explicit proposed base workspace shared by aggregate conversion hosts.
 /// Contains only declared base primaries; no ambient overlays are loaded.</summary>
-public sealed class ProjectMigrationContext(string rootPath, FSharpOption<OwningWorkspace>? workspace, IEnumerable<SourceInput> rootSources)
+public sealed class ProjectMigrationContext(string rootPath, FSharpOption<OwningWorkspace>? workspace, IEnumerable<SourceInput> rootSources,
+    IEnumerable<string>? proposedMembers = null, SourceInput? originalTarget = null)
 {
     public string RootPath { get; } = rootPath;
     public FSharpOption<OwningWorkspace>? Workspace { get; } = workspace;
     public ImmutableArray<SourceInput> RootSources { get; } = rootSources.ToImmutableArray();
+    public ImmutableArray<string> ProposedMembers { get; } = proposedMembers?.ToImmutableArray() ?? default;
+    public SourceInput? OriginalTarget { get; } = originalTarget;
 }
 
 /// <summary>Plans one classic project over an explicitly bounded tree. A storage adapter is optional
@@ -51,6 +54,8 @@ public sealed class ProjectMigrationService(IProjectTree tree, IConfigurationTra
     public ProjectMigrationPreview Plan(string startPath, string? inputPath = null, string? outputPath = null)
         => PlanCore(startPath, inputPath, outputPath, null);
 
+    /// <summary>Read-only component composition for an aggregate. Apply the aggregate through
+    /// WorkspaceMigrationService; hypothetical base contexts never grant individual write capability.</summary>
     public ProjectMigrationPreview PlanInWorkspace(string startPath, ProjectMigrationContext context, string? inputPath = null, string? outputPath = null)
         => PlanCore(startPath, inputPath, outputPath, context);
 
@@ -115,6 +120,13 @@ public sealed class ProjectMigrationService(IProjectTree tree, IConfigurationTra
                 || context.RootSources.Any(s => s.Source.Role != SourceRole.RootPrimary
                     || !DiscoveryPolicy.candidates(context.RootPath).Contains(s.Source.Path))))
                 return Fail("migration.context", "Proposed context must belong to the discovered workspace base primaries.");
+            if (context is { ProposedMembers.IsDefault: false })
+            {
+                var declared = ConfigTree.tryFind(ReaderValues.List(new[] { "workspace", "members" }), found.Discovery.Root.Values)?.Value;
+                var memberPaths = declared is ConfigValue.Array declaredArray ? declaredArray.Item.OfType<ConfigValue.String>().Select(s => s.Item) : [];
+                if (!context.ProposedMembers.SequenceEqual(memberPaths))
+                    return Fail("migration.context", "Proposed members must match the declared candidate workspace.");
+            }
             var sources = context is null ? found.Discovery.Root.Sources.ToList() : context.RootSources.ToList();
             if (role == SourceRole.MemberPrimary)
                 sources.AddRange(project.Location.Sources.Select(s => Rebind(s, role)));
@@ -142,6 +154,28 @@ public sealed class ProjectMigrationService(IProjectTree tree, IConfigurationTra
                 return Fail("migration.output", "Output is not a writable primary file location.");
             var targetSource = targetEntry is ProjectEntry.File file
                 ? new SourceInput(target, file.Item, false) : new SourceInput(target, SourceContent.Missing, false);
+            if (context?.OriginalTarget is { } original && role == SourceRole.RootPrimary)
+            {
+                if (original.Source.Path != targetPath || original.Source.Format != DocumentFormat.Toml || original.Source.Role != SourceRole.RootPrimary)
+                    return Fail("migration.context", "Original target must identify this root TOML primary.");
+                if (storage is not null)
+                {
+                    var expected = evidence[targetPath];
+                    if (expected.Kind == ConfigurationObservationKind.Missing && !original.Content.IsMissing
+                        || expected.Kind == ConfigurationObservationKind.File && original.Content is not SourceContent.Available)
+                        return Fail("migration.context", "Original target does not match observed target bytes.");
+                    if (expected.Kind == ConfigurationObservationKind.File)
+                    {
+                        var bytes = storage.ReadFile(targetPath);
+                        if (storage.Observe(targetPath) != expected) return Fail("migration.stale", "Target changed while planning.");
+                        var actual = ConfigurationReader.ReadText(target, TextBuffer.Decode(bytes).Text);
+                        if (actual.Content is not SourceContent.Available actualDocument || original.Content is not SourceContent.Available originalDocument
+                            || !ProjectMigration.same(actualDocument.Item.Raw, originalDocument.Item.Raw))
+                            return Fail("migration.context", "Original target does not match observed target bytes.");
+                    }
+                }
+                targetSource = new SourceInput(target, original.Content, false);
+            }
             if (targetSource.Content is SourceContent.Invalid invalid)
             {
                 diagnostics.AddRange(invalid.Item);
@@ -154,6 +188,20 @@ public sealed class ProjectMigrationService(IProjectTree tree, IConfigurationTra
             plan = ProjectMigration.planWithContext(classic, target, raw, baseInput);
             diagnostics.AddRange(plan.Diagnostics);
             if (plan.Blocked) return new(this, sourcePath, targetPath, projectPath, plan, null, diagnostics);
+            if (role == SourceRole.RootPrimary && context is { ProposedMembers.IsDefault: false })
+            {
+                // Membership adoption is an explicit composition step after the unchanged loss/conflict mapper.
+                // Only this declared field can differ; independent verification still checks every value.
+                var key = ReaderValues.List(new[] { "workspace", "members" });
+                var value = ConfigValue.NewArray(ReaderValues.List(context.ProposedMembers.Select(ConfigValue.NewString)));
+                var currentMembers = ConfigTree.tryFind(key, plan.Candidate)?.Value;
+                if (currentMembers is null || !ProjectMigration.same(currentMembers, value))
+                {
+                    var composedEdits = plan.Edits.Where(e => !e.KeyPath.SequenceEqual(key)).Append(new MigrationEdit(key, value));
+                    plan = new MigrationPlan(plan.Source, plan.Target, ConfigTree.set(key, value, plan.Candidate), ReaderValues.List(composedEdits),
+                        plan.Ledger, plan.Conflicts, plan.Diagnostics, plan.Blocked);
+                }
+            }
             TextBuffer buffer;
             if (storage is not null)
             {
@@ -191,7 +239,7 @@ public sealed class ProjectMigrationService(IProjectTree tree, IConfigurationTra
             if (!verification.Verified) return Fail("migration.verification", "Candidate changes project values or resolved path meaning.");
             var changed = plan.Edits.Any();
             ConfigurationTransactionPlan? transaction = null;
-            if (storage is not null)
+            if (storage is not null && context is null)
             {
                 // Directory and missing-primary evidence captures topology drift in addition to exact source bytes.
                 transaction = new ConfigurationTransactionPlan(evidence.Values,

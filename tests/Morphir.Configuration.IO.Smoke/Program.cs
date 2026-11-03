@@ -151,16 +151,16 @@ static (int Editor, int Shared, int Transaction) EditingRuntimeSmoke()
             && failedRecovery.Artifacts.Any(a => a.Kind == ConfigurationArtifactKind.Journal), "Incomplete recovery lost typed artifact evidence");
         Transaction(File.ReadAllBytes(transactionTarget).AsSpan().SequenceEqual(candidateBytes), "Uncertain outcome falsely claimed original bytes");
         var backup = failedRecovery.Artifacts.Single(a => a.Kind == ConfigurationArtifactKind.Backup);
-        var journal = failedRecovery.Artifacts.Single(a => a.Kind == ConfigurationArtifactKind.Journal);
-        using (var metadata = JsonDocument.Parse(File.ReadAllBytes(journal.Path)))
-            Transaction(metadata.RootElement.GetProperty("transactionId").GetString() == backup.TransactionId
-                && metadata.RootElement.GetProperty("target").GetString() == transactionTarget, "Recovery ownership metadata differs");
+        var journal = failedRecovery.Artifacts.First(a => a.Kind == ConfigurationArtifactKind.Journal);
+        var recoveryService = new ConfigurationTransaction(host);
+        var metadata = recoveryService.InspectRecovery(journal.Path);
+        Transaction(metadata.Valid && metadata.TransactionId == backup.TransactionId
+            && metadata.Targets.Contains(transactionTarget), "Recovery ownership metadata differs");
         Transaction(File.ReadAllBytes(backup.Path).AsSpan().SequenceEqual(originalBytes), "Recovery backup lost original bytes");
-        // Simulated manual recovery is guarded by the candidate/backup checks above.
-        host.Install(backup.Path, transactionTarget, true);
-        foreach (var artifact in failedRecovery.Artifacts) host.DeleteFile(artifact.Path);
-        Transaction(File.ReadAllBytes(transactionTarget).AsSpan().SequenceEqual(originalBytes)
-            && failedRecovery.Artifacts.All(a => host.Observe(a.Path).Kind == ConfigurationObservationKind.Missing), "Explicit recovery did not restore bytes and clean owned artifacts");
+        var recovered = recoveryService.Recover(journal.Path);
+        Transaction(recovered.Status == ConfigurationTransactionStatus.RolledBack
+            && File.ReadAllBytes(transactionTarget).AsSpan().SequenceEqual(originalBytes)
+            && recovered.Artifacts.IsEmpty, "Explicit recovery did not restore bytes and clean owned artifacts");
         recoveryPending = false;
         var staleTransaction = TransactionPlan();
         File.WriteAllText(transactionTarget, "value = 'external'\n");
@@ -374,7 +374,8 @@ try
     finally { if (Directory.Exists(discoveryRoot)) Directory.Delete(discoveryRoot, true); }
     var editingChecks = EditingRuntimeSmoke();
     var migrationChecks = ProjectMigrationSmoke.Run();
-    Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"discovery\":true,\"selection\":true,\"bounded_loading\":true,\"machine_roots\":true,\"migration_checks\":{migrationChecks},\"editing\":true,\"editor_checks\":{editingChecks.Editor},\"shared_editing_checks\":{editingChecks.Shared},\"transaction_checks\":{editingChecks.Transaction},\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
+    var workspaceChecks = WorkspaceMigrationSmoke.Run();
+    Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"discovery\":true,\"selection\":true,\"bounded_loading\":true,\"machine_roots\":true,\"migration_checks\":{migrationChecks},\"workspace_migration_checks\":{workspaceChecks},\"editing\":true,\"editor_checks\":{editingChecks.Editor},\"shared_editing_checks\":{editingChecks.Shared},\"transaction_checks\":{editingChecks.Transaction},\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
     return 0;
 }
 catch (Exception error)

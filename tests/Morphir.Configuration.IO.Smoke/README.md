@@ -22,8 +22,8 @@ alternate-primary preconditions, staging/install/rollback faults and external
 writer conflicts.
 
 Incomplete recovery must return owned backup/journal metadata and preserve the
-uncertain installed bytes. The host verifies the candidate and backup before
-simulating manual recovery, then removes the returned owned artifacts. If a check
+uncertain installed bytes. The host inspects the durable journal and verifies the candidate and backup before
+calling the explicit shared recovery API. It checks restored bytes and owned-artifact cleanup. If a check
 fails while recovery remains pending, the host retains that temporary directory
 and prints its location to stderr. These checks qualify per-file installation;
 they make no multi-file group-atomicity claim.
@@ -33,24 +33,24 @@ and executions sequentially. The reflection serialization switch stays disabled
 in all three modes:
 
 ```sh
-mkdir -p /private/tmp/morphir-config-editing/smoke/tmp
-export TMPDIR=/private/tmp/morphir-config-editing/smoke/tmp
+mkdir -p /private/tmp/morphir-workspace-migration/publish/tmp
+export TMPDIR=/private/tmp/morphir-workspace-migration/publish/tmp
 export TEMP="$TMPDIR" TMP="$TMPDIR"
 
 DOTNET_PROCESSOR_COUNT=2 dotnet publish tests/Morphir.Configuration.IO.Smoke \
   -c Release -r osx-arm64 -m:1 -p:BuildInParallel=false \
   -p:PublishTrimmed=false -p:PublishAot=false \
   -p:JsonSerializerIsReflectionEnabledByDefault=false \
-  -o /private/tmp/morphir-config-editing/smoke/managed
-/private/tmp/morphir-config-editing/smoke/managed/Morphir.Configuration.IO.Smoke \
+  -o /private/tmp/morphir-workspace-migration/publish/managed
+/private/tmp/morphir-workspace-migration/publish/managed/Morphir.Configuration.IO.Smoke \
   --fixtures tests/Fixtures/Configuration
 
 DOTNET_PROCESSOR_COUNT=2 dotnet publish tests/Morphir.Configuration.IO.Smoke \
   -c Release -r osx-arm64 -m:1 -p:BuildInParallel=false \
   -p:PublishTrimmed=true -p:ILLinkTreatWarningsAsErrors=false \
   -p:JsonSerializerIsReflectionEnabledByDefault=false \
-  -o /private/tmp/morphir-config-editing/smoke/trimmed
-/private/tmp/morphir-config-editing/smoke/trimmed/Morphir.Configuration.IO.Smoke \
+  -o /private/tmp/morphir-workspace-migration/publish/trimmed
+/private/tmp/morphir-workspace-migration/publish/trimmed/Morphir.Configuration.IO.Smoke \
   --fixtures tests/Fixtures/Configuration
 
 DOTNET_PROCESSOR_COUNT=2 dotnet publish tests/Morphir.Configuration.IO.Smoke \
@@ -58,8 +58,8 @@ DOTNET_PROCESSOR_COUNT=2 dotnet publish tests/Morphir.Configuration.IO.Smoke \
   -p:PublishAot=true -p:PublishTrimmed=true \
   -p:ILLinkTreatWarningsAsErrors=false -p:TrimmerSingleWarn=false \
   -p:JsonSerializerIsReflectionEnabledByDefault=false \
-  -o /private/tmp/morphir-config-editing/smoke/native
-/private/tmp/morphir-config-editing/smoke/native/Morphir.Configuration.IO.Smoke \
+  -o /private/tmp/morphir-workspace-migration/publish/native
+/private/tmp/morphir-workspace-migration/publish/native/Morphir.Configuration.IO.Smoke \
   --fixtures tests/Fixtures/Configuration
 ```
 
@@ -93,7 +93,7 @@ The local development build passes with zero warnings/errors. Its executable
 passes all 44 new editing checks: 9 editor, 22 shared planning/application and
 13 transaction checks. The same invocation retains all 228 grammar checks and
 26 pinned Morphir documents. Evidence is under
-`/private/tmp/morphir-config-editing/smoke/managed-build.log` and
+`/private/tmp/morphir-workspace-migration/publish/managed-build.log` and
 `managed-run.log`. This checkpoint is a managed build/run; published managed,
 trimmed and native results belong in the campaign delivery journal after running
 the commands above.
@@ -116,3 +116,18 @@ publish root in the commands above. Keep publishes serial, use two logical
 processors and retain the existing explicit dependency-warning qualification.
 The campaign delivery journal records actual commands and results. Preserve any
 reported recovery directory until its artifacts are resolved.
+
+## Workspace migration qualification
+
+The host adds batch planning, application, repeated-run byte/timestamp checks and
+explicit durable inspection/recovery outside the CLI. It uses the same bounded
+inventory and project verification services as the CLI, including a hidden primary
+anchor and common proposed base workspace. It verifies raw secret redaction using
+the actual linked-source generated workspace report with reflection serialization
+disabled. The JSON receipt adds `workspace_migration_checks`.
+
+A deliberate interrupted transaction must block a subsequent workspace preview.
+The host explicitly recovers its journal, proves originals restored and verifies
+that no pending state or owned artifacts remain. If recovery cannot be proved,
+it retains the temporary tree and reports its physical path on stderr. The
+workspace delivery journal records the managed, trimmed and native receipts.

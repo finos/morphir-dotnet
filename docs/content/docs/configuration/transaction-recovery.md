@@ -18,6 +18,12 @@ checks exact source and target bytes, observed absences, directory inventories
 and link topology. It creates durable write-ahead metadata before staging every
 candidate and original backup on the corresponding target filesystem. All stages,
 backups and preconditions must match before the first destination replacement.
+Artifact registration requires the predeclared deterministic path to have been
+absent before creation and its returned bytes to match the requested content.
+A host-returned path or matching transaction ID does not transfer ownership of
+an existing file or directory. Directory receipts must be a canonical subset of
+the parents observed missing in the plan.
+
 The transaction rechecks remaining inputs between installations. Atomic native
 replacement protects one destination at a time.
 
@@ -80,8 +86,21 @@ This option accepts only the journal's uncertain paths that remain regular
 directories. Linked paths, file replacements and unrelated paths remain blocked.
 It does not authorize deletion or discard user content.
 
+If an adapter returns a foreign file or directory, or claims one in an exception,
+the live result reports that path as unresolved without claiming it as an owned
+artifact. A separate recovery journal records the rejected receipt. Explicit
+recovery preserves the unverified external paths, rolls back only verified owned
+changes, and removes only the transaction's verified artifacts. A matching owner
+ID or filename prefix alone never authorizes moving, restoring or deleting a file.
+
 If a target, backup, stage or journal has unexpected content or link topology,
-recovery preserves it and reports an unresolved path. Do not overwrite the user's
+recovery preserves it and reports an unresolved path. Live cleanup validates the
+complete artifact set before deleting any artifact, then rechecks each artifact
+immediately before deletion. Changing a backup or even reformatting a journal
+therefore produces `RecoveryRequired` and retains the guard. Journal bytes must
+match their canonical versioned encoding, including known roles and ownership
+paths; whitespace, duplicate/unknown fields and role changes are not silently
+normalized during recovery. Do not overwrite the user's
 new bytes with an old backup or delete evidence to bypass the guard. Preserve both
 versions, review the metadata and restore a specifically approved state before
 retrying recovery. Invalid/truncated journals need manual review; automatic

@@ -294,7 +294,7 @@ public sealed class ConfigurationTransactionTests
         if (blockCleanup)
         {
             var artifact = result.Artifacts.Single();
-            artifact.Kind.Should().Be(ConfigurationArtifactKind.Stage);
+            artifact.Kind.Should().Be(ConfigurationArtifactKind.Journal);
             artifact.TransactionId.Should().Be(host.Owner);
             File.Exists(artifact.Path).Should().BeTrue();
         }
@@ -432,14 +432,22 @@ public sealed class ConfigurationTransactionTests
         File.WriteAllText(target, "value = 1\n");
         var observed = ConfigurationTransaction.Observe(target);
         var plan = new ConfigurationTransactionPlan([observed], [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes("value = 2\n"))]);
+        string? artifactPath = null;
+        byte[]? original = null;
         var result = new ConfigurationTransaction(fault: (phase, _) =>
         {
-            if (phase == ConfigurationTransactionPhase.BeforeInstall)
-                File.WriteAllText(Directory.GetFiles(directory.Path, ".morphir-edit-*-" + tampered).Single(), "tampered = true\n");
+            if (phase != ConfigurationTransactionPhase.BeforeInstall) return;
+            artifactPath = Directory.GetFiles(directory.Path, ".morphir-edit-*-" + tampered).Single();
+            original = File.ReadAllBytes(artifactPath);
+            File.WriteAllText(artifactPath, "tampered = true\n");
         }).Apply(plan);
-        result.Status.Should().Be(ConfigurationTransactionStatus.Conflict);
+        result.Status.Should().Be(ConfigurationTransactionStatus.RecoveryRequired);
         File.ReadAllText(target).Should().Be("value = 1\n");
-        result.Artifacts.Should().BeEmpty();
+        File.ReadAllText(artifactPath!).Should().Be("tampered = true\n");
+        result.Artifacts.Should().Contain(a => a.Path == artifactPath);
+        File.WriteAllBytes(artifactPath!, original!);
+        var journal = result.Artifacts.First(a => a.Kind == ConfigurationArtifactKind.Journal).Path;
+        new ConfigurationTransaction().Recover(journal).Status.Should().Be(ConfigurationTransactionStatus.RolledBack);
         Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
     }
 
@@ -548,9 +556,9 @@ public sealed class ConfigurationTransactionTests
         var result = new ConfigurationTransaction(new PartialStageHost(false, true)).Apply(new ConfigurationTransactionPlan([observed],
             [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes("value = 2\n"))]));
         result.Status.Should().Be(ConfigurationTransactionStatus.RecoveryRequired);
-        var foreign = result.Artifacts.Single();
-        foreign.TransactionId.Should().Be("another-transaction");
-        File.Exists(foreign.Path).Should().BeTrue();
+        result.Artifacts.Should().BeEmpty("unverified foreign paths never become owned artifacts");
+        result.UnresolvedPaths.Should().NotBeEmpty();
+        result.UnresolvedPaths.Should().OnlyContain(path => File.Exists(path));
         File.ReadAllText(target).Should().Be("value = 1\n");
     }
 
@@ -660,7 +668,9 @@ public sealed class ConfigurationTransactionTests
         {
             var path = native.Stage(destination, content[..Math.Min(content.Length, 3)], transactionId, role);
             Owner = foreignOwner ? "another-transaction" : transactionId;
-            throw new ConfigurationArtifactFailureException([new ConfigurationArtifact(path, ConfigurationArtifactKind.Stage, Owner)]);
+            var kind = role.StartsWith("journal", StringComparison.Ordinal) ? ConfigurationArtifactKind.Journal
+                : role == "backup" ? ConfigurationArtifactKind.Backup : ConfigurationArtifactKind.Stage;
+            throw new ConfigurationArtifactFailureException([new ConfigurationArtifact(path, kind, Owner)]);
         }
         public void Install(string stagedPath, string destination, bool overwrite) => native.Install(stagedPath, destination, overwrite);
         public void DeleteFile(string path)
@@ -677,6 +687,11 @@ public sealed class ConfigurationTransactionTests
         public string Path { get; } = ProjectPath.join(System.IO.Path.GetTempPath(), "morphir-transaction-" + Guid.NewGuid().ToString("N"));
         public TestDirectory() => Directory.CreateDirectory(Path);
         public string PathFor(string name) => ProjectPath.join(Path, name);
-        public void Dispose() => Directory.Delete(Path, true);
+        public void Dispose()
+        {
+            if (Directory.GetFiles(Path, ".morphir-edit-*").Length > 0)
+                Console.Error.WriteLine("Retained transaction fixture recovery evidence: " + Path);
+            else Directory.Delete(Path, true);
+        }
     }
 }

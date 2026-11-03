@@ -121,6 +121,11 @@ public sealed partial class ConfigurationTransaction
         var paths = observations.Select(o => o.Path).Concat(targets).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         var transactionId = Guid.NewGuid().ToString("N");
         var artifacts = new List<ConfigurationArtifact>();
+        var artifactEvidence = new Dictionary<string, ConfigurationObservation>(StringComparer.Ordinal);
+        var stageAttempts = new Dictionary<string, ConfigurationArtifactKind>(StringComparer.Ordinal);
+        var partialArtifacts = new HashSet<string>(StringComparer.Ordinal);
+        var plannedDirectories = new HashSet<string>(StringComparer.Ordinal);
+        var unverified = new HashSet<string>(StringComparer.Ordinal);
         var attempted = new List<(ConfigurationFileChange Change, string? Backup)>();
         var staged = new List<(ConfigurationFileChange Change, string Stage, string? Backup)>();
         var ownedDirectories = new Dictionary<string, ConfigurationObservation>(StringComparer.Ordinal);
@@ -139,6 +144,78 @@ public sealed partial class ConfigurationTransaction
             (attempted.Any(a => a.Change.Path == s.Change.Path)
                 || host.Observe(s.Stage) == new ConfigurationObservation(s.Stage, ConfigurationObservationKind.File, CandidateObservation(s.Change).Identity))
             && (s.Backup is null || host.Observe(s.Backup) == new ConfigurationObservation(s.Backup, ConfigurationObservationKind.File, s.Change.Expected.Identity)));
+        static ConfigurationArtifactKind RoleKind(string role) => role.StartsWith("journal", StringComparison.Ordinal)
+            ? ConfigurationArtifactKind.Journal : role == "backup" ? ConfigurationArtifactKind.Backup : ConfigurationArtifactKind.Stage;
+        void Unverified(string path)
+        {
+            path ??= "[null artifact path]";
+            unverified.Add(path);
+            unresolved.Add(path);
+        }
+        string StageOwned(string destination, ReadOnlyMemory<byte> content, string role)
+        {
+            var expected = GetArtifactPath(destination, transactionId, role);
+            if (host.Observe(expected).Kind != ConfigurationObservationKind.Missing)
+            { Unverified(expected); throw new OwnershipException(); }
+            var kind = RoleKind(role);
+            stageAttempts[expected] = kind;
+            var returned = host.Stage(destination, content, transactionId, role);
+            if (returned != expected)
+            {
+                Unverified(returned);
+                if (host.Observe(expected).Kind != ConfigurationObservationKind.Missing) Unverified(expected);
+                throw new OwnershipException();
+            }
+            var observed = host.Observe(expected);
+            var identity = NativeConfigurationTransactionHost.Hash(content.Span);
+            if (observed != new ConfigurationObservation(expected, ConfigurationObservationKind.File, identity))
+            { Unverified(expected); throw new OwnershipException(); }
+            artifacts.Add(new(expected, kind, transactionId));
+            artifactEvidence[expected] = observed;
+            return expected;
+        }
+        void RegisterDirectory(string path)
+        {
+            if (!plannedDirectories.Contains(path) || host.Observe(path).Kind != ConfigurationObservationKind.Directory)
+            { Unverified(path); throw new OwnershipException(); }
+            if (!artifacts.Any(a => a.Path == path)) artifacts.Add(new(path, ConfigurationArtifactKind.Directory, transactionId));
+        }
+        void ReportArtifacts(ConfigurationArtifactFailureException failure)
+        {
+            foreach (var artifact in failure.Artifacts)
+            {
+                if (artifact.TransactionId != transactionId)
+                { Unverified(artifact.Path); continue; }
+                if (artifact.Kind == ConfigurationArtifactKind.Directory && plannedDirectories.Contains(artifact.Path)
+                    && host.Observe(artifact.Path).Kind == ConfigurationObservationKind.Directory)
+                { RegisterDirectory(artifact.Path); continue; }
+                if (stageAttempts.TryGetValue(artifact.Path, out var kind) && kind == artifact.Kind
+                    && host.Observe(artifact.Path) is { Kind: ConfigurationObservationKind.File } observed)
+                {
+                    if (!artifacts.Any(a => a.Path == artifact.Path))
+                    {
+                        artifacts.Add(new(artifact.Path, kind, transactionId));
+                        artifactEvidence[artifact.Path] = observed;
+                        partialArtifacts.Add(artifact.Path);
+                    }
+                    continue;
+                }
+                Unverified(artifact.Path);
+            }
+        }
+        void RecordRecoveryEvidence()
+        {
+            if (document is null) return;
+            document = document with
+            {
+                Committed = false,
+                Artifacts = artifacts.Where(a => !unverified.Contains(a.Path)).ToImmutableArray(),
+                UnverifiedPaths = unverified.Order(StringComparer.Ordinal).ToImmutableArray()
+            };
+            try { StageOwned(document.MetadataDestination, document.Encode(), "journal-recovery"); }
+            catch (ConfigurationArtifactFailureException failure) { ReportArtifacts(failure); }
+            catch (Exception journalError) when (IsIo(journalError)) { }
+        }
         IDisposable? coordination = null;
         try
         {
@@ -157,7 +234,6 @@ public sealed partial class ConfigurationTransaction
             var changes = plan.Changes.Where(c => c.Expected.Kind != ConfigurationObservationKind.File
                 || !host.ReadFile(c.Path).AsSpan().SequenceEqual(c.Content.AsSpan())).ToArray();
             if (changes.Length == 0) return new(ConfigurationTransactionStatus.Unchanged, "config.edit_unchanged", targets, []);
-            var plannedDirectories = new HashSet<string>(StringComparer.Ordinal);
             foreach (var change in changes)
             {
                 for (var parent = ProjectPath.parent(change.Path); ; parent = ProjectPath.parent(parent))
@@ -187,20 +263,21 @@ public sealed partial class ConfigurationTransaction
                 .Concat(guards.Select(g => new ConfigurationArtifact(RecoveryDocument.ArtifactPath(ProjectPath.join(g, ".morphir-transaction"), transactionId, "journal"), ConfigurationArtifactKind.Journal, transactionId)))
                 .Concat(artifacts).ToImmutableArray();
             document = new(transactionId, false, guards, entries, plannedArtifacts)
-            { PendingDirectories = plannedDirectories.Order(StringComparer.Ordinal).ToImmutableArray() };
+            {
+                PendingDirectories = plannedDirectories.Order(StringComparer.Ordinal).ToImmutableArray(),
+                PlannedDirectories = plannedDirectories.Order(StringComparer.Ordinal).ToImmutableArray()
+            };
             // Write-ahead metadata is durable before any candidate or original backup is staged.
             // The common target ancestor is first, so even an interrupted setup blocks its descendants.
             foreach (var directory in guards.OrderBy(g => g == common ? 0 : 1).ThenBy(g => g, StringComparer.Ordinal))
             {
                 if (host.Observe(directory).Kind == ConfigurationObservationKind.Missing) continue;
-                var journal = host.Stage(ProjectPath.join(directory, ".morphir-transaction"), document.Encode(), transactionId, "journal");
-                artifacts.Add(new(journal, ConfigurationArtifactKind.Journal, transactionId));
+                StageOwned(ProjectPath.join(directory, ".morphir-transaction"), document.Encode(), "journal");
             }
             foreach (var change in changes)
             {
                 var created = host.CreateParentDirectories(change.Path, transactionId);
-                foreach (var directory in created)
-                    artifacts.Add(new(directory, ConfigurationArtifactKind.Directory, transactionId));
+                foreach (var directory in created) RegisterDirectory(directory);
                 foreach (var directory in created)
                     ownedDirectories[directory] = host.Observe(directory, artifacts.Select(a => a.Path).ToArray());
             }
@@ -211,31 +288,30 @@ public sealed partial class ConfigurationTransaction
                     && host.Observe(p).Kind != ConfigurationObservationKind.Missing).Order(StringComparer.Ordinal).ToImmutableArray()
             };
             if (document.PendingDirectories.Length > 0) throw new IOException("Directory creation ownership is uncertain");
-            var directoryReceipt = host.Stage(document.MetadataDestination, document.Encode(), transactionId, "journal-directories");
-            artifacts.Add(new(directoryReceipt, ConfigurationArtifactKind.Journal, transactionId));
+            StageOwned(document.MetadataDestination, document.Encode(), "journal-directories");
             foreach (var directory in guards.Where(g => !artifacts.Any(a => a.Kind == ConfigurationArtifactKind.Journal && ProjectPath.parent(a.Path) == g)))
             {
-                var journal = host.Stage(ProjectPath.join(directory, ".morphir-transaction"), document.Encode(), transactionId, "journal");
-                artifacts.Add(new(journal, ConfigurationArtifactKind.Journal, transactionId));
+                StageOwned(ProjectPath.join(directory, ".morphir-transaction"), document.Encode(), "journal");
             }
             foreach (var change in changes)
             {
                 fault?.Invoke(ConfigurationTransactionPhase.BeforeStage, change.Path);
-                var stage = host.Stage(change.Path, change.Content.AsMemory(), transactionId, "stage");
-                artifacts.Add(new(stage, ConfigurationArtifactKind.Stage, transactionId));
+                var stage = StageOwned(change.Path, change.Content.AsMemory(), "stage");
                 string? backup = null;
                 if (change.Expected.Kind == ConfigurationObservationKind.File)
                 {
-                    backup = host.Stage(change.Path, host.ReadFile(change.Path), transactionId, "backup");
-                    artifacts.Add(new(backup, ConfigurationArtifactKind.Backup, transactionId));
+                    backup = StageOwned(change.Path, host.ReadFile(change.Path), "backup");
                 }
                 staged.Add((change, stage, backup));
             }
             // A ready snapshot records actual artifact paths for non-native storage adapters.
-            document = document with { Entries = staged.Select(s => new RecoveryEntry(s.Change.Path, s.Change.Expected.Kind,
-                s.Change.Expected.Identity, CandidateObservation(s.Change).Identity, s.Stage, s.Backup)).ToImmutableArray(), Artifacts = artifacts.ToImmutableArray() };
-            var ready = host.Stage(document.MetadataDestination, document.Encode(), transactionId, "journal-ready");
-            artifacts.Add(new(ready, ConfigurationArtifactKind.Journal, transactionId));
+            document = document with
+            {
+                Entries = staged.Select(s => new RecoveryEntry(s.Change.Path, s.Change.Expected.Kind,
+                s.Change.Expected.Identity, CandidateObservation(s.Change).Identity, s.Stage, s.Backup)).ToImmutableArray(),
+                Artifacts = artifacts.ToImmutableArray()
+            };
+            StageOwned(document.MetadataDestination, document.Encode(), "journal-ready");
             if (!StagesMatch() || !ObservationsMatch()) throw new ConflictException();
             foreach (var (change, stage, backup) in staged)
             {
@@ -247,21 +323,17 @@ public sealed partial class ConfigurationTransaction
             }
             if (!StagesMatch() || !ObservationsMatch()) throw new ConflictException();
             document = document with { Committed = true, Artifacts = artifacts.ToImmutableArray() };
-            var committed = host.Stage(document.MetadataDestination, document.Encode(), transactionId, "journal-committed");
-            artifacts.Add(new(committed, ConfigurationArtifactKind.Journal, transactionId));
-            if (!TryCleanup(artifacts, true, document))
+            StageOwned(document.MetadataDestination, document.Encode(), "journal-committed");
+            if (!TryCleanup(artifacts, true, document, artifactEvidence, partialArtifacts))
                 return new(ConfigurationTransactionStatus.RecoveryRequired, "config.edit_cleanup_required", targets, Retained(artifacts))
                 { UnresolvedPaths = targets };
             return new(ConfigurationTransactionStatus.Written, "config.edit_written", targets, []);
         }
         catch (Exception error) when (IsIo(error))
         {
-            var foreignArtifacts = ImmutableArray<ConfigurationArtifact>.Empty;
-            if (error is ConfigurationArtifactFailureException artifactFailure)
-            {
-                artifacts.AddRange(artifactFailure.Artifacts.Where(a => a.TransactionId == transactionId));
-                foreignArtifacts = artifactFailure.Artifacts.Where(a => a.TransactionId != transactionId).ToImmutableArray();
-            }
+            if (error is ConfigurationArtifactFailureException artifactFailure) ReportArtifacts(artifactFailure);
+            foreach (var path in stageAttempts.Keys.Where(p => !artifacts.Any(a => a.Path == p)))
+                if (host.Observe(path).Kind != ConfigurationObservationKind.Missing) Unverified(path);
             if (document is not null)
                 foreach (var directory in document.PendingDirectories)
                     if (!artifacts.Any(a => a.Kind == ConfigurationArtifactKind.Directory && a.Path == directory)
@@ -290,26 +362,34 @@ public sealed partial class ConfigurationTransaction
                     catch (Exception observationError) when (IsIo(observationError)) { unresolved.Add(change.Path); }
                 }
             }
-            if (unresolved.Count > 0 || foreignArtifacts.Length > 0)
+            if (unverified.Count > 0) RecordRecoveryEvidence();
+            if (unresolved.Count > 0)
                 return new(ConfigurationTransactionStatus.RecoveryRequired, "config.edit_recovery_required", targets,
-                    Retained(artifacts).AddRange(foreignArtifacts)) { RestoredPaths = restored.ToImmutableArray(), UnresolvedPaths = unresolved.ToImmutableArray() };
-            if (!TryCleanup(artifacts, false, document))
+                    Retained(artifacts))
+                { RestoredPaths = restored.ToImmutableArray(), UnresolvedPaths = unresolved.Distinct().ToImmutableArray() };
+            if (!TryCleanup(artifacts, false, document, artifactEvidence, partialArtifacts))
                 return new(ConfigurationTransactionStatus.RecoveryRequired, "config.edit_cleanup_required", targets, Retained(artifacts))
                 { RestoredPaths = restored.ToImmutableArray(), UnresolvedPaths = targets };
             return new(error is ConflictException ? ConfigurationTransactionStatus.Conflict
                 : attempted.Count > 0 ? ConfigurationTransactionStatus.RolledBack : ConfigurationTransactionStatus.IoFailure,
                 error is ConflictException ? "config.edit_conflict"
-                : attempted.Count > 0 ? "config.edit_rolled_back" : "config.edit_io", targets, []) { RestoredPaths = restored.ToImmutableArray() };
+                : attempted.Count > 0 ? "config.edit_rolled_back" : "config.edit_io", targets, [])
+            { RestoredPaths = restored.ToImmutableArray() };
         }
         finally { coordination?.Dispose(); }
     }
 
-    private bool TryCleanup(List<ConfigurationArtifact> artifacts, bool committed, RecoveryDocument? document)
+    private bool TryCleanup(List<ConfigurationArtifact> artifacts, bool committed, RecoveryDocument? document,
+        IReadOnlyDictionary<string, ConfigurationObservation>? evidence = null, IReadOnlySet<string>? partialArtifacts = null,
+        IReadOnlySet<string>? preservedDirectories = null)
     {
         if (artifacts.Count == 0) return true;
         try
         {
             fault?.Invoke(ConfigurationTransactionPhase.BeforeCleanup, artifacts[0].Path);
+            var cleanupDirectories = artifacts.Where(a => a.Kind == ConfigurationArtifactKind.Directory).Select(a => a.Path)
+                .Concat(preservedDirectories ?? new HashSet<string>()).ToHashSet(StringComparer.Ordinal);
+            if (CleanupUnresolved(artifacts, document, evidence, partialArtifacts, cleanupDirectories).Length > 0) return false;
             // Keep metadata outside newly created directories until directory cleanup is proven.
             // A committed witness remains last, above all destinations, throughout cleanup.
             var directories = artifacts.Where(a => a.Kind == ConfigurationArtifactKind.Directory).Select(a => a.Path).ToHashSet(StringComparer.Ordinal);
@@ -319,6 +399,7 @@ public sealed partial class ConfigurationTransaction
                 : artifact.Path.EndsWith("-journal-committed", StringComparison.Ordinal) ? 4 : 3;
             foreach (var artifact in artifacts.OrderBy(Order).ThenByDescending(a => a.Path.Length))
             {
+                if (CleanupUnresolved([artifact], document, evidence, partialArtifacts, cleanupDirectories).Length > 0) return false;
                 if (artifact.Kind == ConfigurationArtifactKind.Directory)
                 {
                     host.DeleteDirectory(artifact.Path);
@@ -332,6 +413,24 @@ public sealed partial class ConfigurationTransaction
         catch (Exception error) when (IsIo(error)) { return false; }
     }
 
+    private ImmutableArray<string> CleanupUnresolved(IEnumerable<ConfigurationArtifact> artifacts, RecoveryDocument? document,
+        IReadOnlyDictionary<string, ConfigurationObservation>? evidence, IReadOnlySet<string>? partialArtifacts,
+        IReadOnlySet<string>? preservedDirectories)
+    {
+        var list = artifacts.ToArray();
+        var unresolved = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var artifact in list.Where(a => a.Kind != ConfigurationArtifactKind.Directory))
+        {
+            var observed = host.Observe(artifact.Path);
+            if (observed.Kind == ConfigurationObservationKind.Missing) continue;
+            if (evidence is not null && (!evidence.TryGetValue(artifact.Path, out var expected) || expected != observed))
+                unresolved.Add(artifact.Path);
+        }
+        if (document is not null)
+            unresolved.UnionWith(RecoveryUnresolved(document, list.Where(a => partialArtifacts?.Contains(a.Path) != true), preservedDirectories, ignoreUnverified: true));
+        return unresolved.Order(StringComparer.Ordinal).ToImmutableArray();
+    }
+
     private ImmutableArray<ConfigurationArtifact> Retained(IEnumerable<ConfigurationArtifact> artifacts) =>
         artifacts.Distinct().Where(a =>
         {
@@ -342,6 +441,7 @@ public sealed partial class ConfigurationTransaction
     private static ConfigurationObservation CandidateObservation(ConfigurationFileChange change) =>
         new(change.Path, ConfigurationObservationKind.File, NativeConfigurationTransactionHost.Hash(change.Content.AsSpan()));
     private sealed class ConflictException : IOException;
+    private sealed class OwnershipException : IOException;
     private static bool IsIo(Exception error) => error is IOException or UnauthorizedAccessException or NotSupportedException;
 }
 
@@ -476,7 +576,7 @@ public sealed class NativeConfigurationTransactionHost : IConfigurationTransacti
             try { File.Delete(path); }
             catch (Exception cleanupError) when (cleanupError is IOException or UnauthorizedAccessException or NotSupportedException)
             {
-                var kind = role == "backup" ? ConfigurationArtifactKind.Backup : role == "journal" ? ConfigurationArtifactKind.Journal : ConfigurationArtifactKind.Stage;
+                var kind = role == "backup" ? ConfigurationArtifactKind.Backup : role.StartsWith("journal", StringComparison.Ordinal) ? ConfigurationArtifactKind.Journal : ConfigurationArtifactKind.Stage;
                 throw new ConfigurationArtifactFailureException([new(Canonical(path), kind, transactionId)], error);
             }
             throw;
