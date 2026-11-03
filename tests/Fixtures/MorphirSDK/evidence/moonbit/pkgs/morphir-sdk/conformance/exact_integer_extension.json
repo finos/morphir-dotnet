@@ -1,0 +1,76 @@
+{
+  "classification": "approved exact-integer extension; not Elm oracle output",
+  "authority": "Python 3 arbitrary-precision integer arithmetic and signed 64-bit bounds",
+  "cases": [
+    {
+      "fqName": "morphir/SDK:basics#add",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:basics#add\" 9007199254740993 2)",
+      "expected": "9007199254740995"
+    },
+    {
+      "fqName": "morphir/SDK:basics#multiply",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:basics#multiply\" 4294967297 4294967297)",
+      "expected": "18446744082299486209"
+    },
+    {
+      "fqName": "morphir/SDK:basics#power",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:basics#power\" 2 100)",
+      "expected": "1267650600228229401496703205376"
+    },
+    {
+      "fqName": "morphir/SDK:basics#integer-divide",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:basics#integer-divide\" -9007199254740993 3)",
+      "expected": "-3002399751580331"
+    },
+    {
+      "fqName": "morphir/SDK:basics#remainder-by",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:basics#remainder-by\" 7 -9007199254740993)",
+      "expected": "-5"
+    },
+    {
+      "fqName": "morphir/SDK:basics#mod-by",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:basics#mod-by\" 7 -9007199254740993)",
+      "expected": "2"
+    },
+    {
+      "fqName": "morphir/SDK:string#from-int",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:string#from-int\" 9007199254740993)",
+      "expected": "\"9007199254740993\""
+    },
+    {
+      "fqName": "morphir/SDK:string#to-int",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:string#to-int\" \"9007199254740993\")",
+      "expected": "Just 9007199254740993"
+    },
+    {
+      "fqName": "morphir/SDK:list#range",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:list#range\" 9007199254740993 9007199254740995)",
+      "expected": "[9007199254740993,9007199254740994,9007199254740995]"
+    },
+    {
+      "fqName": "morphir/SDK:decimal#from-int",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:decimal#from-int\" 9007199254740993)",
+      "expected": "\"9007199254740993\""
+    },
+    {
+      "fqName": "morphir/SDK:int#to-int64",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:int#to-int64\" -9223372036854775808)",
+      "expected": "Just -9223372036854775808"
+    },
+    {
+      "fqName": "morphir/SDK:int#to-int64",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:int#to-int64\" 9223372036854775807)",
+      "expected": "Just 9223372036854775807"
+    },
+    {
+      "fqName": "morphir/SDK:int#to-int64",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:int#to-int64\" 9223372036854775808)",
+      "expected": "Nothing"
+    },
+    {
+      "fqName": "morphir/SDK:int#from-int64",
+      "schemeExpression": "(%morphir-sdk \"morphir/SDK:int#from-int64\" (%morphir-tag \"morphir/SDK:int#int64\" -9223372036854775808))",
+      "expected": "-9223372036854775808"
+    }
+  ]
+}

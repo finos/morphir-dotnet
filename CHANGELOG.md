@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CRITICAL**: Removed contradictory Claude co-author example from AGENTS.md and strengthened CLA compliance warnings in both AGENTS.md and CLAUDE.md (issue #270)
 
 ### Added
+- Shared .NET SDK conformance contract, pinned source evidence, tagged offline corpus and fixture validator for the C# and F# SDK deliveries ([#460](https://github.com/finos/morphir-dotnet/issues/460))
 - `Morphir.Ion` library project: reads Ion 1.0 text and binary into immutable values, and reads the MEP `morphir_model` document with `ModelDocument.readPayload`, `readFile` and `decodeIr`. Reading keeps the exact bytes, annotations, numeric exactness and unknown data, and decodes the classic or v4 IR only on request
 - `IonIr.read` and `IonIrTree.read` read the draft Ion IR format `ionVersion` `0.1.0-draft.1` for IR 3.0.0, 3.1.0 and 4.0.0, from a single file or a document tree. `IonIrParser` plugs them into a pipeline
 - `Morphir.IR.V4`, an immutable IR v4 model, with the JSON reader `V4Json` and strict name parsing in `CanonicalNames`

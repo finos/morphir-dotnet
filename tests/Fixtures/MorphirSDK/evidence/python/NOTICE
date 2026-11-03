@@ -1,0 +1,8 @@
+morphir-python - FINOS
+Copyright 2026 - FINOS - info@finos.org
+
+This product includes software developed at the Fintech Open Source Foundation (https://www.finos.org/).
+
+The documentation theme adapts the FINOS morphir-moonbit site design
+from revision bd3adc52e6b8f6368fdaee50f76535799732f8d6, under Apache-2.0.
+See site/theme/README.md for source attribution.

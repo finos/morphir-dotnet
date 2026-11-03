@@ -20,17 +20,17 @@
       },
       "Fun.Blazor": {
         "type": "Direct",
-        "requested": "[4.1.10, )",
-        "resolved": "4.1.10",
-        "contentHash": "BMO1bULkjQMRhEMiThK0s5ce2Z3yV+geZWhs4PmyfQPeT58GWPli7FFdvWlZbot2728HOJuAqKw7ytYWCFE4eg==",
+        "requested": "[4.1.11, )",
+        "resolved": "4.1.11",
+        "contentHash": "9tKHhNpGhfoHYsiaklZtDHzKcuC4OGoKAUejOT6uKtER8jYO6IfYwXB5WkCP1ykoeorpMxE+4HQoX4SlbC3yHw==",
         "dependencies": {
           "FSharp.Core": "6.0.0",
           "FSharp.Data.Adaptive": "1.2.15",
-          "Fun.Css": "1.0.2",
+          "Fun.Css": "1.1.0",
           "Fun.Result": "2.1.0",
-          "Microsoft.AspNetCore.Components.Web": "9.0.11",
-          "Microsoft.AspNetCore.WebUtilities": "9.0.11",
-          "Microsoft.Extensions.ObjectPool": "8.0.22"
+          "Microsoft.AspNetCore.Components.Web": "9.0.19",
+          "Microsoft.AspNetCore.WebUtilities": "9.0.19",
+          "Microsoft.Extensions.ObjectPool": "8.0.30"
         }
       },
       "Fun.Blazor.BlazorMonaco": {
@@ -107,8 +107,8 @@
       },
       "Fun.Css": {
         "type": "Transitive",
-        "resolved": "1.0.2",
-        "contentHash": "TLSGR3YEHsg8V8ge8iQb1JbfFbeLPA+oDpJ485oJgnp0BoXeUkf6kR77Zu/or+1hwmIHFhqsztvfJV0ABsmqow==",
+        "resolved": "1.1.0",
+        "contentHash": "FZGViohK/mefVq06MRN04vCL8fWCCmD7a5Aj95rEr16RPzF4CqcRcq9vJBTDcRGAwwHtsLtSfrFvIAAbX0+2cw==",
         "dependencies": {
           "FSharp.Core": "6.0.0"
         }
@@ -174,10 +174,10 @@
       },
       "Microsoft.AspNetCore.WebUtilities": {
         "type": "Transitive",
-        "resolved": "9.0.11",
-        "contentHash": "c5pHn9sG9u03bs/sE+dl21G9NRwNs05+YaMNK/z7KJa1Dh75HEGydxFwm6g++15+IX7Dcae+8WaT+ld0QeqErA==",
+        "resolved": "9.0.19",
+        "contentHash": "6vrCHj+2kmklfd3bOLslFIKGLG2fBDB581k4sK+TPiaMhdCN7KML7cU7n5zOpB9O74ctCaKR+EkoatM1N8Nu+Q==",
         "dependencies": {
-          "Microsoft.Net.Http.Headers": "9.0.11"
+          "Microsoft.Net.Http.Headers": "9.0.19"
         }
       },
       "Microsoft.Extensions.Configuration": {
@@ -310,8 +310,8 @@
       },
       "Microsoft.Extensions.ObjectPool": {
         "type": "Transitive",
-        "resolved": "8.0.22",
-        "contentHash": "4K7MUXbEDtVHTa/OYlkDya2kHSflojuD4d6dcmvnGYnvuJQ0bfylWbMTkA65N94SdTGo5zdkXR8T9mEED7RUvQ=="
+        "resolved": "8.0.30",
+        "contentHash": "DD0OZkKsA0tbz8lZ8JDIiz/Tv+KI47DXx1MEr6hO6KgBGbl+lXtnm7gN8vNTFfTo+vhb4xFscha9PYn1m5W6/w=="
       },
       "Microsoft.Extensions.Options": {
         "type": "Transitive",
@@ -363,10 +363,10 @@
       },
       "Microsoft.Net.Http.Headers": {
         "type": "Transitive",
-        "resolved": "9.0.11",
-        "contentHash": "Yfj3fTLmCkfHdKq8FIt0jdcnfasrvgIhrsDdhh/FEijhmUk/qYDMI/11wZewd2B/twfrG6ZJgUNk3Y22QbgzjA==",
+        "resolved": "9.0.19",
+        "contentHash": "uKdTNrukupdt04MAR2ABdRQQ6gGy6CTRFSJ+fegNb8c1j5TA5ZpukuU8j59xReV8vA71Aok2Nw3ZBKIuiJRGzA==",
         "dependencies": {
-          "Microsoft.Extensions.Primitives": "9.0.11"
+          "Microsoft.Extensions.Primitives": "9.0.19"
         }
       },
       "Microsoft.Extensions.Logging": {

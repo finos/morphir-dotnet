@@ -10,9 +10,9 @@
       },
       "Funcky.DiscriminatedUnion": {
         "type": "Direct",
-        "requested": "[1.2.1, )",
-        "resolved": "1.2.1",
-        "contentHash": "DyjBqfGlizDNVGou5EnwSwekjw20mBYPt4Nl93IzECgXxBA1n8to6LKMuUA04ODR4aP+01Dl3qMYd3ARo8hCLA=="
+        "requested": "[1.2.2, )",
+        "resolved": "1.2.2",
+        "contentHash": "ZElOIakQTCoGQ8kGiNdHPMEN1uSLf5FdYwqGPfuaUfo7U3gWWiA9B407WfYtLPF6c87dOPqIxSdRmC7o/9XWVA=="
       },
       "Generator.Equals": {
         "type": "Direct",
@@ -49,9 +49,9 @@
       },
       "Vogen": {
         "type": "Direct",
-        "requested": "[8.0.5, )",
-        "resolved": "8.0.5",
-        "contentHash": "hUGafk0LpUn3ooZNOOczByhVSGqBaI96bCn0DkreSd2bwHGrMfdRoCqNrB4w0/y5bufyYaABqQ8wWBPgx5QdNw=="
+        "requested": "[8.0.7, )",
+        "resolved": "8.0.7",
+        "contentHash": "0DrJ2ZPEGoJlzwqhum2LaZJ2FzJzgy5HP0km+XYL2MC/hS4Sn5/C35oRyob146Yjlf5xit2tmPx5xhI2BXkhLw=="
       },
       "Generator.Equals.Runtime": {
         "type": "Transitive",

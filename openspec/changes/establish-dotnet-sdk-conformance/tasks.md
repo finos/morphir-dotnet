@@ -4,22 +4,22 @@ Read [design](design.html), [spec](specs/dotnet-sdk-conformance/spec.md) and [ha
 
 ## 1. Contract and evidence
 
-- [ ] 1.1 Create the umbrella PRD and feature status table, link this change and the other four, and coordinate its index entry; verify every delivery has an owner and explicit predecessor.
-- [ ] 1.2 Pin exact upstream revisions and licenses for the Python, MoonBit, Gleam and Elm vnext evidence; verify every admitted operation resolves to checked-in source provenance.
-- [ ] 1.3 Write the bounded operation/signature and scalar-profile inventory, including runtime arithmetic failure outcomes, decimal/text limits and comparability; verify no admitted signature or boundary remains implicit.
-- [ ] 1.4 Add tagged behavioral cases and named existing-runtime gaps, including Dict.union precedence; verify expected observations remain independent of .NET implementations.
+- [x] 1.1 Create the umbrella PRD and feature status table, link this change and the other four, and coordinate its index entry; verify every delivery has an owner and explicit predecessor.
+- [x] 1.2 Pin exact upstream revisions and licenses for the Python, MoonBit, Gleam and Elm vnext evidence; verify every admitted operation resolves to checked-in source provenance.
+- [x] 1.3 Write the bounded operation/signature and scalar-profile inventory, including runtime arithmetic failure outcomes, decimal/text limits and comparability; verify no admitted signature or boundary remains implicit.
+- [x] 1.4 Add tagged behavioral cases and named existing-runtime gaps, including Dict.union precedence; verify expected observations remain independent of .NET implementations.
 
 ## 2. Offline fixture validation
 
-- [ ] 2.1 Write failing malformed-case and coverage-classification checks, implement the minimal offline validator, and document its command; verify duplicate IDs, missing expectations, unclassified operations and invalid tags fail with located errors.
-- [ ] 2.2 Validate canonical projections, callback IDs and profile exclusions with representative nested values, ordered collections and numeric boundaries; verify validation passes without network or another language runtime.
-- [ ] 2.3 Freeze the fixture schema and inventory in the README with an extension example; verify the C# and F# handoff checklists can identify all required cases and known gaps.
+- [x] 2.1 Write failing malformed-case and coverage-classification checks, implement the minimal offline validator, and document its command; verify duplicate IDs, missing expectations, unclassified operations and invalid tags fail with located errors.
+- [x] 2.2 Validate canonical projections, callback IDs and profile exclusions with representative nested values, ordered collections and numeric boundaries; verify validation passes without network or another language runtime.
+- [x] 2.3 Freeze the fixture schema and inventory in the README with an extension example; verify the C# and F# handoff checklists can identify all required cases and known gaps.
 
 ## 3. Integration evidence
 
-- [ ] 3.1 Integrate only this change's solution/test registration and PRD-index edits through the coordinator; verify the integrated test invocation discovers the new validator project.
-- [ ] 3.2 Run strict OpenSpec validation, the fixture validator, repository-required formatting, full tests and coverage checks; record commands/results and verify no runtime or emitter behavior changed.
-- [ ] 3.3 Produce a readiness manifest listing the pinned contract commit, fixture IDs, follow-up owners and exact Codex configuration; verify both runtime initiatives are eligible only after this PR is merged to main.
+- [x] 3.1 Integrate only this change's solution/test registration and PRD-index edits through the coordinator; verify the integrated test invocation discovers the new validator project.
+- [x] 3.2 Run strict OpenSpec validation, the fixture validator, repository-required formatting, full tests and coverage checks; record commands/results and verify no runtime or emitter behavior changed.
+- [x] 3.3 Produce a readiness manifest listing the pinned contract commit, fixture IDs, follow-up owners and exact Codex configuration; verify both runtime initiatives are eligible only after this PR is merged to main.
 
 ## Workflow follow-up
 
