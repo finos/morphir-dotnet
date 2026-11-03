@@ -212,3 +212,47 @@ checkout filter reproduced all three reported hash mismatches. The configuration
 fixture tree now uses `-text`, matching the existing Ion-fixture policy; the same
 checkout-filter check preserves every expected snapshot hash afterward. CI must
 confirm this fix on Windows before landing.
+
+## Parent semantic review fixes
+
+CI passed all checks on `51e9eca`, including all three operating systems. Parent
+review then addressed six distinct findings before landing:
+
+- `0037d66`: a failing resolver test confirmed that environment JSON secret
+  references retained stale lower object fields. Environment values now use the
+  shared path-aware secret normalization and retain their original raw tree.
+  A second red test showed `logging.file` being treated as a credential, losing
+  the file when a later layer added a logging level. The root and the schema's
+  logging container keep ordinary map semantics.
+- `6ccff70`: three culture regressions failed for Thai calendar years, Finnish
+  time separators and an early date outside the Saudi calendar's range.
+  Typed TOML temporal getters now use explicit invariant ISO formatting, keeping
+  local date-times without an offset and preserving explicit offsets. Tests
+  exercise the pinned parser's supported microsecond precision.
+- `c72bab7`: red tests reproduced a missing validation error for a null-only
+  object replacing an integer, and an error attributed to a lower empty object
+  after a higher source populated it. Empty replacement objects now retain
+  provenance; populated maps discard obsolete empty-object leaf origins.
+- `c795935`: a red test demonstrated the missing pinned-schema string-pattern
+  rule. The generator now emits pattern rules and validation evaluates them with
+  culture-invariant, nonbacktracking regular expressions. Leading/trailing
+  whitespace and whitespace-only Elm extensions fail at the supplying source.
+
+The complete core runner passes 95/95. The reader/BDD runner passes 66/66,
+including the culture regressions. Both projects build without warnings. The
+trimmed and native osx-arm64 smoke hosts reran 228 JSON5 syntax checks and 26
+Morphir documents, with new culture and schema-pattern checks. Both passed.
+Publish commands match the smoke README, with outputs under
+`/tmp/morphir-config-review-trimmed` and `/tmp/morphir-config-review-native`;
+the native log is `/tmp/morphir-config-review-native.log`. Existing pinned
+dependency diagnostics remain visible under the previously documented warning
+qualification. No dependency versions, fixture bytes or lockfiles changed.
+
+Fresh core VSTest/Coverlet and executable reader coverage runs both pass. Their
+union reports core 2134/2267 authored lines, 94.13%, and readers 441/468, 94.23%.
+The reports are `/tmp/morphir-config-review-core-coverage/ee02bb36-e337-4426-b669-537601fa7447/coverage.cobertura.xml`
+and `/tmp/morphir-config-review-reader-coverage.cobertura.xml`, processed by the
+existing `scripts/configuration/summarize-coverage.py` tool. Changed-file
+Fantomas checks and C# whitespace formatting pass; full-range and working-diff
+whitespace checks pass. New-head CI, landing and owned checkout/branch cleanup
+remain outstanding.

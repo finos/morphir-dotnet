@@ -70,6 +70,23 @@ try
     var temporal = Document(ConfigurationReader.ReadText("temporal.toml", "date=1979-05-27\ntime=07:32:00\nlocal=1979-05-27T07:32:00\noffset=1979-05-27T07:32:00Z\n"));
     foreach (var key in new[] { "date", "time", "local", "offset" })
         Check(At(temporal.Values, key) is ConfigValue.Temporal, "TOML temporal type lost: " + key);
+    var previousCulture = System.Globalization.CultureInfo.CurrentCulture;
+    try
+    {
+        foreach (var culture in new[] { "th-TH", "fi-FI", "ar-SA" })
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo(culture);
+            var invariant = Document(ConfigurationReader.ReadText("invariant.toml", "date=0001-01-01\ntime=07:32:00\nlocal=1979-05-27T07:32:00\noffset=1979-05-27T07:32:00+05:30\n"));
+            Check(At(invariant.Values, "date").Equals(ConfigValue.NewTemporal("LocalDate", "0001-01-01")), "TOML date changed with culture");
+            Check(At(invariant.Values, "time").Equals(ConfigValue.NewTemporal("LocalTime", "07:32:00.0000000")), "TOML time changed with culture");
+            Check(At(invariant.Values, "local").Equals(ConfigValue.NewTemporal("LocalDateTime", "1979-05-27T07:32:00.0000000")), "TOML local datetime acquired an offset");
+            Check(At(invariant.Values, "offset").Equals(ConfigValue.NewTemporal("OffsetDateTime", "1979-05-27T07:32:00.0000000+05:30")), "TOML datetime lost its offset");
+        }
+    }
+    finally
+    {
+        System.Globalization.CultureInfo.CurrentCulture = previousCulture;
+    }
 
     var extended = Document(ConfigurationReader.ReadText("extended.json", "\uFEFF{/*x*/ escaped:'\\x41\\u0042',\\u0061:+.5,hex:0x2a,continuation:'a\\\nb',large:9223372036854775808,precise:9007199254740993,inf:+Infinity,nan:-NaN,arr:[true,null,],}"));
     Check(At(extended.Values, "a").Equals(ConfigValue.NewNumber(.5)), "JSON5 leading decimal failed");
@@ -81,6 +98,9 @@ try
     var exact = ConfigurationReader.ReadText("exact.json5", "{cache:{max_size:" + huge + "}}");
     Check(!Resolver.resolve(Input([exact], ProfileSelection.Disabled)).Diagnostics.Any(item => item.Severity == DiagnosticSeverity.Error),
         "Exact integer minimum validation used floating coercion");
+    var pattern = ConfigurationReader.ReadText("pattern.json5", "{frontend:{elm:{extension:' '}}}");
+    Check(Resolver.resolve(Input([pattern], ProfileSelection.Disabled)).Diagnostics.Any(item => item.Code == "config.validation"
+        && item.KeyPath.SequenceEqual(new[] { "frontend", "elm", "extension" })), "Pinned schema pattern was not validated");
     Check(ConfigurationReader.ReadText("duplicate.json", "{name:1,\\u006eame:2}").Content is SourceContent.Invalid, "Decoded duplicate accepted");
     var malformed = ConfigurationReader.ReadText("malformed.yaml", "project: [unterminated");
     Check(malformed.Content is SourceContent.Invalid invalid && invalid.Item[0].Position is not null,

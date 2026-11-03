@@ -33,7 +33,9 @@ runs commands, discovers roots, changes process state or writes configuration.
   for control validation and later ordinary-value merging.
 - `.toml` uses the direct CsToml document/node APIs, with TOML 1.0 syntax and no
   reflection-based object binding. Duplicate declarations fail. Typed temporal
-  values retain their kind and ISO representation. Successful CsToml nodes do
+  values retain their kind and use culture-independent ISO representations.
+  Local date-times have no offset; offset date-times retain the declared offset.
+  Successful CsToml nodes do
   not expose original source positions; parser errors retain their available
   line number. JSON5 and YAML value positions are one-based.
 - `.yaml` and `.yml` use YamlDotNet parser events, without object deserialization.
@@ -52,6 +54,11 @@ Configuration roots must be objects. Nested documents are bounded to 128 levels.
 Unsupported extensions and malformed inputs return structured diagnostics naming
 their source and key path, with positions when available. Field names preserve
 case and unknown ordinary settings remain in the typed tree.
+
+Recognized secret-reference shapes are atomic values, including JSON objects
+supplied through environment settings. The document root and the schema's
+`logging` container keep ordinary map semantics: `logging.file` is an output
+path and remains present when another source adds `logging.level`.
 
 ## Classic normalization
 
