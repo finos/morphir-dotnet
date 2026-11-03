@@ -31,16 +31,16 @@ module internal Foundation =
         | Documented.WithDocumentation(_, x)
         | Documented.WithoutDocumentation x -> x
 
-    let sources (model: VersionedModel) (ct: CancellationToken) =
-        let initialCatalog, _ = TypeEmission.prepare model ct
+    let sources naming (model: VersionedModel) (ct: CancellationToken) =
+        let initialCatalog, _ = TypeEmission.prepare naming model ct
 
         let checkedValues =
             ValueLowering.declarations model ct
             |> ValueLowering.check initialCatalog ct
 
         let records = ValueLowering.recordDeclarations initialCatalog model ct checkedValues
-        let catalog, types = TypeEmission.prepareWith records model ct
-        let values = ValueEmission.emit catalog ct checkedValues
+        let catalog, types = TypeEmission.prepareWith naming records model ct
+        let values = ValueEmission.emit naming catalog ct checkedValues
 
         let sources pkg modules =
             ct.ThrowIfCancellationRequested()
@@ -89,7 +89,7 @@ module internal Foundation =
             modules
             |> List.map (fun (path, isPublic, _) ->
                 ct.ThrowIfCancellationRequested()
-                let ns = package pkg
+                let ns = TypeEmission.namespaceName naming pkg
                 let moduleId = moduleName path
                 let access = if isPublic then "public" else "internal"
 
@@ -138,10 +138,11 @@ module internal Foundation =
 /// In-memory generation. The caller owns decoding, host configuration and publication.
 [<AbstractClass; Sealed>]
 type CSharpGenerator private () =
-    static member Generate
+    static member private GenerateCore
         (
             model: VersionedModel,
             options: GenerationOptions,
+            namespaceOverride: NamespaceOverride option,
             cancellationToken: CancellationToken
         ) =
         let result status sources diagnostics = {
@@ -159,6 +160,15 @@ type CSharpGenerator private () =
 
         try
             cancellationToken.ThrowIfCancellationRequested()
+
+            if
+                namespaceOverride
+                |> Option.exists (fun value -> obj.ReferenceEquals(value, null))
+            then
+                Foundation.fail
+                    "invalid-namespace"
+                    "$options/namespace"
+                    "An explicit namespace override must be validated and non-null."
 
             if
                 options.LanguageVersion
@@ -183,10 +193,40 @@ type CSharpGenerator private () =
                     "$sourceVersion"
                     "The source version is not supported for this model family."
 
-            let sources = Foundation.sources model cancellationToken
+            let package =
+                match model.Distribution with
+                | DistributionModel.Classic(Distribution.Library(pkg, _, _)) -> Some pkg
+                | DistributionModel.V4(Morphir.IR.V4.Library(pkg, _, _)) -> Some pkg
+                | _ -> None
+
+            let naming: TypeEmission.Naming = {
+                Package = package
+                Namespace =
+                    namespaceOverride
+                    |> Option.map (fun value -> value.Value)
+            }
+
+            let sources = Foundation.sources naming model cancellationToken
             cancellationToken.ThrowIfCancellationRequested()
             result GenerationStatus.Success sources []
         with
         | :? OperationCanceledException when cancellationToken.IsCancellationRequested ->
             result GenerationStatus.Cancelled [] []
         | Refusal diagnostic -> result GenerationStatus.Failure [] [ diagnostic ]
+
+    static member Generate
+        (
+            model: VersionedModel,
+            options: GenerationOptions,
+            cancellationToken: CancellationToken
+        ) =
+        CSharpGenerator.GenerateCore(model, options, None, cancellationToken)
+
+    static member Generate
+        (
+            model: VersionedModel,
+            options: GenerationOptions,
+            namespaceOverride: NamespaceOverride,
+            cancellationToken: CancellationToken
+        ) =
+        CSharpGenerator.GenerateCore(model, options, Some namespaceOverride, cancellationToken)

@@ -88,7 +88,17 @@ Implementation [#478](https://github.com/finos/morphir-dotnet/pull/478) landed.
 The [main specification](openspec/specs/morphir-csharp-transpilation/spec.md) and
 [archived acceptance evidence](openspec/changes/archive/2026-11-03-add-csharp-code-generation/validation.md)
 are prepared in the archive follow-up; its landing and coordinator cleanup remain
-pending. CLI integration is a separate, undispatched initiative.
+pending.
+
+Generate C# through the existing CLI, with numeric profiles and a validated
+optional namespace:
+
+```powershell
+morphir generate --input model.json --target csharp --output generated --option language-version=14 --option namespace=Example.Generated --json
+```
+
+The [C# walkthrough](docs/content/docs/getting-started/morphir-to-csharp.md)
+builds and runs a fresh consumer against the immutable runtime.
 
 ## Getting Started
 

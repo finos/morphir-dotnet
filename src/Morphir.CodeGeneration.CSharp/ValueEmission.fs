@@ -19,7 +19,7 @@ module internal ValueEmission =
             definition.Inputs
             definition.Output
 
-    let emit catalog (ct: CancellationToken) (checkedValues: Checked list) =
+    let emit naming catalog (ct: CancellationToken) (checkedValues: Checked list) =
         checkedValues
         |> List.map (fun checkedValue ->
             let top = checkedValue.Top
@@ -28,7 +28,7 @@ module internal ValueEmission =
             let body = checkedValue.Body
 
             let typ shape =
-                render catalog ct loc parameters Set.empty (checkedValue.CheckedType shape)
+                render naming catalog ct loc parameters Set.empty (checkedValue.CheckedType shape)
 
             let mutable nextId = 0
 
@@ -98,7 +98,7 @@ module internal ValueEmission =
                         + "."
                         + candidate.Runtime.Value
                     else
-                        qualified candidate.Owner.Name
+                        qualifiedWith naming candidate.Owner.Name
                         + arguments typ args
                         + "."
                         + identifier candidate.Case
@@ -674,7 +674,7 @@ module internal ValueEmission =
                     let output = substitute ct substitutions target.Definition.Output
 
                     let methodName =
-                        qualified target.Name
+                        qualifiedWith naming target.Name
                         + arguments typ args
 
                     curry

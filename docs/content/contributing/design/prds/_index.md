@@ -2,6 +2,7 @@
 
 | PRD | Status | Phase | Current task |
 | --- | --- | --- | --- |
+| [C# generation CLI](./integrate-csharp-generation-cli.md) | In Progress | CLI integration | Real provider, validated options and namespace parity, [#481](https://github.com/finos/morphir-dotnet/issues/481) |
 | [C# code generation](./add-csharp-code-generation.md) | Implementation landed | Archive follow-up | #478 squash landed; 13/13 tasks, spec synced and archive prepared; follow-up landing and coordinator cleanup pending, #474 |
 | [Immutable C# SDK](./add-immutable-csharp-sdk.md) | Implementation and archive landed | Cleanup pending | #470 and archive #472 landed; implementation worktree/artifacts removed; empty archive directory cleanup pending |
 | [.NET SDKs and C# generation](dotnet-code-generation.md) | In Progress | C# archive follow-up | Generator #478 and SDK archive #472 landed; generator archive landing and coordinator cleanup pending; CLI undispatched |

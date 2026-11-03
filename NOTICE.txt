@@ -4,6 +4,10 @@ Copyright 2014 - 2020 Morgan Stanley
 This product includes software developed at the Fintech Open Source Foundation (https://www.finos.org/).
 This product includes software developed at Morgan Stanley.
 
+C# CLI generation integration, tests and documentation
+Copyright 2026 FINOS
+Licensed under Apache-2.0. This first-party contribution includes no newly copied third-party material.
+
 Shared .NET SDK conformance evidence
 
 Source excerpts, complete source files, documentation and cached observations
