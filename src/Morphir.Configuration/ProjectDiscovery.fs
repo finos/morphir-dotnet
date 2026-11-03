@@ -514,6 +514,11 @@ module DiscoveryPolicy =
                 |> List.map (ProjectPath.join basePath)
 
             let mayVisit path =
+                let reservedPath =
+                    ProjectPath.relative root.Path path
+                    |> globParts
+                    |> List.exists reserved
+
                 let excluded =
                     absoluteExcludes
                     |> List.exists (fun pattern -> globMatch pattern path)
@@ -525,8 +530,9 @@ module DiscoveryPolicy =
                         && globMatch pattern path
                     )
 
-                (absolutePatterns
-                 |> List.exists (fun pattern -> globMayMatch false pattern path))
+                not reservedPath
+                && (absolutePatterns
+                    |> List.exists (fun pattern -> globMayMatch false pattern path))
                 && (not excluded
                     || (not excludedSubtree
                         && (absolutePatterns

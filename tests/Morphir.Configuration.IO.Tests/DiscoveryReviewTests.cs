@@ -5,6 +5,24 @@ namespace Morphir.Configuration.IO.Tests;
 
 public sealed class DiscoveryReviewTests
 {
+    [Test]
+    [Arguments(".morphir/*", ".morphir/fixtures")]
+    [Arguments(".config/*", ".config/fixtures")]
+    [Arguments("packages/.config/fixtures/*", "packages/.config/fixtures/hidden")]
+    public void GlobSeedsCannotEnterReservedConfigurationDirectories(string pattern, string hiddenProject)
+    {
+        var tree = new InMemoryProjectTree("/repo", new Dictionary<string, string>
+        {
+            ["/repo/morphir.toml"] = "[workspace]\nmembers=['" + pattern + "']",
+            ["/repo/" + hiddenProject + "/morphir.toml"] = "[project]\nname='Hidden'"
+        });
+        var result = ProjectSystem.Discover(tree, "/repo");
+        result.Discovery.Projects.ToArray().Should().BeEmpty();
+        result.Selection.Projects.ToArray().Should().BeEmpty();
+        tree.ObservedPaths.Should().NotContain(p => p == "/repo/" + hiddenProject
+            || p.StartsWith("/repo/" + hiddenProject + "/", StringComparison.Ordinal));
+    }
+
     private sealed class FailingMemberTree(string pattern, string exclude, string allowed) : IProjectTree
     {
         private readonly InMemoryProjectTree _inner = new("/repo", new Dictionary<string, string>
