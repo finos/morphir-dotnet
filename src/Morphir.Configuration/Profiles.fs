@@ -236,6 +236,11 @@ module Profiles =
                             Position = position } ] }
         else plan
 
+    let private enabledPlan value roots enabled diagnostics =
+        { Enabled = enabled
+          Active = if diagnostics |> List.exists (fun error -> error.Severity = DiagnosticSeverity.Error) then [] else expand value roots
+          Diagnostics = diagnostics }
+
     let plan (sources: SourceInput list) (environment: Map<string, string>) (options: ProfileOptions) =
         match options.Selection with
         | ProfileSelection.Automatic when
@@ -246,11 +251,10 @@ module Profiles =
         | ProfileSelection.Names names ->
             let value = baseValue sources
             let includes = value |> readNames "include" |> Option.defaultValue []
-            { Enabled = true
-              Active = expand value (includes @ names)
-              Diagnostics =
+            (
                 nameErrors (selectorSource SourceRole.Explicit "<profiles>") [ "profiles" ] names
-                @ authorityErrors sources environment @ controlErrors sources value @ graphErrors sources value options }
+                @ authorityErrors sources environment @ controlErrors sources value @ graphErrors sources value options)
+            |> enabledPlan value (includes @ names) true
             |> boundActive options (selectorSource SourceRole.Explicit "<profiles>") [ "profiles" ] None
         | ProfileSelection.Automatic ->
             let environmentNames =
@@ -271,11 +275,10 @@ module Profiles =
                 | selected ->
                     let includes = readNames "include" baseValue |> Option.defaultValue []
                     includes @ (selected |> Option.defaultValue baseNames)
-            { Enabled = not names.IsEmpty
-              Active = expand baseValue names
-              Diagnostics =
+            (
                 (environmentNames |> Option.map (nameErrors (selectorSource SourceRole.Environment "MORPHIR_PROFILES") [ "profiles" ]) |> Option.defaultValue [])
-                @ authorityErrors sources environment @ controlErrors sources baseValue @ graphErrors sources baseValue options }
+                @ authorityErrors sources environment @ controlErrors sources baseValue @ graphErrors sources baseValue options)
+            |> enabledPlan baseValue names true
             |> (fun plan ->
                 match environmentNames with
                 | Some _ -> boundActive options (selectorSource SourceRole.Environment "MORPHIR_PROFILES") [ "profiles" ] None plan

@@ -47,7 +47,7 @@ names. Host options may tighten depth and expansion bounds.
 For example, `profiles.groups.production = ["postgres", "metrics"]` and
 `profiles.active = ["production"]` activate `production`, `postgres`, then
 `metrics`. A higher `profiles.active = null` fails control typing even if a lower
-source supplied a valid list. Ordinary null-as-unset merging does not apply to
+source supplied a valid list. Ordinary null overlay skipping does not apply to
 profile controls.
 
 Resolution applies each active name's workspace documents before its member

@@ -169,4 +169,14 @@ let tests =
             let result = Profiles.plan [] Map.empty options
             Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.active" && diagnostic.Source.Role = SourceRole.Explicit)) "129 distinct names exceed the active bound"
         }
+        test "a failed plan requests no active profile files" {
+            let groups = ConfigValue.Object (Map.ofList [ "a", names [ "a" ] ])
+            let options = { DocumentDefaults.profileOptions with Selection = ProfileSelection.Names [ "a" ] }
+            let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty options
+            Expect.isEmpty result.Active "a cyclic plan cannot request even one profile file"
+        }
+        test "enabled empty policy differs from disabled selection" {
+            let result = Profiles.plan [] Map.empty DocumentDefaults.profileOptions
+            Expect.equal (result.Enabled, result.Active, result.Diagnostics) (true, [], []) "there is no implicit active profile, but controls remain enabled"
+        }
     ]
