@@ -1,0 +1,503 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdk-contract-readiness",
+  "changeId": "establish-dotnet-sdk-conformance",
+  "contractId": "morphir-dotnet-sdk-v1",
+  "submittedContractCommit": "737e85b3a202ba733b153be637e33cf953342705",
+  "commitMeaning": "Immutable submitted contract artifact revision. Successor base is the hosting-service-recorded landed SHA on main, verified by the coordinator after merge; original worker commit ancestry is not required for a squash.",
+  "contractFiles": [
+    {
+      "path": "tests/Fixtures/MorphirSDK/inventory.json",
+      "sha256": "e31d8e54cdc9174671b334584f3b19cb31fa01ca7599f32d8f996a019ae175d0"
+    },
+    {
+      "path": "tests/Fixtures/MorphirSDK/cases.json",
+      "sha256": "52e95cee81d25eb194c752ae67b08b53ac42c3f2b50c14fa16dad1526f7cb2a7"
+    },
+    {
+      "path": "tests/Fixtures/MorphirSDK/provenance.json",
+      "sha256": "8cc22ef570df28843986788d0a2eea932abadabd827560c47ef0edeb754426a9"
+    },
+    {
+      "path": "tests/Fixtures/MorphirSDK/cases.schema.json",
+      "sha256": "5c024b3a851c5e3eb4399b9eb730b24854cc8c5d393abc34add1b36755ab4fb0"
+    },
+    {
+      "path": "tests/Fixtures/MorphirSDK/inventory.schema.json",
+      "sha256": "ef037b2706e0e56e7b882371d1b997d6c373bfb8f36a9676292321231a2b8545"
+    },
+    {
+      "path": "tests/Fixtures/MorphirSDK/provenance.schema.json",
+      "sha256": "9937e2ecd0404d8b04a374ee7c9f73aedf17a99669ee115cb12f62f23f03fe4c"
+    },
+    {
+      "path": "tests/Fixtures/MorphirSDK/README.md",
+      "sha256": "6cee7889894bb7b4a29565fd42083636e0c4d28410e2b2a7e2b89b003d77cdb7"
+    },
+    {
+      "path": "tests/Fixtures/MorphirSDK/PROVENANCE.md",
+      "sha256": "54de84d8430ef408af87953c3d41a009a227b386ea5138e1500d3c4d192df5fb"
+    },
+    {
+      "path": "tests/Fixtures/MorphirSDK/author-corpus.py",
+      "sha256": "f4bbdca5b84f187213fbcf55b15ad00030286d79f042f4bb380fed2afd031652"
+    },
+    {
+      "path": "tests/Fixtures/MorphirSDK/.gitattributes",
+      "sha256": "4757e1dcd55c3c17ce425cf0ce4ae480650f509d7224abb875ac748abb6afc68"
+    },
+    {
+      "path": "tests/Fixtures/MorphirSDK/.gitignore",
+      "sha256": "deda4d3936b1270e569244bc21e26a858af3109e41e43bc20edd7be9682024e9"
+    },
+    {
+      "path": "docs/design/dotnet-sdk-contract.md",
+      "sha256": "261a9b6cc16ce48a09ab2cd122fd822eb125608bd96cad0a7f3fa74b36b871d7"
+    }
+  ],
+  "hashEncoding": "SHA-256 of Git blob bytes; text checkout CRLF is normalized to LF when comparing non-evidence files. Evidence is always original-byte data.",
+  "profiles": [
+    "dotnet-sdk-v1"
+  ],
+  "operationIds": [
+    "Morphir.SDK.Basics.add",
+    "Morphir.SDK.Basics.subtract",
+    "Morphir.SDK.Basics.multiply",
+    "Morphir.SDK.Basics.divide",
+    "Morphir.SDK.Basics.integerDivide",
+    "Morphir.SDK.Basics.modBy",
+    "Morphir.SDK.Basics.remainderBy",
+    "Morphir.SDK.Basics.negate",
+    "Morphir.SDK.Basics.abs",
+    "Morphir.SDK.Basics.power",
+    "Morphir.SDK.Basics.toFloat",
+    "Morphir.SDK.Basics.round",
+    "Morphir.SDK.Basics.floor",
+    "Morphir.SDK.Basics.ceiling",
+    "Morphir.SDK.Basics.truncate",
+    "Morphir.SDK.Basics.isNaN",
+    "Morphir.SDK.Basics.isInfinite",
+    "Morphir.SDK.Basics.compare",
+    "Morphir.SDK.Basics.lessThan",
+    "Morphir.SDK.Basics.lessThanOrEqual",
+    "Morphir.SDK.Basics.greaterThan",
+    "Morphir.SDK.Basics.greaterThanOrEqual",
+    "Morphir.SDK.Basics.min",
+    "Morphir.SDK.Basics.max",
+    "Morphir.SDK.Basics.clamp",
+    "Morphir.SDK.Basics.LT",
+    "Morphir.SDK.Basics.EQ",
+    "Morphir.SDK.Basics.GT",
+    "Morphir.SDK.List.singleton",
+    "Morphir.SDK.List.cons",
+    "Morphir.SDK.List.map",
+    "Morphir.SDK.List.append",
+    "Morphir.SDK.List.head",
+    "Morphir.SDK.List.tail",
+    "Morphir.SDK.List.length",
+    "Morphir.SDK.Maybe.Just",
+    "Morphir.SDK.Maybe.Nothing",
+    "Morphir.SDK.Maybe.map",
+    "Morphir.SDK.Maybe.andThen",
+    "Morphir.SDK.Result.Ok",
+    "Morphir.SDK.Result.Err",
+    "Morphir.SDK.Result.map",
+    "Morphir.SDK.Result.andThen",
+    "Morphir.SDK.Dict.empty",
+    "Morphir.SDK.Dict.singleton",
+    "Morphir.SDK.Dict.fromList",
+    "Morphir.SDK.Dict.get",
+    "Morphir.SDK.Dict.insert",
+    "Morphir.SDK.Dict.update",
+    "Morphir.SDK.Dict.remove",
+    "Morphir.SDK.Dict.toList",
+    "Morphir.SDK.Dict.union",
+    "Morphir.SDK.Set.empty",
+    "Morphir.SDK.Set.singleton",
+    "Morphir.SDK.Set.fromList",
+    "Morphir.SDK.Set.insert",
+    "Morphir.SDK.Set.remove",
+    "Morphir.SDK.Set.toList",
+    "Morphir.SDK.Set.union",
+    "Morphir.SDK.Basics.equal",
+    "Morphir.SDK.Basics.notEqual",
+    "Morphir.SDK.Decimal.add",
+    "Morphir.SDK.Decimal.sub",
+    "Morphir.SDK.Decimal.mul",
+    "Morphir.SDK.Decimal.div",
+    "Morphir.SDK.Decimal.compare",
+    "Morphir.SDK.Decimal.toString"
+  ],
+  "requiredCaseIds": [
+    "Basics.add/int",
+    "Basics.add/float",
+    "Basics.add/int-overflow",
+    "Basics.add/float-nan",
+    "Basics.subtract/int",
+    "Basics.subtract/float",
+    "Basics.subtract/int-overflow",
+    "Basics.subtract/float-nan",
+    "Basics.multiply/int",
+    "Basics.multiply/float",
+    "Basics.multiply/int-overflow",
+    "Basics.multiply/float-nan",
+    "Basics.divide/normal",
+    "Basics.divide/positive-zero",
+    "Basics.divide/negative-zero",
+    "Basics.divide/zero-zero",
+    "Basics.divide/negative-result-zero",
+    "Basics.divide/infinite",
+    "Basics.integerDivide/positive",
+    "Basics.integerDivide/negative",
+    "Basics.integerDivide/both-negative",
+    "Basics.integerDivide/zero",
+    "Basics.integerDivide/min-neg-one",
+    "Basics.modBy/negative-dividend",
+    "Basics.modBy/negative-divisor",
+    "Basics.modBy/min-neg-one",
+    "Basics.modBy/zero",
+    "Basics.remainderBy/negative-dividend",
+    "Basics.remainderBy/negative-divisor",
+    "Basics.remainderBy/min-neg-one",
+    "Basics.remainderBy/zero",
+    "Basics.negate/int",
+    "Basics.negate/int-min",
+    "Basics.negate/signed-zero",
+    "Basics.abs/int",
+    "Basics.abs/int-min",
+    "Basics.abs/signed-zero",
+    "Basics.power/int",
+    "Basics.power/int-overflow",
+    "Basics.power/float",
+    "Basics.toFloat/max",
+    "Basics.toFloat/min",
+    "Basics.round/negative-half",
+    "Basics.round/nonfinite",
+    "Basics.round/out-of-range",
+    "Basics.floor/negative-half",
+    "Basics.floor/nonfinite",
+    "Basics.floor/out-of-range",
+    "Basics.ceiling/negative-half",
+    "Basics.ceiling/nonfinite",
+    "Basics.ceiling/out-of-range",
+    "Basics.truncate/negative-half",
+    "Basics.truncate/nonfinite",
+    "Basics.truncate/out-of-range",
+    "Basics.isNaN/nan",
+    "Basics.isNaN/infinity",
+    "Basics.isInfinite/nan",
+    "Basics.isInfinite/infinity",
+    "Basics.compare/int-lt",
+    "Basics.compare/int-eq",
+    "Basics.compare/int-gt",
+    "Basics.compare/float-zero",
+    "Basics.compare/decimal-text-order",
+    "Basics.compare/utf16",
+    "Basics.compare/no-normalization",
+    "Basics.compare/char",
+    "Basics.compare/list-prefix",
+    "Basics.compare/tuple",
+    "Basics.lessThan/int",
+    "Basics.lessThanOrEqual/int",
+    "Basics.greaterThan/int",
+    "Basics.greaterThanOrEqual/int",
+    "Basics.min/int",
+    "Basics.max/int",
+    "Basics.clamp/below",
+    "Basics.clamp/above",
+    "Basics.clamp/inside-float",
+    "Basics.LT/constructor",
+    "Basics.EQ/constructor",
+    "Basics.GT/constructor",
+    "List.singleton/nested",
+    "List.cons/prepend",
+    "List.map/normal",
+    "List.map/empty",
+    "List.append/normal",
+    "List.append/empty",
+    "List.head/normal",
+    "List.head/empty",
+    "List.tail/normal",
+    "List.tail/empty",
+    "List.tail/singleton",
+    "List.length/normal",
+    "List.length/empty",
+    "Maybe.Just/constructor",
+    "Maybe.Nothing/constructor",
+    "Maybe.map/present",
+    "Maybe.map/absent",
+    "Maybe.andThen/present",
+    "Maybe.andThen/absent",
+    "Maybe.andThen/callback-failure",
+    "Result.Ok/constructor",
+    "Result.Err/constructor",
+    "Result.map/present",
+    "Result.map/absent",
+    "Result.andThen/present",
+    "Result.andThen/absent",
+    "Result.andThen/callback-failure",
+    "Dict.empty/empty",
+    "Dict.singleton/normal",
+    "Dict.fromList/duplicate-last",
+    "Dict.fromList/empty",
+    "Dict.fromList/nested-keys-values",
+    "Dict.get/present",
+    "Dict.get/absent",
+    "Dict.insert/replace",
+    "Dict.insert/new",
+    "Dict.update/present",
+    "Dict.update/missing-insert",
+    "Dict.update/remove",
+    "Dict.update/missing-noop",
+    "Dict.remove/present",
+    "Dict.remove/missing",
+    "Dict.toList/ordered",
+    "Dict.toList/empty",
+    "Dict.union/first-wins",
+    "Dict.union/empty-left",
+    "Set.empty/empty",
+    "Set.singleton/normal",
+    "Set.fromList/duplicates",
+    "Set.insert/new",
+    "Set.insert/duplicate",
+    "Set.remove/present",
+    "Set.remove/missing",
+    "Set.toList/ordered",
+    "Set.union/overlap",
+    "Basics.equal/list",
+    "Basics.equal/dict",
+    "Basics.equal/set",
+    "Basics.equal/result",
+    "Basics.equal/decimal-scale",
+    "Basics.equal/unit",
+    "Basics.equal/nan",
+    "Basics.equal/signed-zero",
+    "Basics.notEqual/list",
+    "Basics.notEqual/dict",
+    "Basics.notEqual/set",
+    "Basics.notEqual/result",
+    "Basics.notEqual/decimal-scale",
+    "Basics.notEqual/unit",
+    "Basics.notEqual/nan",
+    "Basics.notEqual/signed-zero",
+    "Decimal.add/exact",
+    "Decimal.add/overflow",
+    "Decimal.add/min-scale",
+    "Decimal.add/max",
+    "Decimal.sub/exact",
+    "Decimal.mul/exact",
+    "Decimal.div/exact",
+    "Decimal.div/zero",
+    "Decimal.compare/scale",
+    "Decimal.toString/trim-scale",
+    "Decimal.toString/zero",
+    "Basics.multiply/float-overflow",
+    "Basics.multiply/float-underflow",
+    "Basics.add/float-smallest",
+    "Basics.add/int-minimum",
+    "List.cons/structural-hash",
+    "Decimal.sub/negative-overflow",
+    "Decimal.mul/overflow",
+    "Basics.lessThan/equal",
+    "Basics.lessThan/reversed",
+    "Basics.lessThanOrEqual/equal",
+    "Basics.lessThanOrEqual/reversed",
+    "Basics.greaterThan/equal",
+    "Basics.greaterThan/reversed",
+    "Basics.greaterThanOrEqual/equal",
+    "Basics.greaterThanOrEqual/reversed",
+    "Basics.equal/unequal-nested-list",
+    "Basics.equal/unequal-dict",
+    "Basics.equal/unequal-set",
+    "Basics.equal/unequal-result-constructor",
+    "Basics.equal/unequal-maybe-constructor",
+    "Basics.equal/unequal-decimal",
+    "Basics.notEqual/unequal-nested-list",
+    "Basics.notEqual/unequal-dict",
+    "Basics.notEqual/unequal-set",
+    "Basics.notEqual/unequal-result-constructor",
+    "Basics.notEqual/unequal-maybe-constructor",
+    "Basics.notEqual/unequal-decimal",
+    "List.singleton/decimal-scale-hash",
+    "List.singleton/nested-result-hash",
+    "Result.Ok/decimal-scale-hash",
+    "Result.Err/nested-error-hash",
+    "List.map/callback-overflow",
+    "Maybe.map/callback-overflow",
+    "Result.map/callback-overflow",
+    "Dict.update/callback-overflow",
+    "Basics.clamp/reversed-bounds",
+    "Basics.clamp/equal-bound",
+    "Basics.clamp/nan-value",
+    "Basics.clamp/nan-low",
+    "Basics.clamp/infinite-value",
+    "Basics.clamp/signed-zero",
+    "List.singleton/signed-zero-hash",
+    "Set.fromList/ordered-float",
+    "Basics.compare/tuple3",
+    "Decimal.add/normalized-input-scale"
+  ],
+  "representationExclusions": [
+    {
+      "caseId": "Basics.power/int-negative-exponent",
+      "code": "IntegerNegativeExponent",
+      "reason": "Reference returns Float 0.5, outside Int -> Int closure."
+    },
+    {
+      "caseId": "Basics.toFloat/outside-int",
+      "code": "IntegerOutOfRange",
+      "reason": "Input exceeds signed Int32."
+    },
+    {
+      "caseId": "Basics.compare/nonfinite-key",
+      "code": "NonFiniteComparable",
+      "reason": "NaN is not a total ordered key. Python's fallback comparison reports EQ; that is not admitted parity."
+    },
+    {
+      "caseId": "Basics.compare/supplementary-char",
+      "code": "CharOutOfRange",
+      "reason": "One Unicode scalar exceeds one non-surrogate UTF-16 Char."
+    },
+    {
+      "caseId": "Decimal.add/scale-29",
+      "code": "DecimalScaleOutOfRange",
+      "reason": "Nonzero digit at scale 29 cannot be represented exactly in Decimal96."
+    },
+    {
+      "caseId": "Decimal.add/coefficient-97-bits",
+      "code": "DecimalCoefficientOutOfRange",
+      "reason": "Input coefficient exceeds 96 bits."
+    },
+    {
+      "caseId": "Decimal.mul/result-scale",
+      "code": "DecimalScaleOutOfRange",
+      "reason": "Exact result needs scale 29. .NET rounding to zero is not admitted."
+    },
+    {
+      "caseId": "Decimal.div/nonterminating",
+      "code": "DecimalNonTerminating",
+      "reason": "Python's 50-digit rounded observation retained; MoonBit truncates at exponent -32. Neither is exact Decimal96 parity."
+    }
+  ],
+  "knownGaps": [
+    {
+      "id": "FS-DICT-UNION",
+      "runtime": "fsharp",
+      "owner": "introduce-fsharp-sdk-package",
+      "requiredCaseIds": [
+        "Dict.union/first-wins"
+      ]
+    },
+    {
+      "id": "FS-INT-CHECKED",
+      "runtime": "fsharp",
+      "owner": "introduce-fsharp-sdk-package",
+      "requiredCaseIds": [
+        "Basics.add/int-overflow",
+        "Basics.subtract/int-overflow",
+        "Basics.multiply/int-overflow",
+        "Basics.negate/int-min"
+      ]
+    },
+    {
+      "id": "FS-DECIMAL-DIV",
+      "runtime": "fsharp",
+      "owner": "introduce-fsharp-sdk-package",
+      "requiredCaseIds": [
+        "Decimal.div/zero"
+      ]
+    },
+    {
+      "id": "FS-DECIMAL-TEXT",
+      "runtime": "fsharp",
+      "owner": "introduce-fsharp-sdk-package",
+      "requiredCaseIds": [
+        "Decimal.toString/trim-scale",
+        "Decimal.toString/zero"
+      ]
+    }
+  ],
+  "sourceRevisions": {
+    "finos/morphir-python": "560a6503b8ffcab87ea667391579b747757bec0d",
+    "finos/morphir-moonbit": "10732eaf2f05b10ca6e94a78121e2753c814acd8",
+    "finos/morphir-gleam": "dcfa73c218276dd8e172bbc0a2b579110bce8e46",
+    "finos/morphir-elm": "1be5323eb24d943c7cb3ac965d5a51d13fd83e5d"
+  },
+  "historicalElmOracleRevision": "bc99af69a8b24d391311fae3822a87eafef3c334",
+  "dispatchTarget": {
+    "providerInstanceId": "codex",
+    "driverKind": "codex",
+    "model": "gpt-6.1-sol",
+    "options": {
+      "reasoningEffort": "high"
+    }
+  },
+  "runtimeReadiness": {
+    "state": "awaiting-verified-main-merge",
+    "baseBranch": "main",
+    "requiresMergedInitiativePullRequest": true,
+    "requiresLandedShaReachableFromRefreshedMain": true,
+    "requiresContractHashesAndCaseIdsMatch": true,
+    "requiresOriginalWorkerHeadAncestry": false,
+    "requiredChecksAndOtherDeveloperSignoffRequired": true,
+    "landingArchiveAndCleanupOwner": "root coordinator"
+  },
+  "runtimeAcceptance": {
+    "requiredIdsMustAllExecuteAndPass": true,
+    "exclusionsArePasses": false,
+    "knownGapsArePasses": false,
+    "skipsOrExpectedFailuresSatisfyRequiredCases": false,
+    "sdkRuntimeConformanceClaimedByThisInitiative": false
+  },
+  "followUpOwners": [
+    {
+      "changeId": "add-immutable-csharp-sdk",
+      "owner": "C# SDK lead",
+      "dependsOnMerged": [
+        "establish-dotnet-sdk-conformance"
+      ]
+    },
+    {
+      "changeId": "introduce-fsharp-sdk-package",
+      "owner": "F# SDK lead",
+      "dependsOnMerged": [
+        "establish-dotnet-sdk-conformance"
+      ],
+      "mustResolveGapIds": [
+        "FS-DICT-UNION",
+        "FS-INT-CHECKED",
+        "FS-DECIMAL-DIV",
+        "FS-DECIMAL-TEXT"
+      ]
+    },
+    {
+      "changeId": "add-csharp-code-generation",
+      "owner": "C# generation lead",
+      "dependsOnMerged": [
+        "add-immutable-csharp-sdk"
+      ]
+    },
+    {
+      "changeId": "integrate-csharp-generation-cli",
+      "owner": "CLI lead",
+      "dependsOnMerged": [
+        "add-csharp-code-generation"
+      ]
+    }
+  ],
+  "validation": {
+    "dotnetSdk": "10.0.403",
+    "runtime": "10.0.14",
+    "os": "Windows arm64",
+    "tunit": "1.48.0",
+    "microsoftTestingPlatform": "2.2.3",
+    "openSpec": "1.14.3",
+    "fixtureTestsPassed": 27,
+    "fixtureTestsSkipped": 0,
+    "validatorLineCoveragePercent": 93.42105263157895,
+    "fullNukeSuiteTestsPassed": 2752,
+    "coldPackageLifecycleChecksPassed": 15,
+    "buildPackageTestsPassed": 40,
+    "runtimeTestsAreIndependentFollowUpWork": true
+  }
+}

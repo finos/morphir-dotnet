@@ -1,0 +1,3 @@
+# This is upstream source evidence, not restored NuGet packages.
+!evidence/python/packages/
+!evidence/python/packages/**
