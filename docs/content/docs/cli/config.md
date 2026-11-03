@@ -238,9 +238,9 @@ After a complete rollback, the command exits 2 and cleans its temporary artifact
 
 Native filesystem access keeps the existing no-follow policy. On macOS, the conventional `/etc` path is a symlink, so the default system target can return an I/O-category failure before writing. Use an explicitly authorized physical TOML path when needed. A permission failure likewise returns 2; previews do not request elevated access or create directories.
 
-## Planned migration
+## Project migration
 
-Project and workspace migration remain separate active changes. Editing does not remove classic manifests, perform migration equivalence checks or adopt workspace membership automatically.
+Use [project migrate]({{< relref "/docs/cli/project-migrate" >}}) to adopt one classic project through loss-checked shared planning and guarded application. Workspace migration remains planned. Editing does not remove classic manifests, perform migration equivalence checks or adopt workspace membership automatically.
 
 ## Related documentation
 

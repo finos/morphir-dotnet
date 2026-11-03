@@ -102,3 +102,12 @@ This docs-only contribution synchronizes and archives the landed SDK runtime
 specifications, repairs handoff links and records delivery evidence. It adds no
 third-party source, license or restriction. All existing copyright, attribution,
 license and original-byte evidence notices remain applicable and are retained.
+
+Classic project migration submission (#476)
+
+Copyright 2026 FINOS
+
+The pure migration planner, independent equivalence checks, IO coordinator,
+CLI provider, tests and documentation are original contributions under this
+repository's Apache-2.0 license. No third-party source or new dependency is
+added. All existing notices, attribution and licensed evidence remain intact.

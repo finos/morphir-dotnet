@@ -7,7 +7,7 @@ description: "Workspace discovery, inspection, safe TOML editing and .NET consum
 
 # Configure a workspace
 
-The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. `config set/unset` plan and apply one TOML edit. Project/workspace migration remain planned. See the [editing delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) for local validation and parent delivery gates.
+The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. `config set/unset` plan and apply one TOML edit. `project migrate` adopts one classic project through loss-checked shared services. Workspace migration remains planned. See the [editing delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) for local validation and parent delivery gates.
 
 ## Declare the workspace
 
@@ -140,18 +140,19 @@ If a TOML primary also sets `project.source_directory = "src"`, that value wins 
 
 ## Migrate the classic project
 
-This command remains planned.
+The command is available through the CLI and shared migration APIs.
 
 For this example, start with a classic project whose only primary is the JSON file above. If the earlier TOML example is also present, its different source directory is a conflict that migration must report before writing.
 
 Preview the conversion, then apply it to that member:
 
 ```bash
-morphir project migrate packages/orders/morphir.json --dry-run
+morphir project migrate packages/orders/morphir.json --dry-run --json > migration-plan.json
 morphir project migrate packages/orders/morphir.json
+morphir project migrate packages/orders/morphir.json --json # unchanged repeat
 ```
 
-The planned `packages/orders/morphir.toml` includes the mapped fields and the defaults that previously came from recognizing a classic Elm manifest:
+The resulting `packages/orders/morphir.toml` includes the mapped fields and the defaults that previously came from recognizing a classic Elm manifest:
 
 ```toml
 [project]
@@ -171,7 +172,7 @@ Migration checks that effective project values and source-path meaning are uncha
 
 The source JSON stays unchanged so older morphir-elm consumers can continue using it. Repeating migration with the same inputs makes no changes. A conflicting TOML value, unsupported dependency/decorations shape, or any unmapped setting blocks application rather than silently dropping data. Remove the old manifest separately only after those consumers have moved to the new format.
 
-See the [migration command reference]({{< relref "/docs/cli/project#migration-behavior" >}}) for output selection and structured dry-run results.
+See the [migration command reference]({{< relref "/docs/cli/project-migrate" >}}) for output selection and structured dry-run results.
 
 ## Adopt a repository of classic projects
 

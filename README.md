@@ -68,7 +68,9 @@ resolved document with explicit/source-generated Options binding. See the
 and exit codes. Shared [editing services](docs/content/docs/configuration/editing.md)
 and `morphir config set/unset` provide typed, scoped TOML previews and writes,
 source-preserving changes, optimistic conflicts and explicit recovery ownership.
-Project/workspace migration remain separate plans. See the
+Shared [classic project migration](docs/content/docs/configuration/project-migration.md)
+and `morphir project migrate` provide loss-checked previews and guarded TOML
+adoption while retaining classic bytes. Workspace migration remains planned. See the
 [reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.
 
 ## SDK libraries

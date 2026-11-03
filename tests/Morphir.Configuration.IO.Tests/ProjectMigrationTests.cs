@@ -255,3 +255,103 @@ public sealed class ProjectMigrationFailureTests
         public void DeleteDirectory(string path) => inner.DeleteDirectory(path);
     }
 }
+
+public sealed class ProjectMigrationHostBoundaryTests
+{
+    [Test]
+    public void ReadonlyExistingTargetAndPresentationRetainSafeCompletePlan()
+    {
+        var tree = Tree("[project]\nname='App'\n[custom]\nother=true\n");
+        var preview = new ProjectMigrationService(tree).Plan("/repo");
+        preview.CanApply.Should().BeTrue();
+        preview.Presentation!.Edits.ToArray().Should().Contain(e => e.Value.Equals(ConfigValue.NewString("[REDACTED]")));
+        ConfigTree.tryFind(Microsoft.FSharp.Collections.ListModule.OfSeq(new[] { "custom", "password" }), preview.Presentation.Candidate)!.Value
+            .Should().Be(ConfigValue.NewString("[REDACTED]"));
+        new ProjectMigrationService(tree).Plan("relative").Presentation.Should().BeNull();
+        new ProjectMigrationService(tree).Plan("/outside").CanApply.Should().BeFalse();
+        new ProjectMigrationService(tree).Plan("/repo", "morphir-ir.json").CanApply.Should().BeFalse();
+    }
+
+    [Test]
+    public void MalformedAndChangingMountedTargetsBlockWithStructuredErrors()
+    {
+        var tree = Tree("[project]\nname='App'\n");
+        foreach (var mode in new[] { "link", "invalid", "null" })
+        {
+            var preview = new ProjectMigrationService(new ChangingTree(tree, mode)).Plan("/repo");
+            preview.CanApply.Should().BeFalse(mode);
+            preview.Diagnostics.Should().Contain(d => d.Severity == DiagnosticSeverity.Error);
+        }
+        var malformed = new InMemoryProjectTree("/repo", new Dictionary<string, string> { ["/repo/morphir.json"] = "{name:'App',project:{name:'conflict'},exposedModules:[]}" });
+        new ProjectMigrationService(malformed).Plan("/repo").CanApply.Should().BeFalse();
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void StorageReadFailureAndUnstableObservationNeverCreateApplicablePlans(bool unstable)
+    {
+        var root = ProjectPath.normalize(Path.Combine(Path.GetTempPath(), "migration-evidence-" + Guid.NewGuid().ToString("N")));
+        Directory.CreateDirectory(root);
+        const string source = "{name:'App',exposedModules:[]}\n";
+        try
+        {
+            File.WriteAllText(root + "/morphir.json", source);
+            var preview = new ProjectMigrationService(new FileSystemProjectTree(root), new EvidenceHost(unstable)).Plan(root);
+            preview.CanApply.Should().BeFalse();
+            preview.Diagnostics.Should().Contain(d => d.Code == (unstable ? "migration.stale" : "migration.io"));
+            File.ReadAllText(root + "/morphir.json").Should().Be(source);
+            Directory.GetFiles(root).Should().ContainSingle();
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private static InMemoryProjectTree Tree(string target) => new("/repo", new Dictionary<string, string>
+    {
+        ["/repo/morphir.json"] = "{name:'App',exposedModules:[],custom:{password:'private-value'}}",
+        ["/repo/morphir.toml"] = target
+    });
+
+    private sealed class ChangingTree(IProjectTree inner, string mode) : IProjectTree
+    {
+        private int targetReads;
+        public string Boundary => inner.Boundary;
+        public ProjectEntry Observe(string path)
+        {
+            if (path != "/repo/morphir.toml") return inner.Observe(path);
+            targetReads++;
+            if (mode == "link") return ProjectEntry.Link;
+            if (mode == "invalid" && targetReads > 1) return ProjectEntry.NewFile(ConfigurationReader.ReadText(path, "[invalid").Content);
+            if (mode == "null")
+            {
+                // Synthetic mounted hosts can supply typed values a TOML parser cannot produce.
+                // Retaining such an unrelated target value must fail rendering rather than drop it.
+                var parsed = (SourceContent.Available)ConfigurationReader.ReadText(path, "[project]\nname='App'\n").Content;
+                var raw = ConfigTree.set(Microsoft.FSharp.Collections.ListModule.OfSeq(new[] { "custom", "unrepresentable" }), ConfigValue.Null, parsed.Item.Raw);
+                return ProjectEntry.NewFile(SourceContent.NewAvailable(Normalization.normalize(parsed.Item.Source, raw,
+                    Microsoft.FSharp.Collections.MapModule.Empty<Microsoft.FSharp.Collections.FSharpList<string>, SourcePosition>())));
+            }
+            return inner.Observe(path);
+        }
+    }
+
+    private sealed class EvidenceHost(bool unstable) : IConfigurationTransactionHost
+    {
+        private readonly NativeConfigurationTransactionHost inner = new();
+        private int observations;
+        public ConfigurationObservation Observe(string path, IReadOnlyCollection<string>? excludedPaths = null)
+        {
+            var result = inner.Observe(path, excludedPaths);
+            if (path.EndsWith("/morphir.json", StringComparison.Ordinal) && ++observations > 1 && unstable)
+                return result with { Identity = "changed" };
+            return result;
+        }
+        public byte[] ReadFile(string path) => unstable ? inner.ReadFile(path) : throw new IOException("Injected read failure");
+        public IDisposable Acquire(IReadOnlyList<string> paths) => throw new InvalidOperationException("Preview acquired writer coordination");
+        public IReadOnlyList<string> CreateParentDirectories(string destination) => throw new InvalidOperationException();
+        public string Stage(string destination, ReadOnlyMemory<byte> content, string transactionId, string role) => throw new InvalidOperationException();
+        public void Install(string stagedPath, string destination, bool overwrite) => throw new InvalidOperationException();
+        public void DeleteFile(string path) => throw new InvalidOperationException();
+        public void DeleteDirectory(string path) => throw new InvalidOperationException();
+    }
+}

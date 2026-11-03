@@ -99,7 +99,10 @@ public sealed class ProjectMigrationSteps : IDisposable
         var cli = Environment.GetEnvironmentVariable("MORPHIR_CONFIGURATION_CLI") ?? Path.Combine(repo!.FullName, "src", "Morphir", "bin", configuration, "net10.0", "morphir.dll");
         var info = new ProcessStartInfo(cli.EndsWith(".dll", StringComparison.Ordinal) ? "dotnet" : cli)
         {
-            WorkingDirectory = _working, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false
+            WorkingDirectory = _working,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
         };
         if (cli.EndsWith(".dll", StringComparison.Ordinal)) info.ArgumentList.Add(cli);
         foreach (var arg in new[] { "project", "migrate" }.Concat(arguments).Concat(json ? ["--json"] : []).Concat(["--discovery-boundary", _root])) info.ArgumentList.Add(arg);

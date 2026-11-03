@@ -100,3 +100,19 @@ the commands above.
 
 Personal target qualification includes mixed primary layouts and explicit personal
 files in another declared member, with retained workspace ownership under isolation.
+
+## Classic migration qualification
+
+The host also runs single-project migration outside the CLI in every published
+mode. It checks all three TOML layouts through a read-only tree, safe structured
+plans, exclusion of personal sources, member base context, source retention,
+verified application, no-op timestamps, workspace drift, raw loss and IR-input
+rejection. The JSON receipt includes `migration_checks`. It also links the actual CLI report
+DTO sources and exercises their generated serializer with reflection disabled,
+checking that canonical secrets never enter the report.
+
+For campaign 5 use `/private/tmp/morphir-project-migration/` as the temporary and
+publish root in the commands above. Keep publishes serial, use two logical
+processors and retain the existing explicit dependency-warning qualification.
+The campaign delivery journal records actual commands and results. Preserve any
+reported recovery directory until its artifacts are resolved.

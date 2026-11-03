@@ -30,7 +30,9 @@ project requires a member directory or manifest path.
 | `--json` | Emit one structured JSON result on stdout |
 | `--discovery-boundary directory` | Bound discovery to an explicitly selected directory tree |
 
-The default output is `morphir.toml` adjacent to the selected classic manifest.
+The default output is the corresponding TOML primary adjacent to the selected
+classic manifest: `morphir.json` becomes `morphir.toml`; a dot-config
+`config.json` becomes `config.toml`.
 Supported primary layouts are `morphir.toml`, `.morphir/morphir.toml`, and
 `.config/morphir/config.toml` within the same project. Hidden and dot-config
 layouts retain the project's location as the anchor for relative source paths.
