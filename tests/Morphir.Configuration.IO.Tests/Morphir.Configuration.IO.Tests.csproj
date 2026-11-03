@@ -17,6 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.Configuration/Morphir.Configuration.fsproj" />
+    <ProjectReference Include="../../src/Morphir.Configuration.IO/Morphir.Configuration.IO.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="**/*.feature" />
