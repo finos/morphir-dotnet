@@ -1,7 +1,7 @@
 # Morphir.Configuration.IO
 
 Reusable .NET 10 readers for caller-supplied Morphir configuration. The adapter
-references the pure `Morphir.Configuration` library, CsToml 1.8.3 and YamlDotNet
+references the pure `Morphir.Configuration` library, CsToml 1.8.6 and YamlDotNet
 16.3.0. It has no CLI or hosting dependency.
 
 ```csharp
