@@ -129,3 +129,52 @@ All new evidence is owned under `/private/tmp/morphir-config-inspection/parent-r
 Current-head CI and the independent query/provider reviews remain pending, along
 with main landing and owned artifact cleanup. Blanket admin-bypass authorization
 from the user remains in effect after checks and verified review fixes complete.
+
+
+### Parent provider review fixes
+
+The independent provider review found two host-boundary defects at `45196ca`.
+Machine configuration candidates were all assigned the invocation volume, so
+Windows invocations on D: could not read ordinary C: system/user locations or
+redirected UNC roaming locations. `MachineBoundaries` now plans distinct roots
+without observing them, and the native host explicitly authorizes those roots.
+`ProjectLoadOptions.MachineTrees` routes candidates within the supplied hosts;
+the existing single-tree API remains compatible. No project boundary is widened,
+and missing authorization still yields a structured read error without a read.
+Eight portable regressions cover cross-drive/UNC reads, relative MORPHIR_HOME,
+Unix root planning, invalid relative locations, missing authorization and isolation.
+The initial build failed on the missing multi-root contract; all eight now pass.
+
+Two new CLI BDD cases reproduced process aborts, exit 134, when malformed host
+appsettings were present. The builder retains supported initialization failures
+for an opted-in configuration provider using a minimal fallback host. Commands
+validate arguments and profile controls before rendering a generic `config.load`
+failure, one JSON result and exit 2. Invalid arguments retain `config.usage`.
+Help remains read-free and other command defaults retain their existing behavior.
+Both initially failing subprocess cases now pass. Logs are `host-red.log`,
+`host-green.log`, `machine-red-build.log` and `machine-green.log` in `parent-review`.
+
+
+Final host-fix validation passes core 136/136, IO/BDD 179/179, Microsoft adapter
+22/22 and tooling 307/307. The tooling suite includes the two new initialization
+subprocess regressions. An initial broad tooling run used macOS's symlinked
+default temporary path and failed filesystem boundary checks; rerunning with
+physical `TMPDIR`, `TEMP` and `TMP` passed all 307 cases. No product change was
+made for that environment issue. Full solution build succeeds with zero errors
+and 9 existing warnings on this incremental invocation. Current-source coverage
+union is core 3420/3567, 95.88%, and IO 662/685, 96.64%; the unchanged Microsoft
+adapter retains its 118/119, 99.16% qualification.
+
+The IO smoke now exercises both cross-drive and UNC machine hosts in managed,
+trimmed and native osx-arm64 binaries, plus all 228 JSON5 syntax cases and
+26 pinned Morphir fixtures. Each receipt reports `machine_roots: true`, success
+and empty stderr. Existing CsToml/FSharp.Core linker diagnostics remain visible
+under the documented warning qualification; no authored IO/boundary warnings
+were introduced. Publish-only lockfile changes were inspected and restored.
+Logs and receipts are owned under `parent-review`, including `host-final-build.log`,
+`io-host-full.log`, `tooling-host-full.log`, `machine-*-publish.log` and
+`machine-*-result.json`. Changed-file formatting and whitespace checks pass.
+
+OpenSpec verification was refreshed after the host fixes and passes all 22
+active/spec items and both extension tests. Current-head CI and the independent
+query review remain pending before the authorized landing and cleanup.

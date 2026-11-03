@@ -2,6 +2,20 @@
 Feature: Inspect configuration without mutating the project
   Inspection shares canonical resolution with embedded hosts and keeps stdout scriptable.
 
+  Scenario: Host initialization failures preserve structured inspection output
+    Given an inspection workspace with a member and a personal override
+    And the invocation directory contains malformed host appsettings
+    When I inspect with "get custom.winner --isolated"
+    Then inspection exits with 2 and one JSON result
+    And inspection diagnostics include "config.load"
+
+  Scenario: Invalid arguments precede host initialization failures
+    Given an inspection workspace with a member and a personal override
+    And the invocation directory contains malformed host appsettings
+    When I inspect with "get custom.winner --profiles INVALID --isolated"
+    Then inspection exits with 2 and one JSON result
+    And inspection diagnostics include "config.usage"
+
   Scenario Outline: Automatic selection preserves invalid workspace defaults
     Given an inspection workspace with a member and a personal override
     And the inspection workspace has an invalid default member

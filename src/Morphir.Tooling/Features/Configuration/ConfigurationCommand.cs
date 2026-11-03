@@ -9,17 +9,20 @@ using Morphir.Tooling.Infrastructure;
 namespace Morphir.Tooling.Features.Configuration;
 
 /// <summary>Registers inspection commands without reading configuration or constructing a resolver.</summary>
-public sealed class ConfigurationCommandProvider : ICommandProvider
+public sealed class ConfigurationCommandProvider : ICommandProvider, IMorphirHostInitializationErrorHandler
 {
     private readonly IConfigurationInspectionHost _host;
+    private bool _hostInitializationFailed;
     public ConfigurationCommandProvider() : this(new NativeConfigurationInspectionHost()) { }
     public ConfigurationCommandProvider(IConfigurationInspectionHost host) => _host = host;
 
+    void IMorphirHostInitializationErrorHandler.HandleHostInitializationFailure() => _hostInitializationFailed = true;
+
     public void RegisterCommands(RootCommand rootCommand, IServiceCollection services)
     {
-        var config = new ConfigurationCommand("config", _host);
+        var config = new ConfigurationCommand("config", _host, _hostInitializationFailed);
         foreach (var name in new[] { "get", "list", "show", "path", "explain" })
-            config.Subcommands.Add(new ConfigurationCommand(name, _host));
+            config.Subcommands.Add(new ConfigurationCommand(name, _host, _hostInitializationFailed));
         rootCommand.Subcommands.Add(config);
     }
 }
@@ -28,6 +31,7 @@ public sealed class ConfigurationCommandProvider : ICommandProvider
 public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
 {
     private readonly IConfigurationInspectionHost _host;
+    private readonly bool _hostInitializationFailed;
     private readonly Argument<string>? _key;
     private readonly Option<bool> _json = new("--json") { Description = "Emit one structured JSON result" };
     private readonly Option<bool> _origin = new("--show-origin") { Description = "Include winning source paths and positions" };
@@ -45,10 +49,13 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
     private readonly Option<bool> _isolated = new("--isolated") { Description = "Exclude machine and personal files" };
     private readonly Option<string[]> _warnings = new("--suppress-warning") { Description = "Suppress a supported warning code; repeatable", Arity = ArgumentArity.OneOrMore, AllowMultipleArgumentsPerToken = false };
 
-    public ConfigurationCommand(string operation, IConfigurationInspectionHost host) : base(operation,
+    public ConfigurationCommand(string operation, IConfigurationInspectionHost host) : this(operation, host, false) { }
+
+    internal ConfigurationCommand(string operation, IConfigurationInspectionHost host, bool hostInitializationFailed) : base(operation,
         operation == "config" ? "Inspect Morphir configuration" : "Inspect " + operation + " configuration")
     {
         _host = host;
+        _hostInitializationFailed = hostInitializationFailed;
         if (operation is "get" or "explain")
         {
             _key = new Argument<string>("key") { Description = "Case-sensitive dotted path; JSON-quoted segments allow literal dots" };
@@ -96,6 +103,8 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
             MapModule.OfSeq(environment.Select(p => Tuple.Create(p.Key, p.Value))), profileOptions);
         if (preflight.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
             return Render(Failure("Invalid profile controls. Names must match [a-z][a-z0-9_-]{0,63}."), json);
+        if (_hostInitializationFailed)
+            return Render(ConfigurationReport.Failure(Name, "config.load", "Host configuration initialization failed. Check appsettings and access permissions."), json);
         var scope = parsed.GetValue(_workspace) ? QueryScope.Workspace : parsed.GetValue(_project) is not null ? QueryScope.Project :
             parsed.GetValue(_user) ? QueryScope.User : parsed.GetValue(_global) ? QueryScope.Global : parsed.GetValue(_system) ? QueryScope.System :
             parsed.GetValue(_file) is { } file ? QueryScope.NewFile(ProjectPath.join(System.Environment.CurrentDirectory, file)) : QueryScope.Effective;

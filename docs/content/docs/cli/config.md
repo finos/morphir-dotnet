@@ -76,7 +76,7 @@ A workspace-root invocation reads the root unless shared selection chooses one d
 
 Profile names match `[a-z][a-z0-9_-]{0,63}`. Invalid explicit or environment profile names fail before discovery. `--profiles ci --profiles metrics` activates `ci` then `metrics`; use `--no-profiles` to disable activation. The supported mixed-format warning codes are `config.yaml_beside_toml` and `config.json_keys_below_toml`. Unknown suppression codes produce a structured warning.
 
-Without an explicit boundary, the native CLI searches within the current filesystem volume. It captures native machine locations and environment values at execution time. Embedded hosts can instead supply bounded or mounted trees without ambient machine access. See the [configuration guide]({{< relref "/guides/configuration" >}}).
+Without an explicit boundary, the native CLI searches within the current filesystem volume. It captures native machine locations and environment values at execution time. Machine paths use their own filesystem roots, including other Windows drives and redirected UNC shares, independently of the project discovery boundary. Embedded hosts can instead supply bounded or mounted trees without ambient machine access. See the [configuration guide]({{< relref "/guides/configuration" >}}).
 
 ## JSON contract
 
@@ -155,6 +155,8 @@ Stdout contains only results. Human diagnostic text goes to stderr in both human
 | `2` | Invalid usage, ambiguous configuration/selection, malformed required configuration or loading failure |
 
 IR verification retains its existing interpretation of code `1`.
+
+Malformed or inaccessible host `appsettings` files return `config.load` with exit code 2. With `--json`, the failure remains one JSON result. Invalid command arguments return `config.usage` before this failure; help does not load host configuration.
 
 ## CI example
 
