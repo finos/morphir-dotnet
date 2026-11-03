@@ -14,7 +14,7 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 partial class Build
 {
     /// <summary>
-    /// Pack library projects as NuGet packages (Morphir.Core, Morphir.Tooling, Morphir, Morphir.SDK)
+    /// Pack library projects and the Morphir.SDK compatibility package as NuGet packages
     /// Output: artifacts/packages/
     /// Parameters: --version-override (optional, overrides CHANGELOG.md version)
     /// </summary>
@@ -49,7 +49,14 @@ partial class Build
                 .SetOutputDirectory(OutputDir)
                 .SetProperty("Version", versionString));
 
-            Serilog.Log.Information("Packing Morphir.SDK...");
+            Serilog.Log.Information("Packing Morphir.SDK.FSharp...");
+            DotNetPack(s => s
+                .SetProject(MorphirSDKFSharpProject)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(OutputDir)
+                .SetProperty("Version", versionString));
+
+            Serilog.Log.Information("Packing Morphir.SDK compatibility package...");
             DotNetPack(s => s
                 .SetProject(MorphirSDKProject)
                 .SetConfiguration(Configuration)
@@ -58,7 +65,7 @@ partial class Build
 
             // Validate library packages
             Serilog.Log.Information("Validating library packages...");
-            var libraryProjects = new[] { "Morphir.Core", "Morphir.Tooling", "Morphir", "Morphir.SDK" };
+            var libraryProjects = new[] { "Morphir.Core", "Morphir.Tooling", "Morphir", "Morphir.SDK.FSharp" };
             foreach (var project in libraryProjects)
             {
                 var packagePath = PathHelper.GetLibraryPackagePath(project, versionString, OutputDir);

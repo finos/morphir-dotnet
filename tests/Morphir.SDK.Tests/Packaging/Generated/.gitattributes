@@ -1,0 +1,2 @@
+# Preserve captured Windows generator bytes; CR is part of the line ending.
+Ordering.fs -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
