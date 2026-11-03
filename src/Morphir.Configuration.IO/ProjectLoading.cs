@@ -29,7 +29,7 @@ public static partial class ProjectSystem
         var sources = options.Input.Sources.Where(s => !options.Isolated || s.Source.Role is not (SourceRole.System or SourceRole.Global or SourceRole.UserOverride or SourceRole.WorkspaceUserOverride)).ToList();
         var skipped = new Dictionary<string, SourceReport>(StringComparer.Ordinal);
         var diagnostics = discovery.Diagnostics.ToList();
-        if (project is not null && (!project.IsValid || !discovery.Projects.Contains(project)))
+        if (project is not null && (!project.IsValid || !discovery.Projects.Any(candidate => ReferenceEquals(candidate, project) || candidate.Equals(project))))
             diagnostics.Add(ReaderValues.Diagnostic(new SourceIdentity(project.Path, DocumentFormat.Memory, SourceRole.MemberPrimary, 0, null),
                 "discovery.invalid_selection", "Project must be a valid member of this discovery result"));
 

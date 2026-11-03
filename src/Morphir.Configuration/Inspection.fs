@@ -128,8 +128,9 @@ module KeyPath =
                             segments <-
                                 json.RootElement.GetString()
                                 :: segments
-                        with :? System.Text.Json.JsonException ->
-                            valid <- false
+                        with
+                        | :? System.Text.Json.JsonException
+                        | :? System.InvalidOperationException -> valid <- false
                 else
                     while index < text.Length
                           && plain text.[index] do
@@ -216,20 +217,32 @@ module Inspection =
         )
 
     let private matches (details: ResolutionDetails) scope (source: SourceIdentity) =
+        let roleMatches role =
+            match scope with
+            | QueryScope.Effective -> true
+            | QueryScope.Workspace ->
+                role = SourceRole.RootPrimary
+                && details.Resolution.OwningWorkspace.IsSome
+            | QueryScope.Project ->
+                role = (if details.Scope = ProjectScope.Member then
+                            SourceRole.MemberPrimary
+                        else
+                            SourceRole.RootPrimary)
+            | QueryScope.User -> role = SourceRole.UserOverride
+            | QueryScope.Global -> role = SourceRole.Global
+            | QueryScope.System -> role = SourceRole.System
+            | QueryScope.File _ -> false
+
         match scope with
-        | QueryScope.Effective -> true
-        | QueryScope.Workspace ->
-            source.Role = SourceRole.RootPrimary
-            && details.Resolution.OwningWorkspace.IsSome
-        | QueryScope.Project ->
-            source.Role = (if details.Scope = ProjectScope.Member then
-                               SourceRole.MemberPrimary
-                           else
-                               SourceRole.RootPrimary)
-        | QueryScope.User -> source.Role = SourceRole.UserOverride
-        | QueryScope.Global -> source.Role = SourceRole.Global
-        | QueryScope.System -> source.Role = SourceRole.System
         | QueryScope.File path -> source.Path = path
+        | _ ->
+            roleMatches source.Role
+            || (source.Role = SourceRole.Selected
+                && details.Resolution.Sources
+                   |> List.exists (fun report ->
+                       report.Source.Path = source.Path
+                       && roleMatches report.Source.Role
+                   ))
 
     let private select scope (details: ResolutionDetails) =
         match scope with

@@ -132,7 +132,11 @@ let tests =
 
             Expect.equal
                 (Inspection.show QueryScope.Project details).Value
-                (Some((details.Layers |> List.find (fun layer -> layer.Document.Source.Role = SourceRole.RootPrimary)).Document.Values))
+                (Some(
+                    (details.Layers
+                     |> List.find (fun layer -> layer.Document.Source.Role = SourceRole.RootPrimary))
+                        .Document.Values
+                ))
                 "nested tree"
 
             Expect.equal
@@ -253,5 +257,113 @@ let tests =
             Expect.isFalse
                 (Inspection.get (QueryScope.File "other.toml") [ "custom" ] details).Found
                 "file miss"
+        }
+        test "selected personal files retain their inspection scope" {
+            let personal =
+                source "morphir.user.toml" SourceRole.UserOverride DocumentFormat.Toml
+
+            let selected =
+                { personal with
+                    Role = SourceRole.Selected
+                }
+
+            let values = obj [ "custom", text "personal" ]
+
+            let details =
+                Resolver.resolveDetailed
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [ supplied personal values; supplied selected values ]
+                    }
+
+            Expect.equal
+                (Inspection.get QueryScope.User [ "custom" ] details).Value
+                (Some(text "personal"))
+                "selected ownership"
+
+            Expect.equal
+                ((Inspection.path QueryScope.User details).Sources
+                 |> List.filter (fun report -> report.Status = SourceStatus.Loaded)
+                 |> List.length)
+                1
+                "selected contribution only once"
+        }
+        test "explanation distinguishes a blocked descendant and surviving composite origins" {
+            let lower =
+                supplied
+                    (source "lower.toml" SourceRole.RootPrimary DocumentFormat.Toml)
+                    (obj [ "custom", obj [ "left", text "one"; "right", text "two" ] ])
+
+            let higher =
+                supplied
+                    (source "higher.toml" SourceRole.UserOverride DocumentFormat.Toml)
+                    (obj [ "custom", text "blocked" ])
+
+            let details =
+                Resolver.resolveDetailed
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [ lower; higher ]
+                    }
+
+            let result = Inspection.explain QueryScope.Effective [ "custom"; "left" ] details
+            Expect.isFalse result.Found "scalar blocks descendant"
+
+            Expect.equal
+                (result.Contributions
+                 |> List.map (fun item -> item.Value, item.Winner))
+                [ Some(text "one"), false; None, false ]
+                "blocking contribution"
+
+            let composite =
+                Resolver.resolveDetailed
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [
+                            lower
+                            { higher with
+                                Content =
+                                    (supplied
+                                        higher.Source
+                                        (obj [ "custom", obj [ "left", text "changed" ] ]))
+                                        .Content
+                            }
+                        ]
+                    }
+
+            Expect.equal
+                ((Inspection.explain QueryScope.Effective [ "custom" ] composite).Contributions
+                 |> List.map (fun item -> item.Winner))
+                [ true; true ]
+                "several surviving object origins"
+        }
+        test "diagnostics never present raw parser or validation values" {
+            let identity = source "invalid.toml" SourceRole.RootPrimary DocumentFormat.Toml
+
+            let diagnostic = {
+                Code = "config.parse"
+                Message = "SECRET INPUT"
+                Severity = DiagnosticSeverity.Error
+                Source = identity
+                KeyPath = [ "custom" ]
+                Position = Some { Line = 2; Column = 3 }
+            }
+
+            let details =
+                Resolver.resolveDetailed
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [
+                            {
+                                Source = identity
+                                Content = SourceContent.Invalid [ diagnostic ]
+                                Required = true
+                            }
+                        ]
+                    }
+
+            let result = Inspection.path QueryScope.Effective details
+            Expect.isFalse (result.Diagnostics.Head.Message.Contains "SECRET INPUT") "safe message"
+            Expect.equal result.Diagnostics.Head.Position diagnostic.Position "position preserved"
+        }
+        test "malformed Unicode escapes return a key-path usage error" {
+            Expect.isError (KeyPath.parse "\"\\uD800\"") "unpaired high surrogate"
+            Expect.isError (KeyPath.parse "\"\\uDC00\"") "unpaired low surrogate"
         }
     ]

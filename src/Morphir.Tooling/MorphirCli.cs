@@ -60,7 +60,10 @@ public sealed class MorphirCliBuilder
 
         Args = args;
         _rootCommand = new RootCommand(description);
-        _hostBuilder = Host.CreateApplicationBuilder();
+        // Help must not load appsettings or perform configuration discovery.
+        // Ordinary command execution retains the existing host defaults.
+        var help = args.Any(arg => arg is "--help" or "-h" or "-?" or "/?");
+        _hostBuilder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = help });
 
         // Apply default configuration
         ConfigureDefaultLogging();
