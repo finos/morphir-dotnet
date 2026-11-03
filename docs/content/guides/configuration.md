@@ -93,6 +93,8 @@ Starting in `/repo/app/src`, a project at `/repo/app/morphir.json` must still fi
 
 Use `workspace.members` to discover member directories, then apply `workspace.exclude`. Resolve `workspace.root` relative to the declaration location and keep it within the supplied boundary. Resolve member and exclusion paths from that effective workspace root. Glob syntax uses `*` and `?` within one path segment and `**` across segments. Each member uses the same configuration layouts and format rules as the root.
 
+Traversal prunes paths that cannot match a member pattern and branches fully excluded by the patterns before requesting directory evidence. Reserved `.morphir` and `.config` directories do not become glob members, including when they appear in a glob's starting path.
+
 Membership is an inventory operation, separate from project selection. Member paths are canonicalized and ordered deterministically. Exclusions remove matching members before selection. Missing literal members produce warnings. Existing literal directories without a primary and members with invalid documents remain identifiable through structured diagnostics; an ambiguous member configuration is an error. Hidden configuration directories do not become projects.
 
 A root with only a `workspace` section is a virtual workspace. It does not become its own member through `*` or `**`. A root that also declares `project` is a root project.
@@ -253,6 +255,8 @@ var result = ProjectSystem.Discover(tree, "/repo/app/src/input.elm");
 A native host supplies `new FileSystemProjectTree(boundary)` instead. A standalone project uses the same entry point and has no owning workspace. Project selection does not copy ancestor project identity into a member.
 
 `DiscoveryPolicy.evaluate` is the pure F# boundary. It accepts a `DiscoveryRequest` and `ProjectSnapshot`, then returns either `DiscoveryStep.Requests` for additional evidence or `DiscoveryStep.Complete`. `DiscoveryPolicy.select` can select again from the resulting inventory without filesystem access. No CLI or `System.CommandLine` dependency is required.
+
+Root and member inventories carry `RootPrimary` and `MemberPrimary` source roles, including embedded documents and reports. A host can supply root and member `SourceInput` values directly to `Resolver.resolve` with `ProjectScope.Member` and the discovered owning workspace; it does not need to repair their identities first.
 
 ### Loading one root or member
 

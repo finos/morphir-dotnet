@@ -111,6 +111,9 @@ public sealed class DiscoveryRootTests
 
     [Test]
     [Arguments("{workspace:false}")]
+    [Arguments("{project:false}")]
+    [Arguments("{workspace:{members:'app'}}")]
+    [Arguments("{workspace:{members:[42]}}")]
     [Arguments("{project:{name:42}}")]
     public void InvalidCanonicalDocumentsAreDiagnosed(string contents)
     {

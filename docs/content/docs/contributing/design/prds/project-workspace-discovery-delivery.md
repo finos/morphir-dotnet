@@ -219,3 +219,47 @@ Their authored-source union is core 3030/3189, 95.01%, and adapters 636/659,
 coverage script. All eight host checks passed on the earlier `115a17d`; the
 ownership fix requires fresh CI. The separate discovery-policy review and
 landing/cleanup remain outstanding.
+
+## Parent review: discovery policy conformance
+
+The independent policy review confirmed two earlier bot findings remained
+actionable through the public discovery API, and reproduced a reserved-directory
+glob-seed bypass. The earlier topology-shape finding was already addressed:
+invalid project/workspace mappings and malformed member lists return structured
+validation errors and no accepted topology. Three additional existing-behavior
+test arguments retain coverage of those verified shape cases.
+
+- `36a07a8` assigns `MemberPrimary` to member inputs, embedded documents,
+  diagnostics and reports, including evidence collected during the initial
+  upward walk. A public API regression failed on the former RootPrimary role;
+  it now passes member sources directly into `Resolver.resolve` and retains
+  name, exposed modules and classic checkpoint defaults without adapter repair.
+- The same checkpoint adds glob-prefix reachability checks before inventory
+  requests. Two regressions failed with access errors from excluded or
+  impossible descendants. Both now pass, without observing those paths.
+  Fully excluded recursive branches are pruned while potentially matching
+  descendants retain the declared glob/exclusion semantics.
+- `25f7088` checks reserved components between the workspace declaration and a
+  glob directory before observing it. Three red regressions for `.morphir/*`,
+  `.config/*` and a deeper literal prefix containing `.config` now pass without
+  admitting hidden projects or selecting them automatically.
+
+The complete solution build succeeds with zero errors and 20 existing warnings.
+Fresh configured runners pass core 124/124 and adapters/BDD 166/166. Their
+authored-source coverage union is core 3100/3250, 95.38%, and adapters 636/659,
+96.51%. The reports and build/test logs are under `parent-review`, using
+`policy-*` names. Both affected libraries compile without warnings.
+
+The updated trimmed and native osx-arm64 smoke hosts pass direct member-source
+resolution with classic defaults, finite-glob traversal pruning, reserved glob
+seeds, selected personal ownership, native/mounted parity and all 254 upstream
+fixture checks. Publish logs and binaries are `policy-publish-trimmed.log`,
+`policy-publish-native.log`, `policy-trimmed/` and `policy-native/` under the same
+owned review directory. Builds are bounded and serial; pinned dependency linker
+diagnostics remain visible with explicit warning qualification. Temporary RID
+lockfile churn was restored after publishing.
+
+`mise run openspec:verify` passes all 21 active/spec items, managed checks and both
+extension tests. Changed-file F# and C# format checks and full-range whitespace
+checks pass. Main remains `3d5b41c0f839c7b2648403ad6aba5c5644f7dfb5`. Current-head
+CI, developer sign-off, main landing and owned artifact cleanup remain pending.

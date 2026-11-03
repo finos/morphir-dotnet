@@ -136,10 +136,13 @@ try
     {
         [discoveryRoot + "/morphir.toml"] = "[workspace]\nmembers=['packages/*']\nout_dir='generated'\n[profiles]\nactive=['ci']",
         [discoveryRoot + "/packages/app/.config/morphir/config.yml"] = "project: {name: App}\ncustom: {value: primary}",
+        [discoveryRoot + "/packages/app/morphir.json"] = "{name:'LegacyApp',exposedModules:['Api']}",
         [discoveryRoot + "/packages/app/.config/morphir/config.profile.ci.toml"] = "[custom]\nvalue='profile'",
         [discoveryRoot + "/packages/app/.config/morphir/config.user.toml"] = "[custom]\nvalue='personal'\n[workspace]\nout_dir='escaped'",
         [discoveryRoot + "/morphir.user.toml"] = "[project]\nsource_directory='root-only'\n[workspace]\nout_dir='shared'",
-        [discoveryRoot + "/packages/app/src/input.elm"] = "module Input exposing (..)"
+        [discoveryRoot + "/packages/app/src/input.elm"] = "module Input exposing (..)",
+        [discoveryRoot + "/hidden-policy/morphir.toml"] = "[workspace]\nmembers=['.morphir/*']",
+        [discoveryRoot + "/hidden-policy/.morphir/fixtures/morphir.toml"] = "[project]\nname='Hidden'"
     };
     try
     {
@@ -150,6 +153,14 @@ try
         var nativeDiscovery = ProjectSystem.Discover(nativeTree, discoveryRoot + "/packages/app/src/input.elm");
         Check(memoryDiscovery.Discovery.Equals(nativeDiscovery.Discovery) && memoryDiscovery.Selection.Equals(nativeDiscovery.Selection), "Native/mounted discovery evidence differs");
         Check(nativeDiscovery.Discovery.Location == discoveryRoot && nativeDiscovery.Selection.Projects.Single().Name.Value == "App", "Workspace/member selection failed");
+        var memberSources = nativeDiscovery.Selection.Projects.Single().Location.Sources;
+        Check(memberSources.All(s => s.Source.Role == SourceRole.MemberPrimary
+            && Document(s).Source.Role == SourceRole.MemberPrimary), "Discovery returned root identities for member documents");
+        var directMember = Resolver.resolve(new ResolutionInput(List(nativeDiscovery.Discovery.Root.Sources.Concat(memberSources)),
+            MapModule.Empty<string, string>(), DocumentDefaults.emptyValue, new ProfileOptions(ProfileSelection.Disabled, 32, 4096),
+            ProjectScope.Member, nativeDiscovery.Discovery.Workspace, List<string>([])));
+        Check(At(directMember.Effective, "project", "name").Equals(ConfigValue.NewString("App")), "Direct member resolver lost project identity");
+        Check(At(directMember.Effective, "pipeline", "backend").Equals(ConfigValue.NewString("checkpoint")), "Direct member resolver lost legacy defaults");
         var nativeLoaded = ProjectSystem.Load(nativeTree, nativeDiscovery.Discovery, nativeDiscovery.Selection.Projects.Single(), new ProjectLoadOptions { Isolated = true });
         var memoryLoaded = ProjectSystem.Load(memoryTree, memoryDiscovery.Discovery, memoryDiscovery.Selection.Projects.Single(), new ProjectLoadOptions { Isolated = true });
         Check(nativeLoaded.Equals(memoryLoaded), "Native/mounted loading evidence differs");
@@ -174,6 +185,12 @@ try
         }
         var bounded = ProjectSystem.Discover(memoryTree, "/outside");
         Check(bounded.Discovery.Diagnostics.Any(d => d.Code == "discovery.boundary"), "Outside invocation accepted");
+        var rootTree = new InMemoryProjectTree(discoveryRoot, discoveryFiles);
+        _ = ProjectSystem.Discover(rootTree, discoveryRoot);
+        Check(!rootTree.ObservedPaths.Any(p => p.StartsWith(discoveryRoot + "/packages/app/src", StringComparison.Ordinal)), "Finite member glob traversed an impossible descendant");
+        var hiddenNative = ProjectSystem.Discover(nativeTree, discoveryRoot + "/hidden-policy");
+        var hiddenMemory = ProjectSystem.Discover(memoryTree, discoveryRoot + "/hidden-policy");
+        Check(hiddenNative.Discovery.Equals(hiddenMemory.Discovery) && !hiddenNative.Discovery.Projects.Any(), "Reserved glob seed created a hidden member");
     }
     finally { if (Directory.Exists(discoveryRoot)) Directory.Delete(discoveryRoot, true); }
     Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"discovery\":true,\"selection\":true,\"bounded_loading\":true,\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
