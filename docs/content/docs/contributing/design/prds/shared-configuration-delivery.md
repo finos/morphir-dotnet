@@ -186,3 +186,13 @@ branch cleanup receipts. No PR watch, branch deletion, worktree removal, force
 push, admin bypass, release or deployment was performed by this implementation
 worker. Reproducible build/coverage logs and published smoke artifacts under
 `/tmp/morphir-config-*` are retained for parent inspection and later cleanup.
+
+## Current-base reconciliation
+
+Before PR creation, main advanced to `890aacb61df601f2876112a2cdd4d9d6f5757ca6`
+with documentation-only C# generation/SDK planning, PR #459. It was merged at
+`31598987b0edc4d5db27c3237e13df9caf4124eb`. The merge changes no `src`, `tests`,
+`build`, solution, dependency or SDK/toolchain inputs, so the recorded runtime
+validation remains compatible. Strict OpenSpec validation on the reconciled base
+passes 21/21 items: 12 active changes and 9 main specs. All unrelated plans are
+preserved. Review/landing/cleanup remain outstanding at this handback checkpoint.
