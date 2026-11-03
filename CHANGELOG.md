@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- F# SDK arithmetic detects covered Int32 overflow; minimum-Int remainder/modulus by -1 return zero, direct string comparison uses ordinal UTF-16 order, dictionary union keeps the first value, and Decimal text is invariant without trailing fractional zeros. Added checked Float-to-Int rounding and optional `Decimal.div` while retaining existing public entry points ([#465](https://github.com/finos/morphir-dotnet/issues/465)).
 - `VFileTree.writeToDisk` no longer writes outside the output directory. It returns `TreeWriteError.InvalidTree` and writes nothing for rooted or `..` paths, files with no path, and duplicate locations, and it no longer adds the root tree path to output paths (#376)
 - `VFileTree.toFileMap` and `toStringMap` keys are now relative to the tree root and use forward slashes on every platform (#376)
 - `VFileTree.findFile` and `updateFile` accept a file's full location, and `updateFile` no longer changes same-named files in other directories (#376)
@@ -16,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CRITICAL**: Removed contradictory Claude co-author example from AGENTS.md and strengthened CLA compliance warnings in both AGENTS.md and CLAUDE.md (issue #270)
 
 ### Added
+- Canonical `Morphir.SDK.FSharp` runtime package and dependency-only `Morphir.SDK` compatibility package, preserving existing runtime identities, with packaged source/binary checks and the frozen F# conformance adapter ([#465](https://github.com/finos/morphir-dotnet/issues/465))
 - Shared .NET SDK conformance contract, pinned source evidence, tagged offline corpus and fixture validator for the C# and F# SDK deliveries ([#460](https://github.com/finos/morphir-dotnet/issues/460))
 - `Morphir.Ion` library project: reads Ion 1.0 text and binary into immutable values, and reads the MEP `morphir_model` document with `ModelDocument.readPayload`, `readFile` and `decodeIr`. Reading keeps the exact bytes, annotations, numeric exactness and unknown data, and decodes the classic or v4 IR only on request
 - `IonIr.read` and `IonIrTree.read` read the draft Ion IR format `ionVersion` `0.1.0-draft.1` for IR 3.0.0, 3.1.0 and 4.0.0, from a single file or a document tree. `IonIrParser` plugs them into a pipeline

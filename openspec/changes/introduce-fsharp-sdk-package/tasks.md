@@ -4,21 +4,21 @@ Read [design](design.html), [spec](specs/fsharp-sdk-packaging/spec.md) and [hand
 
 ## 1. Canonical and compatibility package graph
 
-- [ ] 1.1 Confirm the conformance PR is merged into main; capture old package/assembly/type identities and compile a pre-migration consumer, then create the migration PRD; verify the old consumer is runnable before editing production packaging.
-- [ ] 1.2 Add failing local-feed installation cases for canonical-only, legacy-only and combined package references; implement the canonical package and dependency-only legacy package while preserving runtime identities; verify one runtime assembly is resolved.
-- [ ] 1.3 Update project/package consumers and F# generator runtime integration with a migration guide in the same group; verify existing generated source compiles unchanged and public names/entry points remain stable.
+- [x] 1.1 Confirm the conformance PR is merged into main; capture old package/assembly/type identities and compile a pre-migration consumer, then create the migration PRD; verify the old consumer is runnable before editing production packaging.
+- [x] 1.2 Add failing local-feed installation cases for canonical-only, legacy-only and combined package references; implement the canonical package and dependency-only legacy package while preserving runtime identities; verify one runtime assembly is resolved.
+- [x] 1.3 Update project/package consumers and F# generator runtime integration with a migration guide in the same group; verify existing generated source compiles unchanged and public names/entry points remain stable.
 
 ## 2. Covered conformance corrections
 
-- [ ] 2.1 Add the F# adapter for required admitted cases, retaining independent expectations and explicit uncovered gaps; verify the covered failing cases identify actual runtime discrepancies.
-- [ ] 2.2 Fix first-dictionary-wins Dict.union from its failing regression, plus only other covered discrepancies, and document observable changes; verify shared cases pass without hiding gaps or changing oracle values.
-- [ ] 2.3 Run classic and v4 F# generation/execution and existing SDK tests; verify runtime migration preserves accepted model inputs and document any justified snapshot differences.
+- [x] 2.1 Add the F# adapter for required admitted cases, retaining independent expectations and explicit uncovered gaps; verify the covered failing cases identify actual runtime discrepancies.
+- [x] 2.2 Fix first-dictionary-wins Dict.union from its failing regression, plus only other covered discrepancies, and document observable changes; verify shared cases pass without hiding gaps or changing oracle values.
+- [x] 2.3 Run classic and v4 F# generation/execution and existing SDK tests; verify runtime migration preserves accepted model inputs and document any justified snapshot differences.
 
 ## 3. Package and binary compatibility evidence
 
-- [ ] 3.1 Restore and execute the precompiled old consumer against the migrated runtime, then compile fresh consumers against each package combination; verify source, binary and package compatibility separately.
-- [ ] 3.2 Coordinate serialized solution/package/PRD-index updates and existing generated-code example references; verify clean restores have no duplicate types or empty compatibility runtime assemblies.
-- [ ] 3.3 Run strict OpenSpec validation and repository-required formatting/full tests/coverage; record packed asset graphs, runtime identity and migration examples for the PR reviewer.
+- [x] 3.1 Restore and execute the precompiled old consumer against the migrated runtime, then compile fresh consumers against each package combination; verify source, binary and package compatibility separately.
+- [x] 3.2 Coordinate serialized solution/package/PRD-index updates and existing generated-code example references; verify clean restores have no duplicate types or empty compatibility runtime assemblies.
+- [x] 3.3 Run strict OpenSpec validation and repository-required formatting/full tests/coverage; record packed asset graphs, runtime identity and migration examples for the PR reviewer.
 
 ## Workflow follow-up
 

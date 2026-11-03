@@ -62,9 +62,9 @@ module Dict =
     let intersect dict1 dict2 =
         Map.filter (fun k _ -> Map.containsKey k dict2) dict1
 
-    /// <summary>Combine two dictionaries (right wins on conflicts)</summary>
+    /// <summary>Combine two dictionaries (first dictionary wins on conflicts).</summary>
     let inline union dict1 dict2 =
-        Map.fold (fun acc k v -> Map.add k v acc) dict1 dict2
+        Map.fold (fun acc k v -> Map.add k v acc) dict2 dict1
 
     /// <summary>Remove keys that are in second dictionary</summary>
     let diff dict1 dict2 =

@@ -7,7 +7,11 @@ namespace Morphir.SDK
 module Decimal =
     
     /// <summary>Convert decimal to string</summary>
-    let inline toString (d: decimal) = d.ToString()
+    let inline toString (d: decimal) =
+        d.ToString(
+            "0.############################",
+            System.Globalization.CultureInfo.InvariantCulture
+        )
 
     /// <summary>Parse string to decimal</summary>
     let fromString (s: string) =
@@ -48,6 +52,10 @@ module Decimal =
 
     /// <summary>Divide two decimals</summary>
     let inline divide (d1: decimal) (d2: decimal) = d1 / d2
+
+    /// <summary>Divide decimals, returning None for a zero divisor. The existing divide API is unchanged.</summary>
+    let div (d1: decimal) (d2: decimal) =
+        if d2 = 0M then None else Some(divide d1 d2)
 
     /// <summary>Compare two decimals</summary>
     let compare (d1: decimal) (d2: decimal) =

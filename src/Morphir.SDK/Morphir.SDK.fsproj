@@ -1,49 +1,41 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project>
+    <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
-        <RootNamespace>Morphir.SDK</RootNamespace>
-        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <IsPackable>true</IsPackable>
-        
-        <!-- NuGet Package Metadata -->
         <PackageId>Morphir.SDK</PackageId>
-        <!-- Version is set by build system from CHANGELOG.md -->
+        <Description>Compatibility package for the Morphir F# runtime. Depends on Morphir.SDK.FSharp, which retains the Morphir.SDK namespace and runtime assembly identity.</Description>
         <Authors>FINOS Morphir Team</Authors>
-        <Company>FINOS</Company>
-        <Description>F# runtime library providing Morphir SDK types and functions for generated F# code. Provides type aliases and helper functions for working with Morphir IR in F#.</Description>
-        <PackageProjectUrl>https://github.com/finos/morphir-dotnet</PackageProjectUrl>
-        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-        <RepositoryUrl>https://github.com/finos/morphir-dotnet</RepositoryUrl>
-        <RepositoryType>git</RepositoryType>
-        <PackageTags>morphir;fsharp;functional;sdk;morphir-ir</PackageTags>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageTags>morphir;fsharp;sdk;compatibility</PackageTags>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+        <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="FSharp.Core" />
+        <ProjectReference Include="../Morphir.SDK.FSharp/Morphir.SDK.FSharp.fsproj" />
         <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
+        <None Include="_._" Pack="true" PackagePath="lib/net10.0/" />
+        <None Remove="$(MSBuildProjectDirectory)/../../README.md" />
+        <None Include="README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
 
-    <ItemGroup>
-        <Compile Include="Basics.fs" />
-        <Compile Include="Maybe.fs" />
-        <Compile Include="Result.fs" />
-        <Compile Include="List.fs" />
-        <Compile Include="String.fs" />
-        <Compile Include="Int.fs" />
-        <Compile Include="Bool.fs" />
-        <Compile Include="Char.fs" />
-        <Compile Include="Dict.fs" />
-        <Compile Include="Set.fs" />
-        <Compile Include="Tuple.fs" />
-        <Compile Include="LocalDate.fs" />
-        <Compile Include="LocalTime.fs" />
-        <Compile Include="Decimal.fs" />
-    </ItemGroup>
+    <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 
-    <ItemGroup>
-        <None Include="README.md" Pack="true" PackagePath="\" />
-    </ItemGroup>
+    <!-- Pack metadata and build the dependency without compiling an empty runtime. -->
+    <Target Name="Build" DependsOnTargets="SetVersionFromChangelog;ResolveProjectReferences" />
+    <Target Name="Rebuild" DependsOnTargets="Clean;Build" />
 
+    <Target Name="PinCanonicalRuntimeDependency" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[$(PackageVersion), $(PackageVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
 </Project>

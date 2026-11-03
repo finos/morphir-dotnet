@@ -51,3 +51,11 @@ This follow-up moves the completed OpenSpec change, synchronizes its capability
 specification, repairs documentation paths and records verified delivery metadata.
 It adds no third-party source, license or restriction. All source evidence,
 licenses, attribution and existing notices above remain unchanged.
+
+Canonical F# SDK package migration (#465)
+
+This contribution reorganizes the existing FINOS Morphir F# runtime packaging,
+adds compatibility checks and corrects covered runtime behavior against the
+already attributed shared .NET SDK evidence. It adds no third-party source,
+license or restriction. Existing FINOS, Morgan Stanley and upstream evidence
+notices and licenses remain applicable and are retained.
