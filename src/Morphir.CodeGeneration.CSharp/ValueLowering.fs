@@ -558,7 +558,11 @@ module internal ValueLowering =
                 Admission.fail
                     "type-mismatch"
                     location
-                    (sprintf "Inconsistent types %A and %A." left right)
+                    ("Inconsistent types "
+                     + describeShape ct left
+                     + " and "
+                     + describeShape ct right
+                     + ".")
 
         member this.Instantiate shape =
             let parameters =

@@ -51,8 +51,8 @@ Input and output must be separate. The output includes
 sources and remove stale owned files while preserving your own files. Semantic
 failures and cancellation before publication preserve prior output. A filesystem
 failure during final commit can leave mixed output, as described in the
-[command reference](../cli/generate/).
+[command reference]({{< relref "/docs/cli/generate" >}}).
 
-See [C# troubleshooting](../cli/troubleshooting/#c-generation) for invalid options
-and located semantic refusals, and the [F# walkthrough](morphir-to-fsharp/) for
+See [C# troubleshooting]({{< relref "/docs/cli/troubleshooting#c-generation" >}}) for invalid options
+and located semantic refusals, and the [F# walkthrough]({{< relref "/docs/getting-started/morphir-to-fsharp" >}}) for
 the existing F# workflow.

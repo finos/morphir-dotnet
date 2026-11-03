@@ -6,19 +6,19 @@ Read [design](design.html), [spec](specs/cli-csharp-generation/spec.md) and [han
 
 - [x] 1.1 Confirm the backend PR is merged into main and read its frozen request/result contract; create the CLI integration PRD and add failing real-provider registration/option cases.
 - [x] 1.2 Implement the C# provider and static registration using the existing resolver; verify exact capabilities, unknown/ambiguous targets and unsupported required semantics without special-casing C# in the resolver.
-- [ ] 1.3 Implement language-version=14 or 15 and optional namespace validation by reusing the core, with docs/examples in the same group; verify defaults, repeated options, wrong JSON kinds, injection-like names and unsupported aliases.
+- [x] 1.3 Implement language-version=14 or 15 and optional namespace validation by reusing the core, with docs/examples in the same group; verify defaults, repeated options, wrong JSON kinds, injection-like names and unsupported aliases.
 
 ## 2. Model/artifact and publication parity
 
-- [ ] 2.1 Adapt typed sources/diagnostics to the existing artifact tree, then exercise JSON/Ion text/binary/tree forms with one behavior corpus; verify direct-library/provider source parity and execute generated pricing results under both profiles.
-- [ ] 2.2 Extend existing publisher scenarios to real C# output, including unchanged reruns, removed owned modules, unowned files, unsafe paths and input/output overlap; verify failed runs preserve previous output.
-- [ ] 2.3 Add real CLI JSON/exit/cancellation scenarios and troubleshooting examples; verify one parseable stdout report, stderr diagnostics and correct 0/1/2/130 outcomes without a compiler dependency during generation.
+- [x] 2.1 Adapt typed sources/diagnostics to the existing artifact tree, then exercise JSON/Ion text/binary/tree forms with one behavior corpus; verify direct-library/provider source parity and execute generated pricing results under both profiles.
+- [x] 2.2 Extend existing publisher scenarios to real C# output, including unchanged reruns, removed owned modules, unowned files, unsafe paths and input/output overlap; verify failed runs preserve previous output.
+- [x] 2.3 Add real CLI JSON/exit/cancellation scenarios and troubleshooting examples; verify one parseable stdout report, stderr diagnostics and correct 0/1/2/130 outcomes without a compiler dependency during generation.
 
 ## 3. Published command and integration
 
-- [ ] 3.1 Publish and execute trimmed and Native AOT CLI smoke cases using the real C# provider, then compile the generated sources separately; verify report parsing and expected business output.
-- [ ] 3.2 Update generate command reference, examples, getting-started and troubleshooting docs while preserving F# examples; verify documented commands and package references in fresh consumers.
-- [ ] 3.3 Coordinate root project/package/index changes and run strict OpenSpec validation plus repository-required formatting/full tests/coverage; verify existing F# generation and publication contracts remain green.
+- [x] 3.1 Publish and execute trimmed and Native AOT CLI smoke cases using the real C# provider, then compile the generated sources separately; verify report parsing and expected business output.
+- [x] 3.2 Update generate command reference, examples, getting-started and troubleshooting docs while preserving F# examples; verify documented commands and package references in fresh consumers.
+- [x] 3.3 Coordinate root project/package/index changes and run strict OpenSpec validation plus repository-required formatting/full tests/coverage; verify existing F# generation and publication contracts remain green.
 
 ## Workflow follow-up
 

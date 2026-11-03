@@ -86,15 +86,15 @@ explicit completed result. No unrelated process was killed.
 The initial full restore changed two unrelated configuration smoke lockfiles
 with RID-only drift. Their exact diff is retained in
 `initial-restore-lockfile-drift.patch`; those two tracked files were restored.
-Three scoped lockfile additions for the new project graph were separately
+Five scoped lockfile additions for the new project graph were separately
 reviewed and leased by the coordinator. No package version changes are intended.
 
-## Leases and remaining evidence
+## First checkpoint leases and pending evidence
 
 Core lease covers Types, TypeEmission, ValueEmission and Generator only, the
 new NamespaceCases and its registration, and the public API/diagnostic guide.
 Shared leases cover the exact Tooling project/static registration, own PRD row,
-one changelog bullet, README example, NOTICE attribution and the three derived
+one changelog bullet, README example, NOTICE attribution and the five derived
 project lockfiles. The lead remains sole Git/source writer. Main specs and
 archived historical changes remain untouched. JSON rendering is unchanged.
 
@@ -133,3 +133,183 @@ A final absolute-path inventory will identify retained current outputs.
 Read-only dependencies remain root-owned: the prior generator/archive evidence
 trees and official isolated RC SDK cache. They must not be deleted or modified.
 No branch, worktree, artifact or release deletion is performed by this worker.
+
+## Subsequent CLI and NativeAOT acceptance
+
+The submitted checkpoint is `f0d3ee596013fe46fd611f7568b4445e0836ecfa`.
+Subsequent evidence below exercises the diagnostic fix and new acceptance tests
+in the same owned checkout. Final submitted SHA will be recorded at handoff.
+
+- `acceptance-01` passed all 16 independent compiled consumers, eight each under
+  SDK 10.0.403/numeric 14 and SDK 11.0.100-rc.2.26504.105/numeric 15. These cover
+  classic/v4 daily rate 5000, classic cross-module invoice 15000, escaped keywords,
+  Greek/CJK, combining/formatting characters and contextual words. Generated
+  sources were compiled unchanged against the local immutable C# SDK package.
+  Its subsequent trimmed publish failed on inherited IL2026 warnings treated as
+  errors. That failure and every passing consumer receipt remain retained.
+- `acceptance-02` used the coordinator-approved publish-command-only properties
+  `TreatWarningsAsErrors=false` and `TrimmerSingleWarn=false`. Warnings remained
+  visible. Trimmed generation and a separately compiled business consumer passed.
+  Genuine ARM64 NativeAOT linking succeeded, but actual generation failed with
+  exit 2 due to eager diagnostic `%A` formatting in TypeEmission and F# structural
+  reflection. No successful native generation was claimed for this attempt.
+- `diagnostics-public-red` ran 49 namespace/public cases, with 43 passing and six
+  failing on expected diagnostic spellings before production correction.
+  `diagnostics-public-green` passed 49/49 after the approved diagnostic-only fix.
+- `acceptance-03` completed exit 0, no timeout, 115.85 seconds. Both actual trimmed
+  and NativeAOT CLIs generated all seven car modules with empty compiler PATH
+  and owned empty DOTNET_ROOT. Native PE inspection confirms ARM64 and no CLR
+  header. Separate fresh consumer builds/executions each returned 15000. Source
+  hashes match the retained pre-fix sources. Native document-literal and
+  type-mismatch inputs returned one parseable semantic report, exit 1, located
+  diagnostics, no artifacts and no published output.
+
+### Diagnostic compatibility
+
+The five production structural `%A` sites were replaced within the approved
+TypeEmission/ValueLowering lease. Raw names use `Name["word",null]`, paths use
+`ModulePath[Name[...]]`, and qualified names use
+`FQName(PackagePath[...],ModulePath[...],Name[...])`. Shape spelling is exhaustive:
+`Parameter(...)`, `Named(...,[...])`, `Product([...])`, `Fields[Name[...]:...]`,
+`Arrow(...,...)` and `Unit`. Quotes and backslashes are escaped; control/surrogate
+characters use four-digit hexadecimal escapes. Traversals check cancellation.
+The eager module-validation location now uses `$modules/ModulePath[...]`.
+This intentionally changes diagnostic text and that location spelling. Rule IDs,
+public APIs, refusal/cancellation behavior, generated source bytes and paths
+remain unchanged. Callers branch on Rule, not human message text.
+
+### Visible publish warnings
+
+No warnings were suppressed. The two publish-only warning properties match the
+predecessor acceptance policy; consumer builds retain warnings as errors. The
+whole CLI still contains inherited reflection/dynamic-code warnings. Acceptance
+covers the executed generation command, not unrelated command AOT safety.
+
+| Warning origin | Trimmed occurrences / distinct | Native occurrences / distinct |
+| --- | --- | --- |
+| Existing Morphir.Core codecs/generated union | 10 / 10 | 25 / 25 |
+| Existing IR tooling/management serialization | 5 / 5 | 10 / 10 |
+| Morphir.Models package metadata | 2 / 1 | 2 / 1 |
+| Fabulous.AST/Fantomas dependency constraint | 2 / 1 | 2 / 1 |
+| FSharp.Core dependency | 45 / 44 | 47 / 46 |
+| Fantomas/Fantomas.FCS dependency | 6 / 6 | 0 / 0 |
+| Foundatio.Mediator dependency | 6 / 6 | 6 / 6 |
+| CsToml dependency | 2 / 2 | 0 / 0 |
+| Total | 78 / 75 | 92 / 89 |
+
+Distinct counts remove repeated identical warning lines after removing the
+trailing consuming-project annotation. Full individual messages, origins, codes
+and repeats are retained in `publish-03-warning-classification.json` and
+`publish-03-warning-summary.json`. There are zero warning origins in the changed
+C# provider or C# generator sources. IL2026/IL3050 identify inherited reflection
+or dynamic-code calls; other IL20xx warnings identify dependency reflection
+annotation/type-flow issues. NU1510 is redundant package metadata, NU1608 is the
+existing Fabulous.AST constraint, and CS8618 is an existing generated Core union.
+
+### Most recent full run and focused failures
+
+`final-full-test` ran normal native Restore/Compile/Test, explicitly completed
+without timeout in 422.89 seconds, helper exit -1/tool exit 1. Restore and Compile
+passed. Framework totals are 3961 run, 3960 passed, one unrelated configuration
+failure. Tooling was 486/487, C# generator 206/206 and F# generator 333/333.
+The failure was `set custom.value 12 --type int` with `config.edit_rolled_back`.
+All 33 new real CLI cases passed inside this run. Cold package and inspection
+follow-ons were not reached. The earlier 3912 + 15 + 71 passing checkpoint is
+separate evidence. No broad retry, configuration fix, suppression or filtering
+was used to obtain a different full-run result.
+
+`cli-matrix-tests` previously ran 33 cases with one failing missing-file test.
+Its parent directory was absent too, which triggered the existing path-safety
+semantic refusal. The fixture now creates its parent to isolate a missing file,
+which returns the intended operational JSON report. No generic loader change
+was made. `real-csharp-publication-tests` passed all seven actual-source cases.
+
+Publish-only RID lockfile drift from each attempt was captured externally and
+restored, retaining no unleased dependency graph changes. The final frozen
+contract audit checks all 12 canonical repository text hashes. The first direct
+physical-byte audit exposed normal CRLF checkout differences in text files;
+canonical LF hashes match, and frozen tracked files have no Git changes.
+
+## Process ownership limitation at post-pack rebuild
+
+Before `post-pack-closure-compile`, the process inventory contained
+VBCSCompiler PID 5656, parent PID 7888. The lead launched Nuke Compile before
+establishing that process's ancestry. The existing Compile target globally stops
+VBCSCompiler and removed this process. PackAll was the likely source because the
+pre-full inventory was empty and direct builds disabled shared compilation, but
+the retained inventory lacks creation time and ancestor proof. Ownership cannot
+be certified and no claim that unrelated processes were unaffected is made for
+this boundary. This is an avoidable verification gap, separately reported to the
+coordinator. No extra process termination or production workaround followed.
+
+## Final scoped evidence
+
+`diagnostic-shapes-public-tests` passed 59/59. Ten additional public mismatch
+cases exercise every explicit shape constructor through both typed families.
+`final-core-coverage` ran all 216 generator tests successfully and reports
+3130/3340 lines, 93.7126%, with 64/64 instrumented diagnostic-formatting lines
+covered. Coverage remains source-bound to the whole generator assembly; the
+complete adapter scope retains 47/48 lines from the earlier source-identical run.
+
+`pinned-contracts-cancellation` passed eight fresh package-only consumers:
+classic/v4 generic/alias/constructor/equality results 62, and classic/v4
+cross-module value/constructor/business results 15000, under both numeric
+profiles. Each export compares provider artifact paths/text with direct core
+results before writing unchanged sources. The C# driver also observes explicit
+null/default NamespaceOverride refusal and caller cancellation precedence.
+The stable compiler is 5.9.0-1.26523.112 and RC2 is 5.12.0-1.26504.105.
+
+Cancellation is a captured subprocess running the public MorphirCli builder,
+GenerationScenario, unchanged GenerateCommand/handler/resolver and actual static
+C# provider. A test-only publication gate verifies real nonempty C# artifacts,
+then the caller cancels the host token. Stdout parses as one failure report,
+process exit 130, backend morphir.csharp, cancelled diagnostic, no artifacts.
+Prior manifest/sources/unowned file content and timestamps remain identical.
+This tests the hosting cancellation contract, not OS Ctrl+C delivery. The
+reproducible helper and C# driver source are under the owned Generate test folder.
+
+`documented-fresh-consumer` executed the documented pack/new console/add package/
+generate/build/run sequence in fresh owned directories. It printed 5000. The
+exact README option vocabulary and troubleshooting preview/Boolean-namespace
+examples returned parseable reports with their expected exits. Only absolute
+checkout/output paths and the native CLI executable location were substituted.
+
+`final-pack-all` passed in 43.45 seconds, writing a fresh owned package directory.
+The previously absent checkout artifacts/packages directory received copies for
+standard TestBuild discovery. `final-package-tests` passed 40/40 with zero skips.
+No existing artifact directory was cleared or deleted by this worker.
+
+`reproducible-contracts-cancellation` passed its eight consumer builds but then
+failed prior-generation with missing Morphir.Models Version=1.0.0 after PackAll
+changed assembly version stamps in the CLI output closure. The failure is retained
+in contracts-02. Normal native Restore+Compile, post-pack-closure-compile, passed
+in 64.85 seconds without source changes. Only the affected cancellation portion
+was rerun using the repository helper's explicit CancellationOnly switch.
+post-pack-cancellation-proof passed in 5.77 seconds, with zero consumer builds
+in that invocation. No broad Test retry followed the configuration failure.
+
+An optional extra native raw-name probe, native-diagnostic-refusals, returned
+located invalid-name reports for package/module inputs before provider selection.
+Its additional assertion expecting a core module location failed because the
+shared codec refuses those malformed names first. This is retained as a failed
+probe and is not evidence that native core raw-name/collision branches executed.
+The accepted native document-literal and type-mismatch refusals in acceptance-03
+remain the representative provider semantic-negative evidence. No hidden model
+bridge or codec change was introduced to bypass admission.
+
+## Final contribution checks and delivery boundary
+
+Native final-precommit exited 0 in 38.49 seconds. Its inherited unsupported-F#
+messages remain in the complete log; final-fantomas-check independently passed
+all five owned C# generator F# files plus NamespaceCases using pinned Fantomas
+5.2.4. final-changelog passed. Strict final-openspec passed 22 items and two
+checker tests. Relevant new Hugo relref targets all resolve, the 12 canonical
+frozen hashes match and no runtime/fixture files changed. OpenSpec apply now
+reports 9/9, all_done; review/landing/archive/cleanup remain root-owned gates.
+
+The worker remains the only Git writer. A normal conventional checkpoint and
+backup push will include only the approved two-file diagnostic fix, its public
+tests/page, owned C# tests/proof helpers/docs and coherent active change/PRD.
+No further shared-file or lockfile changes are retained. Exact checked/submitted
+head, remote match, hosted snapshot and lease releases are provided to root
+at handoff, outside this source-bound record to avoid a self-referential SHA.

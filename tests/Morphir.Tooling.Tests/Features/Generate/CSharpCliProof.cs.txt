@@ -1,0 +1,63 @@
+using System.Text;
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Morphir.Tooling;
+using Morphir.Tooling.Scenarios;
+using Morphir.Tooling.Features.Generate;
+using Morphir.CodeGeneration.CSharp;
+using Morphir.CodeGeneration.CSharp.Tests;
+using Morphir.IR.Pipeline;
+
+if (args[0] == "export")
+{
+    var directory = args[1]; var family = args[2]; var language = int.Parse(args[3]);
+    const string naming = "Generated.@class.模型";
+    var isCar = family.EndsWith("-car");
+    var model = family switch { "classic" => TypeCases.classic(), "v4" => TypeCases.v4(), "classic-car" => BusinessCases.read("car-rental-v3.json"), "v4-car" => BusinessCases.synthesizedV4Car(), _ => throw new Exception("Unknown typed family") };
+    var loaded = new LoadedModel(model, ModelDescriptor.From(model), ModelRepresentation.Json,
+        new RetainedInput.File("typed-model", new RetainedEntry("typed-model", Array.Empty<byte>())));
+    using var json = JsonDocument.Parse($$"""{"language-version":{{language}},"namespace":"{{naming}}"}""");
+    var options = new BackendOptions(json.RootElement.EnumerateObject().Select(p => new KeyValuePair<string,JsonElement>(p.Name,p.Value)));
+    var backend = new CSharpGenerationBackend();
+    var validated = ((Outcome<ValidatedBackendOptions>.Success)backend.ValidateOptions(options)).Value;
+    var artifacts = ((Outcome<GenerationArtifacts>.Success)await backend.GenerateAsync(new(loaded,new("csharp"),validated), default)).Value;
+    var direct = CSharpGenerator.Generate(model,new GenerationOptions(language),NamespaceOverride.TryCreate(naming).ResultValue,default);
+    var files = VFileTreeModule.toStringMap(artifacts.Tree).ResultValue;
+    if (!direct.Status.IsSuccess || !files.Select(p => (p.Key,p.Value)).SequenceEqual(direct.Sources.Select(s => (s.RelativePath,s.Text)))) throw new Exception("Direct/provider parity");
+    foreach(var file in files) { var path = Path.Combine(directory,"Generated",file.Key); Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllText(path,file.Value,new UTF8Encoding(false)); }
+    File.WriteAllText(Path.Combine(directory,"Observation.cs"), isCar ? NamespaceCases.carConsumer(naming) : NamespaceCases.typeConsumer(naming),new UTF8Encoding(false));
+    var refused = CSharpGenerator.Generate(model,GenerationOptions.Default,default(NamespaceOverride)!,default);
+    if (!refused.Status.IsFailure || refused.Sources.Any() || refused.Diagnostics.Head.Rule != "invalid-namespace" || refused.Diagnostics.Head.Location != "$options/namespace") throw new Exception("C# null boundary");
+    using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
+    if (!CSharpGenerator.Generate(model,GenerationOptions.Default,default(NamespaceOverride)!,cancelled.Token).Status.IsCancelled) throw new Exception("Cancellation precedence");
+    Console.WriteLine($"{family}/{language}: parity, immutable generated sources and C# null/cancellation boundaries passed");
+    return 0;
+}
+if(args[0] == "cancel")
+{
+    using var cancellation = new CancellationTokenSource();
+    var gate = new PublicationGate();
+    await using var app = MorphirCli.CreateBuilder(args.Skip(1).ToArray()).AddScenario<GenerationScenario>()
+        .ConfigureServices(s => s.AddSingleton<IGenerationPublisher>(gate)).Build();
+    var execution = app.RunAsync(cancellation.Token);
+    var entered = gate.Entered.Task;
+    var winner = await Task.WhenAny(entered,execution).WaitAsync(TimeSpan.FromSeconds(60));
+    if(winner != entered) throw new Exception("CLI completed without real C# artifacts reaching publication");
+    cancellation.Cancel();
+    return await execution;
+}
+throw new Exception("Unknown proof mode");
+
+sealed class PublicationGate : IGenerationPublisher
+{
+    public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public async ValueTask<Outcome<GenerationPublication>> PublishAsync(GenerationArtifacts artifacts,ModelInput input,PublicationPolicy policy,CancellationToken ct)
+    {
+        var files = VFileTreeModule.toStringMap(artifacts.Tree).ResultValue;
+        if(!files.Any() || !files.All(p => p.Key.EndsWith(".g.cs"))) throw new Exception("Expected actual C# generation");
+        Console.Error.WriteLine("Owned cancellation gate observed real C# artifacts before publication.");
+        Entered.SetResult();
+        await Task.Delay(Timeout.Infinite,ct);
+        throw new Exception("Cancellation gate unexpectedly resumed");
+    }
+}

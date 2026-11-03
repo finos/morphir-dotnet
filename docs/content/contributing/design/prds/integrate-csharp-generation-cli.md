@@ -42,14 +42,14 @@ new orchestration paths, runtime changes and configuration semantics are exclude
 | --- | --- | --- |
 | Verified main prerequisites and contribution issue | Implemented | Clean base 80d516e2; seven exact PRs MERGED to main; #481 |
 | Real-provider BDD RED and registration | Implemented | Observed classic/v4 CLI unknown-target RED 2/2; all 444 Tooling cases passed in full native run |
-| Immutable validated options and core namespace parity | In progress | Public API compile RED observed before core; provider RED 7/40 then GREEN 40/40; core namespace 43/43 including compiled consumers |
-| Model/source/diagnostic adaptation across wire forms | Planned | No acceptance claimed |
-| Safe publication and failure preservation | Planned | No acceptance claimed |
-| Real CLI JSON, stderr and 0/1/2/130 observations | Planned | No acceptance claimed |
-| Pinned compiled business consumers | Planned | New CLI evidence required |
-| Executed trimmed and NativeAOT CLI | Planned | New CLI evidence required |
-| Executed command reference and fresh consumers | Planned | No acceptance claimed |
-| Full tests, meaningful coverage, package and format checks | In progress | New native full run 3,912 framework + 15 cold + 71 inspection passed; adapter 47/48 lines, whole core 3,051/3,261; strict and format checks passed; package checks pending |
+| Immutable validated options and core namespace parity | Implemented | Public API RED before production; real CLI defaults/precedence/kind/refusal cases; namespace 59/59; both typed families compiled under both pinned profiles |
+| Model/source/diagnostic adaptation across wire forms | Implemented | 16 real CLI wire cases compare direct-core paths and UTF-8 bytes; located semantic reports |
+| Safe publication and failure preservation | Implemented | Seven real-source publisher cases plus real CLI rerun/timestamp/stale removal/unowned-file observations |
+| Real CLI JSON, stderr and 0/1/2/130 observations | Implemented | 33 real CLI cases passed; separate captured CLI host cancellation returned 130 and preserved prior files/timestamps |
+| Pinned compiled business consumers | Implemented | 16 initial fresh consumers plus eight typed/provider consumers, SDK 10.0.403/C14 and isolated RC2/C15; independent 5000/15000/62 observations |
+| Executed trimmed and NativeAOT CLI | Implemented | Acceptance-03 actual executables, empty compiler PATH, separate consumers 15000; native semantic refusals/no artifacts; inherited warnings retained |
+| Executed command reference and fresh consumers | Implemented | Fresh documented console/package/generate/build/run printed 5000; README and troubleshooting commands parsed |
+| Full tests, meaningful coverage, package and format checks | Checks performed, known unrelated failure | Latest full run 3960/3961 with unchanged configuration failure; CSharp 206/206, FSharp 333/333. Focused final core 216/216, coverage 3130/3340 and formatter 64/64; adapter 47/48. PackAll and 40 package checks passed; final native Precommit, pinned Fantomas, changelog and strict OpenSpec checks passed |
 | Landed main, archived specs and checkout cleanup | Planned | Coordinator owns these delivery gates |
 
 ## Test plan
@@ -99,3 +99,32 @@ Prior generator/archive proof roots are read-only dependencies owned by root.
 The lead is the only Git writer. No auxiliary, helper or extra checkout has been
 started. Exact commands, outcomes, artifacts and releases will be recorded in
 this change's validation and handoff records before handback.
+
+### NativeAOT diagnostic correction and acceptance, 2026-11-03
+
+Actual native execution exposed eager F# `%A` diagnostic formatting in core
+module validation. The coordinator leased exactly TypeEmission.fs and
+ValueLowering.fs plus public NamespaceCases regressions and one diagnostic-guide
+paragraph. Public invalid-name/collision/type-mismatch RED preceded correction.
+The fix uses small explicit structural formatters with per-traversal cancellation.
+It changes human diagnostic spelling and module-validation location spelling,
+retaining rule IDs, source bytes/paths, APIs and refusal/cancellation behavior.
+
+The first publish failed on inherited warnings treated as errors. The approved
+policy sets TreatWarningsAsErrors=false and TrimmerSingleWarn=false only on the
+owned trimmed/native publish commands. No warning suppression, reflection roots,
+serializer change or global setting was added. Acceptance-03 passed actual
+trimmed/native generation and separately compiled business output. Visible warning
+counts are trimmed 78 occurrences/75 distinct and native 92/89, all from existing
+Core/tooling paths or dependencies. There are no changed-CSharp-source warning
+origins. This proves the executed generation path, not all CLI commands.
+
+The latest full native test run failed in unchanged configuration semantics:
+set custom.value 12 --type int returned config.edit_rolled_back. Preserve its
+3960/3961 result. Its downstream cold/inspection stages did not run. The earlier
+3912 framework + 15 cold + 71 inspection passing checkpoint remains separate.
+No configuration fix, suppression, filtering or broad retry is part of this PR.
+Caller-token cancellation was observed through the real CLI command/renderer
+and real registered provider, with an owned test publication gate; it does not
+claim OS signal delivery coverage. See the active change's validation record for
+exact commands, warnings, retained failures and ownership.

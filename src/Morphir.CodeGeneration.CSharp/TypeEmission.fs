@@ -4,6 +4,7 @@ namespace Morphir.CodeGeneration.CSharp
 
 open System
 open System.Threading
+open System.Text
 open Morphir.IR
 open Morphir.IR.Model
 
@@ -30,6 +31,115 @@ module internal TypeEmission =
         Location: string
     }
 
+    // Diagnostic text must not use F# structural reflection, including on valid AOT requests.
+    let private quoted (ct: CancellationToken) (text: string) =
+        ct.ThrowIfCancellationRequested()
+
+        if isNull text then
+            "null"
+        else
+            let result = StringBuilder("\"")
+
+            for c in text do
+                ct.ThrowIfCancellationRequested()
+
+                match c with
+                | '"' ->
+                    result.Append("\\\"")
+                    |> ignore
+                | '\\' ->
+                    result.Append("\\\\")
+                    |> ignore
+                | c when
+                    Char.IsControl c
+                    || Char.IsSurrogate c
+                    ->
+                    result
+                        .Append("\\u")
+                        .Append((int c).ToString("x4", Globalization.CultureInfo.InvariantCulture))
+                    |> ignore
+                | c ->
+                    result.Append(c)
+                    |> ignore
+
+            result.Append('"').ToString()
+
+    let describeName (ct: CancellationToken) (Name words) =
+        ct.ThrowIfCancellationRequested()
+
+        "Name["
+        + (words
+           |> List.map (quoted ct)
+           |> String.concat ",")
+        + "]"
+
+    let private describePath (ct: CancellationToken) label (Path names) =
+        ct.ThrowIfCancellationRequested()
+
+        label
+        + "["
+        + (names
+           |> List.map (describeName ct)
+           |> String.concat ",")
+        + "]"
+
+    let describeModulePath ct (ModulePath path) = describePath ct "ModulePath" path
+
+    let private describeQualified ct (name: FQName) =
+        let (PackageName package) = name.PackagePath
+
+        "FQName("
+        + describePath ct "PackagePath" package
+        + ","
+        + describeModulePath ct name.ModulePath
+        + ","
+        + describeName ct name.LocalName
+        + ")"
+
+    let rec describeShape (ct: CancellationToken) shape =
+        ct.ThrowIfCancellationRequested()
+        let next = describeShape ct
+
+        let shapes items =
+            "["
+            + (items
+               |> List.map next
+               |> String.concat ",")
+            + "]"
+
+        match shape with
+        | Parameter name ->
+            "Parameter("
+            + describeName ct name
+            + ")"
+        | Named(name, args) ->
+            "Named("
+            + describeQualified ct name
+            + ","
+            + shapes args
+            + ")"
+        | Product items ->
+            "Product("
+            + shapes items
+            + ")"
+        | Fields fields ->
+            "Fields["
+            + (fields
+               |> List.map (fun (name, field) ->
+                   describeName ct name
+                   + ":"
+                   + next field
+               )
+               |> String.concat ",")
+            + "]"
+        | Arrow(input, output) ->
+            "Arrow("
+            + next input
+            + ","
+            + next output
+            + ")"
+        | Unit -> "Unit"
+
     let validateName (ct: CancellationToken) location (Name words as name) =
         ct.ThrowIfCancellationRequested()
 
@@ -49,7 +159,7 @@ module internal TypeEmission =
                 "invalid-name"
                 location
                 ("Invalid Morphir name "
-                 + sprintf "%A" name)
+                 + describeName ct name)
 
     let uniqueNames ct location names =
         names
@@ -67,7 +177,7 @@ module internal TypeEmission =
                     (target
                      + " is shared by "
                      + (owners
-                        |> List.map (fun (name, _) -> sprintf "%A" name)
+                        |> List.map (fun (name, _) -> describeName ct name)
                         |> String.concat " and "))
         )
 
@@ -158,7 +268,7 @@ module internal TypeEmission =
 
             let loc =
                 "$modules/"
-                + sprintf "%A" path
+                + describeModulePath ct path
 
             if List.isEmpty parts then
                 Admission.fail "invalid-name" loc "The module path is empty."
@@ -1116,7 +1226,7 @@ module internal TypeEmission =
                     owners.Head.Location
                     ("C# type identity is shared by "
                      + (owners
-                        |> List.map (fun d -> sprintf "%A" d.Name.LocalName)
+                        |> List.map (fun d -> describeName ct d.Name.LocalName)
                         |> String.concat " and "))
         )
 

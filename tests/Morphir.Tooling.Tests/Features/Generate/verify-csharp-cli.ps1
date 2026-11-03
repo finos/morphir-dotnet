@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory)][string]$EvidenceDirectory,
     [Parameter(Mandatory)][string]$RcDotnet,
-    [string]$StableDotnet='C:/Users/damre/AppData/Local/dotnetup/dotnet/dotnet.exe'
+    [string]$StableDotnet='C:/Users/damre/AppData/Local/dotnetup/dotnet/dotnet.exe',
+    [string]$ConsumerProofDirectory
 )
 $ErrorActionPreference='Stop'
 $repo=(Resolve-Path (Join-Path $PSScriptRoot '../../../..')).Path
@@ -62,9 +63,18 @@ function Report([string]$Name,[string]$Cli,[string]$InputPath,[string]$Output,[i
 }
 $feed=Join-Path $proof 'feed'
 New-Item -ItemType Directory -Path $feed | Out-Null
-[void](Run 'pack-runtime' $StableDotnet $repo (@('pack','src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj','-c','Release','--no-restore','-o',$feed,'-p:Version=0.0.0-local')+$bounds))
+if($ConsumerProofDirectory){
+    $consumerProof=[IO.Path]::GetFullPath($ConsumerProofDirectory)
+    $prior=Get-Content -LiteralPath (Join-Path $consumerProof 'consumers.json') -Raw | ConvertFrom-Json
+    if(@($prior).Count -ne 16){throw 'Expected all 16 retained compiler observations'}
+    Copy-Item -LiteralPath (Join-Path $consumerProof 'feed/Morphir.SDK.CSharp.0.0.0-local.nupkg') -Destination $feed
+}else{
+    $consumerProof=$proof
+    [void](Run 'pack-runtime' $StableDotnet $repo (@('pack','src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj','-c','Release','--no-restore','-o',$feed,'-p:Version=0.0.0-local')+$bounds))
+}
 $cli=Join-Path $repo 'src/Morphir/bin/Release/net10.0/morphir.exe'
 $results=[Collections.Generic.List[object]]::new()
+if(-not $ConsumerProofDirectory){
 foreach($profile in @(@{name='stable';language=14;sdk='10.0.403';exe=$StableDotnet},@{name='rc2';language=15;sdk='11.0.100-rc.2.26504.105';exe=$RcDotnet})){
     $root=Split-Path $profile.exe
     $environment=@{DOTNET_ROOT=$root;DOTNET_ROOT_ARM64=$root;DOTNET_CLI_HOME=(Join-Path $proof "$($profile.name)-home")}
@@ -111,22 +121,49 @@ System.Console.WriteLine(cents);
         $results | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $proof 'consumers.json')
     }
 }
+}
 $empty=Join-Path $proof 'no-compiler'
 New-Item -ItemType Directory -Path $empty | Out-Null
 foreach($kind in @('trimmed','native')){
     $published=Join-Path $proof "published-$kind"
-    $properties=@('-p:PublishTrimmed=true','-p:TrimMode=link')
+    $properties=@('-p:PublishTrimmed=true','-p:TrimMode=link','-p:TreatWarningsAsErrors=false','-p:TrimmerSingleWarn=false')
     if($kind -eq 'native'){$properties+= '-p:PublishAot=true'}
     [void](Run "$kind-publish" $StableDotnet $repo (@('publish','src/Morphir/Morphir.csproj','-c','Release','-r','win-arm64','--self-contained','true','-o',$published)+$properties+$bounds))
     $exe=Join-Path $published 'morphir.exe'
     if(-not (Test-Path -LiteralPath $exe)){throw 'Published executable missing'}
+    if($kind -eq 'native'){
+        $bytes=[IO.File]::ReadAllBytes($exe)
+        $pe=[BitConverter]::ToInt32($bytes,0x3c)
+        $machine=[BitConverter]::ToUInt16($bytes,$pe+4)
+        $magic=[BitConverter]::ToUInt16($bytes,$pe+24)
+        $clr=[BitConverter]::ToUInt32($bytes,$pe+24+112+14*8)
+        if($machine -ne 0xaa64 -or $magic -ne 0x20b -or $clr -ne 0){throw 'Expected a native ARM64 PE without a CLR header'}
+        @{machine=$machine;optionalHeaderMagic=$magic;clrHeaderRva=$clr} | ConvertTo-Json | Set-Content (Join-Path $proof 'native-pe.json')
+    }
     $output=Join-Path $proof "$kind-consumer/Generated"
     $report=Report "$kind-no-compiler-generate" $exe (Join-Path $repo 'examples/car-rental/models/car-rental-v3.json') $output 14 'Pricing.Generated' @{PATH=$empty;DOTNET_ROOT=$empty;DOTNET_ROOT_ARM64=$empty;DOTNET_CLI_HOME=(Join-Path $proof "$kind-home")}
+    foreach($artifact in $report.artifacts){
+        $old=Join-Path $consumerProof "stable-car-v3/Generated/$artifact"
+        $new=Join-Path $output $artifact
+        if((Get-FileHash -LiteralPath $old -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $new -Algorithm SHA256).Hash){throw 'Core diagnostic changes altered emitted source bytes'}
+    }
+    if($kind -eq 'native'){
+        $source=[IO.File]::ReadAllText((Join-Path $repo 'tests/Fixtures/MorphirIR/daily-rate-v4.json'))
+        foreach($rule in @('document-literal','type-mismatch')){
+            $inputPath=Join-Path $proof "native-$rule.json"
+            $payload=if($rule -eq 'document-literal'){'"DocumentLiteral": {"unsupported":true}'}else{'"BoolLiteral": true'}
+            [IO.File]::WriteAllText($inputPath,$source.Replace('"WholeNumberLiteral": 5000',$payload))
+            $refusedOutput=Join-Path $proof "native-refused-$rule"
+            $json=Run "native-$rule-refusal" $exe $repo @('generate','--input',$inputPath,'--target','csharp','--output',$refusedOutput,'--json') @{PATH=$empty;DOTNET_ROOT=$empty;DOTNET_ROOT_ARM64=$empty} 1
+            $refusal=$json | ConvertFrom-Json
+            if($refusal.success -or $refusal.failureKind -ne 'semantic' -or $refusal.diagnostics[0].code -ne $rule -or -not $refusal.diagnostics[0].location -or $refusal.artifacts.Count -or (Test-Path -LiteralPath $refusedOutput)){throw 'Native semantic refusal contract failed'}
+        }
+    }
     $directory=Split-Path $output
-    Copy-Item -LiteralPath (Join-Path $proof 'stable-car-v3/Program.cs') -Destination $directory
-    Copy-Item -LiteralPath (Join-Path $proof 'stable-car-v3/Consumer.csproj') -Destination $directory
-    Copy-Item -LiteralPath (Join-Path $proof 'stable-car-v3/NuGet.Config') -Destination $directory
-    Copy-Item -LiteralPath (Join-Path $proof 'stable-car-v3/global.json') -Destination $directory
+    Copy-Item -LiteralPath (Join-Path $consumerProof 'stable-car-v3/Program.cs') -Destination $directory
+    Copy-Item -LiteralPath (Join-Path $consumerProof 'stable-car-v3/Consumer.csproj') -Destination $directory
+    Copy-Item -LiteralPath (Join-Path $consumerProof 'stable-car-v3/NuGet.Config') -Destination $directory
+    Copy-Item -LiteralPath (Join-Path $consumerProof 'stable-car-v3/global.json') -Destination $directory
     [void](Run "$kind-consumer-restore" $StableDotnet $directory (@('restore','Consumer.csproj','--configfile','NuGet.Config','--packages',(Join-Path $directory 'packages'))+$bounds))
     [void](Run "$kind-consumer-build" $StableDotnet $directory (@('build','Consumer.csproj','-c','Release','--no-restore','-warnaserror')+$bounds))
     $observed=Run "$kind-consumer-execute" $StableDotnet $directory @('exec','bin/Release/net10.0/Consumer.dll')

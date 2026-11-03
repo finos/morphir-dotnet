@@ -8,6 +8,8 @@ open Microsoft.CodeAnalysis
 open Microsoft.CodeAnalysis.CSharp
 open Expecto
 open Morphir.CodeGeneration.CSharp
+open Morphir.IR
+open Morphir.IR.Model
 
 let valid text =
     NamespaceOverride.TryCreate text
@@ -111,6 +113,146 @@ let export directory language family naming =
 
 let tests =
     testList "Namespace override" [
+        for words, expected in
+            [
+                [ null ], "Name[null]"
+                [ "bad\nword" ], "Name[\"bad\\u000aword\"]"
+                [ "a\"b" ], "Name[\"a\\\"b\"]"
+                [ "x\\y" ], "Name[\"x\\\\y\"]"
+            ] do
+            testCase (
+                "Diagnostic raw name escaping "
+                + expected
+            )
+            <| fun _ ->
+                let original = RefusalCases.classic [] (Morphir.IR.Classic.Type.Unit RefusalCases.a)
+
+                let model =
+                    match original.Distribution with
+                    | DistributionModel.Classic(Morphir.IR.Classic.Distribution.Library(_,
+                                                                                        dependencies,
+                                                                                        definition)) ->
+                        { original with
+                            Distribution =
+                                DistributionModel.Classic(
+                                    Morphir.IR.Classic.Distribution.Library(
+                                        PackageName(Path [ Name words ]),
+                                        dependencies,
+                                        definition
+                                    )
+                                )
+                        }
+                    | _ -> failwith "Expected classic fixture"
+
+                let result =
+                    CSharpGenerator.Generate(
+                        model,
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal result.Status GenerationStatus.Failure "invalid raw package name"
+                Expect.equal result.Diagnostics.Head.Rule "invalid-name" "stable rule"
+
+                Expect.equal
+                    result.Diagnostics.Head.Location
+                    "$package"
+                    "stable structural location"
+
+                Expect.stringContains
+                    result.Diagnostics.Head.Message
+                    expected
+                    "explicit raw words and escapes"
+
+                Expect.isEmpty result.Sources "no artifacts"
+
+        testCase "Collision diagnostics distinguish raw name words"
+        <| fun _ ->
+            let model =
+                RefusalCases.classic
+                    [ Name [ "a" ]; Name [ "A" ] ]
+                    (Morphir.IR.Classic.Type.Unit RefusalCases.a)
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable collision rule"
+            Expect.stringContains result.Diagnostics.Head.Message "Name[\"a\"]" "first raw identity"
+
+            Expect.stringContains
+                result.Diagnostics.Head.Message
+                "Name[\"A\"]"
+                "second raw identity"
+
+        testCase "Type mismatch diagnostics describe explicit shape constructors"
+        <| fun _ ->
+            let _, definition =
+                FunctionCases.refusals
+                |> List.find (fun (rule, _) -> rule = "type-mismatch")
+
+            let result =
+                CSharpGenerator.Generate(
+                    FunctionCases.classicWith [ definition ],
+                    GenerationOptions.Default,
+                    CancellationToken.None
+                )
+
+            Expect.equal result.Status GenerationStatus.Failure "semantic mismatch"
+            Expect.equal result.Diagnostics.Head.Rule "type-mismatch" "stable mismatch rule"
+
+            Expect.stringContains
+                result.Diagnostics.Head.Message
+                "Named(FQName("
+                "explicit named shape"
+
+            Expect.isEmpty result.Sources "no sources"
+
+        for spelling, shape in
+            [
+                "Unit", FunctionCases.UnitTy
+                "Product(", FunctionCases.TupleTy [ FunctionCases.Int; FunctionCases.Bool ]
+                "Fields[", FunctionCases.RecordTy [ "field", FunctionCases.Int ]
+                "Arrow(", FunctionCases.Fn(FunctionCases.Int, FunctionCases.Int)
+                "Parameter(", FunctionCases.ListTy(FunctionCases.Generic "a")
+            ] do
+            for family in [ "classic"; "v4" ] do
+                testCase (
+                    "Public mismatch spelling "
+                    + family
+                    + " "
+                    + spelling
+                )
+                <| fun _ ->
+                    let definition: FunctionCases.Definition = {
+                        Name = "mismatch"
+                        Inputs = [ "x", shape ]
+                        Output = FunctionCases.Int
+                        Body = FunctionCases.Variable "x"
+                    }
+
+                    let model =
+                        if family = "classic" then
+                            FunctionCases.classicWith [ definition ]
+                        else
+                            FunctionCases.v4With [ definition ]
+
+                    let result =
+                        CSharpGenerator.Generate(
+                            model,
+                            GenerationOptions.Default,
+                            CancellationToken.None
+                        )
+
+                    Expect.equal result.Status GenerationStatus.Failure "semantic refusal"
+                    Expect.equal result.Diagnostics.Head.Rule "type-mismatch" "stable rule"
+
+                    Expect.stringContains
+                        result.Diagnostics.Head.Message
+                        spelling
+                        "explicit shape constructor"
+
+                    Expect.isEmpty result.Sources "no sources"
+
         for text in
             [
                 null

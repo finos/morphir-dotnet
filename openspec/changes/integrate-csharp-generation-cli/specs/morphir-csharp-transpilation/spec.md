@@ -15,10 +15,11 @@ value and constructor identities, package-derived source paths and the original
 typed model. SDK and System qualifications SHALL remain unchanged. Naming state
 SHALL be local to each request.
 
-Namespace validation SHALL accept dotted literal C# identifiers with optional
+Namespace validation SHALL accept dotted literal BMP C# identifiers with optional
 `@` prefixes, reserved words only when escaped, and admitted Unicode identifier
-characters in Normalization Form C. The literal-name boundary SHALL reject source
-Unicode escape syntax and malformed UTF-16 rather than interpreting source text.
+characters in Normalization Form C. The bounded literal-name admission SHALL
+reject source Unicode escape syntax and surrogate code units rather than
+interpreting source text.
 Null, empty, malformed and injection-like names SHALL produce a typed
 `invalid-namespace` diagnostic at `$options/namespace`. An explicit null namespace
 value at the generation overload SHALL fail without sources; caller cancellation

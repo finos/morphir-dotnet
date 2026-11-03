@@ -32,11 +32,11 @@ No successful partial sources are published for these failures.
 
 An unsupported expression, SDK operation, distribution or required semantic has
 a stable rule and available model location. Read the
-[C# API/diagnostic guide](../backends/csharp/diagnostics/), then correct the input
+[C# API/diagnostic guide]({{< relref "/docs/backends/csharp/diagnostics" >}}), then correct the input
 or restrict it to the admitted model contract. Do not edit emitted sources to
 hide a refusal. For a compiler error, verify the separately selected compiler's
 numeric language version and the `Morphir.SDK.CSharp` package reference using
-the [fresh-consumer walkthrough](../getting-started/morphir-to-csharp/).
+the [fresh-consumer walkthrough]({{< relref "/docs/getting-started/morphir-to-csharp" >}}).
 
 Keep input and output separate and retain `.morphir-generated.json`. A failed
 generation or rejected overlap preserves earlier owned sources and unowned

@@ -10,6 +10,7 @@ The C# generation library needs a thin adapter into the existing morphir generat
 - Expose language-version=14 or 15 and optional namespace through existing repeated --option settings; default to 14.
 - Reuse existing model loading, publication, JSON reports and exit codes without a second orchestration path.
 - Add end-to-end compiled/executed examples, failure preservation, cancellation, and trimmed/Native AOT smoke coverage for the new target.
+- Replace five diagnostic-only structural reflection formats discovered by actual NativeAOT execution with explicit cancellable structural spellings.
 
 ## Capabilities
 
@@ -44,4 +45,12 @@ and three-argument entry point. Core naming applies the namespace to the input
 Library package's declarations and qualified references. It preserves package
 source paths and never rewrites generated source text or migrates the input IR.
 
-Production implementation, release publication, new Codex thread launch and source-generator delivery are outside this planning action.
+Actual NativeAOT execution required a separate bounded correction in
+TypeEmission and ValueLowering, with public NamespaceCases regressions and a
+diagnostic-guide addition. Only diagnostic message text and the eager module
+validation location spelling change. Rule IDs, public APIs, refusal/cancellation
+behavior and source artifacts remain unchanged. See [validation](validation.md)
+for observed failures, warning policy and acceptance limits.
+
+Release publication, new Codex thread launch and full source-generator adapter
+delivery remain outside this CLI implementation.

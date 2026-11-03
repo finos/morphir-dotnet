@@ -57,6 +57,11 @@ svg { max-width: 100%; height: auto; }
 <p>The literal-name boundary admits dotted BMP identifiers in Unicode Normalization Form C, with escaped reserved words and Unicode identifier categories. It refuses source escape syntax and surrogate characters rather than interpreting them. Null parsing and an explicit null override return invalid-namespace at $options/namespace; caller cancellation retains precedence. Compiled edge cases and concurrent requests verify admission and isolation.</p>
 <p>Reporting retains the generic command contract. JSON stdout contains one report including structured diagnostics and no plain-text logs. Human diagnostics and emitted log text use stderr; JSON failures need not duplicate report diagnostics as stderr text.</p>
 </section>
+<section aria-labelledby="native-diagnostics">
+<h2 id="native-diagnostics">Native diagnostic formatting</h2>
+<p>Actual native execution exposed eager F# structural reflection in diagnostic formatting. Five diagnostic-only sites in TypeEmission and ValueLowering now use small explicit name, path and exhaustive shape formatters with cancellation checks. Diagnostic text and the module-validation location spelling intentionally change; rule IDs, public APIs, generated source bytes and paths remain unchanged.</p>
+<p>The owned publish commands retain visible warnings with TreatWarningsAsErrors=false and TrimmerSingleWarn=false, matching the predecessor acceptance policy. No warning suppression, reflection roots or serializer changes are added. Actual trimmed/native generation, structured semantic refusals and separately compiled business consumers establish the executed generation path. They do not establish AOT safety for unrelated commands. The validation record retains every failed attempt and classifies inherited warnings by origin and repeats.</p>
+</section>
 </main>
 </body>
 </html>

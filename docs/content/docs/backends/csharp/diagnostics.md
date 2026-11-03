@@ -49,6 +49,20 @@ package/module/type/value/pattern/expression being checked. Callers should branc
 on `Rule`, not parse messages. The CLI successor can map these categories without
 loading a compiler or changing core semantics.
 
+Diagnostic identities use explicit structural spellings, for example
+`Name["car","rental"]`, `ModulePath[Name["inventory"]]` and
+`FQName(PackagePath[Name["example"]],ModulePath[Name["data"]],Name["person"])`.
+Raw words and path segments remain distinguishable. Strings are quoted, quotes
+and backslashes are escaped, null strings are written `null`, and control or
+surrogate characters use `\u` followed by four hexadecimal digits. Type mismatch
+messages describe `Parameter(Name[...])`, `Named(FQName(...),[...])`,
+`Product([...])`, `Fields[Name[...]:...,Name[...]:...]`, `Arrow(...,...)` or `Unit`.
+These diagnostic-only spellings avoid structural reflection in NativeAOT.
+Module validation locations now use `$modules/ModulePath[...]`. This intentionally
+changes diagnostic text and that location spelling while retaining rule IDs,
+refusal and cancellation behavior, generated source bytes and paths. Callers
+should continue branching on `Rule` rather than parsing human messages.
+
 | Category | Rules |
 | --- | --- |
 | Input/profile boundary | `unsupported-language`, `unsupported-version`, `unsupported-distribution`, `invalid-namespace` |

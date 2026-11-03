@@ -99,3 +99,58 @@ Squash-safe cleanup verifies the merged PR and its landed SHA on main, a clean w
 ## Windows execution
 
 Use PowerShell, captured processes and hidden background helper windows. No Bash/WSL unless specifically required and authorized. A timeout must terminate the entire process tree and be verified before retrying. Do not run bd dolt push. Release only owned helpers and preserve uncommitted work for the coordinator's cleanup verification.
+
+## Implementation handoff checkpoint
+
+OpenSpec apply reports all nine implementation tasks complete. This is not
+initiative completion: root still owns hosted review/check classification,
+landing, exact landed-main verification, normal spec sync/archive and checkout
+cleanup. The PRD stays In Progress through those delivery gates. The latest full
+native test result is the known unrelated configuration failure documented in
+[validation](validation.md), not an all-green claim.
+
+The implementation uses one static CSharpGenerationBackend through the existing
+resolver and GenerationScenario. Accepted options are immutable numeric 14/15,
+default 14, and an optional validated literal namespace; repeated keys retain
+last occurrence. Capabilities are classic Library 1/2/3/3.0.0/3.1.0 and v4
+Library 4/4.0.0, with no supported extra required semantics. Both typed families
+stay intact. Artifact paths and bytes match direct core generation. JSON rendering,
+loading and owned publication use existing generic behavior. Sources remain
+immutable C# SDK consumers using IMorphirValue/MorphirValue.Hash.
+
+The additive NamespaceOverride API and four-argument Generate overload retain
+existing constructors and the three-argument API. Default output is unchanged.
+Two override requests plus default and concurrent calls observe isolated naming.
+Namespace options affect the input package only, including qualified type,
+value and constructor references; SDK/System names and source paths stay fixed.
+
+Fresh acceptance includes 24 independent pinned consumers, actual trimmed and
+NativeAOT generation without compiler PATH, separate business compilation,
+representative native semantic refusals and captured CLI 0/1/2/130 contracts.
+The owned test publication gate tests caller-token cancellation, not OS signals.
+Generation never invokes a compiler; production Roslyn and the full compiler
+source-generator adapter remain excluded.
+
+Initial core/shared/five-lockfile leases were released at f0d3ee5. The later
+TypeEmission/ValueLowering, NamespaceCases and diagnostics-page correction leases
+are held until the next verified normal commit/push and then explicitly released
+to root. No other shared/core/lock scope is reopened. No auxiliary task/thread,
+helper agent or extra worktree exists. The sole expensive-command lease remains
+with the worker until command/process inventory and clean submission handoff.
+No delegated PR watch or cleanup is performed.
+
+Owned evidence root is C:/Temp/morphir-csharp-cli-79f2b566-20261103. Root cleanup
+must retain its logs, failed attempts, local packages, consumers, published
+executables and helpers until review is complete. Absolute file/directory and
+command-result inventories are written there. Checkout build outputs include
+bin/obj, .nuke/temp, test results and artifacts/packages. Their pre-existing
+ignored-output absence was not established. Read-only root-owned dependencies
+are C:/Temp/morphir-csharp-generator-1d28e9ab-20261103, its isolated RC2 toolchain,
+and C:/Temp/morphir-csharp-archive-650c2d8f-20261103. Do not modify or delete them.
+Cleanup of older/locked worktrees remains solely root's existing responsibility.
+
+The validation record preserves the 2.86-second heavy overlap, the unverified
+VBCSCompiler 5656/7888 ownership at Nuke's global stop, empty initial coverage
+profiler result, wrong union filter, configuration failures, warning-as-error
+publish refusal, genuine native reflection failure and post-pack output mismatch.
+No clean-resource or all-green claim erases those limitations.

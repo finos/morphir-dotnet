@@ -68,7 +68,7 @@ create an F# project or compile and execute the output.
 
 The C# target declares the same exact Library versions. It uses the immutable
 `Morphir.SDK.CSharp` runtime and the admitted
-[C# generation contract](../backends/csharp/diagnostics/). Its own semantics and
+[C# generation contract]({{< relref "/docs/backends/csharp/diagnostics" >}}). Its own semantics and
 located refusals remain those of the reusable C# library. Generation needs no
 compiler installation. A separate consumer chooses the matching numeric compiler
 profile and references the runtime package. The production Roslyn adapter remains
@@ -97,7 +97,7 @@ morphir generate --input tests/Fixtures/MorphirIon/trees/v3-daily-rate --target 
 `--option language-version=15 --option language-version=14` selects `14`.
 Selecting `15` explicitly generates the C# 15 profile independently of the SDK
 installed on the generation machine. Compile it separately using the matching
-.NET 11 compiler. See [the executable C# walkthrough](../getting-started/morphir-to-csharp/).
+.NET 11 compiler. See [the executable C# walkthrough]({{< relref "/docs/getting-started/morphir-to-csharp" >}}).
 
 For CI, retain the JSON report and propagate a failure:
 
