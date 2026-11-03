@@ -1144,6 +1144,33 @@ let tests =
                 Expect.isNonEmpty result.Diagnostics.Head.Location "model location"
         for family, model in [ "classic", TypeCases.classic; "v4", TypeCases.v4 ] do
             testCase (
+                "Finite nested aliases compile and execute "
+                + family
+            )
+            <| fun _ ->
+                Expect.equal
+                    (executeConsumer (model ()) 14 TypeCases.consumer)
+                    17
+                    "repeated alias use in actual type arguments is finite"
+
+            testCase (
+                "Genuinely recursive aliases fail without partial sources "
+                + family
+            )
+            <| fun _ ->
+                let result =
+                    CSharpGenerator.Generate(
+                        TypeCases.withRecursiveAlias (model ()),
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal result.Status GenerationStatus.Failure "recursive alias refused"
+                Expect.equal result.Diagnostics.Head.Rule "recursive-alias" "stable cycle rule"
+                Expect.isNotEmpty result.Diagnostics.Head.Location "located cycle diagnostic"
+                Expect.isEmpty result.Sources "no successful partial sources"
+
+            testCase (
                 "Private constructors remain inaccessible to a separate consumer "
                 + family
             )

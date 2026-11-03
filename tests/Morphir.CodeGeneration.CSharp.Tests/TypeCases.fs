@@ -93,6 +93,19 @@ let classic () =
                     ])
             )
             n "boxHolder", publicType (alias [] (record [ "box", reference (own "intBox") [] ]))
+            n "nestedBox",
+            publicType (
+                alias [ n "a" ] (record [ "value", Morphir.IR.Classic.Type.Variable(a, n "a") ])
+            )
+            n "nestedHolder",
+            publicType (
+                alias
+                    []
+                    (record [
+                        "payload",
+                        reference (own "nestedBox") [ reference (own "nestedBox") [ intType ] ]
+                    ])
+            )
             n "wrapped",
             publicType (
                 alias
@@ -237,6 +250,17 @@ let v4 () =
                     ])
             )
             n "boxHolder", publicType (alias [] (record [ "box", reference (own "intBox") [] ]))
+            n "nestedBox",
+            publicType (alias [ n "a" ] (record [ "value", Morphir.IR.V4.Type.Variable(a, n "a") ]))
+            n "nestedHolder",
+            publicType (
+                alias
+                    []
+                    (record [
+                        "payload",
+                        reference (own "nestedBox") [ reference (own "nestedBox") [ intType ] ]
+                    ])
+            )
             n "wrapped",
             publicType (
                 alias
@@ -313,6 +337,83 @@ let v4 () =
                 )
             )
     }
+
+let withRecursiveAlias model =
+    match model.Distribution with
+    | DistributionModel.Classic(Morphir.IR.Classic.Distribution.Library(pkg, deps, definition)) ->
+        let recursiveAlias =
+            Morphir.IR.Classic.Type.TypeAliasDefinition(
+                [ n "a" ],
+                Morphir.IR.Classic.Type.Reference(
+                    a,
+                    own "nestedBox",
+                    [ Morphir.IR.Classic.Type.Variable(a, n "a") ]
+                )
+            )
+            |> Morphir.IR.Classic.Documented.WithoutDocumentation
+            |> Morphir.IR.Classic.AccessControlled.public'
+
+        let modules =
+            definition.Modules
+            |> Map.map (fun _ controlled ->
+                { controlled with
+                    Value =
+                        { controlled.Value with
+                            Types = Map.add (n "nestedBox") recursiveAlias controlled.Value.Types
+                        }
+                }
+            )
+
+        { model with
+            Distribution =
+                DistributionModel.Classic(
+                    Morphir.IR.Classic.Distribution.Library(pkg, deps, { Modules = modules })
+                )
+        }
+    | DistributionModel.V4(Morphir.IR.V4.Library(pkg, deps, definition)) ->
+        let attributes = Morphir.IR.V4.TypeAttributes.empty
+
+        let recursiveAlias
+            : Morphir.IR.V4.AccessControlled<Morphir.IR.V4.Documented<Morphir.IR.V4.TypeDefinition>> = {
+            Access = Morphir.IR.V4.Public
+            Value = {
+                Doc = None
+                Value =
+                    Morphir.IR.V4.TypeAliasDefinition(
+                        [ n "a" ],
+                        Morphir.IR.V4.Type.Reference(
+                            attributes,
+                            own "nestedBox",
+                            [ Morphir.IR.V4.Type.Variable(attributes, n "a") ]
+                        )
+                    )
+            }
+        }
+
+        let modules =
+            definition.Modules
+            |> Morphir.IR.V4.OrderedMap.toList
+            |> List.map (fun (path, controlled) ->
+                let types =
+                    controlled.Value.Types
+                    |> Morphir.IR.V4.OrderedMap.toList
+                    |> List.map (fun (name, value) ->
+                        name, (if name = n "nestedBox" then recursiveAlias else value)
+                    )
+                    |> ordered
+
+                path,
+                { controlled with
+                    Value = { controlled.Value with Types = types }
+                }
+            )
+            |> ordered
+
+        { model with
+            Distribution =
+                DistributionModel.V4(Morphir.IR.V4.Library(pkg, deps, { Modules = modules }))
+        }
+    | _ -> failwith "Expected a typed library fixture."
 
 let hideConstructors model =
     match model.Distribution with
@@ -417,6 +518,9 @@ public static class Observation
         var keyed = new Example.DataModule.Keyed<string>(Morphir.SDK.CSharp.Dict<string,int>.Singleton("k",9,Morphir.SDK.CSharp.MorphirComparers.String));
         if (keyed.Values.Get("k").Match(value => value, () => 0) != 9) throw new System.Exception("Immutable generic dictionary");
         var box = new Example.DataModule.Box<int>(Morphir.SDK.CSharp.List<int>.Singleton(5), (2, "two"));
+        var nested = new Example.DataModule.NestedHolder(new Example.DataModule.NestedBox<Example.DataModule.NestedBox<int>>(new Example.DataModule.NestedBox<int>(42)));
+        var equalNested = new Example.DataModule.NestedHolder(new Example.DataModule.NestedBox<Example.DataModule.NestedBox<int>>(new Example.DataModule.NestedBox<int>(42)));
+        if (nested.Payload.Value.Value != 42 || !nested.Equals(equalNested) || nested.GetHashCode() != equalNested.GetHashCode()) throw new System.Exception("Finite nested aliases preserve typed structural values");
         Example.DataModule.Choice<int> choice = new Example.DataModule.Choice<int>.Value(3);
         return person.Age + box.Items[0] + box.Pair.Item1 + ((Example.DataModule.Choice<int>.Value)choice).Item;
     }

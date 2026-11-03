@@ -425,6 +425,9 @@ module internal TypeEmission =
                         ("Incorrect type argument count for "
                          + qualified name)
 
+                // Actual arguments belong to the caller's scope, not the alias body's cycle.
+                let args = List.map next args
+
                 if Set.contains name visiting then
                     Admission.fail
                         "recursive-alias"

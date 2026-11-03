@@ -638,3 +638,57 @@ All 13 implementation tasks are verified. This is PR-ready local acceptance, not
 initiative completion: coordinator-owned review/CI, landing, spec synchronization,
 archive and clean worker/artifact removal remain. The checkout and owned proof
 root remain intact for that handoff.
+
+## Coordinator review follow-up: finite nested aliases
+
+PR #478's automatic review identified a valid cycle-detection defect: a finite
+`NestedBox<NestedBox<int>>` argument was expanded while the outer alias was
+already marked as visiting. Two public compiled-consumer regressions, constructed
+directly in classic and v4, first failed with `recursive-alias`. The fix expands
+actual arguments in the caller's scope before entering the alias body's cycle
+scope. Genuine recursive aliases still fail with a located diagnostic and no
+sources. Six targeted alias checks pass, including independent nested structural
+equality/hash observations and genuine-cycle refusals. These cases are also in
+the shared consumer used by both pinned compilers.
+
+The coordinator retained `review-alias-red*` and `review-alias-green*` evidence
+under the existing owned proof root. A fresh normal Nuke Restore/Compile passes
+in 2s/1m33, followed by the actual Test body under the same full-suite collector
+configuration with Restore/Compile explicitly skipped. Test passes in 6m49:
+3,558 framework cases, including generator 157/157, plus 15 cold package-consumer
+and 48 inspection checks. The suite total comes from seven MTP and ten Expecto
+summaries after stripping terminal escapes; the initial unstripped parser result
+is retained separately and is not acceptance evidence.
+
+`review-alias-whole-suite.cobertura.xml` reports 2,978/3,188 generator lines
+(93.41279799247177%) and 24,119/28,647 lines across 18 reported production
+assembly identities (84.19380737948127%). The same missing `dotnet-morphir` and
+`Morphir.Live` identities, shared SDK source identity and full-suite denominator
+limits above apply. This is not all repository source coverage or a comparison
+with current main's coverage. No authored exclusions were added.
+
+`review-alias-matrix-01` passes all four shared and fourteen business actual
+compiler executions. Shared Data source SHA-256 is
+`c086cd656676eb858ac62ad13fb2621828b580878afcbe107edb6c1d9dee3490`;
+Functions is `33053d8327ed2981b426c8324fb9ae5e05b9e68d9eb6f684b82f9e19a08b3148`.
+The shared type input now deliberately includes the finite nested aliases.
+Original, synthesized and compatible-slice business labels remain unchanged.
+The fresh `review-alias-host-01` passes 157/157. The fresh
+`review-alias-trimming-01` package consumer passes untrimmed and self-contained
+win-arm64 link trimming with identical observations/source hashes and zero IL
+warnings. Host/runtime and untested generator Native AOT/IDE limits are unchanged.
+
+PackAll passes in 47s and TestBuild passes 40/40. All 12 frozen contract hashes
+and 44 original-byte evidence hashes still match. These local results concern
+the submitted branch based on `618fbf7`; they do not claim local execution of
+new configuration work on main `56d9de9`. Its clean hosted PR merge ref was
+independently verified against the expected virtual merge tree; hosted CI is
+responsible for that integration's validation. Review-fix contribution checks
+and the final pushed revision are recorded by the coordinator separately.
+
+Fresh package metadata and compiled exact-version lookup pass for both packages.
+Native Precommit passes in 30s with the inherited unsupported-F# diagnostics;
+all 18 owned F# files pass Fantomas. Changelog, strict OpenSpec snapshot/schema/
+22 items/two tests, the validation record's local link and diff checks pass.
+An initial OpenSpec launcher used an absent mise executable path; no process
+started, and the corrected installed path passed without product/checker changes.
