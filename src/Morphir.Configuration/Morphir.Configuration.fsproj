@@ -15,6 +15,7 @@
         <Compile Include="Merge.fs" />
         <Compile Include="CiDetection.fs" />
         <Compile Include="Documents.fs" />
+        <Compile Include="Profiles.fs" />
     </ItemGroup>
 
 </Project>
