@@ -222,6 +222,20 @@ module Profiles =
                 expanded
         roots |> List.fold (fun output name -> keepLast (output @ append Set.empty name)) []
 
+    let private boundActive (options: ProfileOptions) source path position (plan: ProfilePlan) =
+        if plan.Active.Length > min 128 options.MaxExpansions then
+            { plan with
+                Active = []
+                Diagnostics =
+                    plan.Diagnostics @
+                        [ { Code = "config.profiles.active"
+                            Message = "Expanded profiles exceed the distinct active-name bound."
+                            Severity = DiagnosticSeverity.Error
+                            Source = source
+                            KeyPath = path
+                            Position = position } ] }
+        else plan
+
     let plan (sources: SourceInput list) (environment: Map<string, string>) (options: ProfileOptions) =
         match options.Selection with
         | ProfileSelection.Automatic when
@@ -237,6 +251,7 @@ module Profiles =
               Diagnostics =
                 nameErrors (selectorSource SourceRole.Explicit "<profiles>") [ "profiles" ] names
                 @ authorityErrors sources environment @ controlErrors sources value @ graphErrors sources value options }
+            |> boundActive options (selectorSource SourceRole.Explicit "<profiles>") [ "profiles" ] None
         | ProfileSelection.Automatic ->
             let environmentNames =
                 environment
@@ -261,6 +276,15 @@ module Profiles =
               Diagnostics =
                 (environmentNames |> Option.map (nameErrors (selectorSource SourceRole.Environment "MORPHIR_PROFILES") [ "profiles" ]) |> Option.defaultValue [])
                 @ authorityErrors sources environment @ controlErrors sources baseValue @ graphErrors sources baseValue options }
+            |> (fun plan ->
+                match environmentNames with
+                | Some _ -> boundActive options (selectorSource SourceRole.Environment "MORPHIR_PROFILES") [ "profiles" ] None plan
+                | None ->
+                    let path = if ConfigTree.tryFind [ "profiles"; "active" ] baseValue |> Option.isSome then [ "profiles"; "active" ] else [ "profiles"; "default" ]
+                    if ConfigTree.tryFind path baseValue |> Option.isSome then
+                        let origin = diagnostic sources path "" ""
+                        boundActive options origin.Source path origin.Position plan
+                    else boundActive options (selectorSource SourceRole.Defaults "<profiles>") [ "profiles" ] None plan)
         | ProfileSelection.Disabled ->
             { Enabled = false
               Active = []

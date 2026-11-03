@@ -164,4 +164,9 @@ let tests =
             let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty DocumentDefaults.profileOptions
             Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.groups")) "65 groups exceed the declaration bound"
         }
+        test "distinct active names are bounded" {
+            let options = { DocumentDefaults.profileOptions with Selection = ProfileSelection.Names [ for index in 1 .. 129 -> "p" + string index ] }
+            let result = Profiles.plan [] Map.empty options
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.active" && diagnostic.Source.Role = SourceRole.Explicit)) "129 distinct names exceed the active bound"
+        }
     ]
