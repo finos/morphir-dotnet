@@ -159,10 +159,12 @@ let verificationTests =
             let overrides = obj ["project", obj ["source_directory", text "masked"]]
             for role in [SourceRole.System; SourceRole.Global; SourceRole.UserOverride; SourceRole.WorkspaceUserOverride; SourceRole.WorkspaceProfile; SourceRole.MemberProfile; SourceRole.Selected; SourceRole.Explicit; SourceRole.Environment] do
                 let identity = {source ("/ambient/" + string role + ".toml") role DocumentFormat.Toml with Profile = Some "dev"}
-                let input = {DocumentDefaults.resolutionInput with Sources = [classic; supplied identity overrides]
-                                                                     Environment = Map.ofList ["MORPHIR_PROJECT__SOURCE_DIRECTORY", "masked"]
-                                                                     Explicit = overrides
-                                                                     Profiles = {DocumentDefaults.profileOptions with Selection = ProfileSelection.Names ["dev"]}}
+                let input =
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [classic; supplied identity overrides]
+                        Environment = Map.ofList ["MORPHIR_PROJECT__SOURCE_DIRECTORY", "masked"]
+                        Explicit = overrides
+                        Profiles = {DocumentDefaults.profileOptions with Selection = ProfileSelection.Names ["dev"]} }
                 let verification = ProjectMigration.verify classic target wrong input "/repo"
                 Expect.isFalse verification.Verified (string role + " must not mask conversion")
                 let difference = verification.Differences |> List.find (fun difference -> difference.KeyPath = ["project"; "source_directory"])
@@ -198,8 +200,11 @@ let verificationTests =
                                           "workspace", obj ["out_dir", text "base-output"; "members", ConfigValue.Array [text "orders"]]
                                           "cache", obj ["enabled", ConfigValue.Boolean false]
                                           "pipeline", obj ["backend", text "workspace-custom"]])
-            let input = {DocumentDefaults.resolutionInput with Sources = [workspace; classic]; Scope = ProjectScope.Member
-                                                               OwningWorkspace = Some {Root = "/repo"; OutputDirectory = Some "/repo/base-output"}}
+            let input =
+                { DocumentDefaults.resolutionInput with
+                    Sources = [workspace; classic]
+                    Scope = ProjectScope.Member
+                    OwningWorkspace = Some {Root = "/repo"; OutputDirectory = Some "/repo/base-output"} }
             let converted = ProjectMigration.planWithContext classic memberTarget empty input
             let verification = ProjectMigration.verify classic memberTarget converted.Candidate input "/repo/orders"
             Expect.isTrue verification.Verified "member is equivalent without source"
@@ -228,5 +233,29 @@ let verificationTests =
             let verification = ProjectMigration.verify classic target wrong DocumentDefaults.resolutionInput "/repo"
             Expect.isFalse verification.Verified "invalid candidate"
             Expect.isTrue (verification.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Severity = DiagnosticSeverity.Error)) "structured validation"
+        }
+        test "conflicts report both redacted values with independent origins" {
+            let raw = classicRaw |> ConfigTree.set ["custom"; "password"] (text "source-secret")
+            let targetRaw = empty |> ConfigTree.set ["project"; "source_directory"] (text "wrong")
+                                  |> ConfigTree.set ["custom"; "password"] (text "target-secret")
+            let plan = ProjectMigration.plan (manifest raw) target targetRaw
+            let conflict = plan.Conflicts |> List.find (fun c -> c.KeyPath = ["project"; "source_directory"])
+            Expect.equal conflict.SourceValue (text "elm-src") "mapped source value"
+            Expect.equal conflict.TargetValue (text "wrong") "conflicting target value"
+            let secret = plan.Conflicts |> List.find (fun c -> c.KeyPath = ["custom"; "password"])
+            Expect.equal secret.SourceValue (text "[REDACTED]") "source redaction"
+            Expect.equal secret.TargetValue (text "[REDACTED]") "target redaction"
+        }
+        test "verification retains declared base workspace output context" {
+            let classic = manifest classicRaw
+            let root = source "/workspace/morphir.toml" SourceRole.RootPrimary DocumentFormat.Toml
+            let context = {
+                DocumentDefaults.resolutionInput with
+                    Sources = [ { Source = root; Required = true; Content = SourceContent.Available(Normalization.normalize root (empty |> ConfigTree.set ["workspace"; "out_dir"] (text "base")) Map.empty) } ]
+                    OwningWorkspace = Some { Root = "/workspace"; OutputDirectory = Some "/ambient/personal" }
+            }
+            let converted = ProjectMigration.planWithContext classic target empty context
+            let verified = ProjectMigration.verify classic target converted.Candidate context "/repo"
+            Expect.equal verified.BaseWorkspace.Value.OutputDirectory (Some "/workspace/base") "declared base ownership"
         }
     ]

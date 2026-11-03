@@ -10,12 +10,12 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 ## 2. Mapping and loss accounting
 
 - [x] 2.1 Write failing BDD/API migration fixtures for classic fields, Elm/checkpoint defaults, same-project output layouts, raw unsupported dependencies/decorations, conflicting canonical fields, and existing TOML values; confirm red before adding migration code.
-- [ ] 2.2 Implement a shared single-project migration planner that reuses readers/editor plans, preserves supported extras and source-path meaning, and blocks every unaccounted value; verify mappings/conflicts/idempotence and document before/after TOML.
+- [x] 2.2 Implement a shared single-project migration planner that reuses readers/editor plans, preserves supported extras and source-path meaning, and blocks every unaccounted value; verify mappings/conflicts/idempotence and document before/after TOML.
 
 ## 3. Independent verification and apply
 
 - [x] 3.1 Write failing cases where retained legacy JSON or ambient overrides would hide a wrong candidate, including standalone and member context, defaults, paths, and expected provenance changes; confirm red before equivalence implementation.
-- [ ] 3.2 Implement comparison with the converted source excluded and machine/personal/environment/CLI/active-profile overlays removed, retaining base workspace context; verify the equivalence suite and document exactly what is compared.
+- [x] 3.2 Implement comparison with the converted source excluded and machine/personal/environment/CLI/active-profile overlays removed, retaining base workspace context; verify the equivalence suite and document exactly what is compared.
 - [ ] 3.3 Apply only verified plans through the transaction service with source/target/workspace drift checks; verify dry-run writes nothing, sources remain byte-identical, failed plans preserve files, and repeats do not rewrite, with migration/recovery docs updated.
 
 ## 4. Project CLI and integration
