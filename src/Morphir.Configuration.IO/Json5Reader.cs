@@ -223,11 +223,12 @@ internal sealed partial class Json5Reader(string text)
         if (unsigned.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
         {
             var integer = BigInteger.Parse("0" + unsigned[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture) * sign;
+            if (integer.IsZero && sign < 0) return ConfigValue.NewNumber(-0.0d);
             return integer >= long.MinValue && integer <= long.MaxValue
                 ? ConfigValue.NewInteger((long)integer) : ConfigValue.NewBigInteger(integer);
         }
         if (long.TryParse(token, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var value))
-            return ConfigValue.NewInteger(value);
+            return value == 0 && sign < 0 ? ConfigValue.NewNumber(-0.0d) : ConfigValue.NewInteger(value);
         if (!token.Contains('.') && !token.Contains('e', StringComparison.OrdinalIgnoreCase)
             && BigInteger.TryParse(token, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var large))
             return ConfigValue.NewBigInteger(large);

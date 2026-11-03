@@ -28,6 +28,7 @@ runs commands, discovers roots, changes process state or writes configuration.
   commas. Equivalent decoded duplicate keys fail.
 - Integral JSON5 values retain signed 64-bit precision and larger integers use
   `ConfigValue.BigInteger`. Fractional and nonfinite numbers use IEEE doubles.
+  Negative zero retains its IEEE sign for decimal and hexadecimal syntax.
   Strings remain different from numbers and booleans. Nulls remain in raw trees
   for control validation and later ordinary-value merging.
 - `.toml` uses the direct CsToml document/node APIs, with TOML 1.0 syntax and no

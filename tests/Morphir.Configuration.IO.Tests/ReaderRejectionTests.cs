@@ -8,6 +8,7 @@ public sealed class ReaderRejectionTests
     [Arguments("duplicate.json", "{project:{name:'a', name:'b'}}")]
     [Arguments("escaped.json5", "{name:1,\\u006eame:2}")]
     [Arguments("duplicate.yaml", "project:\n  name: a\n  name: b\n")]
+    [Arguments("decoded.yaml", "key: 1\n\"\\u006bey\": 2\n")]
     [Arguments("duplicate.toml", "[project]\nname='a'\nname='b'\n")]
     public void DuplicateKeysAreRejectedWithTheirSource(string path, string text)
     {

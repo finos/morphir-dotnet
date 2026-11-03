@@ -112,4 +112,14 @@ public sealed class ReaderTests
         input.Content.Should().BeOfType<SourceContent.Invalid>();
         ((SourceContent.Invalid)input.Content).Item.ToArray().Should().Contain(item => item.Code == "config.legacy_value");
     }
+
+    [Test]
+    [Arguments("-0")]
+    [Arguments("-0x0")]
+    public void Json5PreservesNegativeZero(string numeric)
+    {
+        var document = ((SourceContent.Available)ConfigurationReader.ReadText("zero.json5", "{value:" + numeric + "}").Content).Item;
+        var value = ((ConfigValue.Number)((ConfigValue.Object)document.Values).Item["value"]).Item;
+        BitConverter.DoubleToInt64Bits(value).Should().Be(long.MinValue);
+    }
 }
