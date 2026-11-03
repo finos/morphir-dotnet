@@ -45,3 +45,9 @@ cleanup. An open PR or checked task list does not complete this campaign.
   deduplication, member filtering/defaults, environment mapping, and required
   selected misses. Member profile-control authority also fails as expected,
   10 other profile tests pass. This checkpoint is not PR-ready.
+- `287f1ec`: pinned null/source contract checkpoint above. Subsequent capped core
+  build has zero warnings/errors; Resolution 9/9 and Profiles 11/11 pass. Pure
+  environment mapping, selected contribution deduplication, complete ownership
+  filters, default settings, and selected missing-file errors now pass their
+  previously failing cases. Validation, mixed-format warnings, remaining profile
+  bounds, reader qualification, coverage/AOT and final docs remain.

@@ -17,6 +17,7 @@
         <Compile Include="Documents.fs" />
         <Compile Include="Normalization.fs" />
         <Compile Include="Profiles.fs" />
+        <Compile Include="EnvironmentMapping.fs" />
         <Compile Include="Resolver.fs" />
     </ItemGroup>
 
