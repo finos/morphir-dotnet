@@ -137,7 +137,8 @@ try
         [discoveryRoot + "/morphir.toml"] = "[workspace]\nmembers=['packages/*']\nout_dir='generated'\n[profiles]\nactive=['ci']",
         [discoveryRoot + "/packages/app/.config/morphir/config.yml"] = "project: {name: App}\ncustom: {value: primary}",
         [discoveryRoot + "/packages/app/.config/morphir/config.profile.ci.toml"] = "[custom]\nvalue='profile'",
-        [discoveryRoot + "/packages/app/.config/morphir/config.user.toml"] = "[custom]\nvalue='personal'",
+        [discoveryRoot + "/packages/app/.config/morphir/config.user.toml"] = "[custom]\nvalue='personal'\n[workspace]\nout_dir='escaped'",
+        [discoveryRoot + "/morphir.user.toml"] = "[project]\nsource_directory='root-only'\n[workspace]\nout_dir='shared'",
         [discoveryRoot + "/packages/app/src/input.elm"] = "module Input exposing (..)"
     };
     try
@@ -155,6 +156,22 @@ try
         Check(At(nativeLoaded.Effective, "custom", "value").Equals(ConfigValue.NewString("profile")), "Isolated active profile did not win");
         Check(nativeLoaded.OwningWorkspace.Value.OutputDirectory.Value == discoveryRoot + "/generated", "Workspace output ownership lost");
         Check(!nativeLoaded.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error), "Discovery load failed validation");
+        foreach (var isolated in new[] { false, true })
+        {
+            foreach (var memberPersonal in new[] { false, true })
+            {
+                var selected = discoveryRoot + (memberPersonal ? "/packages/app/.config/morphir/config.user.toml" : "/morphir.user.toml");
+                var options = new ProjectLoadOptions { Isolated = isolated, SelectedPath = selected };
+                var nativeSelected = ProjectSystem.Load(nativeTree, nativeDiscovery.Discovery, nativeDiscovery.Selection.Projects.Single(), options);
+                var memorySelected = ProjectSystem.Load(memoryTree, memoryDiscovery.Discovery, memoryDiscovery.Selection.Projects.Single(), options);
+                Check(nativeSelected.Equals(memorySelected), "Selected personal ownership differs across hosts");
+                var output = memberPersonal && isolated ? "generated" : "shared";
+                Check(nativeSelected.OwningWorkspace.Value.OutputDirectory.Value == discoveryRoot + "/" + output, "Selected personal file escaped its output ownership");
+                Check(At(nativeSelected.Effective, "project", "source_directory").Equals(ConfigValue.NewString("src")), "Selected workspace personal file supplied member identity");
+                if (memberPersonal)
+                    Check(nativeSelected.Diagnostics.Any(d => d.Code == "config.member_output"), "Selected member output attempt lost its diagnostic");
+            }
+        }
         var bounded = ProjectSystem.Discover(memoryTree, "/outside");
         Check(bounded.Discovery.Diagnostics.Any(d => d.Code == "discovery.boundary"), "Outside invocation accepted");
     }

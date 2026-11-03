@@ -201,3 +201,21 @@ the rerun with TMPDIR/TEMP/TMP set to
 files were formatted and the working diff passes whitespace checks. Final native
 qualification, current-head CI and the independent discovery-policy review
 remain pending for these parent changes.
+
+The parent subsequently qualified implementation `05f7555` with additional smoke
+checks for explicitly selected workspace/member personal files, both with and
+without isolation. The trimmed and native osx-arm64 hosts both pass structural
+native/mounted parity, owner output and member-identity assertions, and all 228
+JSON5 syntax checks plus 26 Morphir documents. Publish commands match the smoke
+README with two logical processors, single-node builds and explicit warning
+qualification; outputs and logs are under the same `parent-review` directory.
+Pinned dependency warnings remain visible, and no strict warning-free claim is
+made. Publish-generated lockfile churn was restored to the committed bytes.
+
+Fresh configured coverage runners pass core 124/124 and adapters/BDD 157/157.
+Their authored-source union is core 3030/3189, 95.01%, and adapters 636/659,
+96.51%. Reports are under `parent-review/core-coverage` and
+`parent-review/adapter-coverage.cobertura.xml`, summarized with the existing
+coverage script. All eight host checks passed on the earlier `115a17d`; the
+ownership fix requires fresh CI. The separate discovery-policy review and
+landing/cleanup remain outstanding.
