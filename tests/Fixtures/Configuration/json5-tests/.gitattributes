@@ -1,0 +1,2 @@
+# Preserve upstream fixture bytes, including CR, CRLF and LF conformance cases.
+* -text
