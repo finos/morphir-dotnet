@@ -2,6 +2,26 @@
 Feature: Edit one configuration file with a reviewable effective result
   Editing uses shared plans, preserves user text and keeps JSON stdout scriptable.
 
+  Scenario Outline: Personal edits span all eligible primary layouts
+    Given a configuration editing project
+    And the editing project has mixed primary layouts and a personal override
+    When I edit configuration with "<command>"
+    Then editing exits 0 with outcome "written"
+    And editing uses the existing personal target
+    And the editing effective value is "<value>"
+
+    Examples:
+      | command                       | value |
+      | set custom.value after --user | after |
+      | unset custom.value --user     | lower |
+
+  Scenario: Explicit personal edits retain another member's ownership
+    Given a configuration editing project
+    And the editing project is a workspace with two members
+    When I edit configuration with "set workspace.out_dir edited --file b/morphir.user.toml --isolated"
+    Then editing exits 0 with outcome "written"
+    And the personal edit preserves member workspace ownership
+
   Scenario: Preview is read only and reports the effective environment winner
     Given a configuration editing project
     And an editing environment winner

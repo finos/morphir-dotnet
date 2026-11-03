@@ -154,3 +154,45 @@ The independent TOML/transaction review completed without actionable findings.
 Its existing-DLL probes passed 1,438 editor operations, 10,000 sampled finite
 double roundtrips and 8 native transaction cases. Its disposable evidence is
 `/private/tmp/morphir-config-editing-review-writes`; no recovery data was retained.
+
+
+### Parent shared-planning review fixes
+
+The independent planning/CLI review reproduced two contract defects on `9b683b9`.
+A user edit filtered personal candidates by the preferred primary's directory,
+missing an existing personal TOML or lower-format stem in another eligible layout.
+It could reject a valid set through a newly introduced ambiguity or return not
+found for an existing unset entry. Target selection now filters by the complete
+set of eligible personal paths from the actual owner, preserving format-group
+ambiguity checks and keeping another owner's personal sources separate.
+
+An explicit personal file in another declared member was treated as an arbitrary
+Selected source because only the default member's inventory was considered. Its
+workspace output could then relocate the reported owning workspace. The reusable
+IO service now identifies an explicit member-personal owner from every discovered
+member's eligible layouts, and uses that owner for both initial and candidate
+resolution. The target keeps its UserOverride role and member scope, including
+under isolation or an otherwise ambiguous virtual-root selection. Workspace-root
+personal sources and arbitrary explicit files retain their existing handling.
+
+Eleven public IO regressions failed before these fixes, in `ownership-red.log`.
+They cover standalone/member set and unset, lower-format promotion, personal TOML
+ambiguity, all three personal layouts, isolated selection and a virtual root.
+The final 30-case editing-service group passes, `ownership-io-focused.log`. One
+intermediate test expected the member primary to win after unset; its fixture
+also supplied a higher workspace-personal value, so that assertion was corrected
+to the unchanged layering contract. No production layering rule changed.
+
+Three new subprocess BDD cases failed against the previous actual CLI, in
+`ownership-cli-red.log`, then passed after rebuilding the CLI with the shared
+fixes, `ownership-cli-green.log`. They assert set/unset on a nonpreferred personal
+layout and explicit other-member ownership. The IO smoke adds seven shared checks
+for those same paths. Managed qualification passes editor 9, shared editing 22,
+transaction 13, plus all 228 JSON5 cases, 26 Morphir fixtures and existing host
+checks, in `ownership-io-managed.log`. Shared API and CLI documentation describe
+the corrected selection/ownership behavior. The main spec's nine requirements
+and 13 approved scenarios remain unchanged.
+
+The reviewer probes are owned at `/private/tmp/morphir-config-editing-review-planning`.
+No review was posted as a human approval. Parent-owned current-head CI, final
+qualification, landing and cleanup remain outstanding at this checkpoint.

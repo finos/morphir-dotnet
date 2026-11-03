@@ -30,6 +30,47 @@ public sealed class ConfigurationEditingSteps : IDisposable
         File.WriteAllText(Target, _original);
     }
 
+    [Given("the editing project has mixed primary layouts and a personal override")]
+    public void MixedPersonalLayouts()
+    {
+        File.Delete(Target);
+        File.WriteAllText(Path.Combine(_root, "morphir.yaml"), "project: {name: App}\ncustom: {value: lower}\n");
+        Directory.CreateDirectory(Path.Combine(_root, ".morphir"));
+        File.WriteAllText(Path.Combine(_root, ".morphir", "morphir.toml"), "[project]\nname='App'\n");
+        File.WriteAllText(Path.Combine(_root, "morphir.user.toml"), "[custom]\nvalue='before'\n");
+    }
+
+    [Given("the editing project is a workspace with two members")]
+    public void MemberWorkspace()
+    {
+        File.WriteAllText(Target, "[workspace]\nmembers=['a','b']\ndefault_member='a'\nout_dir='root-out'\n");
+        foreach (var name in new[] { "a", "b" })
+        {
+            Directory.CreateDirectory(Path.Combine(_root, name));
+            File.WriteAllText(Path.Combine(_root, name, "morphir.toml"), "[project]\nname='" + name.ToUpperInvariant() + "'\n");
+        }
+        File.WriteAllText(Path.Combine(_root, "b", "morphir.user.toml"), "[custom]\nvalue='before'\n");
+    }
+
+    [Then("editing uses the existing personal target")]
+    public void PersonalTarget()
+    {
+        _report!.RootElement.GetProperty("target").GetProperty("path").GetString().Should().Be(ProjectPath.join(_root, "morphir.user.toml"));
+        File.Exists(Path.Combine(_root, ".morphir", "morphir.user.toml")).Should().BeFalse();
+    }
+
+    [Then("the personal edit preserves member workspace ownership")]
+    public void MemberOwnership()
+    {
+        _report!.RootElement.GetProperty("target").GetProperty("role").GetString().Should().Be("UserOverride");
+        _report.RootElement.GetProperty("diagnostics").EnumerateArray().Should().Contain(d => d.GetProperty("code").GetString() == "config.member_output");
+        var tree = new FileSystemProjectTree(_root);
+        var discovered = ProjectSystem.Discover(tree, ProjectPath.normalize(_root), "b");
+        var resolution = ProjectSystem.Load(tree, discovered.Discovery, discovered.Selection.Projects.Single());
+        resolution.OwningWorkspace!.Value.OutputDirectory!.Value.Should().Be(ProjectPath.join(_root, "root-out"));
+        File.ReadAllText(Path.Combine(_root, "b", "morphir.user.toml")).Should().Contain("edited");
+    }
+
     [Given("an editing environment winner")]
     public void EnvironmentWinner() => _environment["MORPHIR_CUSTOM__VALUE"] = "environment";
 

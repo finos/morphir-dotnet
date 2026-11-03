@@ -90,10 +90,13 @@ suite before claiming equivalent runtime evidence.
 ## Editing managed checkpoint
 
 The local development build passes with zero warnings/errors. Its executable
-passes all 37 new editing checks: 9 editor, 15 shared planning/application and
+passes all 44 new editing checks: 9 editor, 22 shared planning/application and
 13 transaction checks. The same invocation retains all 228 grammar checks and
 26 pinned Morphir documents. Evidence is under
 `/private/tmp/morphir-config-editing/smoke/managed-build.log` and
 `managed-run.log`. This checkpoint is a managed build/run; published managed,
 trimmed and native results belong in the campaign delivery journal after running
 the commands above.
+
+Personal target qualification includes mixed primary layouts and explicit personal
+files in another declared member, with retained workspace ownership under isolation.

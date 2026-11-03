@@ -249,12 +249,22 @@ module Editing =
                             - 5
                         )
 
+                    let ownerSources =
+                        match target.Role, context.Discovery, context.SelectedProject with
+                        | SourceRole.RootPrimary, Some discovery, _ -> discovery.Root.Sources
+                        | _, _, Some project -> project.Location.Sources
+                        | _ -> []
+
+                    let eligible =
+                        ProjectSources.overlayCandidates ownerSources SourceRole.UserOverride None
+                        |> List.map (fun source -> source.Path)
+                        |> Set.ofList
+
                     let personal =
                         context.Sources
                         |> List.filter (fun source ->
                             source.Source.Role = SourceRole.UserOverride
-                            && ProjectPath.parent source.Source.Path = ProjectPath.parent
-                                target.Path
+                            && Set.contains source.Source.Path eligible
                         )
 
                     primary

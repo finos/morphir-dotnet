@@ -15,6 +15,10 @@ Configuration edits belong to `Morphir.Configuration` and `Morphir.Configuration
 
 Default edits target the selected project. At a declared workspace root they target the workspace primary, including a virtual workspace. Explicit selectors choose workspace, one project, adjacent personal overrides, global, system or one TOML file. Missing or ambiguous contexts fail. File scopes exclude synthetic default layers.
 
+Personal target selection considers every eligible layout belonging to its owner, not only the directory containing the preferred primary. An existing personal TOML remains the target across mixed primary layouts; multiple personal TOML candidates remain ambiguous. If only a lower-format personal source exists, its corresponding TOML stem is used.
+
+An explicit personal file belonging to another declared member keeps that member's context for validation and effective-value reporting. It remains a member-personal source under isolation, so a workspace output setting in that file cannot relocate the owning workspace.
+
 A scope with only JSON/YAML creates the corresponding TOML primary. Lower-format bytes stay unchanged. Unset removes an authored TOML entry and adds no tombstone. A lower value can reappear with its original origin. A higher environment, personal or profile source can keep winning after a successful file write. The effective explanation makes that visible.
 
 ## Presentation and input compatibility

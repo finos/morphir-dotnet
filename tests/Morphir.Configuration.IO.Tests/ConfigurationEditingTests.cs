@@ -207,6 +207,98 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Arguments(false, false)]
+    [Arguments(true, false)]
+    [Arguments(false, true)]
+    [Arguments(true, true)]
+    public void UserEditsFindExistingPersonalAcrossEligiblePrimaryLayouts(bool unset, bool member)
+    {
+        using var fixture = new NativeFixture();
+        var prefix = member ? "app/" : "";
+        if (member)
+        {
+            fixture.Write("morphir.toml", "[workspace]\nmembers=['app']\n");
+            fixture.Write("morphir.user.toml", "[custom]\nvalue='workspace-personal'\n");
+        }
+        fixture.Write(prefix + "morphir.yaml", "project: {name: App}\ncustom: {value: lower}\n");
+        fixture.Write(prefix + ".morphir/morphir.toml", "[project]\nname='App'\n");
+        var target = fixture.Write(prefix + "morphir.user.toml", "# personal\n[custom]\nvalue='before'\n");
+        var start = ProjectPath.join(fixture.Root, member ? "app" : ".");
+        var request = unset ? new EditRequest(EditOperation.Unset, "custom.value") : Set("custom.value", "after");
+        var preview = fixture.Service.Plan(start, request, [EditScope.User]);
+
+        preview.Failure.Should().BeNull();
+        preview.Plan!.Target.Path.Should().Be(target);
+        preview.Plan.Target.Role.Should().Be(SourceRole.UserOverride);
+        preview.Plan.Before!.Value.Should().Be(ConfigValue.NewString("before"));
+        var inherited = member ? "workspace-personal" : "lower";
+        preview.Plan.Effective.Value!.Value.Should().Be(ConfigValue.NewString(unset ? inherited : "after"));
+        fixture.Service.Apply(preview).Status.Should().Be(ConfigurationTransactionStatus.Written);
+        File.Exists(ProjectPath.join(start, ".morphir/morphir.user.toml")).Should().BeFalse();
+    }
+
+    [Test]
+    public void UserPromotionUsesTheExistingLowerFormatPersonalStem()
+    {
+        using var fixture = new NativeFixture();
+        fixture.Write("morphir.yaml", "project: {name: App}\n");
+        fixture.Write(".morphir/morphir.toml", "[project]\nname='App'\n");
+        var lower = fixture.Write("morphir.user.yaml", "custom: {value: before}\n");
+        var original = File.ReadAllBytes(lower);
+        var preview = fixture.Service.Plan(fixture.Root, Set("custom.value", "after"), [EditScope.User]);
+
+        preview.Failure.Should().BeNull();
+        preview.Plan!.Target.Path.Should().Be(ProjectPath.join(fixture.Root, "morphir.user.toml"));
+        fixture.Service.Apply(preview).Status.Should().Be(ConfigurationTransactionStatus.Written);
+        File.ReadAllBytes(lower).Should().Equal(original);
+        File.Exists(ProjectPath.join(fixture.Root, ".morphir/morphir.user.toml")).Should().BeFalse();
+    }
+
+    [Test]
+    public void UserTargetsRetainAmbiguityAcrossEligiblePersonalLayouts()
+    {
+        using var fixture = new NativeFixture();
+        fixture.Write("morphir.yaml", "project: {name: App}\n");
+        fixture.Write(".morphir/morphir.toml", "[project]\nname='App'\n");
+        var first = fixture.Write("morphir.user.toml", "value='first'\n");
+        var second = fixture.Write(".morphir/morphir.user.toml", "value='second'\n");
+        var preview = fixture.Service.Plan(fixture.Root, Set("value", "after"), [EditScope.User]);
+
+        preview.Failure.Should().NotBeNull();
+        preview.Failure!.Code.Should().Be("config.edit_ambiguous");
+        File.ReadAllText(first).Should().Be("value='first'\n");
+        File.ReadAllText(second).Should().Be("value='second'\n");
+    }
+
+    [Test]
+    [Arguments("morphir", false, true)]
+    [Arguments("morphir", true, true)]
+    [Arguments("morphir", false, false)]
+    [Arguments(".morphir/morphir", true, true)]
+    [Arguments(".config/morphir/config", false, true)]
+    public void ExplicitOtherMemberPersonalEditsRetainTheirOwner(string stem, bool isolated, bool defaultMember)
+    {
+        using var fixture = new NativeFixture();
+        fixture.Write("morphir.toml", "[workspace]\nmembers=['a','b']\nout_dir='root-out'\n" +
+            (defaultMember ? "default_member='a'\n" : ""));
+        fixture.Write("a/morphir.toml", "[project]\nname='A'\n");
+        fixture.Write("b/" + stem + ".toml", "[project]\nname='B'\n");
+        var target = fixture.Write("b/" + stem + ".user.toml", "[custom]\nvalue='before'\n");
+        var preview = fixture.Service.Plan(fixture.Root, Set("workspace.out_dir", "edited"),
+            [EditScope.NewFile(target)], options: new ProjectLoadOptions { Isolated = isolated });
+
+        preview.Failure.Should().BeNull();
+        preview.Plan!.Target.Role.Should().Be(SourceRole.UserOverride);
+        preview.Plan.CandidateInput.OwningWorkspace!.Value.OutputDirectory!.Value.Should().Be(ProjectPath.join(fixture.Root, "root-out"));
+        preview.Plan.Effective.Diagnostics.ToArray().Should().Contain(d => d.Code == "config.member_output");
+        fixture.Service.Apply(preview).Status.Should().Be(ConfigurationTransactionStatus.Written);
+        var tree = new FileSystemProjectTree(fixture.Root);
+        var discovered = ProjectSystem.Discover(tree, fixture.Root, "b");
+        var canonical = ProjectSystem.Load(tree, discovered.Discovery, discovered.Selection.Projects.Single());
+        canonical.OwningWorkspace!.Value.OutputDirectory!.Value.Should().Be(ProjectPath.join(fixture.Root, "root-out"));
+    }
+
+    [Test]
     public void ExplicitAlternateTomlPrimaryCannotIntroduceAmbiguity()
     {
         using var fixture = new NativeFixture();

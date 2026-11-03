@@ -103,6 +103,34 @@ static (int Editor, int Shared, int Transaction) EditingRuntimeSmoke()
         Shared(Remember(service.Apply(alternateStale)).Status == ConfigurationTransactionStatus.Conflict
             && File.ReadAllBytes(target).AsSpan().SequenceEqual(beforeConflict), "New alternate primary escaped plan preconditions");
 
+        var personalRoot = root + "/personal-layout";
+        Directory.CreateDirectory(personalRoot + "/.morphir");
+        File.WriteAllText(personalRoot + "/morphir.yaml", "project: {name: Smoke}\ncustom: {value: lower}\n");
+        File.WriteAllText(personalRoot + "/.morphir/morphir.toml", "[project]\nname='Smoke'\n");
+        File.WriteAllText(personalRoot + "/morphir.user.toml", "[custom]\nvalue='before'\n");
+        var personalService = new ConfigurationEditService(new FileSystemProjectTree(personalRoot), host);
+        var personalSet = personalService.Plan(personalRoot, Set("custom.value", "after"), [EditScope.User]);
+        Shared(personalSet.Failure is null && personalSet.Plan!.Target.Path == personalRoot + "/morphir.user.toml", "Personal selection ignored another eligible primary layout");
+        Shared(Remember(personalService.Apply(personalSet)).Status == ConfigurationTransactionStatus.Written, "Mixed-layout personal set failed");
+        var personalUnset = personalService.Plan(personalRoot, new EditRequest(EditOperation.Unset, "custom.value"), [EditScope.User]);
+        Shared(personalUnset.Failure is null && personalUnset.Plan!.Effective.Value!.Value.Equals(ConfigValue.NewString("lower")), "Mixed-layout personal unset lost the inherited value");
+        Shared(Remember(personalService.Apply(personalUnset)).Status == ConfigurationTransactionStatus.Written, "Mixed-layout personal unset failed");
+
+        var ownerRoot = root + "/member-owner";
+        Directory.CreateDirectory(ownerRoot + "/a");
+        Directory.CreateDirectory(ownerRoot + "/b/.config/morphir");
+        File.WriteAllText(ownerRoot + "/morphir.toml", "[workspace]\nmembers=['a','b']\ndefault_member='a'\nout_dir='root-out'\n");
+        File.WriteAllText(ownerRoot + "/a/morphir.toml", "[project]\nname='A'\n");
+        File.WriteAllText(ownerRoot + "/b/.config/morphir/config.toml", "[project]\nname='B'\n");
+        var ownerTarget = ownerRoot + "/b/.config/morphir/config.user.toml";
+        File.WriteAllText(ownerTarget, "[custom]\nvalue='before'\n");
+        var ownerService = new ConfigurationEditService(new FileSystemProjectTree(ownerRoot), host);
+        var ownerPlan = ownerService.Plan(ownerRoot, Set("workspace.out_dir", "edited"), [EditScope.NewFile(ownerTarget)], options: new ProjectLoadOptions { Isolated = true });
+        Shared(ownerPlan.Failure is null && ownerPlan.Plan!.Target.Role == SourceRole.UserOverride, "Explicit other-member personal target lost its role");
+        Shared(ownerPlan.Plan!.CandidateInput.OwningWorkspace!.Value.OutputDirectory!.Value == ownerRoot + "/root-out"
+            && ownerPlan.Plan.Effective.Diagnostics.Any(d => d.Code == "config.member_output"), "Explicit other-member personal target relocated workspace output");
+        Shared(Remember(ownerService.Apply(ownerPlan)).Status == ConfigurationTransactionStatus.Written, "Owned explicit personal apply failed");
+
         var transactionTarget = root + "/transaction.toml";
         var originalBytes = Encoding.UTF8.GetBytes("value = 'before'\n");
         var candidateBytes = Encoding.UTF8.GetBytes("value = 'after'\n");

@@ -48,8 +48,23 @@ public sealed class ConfigurationEditService(IProjectTree tree, IConfigurationTr
             var projectTree = mounted[0];
             var discovery = ProjectSystem.Discover(projectTree, start, projectSelector);
             var independent = scopes.Any(s => s.IsWorkspace || s.IsGlobal || s.IsSystem || s is EditScope.File);
-            var invalidSelection = discovery.Selection.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
-            var selectedProject = (!independent || !invalidSelection) && discovery.Selection.Projects.Count() == 1 ? discovery.Selection.Projects.Head : null;
+            ProjectInfo? SelectProject(ProjectDiscoveryResult found)
+            {
+                if (scopes.OfType<EditScope.File>().FirstOrDefault() is { } file)
+                {
+                    var path = ProjectPath.join(start, file.Item);
+                    // A recognized member-personal file keeps its own project context,
+                    // even when another member is selected by the invocation defaults.
+                    var owner = found.Discovery.Projects.Where(p => p.Path != found.Discovery.Location)
+                        .OrderByDescending(p => p.Path.Length)
+                        .FirstOrDefault(p => ProjectSources.overlayCandidates(p.Location.Sources, SourceRole.UserOverride, null)
+                            .Any(source => source.Path == path));
+                    if (owner is not null) return owner;
+                }
+                var invalidSelection = found.Selection.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
+                return (!independent || !invalidSelection) && found.Selection.Projects.Count() == 1 ? found.Selection.Projects.Head : null;
+            }
+            var selectedProject = SelectProject(discovery);
             ResolutionInput? captured = null;
             var detailed = ProjectSystem.LoadDetailed(projectTree, discovery.Discovery, selectedProject, options with
             {
@@ -110,8 +125,7 @@ public sealed class ConfigurationEditService(IProjectTree tree, IConfigurationTr
             // Topology and profile edits can change which sources participate.
             var candidateTrees = mounted.Select(t => (IProjectTree)new OverlayTree(t, target.Path, edited.Text)).ToArray();
             var candidateDiscovery = ProjectSystem.Discover(candidateTrees[0], start, projectSelector);
-            var invalidCandidateSelection = candidateDiscovery.Selection.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
-            var candidateProject = (!independent || !invalidCandidateSelection) && candidateDiscovery.Selection.Projects.Count() == 1 ? candidateDiscovery.Selection.Projects.Head : null;
+            var candidateProject = SelectProject(candidateDiscovery);
             ResolutionInput? candidateInput = null;
             var candidateDetails = ProjectSystem.LoadDetailed(candidateTrees[0], candidateDiscovery.Discovery, candidateProject, options with
             {
