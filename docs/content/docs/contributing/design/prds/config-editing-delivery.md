@@ -32,3 +32,8 @@ Tests are recorded red before production behavior, then green after implementati
 
 The global CLI fixture uses a separate captured home beneath its test root, preventing a global fallback from also becoming a conflicting project primary. On this macOS host `/etc` is a link. Native system preview obeys the existing no-follow policy and returns typed exit 2 without a write. Pure system selection and explicitly authorized physical targets remain available. No filesystem-link policy was widened to pass a test.
 
+### TOML editor boundary
+
+The [editor qualification](config-editing-toml-qualification.md) records red/green checkpoints 01–12 and the final 30/30 focused tests. Source and test builds have zero warnings/errors. The editor preserves token spans, comments, BOM, line endings, quoted/dotted key spelling and following-header presentation. Complete inline/table/array edits are verified against the canonical reader, including temporal/nonfinite values, NaN equality, signed zero, opaque references and the pinned TOML corpus. No parser dependency or accepted TOML version changed.
+
+The extended IO host passes 37 new managed checks plus the existing 228 JSON5 checks, 26 Morphir fixture documents and discovery/machine-routing checks. `smoke/managed-build.log` has zero warnings/errors; `smoke/managed-run.log` records editor 9, shared editing 15 and transaction 13. Trimmed/native publication is still pending at this boundary.

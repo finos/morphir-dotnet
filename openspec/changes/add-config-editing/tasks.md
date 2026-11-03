@@ -14,7 +14,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 3. TOML editing and application
 
-- [ ] 3.1 Write failing roundtrip/fault cases for comment-preserving changes, unrelated values, JSON/YAML-only promotion, explicit non-TOML targets, unchanged writes, and stale source/target or alternate-primary observations; confirm red before the writer.
+- [x] 3.1 Write failing roundtrip/fault cases for comment-preserving changes, unrelated values, JSON/YAML-only promotion, explicit non-TOML targets, unchanged writes, and stale source/target or alternate-primary observations; confirm red before the writer.
 - [ ] 3.2 Implement the TOML syntax-preserving editor and adapter-owned preconditioned transaction service with serialized overlapping writers and per-file atomic replacement; verify those cases pass and document preconditions and host write guarantees.
 - [ ] 3.3 Inject staging/replacement/rollback faults and verify typed outcomes, retained recovery evidence only when needed, cleanup after success/complete rollback, and no silent overwrites; document recovery behavior with the failing and passing fault-suite results.
 
