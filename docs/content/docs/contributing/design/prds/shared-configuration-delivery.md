@@ -205,3 +205,10 @@ checking for those raw newline fixtures; their original bytes and hashes remain
 unchanged. An extra trailing blank line was removed from the shared reader BDD
 feature. These review changes do not change production behavior or dependency
 inputs. Full-range `git diff --check` passes with the fixture attribute applied.
+
+Windows CI on the earlier head exposed checkout normalization of the three
+hash-pinned configuration corpus/schema snapshots. Git's `core.autocrlf=true`
+checkout filter reproduced all three reported hash mismatches. The configuration
+fixture tree now uses `-text`, matching the existing Ion-fixture policy; the same
+checkout-filter check preserves every expected snapshot hash afterward. CI must
+confirm this fix on Windows before landing.

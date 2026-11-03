@@ -47,5 +47,8 @@ scripts/features/openspec_ext.feature text eol=lf
 # Vendored Morphir Ion fixtures are checked by SHA-256, so their bytes must not change
 tests/Fixtures/MorphirIon/** -text
 
+# Configuration corpus and schema snapshots are also verified by their raw hashes.
+tests/Fixtures/Configuration/** -text
+
 # JSON5 newline grammar fixtures intentionally contain hash-pinned CR/CRLF bytes.
 tests/Fixtures/Configuration/json5-tests/new-lines/*.json5 -whitespace
