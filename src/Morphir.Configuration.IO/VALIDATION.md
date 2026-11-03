@@ -51,7 +51,16 @@ single build token with the core/profile workers.
   `success=true`, `formats=3`, and successful JSON5, normalization, profile-loading
   and host-parity checks.
 
-The parent owns final formatting, coverage, tooling compatibility, and actual
-trimmed/native AOT smoke publishing and execution. Those validations remain
-pending at this module handback. The implementation handback does not claim the
-campaign has landed or that its owned checkout/branches have been cleaned up.
+## Integrated qualification
+
+The parent subsequently applied Fantomas/dotnet format, passed 90 core cases,
+all 63 reader cases and 245 tooling cases. Merged authored-source line coverage
+is 93.94% for core and 94.14% for readers. Both trimmed and native osx-arm64 hosts
+pass all 228 official JSON5 syntax checks and 26 pinned Morphir documents, plus
+YAML Default, TOML temporal, exact-integer, profile and typed-host checks.
+
+Pinned CsToml/FSharp.Core emit linker/AOT diagnostics. Strict linker-as-errors
+trimming fails; runtime qualification explicitly retains normal warning severity
+without code/descriptor warning suppression. Exact commands and limitations are
+in the smoke-host README and campaign delivery journal. This evidence does not
+claim warning-free dependency analysis, landing or cleanup.

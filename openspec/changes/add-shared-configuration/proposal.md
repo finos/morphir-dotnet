@@ -33,7 +33,11 @@ None. Existing publication and virtual-file requirements remain unchanged.
 
 Extend src/Morphir.Configuration and tests/Morphir.Configuration.Tests; add a reusable format-reader adapter library outside the CLI. Reuse CsToml and YamlDotNet where compatible; qualify JSON5 parsing and all readers for trimming/AOT. No IR/JSON encoding changes.
 
-Planning only. No runtime behavior or existing public API changes in this proposal commit.
+Implemented through additive document APIs and Morphir.Configuration.IO, with
+Expecto, executable TUnit/Reqnroll, pinned grammar/corpus fixtures, coverage and
+trimmed/native runtime qualification. The existing public cache APIs are unchanged.
+Pinned dependencies retain linker/AOT diagnostics; strict warning-free trimming is
+not claimed. See the delivery evidence and smoke-host README for exact results.
 
 ## Campaign completion
 
@@ -45,4 +49,4 @@ This change is one delivery campaign, with one PR based on current main after it
 4. Verify the campaign worktree is clean and contains no unmerged or uniquely held user work. Remove that campaign worktree and its local/remote branches through the applicable workspace/forge mechanisms. Confirm automatic remote branch deletion before trying to delete it again.
 5. Record a completion receipt with PR URL, landed SHA, verification/review state, archive location, and worktree/local-branch/remote-branch cleanup results.
 
-Preserve unrelated worktrees/branches and any unmerged work or recovery evidence. No blanket pruning, forced removal, force-push, admin bypass, or release publication is implied. If landing or owned-artifact cleanup remains outstanding, report the campaign as incomplete and name the remaining item. This planning operation itself does not create a PR, merge code, or delete any artifacts.
+Preserve unrelated worktrees/branches and any unmerged work or recovery evidence. No blanket pruning, forced removal, force-push, admin bypass, or release publication is implied. If landing or owned-artifact cleanup remains outstanding, report the campaign as incomplete and name the remaining item. Parent coordination owns review, landing, CI watching and cleanup after implementation PR handback.

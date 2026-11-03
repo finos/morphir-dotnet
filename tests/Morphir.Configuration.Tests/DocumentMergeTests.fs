@@ -6,6 +6,26 @@ open Morphir.Configuration
 [<Tests>]
 let tests =
     testList "Document merge" [
+        test "typed-host normalization rejects non-mapping roots" {
+            let source = {
+                Path = "embedded.json5"
+                Format = DocumentFormat.Json
+                Role = SourceRole.RootPrimary
+                Order = 0
+                Profile = None
+            }
+
+            for value in [ ConfigValue.Null; ConfigValue.String "scalar"; ConfigValue.Array [] ] do
+                let document = Normalization.normalize source value Map.empty
+
+                Expect.isTrue
+                    (document.Diagnostics
+                     |> List.exists (fun error ->
+                         error.Code = "config.document_shape"
+                         && error.Source = source
+                     ))
+                    "Typed hosts must receive the same root-shape error as text readers"
+        }
         test "ordinary null cannot unset a lower value" {
             let lower = ConfigValue.Object(Map.ofList [ "a", ConfigValue.Integer 1L ])
             let higher = ConfigValue.Object(Map.ofList [ "a", ConfigValue.Null ])

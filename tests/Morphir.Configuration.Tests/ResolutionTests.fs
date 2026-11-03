@@ -653,14 +653,26 @@ let tests =
 
 [<Tests>]
 let exactIntegerValidation =
-    testCase "Resolution validates unbounded schema integers without floating coercion" (fun () ->
-        let huge = System.Numerics.BigInteger.Pow(10I, 400)
-        let values = obj [ "cache", obj [ "max_size", ConfigValue.BigInteger huge ] ]
-        let document = supplied (source "large.json5" SourceRole.RootPrimary DocumentFormat.Json) values
-        let result = Resolver.resolve { DocumentDefaults.resolutionInput with Sources = [document] }
-        Expect.isFalse
-            (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Severity = DiagnosticSeverity.Error))
-            "An integer with only a minimum bound must remain exact, even beyond the double range")
+    testCase
+        "Resolution validates unbounded schema integers without floating coercion"
+        (fun () ->
+            let huge = System.Numerics.BigInteger.Pow(10I, 400)
+            let values = obj [ "cache", obj [ "max_size", ConfigValue.BigInteger huge ] ]
+
+            let document =
+                supplied (source "large.json5" SourceRole.RootPrimary DocumentFormat.Json) values
+
+            let result =
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [ document ]
+                    }
+
+            Expect.isFalse
+                (result.Diagnostics
+                 |> List.exists (fun diagnostic -> diagnostic.Severity = DiagnosticSeverity.Error))
+                "An integer with only a minimum bound must remain exact, even beyond the double range"
+        )
 
 [<Tests>]
 let boundaryTests =

@@ -113,3 +113,30 @@ cleanup. An open PR or checked task list does not complete this campaign.
   zero-warning build. This checkpoint retains that incomplete regression before
   fixing the comparison. Final tests, warning-aware runtime qualification and
   OpenSpec archive/PR handback remain.
+
+## Final implementation validation
+
+- `1029b94` protects the runtime qualification and observed red integer-bound
+  regression. Integer bounds now compare Int64/BigInteger exactly. Fresh full
+  core runner and VSTest coverage run pass 89/89; reader/BDD coverage run passes
+  63/63, both with zero build warnings/errors.
+- Final merged authored-source coverage is core 2076/2210 = 93.94% and readers
+  434/461 = 94.14%. The summaries normalize Cobertura source roots and union hits
+  from the Expecto/VSTest and executable MTP runners. Generated `obj/` code is
+  excluded. The generated pure schema is checked for deterministic regeneration.
+- Final trimmed and native hosts both return success with 228 JSON5 syntax checks
+  and 26 pinned Morphir documents. They additionally exercise Default YAML
+  aliases/tags/nulls, all four TOML temporal types, and a 401-digit integer's schema
+  minimum. The native binary is arm64 Mach-O. Commands explicitly retain normal
+  warning severity; upstream diagnostics and strict linker failure remain visible
+  in the qualification README. No warning suppression or reflection serializer
+  was introduced.
+- `openspec validate add-shared-configuration --strict --json` passes without
+  issues after splitting long new requirements into focused behavior contracts.
+  No requirement behavior was removed. Repository restore resets publish-only
+  RID/ILCompiler lockfile state, preserving the normal project dependency locks.
+- The typed-host error-parity audit found that pure normalization lacked the
+  text reader's non-mapping-root diagnostic. Its new focused case was observed
+  red, then the same `config.document_shape` error was added without altering
+  valid documents. Complete suites now pass core 90/90 and reader 63/63, with
+  zero build warnings. Final runtime/coverage refresh follows this code checkpoint.

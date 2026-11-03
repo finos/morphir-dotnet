@@ -10,6 +10,8 @@ Distributed under the repository's Apache-2.0 license. Configuration schema and
 corpus snapshots from finos/morphir and finos/morphir-moonbit retain their FINOS
 attribution; pinned revisions and hashes are in
 tests/Fixtures/Configuration/PROVENANCE.md.
+Profile compatibility rules follow Moon-Lander 0.8.0 at revision
+d6216c7469c045548cb15b3f9321857ac41d2cd0, distributed under Apache-2.0.
 
 JSON5 conformance fixture suite from json5/json5-tests, revision
 ceb24d4080137d70833f86c25659c1331b80a387, is distributed under the MIT license.

@@ -35,7 +35,7 @@ svg { max-width: 100%; height: auto; }
 <body>
 <main>
 <h1>add-shared-configuration</h1>
-<p class="meta">OpenSpec change | 2026-11-02 | Planning only; implementation pending</p>
+<p class="meta">OpenSpec change | 2026-11-02 | Implementation validated; PR landing and campaign cleanup pending</p>
 <p>Read the <a href="proposal.md">proposal</a>, <a href="specs/configuration-documents/spec.md">configuration-documents</a>, <a href="specs/configuration-resolution/spec.md">configuration-resolution</a>, and the <a href="tasks.md">tasks</a>.</p>
 <nav class="toc" aria-label="Contents"><ul><li><a href="#context">Context</a></li><li><a href="#goals">Goals and non-goals</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#risks">Risks and trade-offs</a></li><li><a href="#migration">Migration plan</a></li><li><a href="#campaign-completion">Campaign completion</a></li></ul></nav>
 <h2 id="context">Context</h2>
@@ -61,6 +61,7 @@ svg { max-width: 100%; height: auto; }
 <h2 id="risks">Risks and trade-offs</h2>
 <table><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody><tr><td>Parser-specific scalar coercion or JSON5 gaps</td><td>Normalize from parser nodes and qualify numeric/string distinctions, duplicates, null/unsupported values, source ranges, and full JSON5 fixtures before exposing a reader.</td></tr><tr><td>Profile complexity expands the initial change</td><td>Keep the resolver over supplied inputs and a pure profile graph; defer filesystem discovery and CLI integration.</td></tr><tr><td>Legacy consumers silently change behavior</td><td>Use additive document APIs; retain old cache resolver and CI behavior until consumers explicitly opt in.</td></tr></tbody></table>
 <h2 id="migration">Migration plan</h2>
+<p>Implementation evidence includes 90 passing core tests, 63 passing reader/BDD tests, and 245 passing tooling compatibility tests. Trimmed and native osx-arm64 hosts execute the official JSON5 corpus and pinned Morphir corpus. CsToml/FSharp.Core retain upstream linker/AOT diagnostics; runtime qualification uses normal warning severity without suppressing diagnostics. A strict linker-as-errors publish remains unsuccessful and is not represented as warning-free qualification.</p>
 <p>Land the new core and readers with fixture tests and API documentation while existing commands keep their old resolver. Consumers adopt the new entry points explicitly in later campaigns. Rollback removes only the additive integration references; it does not rewrite project files.</p>
 <h2 id="campaign-completion">Campaign completion</h2>
 <p>This campaign is complete only after one reviewable PR has landed on <code>main</code> and the campaign-owned worktree and local/remote branches have been removed. Passing tests or opening a PR alone is not completion.</p>

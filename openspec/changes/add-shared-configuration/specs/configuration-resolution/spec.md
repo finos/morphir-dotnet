@@ -18,26 +18,7 @@ Resolution SHALL apply defaults, system, global, root primaries, selected file, 
 - **THEN** the CLI value wins and its origin is recorded
 
 ### Requirement: Merge preserves document semantics
-Maps SHALL merge recursively, arrays SHALL replace completely, incompatible value shapes SHALL replace earlier values, and secret references SHALL act as indivisible leaves. Resolution SHALL NOT mutate inputs.
-
-Ordinary null overlays SHALL leave earlier values and their origins unchanged.
-Completed loads SHALL recursively omit null-valued object fields, including
-objects nested in arrays, while retaining null array elements. Resolution SHALL
-use an ordered left fold; shape replacement does not permit associative regrouping.
-Raw profile-control metadata SHALL use a separate merge where null replaces
-earlier controls and fails typing rather than restoring the earlier value.
-
-#### Scenario: Ordinary null is not an unset
-- **WHEN** a lower source provides a=1 and a higher source provides a=null
-- **THEN** a remains 1 with the lower source origin
-
-#### Scenario: Null cleanup retains array elements
-- **WHEN** a completed load contains items=[{a:null},null]
-- **THEN** items equals [{},null]
-
-#### Scenario: Null profile control does not resurrect an earlier list
-- **WHEN** a higher root primary supplies profiles.active=null over an earlier list
-- **THEN** enabled profile processing fails control typing at that higher source
+Maps SHALL merge recursively, arrays SHALL replace completely, incompatible value shapes SHALL replace earlier values, and secret references SHALL act as indivisible leaves. Resolution SHALL NOT mutate inputs. Sources SHALL use an ordered left fold; shape replacement does not permit associative regrouping.
 
 #### Scenario: Shorter replacement array
 - **WHEN** a lower source supplies three members and a higher source supplies one
@@ -50,6 +31,27 @@ earlier controls and fails typing rather than restoring the earlier value.
 #### Scenario: Shape replacement
 - **WHEN** a higher source replaces an object with a scalar or a different secret-reference shape
 - **THEN** no lower-source children survive beneath the replacement
+
+### Requirement: Ordinary nulls preserve lower values
+Ordinary null overlays SHALL leave earlier values and their origins unchanged.
+Completed loads SHALL recursively omit null-valued object fields, including
+objects nested in arrays, while retaining null array elements.
+
+#### Scenario: Ordinary null is not an unset
+- **WHEN** a lower source provides a=1 and a higher source provides a=null
+- **THEN** a remains 1 with the lower source origin
+
+#### Scenario: Null cleanup retains array elements
+- **WHEN** a completed load contains items=[{a:null},null]
+- **THEN** items equals [{},null]
+
+### Requirement: Raw profile controls preserve null replacement
+Raw profile-control metadata SHALL use a separate merge where null replaces
+earlier controls and fails typing rather than restoring the earlier value.
+
+#### Scenario: Null profile control does not resurrect an earlier list
+- **WHEN** a higher root primary supplies profiles.active=null over an earlier list
+- **THEN** enabled profile processing fails control typing at that higher source
 
 ### Requirement: Winners and consulted sources are explainable
 Resolution SHALL retain source identity for every winning leaf and array and reports of consulted sources, including missing optional files. An explicitly selected discovered file SHALL contribute ordinary values only once at the selected layer.
@@ -90,6 +92,8 @@ MORPHIR_ values SHALL use double underscores for nesting, retain single undersco
 
 ### Requirement: Profile selection is explicit and ordered
 Profiles SHALL be selected by explicit options, present MORPHIR_PROFILES, base active controls, then base defaults. No implicit profile SHALL be active. Explicit disabling or an empty environment selector SHALL suppress includes and file loading.
+Explicit empty host selection SHALL still allow includes. A present whitespace-only
+MORPHIR_PROFILES SHALL suppress includes and control interpretation.
 
 #### Scenario: Explicit list replaces environment selection
 - **WHEN** the environment selects postgres and the host explicitly selects metrics
@@ -99,6 +103,10 @@ Profiles SHALL be selected by explicit options, present MORPHIR_PROFILES, base a
 - **WHEN** profiles are disabled and an inactive profile file is invalid
 - **THEN** resolution does not read it or interpret base profile controls
 
+#### Scenario: Explicit empty selection permits includes
+- **WHEN** the host supplies an empty profile list and the root base includes metrics
+- **THEN** metrics remains active through the include control
+
 ### Requirement: Profile controls belong to the discovered base
 Enabled profile activation controls SHALL come only from root primary documents. A selected file already in that base SHALL retain control authority. Controls from member, machine, arbitrary selected, user, profile, or environment-mapped sources SHALL fail before scope filters hide them.
 
@@ -107,14 +115,11 @@ Enabled profile activation controls SHALL come only from root primary documents.
 - **THEN** resolution fails with a diagnostic naming that control and its source
 
 ### Requirement: Profile expansion preserves precedence
-Profile groups SHALL expand depth first with includes before selected roots and last-occurrence deduplication. Group replacement SHALL be whole-value. Cycles, including inactive cycles, and exceeded graph bounds SHALL fail. Per active name, workspace files SHALL precede member files in format order; later names SHALL win.
-
-Expansion SHALL emit each root before its group descendants, then retain last
-occurrences. Names SHALL match `[a-z][a-z0-9_-]{0,63}`. Bounds SHALL be 64 groups,
-64 members per group, 32 group levels, and 128 distinct active names. Inactive
-groups SHALL also be checked for cycles and depth. Explicit empty host selection
-SHALL still allow includes; disabled selection or a present whitespace-only
-MORPHIR_PROFILES SHALL suppress includes and control interpretation.
+Profiles SHALL expand includes before selected roots, emit each root before group
+descendants, then retain last occurrences. Higher group definitions SHALL replace
+whole values. All declared groups, including inactive groups, SHALL be checked for
+cycles and bounds. For each active name, workspace files SHALL precede member files
+in format order; later names SHALL win.
 
 #### Scenario: Later workspace profile wins
 - **WHEN** active names are postgres then metrics, member postgres sets a setting, and workspace metrics replaces it
@@ -123,6 +128,19 @@ MORPHIR_PROFILES SHALL suppress includes and control interpretation.
 #### Scenario: Inactive cycle
 - **WHEN** an inactive group graph contains a cycle
 - **THEN** enabled profile processing fails with the cycle and its control origin
+
+### Requirement: Profile graph bounds match the pinned framework
+Names SHALL match `[a-z][a-z0-9_-]{0,63}`. Bounds SHALL be 64 groups, 64 members
+per group, 32 group levels, and 128 distinct active names. Inactive groups SHALL
+also be checked for depth. Exceeded bounds SHALL fail with control-source diagnostics.
+
+#### Scenario: Inactive graph exceeds depth
+- **WHEN** an inactive group chain exceeds 32 group levels
+- **THEN** enabled profile processing fails at the declaring control source
+
+#### Scenario: Too many active names
+- **WHEN** expansion produces more than 128 distinct active names
+- **THEN** profile processing fails rather than truncating the active list
 
 ### Requirement: Mixed-format warnings have controlled suppression
 Resolution SHALL report config.yaml_beside_toml and surviving config.json_keys_below_toml values with relevant paths. Only explicit host controls, the suppression environment control, or system/global settings SHALL suppress them. Unknown suppression codes SHALL warn.

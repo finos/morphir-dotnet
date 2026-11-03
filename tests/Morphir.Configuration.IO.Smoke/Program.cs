@@ -62,12 +62,25 @@ try
     var toml = Document(ConfigurationReader.ReadText("morphir.toml", "[project]\nname='Acme'\n[custom]\ncount=4\ntext='4'\nstrict=true\nlist=[1,2]\nsecret={env='TOKEN'}\n"));
     Check(json.Values.Equals(yaml.Values) && json.Values.Equals(toml.Values), "Equivalent format values differ");
 
+    var yamlDefault = Document(ConfigurationReader.ReadText("default.yaml", "base: &base {yes_word: yes, number: 0x10, nothing: null}\ncopy: *base\ncustom: !custom 42\n"));
+    Check(At(yamlDefault.Values, "copy", "yes_word").Equals(ConfigValue.NewString("yes")), "YAML Default alias scalar typing failed");
+    Check(At(yamlDefault.Values, "copy", "number").Equals(ConfigValue.NewInteger(16)), "YAML Default radix typing failed");
+    Check(At(yamlDefault.Values, "copy", "nothing").IsNull, "YAML raw null was removed early");
+    Check(At(yamlDefault.Values, "custom").Equals(ConfigValue.NewString("42")), "YAML Default custom tag coercion failed");
+    var temporal = Document(ConfigurationReader.ReadText("temporal.toml", "date=1979-05-27\ntime=07:32:00\nlocal=1979-05-27T07:32:00\noffset=1979-05-27T07:32:00Z\n"));
+    foreach (var key in new[] { "date", "time", "local", "offset" })
+        Check(At(temporal.Values, key) is ConfigValue.Temporal, "TOML temporal type lost: " + key);
+
     var extended = Document(ConfigurationReader.ReadText("extended.json", "\uFEFF{/*x*/ escaped:'\\x41\\u0042',\\u0061:+.5,hex:0x2a,continuation:'a\\\nb',large:9223372036854775808,precise:9007199254740993,inf:+Infinity,nan:-NaN,arr:[true,null,],}"));
     Check(At(extended.Values, "a").Equals(ConfigValue.NewNumber(.5)), "JSON5 leading decimal failed");
     Check(At(extended.Values, "large") is ConfigValue.BigInteger, "JSON5 large integer lost exactness");
     Check(At(extended.Values, "precise").Equals(ConfigValue.NewInteger(9007199254740993)), "JSON5 integer exceeded IEEE exact range");
     Check(double.IsPositiveInfinity(((ConfigValue.Number)At(extended.Values, "inf")).Item), "JSON5 infinity failed");
     Check(double.IsNaN(((ConfigValue.Number)At(extended.Values, "nan")).Item), "JSON5 NaN failed");
+    var huge = System.Numerics.BigInteger.Pow(10, 400).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var exact = ConfigurationReader.ReadText("exact.json5", "{cache:{max_size:" + huge + "}}");
+    Check(!Resolver.resolve(Input([exact], ProfileSelection.Disabled)).Diagnostics.Any(item => item.Severity == DiagnosticSeverity.Error),
+        "Exact integer minimum validation used floating coercion");
     Check(ConfigurationReader.ReadText("duplicate.json", "{name:1,\\u006eame:2}").Content is SourceContent.Invalid, "Decoded duplicate accepted");
     var malformed = ConfigurationReader.ReadText("malformed.yaml", "project: [unterminated");
     Check(malformed.Content is SourceContent.Invalid invalid && invalid.Item[0].Position is not null,

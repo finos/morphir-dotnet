@@ -97,6 +97,10 @@ module Normalization =
                     }
                 ]
 
+        match raw with
+        | ConfigValue.Object _ -> ()
+        | _ -> error "config.document_shape" "Configuration root must be an object" []
+
         if legacy then
             for key in [ "project"; "frontend" ] do
                 match ConfigTree.tryFind [ key ] raw with

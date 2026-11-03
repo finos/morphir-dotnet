@@ -10,12 +10,14 @@ module Validation =
         | ConfigValue.SecretReference values -> Some values
         | _ -> None
 
-    let private number =
+    let private violatesBound (bound: int) outside =
         function
-        | ConfigValue.Integer value -> Some(float value)
-        | ConfigValue.BigInteger value -> Some(float value)
-        | ConfigValue.Number value -> Some value
-        | _ -> None
+        | ConfigValue.Integer value -> outside (compare value (int64 bound))
+        | ConfigValue.BigInteger value -> outside (compare value (bigint bound))
+        | ConfigValue.Number value ->
+            not (System.Double.IsFinite value)
+            || outside (compare value (float bound))
+        | _ -> false
 
     let private kind expected value =
         match expected, value with
@@ -122,13 +124,7 @@ module Validation =
                     |> List.concat
                 | _ -> []
             | Minimum bound ->
-                if
-                    number value
-                    |> Option.exists (fun value ->
-                        value < float bound
-                        || not (System.Double.IsFinite value)
-                    )
-                then
+                if violatesBound bound (fun comparison -> comparison < 0) value then
                     error (
                         "Number must be at least "
                         + string bound
@@ -137,13 +133,7 @@ module Validation =
                 else
                     []
             | Maximum bound ->
-                if
-                    number value
-                    |> Option.exists (fun value ->
-                        value > float bound
-                        || not (System.Double.IsFinite value)
-                    )
-                then
+                if violatesBound bound (fun comparison -> comparison > 0) value then
                     error (
                         "Number must be at most "
                         + string bound

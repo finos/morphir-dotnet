@@ -7,7 +7,7 @@ description: "Shared configuration, project discovery, and configuration inspect
 
 # Layered configuration and workspaces
 
-**Status**: In Progress; campaign 1 implementation and qualification
+**Status**: In Progress; campaign 1 implemented, PR landing and cleanup pending
 
 **Created**: 2025-12-22
 
@@ -173,16 +173,16 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 | --- | --- | --- |
 | Configuration project and cache models | Implemented baseline | Cache-only F# records and merge functions exist |
 | TOML resolver and legacy discovery | Implemented baseline | Git-first discovery and user/CI overlays; replacement planned |
-| Multi-format documents and normalization | In Progress | Campaign 1 code and behavioral fixtures; final coverage/AOT qualification underway |
+| Multi-format documents and normalization | Implemented | Campaign 1 library/reader behavior and runtime qualification; landing pending |
 | Shared discovery and project selection | Planned | Document-aware search and membership |
-| Shared resolution, profiles, validation, provenance | In Progress | Pure additive APIs; focused resolution/profile tests passing |
+| Shared resolution, profiles, validation, provenance | Implemented | Pure additive APIs; 90 core tests plus reader/BDD parity; landing pending |
 | Microsoft configuration integration | Planned | Adapter; proposed extension name |
 | Shared query and edit services | Planned | Host-independent inspection and TOML edits |
 | Classic project migration | Planned | Shared planner/apply API, project migrate command, loss checks, and independent-equivalence verification |
 | Workspace migration | Planned | Bounded inventory, coordinated project plans, membership, and recovery |
 | Config CLI commands | Planned | Thin adapter over shared services |
 | Documentation foundation | Documented | Guide, reference, walkthrough, troubleshooting; runtime examples not yet executable |
-| Compatibility and end-to-end verification | Planned | Required before advertising runtime support |
+| Compatibility and end-to-end verification | In Progress | Campaign 1 tooling 245/245, reader 63/63, trimmed/native corpus runs pass; later command campaigns remain planned |
 
 ## Implementation notes
 
@@ -224,5 +224,6 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
   later discovery/editing/host adapter signatures remain their campaigns' work.
 - Existing cache-only APIs retain their legacy behavior through additive compatibility entry points. Document how consumers explicitly opt into the new discovery and profile model before moving them.
 - Final JSON result schemas and minor public signature details. The command semantics, selector scopes, and quoted key paths are covered by the OpenSpec changes; the CLI reference remains planned until implemented.
-- Campaign 1 pins parser/merge/profile fixtures; final coverage and native smoke
-  results must be recorded before handback.
+- Campaign 1 pins parser/merge/profile fixtures and records coverage/native
+  results. Pinned dependency linker/AOT warnings remain a qualification limitation;
+  strict warning-free trimming is not claimed.

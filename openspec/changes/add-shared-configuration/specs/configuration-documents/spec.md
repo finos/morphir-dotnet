@@ -4,6 +4,10 @@
 
 Provides typed Morphir configuration documents independent of their file serialization, including compatibility with classic morphir-elm project manifests.
 
+The accepted YAML profile intentionally differs from core's stricter profile,
+which rejects nulls, anchors, aliases and custom tags. JSON/JSON5 duplicate-key
+rejection is an approved stricter policy than Moon-Lander's last-duplicate-wins parser.
+
 ## ADDED Requirements
 
 ### Requirement: Equivalent serializations retain typed values
@@ -18,18 +22,10 @@ Readers SHALL accept TOML, YAML/YML, and JSON/JSON5 documents by extension and p
 - **THEN** their typed values remain different before schema validation or host projection
 
 ### Requirement: YAML follows the pinned MoonBit Default profile
-YAML readers SHALL match the Moon-Lander 0.8.0 Default profile used by the pinned
-MoonBit host. Nulls SHALL be retained for later control validation and ordinary
-merge cleanup. Anchors and aliases SHALL expand without executing code. An empty
-stream SHALL produce an empty object. Plain yes/no words and dates SHALL remain
-strings, quoted numeric strings SHALL remain strings, and supported numeric and
-boolean scalars SHALL retain their types. Custom scalar tags SHALL produce
-strings. Duplicate keys, merge keys, multiple documents, non-string keys, and
-non-mapping roots SHALL fail with source diagnostics.
-
-This intentionally differs from core's stricter YAML profile, which rejects
-nulls, anchors, aliases and custom tags. JSON/JSON5 duplicate-key rejection is
-also an intentional stricter policy than Moon-Lander's last-duplicate-wins parser.
+YAML readers SHALL match Moon-Lander 0.8.0 Default as used by pinned MoonBit.
+Nulls SHALL be retained, anchors/aliases SHALL expand without code execution,
+and an empty stream SHALL produce an empty object. Duplicate keys, merge keys,
+multiple documents, non-string keys, and non-mapping roots SHALL fail with source diagnostics.
 
 #### Scenario: Anchors retain values without losing scalar types
 - **WHEN** a YAML mapping anchors an object containing an integer and aliases it
@@ -43,9 +39,18 @@ also an intentional stricter policy than Moon-Lander's last-duplicate-wins parse
 - **WHEN** a supplied YAML stream is empty
 - **THEN** the reader returns an empty object without a parse error
 
+### Requirement: YAML scalar typing is explicit
+Plain yes/no words and dates SHALL remain strings. Quoted numeric strings SHALL
+remain strings. Supported numeric and boolean scalars SHALL retain their types.
+Custom scalar tags SHALL produce strings, matching the pinned Default profile.
+
 #### Scenario: Custom scalar tag
 - **WHEN** a YAML scalar has a custom tag and numeric-looking text
 - **THEN** its configuration value is a string
+
+#### Scenario: Quoted numeric string
+- **WHEN** YAML supplies the quoted value "42" beside the integer 42
+- **THEN** the values remain a string and an integer respectively
 
 ### Requirement: JSON extensions support JSON5 syntax
 Files ending in .json and .json5 SHALL accept JSON5 comments, unquoted keys, single-quoted strings, and trailing commas. Unsupported extensions SHALL return a diagnostic naming the input.
