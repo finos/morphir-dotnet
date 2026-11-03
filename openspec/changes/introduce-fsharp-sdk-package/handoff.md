@@ -51,6 +51,18 @@ Read-only review agents may share a checkout. Writing agents need explicit disjo
 
 Follow delegate next instructions and event-driven completion without polling or sleep loops. Cancel no-longer-needed agents with task_cancel and release their slots. Cleanup evidence includes all auxiliary worktrees/helpers after integration, using the same clean-status, final submitted-head/landed-PR and squash-safe checks where applicable. An auxiliary without its own PR records its integrated commit and the initiative PR instead. Preserve uncommitted work and the shared coordinator checkout.
 
+## Task-boundary commits and backup pushes
+
+Create small, coherent Conventional Commits at meaningful task or task-group boundaries after the scoped work and its required checks are complete. Do not accumulate the entire initiative uncommitted. Include matching tests, necessary docs and accurate OpenSpec/PRD progress in each boundary commit. Neither a commit nor a checked box proves unverified acceptance.
+
+Follow the repository-required pre-commit validation and hooks. Do not bypass checks, use --no-verify, or label failing/incomplete work complete for a checkpoint. If required checks are unavailable, preserve the work and report the concrete blocker. Stage only explicit owned paths; never blanket-stage unrelated work, secrets or transient build artifacts.
+
+Push completed boundary commits promptly and normally to the initiative feature branch, without force, for off-machine durability. Do not wait for PR readiness to back up completed work. After every push to an existing PR, call link_pull_request with that full URL as the next tool call. Keep the final checked head SHA and check evidence current after each push.
+
+Before a handoff, rebase/merge, context transition or cleanup, ensure completed work is committed and pushed; explicitly identify and preserve unfinished/uncommitted work. Give auxiliary writers disjoint ownership or orchestrator-created isolated worktrees. Isolated auxiliary results must be coherently committed before integration, then integrated and pushed into the initiative branch before auxiliary cleanup. Shared-checkout agents coordinate a single Git writer so one agent cannot stage or commit another's unfinished files.
+
+Retain task-boundary commits on the feature branch during delivery. Multiple commits fit the preferred squash merge; the hosting service's final landed SHA on main remains distinct from the final submitted head SHA.
+
 ## PR and ownership handback
 
 Create the initiative PR to main and link it through link_pull_request as the next call after opening it or pushing to it. Address implementation feedback assigned by the coordinator, use Conventional Commits without AI coauthor trailers, and preserve normal required CI/review rules. Do not enable auto-merge, delete branches or publish releases without the separately applicable explicit authorization.

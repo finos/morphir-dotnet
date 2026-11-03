@@ -59,6 +59,40 @@
     "pressureResponse": "Back off or serialize under sustained CPU or memory pressure",
     "lightweightReadingAndReviewRequireSlot": false
   },
+  "checkpointPolicy": {
+    "commitBoundary": "Meaningful task or task-group boundary after scoped work and required checks are complete",
+    "commitStyle": "Conventional Commits",
+    "include": [
+      "matching-tests",
+      "necessary-docs",
+      "accurate-OpenSpec-and-PRD-progress"
+    ],
+    "commitDoesNotProveAcceptance": true,
+    "requirePrecommitValidationAndHooks": true,
+    "allowCheckBypass": false,
+    "unavailableChecks": "Preserve work and report the concrete blocker; do not mark incomplete work complete",
+    "staging": "Explicit owned paths only; exclude unrelated work, secrets and transient artifacts",
+    "pushCompletedBoundariesPromptly": true,
+    "waitForPrReadinessBeforeBackup": false,
+    "pushDestination": "Initiative feature branch",
+    "forcePushAllowed": false,
+    "afterPushToExistingPr": "Call link_pull_request with the full PR URL as the next tool call",
+    "keepFinalCheckedHeadCurrent": true,
+    "beforeTransitions": [
+      "handoff",
+      "rebase",
+      "merge",
+      "context-transition",
+      "cleanup"
+    ],
+    "transitionRequirement": "Completed work committed and pushed; unfinished/uncommitted work explicitly identified and preserved",
+    "sharedCheckoutGitWriters": 1,
+    "auxiliaryWriterOwnership": "Disjoint owned paths or orchestrator-created isolated worktrees",
+    "isolatedAuxiliaryResultsCommittedBeforeIntegration": true,
+    "integratedAuxiliaryResultsPushedBeforeCleanup": true,
+    "retainBoundaryCommitsOnFeatureBranchDuringDelivery": true,
+    "squashLanding": "Record the separate hosting-service landed SHA on main; preserve the final submitted head SHA"
+  },
   "prerequisites": [
     "Planning artifacts and this plan are committed and available on main.",
     "The coordinator's selected dispatch HEAD equals a verified main commit; delegate_task worktrees start from the parent commit, not uncommitted files.",

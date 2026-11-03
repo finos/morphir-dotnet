@@ -73,6 +73,18 @@ Initiative 1 creates the umbrella PRD at docs/content/contributing/design/prds/d
 
 Conformance fixtures become read-only inputs to successors. If a downstream worker finds a contract error, report the failing case and proposed correction to the coordinator; do not independently fork the fixture schema or expected values. Land the correction through its owner and rebase/restart consumers from the corrected main commit.
 
+## Task-boundary commits and backup pushes
+
+Create small, coherent Conventional Commits at meaningful task or task-group boundaries once the scoped work and its required checks are complete. Do not accumulate an entire initiative uncommitted. Include matching tests, necessary docs and accurate OpenSpec/PRD progress updates in each boundary commit. A commit or checked box must not imply unverified acceptance.
+
+Follow repository-required pre-commit validation and hooks. Never bypass checks, use --no-verify, or mark failing/incomplete work complete to create a checkpoint. If required checks are unavailable, preserve the work and report the concrete blocker. Stage only explicit owned paths; never blanket-stage unrelated work, secrets or transient build artifacts.
+
+Push completed boundary commits promptly to the initiative feature branch, normally and without force, for off-machine durability. Do not wait for PR readiness to back up completed work. After every push to an existing PR, call link_pull_request for that full PR URL as the next tool call. Keep the final checked head SHA and its evidence current after each push; checks on an earlier head do not prove the new head.
+
+Before a handoff, rebase/merge, context transition or cleanup, ensure completed work is committed and pushed. Identify unfinished or uncommitted work explicitly and preserve it. Auxiliary writers need disjoint ownership or orchestrator-created isolated worktrees. Isolated auxiliaries deliver coherent committed results before integration; the lead integrates and pushes them into the initiative branch before auxiliary worktree cleanup. Shared-checkout agents coordinate a single Git writer so one agent cannot stage or commit another's unfinished files.
+
+Keep task-boundary commits on the feature branch during delivery. Multiple commits are compatible with the preferred squash merge; record the final submitted head and the separate hosting-service-recorded landed squash SHA on main.
+
 ## PR lifecycle
 
 Squash merge is the user's preferred merge method for this work, subject to repository settings and any instruction on the particular PR. Record the actual method. A squash creates a new commit: neither the worker head SHA nor its original commits need to be ancestors of main. Keep headSha as the final submitted PR head and mergeSha as the hosting service's recorded landed commit; never overwrite one with the other.
