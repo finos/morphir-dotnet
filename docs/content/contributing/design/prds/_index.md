@@ -2,6 +2,7 @@
 
 | PRD | Status | Phase | Current task |
 | --- | --- | --- | --- |
+| [Immutable C# SDK](./add-immutable-csharp-sdk.md) | In Progress | Runtime | Public conformance and packaged consumer proof |
 | [.NET SDKs and C# generation](dotnet-code-generation.md) | In Progress | Conformance follow-up | Land archive PR and finish owned cleanup |
 | [Establish .NET SDK conformance](establish-dotnet-sdk-conformance.md) | In Progress | Archive PR/cleanup pending | #462 landed; spec sync/archive follow-up, #460 |
 | [CLI model generation](cli-model-generation.md) | Completed | Delivered | Repository review |

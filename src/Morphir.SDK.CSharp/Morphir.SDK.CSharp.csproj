@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <Description>Immutable C# runtime for the bounded Morphir .NET SDK contract.</Description>
+    <PackageReleaseNotes>### Added
+- Independent immutable C# runtime for the admitted Morphir .NET SDK contract: checked scalars, optional and result values, persistent collections, structural equality and explicit Morphir ordering.</PackageReleaseNotes>
+    <PackageTags>morphir;csharp;immutable;sdk</PackageTags>
+  </PropertyGroup>
+</Project>

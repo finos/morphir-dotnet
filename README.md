@@ -50,6 +50,12 @@ Defines a standard format for storing and sharing business logic. A clear set of
 
 Provides tooling for the Morphir ecosystem and .NET libraries that can be used to help you work with Morphir.
 
+## SDK libraries
+
+`Morphir.SDK.CSharp` is an independent `net10.0` runtime package with immutable
+C#/.NET public types. See the [C# SDK guide](docs/content/docs/sdk/csharp/_index.md)
+for its bounded operation contract and package usage.
+
 ## Getting Started
 
 ### Building from source

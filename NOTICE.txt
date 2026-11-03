@@ -51,3 +51,8 @@ This follow-up moves the completed OpenSpec change, synchronizes its capability
 specification, repairs documentation paths and records verified delivery metadata.
 It adds no third-party source, license or restriction. All source evidence,
 licenses, attribution and existing notices above remain unchanged.
+
+Morphir.SDK.CSharp provides independently implemented .NET runtime behavior
+against the pinned Morphir SDK contract; upstream evidence and notices remain
+in tests/Fixtures/MorphirSDK/evidence.
+Copyright 2026 FINOS contributors.
