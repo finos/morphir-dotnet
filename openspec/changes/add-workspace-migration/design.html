@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-workspace-migration</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-workspace-migration</h1>
+<p class="meta">OpenSpec change | 2026-11-02 | Planning only; implementation pending</p>
+<p>Read the <a href="proposal.md">proposal</a>, <a href="specs/workspace-migration/spec.md">workspace-migration</a>, and the <a href="tasks.md">tasks</a>.</p>
+<nav class="toc" aria-label="Contents"><ul><li><a href="#context">Context</a></li><li><a href="#goals">Goals and non-goals</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#risks">Risks and trade-offs</a></li><li><a href="#migration">Migration plan</a></li><li><a href="#campaign-completion">Campaign completion</a></li></ul></nav>
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for motivation. A selected repository directory can contain classic projects before any declared Morphir workspace exists. The prior project campaign provides independently verified plans and the edit campaign supplies staging/preconditions. Existing generated-output publication does not promise multi-file rollback or crash atomicity.</p>
+<h2 id="goals">Goals and non-goals</h2>
+<p>Coordinate a bounded inventory and one reviewed workspace adoption plan with per-project reuse. Preserve existing ownership/settings and disclose incomplete recovery. Do not discover ancestors, absorb nested independent workspaces, run compilers, delete classic files, or promise one atomic operation across multiple filesystems.</p>
+<h2 id="decisions">Decisions</h2>
+<h3 id="inv-1">INV-1. Inventory the selected root before project discovery</h3>
+<p>workspace migrate takes the supplied directory or current directory as its operation boundary even when no primary exists. Walk deterministically, skip links and version-control/dependency/build outputs, and stop at nested workspace declarations. Root-relative repeated include/exclude filters refine candidates while existing exclusions remain effective. Report exclusions and boundaries so a preview explains omissions. Alternative considered: Requiring an existing declared workspace was rejected because initial adoption must work before one exists.</p>
+<h3 id="plan-1">PLAN-1. Compose project plans with explicit membership edits</h3>
+<p>Call the single-project planner for every selected classic member and retain already migrated members as unchanged. Build explicit root-relative member paths, preserve existing membership/default selection/settings, and distinguish root project from virtual workspace. Duplicate names remain distinct paths with diagnostics. No separate batch mapping implementation can weaken loss accounting. Alternative considered: A separate batch converter was rejected because its mappings and loss checks could drift from project migration.</p>
+<h3 id="ver-1">VER-1. Verify the aggregate candidate before any replacement</h3>
+<p>Build the complete proposed workspace context and compare each classic-to-TOML conversion within that common context, excluding converted classic sources and ambient overlays under project-equivalence rules. Separately report intended adoption effects: workspace topology, shared output root, membership, and default selection. Verify that each intended change matches the approved plan and that source paths and all other values remain equivalent. A new shared output root is an adoption effect, not a conversion failure. Rerun resulting discovery and selection before any write; do not move generated files. Alternative considered: Comparing standalone and adopted output roots as equal was rejected because workspace creation intentionally changes ownership and topology.</p>
+<h3 id="txn-1">TXN-1. Journal a coordinated batch without claiming crash atomicity</h3>
+<p>Extend the shared IO transaction adapter with deterministic lock acquisition, full preflight, same-filesystem staging for each target, and a durable journal recording each replacement and backup. Recheck source/target/listing evidence before entering commit. Attempt rollback when a later replacement fails; report restored and unresolved paths. One-file atomic replacement does not make the entire batch crash-atomic. Alternative considered: Claiming one cross-file atomic rename was rejected because filesystems do not provide that guarantee for this batch.</p>
+<h3 id="rec-1">REC-1. Treat unresolved recovery as unfinished work</h3>
+<p>Overlapping writers inspect the shared transaction state and refuse to proceed while recovery is required. Keep recoverable backups and an identifiable journal after incomplete rollback or interruption. Remove only owned staging/recovery artifacts on success or proven complete rollback. A valid equivalent repeat is a no-op and must not change timestamps. Alternative considered: Deleting journals after an uncertain failure was rejected because it would destroy recovery evidence.</p>
+<h3 id="cli-1">CLI-1. Present the whole adoption through a thin workspace command</h3>
+<p>Expose workspace migrate with dry-run, JSON, and include/exclude controls. Return a structured aggregate report for CLI or embedded hosts: inventory, boundaries, project plans, membership edits, blockers, verification, and recovery state. Exit 0 only for applicable previews, success, or valid-workspace no-ops; blocked or uncertain outcomes exit 2. Alternative considered: Executing project migrations sequentially from a CLI loop was rejected because that would lose aggregate preflight and non-CLI reuse.</p>
+<h2 id="risks">Risks and trade-offs</h2>
+<table><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody><tr><td>Workspace adoption changes topology, output root, or selection</td><td>Report those intentional before/after effects explicitly and verify conversions in the same proposed context; fail any unplanned setting/path change and move no generated files.</td></tr><tr><td>Concurrent or interrupted batch creates a partial workspace</td><td>Coordinate writers, journal each replacement, attempt rollback, and require explicit recovery when state is unresolved.</td></tr><tr><td>Broad scanning adopts unrelated projects</td><td>Enforce selected-root and nested-workspace boundaries, exclusions, no links, deterministic inventory, and a complete read-only preview.</td></tr></tbody></table>
+<h2 id="migration">Migration plan</h2>
+<p>Land after the single-project migrator is verified on main. Qualify no-workspace adoption, existing-workspace additions, blocked-member all-or-nothing preflight, injected commit/rollback failures, interruption recovery, and timestamp-preserving repeats. The rollout changes files only after an explicit workspace migration request. Rollback uses the recorded transaction or a reviewed follow-up change; it never deletes classic manifests or discards unresolved recovery state.</p>
+<h2 id="campaign-completion">Campaign completion</h2>
+<p>This campaign is complete only after one reviewable PR has landed on <code>main</code> and the campaign-owned worktree and local/remote branches have been removed. Passing tests or opening a PR alone is not completion.</p>
+<ol>
+<li>Start from current <code>main</code> after the prerequisite campaigns have landed. Use one owned branch and worktree for this campaign, and record their identities.</li>
+<li>Complete behavior, tests, documentation, relevant formatter/AOT checks, and the repository's required checks. Update the PR description and evidence for its final head; address verified review findings.</li>
+<li>When implementation is complete, sync/archive this OpenSpec change in the campaign PR, preserve the reviewable design and specs, and validate the resulting planning state.</li>
+<li>Merge through the repository's normal review and required-check policy. No force push, admin bypass, deployment, or release is implied by this plan.</li>
+<li>Verify authoritative PR merged state, capture its landed commit SHA, and verify the change is present on <code>main</code>. After confirming the worktree has no unique uncommitted/unmerged work, remove that campaign's worktree and local/remote branches through the owning workspace/forge tools. Check they are absent. Do not force removal or prune unrelated artifacts.</li>
+<li>Report the PR URL, landed SHA, check/review evidence, archive/spec-sync outcome, and cleanup results. Preserve unrelated work and unresolved recovery journals; if cleanup or recovery is blocked, report it and keep the campaign unfinished.</li>
+</ol>
+
+</main>
+</body>
+</html>

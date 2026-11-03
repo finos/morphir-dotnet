@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-project-workspace-discovery</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-project-workspace-discovery</h1>
+<p class="meta">OpenSpec change | 2026-11-02 | Planning only; implementation pending</p>
+<p>Read the <a href="proposal.md">proposal</a>, <a href="specs/morphir-project-system/spec.md">morphir-project-system</a>, and the <a href="tasks.md">tasks</a>.</p>
+<nav class="toc" aria-label="Contents"><ul><li><a href="#context">Context</a></li><li><a href="#goals">Goals and non-goals</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#risks">Risks and trade-offs</a></li><li><a href="#migration">Migration plan</a></li><li><a href="#campaign-completion">Campaign completion</a></li></ul></nav>
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for motivation. WorkspaceDiscovery currently walks for .git and .morphir independently and prefers the Git result. ManagementScenario registers that existing type for artifact-management commands. The preceding shared-configuration campaign supplies typed primary parsing and resolution, but has no filesystem discovery.</p>
+<h2 id="goals">Goals and non-goals</h2>
+<p>One shared policy must produce the same roots, member inventory, and source evidence from native and mounted trees. Keep file access at host boundaries and preserve current artifact-management behavior through its legacy entry point. This campaign adds no editing or CLI command family.</p>
+<h2 id="decisions">Decisions</h2>
+<h3 id="disc-1">DISC-1. Run the root walk over explicit file-tree evidence</h3>
+<p>Add project/workspace records and discovery policy in Morphir.Configuration. The policy consumes known directory/file evidence and requests missing listings/content through a small shared boundary; Morphir.Configuration.IO fulfills those requests for native paths or in-memory adapters. Parse nearest primaries first, remember nearest project, and stop at the nearest merged workspace declaration or supplied boundary. This avoids having each host implement a different upward walk or using Git as a project-system declaration. Alternative considered: Separate per-host root walkers were rejected because their stopping rules would drift.</p>
+<h3 id="lay-1">LAY-1. Use one candidate inventory per logical location</h3>
+<p>Enumerate root, hidden, and dot-config stems as alternatives within each format group. Supplemental morphir-workspace.json contributes first in the JSON group. Check every same-group alternative before selecting values, preserving all ambiguous paths in the error. A hidden config's parent project location anchors relative paths; the hidden directory does not become a member. Alternative considered: Choosing a layout by precedence was rejected because it would hide ambiguous candidates.</p>
+<h3 id="mem-1">MEM-1. Separate root discovery, membership, and selection</h3>
+<p>After selecting a workspace, expand root-relative members/exclusions with deterministic path ordering, preserve virtual versus root-project identity, and record invalid literal members rather than silently dropping them. Selection is a separate pure operation over canonical member paths, unique names, invocation ownership, and default_member. This lets an editor inspect all projects without guessing the command's intended selection. Keep the owning workspace context separate from inherited member settings; it supplies topology and output-root semantics without copying the root's project/workspace subtrees into the member document. Alternative considered: Combining discovery with one command's selection was rejected because editors and aggregate migration need the complete inventory.</p>
+<h3 id="host-1">HOST-1. Inject machine paths and environment explicitly</h3>
+<p>The IO adapter resolves native platform directory inputs and builds system/global alternatives, adjacent personal files, and active-profile requests. The policy handles format ambiguity and isolation consistently. Reject relative XDG_CONFIG_HOME and let nonempty MORPHIR_HOME relocate only the home alternative. A browser host supplies its permitted mounts and no ambient native path access. Alternative considered: Reading ambient platform state inside pure rules was rejected because mounted hosts cannot reproduce or authorize it.</p>
+<h3 id="comp-1">COMP-1. Leave legacy discovery wired to existing callers</h3>
+<p>Introduce new document-aware APIs and opt new configuration/project consumers into them. ManagementScenario's existing Git-first entry point remains unchanged. Regression-test its existing tests alongside new native/in-memory parity fixtures; a broad replacement of WorkspaceDiscovery would silently alter artifact installation locations. Alternative considered: Replacing the legacy discovery implementation in place was rejected because it could change existing artifact locations.</p>
+<h2 id="risks">Risks and trade-offs</h2>
+<table><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody><tr><td>A member's project primary hides a parent workspace</td><td>Exercise member/src invocations, nested declared workspaces, and nearest-project fallback with observed read lists.</td></tr><tr><td>Directory enumeration or symbolic links escape host permissions</td><td>Normalize paths, enforce the supplied boundary, skip discovered links, and have each adapter return typed access failures.</td></tr><tr><td>Glob expansion creates hidden or duplicate projects</td><td>Keep config directories out of members, sort canonical paths, diagnose duplicate names and missing/invalid literal members.</td></tr></tbody></table>
+<h2 id="migration">Migration plan</h2>
+<p>Ship the new library entry points after shared configuration lands. Keep current tooling discovery as a compatibility path; new config inspection will use the new API. Document the different declaration rule and avoid changing existing Git-first callers in this campaign. Rollback is removal of the new consumer registration, with no file changes.</p>
+<h2 id="campaign-completion">Campaign completion</h2>
+<p>This campaign is complete only after one reviewable PR has landed on <code>main</code> and the campaign-owned worktree and local/remote branches have been removed. Passing tests or opening a PR alone is not completion.</p>
+<ol>
+<li>Start from current <code>main</code> after the prerequisite campaigns have landed. Use one owned branch and worktree for this campaign, and record their identities.</li>
+<li>Complete behavior, tests, documentation, relevant formatter/AOT checks, and the repository's required checks. Update the PR description and evidence for its final head; address verified review findings.</li>
+<li>When implementation is complete, sync/archive this OpenSpec change in the campaign PR, preserve the reviewable design and specs, and validate the resulting planning state.</li>
+<li>Merge through the repository's normal review and required-check policy. No force push, admin bypass, deployment, or release is implied by this plan.</li>
+<li>Verify authoritative PR merged state, capture its landed commit SHA, and verify the change is present on <code>main</code>. After confirming the worktree has no unique uncommitted/unmerged work, remove that campaign's worktree and local/remote branches through the owning workspace/forge tools. Check they are absent. Do not force removal or prune unrelated artifacts.</li>
+<li>Report the PR URL, landed SHA, check/review evidence, archive/spec-sync outcome, and cleanup results. Preserve unrelated work and unresolved recovery journals; if cleanup or recovery is blocked, report it and keep the campaign unfinished.</li>
+</ol>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-classic-project-migration</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-classic-project-migration</h1>
+<p class="meta">OpenSpec change | 2026-11-02 | Planning only; implementation pending</p>
+<p>Read the <a href="proposal.md">proposal</a>, <a href="specs/classic-project-migration/spec.md">classic-project-migration</a>, and the <a href="tasks.md">tasks</a>.</p>
+<nav class="toc" aria-label="Contents"><ul><li><a href="#context">Context</a></li><li><a href="#goals">Goals and non-goals</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#risks">Risks and trade-offs</a></li><li><a href="#migration">Migration plan</a></li><li><a href="#campaign-completion">Campaign completion</a></li></ul></nav>
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for motivation. Classic loading normalizes three manifest fields and may warn about ignored legacy dependency/decorations shapes. That compatibility reader alone cannot prove a conversion is lossless. Shared discovery, scoped editing, and write preconditions are available from prior campaigns.</p>
+<h2 id="goals">Goals and non-goals</h2>
+<p>Migrate one project with a complete source-field ledger and verify the TOML independently of its classic source. Keep classic files, project source code, IR versions, workspace membership changes, and batch coordination outside the operation.</p>
+<h2 id="decisions">Decisions</h2>
+<h3 id="mig-1">MIG-1. Use a project-owned shared planner</h3>
+<p>Add a pure project migration planner and an IO apply coordinator reusing the edit boundary. project migrate accepts one directory or morphir.json, with current unambiguous project fallback. Reject morphir-ir.json and sibling batches. Support dry-run, JSON, and a supported same-project TOML output layout. Keep config focused on settings operations; no config migrate alias is needed for an unshipped interface. Alternative considered: Placing migration under config was rejected because adopting a project system is broader than editing one setting.</p>
+<h3 id="map-1">MAP-1. Account for every original field</h3>
+<p>Keep the original parsed manifest alongside normalization results. Record mapped, equivalently retained, or blocking status for each setting. Map name/sourceDirectory/exposedModules and materialize the Elm/checkpoint defaults that arose from recognizing a classic manifest. Preserve supported extras and path anchors. Nonempty unsupported dependency/decorations shapes block application; warning-and-ignore reader behavior cannot authorize dropping them. Alternative considered: Converting only the normalized effective document was rejected because ignored fields would disappear.</p>
+<h3 id="eq-1">EQ-1. Verify a candidate without the legacy file</h3>
+<p>Construct before and candidate snapshots using declared base workspace context. Remove the classic source from the candidate and exclude ambient machine, personal, environment, CLI, and activated-profile overlays from both comparisons. Compare typed project values and resolved path meaning; report provenance changes separately. This prevents a global or profile override from hiding a conversion error and prevents the preserved classic source from supplying forgotten values. Alternative considered: Comparing ordinary ambient effective configuration was rejected because personal/runtime values can mask errors.</p>
+<h3 id="cnfl-1">CNFL-1. Merge only equivalent or missing target entries</h3>
+<p>Use the token-preserving editor to add missing values to an existing target, retain equal values, and block conflicting values with source/target origins. Reject alternate-primary ambiguity and output layouts that change project-relative paths. Identical repeat plans have no writes. Never add an automatic overwrite or drop-unsupported option. Alternative considered: Automatically overwriting target conflicts was rejected because it would discard deliberate existing settings.</p>
+<h3 id="apply-1">APPLY-1. Reuse preconditioned application and keep the source</h3>
+<p>The plan fingerprints classic source, target, and relevant workspace evidence. Apply rechecks the full set and uses the editor's staged atomic target replacement and explicit recovery outcome. The source remains byte-identical. Legacy consumers can continue using it until a separate deliberate source-removal decision; success does not imply those consumers have switched. Alternative considered: Deleting the classic manifest during migration was rejected because older consumers may still require it.</p>
+<h2 id="risks">Risks and trade-offs</h2>
+<table><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody><tr><td>A legacy default is omitted from TOML</td><td>Test equivalence with the classic source absent and assert Elm/checkpoint defaults explicitly.</td></tr><tr><td>Loader drops data before migration sees it</td><td>Use the raw-field ledger rather than a normalized effective result as the conversion input.</td></tr><tr><td>Existing TOML masks a source conflict</td><td>Compare mapped entries directly and refuse differing target values before candidate resolution.</td></tr></tbody></table>
+<h2 id="migration">Migration plan</h2>
+<p>Ship project migrate only after discovery and editing have landed. Begin with standalone/member dry-run fixtures, then apply/no-op/conflict cases using unchanged classic sources. Document before/after files and manual blockers. Rollback leaves source manifests usable and preserves any TOML the user has subsequently edited; it does not delete generated configuration automatically.</p>
+<h2 id="campaign-completion">Campaign completion</h2>
+<p>This campaign is complete only after one reviewable PR has landed on <code>main</code> and the campaign-owned worktree and local/remote branches have been removed. Passing tests or opening a PR alone is not completion.</p>
+<ol>
+<li>Start from current <code>main</code> after the prerequisite campaigns have landed. Use one owned branch and worktree for this campaign, and record their identities.</li>
+<li>Complete behavior, tests, documentation, relevant formatter/AOT checks, and the repository's required checks. Update the PR description and evidence for its final head; address verified review findings.</li>
+<li>When implementation is complete, sync/archive this OpenSpec change in the campaign PR, preserve the reviewable design and specs, and validate the resulting planning state.</li>
+<li>Merge through the repository's normal review and required-check policy. No force push, admin bypass, deployment, or release is implied by this plan.</li>
+<li>Verify authoritative PR merged state, capture its landed commit SHA, and verify the change is present on <code>main</code>. After confirming the worktree has no unique uncommitted/unmerged work, remove that campaign's worktree and local/remote branches through the owning workspace/forge tools. Check they are absent. Do not force removal or prune unrelated artifacts.</li>
+<li>Report the PR URL, landed SHA, check/review evidence, archive/spec-sync outcome, and cleanup results. Preserve unrelated work and unresolved recovery journals; if cleanup or recovery is blocked, report it and keep the campaign unfinished.</li>
+</ol>
+
+</main>
+</body>
+</html>

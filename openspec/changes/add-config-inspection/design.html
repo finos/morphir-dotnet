@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-config-inspection</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-config-inspection</h1>
+<p class="meta">OpenSpec change | 2026-11-02 | Planning only; implementation pending</p>
+<p>Read the <a href="proposal.md">proposal</a>, <a href="specs/configuration-inspection/spec.md">configuration-inspection</a>, <a href="specs/dotnet-configuration-integration/spec.md">dotnet-configuration-integration</a>, and the <a href="tasks.md">tasks</a>.</p>
+<nav class="toc" aria-label="Contents"><ul><li><a href="#context">Context</a></li><li><a href="#goals">Goals and non-goals</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#risks">Risks and trade-offs</a></li><li><a href="#migration">Migration plan</a></li><li><a href="#campaign-completion">Campaign completion</a></li></ul></nav>
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for motivation. MorphirCliBuilder and ICommandProvider already support additive command scenarios. The current CLI has no config family, and default hosting loads unrelated host settings. Shared configuration and discovery supply the resolved canonical result before this campaign. IConfiguration uses flattened strings and case-insensitive keys, so it cannot be the canonical Morphir model.</p>
+<h2 id="goals">Goals and non-goals</h2>
+<p>Expose shared typed queries and familiar .NET consumption with thin CLI formatting. Keep writes, migrations, reload/watch services, and changes to unrelated command behavior outside this campaign.</p>
+<h2 id="decisions">Decisions</h2>
+<h3 id="query-1">QUERY-1. Put queries and key paths in the pure shared library</h3>
+<p>Define immutable query results for get/list/show/path/explain over the resolved result and source reports. Use segmented, case-sensitive paths with dot separators and JSON-escaped double-quoted literal segments; arrays remain whole query values. Scope filtering chooses explicit source groups before query evaluation, never fills a scoped miss from effective defaults. This grammar is reused by editing. Alternative considered: Querying only IConfiguration was rejected because it loses typed values, case-sensitive paths, and source history.</p>
+<h3 id="dot-1">DOT-1. Project one resolved result into IConfiguration</h3>
+<p>Create Morphir.Configuration.Microsoft as an optional C# adapter referencing the core and reusable loading boundary. AddMorphirConfiguration accepts explicit options or an already resolved result and registers a single projected provider. Keep canonical document/provenance accessible separately. Do not add raw JSON/YAML/TOML providers to ConfigurationBuilder because their indexed merge would leave stale array elements. Validate empty-array binding against .NET 10's supported explicit/source-generated options path. Alternative considered: Registering one raw provider per format was rejected because indexed arrays can retain lower-source elements.</p>
+<h3 id="key-1">KEY-1. Reject .NET projection collisions</h3>
+<p>Before projection, detect canonical paths that collide after case folding or colon-based hierarchy encoding. Return typed diagnostics with the original paths; never silently pick a key. The canonical result remains usable even if optional projection fails. Escaping into an undocumented flattened format would confuse standard .NET consumers. Alternative considered: Inventing an escaping convention for standard .NET keys was rejected because ordinary binders would not understand it.</p>
+<h3 id="cli-1">CLI-1. Register config reads through one additive scenario</h3>
+<p>Add a configuration scenario/provider that registers services without performing I/O. Parse profile/target/key-path usage before discovery; help must not build resolution services or read configuration. Invoke shared query services and format source-generated DTOs through existing stdout helpers. Do not change default host logging or claim existing commands consume settings they have not adopted. Alternative considered: Loading configuration during command construction was rejected because help and invalid usage must avoid I/O.</p>
+<h3 id="out-1">OUT-1. Use one redaction and result contract across hosts</h3>
+<p>Redact sensitive values before human/JSON presentation, retain safe key/scope/origin metadata, and never resolve references. Use ordered result entries and source reports. JSON output is one typed result with diagnostics; stderr carries human diagnostics. Distinguish missing values from empty values and map success/missing/load failures to 0/1/2. Alternative considered: Independent redaction in each formatter was rejected because host and CLI output could disagree.</p>
+<h2 id="risks">Risks and trade-offs</h2>
+<table><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody><tr><td>String projection loses canonical distinctions</td><td>Retain the typed document and warn consumers not to rebuild it from IConfiguration; test scalar, nested, and array projections.</td></tr><tr><td>CLI setup triggers configuration during help</td><td>Keep construction side-effect-free and test help in deliberately malformed workspaces with read-observing adapters.</td></tr><tr><td>AOT serialization or binding reflects over F# unions</td><td>Use explicit projection and source-generated C# DTO/binding paths with a published minimal-host test.</td></tr></tbody></table>
+<h2 id="migration">Migration plan</h2>
+<p>Land only after shared resolution and discovery are available on main. Add the new CLI scenario and optional adapter with documented opt-in examples. Existing IR and management commands retain their current configuration behavior. Rollback removes additive registrations; no project file is edited.</p>
+<h2 id="campaign-completion">Campaign completion</h2>
+<p>This campaign is complete only after one reviewable PR has landed on <code>main</code> and the campaign-owned worktree and local/remote branches have been removed. Passing tests or opening a PR alone is not completion.</p>
+<ol>
+<li>Start from current <code>main</code> after the prerequisite campaigns have landed. Use one owned branch and worktree for this campaign, and record their identities.</li>
+<li>Complete behavior, tests, documentation, relevant formatter/AOT checks, and the repository's required checks. Update the PR description and evidence for its final head; address verified review findings.</li>
+<li>When implementation is complete, sync/archive this OpenSpec change in the campaign PR, preserve the reviewable design and specs, and validate the resulting planning state.</li>
+<li>Merge through the repository's normal review and required-check policy. No force push, admin bypass, deployment, or release is implied by this plan.</li>
+<li>Verify authoritative PR merged state, capture its landed commit SHA, and verify the change is present on <code>main</code>. After confirming the worktree has no unique uncommitted/unmerged work, remove that campaign's worktree and local/remote branches through the owning workspace/forge tools. Check they are absent. Do not force removal or prune unrelated artifacts.</li>
+<li>Report the PR URL, landed SHA, check/review evidence, archive/spec-sync outcome, and cleanup results. Preserve unrelated work and unresolved recovery journals; if cleanup or recovery is blocked, report it and keep the campaign unfinished.</li>
+</ol>
+
+</main>
+</body>
+</html>

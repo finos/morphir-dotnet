@@ -153,6 +153,46 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
    - Incorrect array structure
    - Type mismatches
 
+## Configuration (planned)
+
+The multi-format configuration system and `morphir config` commands below are planned. The current loader still uses TOML cache settings and Git-root-first discovery. See the [guide]({{< relref "/guides/configuration" >}}) for the distinction and the [command reference]({{< relref "/docs/cli/config" >}}) for proposed options.
+
+### Wrong workspace or missing project
+
+In the target design, run `morphir config path` from the same directory as the failing invocation. Check the discovery boundary, the nearest declared `workspace`, member globs/exclusions, and the selected project. A project file does not hide a parent workspace. A Git root or an empty `.morphir` directory does not declare a workspace.
+
+### Ambiguous configuration files
+
+Read every path named in the diagnostic. Keep at most one ordinary primary per format group across the root, hidden, and dot-config layouts. For example, `morphir.yaml` and `morphir.yml` conflict, as do `morphir.toml` and `.morphir/morphir.toml`. JSON, YAML, and TOML may coexist across groups. Supplemental `morphir-workspace.json` may coexist with the ordinary JSON primary.
+
+### A setting still has its old value after an edit
+
+Use `morphir config explain <key>` to identify the winning source. A successful scoped write can remain overridden by a member, profile, personal file, environment variable, or explicit CLI value. Check the target reported by the edit and distinguish scoped inspection from effective inspection.
+
+### A value reappears after unset
+
+`unset` removes the entry only from its target TOML file. A lower-format file, inherited scope, or default can supply it again. Use `get <key> --show-origin` to find the newly effective source. Removing an override does not delete the inherited setting.
+
+### A profile did not load
+
+Check `--profiles`, `--no-profiles`, `MORPHIR_PROFILES`, and the base profile controls. An empty profile environment selector disables profiles, and inactive files are not read. Named profiles are not activated by CI detection alone. For the existing loader's separate CI behavior, inspect `CiProfileMode` and `.morphir/morphir.ci.toml`.
+
+### A configuration write fails
+
+Check the reported target, permissions, parse/validation diagnostics, and whether another process changed the file. Explicit YAML/JSON file targets are readable but not writable through these commands; select a scope with a TOML target. For a concurrent-change conflict, reload and review the new contents before retrying. Failed validation or a write conflict must leave the file unchanged.
+
+### A classic project migration is blocked
+
+Use the planned `morphir project migrate morphir.json --dry-run` to inspect mappings, target conflicts, and verification results. Resolve conflicting TOML values deliberately. Nonempty legacy dependency or decoration structures need supported mappings; migration must not discard them merely because compatibility loading ignores them. An equivalence failure can also indicate a missing legacy default or changed relative-path meaning.
+
+Validation and stale-plan failures leave both files unchanged. Verification excludes the classic source and ambient machine, personal, environment, CLI, and activated-profile overlays, so success demonstrates that the new file stands on its own in the declared base workspace context. Keeping `morphir.json` afterward is intentional for older consumers; it is not a failed migration. See the [project command reference]({{< relref "/docs/cli/project" >}}).
+
+### Workspace migration has a blocked member or needs recovery
+
+Use `morphir workspace migrate <directory> --dry-run` to inspect the bounded inventory and all member plans. Exclusions and nested workspaces constrain what can be adopted. A conflict in one selected project blocks the batch before destination replacement.
+
+If a commit fails after some replacements, inspect the reported restored/unresolved paths and retained recovery journal. Overlapping writes stay blocked until recovery is resolved. Do not delete recovery data to force another run. Successful application and complete rollback remove temporary transaction artifacts. See the [workspace reference]({{< relref "/docs/cli/workspace" >}}).
+
 ## Performance Issues
 
 ### Validation Takes Too Long
