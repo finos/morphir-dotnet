@@ -18,6 +18,11 @@ public static partial class ProjectSystem
     /// <summary>Resolve one root or member with the owning topology kept separately from inherited settings.</summary>
     public static DocumentResolution Load(IProjectTree tree, ProjectDiscovery discovery, ProjectInfo? project = null,
         ProjectLoadOptions? options = null)
+        => LoadDetailed(tree, discovery, project, options).Resolution;
+
+    /// <summary>Resolve once while retaining canonical layers for pure inspection.</summary>
+    public static ResolutionDetails LoadDetailed(IProjectTree tree, ProjectDiscovery discovery, ProjectInfo? project = null,
+        ProjectLoadOptions? options = null)
     {
         options ??= new();
         var member = project is not null && project.Path != discovery.Location;
@@ -125,9 +130,11 @@ public static partial class ProjectSystem
         }
         var input = new ResolutionInput(ReaderValues.List(sources), options.Input.Environment, options.Input.Explicit,
             options.Input.Profiles, member ? ProjectScope.Member : ProjectScope.Root, owner, options.Input.SuppressWarnings);
-        var result = Resolver.resolve(input);
-        return new(result.Effective, result.Origins, ReaderValues.List(result.Sources.Select(s => skipped.GetValueOrDefault(s.Source.Path, s))),
+        var detailed = Resolver.resolveDetailed(input);
+        var result = detailed.Resolution;
+        var resolution = new DocumentResolution(result.Effective, result.Origins, ReaderValues.List(result.Sources.Select(s => skipped.GetValueOrDefault(s.Source.Path, s))),
             result.ActiveProfiles, result.OwningWorkspace, ReaderValues.List(result.Diagnostics.Concat(diagnostics).Distinct()));
+        return new(resolution, detailed.Layers, detailed.Scope);
     }
 
     private static SourceInput Rebind(SourceInput input, SourceRole role) => new(

@@ -15,3 +15,15 @@ Only inspection is implemented here. Editing and migration remain active plans. 
 Heavy .NET jobs run serially with `DOTNET_PROCESSOR_COUNT=2`, MSBuild `-m:1` and bounded workers. Filesystem tests use physical `TMPDIR`, `TEMP`, `TMP` under `/private/tmp/morphir-config-inspection`. Reproducible logs and binaries live there. `docs/superpowers/` is locally excluded and never staged.
 
 The existing resolution result and constructor remain compatible. Additive detailed resolution retains canonical layers and applied values for queries without rereading sources. Microsoft projection consumes one resolved document.
+
+## Red checkpoints
+
+- Shared tracer compile failed because `resolveDetailed` and `Inspection` did not exist, then its runtime test failed against a minimal `get` stub: effective global value expected but missing. Logs `core-compile-red.log`, `core-runtime-red.log` under the owned temp root. The configured Expecto runner selected `Inspection` with `--filter-test-list Inspection --sequenced`.
+- Microsoft adapter compile failed for missing projection API, then executable TUnit/Reqnroll ran 13 cases against no-behavior stubs: 13 failed. Logs `microsoft-compile-red.log`, `microsoft-runtime-red.log`.
+
+- Shared query cases grew incrementally after the tracer: quoted-path compile red then 2 green; recursive secret/container redaction runtime red then 3 green. List/source-report/explain stubs then fail 3 of 7 cases, followed by embedded-host Reqnroll red 3/4. Logs `keypath-*`, `redaction-*`, `queries-red*`, `shared-bdd-red*`. These cover empty values, sorted quoted entries, source statuses, scoped ownership and member replacement history.
+- CLI configured subprocess runner executes all five read verbs against the actual unregistered CLI: 29/29 fail before production registration. Logs `cli-red-build.log`, `cli-red-test-build.log`, `cli-red.log`.
+
+## Shared query green checkpoint
+
+Core 131/131 and IO/BDD 170/170 pass using executable configured runners, with physical temp paths for filesystem tests. Both builds have zero warnings/errors. Logs `core-green-build.log`, `core-green.log`, `shared-bdd-green-build.log`, `shared-bdd-green.log`. The shared API reference is `docs/content/docs/configuration/inspection.md`. Existing `DocumentResolution` and cache-only APIs remain intact; additive detailed resolution retains canonical and applied layers without extra reads.
