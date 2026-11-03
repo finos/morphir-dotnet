@@ -2,6 +2,9 @@ using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Core;
 using Morphir.Configuration;
 using Morphir.Configuration.IO;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 static FSharpList<T> List<T>(IEnumerable<T> items) => ListModule.OfSeq(items);
 static void Check(bool condition, string message)
@@ -9,7 +12,7 @@ static void Check(bool condition, string message)
     if (!condition) throw new InvalidOperationException(message);
 }
 static ConfigurationDocument Document(SourceInput input) => input.Content is SourceContent.Available available
-    ? available.Item : throw new InvalidOperationException($"Reader rejected {input.Source.Path}: {input.Content}");
+    ? available.Item : throw new InvalidOperationException($"Reader rejected {input.Source.Path}");
 static ConfigValue At(ConfigValue tree, params string[] path) => ConfigTree.tryFind(List(path), tree).Value;
 static ResolutionInput Input(IEnumerable<SourceInput> sources, ProfileSelection selection) =>
     new(List(sources), MapModule.Empty<string, string>(), DocumentDefaults.emptyValue,
@@ -17,6 +20,43 @@ static ResolutionInput Input(IEnumerable<SourceInput> sources, ProfileSelection 
 
 try
 {
+    var syntaxCases = 0;
+    var morphirCases = 0;
+    if (args.Length != 0)
+    {
+        Check(args.Length == 2 && args[0] == "--fixtures", "Expected --fixtures <configuration fixture root>");
+        var fixtureRoot = Path.GetFullPath(args[1]);
+        var grammarRoot = Path.Combine(fixtureRoot, "json5-tests");
+        using var manifest = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(grammarRoot, "manifest.json")));
+        Check(manifest.RootElement.GetProperty("revision").GetString() == "ceb24d4080137d70833f86c25659c1331b80a387", "Unexpected grammar revision");
+        foreach (var entry in manifest.RootElement.GetProperty("files").EnumerateArray())
+        {
+            var relative = entry.GetProperty("path").GetString()!;
+            var bytes = File.ReadAllBytes(Path.Combine(grammarRoot, relative));
+            Check(Convert.ToHexStringLower(SHA256.HashData(bytes)) == entry.GetProperty("sha256").GetString(), "Grammar hash mismatch: " + relative);
+            var expected = entry.GetProperty("expected").GetString();
+            if (expected == "metadata") continue;
+            foreach (var extension in new[] { ".json", ".json5" })
+            {
+                var parsed = ConfigurationReader.ReadText(relative + extension, "{value:\n" + Encoding.UTF8.GetString(bytes) + "\n}");
+                Check((parsed.Content is SourceContent.Available) == (expected == "accepted"), "Grammar mismatch: " + relative + extension);
+                syntaxCases++;
+            }
+        }
+        Check(syntaxCases == 228, "Expected 228 JSON5 syntax checks");
+        foreach (var corpus in new[] { "toml-corpus.json", "json-corpus.json" })
+        {
+            using var entries = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(fixtureRoot, corpus)));
+            foreach (var entry in entries.RootElement.EnumerateArray())
+            {
+                var text = entry.GetProperty("text").GetString()!;
+                Check(Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text))) == entry.GetProperty("sha256").GetString(), "Morphir hash mismatch");
+                _ = Document(ConfigurationReader.ReadText(entry.GetProperty("path").GetString()!, text));
+                morphirCases++;
+            }
+        }
+        Check(morphirCases == 26, "Expected 26 pinned Morphir documents");
+    }
     var json = Document(ConfigurationReader.ReadText("morphir.json5", "{project:{name:'Acme'},custom:{count:4,text:'4',strict:true,list:[1,2,],secret:{env:'TOKEN'}}}"));
     var yaml = Document(ConfigurationReader.ReadText("morphir.yaml", "project:\n  name: Acme\ncustom:\n  count: 4\n  text: '4'\n  strict: true\n  list: [1,2]\n  secret: {env: TOKEN}\n"));
     var toml = Document(ConfigurationReader.ReadText("morphir.toml", "[project]\nname='Acme'\n[custom]\ncount=4\ntext='4'\nstrict=true\nlist=[1,2]\nsecret={env='TOKEN'}\n"));
@@ -58,7 +98,7 @@ try
     var profileResult = ConfigurationLoader.LoadAndResolve(Input([], ProfileSelection.NewNames(List(["postgres", "metrics"]))),
         [new ConfigurationCandidate(postgres.Source, () => postgres), new ConfigurationCandidate(metrics.Source, () => metrics)]);
     Check(At(profileResult.Effective, "custom", "winner").Equals(ConfigValue.NewString("workspace metrics")), "Profile name precedence failed");
-    Console.WriteLine("{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true}");
+    Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
     return 0;
 }
 catch (Exception error)

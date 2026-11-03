@@ -14,7 +14,7 @@ tests/Fixtures/Configuration/PROVENANCE.md.
 JSON5 conformance fixture suite from json5/json5-tests, revision
 ceb24d4080137d70833f86c25659c1331b80a387, is distributed under the MIT license.
 Copyright (c) 2012-2016 Aseem Kishore, and others.
-The full license is retained in tests/Fixtures/Configuration/json5-tests/LICENSE.
+The full license is retained in tests/Fixtures/Configuration/json5-tests/LICENSE.md.
 The CsToml and YamlDotNet reader packages retain their upstream package licenses.
 
 Morphir classic IR to F# backend, Myriad integration and car rental example

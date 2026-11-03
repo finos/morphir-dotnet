@@ -22,7 +22,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 4. Compatibility and integration
 
-- [ ] 4.1 Keep existing cache models, Merge functions, CiProfileMode, and legacy resolver callers working through additive contracts; run existing Morphir.Configuration.Tests and tooling configuration tests and document the opt-in transition.
+- [x] 4.1 Keep existing cache models, Merge functions, CiProfileMode, and legacy resolver callers working through additive contracts; run existing Morphir.Configuration.Tests and tooling configuration tests and document the opt-in transition.
 - [ ] 4.2 Verify a non-CLI in-memory host resolves the same fixtures as the reader adapter, run format/build/analyzers and applicable configured tests/coverage, and publish/run a trimmed adapter smoke host; record exact commands and results before PR review.
 
 ## Workflow follow-up

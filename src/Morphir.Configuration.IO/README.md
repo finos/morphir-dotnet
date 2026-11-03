@@ -86,6 +86,9 @@ the pinned [fixture provenance](../../tests/Fixtures/Configuration/PROVENANCE.md
 The [validation journal](VALIDATION.md) records actual commands and checkpoint
 status. Qualification is complete only when the full reader suite and both the
 trimmed and native smoke hosts pass.
+See the [runtime qualification commands and dependency diagnostics](../../tests/Morphir.Configuration.IO.Smoke/README.md).
+The pinned dependencies emit linker/AOT warnings. Successful runtime qualification
+does not claim a warning-free strict linker gate.
 
 The existing cache-only `MorphirConfig`, merge functions, `CiProfileMode` and
 Git-first tooling resolver keep their old entry points. Hosts opt into these new

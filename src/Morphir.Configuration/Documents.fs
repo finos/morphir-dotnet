@@ -36,12 +36,13 @@ type SourceRole =
     | Explicit = 10
     | WorkspaceUserOverride = 11
 
-type SourceIdentity =
-    { Path: string
-      Format: DocumentFormat
-      Role: SourceRole
-      Order: int
-      Profile: string option }
+type SourceIdentity = {
+    Path: string
+    Format: DocumentFormat
+    Role: SourceRole
+    Order: int
+    Profile: string option
+}
 
 type SourcePosition = { Line: int; Column: int }
 
@@ -50,28 +51,31 @@ type DiagnosticSeverity =
     | Warning = 0
     | Error = 1
 
-type ConfigDiagnostic =
-    { Code: string
-      Message: string
-      Severity: DiagnosticSeverity
-      Source: SourceIdentity
-      KeyPath: string list
-      Position: SourcePosition option }
+type ConfigDiagnostic = {
+    Code: string
+    Message: string
+    Severity: DiagnosticSeverity
+    Source: SourceIdentity
+    KeyPath: string list
+    Position: SourcePosition option
+}
 
 /// Every legacy field is accounted for, including fields not projected into canonical values.
-type LegacyField =
-    { RawPath: string list
-      CanonicalPath: string list option
-      Value: ConfigValue
-      Disposition: string }
+type LegacyField = {
+    RawPath: string list
+    CanonicalPath: string list option
+    Value: ConfigValue
+    Disposition: string
+}
 
-type ConfigurationDocument =
-    { Source: SourceIdentity
-      Raw: ConfigValue
-      Values: ConfigValue
-      Positions: Map<string list, SourcePosition>
-      Diagnostics: ConfigDiagnostic list
-      LegacyFields: LegacyField list }
+type ConfigurationDocument = {
+    Source: SourceIdentity
+    Raw: ConfigValue
+    Values: ConfigValue
+    Positions: Map<string list, SourcePosition>
+    Diagnostics: ConfigDiagnostic list
+    LegacyFields: LegacyField list
+}
 
 [<RequireQualifiedAccess>]
 type SourceContent =
@@ -79,10 +83,11 @@ type SourceContent =
     | Missing
     | Invalid of ConfigDiagnostic list
 
-type SourceInput =
-    { Source: SourceIdentity
-      Content: SourceContent
-      Required: bool }
+type SourceInput = {
+    Source: SourceIdentity
+    Content: SourceContent
+    Required: bool
+}
 
 [<RequireQualifiedAccess>]
 type ProfileSelection =
@@ -90,15 +95,17 @@ type ProfileSelection =
     | Disabled
     | Names of string list
 
-type ProfileOptions =
-    { Selection: ProfileSelection
-      MaxDepth: int
-      MaxExpansions: int }
+type ProfileOptions = {
+    Selection: ProfileSelection
+    MaxDepth: int
+    MaxExpansions: int
+}
 
-type ProfilePlan =
-    { Enabled: bool
-      Active: string list
-      Diagnostics: ConfigDiagnostic list }
+type ProfilePlan = {
+    Enabled: bool
+    Active: string list
+    Diagnostics: ConfigDiagnostic list
+}
 
 [<RequireQualifiedAccess>]
 type ProjectScope =
@@ -106,22 +113,25 @@ type ProjectScope =
     | Member
 
 /// Host-supplied ownership context. Resolution never discovers or changes it.
-type OwningWorkspace =
-    { Root: string
-      OutputDirectory: string option }
+type OwningWorkspace = {
+    Root: string
+    OutputDirectory: string option
+}
 
-type ResolutionInput =
-    { Sources: SourceInput list
-      Environment: Map<string, string>
-      Explicit: ConfigValue
-      Profiles: ProfileOptions
-      Scope: ProjectScope
-      OwningWorkspace: OwningWorkspace option
-      SuppressWarnings: string list }
+type ResolutionInput = {
+    Sources: SourceInput list
+    Environment: Map<string, string>
+    Explicit: ConfigValue
+    Profiles: ProfileOptions
+    Scope: ProjectScope
+    OwningWorkspace: OwningWorkspace option
+    SuppressWarnings: string list
+}
 
-type ValueOrigin =
-    { Source: SourceIdentity
-      Position: SourcePosition option }
+type ValueOrigin = {
+    Source: SourceIdentity
+    Position: SourcePosition option
+}
 
 [<RequireQualifiedAccess>]
 type SourceStatus =
@@ -130,36 +140,40 @@ type SourceStatus =
     | Skipped
     | Failed
 
-type SourceReport =
-    { Source: SourceIdentity
-      Status: SourceStatus
-      Contributed: bool
-      Detail: string }
+type SourceReport = {
+    Source: SourceIdentity
+    Status: SourceStatus
+    Contributed: bool
+    Detail: string
+}
 
-type DocumentResolution =
-    { Effective: ConfigValue
-      Origins: Map<string list, ValueOrigin>
-      Sources: SourceReport list
-      ActiveProfiles: string list
-      OwningWorkspace: OwningWorkspace option
-      Diagnostics: ConfigDiagnostic list }
+type DocumentResolution = {
+    Effective: ConfigValue
+    Origins: Map<string list, ValueOrigin>
+    Sources: SourceReport list
+    ActiveProfiles: string list
+    OwningWorkspace: OwningWorkspace option
+    Diagnostics: ConfigDiagnostic list
+}
 
 module DocumentDefaults =
     let emptyValue = ConfigValue.Object Map.empty
 
-    let profileOptions =
-        { Selection = ProfileSelection.Automatic
-          MaxDepth = 32
-          MaxExpansions = 4096 }
+    let profileOptions = {
+        Selection = ProfileSelection.Automatic
+        MaxDepth = 32
+        MaxExpansions = 4096
+    }
 
-    let resolutionInput =
-        { Sources = []
-          Environment = Map.empty
-          Explicit = emptyValue
-          Profiles = profileOptions
-          Scope = ProjectScope.Root
-          OwningWorkspace = None
-          SuppressWarnings = [] }
+    let resolutionInput = {
+        Sources = []
+        Environment = Map.empty
+        Explicit = emptyValue
+        Profiles = profileOptions
+        Scope = ProjectScope.Root
+        OwningWorkspace = None
+        SuppressWarnings = []
+    }
 
 /// Tree operations shared by embedded hosts and adapters.
 module ConfigTree =
@@ -168,30 +182,41 @@ module ConfigTree =
         match value with
         | ConfigValue.Object fields ->
             fields
-            |> Map.filter (fun _ value -> value <> ConfigValue.Null)
+            |> Map.filter (fun _ value ->
+                value
+                <> ConfigValue.Null
+            )
             |> Map.map (fun _ value -> clean value)
             |> ConfigValue.Object
-        | ConfigValue.Array items -> ConfigValue.Array (List.map clean items)
+        | ConfigValue.Array items -> ConfigValue.Array(List.map clean items)
         | _ -> value
 
     let rec tryFind path value =
         match path, value with
         | [], _ -> Some value
         | key :: rest, ConfigValue.Object fields ->
-            Map.tryFind key fields |> Option.bind (tryFind rest)
+            Map.tryFind key fields
+            |> Option.bind (tryFind rest)
         | _ -> None
 
     let rec set path value tree =
         match path with
         | [] -> value
         | key :: rest ->
-            let fields = match tree with ConfigValue.Object fields -> fields | _ -> Map.empty
-            let child = Map.tryFind key fields |> Option.defaultValue DocumentDefaults.emptyValue
-            ConfigValue.Object (Map.add key (set rest value child) fields)
+            let fields =
+                match tree with
+                | ConfigValue.Object fields -> fields
+                | _ -> Map.empty
+
+            let child =
+                Map.tryFind key fields
+                |> Option.defaultValue DocumentDefaults.emptyValue
+
+            ConfigValue.Object(Map.add key (set rest value child) fields)
 
     let remove key tree =
         match tree with
-        | ConfigValue.Object fields -> ConfigValue.Object (Map.remove key fields)
+        | ConfigValue.Object fields -> ConfigValue.Object(Map.remove key fields)
         | _ -> tree
 
 module ValueMerge =
@@ -201,9 +226,19 @@ module ValueMerge =
         | _, ConfigValue.Null -> lower
         | ConfigValue.Object left, ConfigValue.Object right ->
             right
-            |> Map.filter (fun _ value -> value <> ConfigValue.Null)
-            |> Map.fold (fun result key value ->
-                let merged = Map.tryFind key result |> Option.map (fun old -> merge old value) |> Option.defaultValue value
-                Map.add key merged result) left
+            |> Map.filter (fun _ value ->
+                value
+                <> ConfigValue.Null
+            )
+            |> Map.fold
+                (fun result key value ->
+                    let merged =
+                        Map.tryFind key result
+                        |> Option.map (fun old -> merge old value)
+                        |> Option.defaultValue value
+
+                    Map.add key merged result
+                )
+                left
             |> ConfigValue.Object
         | _ -> higher

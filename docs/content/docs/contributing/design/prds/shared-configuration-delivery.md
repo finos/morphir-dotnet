@@ -79,3 +79,37 @@ cleanup. An open PR or checked task list does not complete this campaign.
 - OpenSpec progress is 7/10. Remaining: reader trimming/AOT qualification, legacy
   tooling compatibility, final format/coverage/build evidence. Landing and owned
   worktree/branch cleanup remain parent-coordinated after PR handback.
+
+## Runtime and coverage qualification checkpoint
+
+- `99aa058` protects integration, seven completed tasks and the full-solution
+  build. The physical-temp tooling rerun passes 245/245. Task 4.1 is complete;
+  implementation progress is 8/10 before final qualification tracking.
+- Fantomas 5.2.4 formats owned F# files; `dotnet format` formats owned C# files.
+  C# formatting reports unsupported F# projects, so Fantomas is run separately.
+- After formatting, core build has zero warnings and Expecto passes 88/88.
+  `dotnet test tests/Morphir.Configuration.Tests/Morphir.Configuration.Tests.fsproj --no-build --no-restore -m:1 --collect:'XPlat Code Coverage' --results-directory /tmp/morphir-configuration-core-coverage`
+  also discovers and passes all 88 tests. The configured reader executable passes
+  63/63 with `--coverage --coverage-output-format cobertura --coverage-output /tmp/morphir-configuration-reader-coverage.cobertura.xml`.
+- The raw core-run package line rate is 86.82%; the reader-run adapter package
+  rate is 88.26%, including generated regex implementation. Unioning normalized
+  source-line hits from both configured runners gives core 2074/2208 = 93.93%
+  and authored adapter code 434/461 = 94.14%. Generated `obj/` code is excluded
+  from that authored-source summary. Reproduce with
+  `scripts/configuration/summarize-coverage.py <core-cobertura> <reader-cobertura>`.
+- The strict trimmed linker-as-errors publish fails in the pinned CsToml and
+  FSharp.Core packages. Expanded diagnostics include CsToml generic formatter
+  fallback reflection and FSharp.Core structured formatting/reflection plus
+  IL2040 absent-resource removal entries. No warning suppression was added.
+- Actual trimmed and native `osx-arm64` executables publish and run using normal
+  warning severity, explicitly `-p:ILLinkTreatWarningsAsErrors=false`. The native
+  artifact is confirmed as a Mach-O arm64 executable. Its expanded fixture run
+  succeeds with `syntax_cases=228`, `morphir_cases=26`, and all three formats,
+  normalization, profile loading and host parity checks. This is runtime evidence
+  with a documented dependency-warning limitation, not a warning-free strict
+  linker claim. See the smoke-host README for exact commands and diagnostics.
+- A final semantic review found a schema minimum check coercing very large exact
+  integers through double. Its focused test is observed red after a successful
+  zero-warning build. This checkpoint retains that incomplete regression before
+  fixing the comparison. Final tests, warning-aware runtime qualification and
+  OpenSpec archive/PR handback remain.

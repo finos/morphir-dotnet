@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Generate pure validation rules from the pinned configuration schema, no runtime I/O."""
 import json
+import subprocess
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
@@ -81,4 +82,6 @@ module internal ConfigurationSchema =
 for key, value in schema.get('definitions', {}).items():
     text += '        ' + quoted(key) + ', ' + rules(value) + '\n'
 text += '    ]\n\n    let root = ' + rules(schema) + '\n'
-(root / 'src/Morphir.Configuration/Schema.fs').write_text(text)
+output = root / 'src/Morphir.Configuration/Schema.fs'
+output.write_text(text)
+subprocess.run(['dotnet', 'fantomas', str(output)], cwd=root, check=True)

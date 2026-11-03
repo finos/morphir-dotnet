@@ -206,8 +206,16 @@ internal sealed partial class Json5Reader(string text)
                 throw Error("Decimal and octal string escapes are not JSON5", path);
             builder.Append(escape switch
             {
-                'b' => '\b', 'f' => '\f', 'n' => '\n', 'r' => '\r', 't' => '\t', 'v' => '\v', '0' => '\0',
-                'x' => Hex(2, path), 'u' => Hex(4, path), _ => escape
+                'b' => '\b',
+                'f' => '\f',
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                'v' => '\v',
+                '0' => '\0',
+                'x' => Hex(2, path),
+                'u' => Hex(4, path),
+                _ => escape
             });
         }
         throw Error("Unterminated string", path);
