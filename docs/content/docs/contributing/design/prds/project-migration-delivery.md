@@ -22,3 +22,8 @@ All owned external artifacts are beneath `/private/tmp/morphir-project-migration
 ## Checkpoints
 
 - Setup verified clean checkout, branch ownership, prerequisite ancestry and authoritative editing receipt. Actual tracking issue #476 exists before coding. No runtime changes at this checkpoint.
+
+- Mapping RED: `core-red-mapping.log` exits 1 for the missing pure migration API before its implementation. IO BDD RED: `io-red.log` exits 1 for the missing preview service before its implementation.
+- CLI RED: the actual CLI output was rebuilt successfully, then `cli-red-run.log` runs 27 subprocess BDD cases, all failing for the missing project command. An earlier class-name filter selected zero tests and is not evidence; the corrected category filter is `/*/*/*/*[Category=ProjectMigration]`.
+- Equivalence RED: after mapping compiled, `core-red-verification-02.log` fails for the missing `ProjectMigration.verify` before verification implementation. A preceding reserved-word syntax failure was fixed and is not counted as behavioral evidence.
+- Base workspace pipeline settings may override classic low-priority checkpoint defaults. `planWithContext` uses the base-only before snapshot to materialize the effective legacy defaults, preserving member behavior rather than forcing checkpoint over a declared workspace choice.
