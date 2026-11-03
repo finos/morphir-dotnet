@@ -7,7 +7,7 @@ description: "Workspace discovery through shared libraries, with planned inspect
 
 # Configure a workspace
 
-The shared libraries read these files and expose bounded workspace/member discovery and source loading. Campaign 2 is implemented with final validation and parent review/landing/cleanup pending. The `morphir config`, editing, and project/workspace migration commands shown later remain planned. Use the [PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}) and [delivery journal]({{< relref "/docs/contributing/design/prds/project-workspace-discovery-delivery" >}}) to check implementation and validation status.
+The shared libraries read these files and expose bounded workspace/member discovery and source loading. Campaign 2 is implemented and locally qualified, with parent review/landing/cleanup pending. The `morphir config`, editing, and project/workspace migration commands shown later remain planned. Use the [PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}) and [delivery journal]({{< relref "/docs/contributing/design/prds/project-workspace-discovery-delivery" >}}) to check implementation and validation status.
 
 ## Declare the workspace
 

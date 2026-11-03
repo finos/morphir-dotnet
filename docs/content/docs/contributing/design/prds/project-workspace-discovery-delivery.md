@@ -107,3 +107,72 @@ parent landing and cleanup receipts exist. Future campaigns remain active.
 - Consumer audit confirms ManagementScenario and ConfigResolver still reference
   the unchanged legacy WorkspaceDiscovery. No existing caller was migrated to
   DiscoveryPolicy or ProjectSystem. Task 3.3 is fulfilled and apply reports 7/8.
+
+## Runtime and final delivery qualification
+
+Validated implementation checkpoint: `230d1a4`. The later tracked changes contain
+only test whitespace, runtime README and final documentation/spec synchronization.
+Both full-solution builds succeeded with zero errors and 20 existing warnings.
+The final physical-temp tooling rerun passes 245/245. Full C# format verification,
+Fantomas checks and whitespace checks pass. No CLI dependency or old-consumer
+registration was introduced.
+
+Runtime commands are in `tests/Morphir.Configuration.IO.Smoke/README.md` and the
+exact argument arrays/results are retained in
+`/private/tmp/morphir-discovery-tests/runtime-results.json`. All three publishes
+use `DOTNET_PROCESSOR_COUNT=2`, `-m:1`, disabled parallel build/restore, Release
+`osx-arm64`, and the same physical temporary root. They run serially.
+
+- Strict trimmed publishing exits 1 on pinned CsToml IL2055/IL2067 and FSharp.Core
+  reflection/resource diagnostics. `publish-strict.log` retains those errors.
+- Warning-qualified trimmed and native publishing both exit 0 with explicit
+  `ILLinkTreatWarningsAsErrors=false`; normal dependency diagnostics remain
+  visible in `publish-trimmed.log` and `publish-native.log`. No suppression or
+  strict warning-free qualification is claimed.
+- Both published binaries exit 0 and report `success`, `formats=3`, JSON5,
+  normalization, profile loading, host parity, discovery, selection and bounded
+  loading, plus `syntax_cases=228` and `morphir_cases=26`. Native/mounted results
+  are compared structurally, active profiles remain in isolated loading, and
+  workspace output ownership is checked. `file` identifies the native executable
+  as Mach-O 64-bit arm64.
+- Publish-generated RID/ILCompiler changes in the three owned package lockfiles
+  were restored to their saved prepublish bytes, preserving the main dependency
+  pins CsToml 1.8.6 and YamlDotNet 16.3.0. No intentional dependency update was
+  reverted.
+
+Coverage reports under the same root pass 124 core and 153 reader/BDD tests.
+The source-line union is core 3010/3172, 94.89%, and authored IO 624/647, 96.45%.
+This excludes generated `obj/` code and exceeds the prior campaign's recorded
+rates. The coverage summary script, configured runners and arguments above
+reproduce those results. Optional access failures, selected-file errors, links
+and machine-host authorization are included in the adapter suite.
+
+## Specification and parent handback
+
+OpenSpec apply returned `all_done`, 8/8 tracked tasks complete. All artifact/task
+checks passed before sync/archive. The new main specification is
+`openspec/specs/morphir-project-system/spec.md`; its Purpose was copied verbatim
+and all 11 requirements and 19 scenarios were compared byte-for-byte with the
+approved delta. No delta operation headers remain in the main spec.
+
+Only this change is archived at
+`openspec/changes/archive/2026-11-03-add-project-workspace-discovery/`. Its original
+`.openspec.yaml`, proposal, design, delta and checked tasks are preserved.
+Prerequisite links in the two dependent proposals were updated without checking
+or archiving their tasks. Inspection, editing and both migration campaigns remain
+active, along with unrelated active changes.
+
+`mise run openspec:verify` passes managed schema/snapshot checks, all 21 strict
+active/spec validations, and both extension tests. Main was fetched again and
+remains `3d5b41c0f839c7b2648403ad6aba5c5644f7dfb5`; there is no base advancement
+to reconcile. The PR targets this current main. The final handback supplies the
+actual PR URL, head SHA and base SHA; local evidence is distinguished from CI.
+
+The checkout is retained for parent review. Reproducible evidence and published
+binaries are owned beneath `/private/tmp/morphir-discovery-tests/`, with no unique
+source edits held there. Parent owns review/CI watch, merge/landed verification
+and subsequent checkout/local-branch/remote-branch/temporary-artifact cleanup.
+No watch, merge, auto-merge, admin bypass, force-push, branch/worktree deletion,
+release or deployment was performed. Campaign completion remains pending parent
+landing and cleanup even though implementation, local validation and archive are
+complete.

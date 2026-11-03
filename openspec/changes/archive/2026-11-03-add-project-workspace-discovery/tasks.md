@@ -21,7 +21,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 4. Integration verification
 
-- [ ] 4.1 Run configured focused suites plus the required broader checks, format/build/analyzers, boundary/roundtrip contracts, and coverage for touched libraries; verify no existing consumer silently switched to the new root policy and record results.
+- [x] 4.1 Run configured focused suites plus the required broader checks, format/build/analyzers, boundary/roundtrip contracts, and coverage for touched libraries; verify no existing consumer silently switched to the new root policy and record results.
 
 ## Workflow follow-up
 

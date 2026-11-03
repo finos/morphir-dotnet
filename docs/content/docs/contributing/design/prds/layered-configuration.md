@@ -7,7 +7,7 @@ description: "Shared configuration, project discovery, and configuration inspect
 
 # Layered configuration and workspaces
 
-**Status**: In Progress; campaign 1 landed and cleaned; campaign 2 implemented; final validation, landing and cleanup pending
+**Status**: In Progress; campaign 1 landed and cleaned; campaign 2 implemented and locally qualified; review, landing and cleanup pending
 
 **Created**: 2025-12-22
 
@@ -174,7 +174,7 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 | Configuration project and cache models | Implemented baseline | Cache-only F# records and merge functions exist |
 | TOML resolver and legacy discovery | Implemented baseline | Git-first discovery and user/CI overlays retained for existing callers |
 | Multi-format documents and normalization | Implemented and landed | Campaign 1, PR #461; parent landing/cleanup receipt recorded |
-| Shared discovery and project selection | Implemented; validation pending | Campaign 2, issue #466; bounded policy/adapters, membership/selection and source loading; final validation, review, landing and cleanup remain pending |
+| Shared discovery and project selection | Implemented; PR pending | Campaign 2, issue #466; bounded policy/adapters, membership/selection and source loading; local qualification passes; review, landing and cleanup remain pending |
 | Shared resolution, profiles, validation, provenance | Implemented and landed | Campaign 1 additive APIs; prior baseline core 95 and reader/BDD 66; campaign 2 requalification tracked separately |
 | Microsoft configuration integration | Planned | Adapter; proposed extension name |
 | Shared query and edit services | Planned | Host-independent inspection and TOML edits |
@@ -191,6 +191,11 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 - Track campaign 2 in [issue #466](https://github.com/finos/morphir-dotnet/issues/466).
   The [delivery journal](project-workspace-discovery-delivery.md) records red/green
   checkpoints, validation, base/head identities and outstanding parent gates.
+  Local qualification passes core 124, reader/BDD 153 and tooling 245; authored
+  source coverage is 94.89% core and 96.45% adapters. The implementation change
+  is archived at `openspec/changes/archive/2026-11-03-add-project-workspace-discovery/`,
+  with the synchronized `morphir-project-system` main spec. These are local
+  results; PR CI and review remain parent-owned.
 - Keep snapshot/request discovery and project selection pure in
   `Morphir.Configuration`. File parsing, native access, mounted trees and
   machine/environment capture belong to reusable .NET adapters in

@@ -13,7 +13,7 @@ Morphir configuration describes projects, workspace membership, and tooling sett
 
 The shared configuration libraries read TOML, YAML, JSON/JSON5, normalize classic manifests, resolve typed settings, and retain origins and diagnostics. Named profiles use explicit activation. Campaign 1 landed in [PR #461](https://github.com/finos/morphir-dotnet/pull/461).
 
-Campaign 2 implements bounded document-aware discovery, membership, selection, and applicable source loading through library APIs. Final validation, review, landing, and cleanup remain pending. Its [delivery journal]({{< relref "/docs/contributing/design/prds/project-workspace-discovery-delivery" >}}) records current validation and handback status. The `morphir config`, editing, and project/workspace migration commands below remain planned.
+Campaign 2 implements bounded document-aware discovery, membership, selection, and applicable source loading through library APIs. Local qualification passes; PR review, landing, and cleanup remain pending. Its [delivery journal]({{< relref "/docs/contributing/design/prds/project-workspace-discovery-delivery" >}}) records current validation and handback status. The `morphir config`, editing, and project/workspace migration commands below remain planned.
 
 Existing cache-only tooling retains Git-first discovery and its separate CI overlay. It does not opt into the new policy automatically. Follow the [layered configuration PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}), the [walkthrough]({{< relref "/docs/getting-started/configuration" >}}), and the [planned CLI reference]({{< relref "/docs/cli/config" >}}) for their respective status.
 

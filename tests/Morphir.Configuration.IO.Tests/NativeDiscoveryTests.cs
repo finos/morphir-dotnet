@@ -55,25 +55,25 @@ public sealed class NativeDiscoveryTests
     public void NativeAccessFailuresRemainDifferentFromMissingFiles()
     {
         if (OperatingSystem.IsWindows()) return;
-        var root=Path.Combine(Path.GetTempPath(),"morphir-discovery-denied-"+Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), "morphir-discovery-denied-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
-        var file=Path.Combine(root,"morphir.toml");
-        File.WriteAllText(file,"[project]");
+        var file = Path.Combine(root, "morphir.toml");
+        File.WriteAllText(file, "[project]");
         try
         {
-            File.SetUnixFileMode(file,UnixFileMode.None);
+            File.SetUnixFileMode(file, UnixFileMode.None);
             var denied = (ProjectEntry.File)new FileSystemProjectTree(root).Observe(ProjectPath.normalize(file));
             denied.Item.IsInvalid.Should().BeTrue();
-            File.SetUnixFileMode(root,UnixFileMode.None);
+            File.SetUnixFileMode(root, UnixFileMode.None);
             new FileSystemProjectTree(root).Observe(ProjectPath.normalize(root)).IsFailure.Should().BeTrue();
         }
         finally
         {
-            File.SetUnixFileMode(root,UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute);
-            File.SetUnixFileMode(file,UnixFileMode.UserRead|UnixFileMode.UserWrite);
-            Directory.Delete(root,true);
+            File.SetUnixFileMode(root, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            Directory.Delete(root, true);
         }
-        var source=new SourceIdentity(root+"/absent/morphir.toml",DocumentFormat.Toml,SourceRole.RootPrimary,0,null);
-        ConfigurationReader.ReadFile(source,false).Content.IsMissing.Should().BeTrue();
+        var source = new SourceIdentity(root + "/absent/morphir.toml", DocumentFormat.Toml, SourceRole.RootPrimary, 0, null);
+        ConfigurationReader.ReadFile(source, false).Content.IsMissing.Should().BeTrue();
     }
 }
