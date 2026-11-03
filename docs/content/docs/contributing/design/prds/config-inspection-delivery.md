@@ -296,3 +296,35 @@ whitespace checks pass. Successful receipts are
 original baseline receipts remain separate. The earlier integrated full-suite
 and native qualifications still apply because this fix only changes the test
 schema-construction boundary. Fresh current-head CI remains required.
+
+
+### Integration with C# SDK main update
+
+Main advanced again to `55f73bdaa93b7bc55a48b184bab8e46a5636fd9e`, the immutable
+C# SDK runtime from PR #470. The solution, README and configured test-runner
+changes auto-merged. NOTICE had an append conflict; both complete notices are
+retained, with main's C# SDK notice at the end to keep its append point intact.
+No configuration code, test registry fix, dependency pin or generated serializer
+source was changed or discarded, and no history was rewritten.
+
+The combined solution builds with zero errors and 20 existing warnings. All
+17 configured runners pass sequentially with two logical processors, one TUnit
+worker and sequenced Expecto. This includes the new C# SDK 20/20 suite, F# SDK
+403/403 including package consumers, core configuration 136, IO/BDD 179,
+Microsoft adapter 22, tooling 309, serializer 48 checks, C# core 237,
+internal generation 25, model/roundtrips 791, pipeline 299, SDK conformance 27,
+pipeline plugins 141, F# backend 333, Ion 463, Myriad 4 and packaged Myriad
+integration 12. Process-local PowerShell selection and serial nested builds
+were configured from the beginning; no environment workaround or retry was
+needed in this run. The concurrent 309-test tooling qualification for the
+registry fix remains separately recorded above.
+
+Evidence is owned under `parent-review/integrated-55f73bd/`, with all 17 successful
+exit codes in `integrated-results.json`; the full build and verification receipts
+are `integrated-55f73bd-build.log` and `integrated-55f73bd-openspec.log` in
+`parent-review`. OpenSpec passes all 22 active/spec items and both extension tests.
+Whitespace checks pass. The SDK addition has no references from the configuration
+libraries or their smoke hosts and changes none of their sources, dependencies,
+target frameworks or publish options, so the earlier managed/trimmed/native
+configuration qualification remains applicable. Current-head CI, landing and
+owned cleanup remain pending.
