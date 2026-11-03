@@ -3,7 +3,7 @@
 Contract `morphir-dotnet-sdk-v1`, schema version `1`, profile `dotnet-sdk-v1`.
 The [contract](../../../docs/design/dotnet-sdk-contract.md) defines the selected
 behavior and all scalar boundaries. The checked-in corpus has 67 operations and
-177 cases. Both SDK adapters must consume these identities and expectations.
+215 cases. Both SDK adapters must consume these identities and expectations.
 
 ## Files and offline command
 
@@ -38,6 +38,11 @@ Each case requires `caseId`, `operation`, `typeArguments`, `arguments`, `expecte
 `expected` contains exactly one of `value` or `error`. An error requires `code`
 and nonempty `detail`; codes normalize host exceptions, not their English text.
 `basis` distinguishes `source-derived` from an explicit `dotnet-extension`.
+Operations enumerate direct `errorOutcomes` and whether `callbackErrors`
+propagate. A higher-order operation propagates the error outcomes declared by
+its selected typed callback. It does not swallow an overflow or turn it into an
+empty collection, Nothing or Err. Absent Maybe/Result branches do not call the
+callback.
 
 `classification` is `required` or `representation-excluded`. The latter requires
 `exclusion.code` and a precise `exclusion.reason`, and the validator verifies
@@ -57,7 +62,7 @@ bindings must match the signature exactly. `Result` always puts the error first.
 | --- | --- | --- |
 | `int` | `value`: canonical base-10 integer string | Int32 in the admitted profile |
 | `float` | `value`: finite text or `NaN`, `+Infinity`, `-Infinity`, `+0`, `-0` | Binary64; zero sign retained, NaN payload ignored |
-| `decimal` | `coefficient`: signed integer text, `scale`: integer | Exact coefficient times 10 to negative scale |
+| `decimal` | `coefficient`: signed integer text, `scale`: integer `0..4096` | Exact coefficient times 10 to negative scale; Decimal96 range checked after removing redundant scale |
 | `string`, `char` | `value`: text | Exact, without normalization |
 | `bool` | `value`: JSON boolean | Boolean |
 | `order` | `value`: `LT`, `EQ` or `GT` | Logical order constructor |
@@ -79,7 +84,9 @@ hide a fixture error.
 All value operands must remain observable and unchanged. `preserveArguments`
 lists indexes where adapters must explicitly compare retained before/after values.
 `equalTo` means independently construct the tagged equivalent and compare it to
-the actual result. `hashEqualTo` additionally compares their in-process hashes.
+the actual result. These construction operands may retain a different authored
+Decimal scale or zero sign; their normalized value must agree with the canonical
+expected projection. `hashEqualTo` additionally compares their in-process hashes.
 These checks make insertion history/allocation irrelevant without prescribing a
 numeric hash implementation. Use structural SDK equality rather than BCL
 collection reference equality.

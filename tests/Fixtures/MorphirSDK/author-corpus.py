@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 def write(name, value):
-    (ROOT / name).write_text(json.dumps(value, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    (ROOT / name).write_text(json.dumps(value, indent=2, ensure_ascii=True) + "\n", encoding="utf-8", newline="\n")
 
 
 pins = {
@@ -82,6 +82,8 @@ callbacks = [
     {"id": "removeEntry", "type": "Fn<Maybe<Int>,Maybe<Int>>", "meaning": "_ -> Nothing"},
     {"id": "incrementMaybe", "type": "Fn<Maybe<Int>,Maybe<Int>>", "meaning": "Just x -> Just checked(x + 1); Nothing -> Nothing"},
 ]
+for callback in callbacks:
+    callback["errorOutcomes"] = ["Overflow"] if callback["id"] in ["increment", "incrementMaybe"] else []
 
 operations = []
 cases = []
@@ -171,7 +173,7 @@ for name, normal in [("negate", -3), ("abs", 3)]:
 
 operation = op("Basics", "power", [("base", "n"), ("exponent", "n")], "n", number, "Int exponent must be nonnegative, exact checked result; Float follows IEEE/Math.pow.")
 case(operation, "int", [i(2), i(10)], i(1024), {"n": "Int"})
-case(operation, "int-overflow", [i(2), i(31)], types={"n": "Int"}, error=overflow, gaps=["FS-INT-CHECKED"], basis="dotnet-extension")
+case(operation, "int-overflow", [i(2), i(31)], types={"n": "Int"}, error=overflow, basis="dotnet-extension")
 case(operation, "int-negative-exponent", [i(2), i(-1)], f(0.5), {"n": "Int"}, exclusion={"code": "IntegerNegativeExponent", "reason": "Reference returns Float 0.5, outside Int -> Int closure."})
 case(operation, "float", [f(-1), f(0.5)], f("NaN"), {"n": "Float"})
 
@@ -209,7 +211,7 @@ for name, result, expected in [("lessThan", "Bool", b(True)), ("lessThanOrEqual"
                              ("min", "a", i(1)), ("max", "a", i(2))]:
     operation = op("Basics", name, [("a", "a"), ("b", "a")], result, comparable, "Uses the same admitted total comparison as Basics.compare.")
     case(operation, "int", [i(1), i(2)], expected, {"a": "Int"})
-operation = op("Basics", "clamp", [("low", "n"), ("high", "n"), ("value", "n")], "n", number, "Return low if value < low; otherwise high if value > high; otherwise value. Bounds must be ordered and Float finite.")
+operation = op("Basics", "clamp", [("low", "n"), ("high", "n"), ("value", "n")], "n", number, "Return low if value < low; otherwise high if value > high; otherwise value. Preserve this branch order for reversed bounds; Float NaN comparisons are false, and signed zero is retained when returning value.")
 case(operation, "below", [i(1), i(5), i(0)], i(1), {"n": "Int"})
 case(operation, "above", [i(1), i(5), i(6)], i(5), {"n": "Int"})
 case(operation, "inside-float", [f(1), f(5), f(3)], f(3), {"n": "Float"})
@@ -384,6 +386,39 @@ case("Morphir.SDK.List.cons", "structural-hash", [i(1), li(i(2))], li(i(1), i(2)
 case("Morphir.SDK.Decimal.sub", "negative-overflow", [d("-79228162514264337593543950335"), d(1)], error={"code": "Overflow", "detail": "Exact negative decimal result exceeds Decimal96 magnitude."}, basis="dotnet-extension")
 case("Morphir.SDK.Decimal.mul", "overflow", [d("79228162514264337593543950335"), d(2)], error={"code": "Overflow", "detail": "Exact decimal product exceeds Decimal96 magnitude."}, basis="dotnet-extension")
 
+# Review boundaries retain the source meaning rather than adapting it to a host.
+for name, equal, reversed_result in [("lessThan", False, False), ("lessThanOrEqual", True, False), ("greaterThan", False, True), ("greaterThanOrEqual", True, True)]:
+    case(f"Morphir.SDK.Basics.{name}", "equal", [i(1), i(1)], b(equal), {"a": "Int"})
+    case(f"Morphir.SDK.Basics.{name}", "reversed", [i(2), i(1)], b(reversed_result), {"a": "Int"})
+for name, expected in [("equal", False), ("notEqual", True)]:
+    for suffix, left, right, typ in [
+        ("unequal-nested-list", li(just(i(1))), li(just(i(2))), "List<Maybe<Int>>"),
+        ("unequal-dict", da, dic((s("a"), i(7)), (s("b"), i(2))), "Dict<String,Int>"),
+        ("unequal-set", st(i(1)), st(i(2)), "Set<Int>"),
+        ("unequal-result-constructor", ok(s("same")), err(s("same")), "Result<String,String>"),
+        ("unequal-maybe-constructor", nothing(), just(i(1)), "Maybe<Int>"),
+        ("unequal-decimal", d(15, 1), d(16, 1), "Decimal"),
+    ]: case(f"Morphir.SDK.Basics.{name}", suffix, [left, right], b(expected), {"a": typ})
+case("Morphir.SDK.List.singleton", "decimal-scale-hash", [d(150, 2)], li(d(15, 1)), {"a": "Decimal"}, invariants={"equalTo": li(d(150, 2)), "hashEqualTo": li(d(150, 2))})
+case("Morphir.SDK.List.singleton", "nested-result-hash", [ok(li(d(150, 2)))], li(ok(li(d(15, 1)))), {"a": "Result<String,List<Decimal>>"}, invariants={"equalTo": li(ok(li(d(150, 2)))), "hashEqualTo": li(ok(li(d(150, 2))))})
+case("Morphir.SDK.Result.Ok", "decimal-scale-hash", [li(d(150, 2))], ok(li(d(15, 1))), {"e": "String", "a": "List<Decimal>"}, invariants={"equalTo": ok(li(d(150, 2))), "hashEqualTo": ok(li(d(150, 2)))})
+case("Morphir.SDK.Result.Err", "nested-error-hash", [li(i(1), i(2))], err(li(i(1), i(2))), {"e": "List<Int>", "a": "String"}, invariants={"equalTo": err(li(i(1), i(2))), "hashEqualTo": err(li(i(1), i(2)))})
+callback_overflow = {"code": "Overflow", "detail": "Checked Int32 increment callback overflows; the higher-order operation propagates that same error."}
+case("Morphir.SDK.List.map", "callback-overflow", [cb("increment"), li(i(0), i(2147483647))], types={"a": "Int", "b": "Int"}, error=callback_overflow, basis="dotnet-extension", invariants={"preserveArguments": [1]})
+case("Morphir.SDK.Maybe.map", "callback-overflow", [cb("increment"), just(i(2147483647))], types={"a": "Int", "b": "Int"}, error=callback_overflow, basis="dotnet-extension")
+case("Morphir.SDK.Result.map", "callback-overflow", [cb("increment"), ok(i(2147483647))], types={"e": "String", "a": "Int", "b": "Int"}, error=callback_overflow, basis="dotnet-extension")
+case("Morphir.SDK.Dict.update", "callback-overflow", [s("a"), cb("incrementMaybe"), dic((s("a"), i(2147483647)))], types=kt, error=callback_overflow, basis="dotnet-extension", invariants={"preserveArguments": [2]})
+case("Morphir.SDK.Basics.clamp", "reversed-bounds", [i(5), i(1), i(3)], i(5), {"n": "Int"})
+case("Morphir.SDK.Basics.clamp", "equal-bound", [i(3), i(3), i(2)], i(3), {"n": "Int"})
+case("Morphir.SDK.Basics.clamp", "nan-value", [f(1), f(5), f("NaN")], f("NaN"), {"n": "Float"})
+case("Morphir.SDK.Basics.clamp", "nan-low", [f("NaN"), f(5), f(3)], f(3), {"n": "Float"})
+case("Morphir.SDK.Basics.clamp", "infinite-value", [f(1), f(5), f("+Infinity")], f(5), {"n": "Float"})
+case("Morphir.SDK.Basics.clamp", "signed-zero", [f(-1), f(1), f("-0")], f("-0"), {"n": "Float"})
+case("Morphir.SDK.List.singleton", "signed-zero-hash", [f("-0")], li(f("-0")), {"a": "Float"}, invariants={"equalTo": li(f("+0")), "hashEqualTo": li(f("+0"))})
+case("Morphir.SDK.Set.fromList", "ordered-float", [li(f(2.5), f(1.5))], st(f(1.5), f(2.5)), {"a": "Float"})
+case("Morphir.SDK.Basics.compare", "tuple3", [tup(i(1), s("a"), ch("b")), tup(i(1), s("a"), ch("c"))], order("LT"), {"a": "Tuple<Int,String,Char>"})
+case("Morphir.SDK.Decimal.add", "normalized-input-scale", [d(10, 29), d(0)], d(1, 28))
+
 for operation in operations:
     module, name = operation["operation"].split(".")[-2:]
     symbol = "is_nan" if name == "isNaN" else re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
@@ -410,10 +445,11 @@ for operation in operations:
         else ["Overflow", "NonFiniteConversion"] if module == "Basics" and name in ["round", "floor", "ceiling", "truncate"]
         else []
     )
+    operation["callbackErrors"] = "propagate" if any(parameter["type"].startswith("Fn<") for parameter in operation["parameters"]) else "none"
 
 gaps = [
     {"id": "FS-DICT-UNION", "runtime": "fsharp", "owner": "introduce-fsharp-sdk-package", "location": "src/Morphir.SDK/Dict.fs:66", "observation": "Map.fold inserts dict2 into dict1, so second dictionary wins. Required expectation remains first dictionary wins."},
-    {"id": "FS-INT-CHECKED", "runtime": "fsharp", "owner": "introduce-fsharp-sdk-package", "location": "src/Morphir.SDK/Basics.fs:31", "observation": "Inline arithmetic uses default unchecked operators/pown, not the admitted checked Int32 boundary. No runtime conformance is claimed here."},
+    {"id": "FS-INT-CHECKED", "runtime": "fsharp", "owner": "introduce-fsharp-sdk-package", "location": "src/Morphir.SDK/Basics.fs:31", "observation": "add, subtract, multiply and negate use unchecked Int32 operators. Recorded boundary observations wrap rather than report Overflow. pown already checks overflow and is not labeled as this gap. No runtime conformance is claimed here."},
     {"id": "FS-DECIMAL-DIV", "runtime": "fsharp", "owner": "introduce-fsharp-sdk-package", "location": "src/Morphir.SDK/Decimal.fs:50", "observation": "Existing divide returns decimal and throws on zero. Canonical Decimal.div returns Maybe<Decimal>, Nothing for zero."},
     {"id": "FS-DECIMAL-TEXT", "runtime": "fsharp", "owner": "introduce-fsharp-sdk-package", "location": "src/Morphir.SDK/Decimal.fs:10", "observation": "ToString() uses current culture and retains authored scale. Canonical text is invariant positional, with trailing fractional zeros removed."},
 ]
@@ -484,6 +520,7 @@ operation_schema = obj({
     "evidence": {**strings, "minItems": 1}, "requiredCaseIds": {**strings, "minItems": 1},
     "sourceBinding": obj({"source": text, "line": {"type": "integer", "minimum": 1}, "declaration": text}),
     "errorOutcomes": strings,
+    "callbackErrors": {"enum": ["propagate", "none"]},
 })
 write("inventory.schema.json", {
     "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "urn:morphir:dotnet-sdk:inventory:v1",

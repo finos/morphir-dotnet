@@ -70,6 +70,8 @@ and zero has coefficient `0`, scale `0`. Numeric equality and equal hashes ignor
 scale. `toString` uses invariant positional notation with no fractional trailing
 zeros. No exponent, group separator or culture is involved.
 
+Representability checks first remove redundant trailing coefficient zeros. An
+authored coefficient `10`, scale `29` is the exact admitted value `1e-28`.
 An exact add/sub/mul result beyond Decimal96 magnitude reports `Overflow`.
 A result needing a nonzero digit below scale 28 is a representation exclusion;
 rounding that digit away cannot pass. Nonterminating division is also excluded.
@@ -111,6 +113,17 @@ No cross-process numeric hash code is prescribed. Nested Maybe/Result and
 collection payloads retain these semantics. NaN remains unequal to itself in
 `Basics.equal`, while signed zero is equal. Callbacks are a closed, typed fixture
 vocabulary, not arbitrary source code or general comparable/equatable values.
+
+Higher-order operations propagate a called callback's declared errors unchanged.
+The checked `increment` and `incrementMaybe` callbacks can report `Overflow`;
+List.map, Maybe.map, Result.map and Dict.update cover that boundary. Nothing/Err
+branches bypass their callbacks. Invariant construction operands may retain a
+different authored Decimal scale or floating zero sign when checking equal hashes.
+
+Clamp follows the pinned conditional branch order, including reversed bounds,
+NaN/infinity and signed zero. It returns low when value is less than low, then
+high when value is greater than high, otherwise the value. NaN comparisons are
+false. No finite-value or ordered-bound precondition narrows that operation.
 
 ## Evidence and readiness
 

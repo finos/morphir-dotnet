@@ -35,7 +35,7 @@ svg { max-width: 100%; height: auto; }
 <body>
 <main>
 <h1>establish-dotnet-sdk-conformance</h1>
-<p class="meta">OpenSpec change | 2026-11-02 | Implementation in progress; contract review pending</p>
+<p class="meta">OpenSpec change | 2026-11-02 | Contract and validation implemented; readiness and landing pending</p>
 <p><a href="proposal.md">Proposal</a> | <a href="tasks.md">Tasks</a> | <a href="handoff.md">Codex handoff</a></p>
 <nav class="toc" aria-label="Contents"><ul><li><a href="#context">Context</a></li><li><a href="#goals">Goals and non-goals</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#ownership">Thread ownership and dependency gates</a></li><li><a href="#verification">Verification</a></li><li><a href="#risks">Risks and trade-offs</a></li><li><a href="#migration">Migration plan</a></li><li><a href="#sources">Prior art</a></li></ul></nav>
 <h2 id="context">Context</h2><p>The runtime is src/Morphir.SDK, an F# net10.0 package. Dict.union currently favors the second dictionary; independent Python tests favor the first. tests/Fixtures already holds shared IR and Ion data. No SDK conformance main spec exists. This change adds a bounded contract and evidence, not runtime corrections.</p>

@@ -19,10 +19,10 @@ generation and CLI integration belong to successor initiatives.
 | --- | --- | --- |
 | Contribution tracking and delivery ownership | Implemented | #460 and umbrella PRD |
 | Pinned source evidence and licenses | Implemented | 44 original-byte files, SHA-256 manifest and declaration bindings |
-| Operation signatures and scalar profiles | In progress | 67 operations; audit found callback error/domain wording omissions |
-| Tagged cases and named runtime gaps | In progress | 177 cases and four required F# gaps; strengthen comparison/hash boundaries |
-| Offline validator and regression tests | In progress | Initial 22 tests pass; review hardening remains |
-| Frozen schema and downstream handoff | In progress | Schema/README draft exists; audit corrections and readiness manifest remain |
+| Operation signatures and scalar profiles | Implemented | 67 operations, direct/callback errors and precise scalar boundaries |
+| Tagged cases and named runtime gaps | Implemented | 215 cases, 207 required, eight exclusions and four required F# gaps |
+| Offline validator and regression tests | Implemented | 27 passing tests; 93.42% measured validator line coverage |
+| Frozen schema and downstream handoff | In progress | Schema and README frozen; pinned readiness manifest remains |
 | Integrated validation | In progress | Initial full Windows Nuke Test passed; final review and package-build checks remain |
 
 ## Acceptance
@@ -70,12 +70,12 @@ builds use `-m:1 -p:UseSharedCompilation=false -nodeReuse:false`, with
 ### Source review checkpoint
 
 A bounded read-only auxiliary found no contradictory literal expectation and
-confirmed all 44 source digests. Four findings remain open at this checkpoint:
+confirmed all 44 source digests. Four findings were open at the first checkpoint:
 callback overflow must propagate through higher-order operations; equality and
 inclusive comparisons need negative/equal-operand cases; clamp wording must
 follow the pinned branch behavior rather than an unsupported finite/ordered
 precondition; authored decimal scale and nested Result hashing need observations.
-The affected OpenSpec tasks remain pending until these corrections are verified.
+The affected OpenSpec tasks were reopened while those corrections were pending.
 
 ### Initial full-suite environment failure
 
@@ -119,7 +119,80 @@ This is a durable intermediate checkpoint. The four source-review findings remai
 open and their affected tasks are unchecked. No runtime conformance or initiative
 completion is claimed.
 
-Full-suite, hook and final coverage evidence will be recorded after integration.
+Final verification is recorded below. Readiness and the coordinator's landing
+gate remain separate from this initial checkpoint.
+
+### Review corrections
+
+All four review regressions were red first, with four failures among 26 tests,
+then green after the changes. Higher-order operations now propagate their
+selected callback's declared errors, including checked Int32 increment overflow.
+Equality cases distinguish unequal nested values and constructor tags; inclusive
+comparison cases include equal operands. Hash observations cover authored Decimal
+scale, floating zero sign and nested Result payloads. Invariant operands are
+construction values, so their authored scale can differ while normalized values
+and equal hashes agree.
+
+The draft clamp precondition had no support in Python Basics lines 261-267 or
+MoonBit's typed clamp implementation. It was removed before freezing. Required
+cases now preserve source branch order for reversed bounds, NaN/infinity and
+signed zero. No expectation was changed to match a .NET implementation.
+
+A further malformed type-argument regression failed first, then passed with
+case/field diagnostics. The hardened corpus has 215 cases across 67 operations,
+including 207 required cases and eight separately reported representation
+exclusions. The focused suite passes all 27 tests without skips. Its final
+explicit-assembly coverage report measures 93.42105263157895% of the added
+validator logic, with each main validator class above 90%. This is scoped new-code
+coverage, not a repository-wide or SDK runtime-conformance percentage.
+
+Coverage command:
+`dotnet exec tests/Morphir.SDK.Conformance.Tests/bin/Debug/net10.0/Morphir.SDK.Conformance.Tests.dll --maximum-parallel-tests 2 --coverage --coverage-settings tests/Morphir.SDK.Conformance.Tests/coverage.config --coverage-output-format cobertura --coverage-output C:/Temp/morphir-sdk-conformance-b255f4d7/final-validator.cobertura.xml`.
+
+The source review auxiliary completed read-only, with no files changed, heavy
+commands, helpers, Git writes, PR or additional worktree. Its sole allocated
+auxiliary slot is released; the remaining two slots were unused. The lead remains
+the only Git writer and holds the expensive-command slot until handoff.
+
+### Final verification
+
+With process-local `TEMP=TMP=C:/Temp/morphir-sdk-conformance-b255f4d7`,
+`DOTNET_PROCESSOR_COUNT=2` and `MSBUILDDISABLENODEREUSE=1`, the following Windows
+commands ran sequentially and passed:
+
+| Command | Result |
+| --- | --- |
+| `& 'C:/Users/damre/scoop/apps/pwsh/current/pwsh.exe' -NoProfile -File build.ps1 --target Test --configuration Release` | Restore/Compile/Test passed; 2,752 suite tests and 15 cold package lifecycle checks; zero failed/skipped tests; 5m15s |
+| Same bootstrap with `--target PackAll --configuration Release` | All local library/tool packaging succeeded; 34s; no publication |
+| Same bootstrap with `--target TestBuild --configuration Release` | All 40 build/package tests passed, zero skips; 21s |
+| Focused build and `dotnet exec ... --maximum-parallel-tests 2` | All 27 conformance tests passed again after final gap annotation correction |
+| `dotnet fsi scripts/validate-changelog.fsx` | Passed |
+| Windows bootstrap with `--target Precommit` | Passed full solution formatting; baseline F# unsupported-format/workspace warnings remain |
+| `mise run openspec:verify` | Snapshot/schema checks, all 14 strict items and both extension tests passed |
+
+Logs are retained under the uniquely owned validation directory above, using
+`final-Test.log`, `final-PackAll.log`, `final-TestBuild.log`,
+`frozen-contract-tests.log`, `final-precommit.log` and `final-openspec.log`.
+The initial environmental failures remain in the original temp log
+`C:/Users/damre/AppData/Local/Temp/morphir-sdk-nuke-test.log`.
+
+Husky still could not find its path when retried with the native Git directory
+prepended to the child process's PATH. No persistent PATH or hook settings changed.
+Its configured changelog and Windows Precommit checks ran directly and passed;
+no checks were disabled and no `--no-verify` option was used.
+
+A read-only probe of the existing compiled F# SDK confirmed wrapping at the
+add/subtract/multiply/negate boundaries, second-dictionary union precedence,
+decimal division's zero exception and scale-retaining decimal text. It also
+showed that F# `pown` already checks overflow. Only its mistaken gap annotation
+was removed; its independently sourced required `Overflow` expectation remains
+unchanged. The final fixture validator passed after that metadata correction.
+No existing F# implementation was fixed or certified by this initiative.
+
+No production/runtime/emitter source, global SDK pin, central package settings or
+unrelated runner configuration changed. Shared integration is limited to the
+approved new-project solution/Nuke registration, umbrella PRD/index, README,
+one changelog entry and NOTICE.txt. Root NOTICE is unchanged.
 No runtime implementation or emitter has changed. Contribution landing also
 requires a passing build and sign-off from one other developer under
 CONTRIBUTING.md lines 33-35; the coordinator owns that gate and normal required

@@ -12,6 +12,7 @@ internal static class FixtureProfiles
         Dictionary<string, JsonNode> cases, List<string> errors)
     {
         var callbacks = inventory["callbacks"]!.AsArray().ToDictionary(x => x!["id"]!.ToString(), x => TypeSpec.Parse(x!["type"]!.ToString()), StringComparer.Ordinal);
+        var callbackOutcomes = inventory["callbacks"]!.AsArray().ToDictionary(x => x!["id"]!.ToString(), x => x!["errorOutcomes"]!.AsArray().Select(code => code!.ToString()).ToArray(), StringComparer.Ordinal);
         var profile = inventory["profiles"]!.AsArray().Single(x => x!["id"]!.ToString() == "dotnet-sdk-v1")!;
         var errorCodes = profile["errorCodes"]!.AsArray().Select(x => x!.ToString()).ToHashSet(StringComparer.Ordinal);
         var exclusionCodes = profile["exclusionCodes"]!.AsArray().Select(x => x!.ToString()).ToHashSet(StringComparer.Ordinal);
@@ -34,7 +35,8 @@ internal static class FixtureProfiles
             if (!operations.TryGetValue(entry["operation"]!.ToString(), out var operation)) continue;
             var arguments = entry["arguments"]!.AsArray();
             var parameters = operation["parameters"]!.AsArray();
-            var typeArguments = entry["typeArguments"]!.AsObject().ToDictionary(x => x.Key, x => TypeSpec.Parse(x.Value!.ToString()), StringComparer.Ordinal);
+            var typeErrorsBefore = errors.Count;
+            var typeArguments = entry["typeArguments"]!.AsObject().ToDictionary(x => x.Key, x => TypeSpec.ParseAt(x.Value!.ToString(), $"{id}/typeArguments/{x.Key}", errors), StringComparer.Ordinal);
             var variables = operation["typeParameters"]!.AsObject();
             if (!variables.Select(x => x.Key).ToHashSet(StringComparer.Ordinal).SetEquals(typeArguments.Keys))
             {
@@ -49,6 +51,7 @@ internal static class FixtureProfiles
                 if (constraint == "number" && type.Name is not ("Int" or "Float") || constraint == "comparable" && !type.IsComparable)
                     errors.Add($"{id}/typeArguments/{name}: {type} does not satisfy {constraint}");
             }
+            if (errors.Count != typeErrorsBefore) continue;
             if (arguments.Count != parameters.Count)
             {
                 errors.Add($"{id}/arguments: expected {parameters.Count} arguments, got {arguments.Count}");
@@ -69,9 +72,15 @@ internal static class FixtureProfiles
                 var result = entry["exclusion"]?["code"]?.ToString() == "IntegerNegativeExponent" ? TypeSpec.Parse("Float") : resultType;
                 Value(expected, result, $"{id}/expected/value", true, false, callbacks, limits, errors);
             }
-            else if (!errorCodes.Contains(entry["expected"]!["error"]!["code"]!.ToString())
-                || !operation["errorOutcomes"]!.AsArray().Any(x => x!.ToString() == entry["expected"]!["error"]!["code"]!.ToString()))
-                errors.Add($"{id}/expected/error/code: unknown arithmetic outcome");
+            else
+            {
+                var allowed = operation["errorOutcomes"]!.AsArray().Select(x => x!.ToString()).ToHashSet(StringComparer.Ordinal);
+                if (operation["callbackErrors"]!.ToString() == "propagate")
+                    foreach (var argument in arguments.Where(x => x!["tag"]!.ToString() == "callback"))
+                        if (callbackOutcomes.TryGetValue(argument!["id"]!.ToString(), out var outcomes)) allowed.UnionWith(outcomes);
+                var code = entry["expected"]!["error"]!["code"]!.ToString();
+                if (!errorCodes.Contains(code) || !allowed.Contains(code)) errors.Add($"{id}/expected/error/code: unknown arithmetic or callback outcome");
+            }
 
             var invariants = entry["invariants"]!;
             foreach (var index in invariants["preserveArguments"]?.AsArray() ?? [])
@@ -80,8 +89,8 @@ internal static class FixtureProfiles
             foreach (var field in new[] { "equalTo", "hashEqualTo" })
             {
                 if (invariants[field] is not { } value) continue;
-                Value(value, resultType, $"{id}/invariants/{field}", true, false, callbacks, limits, errors);
-                if (entry["expected"]!["value"] is not { } result || !JsonNode.DeepEquals(result, value))
+                Value(value, resultType, $"{id}/invariants/{field}", false, false, callbacks, limits, errors);
+                if (entry["expected"]!["value"] is not { } result || !Equivalent(result, value))
                     errors.Add($"{id}/invariants/{field}: invariant must agree with the canonical expected value");
             }
             if (invariants["hashEqualTo"] is not null && invariants["equalTo"] is null)
@@ -112,6 +121,43 @@ internal static class FixtureProfiles
         while (denominator % 2 == 0) denominator /= 2;
         while (denominator % 5 == 0) denominator /= 5;
         return denominator != 1;
+    }
+
+    private static bool Equivalent(JsonNode left, JsonNode right)
+    {
+        var a = left.DeepClone();
+        var b = right.DeepClone();
+        var hasNaN = false;
+        Normalize(a, ref hasNaN);
+        Normalize(b, ref hasNaN);
+        return !hasNaN && JsonNode.DeepEquals(a, b);
+    }
+
+    // Invariant operands are construction values, so authored decimal scale may differ.
+    private static void Normalize(JsonNode value, ref bool hasNaN)
+    {
+        if (value is JsonArray array)
+        {
+            foreach (var item in array) if (item is not null) Normalize(item, ref hasNaN);
+        }
+        else if (value is JsonObject obj)
+        {
+            foreach (var item in obj.Select(x => x.Value).ToArray()) if (item is not null) Normalize(item, ref hasNaN);
+            if (obj["tag"]?.ToString() == "decimal")
+            {
+                var coefficient = Integer(obj, "coefficient");
+                var scale = obj["scale"]!.GetValue<int>();
+                while (scale > 0 && coefficient % 10 == 0) { coefficient /= 10; scale--; }
+                obj["coefficient"] = coefficient.ToString(CultureInfo.InvariantCulture);
+                obj["scale"] = scale;
+            }
+            else if (obj["tag"]?.ToString() == "float")
+            {
+                var number = Floating(obj);
+                hasNaN |= double.IsNaN(number);
+                obj["value"] = number == 0 ? "+0" : number.ToString("R", CultureInfo.InvariantCulture);
+            }
+        }
     }
 
     private static void Value(JsonNode value, TypeSpec type, string path, bool canonical, bool comparable,
@@ -250,6 +296,16 @@ internal sealed record TypeSpec(string Name, IReadOnlyList<TypeSpec> Arguments)
 {
     internal bool IsValue => Name != "Fn" && Arguments.All(x => x.IsValue);
     internal bool IsComparable => Name is "Int" or "Float" or "String" or "Char" || Name is "List" or "Tuple" && Arguments.All(x => x.IsComparable);
+
+    internal static TypeSpec ParseAt(string text, string path, List<string> errors)
+    {
+        try { return Parse(text); }
+        catch (FormatException ex)
+        {
+            errors.Add($"{path}: {ex.Message}");
+            return new TypeSpec("Invalid", []);
+        }
+    }
 
     internal static TypeSpec Parse(string text)
     {

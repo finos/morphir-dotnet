@@ -68,37 +68,48 @@
         {
           "id": "increment",
           "type": "Fn<Int,Int>",
-          "meaning": "x -> checked(x + 1)"
+          "meaning": "x -> checked(x + 1)",
+          "errorOutcomes": [
+            "Overflow"
+          ]
         },
         {
           "id": "showInt",
           "type": "Fn<Int,String>",
-          "meaning": "x -> invariant base-10 integer text"
+          "meaning": "x -> invariant base-10 integer text",
+          "errorOutcomes": []
         },
         {
           "id": "positiveMaybe",
           "type": "Fn<Int,Maybe<Int>>",
-          "meaning": "x -> Just x if x > 0, otherwise Nothing"
+          "meaning": "x -> Just x if x > 0, otherwise Nothing",
+          "errorOutcomes": []
         },
         {
           "id": "positiveResult",
           "type": "Fn<Int,Result<String,Int>>",
-          "meaning": "x -> Ok x if x > 0, otherwise Err negative"
+          "meaning": "x -> Ok x if x > 0, otherwise Err negative",
+          "errorOutcomes": []
         },
         {
           "id": "setJustSeven",
           "type": "Fn<Maybe<Int>,Maybe<Int>>",
-          "meaning": "_ -> Just 7"
+          "meaning": "_ -> Just 7",
+          "errorOutcomes": []
         },
         {
           "id": "removeEntry",
           "type": "Fn<Maybe<Int>,Maybe<Int>>",
-          "meaning": "_ -> Nothing"
+          "meaning": "_ -> Nothing",
+          "errorOutcomes": []
         },
         {
           "id": "incrementMaybe",
           "type": "Fn<Maybe<Int>,Maybe<Int>>",
-          "meaning": "Just x -> Just checked(x + 1); Nothing -> Nothing"
+          "meaning": "Just x -> Just checked(x + 1); Nothing -> Nothing",
+          "errorOutcomes": [
+            "Overflow"
+          ]
         }
       ]
     },
@@ -205,6 +216,12 @@
               "minLength": 1
             },
             "uniqueItems": true
+          },
+          "callbackErrors": {
+            "enum": [
+              "propagate",
+              "none"
+            ]
           }
         },
         "required": [
@@ -218,7 +235,8 @@
           "evidence",
           "requiredCaseIds",
           "sourceBinding",
-          "errorOutcomes"
+          "errorOutcomes",
+          "callbackErrors"
         ],
         "additionalProperties": false
       }
