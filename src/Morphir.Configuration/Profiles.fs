@@ -202,13 +202,15 @@ module Profiles =
             |> List.tryPick (fun (name, _) -> match visit [] name with Error error -> Some error | Ok _ -> None)
             |> Option.toList
 
-    let private expand value roots =
+    let private expandWithPaths value roots =
         let mutable memo = Map.empty
-        let rec append stack name =
-            match Map.tryFind name memo with
-            | Some expanded -> expanded
-            | None when Set.contains name stack -> [ name ]
-            | None ->
+        let keepLastNames names = names |> List.rev |> List.distinctBy fst |> List.rev
+        let rec append stack (name, path) =
+            let descendants =
+                match Map.tryFind name memo with
+                | Some expanded -> expanded
+                | None when Set.contains name stack -> []
+                | None ->
                 let children =
                     match ConfigTree.tryFind [ "profiles"; "groups"; name ] value with
                     | Some (ConfigValue.Array members) ->
@@ -217,13 +219,28 @@ module Profiles =
                     | _ -> []
                 let expanded =
                     children
-                    |> List.fold (fun output child -> keepLast (output @ append (Set.add name stack) child)) [ name ]
+                    |> List.fold (fun output child ->
+                        keepLastNames (output @ append (Set.add name stack) (child, [ "profiles"; "groups"; name ]))) []
                 memo <- Map.add name expanded memo
                 expanded
-        roots |> List.fold (fun output name -> keepLast (output @ append Set.empty name)) []
+            keepLastNames ((name, path) :: descendants)
+        roots |> List.fold (fun output name -> keepLastNames (output @ append Set.empty name)) []
 
-    let private boundActive (options: ProfileOptions) source path position (plan: ProfilePlan) =
+    let private expand value roots =
+        expandWithPaths value (roots |> List.map (fun name -> name, [])) |> List.map fst
+
+    let private boundActive (options: ProfileOptions) sources value roots source path position (plan: ProfilePlan) =
         if plan.Active.Length > min 128 options.MaxExpansions then
+            let failurePath =
+                expandWithPaths value roots
+                |> List.tryItem (max 0 (min 128 options.MaxExpansions))
+                |> Option.map snd
+                |> Option.defaultValue path
+            let source, path, position =
+                if failurePath <> path && ConfigTree.tryFind failurePath value |> Option.isSome then
+                    let origin = diagnostic sources failurePath "" ""
+                    origin.Source, failurePath, origin.Position
+                else source, path, position
             { plan with
                 Active = []
                 Diagnostics =
@@ -255,7 +272,9 @@ module Profiles =
                 nameErrors (selectorSource SourceRole.Explicit "<profiles>") [ "profiles" ] names
                 @ authorityErrors sources environment @ controlErrors sources value @ graphErrors sources value options)
             |> enabledPlan value (includes @ names) true
-            |> boundActive options (selectorSource SourceRole.Explicit "<profiles>") [ "profiles" ] None
+            |> boundActive options sources value
+                ((includes |> List.map (fun name -> name, [ "profiles"; "include" ])) @ (names |> List.map (fun name -> name, [ "profiles" ])))
+                (selectorSource SourceRole.Explicit "<profiles>") [ "profiles" ] None
         | ProfileSelection.Automatic ->
             let environmentNames =
                 environment
@@ -280,14 +299,19 @@ module Profiles =
                 @ authorityErrors sources environment @ controlErrors sources baseValue @ graphErrors sources baseValue options)
             |> enabledPlan baseValue names true
             |> (fun plan ->
+                let selected = environmentNames |> Option.defaultValue baseNames
+                let includes = readNames "include" baseValue |> Option.defaultValue []
+                let roots path =
+                    (includes |> List.map (fun name -> name, [ "profiles"; "include" ]))
+                    @ (selected |> List.map (fun name -> name, path))
                 match environmentNames with
-                | Some _ -> boundActive options (selectorSource SourceRole.Environment "MORPHIR_PROFILES") [ "profiles" ] None plan
+                | Some _ -> boundActive options sources baseValue (roots [ "profiles" ]) (selectorSource SourceRole.Environment "MORPHIR_PROFILES") [ "profiles" ] None plan
                 | None ->
                     let path = if ConfigTree.tryFind [ "profiles"; "active" ] baseValue |> Option.isSome then [ "profiles"; "active" ] else [ "profiles"; "default" ]
                     if ConfigTree.tryFind path baseValue |> Option.isSome then
                         let origin = diagnostic sources path "" ""
-                        boundActive options origin.Source path origin.Position plan
-                    else boundActive options (selectorSource SourceRole.Defaults "<profiles>") [ "profiles" ] None plan)
+                        boundActive options sources baseValue (roots path) origin.Source path origin.Position plan
+                    else boundActive options sources baseValue (roots [ "profiles" ]) (selectorSource SourceRole.Defaults "<profiles>") [ "profiles" ] None plan)
         | ProfileSelection.Disabled ->
             { Enabled = false
               Active = []

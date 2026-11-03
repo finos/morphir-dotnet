@@ -179,4 +179,60 @@ let tests =
             let result = Profiles.plan [] Map.empty DocumentDefaults.profileOptions
             Expect.equal (result.Enabled, result.Active, result.Diagnostics) (true, [], []) "there is no implicit active profile, but controls remain enabled"
         }
+        test "base include expansion overflow identifies its declaring group" {
+            let groups =
+                ConfigValue.Object (Map.ofList [
+                    "a", names [ for index in 1 .. 64 -> "a" + string index ]
+                    "b", names [ for index in 1 .. 64 -> "b" + string index ] ])
+            let result = Profiles.plan [ root [ "include", names [ "a"; "b" ]; "groups", groups ] ] Map.empty DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.active" && diagnostic.Source.Path = "morphir.toml" && diagnostic.KeyPath = [ "profiles"; "groups"; "b" ])) "the 129th distinct expansion name retains its actual control origin"
+        }
+        test "default selector is used when active is absent" {
+            let result = Profiles.plan [ root [ "default", names [ "dev" ] ] ] Map.empty DocumentDefaults.profileOptions
+            Expect.equal result.Active [ "dev" ] "base defaults are an explicit fallback"
+        }
+        test "disabled selection ignores every malformed control location" {
+            let source = document SourceRole.Global DocumentFormat.Toml "global.toml" [ "active", ConfigValue.Null ]
+            let options = { DocumentDefaults.profileOptions with Selection = ProfileSelection.Disabled }
+            let result = Profiles.plan [ source ] (Map.ofList [ "MORPHIR_PROFILES__ACTIVE", "invalid" ]) options
+            Expect.equal (result.Enabled, result.Active, result.Diagnostics) (false, [], []) "off suppresses control interpretation"
+        }
+        test "selected discovered root keeps its control authority" {
+            let source = root [ "active", names [ "dev" ] ]
+            let selected = { source with Source = { source.Source with Role = SourceRole.Selected } }
+            let result = Profiles.plan [ source; selected ] Map.empty DocumentDefaults.profileOptions
+            Expect.equal (result.Active, result.Diagnostics) ([ "dev" ], []) "moving ordinary values does not forfeit base controls"
+        }
+        test "all non-root source roles reject controls" {
+            let roles = [ SourceRole.Defaults; SourceRole.System; SourceRole.Global; SourceRole.Selected; SourceRole.MemberPrimary; SourceRole.WorkspaceProfile; SourceRole.MemberProfile; SourceRole.UserOverride; SourceRole.WorkspaceUserOverride; SourceRole.Environment; SourceRole.Explicit ]
+            for role in roles do
+                let source = document role DocumentFormat.Json (string role) [ "active", names [ "dev" ] ]
+                let result = Profiles.plan [ source ] Map.empty DocumentDefaults.profileOptions
+                Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.authority")) ("forbidden control role " + string role)
+        }
+        test "higher empty group replaces every lower member" {
+            let lower = document SourceRole.RootPrimary DocumentFormat.Json "morphir.json" [ "groups", ConfigValue.Object (Map.ofList [ "production", names [ "lower" ] ]) ]
+            let higher = root [ "groups", ConfigValue.Object (Map.ofList [ "production", names [] ]) ]
+            let options = { DocumentDefaults.profileOptions with Selection = ProfileSelection.Names [ "production" ] }
+            let result = Profiles.plan [ higher; lower ] Map.empty options
+            Expect.equal result.Active [ "production" ] "root format order and whole-group replacement agree"
+        }
+        test "qualified inclusive limits are accepted" {
+            let groups = [ for index in 1 .. 64 -> "g" + string index, names (List.replicate 64 "dev") ] |> Map.ofList |> ConfigValue.Object
+            let options = { DocumentDefaults.profileOptions with Selection = ProfileSelection.Names [ for index in 1 .. 128 -> "p" + string index ] }
+            let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty options
+            Expect.equal (result.Active.Length, result.Diagnostics) (128, []) "64 groups, 64 members each, and 128 distinct active names are valid"
+        }
+        test "host bounds can tighten qualified limits" {
+            let groups = ConfigValue.Object (Map.ofList [ "a", names [ "b" ]; "b", names [] ])
+            let options = { DocumentDefaults.profileOptions with MaxDepth = 1 }
+            let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty options
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.depth")) "host depth policy applies to inactive groups"
+        }
+        test "diamond expansion stays bounded by distinct group names" {
+            let groups = [ for index in 1 .. 30 -> "g" + string index, names (if index = 30 then [] else List.replicate 2 ("g" + string (index + 1))) ] |> Map.ofList |> ConfigValue.Object
+            let options = { DocumentDefaults.profileOptions with Selection = ProfileSelection.Names [ "g1" ] }
+            let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty options
+            Expect.equal (result.Active.Length, result.Diagnostics) (30, []) "memoized subgroups avoid enumerating exponentially repeated paths"
+        }
     ]
