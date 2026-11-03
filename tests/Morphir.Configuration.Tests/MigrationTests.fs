@@ -694,6 +694,78 @@ let verificationTests =
 
             Expect.isTrue (plan malformed empty).Blocked "invalid Unicode blocks before rendering"
         }
+        test "declared profile controls cannot disappear or change during verification" {
+            for control, value in
+                [
+                    "default", ConfigValue.Array [ text "dev" ]
+                    "active", ConfigValue.Array [ text "dev" ]
+                    "include", ConfigValue.Array [ text "metrics" ]
+                    "groups", obj [ "dev", ConfigValue.Array [ text "metrics" ] ]
+                ] do
+                let raw =
+                    classicRaw
+                    |> ConfigTree.set [ "profiles"; control ] value
+
+                let source = manifest raw
+                let converted = ProjectMigration.plan source target empty
+
+                let verify candidate =
+                    ProjectMigration.verify
+                        source
+                        target
+                        candidate
+                        DocumentDefaults.resolutionInput
+                        "/repo"
+
+                Expect.isTrue
+                    (verify converted.Candidate).Verified
+                    "unchanged declarations verify without activation"
+
+                for candidate in
+                    [
+                        converted.Candidate
+                        |> ConfigTree.remove "profiles"
+                        converted.Candidate
+                        |> ConfigTree.set [ "profiles"; control ] (text "invalid")
+                    ] do
+                    let result = verify candidate
+                    Expect.isFalse result.Verified "declarations affect future profile selection"
+
+                    Expect.isTrue
+                        (result.Differences
+                         |> List.exists (fun difference ->
+                             List.head difference.KeyPath = "profiles"
+                         ))
+                        "profile declaration mismatch is explicit"
+        }
+        test "invalid Unicode at every source key segment blocks loss accounting" {
+            let invalid = System.String(char 0xD800, 1)
+
+            for path in [ [ invalid ]; [ "custom"; invalid ]; [ "custom"; invalid; "nested" ] ] do
+                let converted =
+                    plan
+                        (classicRaw
+                         |> ConfigTree.set path (text "okay"))
+                        empty
+
+                Expect.isTrue converted.Blocked "invalid key blocks before rendering"
+
+                Expect.isTrue
+                    (converted.Ledger
+                     |> List.exists (fun field ->
+                         field.RawPath = path
+                         && field.Disposition = "blocking"
+                     ))
+                    "affected source setting is accounted as blocking"
+
+                Expect.isTrue
+                    (converted.Diagnostics
+                     |> List.exists (fun diagnostic ->
+                         diagnostic.Code = "project.migrate_unrepresentable"
+                         && diagnostic.KeyPath = path
+                     ))
+                    "diagnostic identifies the full key path"
+        }
         test "float and opaque reference repeats preserve typed identity" {
             let raw =
                 classicRaw

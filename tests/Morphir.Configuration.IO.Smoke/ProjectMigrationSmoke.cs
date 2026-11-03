@@ -29,6 +29,19 @@ internal static class ProjectMigrationSmoke
             Check(report.RootElement.GetProperty("verification").GetProperty("verified").GetBoolean(), "generated report lost verification");
             Check(!memory.ObservedPaths.Any(p => p.Contains(".user.", StringComparison.Ordinal)), "read personal overlay");
         }
+        var controlledSource = ConfigurationReader.ReadText("/repo/morphir.json",
+            "{name:'Orders',exposedModules:[],profiles:{default:['dev']}}");
+        var controlledTarget = new SourceIdentity("/repo/morphir.toml", DocumentFormat.Toml, SourceRole.RootPrimary, 0, null);
+        var controlledPlan = ProjectMigration.plan(controlledSource, controlledTarget, DocumentDefaults.emptyValue);
+        Check(ProjectMigration.verify(controlledSource, controlledTarget, controlledPlan.Candidate,
+            DocumentDefaults.resolutionInput, "/repo").Verified, "unchanged profile declarations rejected");
+        var missingControls = ConfigTree.remove("profiles", controlledPlan.Candidate);
+        Check(!ProjectMigration.verify(controlledSource, controlledTarget, missingControls,
+            DocumentDefaults.resolutionInput, "/repo").Verified, "lost profile declarations accepted");
+        var invalidKey = ConfigurationReader.ReadText("/repo/morphir.json",
+            "{name:'Orders',exposedModules:[],custom:{'\\ud800':{nested:'okay'}}}");
+        Check(ProjectMigration.plan(invalidKey, controlledTarget, DocumentDefaults.emptyValue).Blocked,
+            "invalid ancestor key escaped loss accounting");
         var root = ProjectPath.normalize(Path.Combine(Path.GetTempPath(), "migration-smoke-" + Guid.NewGuid().ToString("N")));
         Directory.CreateDirectory(root);
         var recovery = false;

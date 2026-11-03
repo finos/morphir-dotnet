@@ -46,7 +46,7 @@ including compatibility-reader fields that ordinary loading ignores.
 The ledger accounts for each original value as mapped, equivalently retained or
 blocking. Derived entries record materialized defaults. Canonical dependencies
 objects and supported extra settings survive; unsupported nonempty classic
-shapes block. Null, out-of-range TOML integers and invalid Unicode block even if
+shapes block. Null, out-of-range TOML integers and invalid Unicode in values or any key segment block even if
 another layer would hide them. Classic/canonical collisions in one file block
 regardless of equality. Equal target entries remain unchanged; missing leaves
 become edits; differing values produce redacted source/target conflicts.
@@ -56,7 +56,8 @@ It independently resolves before and after snapshots, excluding the converted
 classic source and old target from the candidate. Both sides retain only root
 and selected-member primary sources. Machine, selected-file, personal,
 environment, explicit CLI and activated-profile contributions are removed.
-Profile declarations remain ordinary data; activation is disabled. Declared base
+Declared profile controls are compared separately using their raw merge semantics;
+activation stays disabled. Missing or changed declarations fail verification. Declared base
 workspace context remains, with its output directory recomputed from root base
 sources rather than a previously resolved personal override.
 

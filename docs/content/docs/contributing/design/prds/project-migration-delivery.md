@@ -189,3 +189,33 @@ tests, documentation and spec changes are committed in this PR. Recovery fault
 fixtures were resolved explicitly; the final inventory records no unresolved
 native recovery files. Preserve any later unresolved evidence during parent
 review. The checkout and branch are intentionally retained for parent landing.
+
+## Parent review follow-up
+
+Independent core review of `5035f21` found two actionable P2 issues. Declared
+profile controls disappeared from both disabled-activation effective trees,
+allowing a missing or changed declaration to verify. Invalid Unicode ancestor
+keys were skipped when raw extras were flattened into leaf ledger entries.
+Both were reproduced before production changes. `parent-core-red.log` records
+26 passing and two failing focused tests.
+
+Verification now compares declared root profile controls using the existing raw
+control merge rules, without activating profiles or requesting profile files.
+Those controls are included in the redacted before/after snapshots and explicit
+differences. The planner validates every key path segment before accepting a
+source ledger entry. Missing/changed default, active, include and group controls,
+and invalid top-level/ancestor/leaf keys have regression coverage.
+`parent-core-green.log` passes all 177 core tests. The published migration host
+also exercises unchanged/missing profile declarations and an invalid JSON5
+ancestor key. The rebuilt solution passes with the same 11 existing warnings.
+
+Current-head integration, formatting, coverage and runtime qualification results
+are recorded below when complete. Parent review/CI/landing and cleanup remain
+campaign gates; this follow-up is not a completion receipt.
+
+All 17 configured executable runners passed again after the parent fixes, using
+freshly rebuilt outputs and the same serial resource limits. Core now passes
+177 cases, IO 307, tooling 397 and Microsoft 22; all other counts remain as in
+the original qualification table. `validation/summary.json` contains the
+refreshed command, exit-code and duration evidence. The full Models runner again
+passes all 791 model/codec roundtrips.

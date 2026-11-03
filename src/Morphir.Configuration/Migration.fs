@@ -315,7 +315,10 @@ module ProjectMigration =
                         addError classic.Source "project.migrate_loss" [ key ]
                 | None ->
                     for path, child in leaves [ key ] (Normalization.normalizeSecrets [ key ] value) do
-                        let retained = representable child
+                        let retained =
+                            List.forall validText path
+                            && representable child
+
                         account path (Some path) child (if retained then "retained" else "blocking")
 
                         if not retained then
@@ -499,12 +502,22 @@ module ProjectMigration =
         let before = Resolver.resolve beforeInput
         let after = Resolver.resolve afterInput
 
+        // Resolver deliberately removes profile metadata when activation is disabled.
+        // Compare declarations separately so future selection cannot change unnoticed.
+        let withControls sources values =
+            Profiles.declaredControls sources
+            |> Option.map (fun controls -> ConfigTree.set [ "profiles" ] controls values)
+            |> Option.defaultValue values
+
+        let beforeValues = withControls beforeInput.Sources before.Effective
+        let afterValues = withControls afterInput.Sources after.Effective
+
         let oldValues =
-            leaves [] before.Effective
+            leaves [] beforeValues
             |> Map.ofList
 
         let newValues =
-            leaves [] after.Effective
+            leaves [] afterValues
             |> Map.ofList
 
         let keys =
@@ -594,8 +607,8 @@ module ProjectMigration =
             Verified =
                 differences.IsEmpty
                 && diagnostics.IsEmpty
-            Before = Editing.redactValue [] before.Effective
-            After = Editing.redactValue [] after.Effective
+            Before = Editing.redactValue [] beforeValues
+            After = Editing.redactValue [] afterValues
             Differences = differences
             OriginChanges = originChanges
             Diagnostics = diagnostics

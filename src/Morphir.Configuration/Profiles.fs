@@ -87,6 +87,11 @@ module Profiles =
         |> List.map (fun doc -> doc.Raw)
         |> List.fold mergeControls DocumentDefaults.emptyValue
 
+    /// Declared root controls with raw null/shape replacement semantics, without activation.
+    let internal declaredControls sources =
+        baseValue sources
+        |> ConfigTree.tryFind [ "profiles" ]
+
     let private diagnostic sources path code message =
         let origin =
             baseDocuments sources
