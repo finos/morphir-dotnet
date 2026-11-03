@@ -138,4 +138,15 @@ let tests =
             let result = Profiles.plan [] (Map.ofList [ "MORPHIR_PROFILES", "\u00a0" ]) DocumentDefaults.profileOptions
             Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.name")) "Unicode whitespace is an invalid name rather than a disable control"
         }
+        test "base names are validated even below an explicit selector" {
+            let sources = [ root [ "default", names [ "bad/name" ] ] ]
+            let options = { DocumentDefaults.profileOptions with Selection = ProfileSelection.Names [ "dev" ] }
+            let result = Profiles.plan sources Map.empty options
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.name" && diagnostic.KeyPath = [ "profiles"; "default" ] && diagnostic.Source.Path = "morphir.toml")) "all literal controls are checked before selection"
+        }
+        test "groups require a table of literal name arrays" {
+            let groups = ConfigValue.Object (Map.ofList [ "production", ConfigValue.String "dev" ])
+            let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.shape" && diagnostic.KeyPath = [ "profiles"; "groups"; "production" ])) "a scalar cannot replace a group member list"
+        }
     ]

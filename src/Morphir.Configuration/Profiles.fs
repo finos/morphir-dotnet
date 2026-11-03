@@ -112,19 +112,34 @@ module Profiles =
         | Some (ConfigValue.Object fields) ->
             let arrayErrors =
                 [ "active"; "default"; "include" ]
-                |> List.choose (fun key ->
+                |> List.collect (fun key ->
                     let path = [ "profiles"; key ]
                     match ConfigTree.tryFind path value with
-                    | Some (ConfigValue.Array items) when items |> List.forall (function ConfigValue.String _ -> true | _ -> false) -> None
-                    | None -> None
-                    | Some _ -> Some (diagnostic sources path "config.profiles.shape" "Profile controls require an array of literal strings."))
+                    | Some (ConfigValue.Array items) when items |> List.forall (function ConfigValue.String _ -> true | _ -> false) ->
+                        let origin = diagnostic sources path "" ""
+                        items
+                        |> List.choose (function ConfigValue.String name -> Some name | _ -> None)
+                        |> nameErrors origin.Source path
+                        |> List.map (fun error -> { error with Position = origin.Position })
+                    | None -> []
+                    | Some _ -> [ diagnostic sources path "config.profiles.shape" "Profile controls require an array of literal strings." ])
             let unknownErrors =
                 fields
                 |> Map.toList
                 |> List.choose (fun (key, _) ->
                     if List.contains key [ "active"; "default"; "include"; "groups" ] then None
                     else Some (diagnostic sources [ "profiles"; key ] "config.profiles.unknown" ("Unknown profile control: " + key)))
-            arrayErrors @ unknownErrors
+            let groupErrors =
+                match Map.tryFind "groups" fields with
+                | None -> []
+                | Some (ConfigValue.Object groups) ->
+                    groups |> Map.toList |> List.collect (fun (name, members) ->
+                        let path = [ "profiles"; "groups"; name ]
+                        match members with
+                        | ConfigValue.Array items when items |> List.forall (function ConfigValue.String _ -> true | _ -> false) -> []
+                        | _ -> [ diagnostic sources path "config.profiles.shape" "Profile group members require an array of literal strings." ])
+                | Some _ -> [ diagnostic sources [ "profiles"; "groups" ] "config.profiles.shape" "Profile groups requires a table." ]
+            arrayErrors @ unknownErrors @ groupErrors
         | Some _ -> [ diagnostic sources [ "profiles" ] "config.profiles.shape" "Profiles requires a table." ]
 
     let private readNames path value =
