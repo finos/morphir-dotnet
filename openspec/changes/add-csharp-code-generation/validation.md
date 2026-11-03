@@ -396,3 +396,82 @@ both fresh packages pass metadata/exact lookup checks, and `patterns-host-02`
 passes 126/126. These final changes are formatting only; the full native result
 above covers the unchanged behavior. The final source export is compared with
 the exact four compiler-tested source sets before committing.
+
+## SDK bindings and frozen generated-call observations
+
+The initial SDK RED run failed in both families at unmapped multiply. Six RED
+checks then covered that slice plus unsupported comparison/function-equality
+domains. Typed public SDK bindings made 132 tests pass. Four further RED checks
+showed that SDK domains must validate after record-field inference; moving that
+validation makes 134 tests pass. The original duplicate test names were corrected
+before observing the field-domain failures, with both setup attempts retained.
+
+FrozenSdkCases embeds the unchanged inventory and cases. Its first generated-call
+RED failed at Basics.divide. Bindings now cover all 67 frozen operations through
+the real SDK, including typed structural Dict/Set comparers and exact Decimal.
+Both typed paths execute all 207 required IDs. The adapter checks exact ID-set
+membership, values/errors, preservation fingerprints, equality/hash invariants
+and canonical Decimal arithmetic bits. All eight representation exclusions remain
+exclusions; all four historical F# gap records remain unchanged authority.
+
+Two test-adapter discrepancies are retained. `sdk-frozen-green-01` incorrectly
+required identical Decimal scale bits for ordinary List.singleton observations;
+the frozen contract compares Decimal values across scale differences.
+`sdk-frozen-green-02` tried constructing scale 29 directly for an exactly reducible
+input. The corrected adapter removes trailing zeros only as required to fit
+Decimal96, never rounds/truncates, and retains canonical-bit checks specifically
+for Decimal arithmetic. `sdk-frozen-invariants` passes 136/136 with the full frozen
+invariants. No frozen expected value or runtime source was changed.
+
+Four subsequent RED checks cover constructor value references and public function
+exposure of private nominal types. Those fixes pass 140/140, including Order
+patterns. Another two actual C# compiler failures exposed repeated generic record
+fields with reordered equivalent nested field declarations. Shape matching now
+ignores that declaration order while value evaluation order remains unchanged.
+The focused suite still passes 140/140.
+
+All four executions in `sdk-matrix-02` compiled and ran successfully, but its byte
+comparison correctly failed because the newly authored shared fixture supplied
+different ordered record values to classic's map and v4's ordered list. The
+corrected fixture supplies equivalent value order while retaining differing type
+field order. The separate reversed-v4 evaluation-order case remains. The checker
+was not weakened. `sdk-matrix-03` passes all four real executions and byte checks,
+covering the shared type/function/pattern/record/SDK corpus and all 207 required
+SDK observations under each compiler. Data-module SHA-256 remains
+`5ac1939afbf1bc9e41626381666e62ee7ec818ab8995505f3ee8f9f8ac057456`;
+Functions-module SHA-256 is
+`1eb034c70e636c224d9540ec73ce971f0e31d90857bbd7a49e4aca910e1bb7cf`.
+The exact compiler builds and net10 runtime remain those pinned above.
+
+Final authored-production static coverage in `sdk-final.cobertura.xml` is
+2,903/3,121 lines, 93.01505927587311%, with no authored code excluded. The earlier
+SDK report remains 2,895/3,111, 93.05689488910318%. Task 3.3 is checked and apply
+instructions refresh to 9/13. Full native, fresh package-host and package checks
+are recorded below when complete. No CLI registration, production compiler
+adapter, runtime change or additional production dependency is introduced.
+
+Root granted a new serial two-file status-only lease for the index C# row and the
+umbrella's present status. The appended umbrella paragraph binds its 126-test
+host and four-profile pattern/record claims explicitly to checkpoint `8dca9b6`.
+The `a4cc96a` paragraph and 92-test count remain historical, with its former
+pending scope qualified as historical. SDK cleanup and other rows are untouched.
+The serial lease covers only these edits and ends at the verified commit/push
+boundary.
+
+The SDK boundary's native Restore+Compile+Test run passes in 7m21: Restore 3s,
+Compile 1m33 and Test 5m45. Captured `sdk-suite-totals.json` records 3,541 framework
+tests, including generator 140/140, plus 15 cold package checks and 48 inspection
+smoke checks, with zero failures/skips/ignored tests. Frozen observations within
+aggregate tests are not added again to that framework-test denominator.
+PackAll passes in 47s. TestBuild passes 40/40 using the freshly compiled outputs.
+Both packages pass fresh metadata and compiled exact-version lookup checks in
+`sdk-package-metadata.json`. The updated resource-copy edge runs the same 140
+tests successfully from fresh packages in `sdk-host-01`, including the test-only
+driver. The production closure and bounded .NET 10.0.14/SDK 10.0.403/Windows arm64
+host claim are unchanged. No publishing target runs.
+
+Native Precommit passes in 30s with the inherited unsupported-F# diagnostics.
+All 15 owned F# files pass the explicit Fantomas check. Changelog validation,
+strict OpenSpec's snapshot/schema/22 items/two tests, owned and leased Markdown
+relative links, and `git diff --check` pass. All twelve frozen contract hashes,
+including exact raw JSON, and all 44 original evidence hashes still match.

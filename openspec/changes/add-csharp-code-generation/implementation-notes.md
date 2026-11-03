@@ -54,9 +54,30 @@ updates once, then construct a new immutable value. Duplicate binders and
 inconsistent branch types fail generation. Compiled recursive list sum and
 explicit local-recursion refusals exercise both families. Non-exhaustive patterns
 retain a runtime pattern-failure exception, rather than an implementation stub.
-SDK constructor mapping is still pending under task 3.3.
+SDK constructors now bind the real Maybe/Result factories and Order cases.
+Patterns use the public Match/IsJust/IsOk API; no private runtime representation
+or null branch encoding is introduced. Constructor value references are admitted.
 
 Task 3.4 still needs cancellation through expansion/allocation/emission inner
 loops, a final whole-model boundary check, and a real nonempty traversal test.
-SDK operations beyond the current add slice, business fixtures, frozen compatible
-conformance cases, trimming, whole-suite coverage and final handoff remain open.
+Business fixtures, trimming, whole-suite coverage and final handoff remain open.
+
+## SDK bindings and checked domains
+
+SdkMapping holds typed operation signatures and deterministic text bindings for
+the 67 frozen operations. Number, comparable and equality constraints validate
+after closed-record fields resolve. Collection factories compose the actual
+typed SDK comparers. Result remains error first throughout signatures, factories,
+callbacks and pattern extraction. The production dependency closure is unchanged.
+
+FrozenSdkCases embeds the original inventory/cases unchanged and builds direct
+typed classic/v4 wrapper functions. Its C# observations check all 207 required
+IDs, exact inventory membership, errors, input fingerprints and equality/hash
+invariants. Eight representation exclusions remain separate. Ordinary Decimal
+observations compare values across scale differences; exact arithmetic also
+checks canonical bits. Reducible large coefficient/scale inputs reduce exactly
+before constructing Decimal96, with no truncation or rounding.
+
+Public function signatures now receive the same private-nominal exposure check
+as public type payloads. Repeated generic record bindings compare nested field
+sets independently of declaration order. Value evaluation order is retained.

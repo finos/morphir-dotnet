@@ -63,7 +63,7 @@ module internal ValueLowering =
         | TLiteral of LiteralEmission.Literal
         | TVariable of Name
         | TReference of Top * Shape list
-        | TSdk of string
+        | TSdk of SdkMapping.Operation
         | TApply of Typed * Typed
         | TLambda of Name * Shape * Typed
         | TLet of Name * Typed * Typed
@@ -85,6 +85,7 @@ module internal ValueLowering =
         Case: Name
         Fields: (Name * Shape) list
         IsRecord: bool
+        Runtime: string option
     }
 
     and TypedPattern = {
@@ -469,6 +470,7 @@ module internal ValueLowering =
         let mutable numeric = []
         let mutable fieldConstraints = []
         let mutable updateConstraints = []
+        let mutable domains = []
 
         member _.Fresh() =
             count <- count + 1
@@ -568,6 +570,14 @@ module internal ValueLowering =
                 (location, typ)
                 :: numeric
 
+        member this.Constrain location constraint' typ =
+            match constraint' with
+            | SdkMapping.Number -> this.Numeric location typ
+            | _ ->
+                domains <-
+                    (location, constraint', typ)
+                    :: domains
+
         member _.Field location target name result =
             fieldConstraints <-
                 (location, target, name, result)
@@ -589,6 +599,65 @@ module internal ValueLowering =
             | _ -> Admission.fail "type-mismatch" location "A field operation requires a record."
 
         member this.Validate() =
+            let rec comparable shape =
+                match this.Resolve shape with
+                | Named(name, []) ->
+                    List.contains (sdk name) [
+                        Some("basics", "int")
+                        Some("basics", "float")
+                        Some("char", "char")
+                        Some("string", "string")
+                    ]
+                | Named(name, [ item ]) when sdk name = Some("list", "list") -> comparable item
+                | Product items when
+                    items.Length = 2
+                    || items.Length = 3
+                    ->
+                    List.forall comparable items
+                | _ -> false
+
+            let rec equatable visited shape =
+                match this.Resolve shape with
+                | Arrow _ -> false
+                | Fields fields ->
+                    fields
+                    |> List.forall (
+                        snd
+                        >> equatable visited
+                    )
+                | Product items -> List.forall (equatable visited) items
+                | Named(name, args) ->
+                    let payloads =
+                        match Map.tryFind name catalog with
+                        | Some declaration when not (Set.contains name visited) ->
+                            if
+                                declaration.Parameters.Length
+                                <> args.Length
+                            then
+                                Admission.fail
+                                    "type-arity"
+                                    "$types"
+                                    "An equality payload has incorrect type arity."
+
+                            let mapping = Map.ofList (List.zip declaration.Parameters args)
+
+                            match declaration.Definition with
+                            | Cases(_, cases) ->
+                                cases
+                                |> List.collect (
+                                    snd
+                                    >> List.map (
+                                        snd
+                                        >> substitute mapping
+                                    )
+                                )
+                            | Alias body -> [ substitute mapping body ]
+                        | _ -> []
+
+                    List.forall (equatable visited) args
+                    && List.forall (equatable (Set.add name visited)) payloads
+                | _ -> true
+
             for location, target, name, result in List.rev fieldConstraints do
                 match
                     this.Fields location target
@@ -627,6 +696,20 @@ module internal ValueLowering =
                         "unsupported-numeric"
                         location
                         "This operation requires a concrete Int or Float representation."
+
+            for location, constraint', shape in domains do
+                match constraint' with
+                | SdkMapping.Comparable when not (comparable shape) ->
+                    Admission.fail
+                        "unsupported-comparable"
+                        location
+                        "The SDK ordering requires concrete admitted comparable types."
+                | SdkMapping.Equatable when not (equatable Set.empty shape) ->
+                    Admission.fail
+                        "unsupported-equality"
+                        location
+                        "Functions have no admitted Morphir equality."
+                | _ -> ()
 
         member this.Type location shape =
             let shape = this.Resolve shape
@@ -683,7 +766,7 @@ module internal ValueLowering =
                     "A function shares its generic parameter identity."
 
             let constructor location (name: FQName) =
-                let candidates =
+                let userCandidates =
                     catalog
                     |> Map.toList
                     |> List.collect (fun (_, declaration) ->
@@ -706,6 +789,7 @@ module internal ValueLowering =
                                                 Case = case
                                                 Fields = fields
                                                 IsRecord = false
+                                                Runtime = None
                                             }
                                     else
                                         None
@@ -716,10 +800,31 @@ module internal ValueLowering =
                                     Case = name.LocalName
                                     Fields = fields
                                     IsRecord = true
+                                    Runtime = None
                                 }
                               ]
                             | _ -> []
                     )
+
+                let candidates =
+                    match SdkMapping.tryCase name with
+                    | None -> userCandidates
+                    | Some case ->
+                        {
+                            Owner = {
+                                Name = case.TypeName
+                                Parameters = case.Parameters
+                                Public = true
+                                Synthetic = true
+                                Definition = Cases(true, [])
+                                Location = location
+                            }
+                            Case = name.LocalName
+                            Fields = case.Fields
+                            IsRecord = false
+                            Runtime = Some case.Method
+                        }
+                        :: userCandidates
 
                 let candidate =
                     match candidates with
@@ -857,13 +962,21 @@ module internal ValueLowering =
                                 loc
                                 ("Unbound variable "
                                  + title name)
+                    | Reference name when
+                        SdkMapping.tryCase name
+                        |> Option.isSome
+                        ->
+                        let candidate, args, fields, output = constructor loc name
+
+                        TConstructor(candidate, args),
+                        List.foldBack (fun (_, input) output -> Arrow(input, output)) fields output
                     | Reference name ->
-                        match sdk name with
-                        | Some("basics", "add") ->
-                            let n = state.Fresh()
-                            state.Numeric loc n
-                            TSdk "Add", Arrow(n, Arrow(n, n))
-                        | Some _ ->
+                        match SdkMapping.tryResolve state.Fresh (state.Constrain loc) name with
+                        | Some operation -> TSdk operation, SdkMapping.signature operation
+                        | None when
+                            sdk name
+                            |> Option.isSome
+                            ->
                             Admission.fail
                                 "unmapped-sdk"
                                 loc
@@ -1059,6 +1172,7 @@ module internal ValueLowering =
         )
 
     let recordDeclarations
+        catalog
         (model: VersionedModel)
         (ct: CancellationToken)
         (checkedValues: Checked list)
@@ -1171,6 +1285,12 @@ module internal ValueLowering =
                 let exported =
                     checkedValue.Top.Public
                     && Set.contains checkedValue.Top.Name.ModulePath publicModules
+
+                if exported then
+                    validatePublicType
+                        catalog
+                        checkedValue.Top.Location
+                        (checkedValue.CheckedType(signature checkedValue.Top.Definition))
 
                 yield! shape exported (signature checkedValue.Top.Definition)
                 yield! expression checkedValue.Body

@@ -53,6 +53,11 @@ New-Item -ItemType Directory -Force -Path $consumer | Out-Null
 $sources = @($sourceProject.Project.ItemGroup.Compile.Include | Where-Object { $_ })
 foreach ($source in $sources) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $source) -Destination $consumer }
 $compileItems = ($sources | ForEach-Object { '<Compile Include="' + $_ + '" />' }) -join "`n"
+$resourceItems = @($sourceProject.Project.ItemGroup.EmbeddedResource | Where-Object { $_.Include } | ForEach-Object {
+    $fileName = Split-Path $_.Include -Leaf
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot $_.Include) -Destination (Join-Path $consumer $fileName)
+    '<EmbeddedResource Include="' + $fileName + '" LogicalName="' + $_.LogicalName + '" />'
+}) -join "`n"
 $projectText = @'
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><GenerateProgramFile>false</GenerateProgramFile><DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference></PropertyGroup>
@@ -66,7 +71,7 @@ $projectText = @'
   </ItemGroup>
 </Project>
 '@
-$projectText.Replace('<!-- COMPILE -->', $compileItems) | Set-Content -LiteralPath (Join-Path $consumer 'Host.fsproj')
+$projectText.Replace('<!-- COMPILE -->', $compileItems + "`n" + $resourceItems) | Set-Content -LiteralPath (Join-Path $consumer 'Host.fsproj')
 @'
 {"sdk":{"version":"10.0.403","rollForward":"disable"}}
 '@ | Set-Content -LiteralPath (Join-Path $consumer 'global.json')

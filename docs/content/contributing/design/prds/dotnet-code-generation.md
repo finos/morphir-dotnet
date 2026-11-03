@@ -78,6 +78,13 @@ the existing initiative from the verified archive base. At function checkpoint
 `a4cc96a`, the packaged .NET 10 host passes 92 tests; the shared classic/v4
 type/function corpus compiles and executes under both pinned numeric 14/15
 compilers. The tested adapter host is .NET 10.0.14/SDK 10.0.403 Windows arm64.
-Ordered patterns, record operations, broader SDK mapping and mid-traversal
-cancellation remain pending. CLI integration is still gated and
+At that checkpoint, ordered patterns, record operations, broader SDK mapping and
+mid-traversal cancellation remained pending. CLI integration is still gated and
 undispatched. Historical counts above describe their original checked revisions.
+
+At pattern/record checkpoint `8dca9b6`, the packaged .NET 10 host passes 126/126
+tests. All four classic/v4 x pinned numeric 14/15 type/function/pattern/record
+consumers compile and execute. The tested adapter host remains
+.NET 10.0.14/SDK 10.0.403/Windows arm64; other compiler and IDE hosts remain
+untested. SDK mapping, mid-traversal cancellation and business-fixture acceptance
+remain pending. CLI integration remains gated and undispatched.

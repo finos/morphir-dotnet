@@ -469,6 +469,19 @@ module internal TypeEmission =
         |> List.filter (fun name -> Set.contains name used)
 
     let private matchShape parameters template actual =
+        let rec normalized shape =
+            match shape with
+            | Fields fields ->
+                Fields(
+                    fields
+                    |> List.sortBy fst
+                    |> List.map (fun (name, typ) -> name, normalized typ)
+                )
+            | Named(name, args) -> Named(name, List.map normalized args)
+            | Product items -> Product(List.map normalized items)
+            | Arrow(input, output) -> Arrow(normalized input, normalized output)
+            | other -> other
+
         let rec matched bindings template actual =
             let many bindings left right =
                 if
@@ -488,8 +501,8 @@ module internal TypeEmission =
             | Parameter name, _ when List.contains name parameters ->
                 match Map.tryFind name bindings with
                 | Some previous when
-                    previous
-                    <> actual
+                    normalized previous
+                    <> normalized actual
                     ->
                     None
                 | _ -> Some(Map.add name actual bindings)
@@ -901,7 +914,7 @@ module internal TypeEmission =
                 }
             )
 
-    let rec private validatePublicType catalog location =
+    let rec validatePublicType catalog location =
         function
         | Parameter _
         | Unit -> ()

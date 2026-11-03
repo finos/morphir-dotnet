@@ -87,6 +87,10 @@ module internal ValueEmission =
                 let target =
                     if candidate.IsRecord then
                         typ output
+                    elif candidate.Runtime.IsSome then
+                        typ output
+                        + "."
+                        + candidate.Runtime.Value
                     else
                         qualified candidate.Owner.Name
                         + arguments typ args
@@ -219,6 +223,85 @@ module internal ValueEmission =
                     ),
                     bindings,
                     env
+                | TConstructorPattern(candidate, _, items) when candidate.Runtime.IsSome ->
+                    let methodName = candidate.Runtime.Value
+                    let variable = fresh ()
+
+                    let failure =
+                        "throw new global::System.InvalidOperationException(\"Morphir constructor pattern failed.\")"
+
+                    let extraction, condition =
+                        match methodName with
+                        | "LT"
+                        | "EQ"
+                        | "GT" ->
+                            "",
+                            "global::Morphir.SDK.CSharp.Basics.Equal("
+                            + target
+                            + ",global::Morphir.SDK.CSharp.Order."
+                            + methodName
+                            + ")"
+                        | "Just" ->
+                            target
+                            + ".Match("
+                            + variable
+                            + " => "
+                            + variable
+                            + ", () => "
+                            + failure
+                            + ")",
+                            target
+                            + ".IsJust"
+                        | "Nothing" ->
+                            "",
+                            "!"
+                            + target
+                            + ".IsJust"
+                        | "Ok" ->
+                            target
+                            + ".Match("
+                            + variable
+                            + " => "
+                            + failure
+                            + ", "
+                            + variable
+                            + " => "
+                            + variable
+                            + ")",
+                            target
+                            + ".IsOk"
+                        | "Err" ->
+                            target
+                            + ".Match("
+                            + variable
+                            + " => "
+                            + variable
+                            + ", "
+                            + variable
+                            + " => "
+                            + failure
+                            + ")",
+                            "!"
+                            + target
+                            + ".IsOk"
+                        | _ ->
+                            Admission.fail
+                                "unmapped-sdk"
+                                loc
+                                "The SDK constructor pattern has no binding."
+
+                    let conditions, bindings, env =
+                        many (
+                            items
+                            |> List.map (fun item -> item, extraction)
+                        )
+
+                    combine (
+                        Some condition
+                        :: conditions
+                    ),
+                    bindings,
+                    env
                 | TConstructorPattern(candidate, args, items) ->
                     let fields, _, caseType = constructorParts candidate args
 
@@ -310,6 +393,14 @@ module internal ValueEmission =
                                     output
                                     (List.zip (List.map fst fields) values
                                      |> Map.ofList)
+                            elif candidate.Runtime.IsSome then
+                                if List.isEmpty values then
+                                    target
+                                else
+                                    target
+                                    + "("
+                                    + String.concat ", " values
+                                    + ")"
                             else
                                 "new "
                                 + target
@@ -551,20 +642,11 @@ module internal ValueEmission =
                     + "; return "
                     + body
                     + "; }))()"
-                | TSdk methodName ->
-                    match checkedValue.Resolve value.Type with
-                    | Arrow(a, Arrow(b, output)) ->
-                        curry
-                            [ a; b ]
-                            output
-                            (fun args ->
-                                "global::Morphir.SDK.CSharp.Basics."
-                                + methodName
-                                + "("
-                                + String.concat ", " args
-                                + ")"
-                            )
-                    | _ -> Admission.fail "type-mismatch" loc "SDK function shape mismatch."
+                | TSdk operation ->
+                    curry
+                        operation.Inputs
+                        operation.Output
+                        (SdkMapping.emit typ checkedValue.CheckedType loc operation)
                 | TReference(target, args) ->
                     let targetParameters =
                         signature target.Definition

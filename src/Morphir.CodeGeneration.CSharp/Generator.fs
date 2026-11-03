@@ -38,7 +38,7 @@ module internal Foundation =
             ValueLowering.declarations model ct
             |> ValueLowering.check initialCatalog ct
 
-        let records = ValueLowering.recordDeclarations model ct checkedValues
+        let records = ValueLowering.recordDeclarations initialCatalog model ct checkedValues
         let catalog, types = TypeEmission.prepareWith records model ct
         let values = ValueEmission.emit catalog ct checkedValues
 

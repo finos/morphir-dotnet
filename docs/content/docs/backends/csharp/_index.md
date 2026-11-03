@@ -17,8 +17,10 @@ application, returned functions, lambdas, nonrecursive value/function lets,
 conditionals, top-level self recursion, constructors, tuples, lists and closed
 record operations. Ordered patterns include wildcard, alias, literal, tuple,
 constructor, empty-list, head/tail and unit patterns.
-The current SDK operation slice is `Basics.add`. The remaining expression and
-SDK scope is tracked in the active OpenSpec tasks.
+The SDK binding table covers the frozen 67-operation inventory. Generated calls
+execute the 207 required frozen observations in both typed families. The eight
+representation exclusions remain exclusions. Remaining acceptance is tracked in
+the active OpenSpec tasks.
 It is not yet a complete backend. Decoding, configuration, source publication
 and compiler execution belong to callers. CLI registration and a production
 Roslyn adapter are separate initiatives.
@@ -113,8 +115,8 @@ to the corresponding double constants. Invalid UTF-16 strings fail explicitly.
 Type checking runs before a successful source set is returned. Unknown variables
 and references, inconsistent applications, infinite types and unsupported numeric
 constraints produce located diagnostics. Local recursive groups remain outside
-the admitted slice. Broader SDK mapping and traversal cancellation acceptance
-are still being implemented.
+the admitted slice. Traversal cancellation and business-fixture acceptance are
+still being implemented.
 
 Matches evaluate their subject once and select the first matching branch.
 Destructuring and pattern lambdas bind fresh lexical identities after their
@@ -128,3 +130,40 @@ Constructor argument order follows the selected structural record declaration.
 The classic model's record map has key order; v4 retains its authored field order.
 Field functions require a known closed record type. Missing fields, incompatible
 updates, duplicate binders and inconsistent branch types produce located failures.
+
+## SDK bindings
+
+Generated code calls the public `Morphir.SDK.CSharp` API. The generator package
+does not load that runtime to generate text. Its declared output requirement is
+net10.0 plus `Morphir.SDK.CSharp`, independently of the compiler host's packages.
+
+| Source module | Admitted runtime calls |
+| --- | --- |
+| Basics | Checked Int32/IEEE Float arithmetic, conversion/rounding, comparisons, min/max/clamp, Order cases and structural equality |
+| List | singleton, cons, map, append, head, tail and length |
+| Maybe | Just/Nothing constructors and patterns, map and andThen |
+| Result | Ok/Err constructors and patterns, map and andThen; error type first, value type second |
+| Dict | empty, singleton, fromList, get, insert, update, remove, toList and union |
+| Set | empty, singleton, fromList, insert, remove, toList and union |
+| Decimal | Exact add, sub, mul, div, compare and toString |
+
+Map and andThen use the actual instance combinators. Nothing and Err bypass
+callbacks, and callback exceptions propagate. SDK constructors also work as
+function values. Dictionary/set factories select `MorphirComparers.Int`,
+`Float`, `Char` or `String`, composing list and two/three-tuple comparers as
+needed. No CLR default comparer or reflection fallback is generated.
+
+Ordering requires concrete admitted comparable shapes, with finite Float values.
+Bool, Decimal, Unit,
+Order, records, variants and function shapes have no SDK ordering. A factory
+whose key comparer cannot be resolved fails with `unsupported-comparable`.
+Known function payloads fail equality admission with `unsupported-equality`.
+Unmapped SDK references fail with `unmapped-sdk`; dependencies without an
+implementation fail with `unresolved-reference` or `unresolved-type`.
+
+Type/literal incompatibilities are generation diagnostics. Value-dependent SDK
+failures, such as checked overflow or nonfinite Float-to-Int conversion, remain
+the SDK's execution errors. Decimal operations preserve the exact Decimal96
+subset and do not round unsupported fractions. Ordinary Decimal equality ignores
+authored scale; Decimal arithmetic produces canonical values. The generated-call
+corpus checks frozen values/errors, input persistence and equality/hash invariants.

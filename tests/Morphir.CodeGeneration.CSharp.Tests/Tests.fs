@@ -244,6 +244,171 @@ let externalDiagnostics model (consumer: string) =
 [<Tests>]
 let tests =
     testList "C# generation" [
+        for family in [ "classic"; "v4" ] do
+            testCase (
+                "Public functions cannot expose private nominal types "
+                + family
+            )
+            <| fun _ ->
+                let choice = FunctionCases.Own("data", "choice", [ FunctionCases.Int ])
+
+                let definitions: FunctionCases.Definition list = [
+                    {
+                        Name = "identityChoice"
+                        Inputs = [ "x", choice ]
+                        Output = choice
+                        Body = FunctionCases.Variable "x"
+                    }
+                ]
+
+                let model =
+                    if family = "classic" then
+                        PatternCases.classicWithDefinitions definitions
+                        |> mapClassicModules (
+                            Map.map (fun path modul ->
+                                if
+                                    path
+                                    <> TypeCases.path
+                                then
+                                    modul
+                                else
+                                    { modul with
+                                        Value =
+                                            { modul.Value with
+                                                Types =
+                                                    modul.Value.Types
+                                                    |> Map.change
+                                                        (Name.fromString "choice")
+                                                        (Option.map (fun typ ->
+                                                            { typ with
+                                                                Access = AccessControlled.Private
+                                                            }
+                                                        ))
+                                            }
+                                    }
+                            )
+                        )
+                    else
+                        let model = PatternCases.v4WithDefinitions definitions
+
+                        match model.Distribution with
+                        | DistributionModel.V4(Morphir.IR.V4.Library(pkg, deps, library)) ->
+                            let modules =
+                                library.Modules
+                                |> Morphir.IR.V4.OrderedMap.toList
+                                |> List.map (fun (path, modul) ->
+                                    if
+                                        path
+                                        <> TypeCases.path
+                                    then
+                                        path, modul
+                                    else
+                                        path,
+                                        { modul with
+                                            Value =
+                                                { modul.Value with
+                                                    Types =
+                                                        modul.Value.Types
+                                                        |> Morphir.IR.V4.OrderedMap.toList
+                                                        |> List.map (fun (name, typ) ->
+                                                            name,
+                                                            if
+                                                                name = Name.fromString "choice"
+                                                            then
+                                                                { typ with
+                                                                    Access = Morphir.IR.V4.Private
+                                                                }
+                                                            else
+                                                                typ
+                                                        )
+                                                        |> TypeCases.ordered
+                                                }
+                                        }
+                                )
+                                |> TypeCases.ordered
+
+                            { model with
+                                Distribution =
+                                    DistributionModel.V4(
+                                        Morphir.IR.V4.Library(pkg, deps, { Modules = modules })
+                                    )
+                            }
+                        | _ -> failwith "V4 library required."
+
+                let result =
+                    CSharpGenerator.Generate(
+                        model,
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal result.Status GenerationStatus.Failure "no invalid public signature"
+
+                Expect.equal
+                    result.Diagnostics.Head.Rule
+                    "private-type-exposure"
+                    "located visibility refusal"
+        for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
+            testCase (
+                "Frozen SDK generated-call observations "
+                + family
+            )
+            <| fun _ ->
+                Expect.equal FrozenSdkCases.entries.Length 207 "frozen required IDs"
+
+                Expect.equal
+                    (FrozenSdkCases.entries
+                     |> List.map (fun entry -> entry.Id)
+                     |> List.sort)
+                    FrozenSdkCases.requiredIds
+                    "exact authority ID set"
+
+                Expect.equal FrozenSdkCases.excludedIds.Length 8 "exclusions are not passes"
+
+                Expect.equal
+                    (FrozenSdkCases.entries
+                     |> List.map (fun entry -> entry.Operation)
+                     |> List.distinct
+                     |> List.length)
+                    67
+                    "all inventory operations"
+
+                Expect.equal
+                    (executeConsumer
+                        (make FrozenSdkCases.definitions)
+                        14
+                        (FrozenSdkCases.consumer ()))
+                    207
+                    "generated calls observe frozen values and errors"
+        for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
+            for rule, definition in SdkCases.refusals do
+                testCase (
+                    "SDK domain refusal "
+                    + family
+                    + " "
+                    + definition.Name
+                )
+                <| fun _ ->
+                    let result =
+                        CSharpGenerator.Generate(
+                            make [ definition ],
+                            GenerationOptions.Default,
+                            CancellationToken.None
+                        )
+
+                    Expect.equal result.Status GenerationStatus.Failure "refused domain"
+                    Expect.isEmpty result.Sources "no artifacts"
+                    Expect.equal result.Diagnostics.Head.Rule rule "located rule"
+        for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
+            testCase (
+                "Compiled SDK arithmetic, comparisons, maps and variants "
+                + family
+            )
+            <| fun _ ->
+                Expect.equal
+                    (executeConsumer (make SdkCases.definitions) 14 SdkCases.consumer)
+                    1
+                    "SDK meaning and persistence"
         for memberName in [ "referenceEquals"; "memberwiseClone"; "finalize" ] do
             testCase (
                 "Record payload cannot hide inherited "
@@ -1317,9 +1482,17 @@ let main args =
 
         let model =
             if args[2] = "classic" then
-                PatternCases.classic ()
+                PatternCases.classicWithDefinitions (
+                    PatternCases.definitions
+                    @ SdkCases.definitions
+                    @ FrozenSdkCases.definitions
+                )
             else
-                PatternCases.v4 ()
+                PatternCases.v4WithDefinitions (
+                    PatternCases.definitions
+                    @ SdkCases.definitions
+                    @ FrozenSdkCases.definitions
+                )
 
         let result = CSharpGenerator.Generate(model, options, CancellationToken.None)
 
@@ -1345,6 +1518,8 @@ let main args =
                 "Nested", TypeCases.nestedConsumer
                 "Functions", FunctionCases.consumer
                 "Patterns", PatternCases.consumer
+                "SDK", SdkCases.consumer
+                "FrozenSDK", FrozenSdkCases.consumer ()
             ]
             |> List.map (fun (name, body) ->
                 "namespace "

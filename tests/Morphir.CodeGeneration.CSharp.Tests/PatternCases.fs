@@ -212,13 +212,13 @@ let definitions = [
     }
 ]
 
-let classic () =
+let classicWithDefinitions extra =
     let types = TypeCases.classic ()
 
     let functions =
         classicWith (
             FunctionCases.definitions
-            @ definitions
+            @ extra
         )
 
     match types.Distribution, functions.Distribution with
@@ -241,6 +241,8 @@ let classic () =
                 )
         }
     | _ -> failwith "Classic typed corpus required."
+
+let classic () = classicWithDefinitions definitions
 
 let v4WithDefinitions extra =
     let types = TypeCases.v4 ()

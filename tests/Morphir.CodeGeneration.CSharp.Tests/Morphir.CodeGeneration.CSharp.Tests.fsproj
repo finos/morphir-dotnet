@@ -22,7 +22,13 @@
     <Compile Include="LiteralCases.fs" />
     <Compile Include="FunctionCases.fs" />
     <Compile Include="PatternCases.fs" />
+    <Compile Include="SdkCases.fs" />
+    <Compile Include="FrozenSdkCases.fs" />
     <Compile Include="Tests.fs" />
     <None Include="Generation.feature" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../Fixtures/MorphirSDK/inventory.json" LogicalName="FrozenSDK.inventory.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirSDK/cases.json" LogicalName="FrozenSDK.cases.json" />
   </ItemGroup>
 </Project>

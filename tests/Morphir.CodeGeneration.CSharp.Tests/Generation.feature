@@ -1,6 +1,12 @@
 Feature: Reusable typed C# library generation
   A host supplies a decoded Morphir library without invoking the CLI.
 
+  Scenario: The initial SDK slice preserves arithmetic and variant meaning
+    Given equivalent classic and v4 libraries using arithmetic, comparisons and List.map
+    And Maybe.map and error-first Result.map with present and absent payloads
+    When compiled consumers execute the generated SDK calls and constructor patterns
+    Then independent observations match the frozen SDK contract and inputs remain unchanged
+
   Scenario: An empty library succeeds
     Given a supported classic or v4 Library with no modules
     When the in-memory generator runs

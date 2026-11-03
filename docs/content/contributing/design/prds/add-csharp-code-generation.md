@@ -12,15 +12,15 @@ defines acceptance. PR readiness precedes coordinator-owned landing and archival
 
 | Feature | Status | Verification |
 | --- | --- | --- |
-| In-memory entry-point foundation | Implemented | Empty input and caller cancellation tests written first; broad lowering pending |
+| In-memory entry-point foundation | Implemented | Typed immutable inputs/results, whole-model refusals, empty input and initial caller cancellation |
 | Modern packaged compiler-host closure | Implemented | Fresh packages, incremental driver AddSource, compiled/executed constant and cancellation |
-| Numeric C# 14 and 15 profiles | Implemented | Actual matching compilers compile and execute identical constant-source bytes; broad corpus pending |
-| Classic and v4 typed lowering | In Progress | Independent typed type/value walkers; broader SDK mapping pending; no serialization or migration bridge |
+| Numeric C# 14 and 15 profiles | Implemented | Actual matching compilers execute the shared type/function/pattern/record/SDK corpus with identical source bytes |
+| Classic and v4 typed lowering | Implemented | Independent typed type/value walkers and runtime bindings; no serialization or migration bridge |
 | Immutable aliases, records, cases and structural equality | Implemented | Shared type corpus compiled/executed in all four family/profile combinations |
 | Typed function values, application, lambdas and nonrecursive lets | Implemented | Shared compiled capture/shadowing/partial-application/callback-order observations across both families/profiles |
 | Deterministic naming, paths and literals | Implemented | Reordered declarations, Turkish culture, keywords/capture, portable collisions, Unicode/numeric fidelity and empty allocation |
 | Ordered patterns, conditionals, record operations and self recursion | Implemented | Shared compiled first-match, constructor/tuple/list/alias/literal patterns, lexical binding and input persistence; reversed v4 field order checked separately |
-| Admitted SDK operations and explicit refusals | In Progress | Basics.add executes; broader frozen-compatible SDK slice pending |
+| Admitted SDK operations and explicit refusals | Implemented | All 67 frozen operations execute 207 required observations through both typed paths, including persistence and equality/hash invariants; eight exclusions remain exclusions |
 | Determinism, located refusals and traversal cancellation | Planned | Positive and negative behavior tests |
 | Package, trimming, full tests and coverage | Planned | Exact commands and denominators required |
 
@@ -46,9 +46,8 @@ representation exclusions. Historical F# gaps remain historical evidence.
 
 The packaged modern compiler-host smoke passed with the real Models dependency
 closure. Legacy IDE and netstandard hosts remain untested. Root-approved shared
-solution/build/package/docs registrations are integrated and their serial edit
-lease is released. Broader SDK mapping, cancellation during traversal and final
-package/trimming acceptance remain open.
+solution/build/package/docs registrations are integrated. Cancellation during traversal,
+business fixtures and final package/trimming acceptance remain open.
 
 The type checkpoint uses get-only classes and closed nested cases in both
 profiles. Transparent aliases expand to their structural representation, while

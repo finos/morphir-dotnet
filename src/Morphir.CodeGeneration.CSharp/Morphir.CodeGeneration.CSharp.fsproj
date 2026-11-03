@@ -14,6 +14,7 @@ Reusable typed C# generation with explicit language profiles and located diagnos
     <Compile Include="Types.fs" />
     <Compile Include="TypeEmission.fs" />
     <Compile Include="LiteralEmission.fs" />
+    <Compile Include="SdkMapping.fs" />
     <Compile Include="ValueLowering.fs" />
     <Compile Include="ValueEmission.fs" />
     <Compile Include="Generator.fs" />
