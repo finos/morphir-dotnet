@@ -244,6 +244,94 @@ let externalDiagnostics model (consumer: string) =
 [<Tests>]
 let tests =
     testList "C# generation" [
+        testCase "Business matrix retains all seven required inputs"
+        <| fun _ ->
+            Expect.equal
+                (BusinessCases.cases
+                 |> List.map (fun (id, _, _, _, _, _) -> id)
+                 |> Set.ofList)
+                (Set.ofList [
+                    "car-classic-1"
+                    "car-classic-2"
+                    "car-classic-3"
+                    "car-v4-synthesized"
+                    "daily-classic"
+                    "daily-v4"
+                    "books-v4-types"
+                ])
+                "no silently missing positive matrix rows"
+        for version in [ "1"; "2"; "3" ] do
+            testCase (
+                "Original car lifecycle classic "
+                + version
+            )
+            <| fun _ ->
+                let model =
+                    BusinessCases.read (
+                        "car-rental-v"
+                        + version
+                        + ".json"
+                    )
+
+                Expect.equal model.SourceVersion.Text version "original source version"
+
+                Expect.equal
+                    (executeConsumer model 14 BusinessCases.carConsumer)
+                    7
+                    "independent lifecycle and seven rejections"
+        testCase "SYNTHESIZED TEST INPUT v4 car lifecycle"
+        <| fun _ ->
+            Expect.equal
+                (executeConsumer (BusinessCases.synthesizedV4Car ()) 14 BusinessCases.carConsumer)
+                7
+                "independent lifecycle"
+        for name, version in [ "daily-rate-v3.json", "3"; "daily-rate-v4.json", "4" ] do
+            testCase (
+                "Original daily rate "
+                + name
+            )
+            <| fun _ ->
+                let model = BusinessCases.read name
+                Expect.equal model.SourceVersion.Text version "original source spelling"
+
+                Expect.equal
+                    (executeConsumer model 14 BusinessCases.dailyConsumer)
+                    5000
+                    "independent daily rate"
+        testCase "COMPATIBLE TYPE SLICE original v4 books and records"
+        <| fun _ ->
+            Expect.equal
+                (executeConsumer (BusinessCases.booksTypeSlice ()) 14 BusinessCases.booksConsumer)
+                1
+                "nonempty immutable nested type behavior"
+        for name, rule in
+            [
+                "complete-example.json", "unresolved-type"
+                "books-and-records-example.json", "unsupported-body"
+            ] do
+            testCase (
+                "Original ecosystem refusal "
+                + name
+            )
+            <| fun _ ->
+                let result =
+                    CSharpGenerator.Generate(
+                        BusinessCases.read name,
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal result.Status GenerationStatus.Failure "original source limitations"
+                Expect.isEmpty result.Sources "no success-shaped partial artifacts"
+
+                Expect.isTrue
+                    (result.Diagnostics
+                     |> List.exists (fun d ->
+                         d.Rule = rule
+                         && d.Location
+                            <> ""
+                     ))
+                    "located original limitation"
         testCase "Mid-traversal cancellation interrupts acyclic alias expansion"
         <| fun _ -> CancellationCases.duringAliasExpansion ()
         for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
@@ -1481,6 +1569,79 @@ let tests =
 [<EntryPoint>]
 let main args =
     if
+        args.Length = 4
+        && args[0] = "--export-business"
+    then
+        let id, label, names, expected, make, consumer =
+            BusinessCases.cases
+            |> List.find (fun (id, _, _, _, _, _) -> id = args[2])
+
+        let model = make ()
+
+        let options = {
+            LanguageVersion = Int32.Parse(args[1], Globalization.CultureInfo.InvariantCulture)
+        }
+
+        let result = CSharpGenerator.Generate(model, options, CancellationToken.None)
+
+        if
+            result.Status
+            <> GenerationStatus.Success
+            || List.isEmpty result.Sources
+        then
+            failwithf "Nonempty business generation failed: %A" result.Diagnostics
+
+        for source in result.Sources do
+            let path = IO.Path.Combine(args[3], source.RelativePath)
+
+            IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(path))
+            |> ignore
+
+            IO.File.WriteAllText(path, source.Text, UTF8Encoding(false))
+
+        IO.File.WriteAllText(
+            IO.Path.Combine(args[3], "Observation.cs"),
+            consumer,
+            UTF8Encoding(false)
+        )
+
+        IO.File.WriteAllText(
+            IO.Path.Combine(args[3], "Program.cs"),
+            "if (Observation.Run() != "
+            + string expected
+            + ") throw new System.Exception(\"Independent observation mismatch\"); System.Console.WriteLine(\"generated-consumer:business-passed\");",
+            UTF8Encoding(false)
+        )
+
+        let originalSources =
+            BusinessCases.sources
+            |> List.filter (fun source -> List.contains source.Name names)
+
+        let excluded =
+            if id = "books-v4-types" then
+                [ "open-deal: IncompleteBody/Draft"; "close-deal: IncompleteBody/Draft" ]
+            else
+                []
+
+        let metadata = {|
+            Id = id
+            Label = label
+            OriginalSources = originalSources
+            ExcludedValues = excluded
+            Family = string model.Family
+            SourceVersion = model.SourceVersion.Text
+            LanguageVersion = options.LanguageVersion
+            Expected = expected
+        |}
+
+        IO.File.WriteAllText(
+            IO.Path.Combine(args[3], "case.json"),
+            JsonSerializer.Serialize(metadata),
+            UTF8Encoding(false)
+        )
+
+        0
+    elif
         args.Length = 4
         && args[0] = "--export-profile"
     then

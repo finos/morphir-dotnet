@@ -14,7 +14,7 @@ owned worktrees. The coordinator retains the shared bootstrap checkout.
 | [establish-dotnet-sdk-conformance](../../../../../openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance/proposal.md) | Implementation and archive #463 landed; cleanup pending | Conformance lead, `t3/dotnet-sdk-conformance` | Planning PR #459, landed `890aacb61df601f2876112a2cdd4d9d6f5757ca6` | Inventory, profiles, schema and evidence |
 | [add-immutable-csharp-sdk](../../../../../openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/proposal.md) | Implementation and archive #472 landed; source worktree/artifacts removed | C# SDK lead, retired by coordinator | Conformance initiative | Immutable public SDK API |
 | [introduce-fsharp-sdk-package](../../../../../openspec/changes/archive/2026-11-03-introduce-fsharp-sdk-package/proposal.md) | Implementation and archive #472 landed; source worktree/artifacts removed | F# SDK lead, retired by coordinator | Conformance initiative | Package compatibility and covered corrections |
-| [add-csharp-code-generation](../../../../../openspec/changes/add-csharp-code-generation/proposal.md) | Implementing #474; early packaged-host foundation verified | C# generation lead, `t3/add-csharp-code-generation` | C# SDK initiative landed | Typed generation/options/diagnostics |
+| [add-csharp-code-generation](../../../../../openspec/changes/add-csharp-code-generation/proposal.md) | Implementing #474; typed lowering, SDK/business matrix and bounded trimming verified | C# generation lead, `t3/add-csharp-code-generation` | C# SDK initiative landed | Typed generation/options/diagnostics |
 | [integrate-csharp-generation-cli](../../../../../openspec/changes/integrate-csharp-generation-cli/proposal.md) | Planned | CLI lead, dispatched by coordinator | C# generation initiative | Existing CLI publication contract |
 
 The full Roslyn source-generator adapter remains deferred. C# generation's
@@ -86,5 +86,18 @@ At pattern/record checkpoint `8dca9b6`, the packaged .NET 10 host passes 126/126
 tests. All four classic/v4 x pinned numeric 14/15 type/function/pattern/record
 consumers compile and execute. The tested adapter host remains
 .NET 10.0.14/SDK 10.0.403/Windows arm64; other compiler and IDE hosts remain
-untested. SDK mapping, mid-traversal cancellation and business-fixture acceptance
-remain pending. CLI integration remains gated and undispatched.
+untested. At that checkpoint, SDK mapping, mid-traversal cancellation and business-fixture acceptance
+remained pending. CLI integration remains gated and undispatched.
+
+At cancellation checkpoint `a2b67c9`, the packaged .NET 10 host passes 143/143;
+active traversal/emission cancellation returns no sources. Subsequent fixture
+evidence, recorded in the generator change's validation record, passes 153 focused
+tests and 18 actual pinned-compiler executions. These include original classic
+car-rental 1/2/3 and daily-rate inputs, direct v4 daily-rate, a labeled synthesized
+v4 car input, and a separately labeled compatible books-and-records type slice.
+Whole ecosystem originals with missing types or draft bodies still fail with
+located diagnostics and no partial output. A fresh typed package consumer passes
+self-contained win-arm64 link trimming with identical observations/source hashes
+and no IL warnings. Tested package/adapter host remains .NET 10.0.14/SDK
+10.0.403/Windows arm64; other IDE hosts and generator Native AOT remain untested. Final
+delivery checks are in progress. CLI integration remains gated and undispatched.

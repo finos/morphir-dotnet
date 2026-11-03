@@ -74,3 +74,16 @@ Feature: Reusable typed C# library generation
     When the compiled consumer constructs the public alias
     Then a public immutable structural representation is available
     But a public payload exposing a private nominal type fails generation
+
+  Scenario: Original and constructed business inputs retain their provenance
+    Given original classic car-rental versions 1, 2 and 3 and direct daily-rate fixtures
+    And a clearly labelled SYNTHESIZED TEST INPUT equivalent typed v4 car library
+    When the shared compiler matrix executes the generated code
+    Then independent lifecycle observations include daily rate 5000 and invoice 15000
+    And all seven typed rejections and persistence observations hold
+
+  Scenario: Ecosystem limitations remain explicit
+    Given original v4 ecosystem fixtures with unresolved types or draft value bodies
+    When generation runs on the whole original
+    Then located failures return no sources
+    But the separately labelled COMPATIBLE TYPE SLICE of books-and-records executes immutable nested equality and hashing

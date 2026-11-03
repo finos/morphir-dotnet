@@ -62,8 +62,9 @@ Cancellation now reaches alias expansion, substitution, shape matching, public
 type validation, name allocation, SDK comparer recursion, typed value traversal
 and text emission. A final token check precedes the successful whole-model result.
 Active alias expansion and million-character strings in both families return
-Cancelled with no sources. Business fixtures, trimming, whole-suite coverage and
-final handoff remain open.
+Cancelled with no sources. Business fixture, trimming and final full-suite checks
+pass within their documented scope. API/diagnostic handoff is in the backend docs.
+PR review, landing, archival and cleanup remain coordinator-owned follow-up.
 
 ## SDK bindings and checked domains
 

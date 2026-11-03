@@ -4,7 +4,7 @@ title: "C# generation"
 
 `Morphir.CodeGeneration.CSharp` is being implemented under
 [issue #474](https://github.com/finos/morphir-dotnet/issues/474).
-The current foundation accepts typed `VersionedModel` values in memory, preserves
+The core accepts typed `VersionedModel` values in memory, preserves
 their source family/version, and returns immutable sources and diagnostics.
 The entry point is `CSharpGenerator.Generate(model, options, cancellationToken)`.
 `GenerationOptions.Default` selects numeric C# 14, independently of the SDK.
@@ -30,8 +30,11 @@ Roslyn adapter are separate initiatives.
 | Environment | Evidence |
 | --- | --- |
 | Windows arm64, .NET 10.0.14, SDK 10.0.403 Roslyn driver | Fresh package consumer restores, AddSource compiles, constant executes, caller cancellation returns no sources |
+| Windows arm64, .NET 10.0.14, SDK 10.0.403 fresh in-memory consumer | Both typed families and numeric profiles generate nonempty type/function/pattern/record/SDK text; deterministic sources, cancellation and refusal checks pass |
+| Self-contained win-arm64, net10.0, `TrimMode=link` | Published consumer executes with identical observations/source hashes to its untrimmed build; no IL warnings in this smoke |
 | Legacy .NET Framework / netstandard IDE compiler hosts | Untested; Models and core require net10.0 |
 | Other IDE/runtime/OS combinations | Untested |
+| Native AOT | Untested |
 
 The demonstrated production package closure is Models, FSharp.Core 11.0.100 and
 FSharp.SystemTextJson 1.4.36. The test runner additionally brings Expecto and
@@ -40,12 +43,15 @@ Tooling, Ion, Pipeline and the CLI are absent from the core package closure.
 Language syntax compatibility does not establish IDE-host compatibility.
 
 Numeric language profiles and compiler release channels are separate. The same
-type corpus has compiled and executed under C# 14.0 with stable SDK 10.0.403,
+shared type/function/pattern/record/SDK corpus has compiled and executed under
+C# 14.0 with stable SDK 10.0.403,
 compiler 5.9.0-1.26523.112, and C# 15.0 with SDK 11.0.100-rc.2.26504.105,
 compiler 5.12.0-1.26504.105. Both consumers target net10.0 and run on 10.0.14.
 The RC compiler is isolated under an owned test directory. Root global.json
 stays on the stable SDK. Both independently constructed classic/v4 models produce
-identical type-source bytes. The remaining expression corpus is pending.
+identical source bytes. Original classic car-rental versions 1/2/3, a labeled
+synthesized v4 car input, direct daily-rate inputs and a compatible v4 ecosystem
+type slice also compile and execute under both pinned compilers.
 
 `tests/Morphir.CodeGeneration.CSharp.Tests/verify-host.ps1` packs the real core
 and Models into a local proof feed and restores a fresh consumer with a private
@@ -54,6 +60,61 @@ reference downgrading the required 11.0.100 assembly, causing runtime load
 failure. The corrected F# test host disables that implicit reference and uses
 the actual transitive closure. No model library was retargeted. Both attempts
 are retained in the owned evidence inventory.
+
+`verify-trimming.ps1` packs Models and the core into a fresh local feed, restores
+a separate private cache, and runs a typed in-memory consumer before and after
+self-contained trimming. That consumer's package closure contains only Models,
+the core, FSharp.Core and FSharp.SystemTextJson. It loads no Roslyn, Expecto,
+Mono.Cecil or SDK runtime. The generated text still declares the SDK runtime
+requirement. This smoke establishes the listed consumer behavior on the tested
+host; it does not establish arbitrary IDE integration or Native AOT support.
+
+## Calling the core
+
+Supply an already decoded `Morphir.IR.Model.VersionedModel`. Classic Library
+versions `1`, `2`, `3`, `3.0.0` and `3.1.0`, and v4 Library versions `4` and
+`4.0.0`, retain their exact source version and typed family. Empty libraries
+succeed with an empty source list. Specs, Application and unsupported versions
+produce located failures with no sources. No serialization bridge or implicit
+migration runs.
+
+```fsharp
+open Morphir.CodeGeneration.CSharp
+
+let result = CSharpGenerator.Generate(model, { LanguageVersion = 14 }, cancellationToken)
+match result.Status with
+| GenerationStatus.Success -> consumeSources result.Sources
+| GenerationStatus.Failure -> reportDiagnostics result.Diagnostics
+| GenerationStatus.Cancelled -> reportCancellation ()
+```
+
+The caller supplies `model`, the token and the three handling functions. Sources
+contain portable relative `.g.cs` paths and deterministic LF text. Encode text as
+UTF-8 without a BOM when publishing it. Decoding, package resolution, compilation,
+configuration and file publication remain caller responsibilities. Numeric 15
+uses the same API and case representation. See the [diagnostic contract](diagnostics.md).
+
+## Business fixture evidence
+
+The shared parameterized test matrix executes the original classic car-rental
+1/2/3 files unchanged and preserves their raw source hashes and version spelling.
+Independent observations require daily rate 5000, Available/Reserved/Rented/
+Available lifecycle states, invoice 15000, seven typed rejections and persistence
+of both the original inventory and prior billing obligation.
+
+The equivalent v4 car library is labeled **SYNTHESIZED TEST INPUT**. Its typed
+builder exists only in tests and supplies no expected result. It is neither an
+upstream v4 fixture nor production migration support. The existing direct v4
+daily-rate fixture executes independently and returns 5000.
+
+Whole original ecosystem examples retain their source limitations. The regulatory
+example references missing types; books-and-records has `open-deal` and
+`close-deal` draft `IncompleteBody` declarations. Both originals fail with located
+diagnostics and no partial sources. The separately labeled **COMPATIBLE TYPE
+SLICE** retains every original books-and-records type, visibility and payload,
+excluding exactly those two draft values. Its nonempty generated records/cases
+execute payload, equality/hash, nested dictionary persistence and get-only
+property checks. This is selected-input evidence, not full-original conformance.
 
 ## Type mappings and equality
 
@@ -115,7 +176,7 @@ to the corresponding double constants. Invalid UTF-16 strings fail explicitly.
 Type checking runs before a successful source set is returned. Unknown variables
 and references, inconsistent applications, infinite types and unsupported numeric
 constraints produce located diagnostics. Local recursive groups remain outside
-the admitted slice. Business-fixture acceptance is still being implemented.
+the admitted slice. The business fixture scope and evidence are described above.
 
 Cancellation checks cover typed traversal, recursive alias/record expansion,
 name allocation, SDK comparer construction and text emission. The final result

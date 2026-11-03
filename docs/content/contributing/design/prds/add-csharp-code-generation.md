@@ -22,7 +22,9 @@ defines acceptance. PR readiness precedes coordinator-owned landing and archival
 | Ordered patterns, conditionals, record operations and self recursion | Implemented | Shared compiled first-match, constructor/tuple/list/alias/literal patterns, lexical binding and input persistence; reversed v4 field order checked separately |
 | Admitted SDK operations and explicit refusals | Implemented | All 67 frozen operations execute 207 required observations through both typed paths, including persistence and equality/hash invariants; eight exclusions remain exclusions |
 | Determinism, located refusals and traversal cancellation | Implemented | Active alias expansion and both-family large-string generation cancel without sources; invalid later modules retain the whole-model boundary |
-| Package, trimming, full tests and coverage | Planned | Exact commands and denominators required |
+| Shared business fixture matrix | Implemented | Original classic 1/2/3 car workflows, labeled synthesized v4 car, direct daily-rate and compatible v4 ecosystem type slice execute under both pinned compilers |
+| Fresh package consumer and trimming | Implemented | Both families/profiles generate in memory from fresh packages; self-contained win-arm64 link trimming preserves source hashes and observations with no IL warnings |
+| Final full tests, coverage and API handoff | Implemented | 3,554 framework cases plus 15 package/48 inspection checks; generator 2,977/3,187 measured lines, 93.41%; explicit whole-suite report scope and CLI API/diagnostic handoff documented |
 
 ## Design and boundary
 
@@ -47,7 +49,9 @@ representation exclusions. Historical F# gaps remain historical evidence.
 The packaged modern compiler-host smoke passed with the real Models dependency
 closure. Legacy IDE and netstandard hosts remain untested. Root-approved shared
 solution/build/package/docs registrations are integrated. Business fixtures and
-final package/trimming acceptance remain open.
+fresh package/trimming checks pass within the documented tested host boundary.
+Local implementation acceptance and API handoff are verified. PR review,
+coordinator-owned landing, archival and cleanup remain open.
 
 The type checkpoint uses get-only classes and closed nested cases in both
 profiles. Transparent aliases expand to their structural representation, while

@@ -23,9 +23,9 @@ Read [design](design.html), [spec](specs/morphir-csharp-transpilation/spec.md) a
 
 ## 4. Shared behavior matrix and package handoff
 
-- [ ] 4.1 Reuse compatible daily-rate/car-rental/ecosystem fixtures in one parameterized compiler/execution corpus across classic/v4 and C# 14/15; verify nonempty results against independent business and SDK observations.
-- [ ] 4.2 Pack the core and run a fresh in-memory consumer plus trimming smoke, update backend usage and host-boundary docs, and coordinate root registrations; verify deterministic artifacts and declared runtime requirements.
-- [ ] 4.3 Run strict OpenSpec validation and repository-required formatting/full tests/coverage, record exact compiler builds, and hand off typed options/results/diagnostic categories to CLI integration; verify no CLI registration or full source-generator package is added.
+- [x] 4.1 Reuse compatible daily-rate/car-rental/ecosystem fixtures in one parameterized compiler/execution corpus across classic/v4 and C# 14/15; verify nonempty results against independent business and SDK observations.
+- [x] 4.2 Pack the core and run a fresh in-memory consumer plus trimming smoke, update backend usage and host-boundary docs, and coordinate root registrations; verify deterministic artifacts and declared runtime requirements.
+- [x] 4.3 Run strict OpenSpec validation and repository-required formatting/full tests/coverage, record exact compiler builds, and hand off typed options/results/diagnostic categories to CLI integration; verify no CLI registration or full source-generator package is added.
 
 ## Workflow follow-up
 

@@ -517,3 +517,124 @@ Changelog validation, strict OpenSpec snapshot/schema/22 items/two tests, owned
 Markdown relative links and diff checks pass. All 12 frozen contract digests and
 44 original evidence digests still match. Task 3.4 is checked and refreshed apply
 instructions report 10/13. No shared/status path is edited at this boundary.
+
+## Original fixture matrix and local trimming
+
+The first registered fixture run, named `business-red`, passes 152/152 without a
+production change. It is an initial behavior check, not an observed RED. Added
+raw-source SHA-256 guards and a required matrix-ID-set check make the focused run
+153/153. The first matrix-list build exposed four discarded sequence-expression
+warnings; explicit yields fix the harness before actual compiler execution. That
+setup evidence is retained. Test formatting changes no generated C# bytes.
+
+`business-matrix-01/profiles.json` passes the four classic/v4 x numeric 14/15
+shared-corpus consumers, including all 207 required frozen SDK observations per
+consumer. `business.json` records another fourteen actual compiler/execution
+consumers, seven independently observed inputs under each pinned compiler:
+
+- ORIGINAL classic car-rental 1, 2 and 3, unchanged embedded source bytes and exact
+  source-version spelling, execute daily rate 5000, Available/Reserved/Rented/
+  Available states, invoice 15000, all seven typed rejections and persistence of
+  original inventory and prior billing obligations.
+- SYNTHESIZED TEST INPUT v4 car library, constructed only by a test-side typed
+  builder from the original classic 3 input. It supplies no expected values and
+  is never called by production. It establishes equivalent typed-family behavior,
+  not upstream v4 provenance or production migration support.
+- ORIGINAL daily-rate classic 3 and direct v4 integer-version 4 both return 5000.
+- COMPATIBLE TYPE SLICE of original v4 books-and-records retains all original type
+  definitions, access and field/case payloads. It excludes exactly `open-deal` and
+  `close-deal`, both original IncompleteBody/Draft values, with exclusion metadata
+  in every exported case.json. Nonempty records/cases execute payload fidelity,
+  get-only properties, independent equality/hash and nested dictionary persistence.
+
+Equivalent car inputs and equivalent daily-rate inputs have identical generated
+paths/bytes across the typed families and numeric profiles. All eighteen consumers
+actually compile and run, not merely parse. They use the exact pinned compiler
+builds recorded above, target net10.0 and execute on runtime 10.0.14. Whole original
+ecosystem fixtures also run separate located refusal/no-source checks. The
+regulatory example references outflows/supplemental/assets beyond its two recorded
+type definitions; books-and-records contains its two draft bodies. No declarations
+or implementations are invented, and no full-original conformance is claimed.
+
+Original books-and-records raw SHA-256 is
+`bdc25e9fb332a49f7f12bfa80c907eca482ae5b63bad07575ef06194ab99fda3`;
+complete-example is
+`30fbea9879b377dde11d0a4916b926dba152069e7b24bd43e4cf33cb27fcd979`.
+All seven original fixture paths/hashes are checked in BusinessCases.sources and
+exported as provenance, independently of generated behavior. Original files are
+unchanged.
+
+`trimming-01` packs fresh Models/core packages, restores a private consumer cache,
+and executes both typed families at numeric 14/15 on the shared nonempty
+type/function/pattern/record/SDK text corpus. It verifies repeated generation,
+family/version preservation, pre-cancellation, unsupported-profile refusal and
+runtime requirements. A self-contained win-arm64 publish with PublishTrimmed=true
+and TrimMode=link runs successfully. Untrimmed and trimmed observations/source
+hashes match byte-for-byte; the publish has zero IL warnings. This is a local test
+binary, not a publication/release target. Its package closure is exactly Models,
+core, FSharp.Core 11.0.100 and FSharp.SystemTextJson 1.4.36. It has no Roslyn,
+Expecto, Mono.Cecil, Tooling, Ion, Pipeline or SDK runtime package. The separate
+adapter harness retains its own test dependencies.
+
+Trimming evidence is bounded to Windows arm64, SDK 10.0.403 and net10.0 runtime
+10.0.14. Generator Native AOT, other architectures/operating systems and legacy
+IDE/netstandard hosts remain untested. No library is retargeted. Backend usage,
+host limits and diagnostic categories are documented. Tasks 4.1/4.2 are checked;
+refreshed apply status is 12/13. Root approved a serial four-path status lease for
+the exact final-shared-edits.md proposal, plus the stale SDK-archive suffix in
+CHANGELOG and the generator Native AOT qualifier. Only those shared paths are
+edited. The lease releases after the verified checkpoint push.
+
+## Final local acceptance and API handoff
+
+Fresh normal `pwsh -NoProfile -File build.ps1 --target Compile --configuration
+Release` passes Restore in 2s and Compile in 1m28, total 1m31. Then dotnet-coverage
+18.7.0 collects the actual native `build.ps1 --target Test --configuration Release
+--skip Restore Compile` body in 6m53. Dependencies are skipped only after that
+fresh successful compile, so static instrumentation is not overwritten. The
+captured command/result files retain the exact invocation. This is reported as
+two commands, not a new single-command normal Restore+Compile+Test run.
+
+`business-suite-totals.json` derives 3,554 framework cases from the captured log,
+including the registered sequential generator suite at 153/153, plus 15 cold
+package-consumer and 48 inspection checks. There are zero failures, skipped or
+ignored cases. The 207 frozen observations inside each aggregate SDK test are
+not added again to the framework-case total.
+
+`whole-suite.cobertura.xml` reports 24,118/28,646 lines, 84.19325560287649%, across
+18 production assembly identities. Generator coverage is 2,977/3,187,
+93.41073109507374%, with no authored exclusions. `whole-suite-scope.json` records
+the requested 20 distinct src assembly identities and all existing Release output
+copies. `dotnet-morphir` and the Blazor `Morphir.Live` assembly are absent from the
+report. The shared `Morphir.SDK` identity reports SDK.FSharp source paths; this
+report does not establish coverage of every legacy SDK source. Cold consumers
+built after instrumentation may not contribute to pre-instrumented copies.
+This denominator is the collector's full-suite report, not every repository
+source/output, and no comparison with an unmeasured baseline is claimed. The
+previous generator-only static denominator remains independently recorded above.
+
+Final PackAll passes in 48s. TestBuild passes 40/40. Actual fresh packages pass
+metadata and compiled exact-version package lookup in
+`business-package-metadata.json`, without executing publishing targets.
+`business-host-01` restores fresh packages/cache and passes 153/153, including the
+in-memory driver. Native Precommit passes in 32s while retaining its inherited
+unsupported-F# formatter diagnostics. All 18 owned F# files pass explicit
+Fantomas checking. Changelog validation, strict OpenSpec snapshot/schema/22 items/
+two tests, owned/leased Markdown links and diff checks pass. The first expanded
+link-check attempt used an empty base for root Markdown files; the corrected
+absolute-base check passes. All 12 frozen contract digests and 44 original
+evidence digests still match in final-frozen-proof.json.
+
+The backend diagnostic guide hands the CLI successor the typed entry point,
+explicit options, whole-model result statuses, runtime requirements, source
+encoding/path contract and every current refusal rule category. The production
+core retains separate classic/v4 typed walkers and no Roslyn, Tooling, Ion,
+compiler-process, file/config or implicit migration dependency. No CLI
+registration, release publication, machine NuGet change or full source-generator
+package is introduced. Generator Native AOT and unlisted IDE hosts remain
+untested, preserving predecessor runtime AOT evidence separately.
+
+All 13 implementation tasks are verified. This is PR-ready local acceptance, not
+initiative completion: coordinator-owned review/CI, landing, spec synchronization,
+archive and clean worker/artifact removal remain. The checkout and owned proof
+root remain intact for that handoff.

@@ -2,7 +2,7 @@
 
 | PRD | Status | Phase | Current task |
 | --- | --- | --- | --- |
-| [C# code generation](./add-csharp-code-generation.md) | In Progress | SDK mapping | Patterns, persistent records and typed functions verified; SDK mapping/cancellation/business fixtures pending, #474 |
+| [C# code generation](./add-csharp-code-generation.md) | In Progress | Final validation | Typed lowering, SDK mapping, cancellation, business matrix and bounded trimming verified; final checks/PR handoff pending, #474 |
 | [Immutable C# SDK](./add-immutable-csharp-sdk.md) | Implementation and archive landed | Cleanup pending | #470 and archive #472 landed; implementation worktree/artifacts removed; empty archive directory cleanup pending |
 | [.NET SDKs and C# generation](dotnet-code-generation.md) | In Progress | C# generation | Generator #474 implements typed lowering; SDK archive #472 landed; empty archive directory cleanup pending |
 | [Establish .NET SDK conformance](establish-dotnet-sdk-conformance.md) | In Progress | Cleanup pending | #462 and archive #463 landed; coordinator retains policy-blocked directory cleanup, #460 |

@@ -75,4 +75,40 @@ foreach ($profile in @(@{name='stable';language=14;sdk='10.0.403';exe=$StableDot
 }
 foreach ($result in $results) { if (($results[0].sources | ConvertTo-Json -Compress) -ne ($result.sources | ConvertTo-Json -Compress)) { throw 'Profile/family public sources differ.' } }
 $results | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $proof 'profiles.json')
+$business = [Collections.Generic.List[object]]::new()
+$businessCases = @('car-classic-1','car-classic-2','car-classic-3','car-v4-synthesized','daily-classic','daily-v4','books-v4-types')
+foreach ($profile in @(@{name='stable';language=14;sdk='10.0.403';exe=$StableDotnet}, @{name='rc2';language=15;sdk='11.0.100-rc.2.26504.105';exe=$RcDotnet})) {
+  foreach ($case in $businessCases) {
+    $step = "$($profile.name)-business-$case"
+    $directory = Join-Path $proof $step
+    New-Item -ItemType Directory -Path $directory | Out-Null
+    [void](Run "$step-export" $StableDotnet $repo @('exec',$testDll,'--export-business',"$($profile.language)",$case,$directory) (Split-Path $StableDotnet))
+    @{sdk=@{version=$profile.sdk;rollForward='disable';allowPrerelease=($profile.name -eq 'rc2')}} | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $directory 'global.json')
+    @"
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>$($profile.language).0</LangVersion><UseAppHost>false</UseAppHost><RuntimeFrameworkVersion>10.0.14</RuntimeFrameworkVersion></PropertyGroup><ItemGroup><PackageReference Include="Morphir.SDK.CSharp" Version="0.0.0-generatorprofiles" /></ItemGroup></Project>
+"@ | Set-Content (Join-Path $directory 'Consumer.csproj')
+    "<configuration><packageSources><clear/><add key=`"runtime`" value=`"$feed`"/></packageSources><fallbackPackageFolders><clear/></fallbackPackageFolders><packageSourceMapping><clear/><packageSource key=`"runtime`"><package pattern=`"Morphir.SDK.CSharp`"/></packageSource></packageSourceMapping></configuration>" | Set-Content (Join-Path $directory 'NuGet.Config')
+    $root = Split-Path $profile.exe
+    $bounds = @('-m:1','-p:UseSharedCompilation=false','-nodeReuse:false')
+    [void](Run "$step-restore" $profile.exe $directory (@('restore','Consumer.csproj','--configfile','NuGet.Config','--packages',(Join-Path $directory 'packages')) + $bounds) $root)
+    [void](Run "$step-build" $profile.exe $directory (@('build','Consumer.csproj','--no-restore','-c','Release','-warnaserror') + $bounds) $root)
+    $output = Run "$step-run" $StableDotnet $directory @('exec','bin/Release/net10.0/Consumer.dll') (Split-Path $StableDotnet)
+    if ($output -ne 'generated-consumer:business-passed') { throw 'Independent business observation mismatch.' }
+    $metadata = Get-Content -LiteralPath (Join-Path $directory 'case.json') -Raw | ConvertFrom-Json
+    if ($metadata.Id -ne $case -or $metadata.LanguageVersion -ne $profile.language) { throw 'Incorrect exported business case.' }
+    $sources = @(Get-ChildItem -LiteralPath $directory -Filter '*.g.cs' -Recurse | Sort-Object FullName | ForEach-Object { @{path=[IO.Path]::GetRelativePath($directory,$_.FullName);sha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()} })
+    if (-not $sources.Count) { throw 'A business fixture must produce meaningful nonempty sources.' }
+    $business.Add(@{profile=$profile.name;language=$profile.language;sdk=$profile.sdk;runtime='10.0.14';output=$output;metadata=$metadata;sources=$sources})
+  }
+}
+foreach ($case in $businessCases) {
+    $rows = @($business | Where-Object { $_.metadata.Id -eq $case })
+    if ($rows.Count -ne 2 -or ($rows[0].sources | ConvertTo-Json -Compress) -ne ($rows[1].sources | ConvertTo-Json -Compress)) { throw "Business profile sources differ: $case" }
+}
+foreach ($ids in @(@('car-classic-1','car-classic-2','car-classic-3','car-v4-synthesized'), @('daily-classic','daily-v4'))) {
+    $rows = @($business | Where-Object { $_.metadata.Id -in $ids })
+    foreach ($row in $rows) { if (($rows[0].sources | ConvertTo-Json -Compress) -ne ($row.sources | ConvertTo-Json -Compress)) { throw 'Equivalent business typed-family sources differ.' } }
+}
+$business | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $proof 'business.json')
 Write-Output "Both numeric compiler profiles compiled and executed: $proof/profiles.json"
+Write-Output "Original/synthesized/sliced business inputs compiled and executed: $proof/business.json"
