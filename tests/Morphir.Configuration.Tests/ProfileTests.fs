@@ -60,4 +60,16 @@ let tests =
             let result = Profiles.plan sources Map.empty DocumentDefaults.profileOptions
             Expect.equal result.Active [ "metrics"; "postgres" ] "base includes precede active roots"
         }
+        test "higher null control fails typing with its winning source" {
+            let sources =
+                [ document SourceRole.RootPrimary DocumentFormat.Json "morphir.json" [ "active", names [ "lower" ] ]
+                  root [ "active", ConfigValue.Null ] ]
+            let result = Profiles.plan sources Map.empty DocumentDefaults.profileOptions
+            Expect.isTrue
+                (result.Diagnostics |> List.exists (fun diagnostic ->
+                    diagnostic.Severity = DiagnosticSeverity.Error
+                    && diagnostic.Source.Path = "morphir.toml"
+                    && diagnostic.KeyPath = [ "profiles"; "active" ]))
+                "a higher null does not resurrect a lower selector"
+        }
     ]
