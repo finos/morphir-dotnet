@@ -1,0 +1,461 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morphir.finos.org/schemas/project-migration-result.schema.json",
+  "title": "Single project migration result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operation",
+    "outcome",
+    "projectPath",
+    "source",
+    "target",
+    "changed",
+    "dryRun",
+    "ledger",
+    "edits",
+    "verification",
+    "diagnostics",
+    "recoveryArtifacts",
+    "exitCode",
+    "valueTypes",
+    "conflicts"
+  ],
+  "properties": {
+    "operation": {
+      "const": "migrate"
+    },
+    "outcome": {
+      "enum": [
+        "preview",
+        "written",
+        "unchanged",
+        "blocked",
+        "conflict",
+        "rolled-back",
+        "recovery-required",
+        "io-failure"
+      ]
+    },
+    "projectPath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/source"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "target": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/source"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "changed": {
+      "type": "boolean"
+    },
+    "dryRun": {
+      "type": "boolean"
+    },
+    "ledger": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/field"
+      }
+    },
+    "edits": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edit"
+      }
+    },
+    "verification": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/verification"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "recoveryArtifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "exitCode": {
+      "enum": [
+        0,
+        2
+      ]
+    },
+    "valueTypes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/valueType"
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "sourceValue",
+          "targetValue",
+          "source",
+          "target"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "sourceValue": {},
+          "targetValue": {},
+          "source": {
+            "$ref": "#/$defs/source"
+          },
+          "target": {
+            "$ref": "#/$defs/source"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "format",
+        "role",
+        "order",
+        "profile"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rawPath",
+        "canonicalPath",
+        "value",
+        "disposition"
+      ],
+      "properties": {
+        "rawPath": {
+          "type": "string"
+        },
+        "canonicalPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {},
+        "disposition": {
+          "enum": [
+            "mapped",
+            "retained",
+            "blocking",
+            "derived"
+          ]
+        }
+      }
+    },
+    "edit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "value"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {}
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verified",
+        "before",
+        "after",
+        "differences",
+        "originChanges",
+        "baseWorkspace"
+      ],
+      "properties": {
+        "verified": {
+          "type": "boolean"
+        },
+        "before": {},
+        "after": {},
+        "differences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/difference"
+          }
+        },
+        "originChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/originChange"
+          }
+        },
+        "baseWorkspace": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "root",
+            "outputDirectory"
+          ],
+          "properties": {
+            "root": {
+              "type": "string"
+            },
+            "outputDirectory": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "difference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "before",
+        "after",
+        "beforePath",
+        "afterPath"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "before": {},
+        "after": {},
+        "beforePath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "afterPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "source",
+        "line",
+        "column"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "column": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "originChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "before",
+        "after"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/origin"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "after": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/origin"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "severity",
+        "message",
+        "path",
+        "key",
+        "line",
+        "column"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "column": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "kind",
+        "transactionId"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "transactionId": {
+          "type": "string"
+        }
+      }
+    },
+    "valueType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pointer",
+        "kind",
+        "encoding"
+      ],
+      "properties": {
+        "pointer": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "encoding": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

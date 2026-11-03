@@ -20,7 +20,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 4. Project CLI and integration
 
-- [ ] 4.1 Add failing then passing project migrate subprocess scenarios for directory/manifest/current inputs, --output/--dry-run/--json, IR-input rejection, redaction, and failure categories; register a thin project command provider and verify the dedicated CLI reference and walkthrough.
+- [x] 4.1 Add failing then passing project migrate subprocess scenarios for directory/manifest/current inputs, --output/--dry-run/--json, IR-input rejection, redaction, and failure categories; register a thin project command provider and verify the dedicated CLI reference and walkthrough.
 - [ ] 4.2 Run format/build/analyzers, migration/shared/tooling and contract/coverage suites plus a non-CLI migration host smoke; verify no config migrate alias, IR conversion, workspace membership edit, or classic-source deletion was introduced and record results.
 
 ## Workflow follow-up

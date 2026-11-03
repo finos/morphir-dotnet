@@ -161,6 +161,16 @@ public sealed class ProjectMigrationSteps : IDisposable
         _report!.RootElement.GetProperty("diagnostics").EnumerateArray().Should().Contain(d => d.GetProperty("severity").GetString() == "error");
     }
 
+    [Then("migration reports both conflicting values and origins")]
+    public void ConflictValues()
+    {
+        var conflict = _report!.RootElement.GetProperty("conflicts").EnumerateArray().Single(value => value.GetProperty("key").GetString() == "project.source_directory");
+        conflict.GetProperty("sourceValue").GetString().Should().Be("elm-src");
+        conflict.GetProperty("targetValue").GetString().Should().Be("wrong");
+        conflict.GetProperty("source").GetProperty("path").GetString().Should().EndWith("/morphir.json");
+        conflict.GetProperty("target").GetProperty("path").GetString().Should().EndWith("/morphir.toml");
+    }
+
     [Then("migration preserves the conflicting target")]
     public void TargetUnchanged() => File.ReadAllBytes(Target).Should().Equal(_targetBytes!);
 

@@ -74,6 +74,7 @@ Feature: Migrate one classic project without losing its configuration
     When I migrate the project with "--dry-run"
     Then migration exits 2 with outcome "blocked"
     And migration preserves the conflicting target
+    And migration reports both conflicting values and origins
     And migration reports blocking diagnostics on stderr
 
   Scenario: A member migration keeps workspace membership and sibling files
