@@ -9,8 +9,8 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 2. Targets and plans
 
-- [ ] 2.1 Write failing shared-API/BDD cases for scope selection, ambiguous defaults, quoted key paths, typed scalar/composite inputs, set/unset inheritance, invalid values, and no-write previews; confirm red before implementation.
-- [ ] 2.2 Implement shared target selection, immutable edit plans, validation, and resulting-effective-value explanations; verify the plan suite through an in-memory host and update scope/value/preview documentation.
+- [x] 2.1 Write failing shared-API/BDD cases for scope selection, ambiguous defaults, quoted key paths, typed scalar/composite inputs, set/unset inheritance, invalid values, and no-write previews; confirm red before implementation.
+- [x] 2.2 Implement shared target selection, immutable edit plans, validation, and resulting-effective-value explanations; verify the plan suite through an in-memory host and update scope/value/preview documentation.
 
 ## 3. TOML editing and application
 

@@ -19,4 +19,16 @@ The implementation worker owns shared F# models/planner, IO orchestration, CLI, 
 
 ## Validation
 
-Pending. Tests are recorded red before production behavior, then green after implementation. No baseline count is claimed as a result.
+Tests are recorded red before production behavior, then green after implementation. No baseline count is claimed as a result.
+
+### Shared plans boundary
+
+- `core-red-01.log` proves missing plan API; `core-green-01.log` passes the initial immutable string plan.
+- `core-red-02.log`/`core-green-02.log` qualify complete typed values. Selection, unset/inheritance, hidden invalid values, numeric/path-shape guards and virtual-root personal ownership have subsequent red/green checkpoints 03–07.
+- `core-full-build.log` and `core-full.log` pass all 147 core Expecto tests after formatting. The 11 new tests cover typed values, scope selection, quoted paths, immutable observations, inheritance, redaction and numeric semantics.
+- `io-plan-red.log` proves the reusable IO planning API is absent before implementation. `io-plan-green.log` proves an in-memory preview invokes no writer operations.
+- Exact-buffer evidence, independent explicit-path authorization and canonical candidate topology resolution have `io-plan-red-02.log`/`io-plan-green-02.log` evidence. Isolated-read parity has `io-plan-red-03.log`/`io-plan-green-03.log`. The latter passes 10 integrated IO cases.
+- Actual CLI subprocess BDD is red before registration. `cli-red-02-current.log`, after rebuilding the actual CLI, fails 11 of 23 cases for unimplemented flags and raw-reference presentation. `cli-green-03.log` passes all 23 after implementation; builds refresh `src/Morphir/bin` before subprocess tests.
+
+The global CLI fixture uses a separate captured home beneath its test root, preventing a global fallback from also becoming a conflicting project primary. On this macOS host `/etc` is a link. Native system preview obeys the existing no-follow policy and returns typed exit 2 without a write. Pure system selection and explicitly authorized physical targets remain available. No filesystem-link policy was widened to pass a test.
+
