@@ -5,23 +5,23 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 1. Campaign setup
 
-- [ ] 1.1 Prepare an owned worktree/branch after discovery and config editing land; verify prerequisite landed SHAs, clean status, and campaign ownership/tracking.
+- [x] 1.1 Prepare an owned worktree/branch after discovery and config editing land; verify prerequisite landed SHAs, clean status, and campaign ownership/tracking.
 
 ## 2. Mapping and loss accounting
 
-- [ ] 2.1 Write failing BDD/API migration fixtures for classic fields, Elm/checkpoint defaults, same-project output layouts, raw unsupported dependencies/decorations, conflicting canonical fields, and existing TOML values; confirm red before adding migration code.
-- [ ] 2.2 Implement a shared single-project migration planner that reuses readers/editor plans, preserves supported extras and source-path meaning, and blocks every unaccounted value; verify mappings/conflicts/idempotence and document before/after TOML.
+- [x] 2.1 Write failing BDD/API migration fixtures for classic fields, Elm/checkpoint defaults, same-project output layouts, raw unsupported dependencies/decorations, conflicting canonical fields, and existing TOML values; confirm red before adding migration code.
+- [x] 2.2 Implement a shared single-project migration planner that reuses readers/editor plans, preserves supported extras and source-path meaning, and blocks every unaccounted value; verify mappings/conflicts/idempotence and document before/after TOML.
 
 ## 3. Independent verification and apply
 
-- [ ] 3.1 Write failing cases where retained legacy JSON or ambient overrides would hide a wrong candidate, including standalone and member context, defaults, paths, and expected provenance changes; confirm red before equivalence implementation.
-- [ ] 3.2 Implement comparison with the converted source excluded and machine/personal/environment/CLI/active-profile overlays removed, retaining base workspace context; verify the equivalence suite and document exactly what is compared.
-- [ ] 3.3 Apply only verified plans through the transaction service with source/target/workspace drift checks; verify dry-run writes nothing, sources remain byte-identical, failed plans preserve files, and repeats do not rewrite, with migration/recovery docs updated.
+- [x] 3.1 Write failing cases where retained legacy JSON or ambient overrides would hide a wrong candidate, including standalone and member context, defaults, paths, and expected provenance changes; confirm red before equivalence implementation.
+- [x] 3.2 Implement comparison with the converted source excluded and machine/personal/environment/CLI/active-profile overlays removed, retaining base workspace context; verify the equivalence suite and document exactly what is compared.
+- [x] 3.3 Apply only verified plans through the transaction service with source/target/workspace drift checks; verify dry-run writes nothing, sources remain byte-identical, failed plans preserve files, and repeats do not rewrite, with migration/recovery docs updated.
 
 ## 4. Project CLI and integration
 
-- [ ] 4.1 Add failing then passing project migrate subprocess scenarios for directory/manifest/current inputs, --output/--dry-run/--json, IR-input rejection, redaction, and failure categories; register a thin project command provider and verify the dedicated CLI reference and walkthrough.
-- [ ] 4.2 Run format/build/analyzers, migration/shared/tooling and contract/coverage suites plus a non-CLI migration host smoke; verify no config migrate alias, IR conversion, workspace membership edit, or classic-source deletion was introduced and record results.
+- [x] 4.1 Add failing then passing project migrate subprocess scenarios for directory/manifest/current inputs, --output/--dry-run/--json, IR-input rejection, redaction, and failure categories; register a thin project command provider and verify the dedicated CLI reference and walkthrough.
+- [x] 4.2 Run format/build/analyzers, migration/shared/tooling and contract/coverage suites plus a non-CLI migration host smoke; verify no config migrate alias, IR conversion, workspace membership edit, or classic-source deletion was introduced and record results.
 
 ## Workflow follow-up
 

@@ -2,12 +2,12 @@
 title: "Configure a workspace"
 linkTitle: "Configuration"
 weight: 40
-description: "Workspace discovery, inspection and .NET consumption, with planned editing and migration"
+description: "Workspace discovery, inspection, safe TOML editing and .NET consumption"
 ---
 
 # Configure a workspace
 
-The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. Editing and project/workspace migration remain planned. See the [inspection delivery journal]({{< relref "/docs/contributing/design/prds/config-inspection-delivery" >}}) for validation and parent landing/cleanup status.
+The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. `config set/unset` plan and apply one TOML edit. `project migrate` adopts one classic project through loss-checked shared services. Workspace migration remains planned. See the [editing delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) for local validation and parent delivery gates.
 
 ## Declare the workspace
 
@@ -101,18 +101,28 @@ merely because inspection can show them.
 
 ## Add and remove a personal override
 
-These planned commands run from the same directory:
+Preview and apply a personal override from the same directory:
 
 ```bash
+morphir config set ui.theme dark --user --dry-run --json
 morphir config set ui.theme dark --user
 morphir config get ui.theme --show-origin
 morphir config unset ui.theme --user
 morphir config get ui.theme --show-origin
 ```
 
-The edit targets root-adjacent `morphir.user.toml`. Without a higher override, the first query returns `dark` from that file. After `unset`, it returns `light` from the workspace primary. Removal reveals the inherited value rather than deleting the setting from every source.
+The workspace declares `packages/orders` as its default member, so `--user` targets `packages/orders/morphir.user.toml`. Without a selected member, a virtual workspace root uses root-adjacent `morphir.user.toml`. Without a higher override, the first query returns `dark` from that file. After `unset`, it returns inherited `light` from the workspace primary. Removal reveals the inherited value rather than deleting the setting from every source.
 
 Add `morphir.user.*`, applicable member override paths, and `.morphir/out/` to your ignore policy. The configuration system does not change ignore files automatically.
+
+Preview reports the target, redacted before/after values and the effective winner without writing. If an environment variable or profile still wins, a successful file edit still exits 0. For example:
+
+```bash
+MORPHIR_UI__THEME=light morphir config set ui.theme dark --user --json
+morphir config set ui.color false --type bool --workspace --dry-run
+```
+
+Repeat an identical set to receive `unchanged` without rewriting the file. A missing unset exits 1. Validation, access failures and conflicts exit 2. After a conflict, inspect the new source contents and replan. If a report names recovery artifacts, preserve its journal/backups and reconcile the target before retrying. The [shared editing API]({{< relref "/docs/configuration/editing" >}}) provides the same preview/apply boundary without the CLI.
 
 ## Retain an existing JSON project
 
@@ -130,18 +140,19 @@ If a TOML primary also sets `project.source_directory = "src"`, that value wins 
 
 ## Migrate the classic project
 
-This command remains planned.
+The command is available through the CLI and shared migration APIs.
 
 For this example, start with a classic project whose only primary is the JSON file above. If the earlier TOML example is also present, its different source directory is a conflict that migration must report before writing.
 
 Preview the conversion, then apply it to that member:
 
 ```bash
-morphir project migrate packages/orders/morphir.json --dry-run
+morphir project migrate packages/orders/morphir.json --dry-run --json > migration-plan.json
 morphir project migrate packages/orders/morphir.json
+morphir project migrate packages/orders/morphir.json --json # unchanged repeat
 ```
 
-The planned `packages/orders/morphir.toml` includes the mapped fields and the defaults that previously came from recognizing a classic Elm manifest:
+The resulting `packages/orders/morphir.toml` includes the mapped fields and the defaults that previously came from recognizing a classic Elm manifest:
 
 ```toml
 [project]
@@ -161,7 +172,7 @@ Migration checks that effective project values and source-path meaning are uncha
 
 The source JSON stays unchanged so older morphir-elm consumers can continue using it. Repeating migration with the same inputs makes no changes. A conflicting TOML value, unsupported dependency/decorations shape, or any unmapped setting blocks application rather than silently dropping data. Remove the old manifest separately only after those consumers have moved to the new format.
 
-See the [migration command reference]({{< relref "/docs/cli/project#migration-behavior" >}}) for output selection and structured dry-run results.
+See the [migration command reference]({{< relref "/docs/cli/project-migrate" >}}) for output selection and structured dry-run results.
 
 ## Adopt a repository of classic projects
 

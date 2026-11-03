@@ -7,7 +7,7 @@ description: "Shared configuration, project discovery, and configuration inspect
 
 # Layered configuration and workspaces
 
-**Status**: In Progress; campaigns 1 and 2 landed and cleaned; campaign 3 inspection locally qualified; parent PR review, landing and cleanup pending
+**Status**: In Progress; campaigns 1 through 4 landed and cleaned; campaign 5 project migration locally qualified under #476; parent gates pending
 
 **Created**: 2025-12-22
 
@@ -17,13 +17,13 @@ description: "Shared configuration, project discovery, and configuration inspect
 
 Provide one reusable Morphir configuration and project system for the CLI and other hosts. Read TOML, YAML, JSON, and JSON5; discover projects and declared workspaces; and resolve settings with provenance. Shared APIs support `morphir config` inspection/editing, `morphir project migrate` for one classic project, and `morphir workspace migrate` for coordinated workspace adoption.
 
-The original cache-only TOML implementation keeps its Git-first compatibility behavior. Campaign 1 added typed multi-format documents, normalization, resolution, named profiles, validation, and provenance. Campaign 2 adds document-aware discovery through separate library entry points. Campaign 3 adds inspection and standard .NET consumption. Editing and migration remain later campaigns.
+The original cache-only TOML implementation keeps its Git-first compatibility behavior. Campaign 1 added typed multi-format documents, normalization, resolution, named profiles, validation, and provenance. Campaign 2 adds document-aware discovery through separate library entry points. Campaign 3 adds inspection and standard .NET consumption. Campaign 4 added shared editing and TOML transactions. Campaign 5 adds loss-checked classic project migration. Workspace migration remains a separate later campaign.
 
 ## Compatibility and decisions
 
 Use the [MoonBit configuration specification](https://github.com/finos/morphir-moonbit/blob/main/openspec/changes/adopt-moon-lander/specs/application/configuration/spec.md) and [adoption decision](https://github.com/finos/morphir-moonbit/blob/main/docs/adr/0004-adopt-moon-lander.md) for discovery and layering. Use the [finos/morphir configuration model](https://github.com/finos/morphir/blob/main/docs/spec/morphir-toml/morphir-toml-specification.md) for shared fields. MoonBit's format layering supersedes the older core specification's refusal of coexisting TOML and YAML.
 
-The [guide]({{< relref "/guides/configuration" >}}) describes target rules. The [CLI reference]({{< relref "/docs/cli/config" >}}) records implemented inspection and planned editing interfaces.
+The [guide]({{< relref "/guides/configuration" >}}) describes target rules. The [CLI reference]({{< relref "/docs/cli/config" >}}) records implemented inspection and editing interfaces.
 
 ## Goals
 
@@ -121,7 +121,7 @@ Each campaign is one cohesive implementation change delivered through one review
 | 5 | `add-classic-project-migration` | Shared loss-checked migration and project migrate | 2, 4 |
 | 6 | `add-workspace-migration` | Bounded repository adoption and coordinated workspace migrate | 5 |
 
-Planning artifacts are under `openspec/changes/<change-name>/`, or their dated archive after implementation. Campaigns 1 and 2 are landed and cleaned. Campaign 3 tracks [issue #468](https://github.com/finos/morphir-dotnet/issues/468); its [delivery journal](config-inspection-delivery.md) records shared queries, CLI reads, Microsoft integration and current qualification evidence. Parent-owned review, landing and cleanup remain separate gates. Campaigns 4 through 6 remain active plans.
+Planning artifacts are under `openspec/changes/<change-name>/`, or their dated archive after implementation. Campaigns 1 through 4 are landed and cleaned. Campaign 3 tracks [issue #468](https://github.com/finos/morphir-dotnet/issues/468); its [delivery journal](config-inspection-delivery.md) records shared queries, CLI reads, Microsoft integration and verified landing/cleanup evidence. Campaign 4 tracks [issue #473](https://github.com/finos/morphir-dotnet/issues/473), landed through PR #475 at `56d9de917f6c3035c8a2f994f49dfc96294619d8` with parent cleanup confirmed. Its [delivery journal](config-editing-delivery.md) and [completion receipt](https://github.com/finos/morphir-dotnet/pull/475#issuecomment-6610672018) retain qualification evidence. Campaign 5 tracks [issue #476](https://github.com/finos/morphir-dotnet/issues/476); its [delivery journal](project-migration-delivery.md) records implementation and validation. Parent review, landing and cleanup remain. Campaign 6 remains planned.
 
 ### Campaign completion
 
@@ -176,12 +176,12 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 | Multi-format documents and normalization | Implemented and landed | Campaign 1, PR #461; parent landing/cleanup receipt recorded |
 | Shared discovery and project selection | Implemented and landed | Campaign 2, PR #467 at `23d274d4c87b367fdc79bd21843a9fdf5d74b13d`; parent landing and cleanup receipt recorded |
 | Shared resolution, profiles, validation, provenance | Implemented and landed | Campaign 1 additive APIs; prior baseline core 95 and reader/BDD 66; campaign 2 requalification tracked separately |
-| Microsoft configuration integration | Implemented; qualification complete | Campaign 3, opt-in resolved provider, generated/explicit binding and 43-check managed/trimmed/native hosts; parent PR gates remain |
-| Shared query and edit services | Inspection implemented; editing planned | Campaign 3 queries/redaction/source history live in the pure library; TOML editing remains campaign 4 |
-| Classic project migration | Planned | Shared planner/apply API, project migrate command, loss checks, and independent-equivalence verification |
+| Microsoft configuration integration | Implemented and landed | Campaign 3, PR #471; opt-in resolved provider, generated/explicit binding and managed/trimmed/native qualification retained |
+| Shared query and edit services | Implemented and landed | Campaigns 3 and 4, PR #475; shared plans, TOML editor, transactions and parent cleanup confirmed |
+| Classic project migration | Implemented locally; parent gates pending | Campaign 5, #476; pure planner, independent verification, guarded IO, project migrate and managed/trimmed/native qualification |
 | Workspace migration | Planned | Bounded inventory, coordinated project plans, membership, and recovery |
-| Config CLI commands | Read commands implemented and locally qualified | Campaign 3 get/list/show/path/explain use shared services and generated JSON DTOs; set/unset remain planned |
-| Documentation foundation | Updated for inspection | Shared API and Microsoft consumer examples, read CLI schema/options, walkthrough and troubleshooting; editing/migration examples remain explicitly planned |
+| Config CLI commands | Implemented locally; parent gates pending | Campaign 3 get/list/show/path/explain are landed. Campaign 4 set/unset use shared services; all 360 tooling tests pass, including 33 editing subprocess scenarios. Published-host qualification passes; parent delivery gates remain |
+| Documentation foundation | Updated for inspection and editing | Shared API and Microsoft consumer examples, read CLI schema/options, walkthrough and troubleshooting; editing API, preview/recovery and CLI examples are implemented; classic project migration reference and walkthrough implemented; workspace migration remains planned |
 | Compatibility and end-to-end verification | In Progress | Campaign 1 landed baseline tooling 245, reader 66, core 95 and warning-qualified runtime evidence; current campaign results recorded separately |
 
 ## Implementation notes
@@ -296,9 +296,23 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 
 - Campaign 1 boundaries are `Morphir.Configuration` and `Morphir.Configuration.IO`;
   discovery now uses `DiscoveryPolicy`, `IProjectTree`, and `ProjectSystem`.
-  Editing remains later campaign work; Microsoft integration is delivered in campaign 3.
+  Editing now uses shared immutable plans, `ConfigurationEditService` and preconditioned transactions; Microsoft integration landed in campaign 3.
 - Existing cache-only APIs retain their legacy behavior through additive compatibility entry points. Document how consumers explicitly opt into the new discovery and profile model before moving them.
-- Inspection signatures and generated JSON schema are documented in the shared API and CLI references. Editing and migration result schemas remain their own campaign work.
+- Inspection signatures and generated JSON schema are documented in the shared API and CLI references. The editing result schema is published and checked against subprocess reports. The project migration result schema is implemented in campaign 5; workspace migration remains later campaign work.
 - Campaign 1 pins parser/merge/profile fixtures and records coverage/native
   results. Pinned dependency linker/AOT warnings remain a qualification limitation;
   strict warning-free trimming is not claimed.
+
+### Configuration editing campaign, 2026-11-03
+
+Locally qualified and archived under [#473](https://github.com/finos/morphir-dotnet/issues/473), after merged PR #471. Shared plans, presentation-preserving TOML editing, preconditioned transactions and thin CLI adapters are tracked in the [delivery journal](config-editing-delivery.md). Migration campaigns remain separate.
+
+### Classic project migration campaign, 2026-11-03
+
+Campaign 5 tracks [#476](https://github.com/finos/morphir-dotnet/issues/476).
+The pure planner preserves raw source loss accounting. Independent verification
+removes converted source and runtime overlays, retaining declared base workspace
+context. The IO coordinator reuses exact-buffer observations, the TOML editor
+and transaction boundary. Read-only hosts receive a redacted `Presentation`.
+The CLI remains a separate thin project provider. Qualification and parent gates
+are recorded in the [delivery journal](project-migration-delivery.md).

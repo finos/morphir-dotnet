@@ -18,6 +18,165 @@ static ResolutionInput Input(IEnumerable<SourceInput> sources, ProfileSelection 
     new(List(sources), MapModule.Empty<string, string>(), DocumentDefaults.emptyValue,
         new ProfileOptions(selection, 32, 4096), ProjectScope.Root, FSharpOption<OwningWorkspace>.None, List<string>([]));
 
+static (int Editor, int Shared, int Transaction) EditingRuntimeSmoke()
+{
+    var editorChecks = 0;
+    var sharedChecks = 0;
+    var transactionChecks = 0;
+    void Editor(bool condition, string message) { Check(condition, message); editorChecks++; }
+    void Shared(bool condition, string message) { Check(condition, message); sharedChecks++; }
+    void Transaction(bool condition, string message) { Check(condition, message); transactionChecks++; }
+    static EditRequest Set(string key, string value, EditValueType? type = null) => new(EditOperation.NewSet(value, type ?? EditValueType.String), key);
+
+    const string original = "\uFEFF# retained\r\n[custom]\r\nname  = 'old' # inline\r\nkeep = [1, 2]\r\n";
+    var edited = TomlEditor.Edit(original, ["custom", "name"], ConfigValue.NewString("new"));
+    Editor(edited.Success && edited.Changed && edited.Found, "Editor did not report a changed existing entry");
+    Editor(edited.Text == original.Replace("'old'", "\"new\"", StringComparison.Ordinal), "Editor changed BOM, comments, spacing or line endings");
+    Editor(!TomlEditor.Edit(edited.Text, ["custom", "name"], ConfigValue.NewString("new")).Changed, "Editor rewrote an identical value");
+    var inline = TomlEditor.Edit("custom = { name='old', keep = 2 }\n", ["custom", "name"], ConfigValue.NewString("new"));
+    Editor(inline.Success && inline.Text == "custom = { name=\"new\", keep = 2 }\n", "Inline edit changed unrelated field presentation");
+    var array = ConfigValue.NewArray(List([ConfigValue.NewString("replacement")]));
+    var replaced = TomlEditor.Edit("[custom]\ntargets = ['one', 'two', 'three']\n", ["custom", "targets"], array);
+    Editor(replaced.Success && At(Document(ConfigurationReader.ReadText("edit.toml", replaced.Text)).Values, "custom", "targets").Equals(array), "Editor did not replace a complete array");
+    var objectValue = At(Document(ConfigurationReader.ReadText("input.toml", "custom = { nested = {}, flag = false }\n")).Raw, "custom");
+    var objectEdit = TomlEditor.Edit("[custom]\nold = 1\n", ["custom"], objectValue);
+    Editor(objectEdit.Success && At(Document(ConfigurationReader.ReadText("edit.toml", objectEdit.Text)).Raw, "custom").Equals(objectValue), "Editor merged an object instead of replacing it");
+    var number = TomlEditor.Edit("custom = 0.0\n", ["custom"], ConfigValue.NewNumber(-0.0));
+    Editor(number.Success && BitConverter.DoubleToInt64Bits(((ConfigValue.Number)At(Document(ConfigurationReader.ReadText("edit.toml", number.Text)).Values, "custom")).Item) == long.MinValue, "Editor lost signed zero");
+    var stringValue = TomlEditor.Edit("", ["custom"], ConfigValue.NewString("false"));
+    Editor(stringValue.Success && At(Document(ConfigurationReader.ReadText("edit.toml", stringValue.Text)).Values, "custom").IsString, "Default string became boolean");
+    var nullValue = TomlEditor.Edit("custom = 1\n", ["custom"], ConfigValue.Null);
+    Editor(!nullValue.Success && nullValue.Text == "custom = 1\n", "Unrepresentable null changed the document");
+
+    var memoryRoot = ProjectPath.normalize(Path.Combine(Path.GetTempPath(), "morphir-edit-memory-" + Guid.NewGuid().ToString("N")));
+    var memoryPath = memoryRoot + "/morphir.toml";
+    var memoryFiles = new Dictionary<string, string> { [memoryPath] = "[project]\nname='Smoke'\n[custom]\nvalue='before'\n" };
+    var memoryHost = new ReadOnlyEditingSmokeHost(memoryRoot, memoryFiles);
+    var memory = new ConfigurationEditService(new InMemoryProjectTree(memoryRoot, memoryFiles), memoryHost).Plan(memoryRoot, Set("custom.value", "after"));
+    Shared(memory.Failure is null && memory.Plan is not null, "In-memory plan failed");
+    Shared(memory.Plan!.Before!.Value.Equals(ConfigValue.NewString("before")) && memory.Plan.Effective.Value!.Value.Equals(ConfigValue.NewString("after")), "In-memory plan lost before/effective values");
+    Shared(memory.Transaction!.Observations.Any(o => o.Kind == ConfigurationObservationKind.Missing && o.Path == memoryRoot + "/.morphir/morphir.toml"), "Plan omitted absent alternate-primary evidence");
+    Shared(!Directory.Exists(memoryRoot) && memoryFiles[memoryPath].Contains("value='before'", StringComparison.Ordinal), "Read-only in-memory preview created artifacts");
+
+    var root = ProjectPath.normalize(Path.Combine(Path.GetTempPath(), "morphir-edit-smoke-" + Guid.NewGuid().ToString("N")));
+    Directory.CreateDirectory(root);
+    var recoveryPending = false;
+    ConfigurationTransactionResult Remember(ConfigurationTransactionResult result)
+    {
+        recoveryPending |= result.Status == ConfigurationTransactionStatus.RecoveryRequired;
+        return result;
+    }
+    try
+    {
+        var lower = root + "/morphir.yaml";
+        const string lowerText = "project: {name: Smoke}\ncustom: {value: lower}\n";
+        File.WriteAllText(lower, lowerText);
+        var host = new NativeConfigurationTransactionHost();
+        var service = new ConfigurationEditService(new FileSystemProjectTree(root), host);
+        var preview = service.Plan(root, Set("custom.value", "written"));
+        Shared(preview.Failure is null && preview.Plan!.Target.Path == root + "/morphir.toml", "YAML-only scope did not select corresponding TOML primary");
+        Shared(!File.Exists(root + "/morphir.toml") && Directory.GetFileSystemEntries(root).Length == 1, "Native dry-run created artifacts");
+        var applied = Remember(service.Apply(preview));
+        Shared(applied.Status == ConfigurationTransactionStatus.Written && applied.Artifacts.IsEmpty, "Shared apply failed or retained artifacts");
+        Shared(File.ReadAllText(lower) == lowerText, "Promotion changed lower-format bytes");
+        var target = root + "/morphir.toml";
+        var timestamp = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(target, timestamp);
+        var noop = Remember(service.Apply(service.Plan(root, Set("custom.value", "written"))));
+        Shared(noop.Status == ConfigurationTransactionStatus.Unchanged && File.GetLastWriteTimeUtc(target) == timestamp, "Identical shared write changed timestamp");
+        var unset = service.Plan(root, new EditRequest(EditOperation.Unset, "custom.value"));
+        Shared(unset.Failure is null && unset.Plan!.Effective.Value!.Value.Equals(ConfigValue.NewString("lower"))
+            && unset.Plan.Effective.Contributions.Any(c => c.Winner && c.Source.Path == lower), "Unset preview lost reappearing value/origin");
+        Shared(Remember(service.Apply(unset)).Status == ConfigurationTransactionStatus.Written, "Unset apply failed");
+        Shared(service.Plan(root, new EditRequest(EditOperation.Unset, "custom.value")).Failure?.ExitCode == 1, "Missing unset did not retain not-found category");
+        Shared(service.Plan(root, Set("custom.value", "x"), [EditScope.NewFile(lower)]).Failure?.ExitCode == 2, "Explicit YAML target was not refused");
+        var beforeConflict = File.ReadAllBytes(target);
+        var sourceStale = service.Plan(root, Set("custom.value", "after"));
+        File.WriteAllText(lower, lowerText.Replace("lower", "external", StringComparison.Ordinal));
+        var sourceConflict = Remember(service.Apply(sourceStale));
+        Shared(sourceConflict.Status == ConfigurationTransactionStatus.Conflict && sourceConflict.Artifacts.IsEmpty
+            && File.ReadAllBytes(target).AsSpan().SequenceEqual(beforeConflict), "Stale source did not preserve target bytes");
+        File.WriteAllText(lower, lowerText);
+        var alternateStale = service.Plan(root, Set("custom.value", "after"));
+        Directory.CreateDirectory(root + "/.morphir");
+        File.WriteAllText(root + "/.morphir/morphir.toml", "[custom]\nvalue='alternate'\n");
+        Shared(Remember(service.Apply(alternateStale)).Status == ConfigurationTransactionStatus.Conflict
+            && File.ReadAllBytes(target).AsSpan().SequenceEqual(beforeConflict), "New alternate primary escaped plan preconditions");
+
+        var personalRoot = root + "/personal-layout";
+        Directory.CreateDirectory(personalRoot + "/.morphir");
+        File.WriteAllText(personalRoot + "/morphir.yaml", "project: {name: Smoke}\ncustom: {value: lower}\n");
+        File.WriteAllText(personalRoot + "/.morphir/morphir.toml", "[project]\nname='Smoke'\n");
+        File.WriteAllText(personalRoot + "/morphir.user.toml", "[custom]\nvalue='before'\n");
+        var personalService = new ConfigurationEditService(new FileSystemProjectTree(personalRoot), host);
+        var personalSet = personalService.Plan(personalRoot, Set("custom.value", "after"), [EditScope.User]);
+        Shared(personalSet.Failure is null && personalSet.Plan!.Target.Path == personalRoot + "/morphir.user.toml", "Personal selection ignored another eligible primary layout");
+        Shared(Remember(personalService.Apply(personalSet)).Status == ConfigurationTransactionStatus.Written, "Mixed-layout personal set failed");
+        var personalUnset = personalService.Plan(personalRoot, new EditRequest(EditOperation.Unset, "custom.value"), [EditScope.User]);
+        Shared(personalUnset.Failure is null && personalUnset.Plan!.Effective.Value!.Value.Equals(ConfigValue.NewString("lower")), "Mixed-layout personal unset lost the inherited value");
+        Shared(Remember(personalService.Apply(personalUnset)).Status == ConfigurationTransactionStatus.Written, "Mixed-layout personal unset failed");
+
+        var ownerRoot = root + "/member-owner";
+        Directory.CreateDirectory(ownerRoot + "/a");
+        Directory.CreateDirectory(ownerRoot + "/b/.config/morphir");
+        File.WriteAllText(ownerRoot + "/morphir.toml", "[workspace]\nmembers=['a','b']\ndefault_member='a'\nout_dir='root-out'\n");
+        File.WriteAllText(ownerRoot + "/a/morphir.toml", "[project]\nname='A'\n");
+        File.WriteAllText(ownerRoot + "/b/.config/morphir/config.toml", "[project]\nname='B'\n");
+        var ownerTarget = ownerRoot + "/b/.config/morphir/config.user.toml";
+        File.WriteAllText(ownerTarget, "[custom]\nvalue='before'\n");
+        var ownerService = new ConfigurationEditService(new FileSystemProjectTree(ownerRoot), host);
+        var ownerPlan = ownerService.Plan(ownerRoot, Set("workspace.out_dir", "edited"), [EditScope.NewFile(ownerTarget)], options: new ProjectLoadOptions { Isolated = true });
+        Shared(ownerPlan.Failure is null && ownerPlan.Plan!.Target.Role == SourceRole.UserOverride, "Explicit other-member personal target lost its role");
+        Shared(ownerPlan.Plan!.CandidateInput.OwningWorkspace!.Value.OutputDirectory!.Value == ownerRoot + "/root-out"
+            && ownerPlan.Plan.Effective.Diagnostics.Any(d => d.Code == "config.member_output"), "Explicit other-member personal target relocated workspace output");
+        Shared(Remember(ownerService.Apply(ownerPlan)).Status == ConfigurationTransactionStatus.Written, "Owned explicit personal apply failed");
+
+        var transactionTarget = root + "/transaction.toml";
+        var originalBytes = Encoding.UTF8.GetBytes("value = 'before'\n");
+        var candidateBytes = Encoding.UTF8.GetBytes("value = 'after'\n");
+        File.WriteAllBytes(transactionTarget, originalBytes);
+        ConfigurationTransactionPlan TransactionPlan() => new([], [new ConfigurationFileChange(transactionTarget, host.Observe(transactionTarget), candidateBytes)]);
+        foreach (var phase in new[] { ConfigurationTransactionPhase.BeforeStage, ConfigurationTransactionPhase.BeforeInstall, ConfigurationTransactionPhase.AfterInstall })
+        {
+            var failed = Remember(new ConfigurationTransaction(host, (current, _) => { if (current == phase) throw new IOException("Injected smoke fault"); }).Apply(TransactionPlan()));
+            Transaction(failed.Status == (phase == ConfigurationTransactionPhase.AfterInstall ? ConfigurationTransactionStatus.RolledBack : ConfigurationTransactionStatus.IoFailure), "Injected transaction fault returned wrong category");
+            Transaction(failed.Artifacts.IsEmpty && File.ReadAllBytes(transactionTarget).AsSpan().SequenceEqual(originalBytes), "Complete rollback retained artifacts or changed bytes");
+        }
+        var failedRecovery = Remember(new ConfigurationTransaction(host, (phase, _) =>
+        {
+            if (phase is ConfigurationTransactionPhase.AfterInstall or ConfigurationTransactionPhase.BeforeRollback) throw new IOException("Injected recovery fault");
+        }).Apply(TransactionPlan()));
+        recoveryPending = failedRecovery.Status == ConfigurationTransactionStatus.RecoveryRequired;
+        Transaction(recoveryPending && failedRecovery.Artifacts.Any(a => a.Kind == ConfigurationArtifactKind.Backup)
+            && failedRecovery.Artifacts.Any(a => a.Kind == ConfigurationArtifactKind.Journal), "Incomplete recovery lost typed artifact evidence");
+        Transaction(File.ReadAllBytes(transactionTarget).AsSpan().SequenceEqual(candidateBytes), "Uncertain outcome falsely claimed original bytes");
+        var backup = failedRecovery.Artifacts.Single(a => a.Kind == ConfigurationArtifactKind.Backup);
+        var journal = failedRecovery.Artifacts.Single(a => a.Kind == ConfigurationArtifactKind.Journal);
+        using (var metadata = JsonDocument.Parse(File.ReadAllBytes(journal.Path)))
+            Transaction(metadata.RootElement.GetProperty("transactionId").GetString() == backup.TransactionId
+                && metadata.RootElement.GetProperty("target").GetString() == transactionTarget, "Recovery ownership metadata differs");
+        Transaction(File.ReadAllBytes(backup.Path).AsSpan().SequenceEqual(originalBytes), "Recovery backup lost original bytes");
+        // Simulated manual recovery is guarded by the candidate/backup checks above.
+        host.Install(backup.Path, transactionTarget, true);
+        foreach (var artifact in failedRecovery.Artifacts) host.DeleteFile(artifact.Path);
+        Transaction(File.ReadAllBytes(transactionTarget).AsSpan().SequenceEqual(originalBytes)
+            && failedRecovery.Artifacts.All(a => host.Observe(a.Path).Kind == ConfigurationObservationKind.Missing), "Explicit recovery did not restore bytes and clean owned artifacts");
+        recoveryPending = false;
+        var staleTransaction = TransactionPlan();
+        File.WriteAllText(transactionTarget, "value = 'external'\n");
+        var conflict = Remember(new ConfigurationTransaction(host).Apply(staleTransaction));
+        Transaction(conflict.Status == ConfigurationTransactionStatus.Conflict && conflict.Artifacts.IsEmpty
+            && File.ReadAllText(transactionTarget) == "value = 'external'\n", "Concurrent transaction bytes were overwritten");
+        Transaction(!Directory.EnumerateFileSystemEntries(root, ".morphir-edit-*", SearchOption.AllDirectories).Any(), "Transaction left disposable artifacts");
+    }
+    finally
+    {
+        if (recoveryPending) Console.Error.WriteLine("Retained smoke recovery evidence at " + root);
+        else Directory.Delete(root, true);
+    }
+    return (editorChecks, sharedChecks, transactionChecks);
+}
+
 try
 {
     var syntaxCases = 0;
@@ -213,11 +372,30 @@ try
         Check(hiddenNative.Discovery.Equals(hiddenMemory.Discovery) && !hiddenNative.Discovery.Projects.Any(), "Reserved glob seed created a hidden member");
     }
     finally { if (Directory.Exists(discoveryRoot)) Directory.Delete(discoveryRoot, true); }
-    Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"discovery\":true,\"selection\":true,\"bounded_loading\":true,\"machine_roots\":true,\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
+    var editingChecks = EditingRuntimeSmoke();
+    var migrationChecks = ProjectMigrationSmoke.Run();
+    Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"discovery\":true,\"selection\":true,\"bounded_loading\":true,\"machine_roots\":true,\"migration_checks\":{migrationChecks},\"editing\":true,\"editor_checks\":{editingChecks.Editor},\"shared_editing_checks\":{editingChecks.Shared},\"transaction_checks\":{editingChecks.Transaction},\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
     return 0;
 }
 catch (Exception error)
 {
     Console.Error.WriteLine(error.Message);
     return 1;
+}
+
+
+sealed class ReadOnlyEditingSmokeHost(string root, IReadOnlyDictionary<string, string> files) : IConfigurationTransactionHost
+{
+    public ConfigurationObservation Observe(string path, IReadOnlyCollection<string>? excludedPaths = null)
+    {
+        if (files.TryGetValue(path, out var text)) return new(path, ConfigurationObservationKind.File, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text))));
+        return new(path, path == root ? ConfigurationObservationKind.Directory : ConfigurationObservationKind.Missing, path == root ? "snapshot-root" : "");
+    }
+    public byte[] ReadFile(string path) => Encoding.UTF8.GetBytes(files[path]);
+    public IDisposable Acquire(IReadOnlyList<string> paths) => throw new InvalidOperationException("Preview acquired writer coordination");
+    public IReadOnlyList<string> CreateParentDirectories(string destination) => throw new InvalidOperationException("Preview created directories");
+    public string Stage(string destination, ReadOnlyMemory<byte> content, string transactionId, string role) => throw new InvalidOperationException("Preview staged bytes");
+    public void Install(string stagedPath, string destination, bool overwrite) => throw new InvalidOperationException("Preview installed bytes");
+    public void DeleteFile(string path) => throw new InvalidOperationException("Preview deleted a file");
+    public void DeleteDirectory(string path) => throw new InvalidOperationException("Preview deleted a directory");
 }

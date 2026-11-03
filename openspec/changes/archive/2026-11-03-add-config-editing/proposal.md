@@ -24,15 +24,15 @@ None. Existing publication and virtual-file requirements remain unchanged.
 
 ## Tracking
 
-- [Layered configuration PRD](../../../docs/content/docs/contributing/design/prds/layered-configuration.md).
-- Implementation prerequisites: [`add-config-inspection`](../archive/2026-11-03-add-config-inspection/proposal.md).
-- GitHub tracking issue: not yet assigned; link the actual issue before opening an implementation PR. No external issue is created by this planning work.
+- [Layered configuration PRD](../../../../docs/content/docs/contributing/design/prds/layered-configuration.md).
+- Implementation prerequisites: [`add-config-inspection`](../2026-11-03-add-config-inspection/proposal.md).
+- GitHub tracking issue: [#473](https://github.com/finos/morphir-dotnet/issues/473).
 
 ## Impact
 
 Add shared edit models/planner and adapter-owned TOML editing/transaction services; extend config scenario and tests. Existing safe-tree-publication governs generated output, not user-file transactions, and is not changed or given stronger guarantees.
 
-Planning only. No runtime behavior or existing public API changes in this proposal commit.
+Implementation is locally qualified. See the configuration editing delivery journal for current validation and parent delivery gates.
 
 ## Campaign completion
 
@@ -45,3 +45,7 @@ This change is one delivery campaign, with one PR based on current main after it
 5. Record a completion receipt with PR URL, landed SHA, verification/review state, archive location, and worktree/local-branch/remote-branch cleanup results.
 
 Preserve unrelated worktrees/branches and any unmerged work or recovery evidence. No blanket pruning, forced removal, force-push, admin bypass, or release publication is implied. If landing or owned-artifact cleanup remains outstanding, report the campaign as incomplete and name the remaining item. This planning operation itself does not create a PR, merge code, or delete any artifacts.
+
+## Delivery delegation
+
+The implementation worker delivers one tested PR, including this synchronized archive. Parent owns independent review, CI monitoring, merge and owned cleanup. The user explicitly approved admin bypass for this workstream; that approval is held by parent and supersedes the planning text about no implied bypass. The implementation worker has no authority to merge, force-push or delete branches and will not watch the PR.

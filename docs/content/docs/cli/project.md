@@ -2,12 +2,12 @@
 title: "Project migration"
 linkTitle: "Project"
 weight: 40
-description: "Planned migration of one classic morphir-elm project to the newer Morphir project system"
+description: "Migration of one classic morphir-elm project to the newer Morphir project system"
 ---
 
 # Project migration
 
-Status: planned. `morphir project migrate` is not yet implemented in .NET. The command calls shared migration services that other hosts can use without invoking the CLI.
+`morphir project migrate` previews and applies one loss-checked conversion. The command calls shared migration services that other hosts can use without invoking the CLI. See the [complete command reference]({{< relref "/docs/cli/project-migrate" >}}) for before/after examples, JSON schema and recovery.
 
 Use it to adopt one classic `morphir.json` project into the newer project system. It does not convert source code, migrate `morphir-ir.json`, or choose a new IR version. For a repository-wide plan, use [workspace migration]({{< relref "/docs/cli/workspace" >}}).
 

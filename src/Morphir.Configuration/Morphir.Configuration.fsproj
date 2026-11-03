@@ -25,6 +25,8 @@
         <Compile Include="ProjectDiscovery.fs" />
         <Compile Include="ProjectSources.fs" />
         <Compile Include="Inspection.fs" />
+        <Compile Include="Editing.fs" />
+        <Compile Include="Migration.fs" />
     </ItemGroup>
 
 </Project>

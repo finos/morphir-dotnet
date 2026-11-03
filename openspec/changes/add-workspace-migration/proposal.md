@@ -25,7 +25,7 @@ None. Existing publication and virtual-file requirements remain unchanged.
 ## Tracking
 
 - [Layered configuration PRD](../../../docs/content/docs/contributing/design/prds/layered-configuration.md).
-- Implementation prerequisites: [`add-classic-project-migration`](../add-classic-project-migration/proposal.md).
+- Implementation prerequisites: [`add-classic-project-migration`](../archive/2026-11-03-add-classic-project-migration/proposal.md).
 - GitHub tracking issue: not yet assigned; link the actual issue before opening an implementation PR. No external issue is created by this planning work.
 
 ## Impact

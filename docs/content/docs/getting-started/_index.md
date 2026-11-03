@@ -54,3 +54,5 @@ dotnet build
 - Explore the [API Reference](/docs/api/)
 - Check out [examples and guides](/docs/guides/)
 
+
+For classic project adoption, follow the [configuration walkthrough]({{< relref "/docs/getting-started/configuration" >}}#migrate-the-classic-project).

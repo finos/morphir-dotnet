@@ -7,6 +7,7 @@ namespace Morphir.Configuration.IO;
 public sealed record ProjectLoadOptions
 {
     public ResolutionInput Input { get; init; } = DocumentDefaults.resolutionInput;
+    internal Action<ResolutionInput>? CaptureInput { get; init; }
     public bool Isolated { get; init; }
     public string? SelectedPath { get; init; }
     public MachineLocationInput? Machine { get; init; }
@@ -137,6 +138,7 @@ public static partial class ProjectSystem
         }
         var input = new ResolutionInput(ReaderValues.List(sources), options.Input.Environment, options.Input.Explicit,
             options.Input.Profiles, member ? ProjectScope.Member : ProjectScope.Root, owner, options.Input.SuppressWarnings);
+        options.CaptureInput?.Invoke(input);
         var detailed = Resolver.resolveDetailed(input);
         var result = detailed.Resolution;
         var resolution = new DocumentResolution(result.Effective, result.Origins, ReaderValues.List(result.Sources.Select(s => skipped.GetValueOrDefault(s.Source.Path, s))),

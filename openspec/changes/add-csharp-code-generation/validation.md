@@ -692,3 +692,39 @@ all 18 owned F# files pass Fantomas. Changelog, strict OpenSpec snapshot/schema/
 22 items/two tests, the validation record's local link and diff checks pass.
 An initial OpenSpec launcher used an absent mise executable path; no process
 started, and the corrected installed path passed without product/checker changes.
+
+## Coordinator integration with current main
+
+The coordinator merged main `e3b9a053120a49e94c70c30cd4f62ef783672c64`
+normally. The sole conflict was NOTICE.txt; its resolution retains main's entire
+notice followed by the typed C# contribution notice. Generator source, tests,
+Models, build registration and toolchain/dependency settings are unchanged from
+the reviewed `ac3fc4a` checkpoint. Its 18 compiled consumers and fresh packaged
+host/trimming proofs therefore remain applicable to the same inputs and code.
+
+Fresh integrated Restore/Compile passed in 2s/1m47. Two full-suite runs with
+all-production-assembly instrumentation failed in newly landed configuration CLI
+editing tests. The first failed the explicit nested-array input case; the rerun
+passed that case but failed the Boolean and typed-number editing cases instead.
+Each reported a rolled-back exit 2 instead of written exit 0. Generator 157/157
+and all other executed suites passed in both runs. Those failures and reports
+remain in `review-main-whole-coverage*`; their cause is not established, and no
+configuration implementation or test was changed. The user explicitly chose to
+keep this PR focused on C# generation.
+
+The complete integrated native Test body then passed in 5m57 with the committed
+backend-only collector settings: 3,826 framework cases, including generator
+157/157, plus 15 cold package-consumer and 71 inspection checks. No tests were
+filtered or skipped. That collector invocation did not initialize its profiler,
+so its empty report is not coverage evidence. A separate direct 157/157 generator
+run with explicit test-output discovery and generator-only instrumentation
+reports 2,978/3,188 production lines, 93.41279799247177%, in
+`review-main-focused.cobertura.xml`. This is backend coverage; there is no claim
+of a passing integrated all-assembly coverage run. The earlier successful
+18-assembly measurement remains tied to its earlier source tree.
+
+Integrated PackAll passes in 50s, TestBuild passes 40/40, and fresh metadata plus
+compiled exact-version lookup pass for both packages. Native Precommit passes in
+37s with the same unsupported-F# diagnostics. Strict OpenSpec passes all 22 items
+and two checker tests. No publishing target was executed. The integration changes
+no generator F# files, so the reviewed 18-file Fantomas result remains applicable.

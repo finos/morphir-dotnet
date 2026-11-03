@@ -24,9 +24,9 @@ None. Existing publication and virtual-file requirements remain unchanged.
 
 ## Tracking
 
-- [Layered configuration PRD](../../../docs/content/docs/contributing/design/prds/layered-configuration.md).
-- Implementation prerequisites: [`add-project-workspace-discovery`](../archive/2026-11-03-add-project-workspace-discovery/proposal.md), [`add-config-editing`](../add-config-editing/proposal.md).
-- GitHub tracking issue: not yet assigned; link the actual issue before opening an implementation PR. No external issue is created by this planning work.
+- [Layered configuration PRD](../../../../docs/content/docs/contributing/design/prds/layered-configuration.md).
+- Implementation prerequisites: [`add-project-workspace-discovery`](../2026-11-03-add-project-workspace-discovery/proposal.md), [`add-config-editing`](../2026-11-03-add-config-editing/proposal.md).
+- GitHub tracking issue: [#476](https://github.com/finos/morphir-dotnet/issues/476).
 
 ## Impact
 

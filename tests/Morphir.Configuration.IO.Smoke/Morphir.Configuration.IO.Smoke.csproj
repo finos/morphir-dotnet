@@ -11,5 +11,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.Configuration.IO/Morphir.Configuration.IO.csproj" />
+    <Compile Include="../../src/Morphir.Tooling/Features/Configuration/ConfigurationReport.cs" Link="ConfigurationReport.cs" />
+    <Compile Include="../../src/Morphir.Tooling/Features/Configuration/ConfigurationEditReport.cs" Link="ConfigurationEditReport.cs" />
+    <Compile Include="../../src/Morphir.Tooling/Features/ProjectMigration/ProjectMigrationReport.cs" Link="ProjectMigrationReport.cs" />
   </ItemGroup>
 </Project>
