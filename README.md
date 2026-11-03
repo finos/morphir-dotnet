@@ -84,7 +84,11 @@ typed classic/v4 libraries with explicit numeric C# 14/15 profiles, immutable
 values, executable functions/patterns/record operations and public SDK bindings.
 Original business fixtures and the bounded modern package-host/trimming checks
 are verified under [#474](https://github.com/finos/morphir-dotnet/issues/474).
-Final delivery checks are in progress. CLI integration is a separate gated initiative.
+Implementation [#478](https://github.com/finos/morphir-dotnet/pull/478) landed.
+The [main specification](openspec/specs/morphir-csharp-transpilation/spec.md) and
+[archived acceptance evidence](openspec/changes/archive/2026-11-03-add-csharp-code-generation/validation.md)
+are prepared in the archive follow-up; its landing and coordinator cleanup remain
+pending. CLI integration is a separate, undispatched initiative.
 
 ## Getting Started
 

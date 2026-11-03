@@ -23,9 +23,9 @@ None. Existing backend, model and publication contracts are preserved.
 
 ## Tracking
 
-- Requires an integrated, verified commit of [add-immutable-csharp-sdk](../archive/2026-11-03-add-immutable-csharp-sdk/proposal.md).
-- Delivery plan, merged-to-main completion and cleanup gates: [orchestration](../../../docs/design/dotnet-csharp-generation/orchestration.md).
-- Worker brief: [handoff](handoff.md). Implementation is tracked by [issue #474](https://github.com/finos/morphir-dotnet/issues/474) and the [feature PRD](../../../docs/content/contributing/design/prds/add-csharp-code-generation.md).
+- Requires an integrated, verified commit of [add-immutable-csharp-sdk](../2026-11-03-add-immutable-csharp-sdk/proposal.md).
+- Delivery plan, merged-to-main completion and cleanup gates: [orchestration](../../../../docs/design/dotnet-csharp-generation/orchestration.md).
+- Worker brief: [handoff](handoff.md). Implementation is tracked by [issue #474](https://github.com/finos/morphir-dotnet/issues/474) and the [feature PRD](../../../../docs/content/contributing/design/prds/add-csharp-code-generation.md).
 - Establish the feature PRD and index entry during implementation before production code, as specified in tasks. Implementation is not authorized by creating this proposal.
 
 ## Impact
