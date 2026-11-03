@@ -7,15 +7,20 @@ description: "Morphir configuration formats, discovery, precedence, and shared h
 
 # Configuration
 
-Morphir configuration describes projects, workspace membership, and tooling settings. Shared libraries provide typed documents, source resolution, and project discovery to native and embedded hosts. Inspection commands, editing, and migration are later delivery campaigns.
+Morphir configuration describes projects, workspace membership, and tooling settings. Shared libraries provide typed documents, source resolution, and project discovery to native and embedded hosts. Shared queries, CLI inspection and an opt-in Microsoft configuration adapter are available. Editing and migration remain later delivery campaigns.
 
 ## Implementation status
 
 The shared configuration libraries read TOML, YAML, JSON/JSON5, normalize classic manifests, resolve typed settings, and retain origins and diagnostics. Named profiles use explicit activation. Campaign 1 landed in [PR #461](https://github.com/finos/morphir-dotnet/pull/461).
 
-Campaign 2 implements bounded document-aware discovery, membership, selection, and applicable source loading through library APIs. Local qualification passes; PR review, landing, and cleanup remain pending. Its [delivery journal]({{< relref "/docs/contributing/design/prds/project-workspace-discovery-delivery" >}}) records current validation and handback status. The `morphir config`, editing, and project/workspace migration commands below remain planned.
+Campaign 2 landed bounded document-aware discovery in [PR #467](https://github.com/finos/morphir-dotnet/pull/467).
+Campaign 3 adds [shared queries]({{< relref "/docs/configuration/inspection" >}}),
+`morphir config get/list/show/path/explain` and the
+[Microsoft adapter]({{< relref "/docs/configuration/microsoft" >}}).
+See the [inspection journal]({{< relref "/docs/contributing/design/prds/config-inspection-delivery" >}}) for validation and outstanding parent landing/cleanup gates.
+Editing and project/workspace migration examples remain planned.
 
-Existing cache-only tooling retains Git-first discovery and its separate CI overlay. It does not opt into the new policy automatically. Follow the [layered configuration PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}), the [walkthrough]({{< relref "/docs/getting-started/configuration" >}}), and the [planned CLI reference]({{< relref "/docs/cli/config" >}}) for their respective status.
+Existing cache-only tooling retains Git-first discovery and its separate CI overlay. It does not opt into the new policy automatically. Follow the [layered configuration PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}), the [walkthrough]({{< relref "/docs/getting-started/configuration" >}}), and the [CLI reference]({{< relref "/docs/cli/config" >}}) for their respective status.
 
 ### Legacy cache configuration
 
@@ -118,7 +123,7 @@ Apply sources from lowest to highest precedence:
 9. `MORPHIR_` environment values.
 10. Explicit command-line setting values.
 
-Selecting an already discovered primary with `ProjectLoadOptions.SelectedPath`, or the planned `--config` option, moves its ordinary values to the explicit-file layer; it is not applied twice. It does not replace all other discovered settings. A relative selected configuration path resolves from the invocation directory, or the containing directory when discovery starts with an input file. Relative project selectors instead resolve from the effective workspace root.
+Selecting an already discovered primary with `ProjectLoadOptions.SelectedPath`, or the `--config` option, moves its ordinary values to the explicit-file layer; it is not applied twice. It does not replace all other discovered settings. A relative selected configuration path resolves from the invocation directory, or the containing directory when discovery starts with an input file. Relative project selectors instead resolve from the effective workspace root.
 
 An explicitly selected eligible personal file keeps its workspace or member ownership restrictions, including in isolated loading. Selecting a member's personal file cannot relocate workspace output. Selecting a workspace personal file does not pass its project identity into a member, while its permitted workspace output setting still supplies the shared owning context.
 
@@ -216,7 +221,9 @@ The workspace plan reports intended topology, member/default selection, and shar
 
 ## Inspecting and editing
 
-The planned [config command]({{< relref "/docs/cli/config" >}}) exposes effective values, source paths, contributing layers, and scoped edits. Reads default to effective configuration. Writes target one file and report whether another layer still overrides the written value.
+The [config read commands]({{< relref "/docs/cli/config" >}}) expose effective values, source paths, contributing layers and source-scoped inspection. Reads default to effective configuration. Arrays remain whole values and quoted path segments address literal dots. Stdout carries results; diagnostics go to stderr. JSON reports contain structured diagnostics and conform to the published schema.
+
+Editing remains planned. Writes will target one file and report whether another layer still overrides the written value.
 
 TOML is the written format. Preserve existing TOML comments and formatting. When a target has only YAML/JSON primaries, create its corresponding TOML primary and leave the lower-format files unchanged. Write complete replacement values for arrays and objects being set. Removing a TOML setting may reveal a lower-format or inherited value; it does not delete that value from other sources.
 
@@ -226,9 +233,9 @@ Validate edits before writing, install changes atomically, and reject concurrent
 
 The architecture separates these responsibilities:
 
-- `Morphir.Configuration` contains immutable models and pure rules for typed documents, merging, validation, profiles, membership, selection, and provenance. Query, edit/migration planning, and equivalence services remain planned.
+- `Morphir.Configuration` contains immutable models and pure rules for typed documents, merging, validation, profiles, membership, selection, and provenance. Pure inspection is available; edit/migration planning and equivalence services remain planned.
 - `Morphir.Configuration.IO` parses documents and supplies discovery/loading adapters. Native hosts use filesystem access; other hosts supply mounted or in-memory trees. Write services remain planned.
-- A future `Microsoft.Extensions.Configuration` adapter will expose the resolved result through the proposed `AddMorphirConfiguration(...)` integration.
+- `Morphir.Configuration.Microsoft` exposes one resolved result through opt-in `AddMorphirConfiguration(...)`. Its [consumer example]({{< relref "/docs/configuration/microsoft" >}}) uses generated or explicit binding without a CLI dependency.
 
 The CLI translates arguments into requests and formats results and exit codes. Other hosts use the same library services without referencing the CLI or constructing a command-line application. Editing is an explicit library operation, not a write through `IConfiguration`.
 
@@ -292,7 +299,7 @@ Source reports distinguish loaded, missing, skipped, and failed inputs. Optional
 
 `Morphir.Tooling.Configuration.ConfigResolver.ResolveConfigAsync` continues to load the cache-only `MorphirConfig`. `ConfigResolution` exposes `Effective`, `Layers`, `WorkspaceRoot`, and `CiProfileApplied`; `Merge.mergeConfigs` merges cache paths. `WorkspaceDiscovery`, `ManagementScenario`, and existing artifact callers retain Git-first root selection. New consumers opt into `ProjectSystem` explicitly.
 
-See [troubleshooting]({{< relref "/docs/cli/troubleshooting#configuration-planned" >}}) for wrong roots, ambiguous files, and settings that remain overridden.
+See [troubleshooting]({{< relref "/docs/cli/troubleshooting#configuration" >}}) for wrong roots, ambiguous files, and settings that remain overridden.
 
 The discovery result records primary topology. Loading recalculates the owning
 output directory from permitted workspace overlays, including active profiles

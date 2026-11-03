@@ -83,9 +83,9 @@ These exit codes are designed for CI/CD integration and scripting.
 
 ## Configuration
 
-The [configuration guide]({{< relref "/guides/configuration" >}}) separates the current TOML cache loader from the planned shared configuration and project system.
+The [configuration guide]({{< relref "/guides/configuration" >}}) distinguishes the compatibility TOML cache loader from the additive shared configuration and project system.
 
-The planned [morphir config commands]({{< relref "/docs/cli/config" >}}) inspect effective values, explain sources, and edit scoped TOML settings. These commands are not yet implemented. Start with the [workspace configuration walkthrough]({{< relref "/docs/getting-started/configuration" >}}) for the intended workflow.
+The [morphir config read commands]({{< relref "/docs/cli/config" >}}) inspect effective/scoped values, source reports and redacted explanations. JSON output follows the published schema; success, missing keys and usage/loading failures use exit codes 0/1/2. Editing and migration remain planned. Start with the [workspace configuration walkthrough]({{< relref "/docs/getting-started/configuration" >}}).
 
 ## Troubleshooting
 

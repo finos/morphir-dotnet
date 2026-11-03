@@ -49,7 +49,7 @@ dotnet build
 
 ## Next Steps
 
-- Read the planned [workspace configuration walkthrough]({{< relref "/docs/getting-started/configuration" >}}), including its implementation status
+- Read the [workspace configuration walkthrough]({{< relref "/docs/getting-started/configuration" >}}), including its implementation status
 - Learn about [Morphir IR modeling](/docs/guides/ir-modeling/)
 - Explore the [API Reference](/docs/api/)
 - Check out [examples and guides](/docs/guides/)

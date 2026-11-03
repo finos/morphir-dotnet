@@ -60,3 +60,13 @@ The additive shared discovery policy, host adapters, tests and documentation are
 original contributions under this repository's Apache-2.0 license. This
 submission adds no third-party source or additional license restrictions.
 Existing notices, licensed evidence and attribution above remain unchanged.
+
+Configuration inspection submission
+
+Copyright 2026 FINOS
+
+Shared configuration queries, the Microsoft configuration adapter, CLI inspection,
+tests, schemas and documentation are original contributions under this
+repository's Apache-2.0 license. Microsoft.Extensions.Configuration and its
+source-generated binder are consumed as package dependencies; no third-party
+source is copied. Existing notices and attribution remain applicable.

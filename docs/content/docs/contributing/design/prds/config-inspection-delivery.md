@@ -47,3 +47,43 @@ Full configured runners now pass core 135/135, IO/BDD 171/171 and tooling 299/29
 Additional runtime RED checkpoints cover four empty selectors reaching discovery, invalid environment profile names reaching malformed source reads, unpaired Unicode escapes throwing instead of reporting usage, and a discovered NaN-bearing member rejected by F# structural equality. Empty selectors and profile preflight now fail before the host edge. Key-path parsing catches invalid surrogate decoding. Loading accepts the actual discovered record by identity before its compatibility structural-equality check. Public regression and both NaN CLI scenarios pass; no fixture was weakened. Logs `cli-empty-controls-red.log`, `cli-environment-profiles-red.log`, `unicode-red.log`, `nan-member-red.log`.
 
 The user confirmed the typed JSON detail for NaN/infinities. Nonfinite numbers are tagged `{"$number":"NaN"}`, `{"$number":"Infinity"}` or `{"$number":"-Infinity"}`. A separate envelope `valueTypes` JSON Pointer discriminator identifies actual numbers. Ordinary tag-shaped objects carry no number metadata; no user key is reserved. Finite values retain JSON types, temporal kinds remain metadata, and shared redaction precedes encoding. `serializer-red.log` fails in Utf8JsonWriter before implementation. The actual CLI DTO source is linked into a small host with reflection serialization disabled, not duplicated. Managed, trimmed and native hosts each pass 21 checks, including all nonfinite cases, tag-shaped user objects, nested arrays, pointers, redaction and contribution/entry metadata. See `tests/Morphir.Configuration.Inspection.Smoke/README.md` for commands. Its trimmed/native logs retain 42/47 FSharp.Core warnings and no new serializer diagnostics. Exact prepublish lockfile bytes were restored.
+
+## Final local validation
+
+The complete solution restore/build succeeds with zero errors and existing package/generated-code warnings, NU1608, NU1510 and CS0436. The initial full build reports 19 warnings; the incremental build after Unicode handling reports 9. This differs from the earlier baseline's 20 due to which projects/generated sources compile, not a claim of warning-free dependencies. New core/IO/Microsoft and serializer-host builds are warning-free. Logs `solution-build.log`, `final-solution-build.log`. `dotnet format Morphir.slnx --no-restore --verify-no-changes --verbosity quiet` and Fantomas checks of every changed F# file pass. `git diff --check` passes.
+
+Configured runner evidence is core 135, IO/BDD 171, Microsoft 22 and tooling 299, all passing. Eleven broader suites also pass: C# core 237, internal generation 25, models/roundtrips 791, pipeline 299, SDK 175, SDK conformance 27, pipeline plugins 141, F# backend 333, Ion 463, Myriad 4 and packaged Myriad integration 12. Logs `broader-*.log` and `broader-results.json` record each result. The packaged integration suite was requalified with one worker and a temporary dotnet wrapper adding `-m:1 -p:BuildInParallel=false` to nested build/pack operations, log `packaged-consumer-serial.log`. Earlier broad execution used two bounded TUnit workers, allowing internal integration builds to overlap before this corrected qualification. No unrelated process was stopped.
+
+Current-source coverage union from `core-coverage/*/coverage.cobertura.xml` and `io-coverage.cobertura.xml` is core 3413/3565, 95.74%, and IO 639/662, 96.53%, above prior 95.38%/96.51%. The adapter's authored source is 118/119, 99.16%. Do not combine older core dependency coverage from the Microsoft checkpoint with newer source-line mappings.
+
+Representative reproducible commands, run serially with physical temp environment:
+
+```sh
+export DOTNET_PROCESSOR_COUNT=2
+export TMPDIR=/private/tmp/morphir-config-inspection
+export TEMP="$TMPDIR" TMP="$TMPDIR"
+dotnet build Morphir.slnx -m:1 -p:BuildInParallel=false
+dotnet tests/Morphir.Configuration.Tests/bin/Debug/net10.0/Morphir.Configuration.Tests.dll --sequenced
+dotnet tests/Morphir.Configuration.IO.Tests/bin/Debug/net10.0/Morphir.Configuration.IO.Tests.dll --maximum-parallel-tests 1 --coverage --coverage-output-format cobertura --coverage-output "$TMPDIR/io-coverage.cobertura.xml"
+dotnet tests/Morphir.Tooling.Tests/bin/Debug/net10.0/Morphir.Tooling.Tests.dll --maximum-parallel-tests 2
+dotnet test tests/Morphir.Configuration.Tests/Morphir.Configuration.Tests.fsproj --no-build --no-restore -m:1 --collect:"XPlat Code Coverage" --results-directory "$TMPDIR/core-coverage"
+/usr/bin/python3 scripts/configuration/summarize-coverage.py "$TMPDIR"/core-coverage/*/coverage.cobertura.xml "$TMPDIR/io-coverage.cobertura.xml"
+dotnet format Morphir.slnx --no-restore --verify-no-changes --verbosity quiet
+dotnet fantomas --check src/Morphir.Configuration/Documents.fs src/Morphir.Configuration/Resolver.fs src/Morphir.Configuration/Inspection.fs tests/Morphir.Configuration.Tests/InspectionTests.fs
+```
+
+Published host commands and dependency diagnostics are recorded in both smoke READMEs. Managed/trimmed/native Microsoft hosts pass 43 checks each; managed/trimmed/native serializer hosts pass 21 checks each. All stdout receipts parse as JSON and stderr receipts are empty. Canonical typed metadata remains available separately from the safe string projection.
+
+Main was fetched again after validation and remains `23d274d4c87b367fdc79bd21843a9fdf5d74b13d`, so there is no interacting base advancement. Code checkpoint `5518fb9` contains the implementation, regression fixes and serializer. Later delivery commits integrate documentation, the configured runner and archive. Final PR/head/base identities are supplied in the parent handback and forge metadata.
+
+## Specifications and parent handback
+
+Apply was refreshed at each fulfilled task boundary and finally reports `all_done`, 8/8 tasks complete, in `apply-all-done.json`. Both new capabilities were synchronized from the approved deltas, including the confirmed nonfinite JSON scenarios. The new main specs are `openspec/specs/configuration-inspection/spec.md` and `openspec/specs/dotnet-configuration-integration/spec.md`. Their purposes and requirement/scenario bodies were compared byte-for-byte with the deltas after canonical title/Requirements-header normalization. No delta-operation headers remain in main specs.
+
+Only `add-config-inspection` is archived at `openspec/changes/archive/2026-11-03-add-config-inspection/`; original `.openspec.yaml`, design, proposal, deltas and all checked tasks remain reviewable. Prerequisite/document links and the active editing prerequisite link were repaired. Editing, classic migration and workspace migration remain active. The archive CLI reports completed tasks with one nonblocking proposal suggestion to split more than ten deltas; this approved cohesive campaign remains one PR.
+
+`mise run openspec:verify` passes managed-file checks, html-design schema validation, all 22 active/spec items and both extension tests. Evidence is `openspec-verify.log`; `spec-sync-validate.log` and `archive.log` record sync/archive checks.
+
+The configured Nuke runner now includes the Microsoft suite and the linked-source serialization smoke using existing compiled artifacts. No new CI workflow or release/deployment behavior is added. New adapter/binder dependencies are pinned at Microsoft.Extensions.Configuration/Configuration.Binder 10.0.14; intentional central-transitive lockfile updates are retained, while publish-only RID/ILCompiler changes are restored. NOTICE and README describe the additive contribution and consumption paths.
+
+Main was fetched immediately before PR preparation and remains the validated base. The checkout is retained for parent review and is committed clean for handback. All reproducible test/publish logs, coverage reports, smoke binaries and exact prepublish lockfile backups belong to this campaign under `/private/tmp/morphir-config-inspection/`; no unique source edits reside there. Parent owns PR review/current-head CI, merge/landed verification and owned worktree/local-branch/remote-branch/temporary-artifact cleanup. The campaign remains incomplete until those gates are fulfilled. No watch, merge, auto-merge, admin bypass, force-push, branch/worktree deletion, release or deployment was performed.

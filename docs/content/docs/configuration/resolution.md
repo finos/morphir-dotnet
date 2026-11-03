@@ -7,7 +7,7 @@ available. Existing tooling continues its Git-first, cache-only TOML resolver an
 CI overlay until a caller explicitly adopts the document API.
 
 `Morphir.Configuration.IO` reads supplied text and explicit file paths without
-constructing the CLI. It does not discover a root or search for configuration.
+constructing the CLI. Its explicit reader API does not search for a root; `ProjectSystem` provides opt-in bounded discovery.
 Use `ConfigurationReader.ReadText`, `ReadFile`, or `ConfigurationLoader` for an
 explicit candidate inventory. See its [reader profile](../../../../src/Morphir.Configuration.IO/README.md)
 and the [profile guide](profiles.md).
@@ -114,3 +114,11 @@ format group alongside TOML. Suppression is accepted only from explicit host
 options, comma-separated `MORPHIR_DIAGNOSTICS__SUPPRESS`, or system/global
 `diagnostics.suppress` string arrays. Workspace/member suppression cannot hide
 these warnings. Unknown suppression codes produce `config.unknown_suppression`.
+
+## Shared inspection and .NET consumers
+
+Use [detailed resolution and inspection](inspection.md) for typed effective/scoped
+queries, source reports and redacted explanations without additional reads.
+The [Microsoft adapter](microsoft.md) projects one resolved result while retaining
+canonical types and metadata. Neither integration opts existing IR/cache commands
+into every setting automatically.

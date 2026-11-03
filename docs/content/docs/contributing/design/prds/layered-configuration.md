@@ -7,7 +7,7 @@ description: "Shared configuration, project discovery, and configuration inspect
 
 # Layered configuration and workspaces
 
-**Status**: In Progress; campaign 1 landed and cleaned; campaign 2 implemented and locally qualified; review, landing and cleanup pending
+**Status**: In Progress; campaigns 1 and 2 landed and cleaned; campaign 3 inspection locally qualified; parent PR review, landing and cleanup pending
 
 **Created**: 2025-12-22
 
@@ -17,13 +17,13 @@ description: "Shared configuration, project discovery, and configuration inspect
 
 Provide one reusable Morphir configuration and project system for the CLI and other hosts. Read TOML, YAML, JSON, and JSON5; discover projects and declared workspaces; and resolve settings with provenance. Shared APIs support `morphir config` inspection/editing, `morphir project migrate` for one classic project, and `morphir workspace migrate` for coordinated workspace adoption.
 
-The original cache-only TOML implementation keeps its Git-first compatibility behavior. Campaign 1 added typed multi-format documents, normalization, resolution, named profiles, validation, and provenance. Campaign 2 adds document-aware discovery through separate library entry points. Inspection/editing commands and migration remain later campaigns.
+The original cache-only TOML implementation keeps its Git-first compatibility behavior. Campaign 1 added typed multi-format documents, normalization, resolution, named profiles, validation, and provenance. Campaign 2 adds document-aware discovery through separate library entry points. Campaign 3 adds inspection and standard .NET consumption. Editing and migration remain later campaigns.
 
 ## Compatibility and decisions
 
 Use the [MoonBit configuration specification](https://github.com/finos/morphir-moonbit/blob/main/openspec/changes/adopt-moon-lander/specs/application/configuration/spec.md) and [adoption decision](https://github.com/finos/morphir-moonbit/blob/main/docs/adr/0004-adopt-moon-lander.md) for discovery and layering. Use the [finos/morphir configuration model](https://github.com/finos/morphir/blob/main/docs/spec/morphir-toml/morphir-toml-specification.md) for shared fields. MoonBit's format layering supersedes the older core specification's refusal of coexisting TOML and YAML.
 
-The [guide]({{< relref "/guides/configuration" >}}) describes target rules. The [CLI reference]({{< relref "/docs/cli/config" >}}) records the proposed command interface.
+The [guide]({{< relref "/guides/configuration" >}}) describes target rules. The [CLI reference]({{< relref "/docs/cli/config" >}}) records implemented inspection and planned editing interfaces.
 
 ## Goals
 
@@ -121,7 +121,7 @@ Each campaign is one cohesive implementation change delivered through one review
 | 5 | `add-classic-project-migration` | Shared loss-checked migration and project migrate | 2, 4 |
 | 6 | `add-workspace-migration` | Bounded repository adoption and coordinated workspace migrate | 5 |
 
-Planning artifacts are under `openspec/changes/<change-name>/`. Every change contains a proposal, capability specs, `design.html`, and implementation tasks. Campaign 1 is landed and cleaned. Campaign 2 is implemented against that verified main baseline, with final validation, review, landing and cleanup pending; its [delivery journal](project-workspace-discovery-delivery.md) records current evidence. Campaigns 3 through 6 remain planned and must follow the prerequisites above. A checked task list or an open PR does not satisfy the landing and cleanup gates.
+Planning artifacts are under `openspec/changes/<change-name>/`, or their dated archive after implementation. Campaigns 1 and 2 are landed and cleaned. Campaign 3 tracks [issue #468](https://github.com/finos/morphir-dotnet/issues/468); its [delivery journal](config-inspection-delivery.md) records shared queries, CLI reads, Microsoft integration and current qualification evidence. Parent-owned review, landing and cleanup remain separate gates. Campaigns 4 through 6 remain active plans.
 
 ### Campaign completion
 
@@ -174,17 +174,51 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 | Configuration project and cache models | Implemented baseline | Cache-only F# records and merge functions exist |
 | TOML resolver and legacy discovery | Implemented baseline | Git-first discovery and user/CI overlays retained for existing callers |
 | Multi-format documents and normalization | Implemented and landed | Campaign 1, PR #461; parent landing/cleanup receipt recorded |
-| Shared discovery and project selection | Implemented; PR pending | Campaign 2, issue #466; bounded policy/adapters, membership/selection and source loading; local qualification passes; review, landing and cleanup remain pending |
+| Shared discovery and project selection | Implemented and landed | Campaign 2, PR #467 at `23d274d4c87b367fdc79bd21843a9fdf5d74b13d`; parent landing and cleanup receipt recorded |
 | Shared resolution, profiles, validation, provenance | Implemented and landed | Campaign 1 additive APIs; prior baseline core 95 and reader/BDD 66; campaign 2 requalification tracked separately |
-| Microsoft configuration integration | Planned | Adapter; proposed extension name |
-| Shared query and edit services | Planned | Host-independent inspection and TOML edits |
+| Microsoft configuration integration | Implemented; qualification complete | Campaign 3, opt-in resolved provider, generated/explicit binding and 43-check managed/trimmed/native hosts; parent PR gates remain |
+| Shared query and edit services | Inspection implemented; editing planned | Campaign 3 queries/redaction/source history live in the pure library; TOML editing remains campaign 4 |
 | Classic project migration | Planned | Shared planner/apply API, project migrate command, loss checks, and independent-equivalence verification |
 | Workspace migration | Planned | Bounded inventory, coordinated project plans, membership, and recovery |
-| Config CLI commands | Planned | Thin adapter over shared services |
-| Documentation foundation | Documented | Library discovery examples and host obligations; CLI inspection/edit/migration examples remain planned |
+| Config CLI commands | Read commands implemented and locally qualified | Campaign 3 get/list/show/path/explain use shared services and generated JSON DTOs; set/unset remain planned |
+| Documentation foundation | Updated for inspection | Shared API and Microsoft consumer examples, read CLI schema/options, walkthrough and troubleshooting; editing/migration examples remain explicitly planned |
 | Compatibility and end-to-end verification | In Progress | Campaign 1 landed baseline tooling 245, reader 66, core 95 and warning-qualified runtime evidence; current campaign results recorded separately |
 
 ## Implementation notes
+
+### Configuration inspection campaign, 2026-11-03
+
+- [Issue #468](https://github.com/finos/morphir-dotnet/issues/468) and the
+  [delivery journal](config-inspection-delivery.md) track campaign 3.
+- Keep existing `DocumentResolution`, `Resolver.resolve`, `ProjectSystem.Load`
+  and cache-only APIs compatible. Add detailed resolution with canonical and
+  applied layers for pure queries. Scope filtering precedes query merging;
+  effective queries preserve source ownership. Shared redaction handles nested
+  sensitive values and opaque references before presentation.
+- `Morphir.Configuration.Microsoft` projects a single resolved document. It
+  rejects case/separator/empty-segment collisions, preserves canonical metadata
+  and masks stale descendants from earlier related host providers. Concrete
+  source-generated binding preserves replaced and empty arrays. Its managed,
+  trimmed and native hosts each pass 43 checks with pinned dependency warnings
+  retained. No warning-free dependency claim is made.
+- Register CLI inspection through one scenario/provider. Discovery is deferred
+  until validated command invocation. Help disables unrelated host defaults
+  that would read appsettings. Normal command execution retains host defaults.
+  Configuration reads do not imply adoption by every existing IR command.
+- JSON nonfinite values use tagged nodes with an external JSON Pointer type
+  discriminator, preserving ordinary tag-shaped user objects. Finite values
+  retain normal JSON types. The output schema and published serializer host
+  qualify this representation.
+
+### Discovery landing receipt, 2026-11-03
+
+- [PR #467](https://github.com/finos/morphir-dotnet/pull/467) landed at
+  `23d274d4c87b367fdc79bd21843a9fdf5d74b13d` after PR #461.
+- The [parent completion receipt](https://github.com/finos/morphir-dotnet/pull/467#issuecomment-6600694475)
+  records its landing and owned worktree/branch/temporary-artifact cleanup.
+  Baseline core 124, adapters/BDD 166, tooling 245 and all eight host checks are
+  prerequisite evidence, not a substitute for campaign 3's validation.
+
 
 ### Project/workspace discovery campaign, 2026-11-03
 
@@ -262,9 +296,9 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 
 - Campaign 1 boundaries are `Morphir.Configuration` and `Morphir.Configuration.IO`;
   discovery now uses `DiscoveryPolicy`, `IProjectTree`, and `ProjectSystem`.
-  Editing and Microsoft configuration integration remain later campaign work.
+  Editing remains later campaign work; Microsoft integration is delivered in campaign 3.
 - Existing cache-only APIs retain their legacy behavior through additive compatibility entry points. Document how consumers explicitly opt into the new discovery and profile model before moving them.
-- Final JSON result schemas and minor public signature details. The command semantics, selector scopes, and quoted key paths are covered by the OpenSpec changes; the CLI reference remains planned until implemented.
+- Inspection signatures and generated JSON schema are documented in the shared API and CLI references. Editing and migration result schemas remain their own campaign work.
 - Campaign 1 pins parser/merge/profile fixtures and records coverage/native
   results. Pinned dependency linker/AOT warnings remain a qualification limitation;
   strict warning-free trimming is not claimed.

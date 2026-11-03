@@ -21,7 +21,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 - [x] 4.1 Write failing Reqnroll/subprocess scenarios for every config read command, scopes/origin flags, controls, no-I/O help, JSON warnings, redaction, and 0/1/2 exit codes; confirm red with the configured tooling test runner.
 - [x] 4.2 Register a thin configuration scenario through MorphirCliBuilder/ICommandProvider, add source-generated output DTO serialization and stdout-helper formatting, then verify BDD/subprocess cases and update CLI/reference/walkthrough docs with actual result schemas.
-- [ ] 4.3 Run format/build/analyzers, shared and tooling suites, applicable contract/coverage checks, and smoke the default CLI registration; verify existing IR/management commands remain compatible and record results.
+- [x] 4.3 Run format/build/analyzers, shared and tooling suites, applicable contract/coverage checks, and smoke the default CLI registration; verify existing IR/management commands remain compatible and record results.
 
 ## Workflow follow-up
 
