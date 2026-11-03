@@ -122,6 +122,7 @@ module Resolver =
 
                 6, profile, (if source.Role = SourceRole.WorkspaceProfile then 0 else 1)
             | SourceRole.WorkspaceUserOverride -> 8, 0, 0
+            | SourceRole.UserOverride -> 8, 1, 0
             | role -> int role, 0, 0
 
         sources
@@ -153,6 +154,8 @@ module Resolver =
         let memberOwned =
             source.Role = SourceRole.MemberPrimary
             || source.Role = SourceRole.MemberProfile
+            || (input.Scope = ProjectScope.Member
+                && source.Role = SourceRole.UserOverride)
             || (source.Role = SourceRole.Selected
                 && Set.contains source.Path memberPaths)
 
@@ -427,13 +430,20 @@ module Resolver =
 
         let rootPaths =
             input.Sources
-            |> List.filter (fun source -> source.Source.Role = SourceRole.RootPrimary)
+            |> List.filter (fun source ->
+                source.Source.Role = SourceRole.RootPrimary
+                || source.Source.Role = SourceRole.WorkspaceUserOverride
+            )
             |> List.map (fun source -> source.Source.Path)
             |> Set.ofList
 
         let memberPaths =
             input.Sources
-            |> List.filter (fun source -> source.Source.Role = SourceRole.MemberPrimary)
+            |> List.filter (fun source ->
+                source.Source.Role = SourceRole.MemberPrimary
+                || (input.Scope = ProjectScope.Member
+                    && source.Source.Role = SourceRole.UserOverride)
+            )
             |> List.map (fun source -> source.Source.Path)
             |> Set.ofList
 

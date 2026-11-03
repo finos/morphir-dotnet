@@ -155,19 +155,35 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
 
 ## Configuration (planned)
 
-The multi-format configuration system and `morphir config` commands below are planned. The current loader still uses TOML cache settings and Git-root-first discovery. See the [guide]({{< relref "/guides/configuration" >}}) for the distinction and the [command reference]({{< relref "/docs/cli/config" >}}) for proposed options.
+The shared libraries provide multi-format resolution and bounded discovery. `morphir config`, editing, and migration commands remain planned. Existing artifact/cache tooling retains TOML cache settings and Git-first discovery. See the [guide]({{< relref "/guides/configuration" >}}) for the library APIs and the [command reference]({{< relref "/docs/cli/config" >}}) for proposed options.
 
 ### Wrong workspace or missing project
 
-In the target design, run `morphir config path` from the same directory as the failing invocation. Check the discovery boundary, the nearest declared `workspace`, member globs/exclusions, and the selected project. A project file does not hide a parent workspace. A Git root or an empty `.morphir` directory does not declare a workspace.
+For a library host, inspect `ProjectDiscoveryResult.Discovery`, `Selection`, source reports, and diagnostics. Check the discovery boundary, the nearest declared `workspace`, member globs/exclusions, and the selected project. The planned `morphir config path` command will expose this evidence. A project file does not hide a parent workspace. A Git root or an empty `.morphir` directory does not declare a workspace through the new API. If artifact-management commands use a different root, check their legacy Git-first policy before changing the declaration.
 
 ### Ambiguous configuration files
 
 Read every path named in the diagnostic. Keep at most one ordinary primary per format group across the root, hidden, and dot-config layouts. For example, `morphir.yaml` and `morphir.yml` conflict, as do `morphir.toml` and `.morphir/morphir.toml`. JSON, YAML, and TOML may coexist across groups. Supplemental `morphir-workspace.json` may coexist with the ordinary JSON primary.
 
+### A member is missing or cannot be selected
+
+Inspect `workspace.root`, `members`, and `exclude` in the declared workspace. A missing literal member warns; an existing directory without configuration and an invalid member document remain identifiable as errors. Duplicate display names do not merge projects. Select the canonical member path to disambiguate. An explicit unknown name/path or an invalid `default_member` is an error, rather than a request to choose an arbitrary project.
+
+### A candidate was not read
+
+A report of `Missing` means the optional path was absent. `Failed` retains a parse/access diagnostic and must not be treated as a miss. Discovery never follows discovered links, including a linked configuration directory. Check the host boundary and mount permissions. Inactive profiles, personal files under isolation, and machine sources under isolation are intentionally not read.
+
+### A machine file is ambiguous
+
+Global candidates include the platform configuration directory and the alternate Morphir home. Two files in the same format group conflict even when they are in different directories. `MORPHIR_HOME` replaces only the home alternative. A relative `XDG_CONFIG_HOME` is ignored. Requesting non-isolated machine loading without `MachineTree` produces `discovery.machine_host_required`; pass a separately authorized tree together with the explicit machine locations. Neither API implies ambient machine-file access. Remove the unintended duplicate or use different format groups when deliberate layering is required.
+
+### A member output setting has no effect
+
+`workspace.out_dir` belongs to the owning workspace. Member output overrides produce diagnostics and cannot relocate it. Read the separate owning workspace context rather than expecting the root's `workspace` subtree to be inherited into the member document.
+
 ### A setting still has its old value after an edit
 
-Use `morphir config explain <key>` to identify the winning source. A successful scoped write can remain overridden by a member, profile, personal file, environment variable, or explicit CLI value. Check the target reported by the edit and distinguish scoped inspection from effective inspection.
+For current hosts, inspect the resolved origins and source reports. The planned `morphir config explain <key>` command will identify the winning source. A successful scoped write can remain overridden by a member, profile, personal file, environment variable, or explicit CLI value. Check the target reported by the edit and distinguish scoped inspection from effective inspection.
 
 ### A value reappears after unset
 
@@ -175,7 +191,7 @@ Use `morphir config explain <key>` to identify the winning source. A successful 
 
 ### A profile did not load
 
-Check `--profiles`, `--no-profiles`, `MORPHIR_PROFILES`, and the base profile controls. An empty profile environment selector disables profiles, and inactive files are not read. Named profiles are not activated by CI detection alone. For the existing loader's separate CI behavior, inspect `CiProfileMode` and `.morphir/morphir.ci.toml`.
+Check the supplied `ProfileSelection`, `MORPHIR_PROFILES`, and base profile controls. The proposed CLI equivalents are `--profiles` and `--no-profiles`. An empty profile environment selector disables profiles, and inactive files are not read. Named profiles are not activated by CI detection alone. Profile stems must be adjacent to an eligible primary layout; a dot-config primary uses `config.profile.<name>.<ext>`. Isolation retains active profiles while omitting machine and personal sources. For the existing loader's separate CI behavior, inspect `CiProfileMode` and `.morphir/morphir.ci.toml`.
 
 ### A configuration write fails
 

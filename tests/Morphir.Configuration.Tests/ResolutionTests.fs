@@ -32,6 +32,30 @@ let supplied identity value = {
 [<Tests>]
 let tests =
     testList "Resolution" [
+        test "member personal YAML follows workspace personal TOML" {
+            let input =
+                { DocumentDefaults.resolutionInput with
+                    Scope = ProjectScope.Member
+                    Sources = [
+                        supplied
+                            (source
+                                "root.user.toml"
+                                SourceRole.WorkspaceUserOverride
+                                DocumentFormat.Toml)
+                            (obj [ "custom", text "root" ])
+                        supplied
+                            (source "app.user.yaml" SourceRole.UserOverride DocumentFormat.Yaml)
+                            (obj [ "custom", text "member" ])
+                    ]
+                }
+
+            let result = Resolver.resolve input
+
+            Expect.equal
+                (ConfigTree.tryFind [ "custom" ] result.Effective)
+                (Some(text "member"))
+                "member override stage wins across formats"
+        }
         test "format order merges keys and reports the winning source" {
             let json = source "morphir.json" SourceRole.RootPrimary DocumentFormat.Json
             let toml = source "morphir.toml" SourceRole.RootPrimary DocumentFormat.Toml

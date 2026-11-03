@@ -7,17 +7,17 @@ description: "Shared configuration, project discovery, and configuration inspect
 
 # Layered configuration and workspaces
 
-**Status**: In Progress; campaign 1 implemented, PR landing and cleanup pending
+**Status**: In Progress; campaign 1 landed and cleaned; campaign 2 implemented and locally qualified; review, landing and cleanup pending
 
 **Created**: 2025-12-22
 
-**Last updated**: 2026-11-02
+**Last updated**: 2026-11-03
 
 ## Overview
 
 Provide one reusable Morphir configuration and project system for the CLI and other hosts. Read TOML, YAML, JSON, and JSON5; discover projects and declared workspaces; and resolve settings with provenance. Shared APIs support `morphir config` inspection/editing, `morphir project migrate` for one classic project, and `morphir workspace migrate` for coordinated workspace adoption.
 
-The original cache-only TOML implementation exists. This revision replaces its planned Git-root-first, TOML-only design with the agreed MoonBit behavior. It does not claim the new APIs or commands have been implemented.
+The original cache-only TOML implementation keeps its Git-first compatibility behavior. Campaign 1 added typed multi-format documents, normalization, resolution, named profiles, validation, and provenance. Campaign 2 adds document-aware discovery through separate library entry points. Inspection/editing commands and migration remain later campaigns.
 
 ## Compatibility and decisions
 
@@ -121,7 +121,7 @@ Each campaign is one cohesive implementation change delivered through one review
 | 5 | `add-classic-project-migration` | Shared loss-checked migration and project migrate | 2, 4 |
 | 6 | `add-workspace-migration` | Bounded repository adoption and coordinated workspace migrate | 5 |
 
-Planning artifacts are under `openspec/changes/<change-name>/`. Every change contains a proposal, capability specs, `design.html`, and implementation tasks. These campaigns are planned; this documentation update does not implement or land them.
+Planning artifacts are under `openspec/changes/<change-name>/`. Every change contains a proposal, capability specs, `design.html`, and implementation tasks. Campaign 1 is landed and cleaned. Campaign 2 is implemented against that verified main baseline, with final validation, review, landing and cleanup pending; its [delivery journal](project-workspace-discovery-delivery.md) records current evidence. Campaigns 3 through 6 remain planned and must follow the prerequisites above. A checked task list or an open PR does not satisfy the landing and cleanup gates.
 
 ### Campaign completion
 
@@ -172,19 +172,58 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Configuration project and cache models | Implemented baseline | Cache-only F# records and merge functions exist |
-| TOML resolver and legacy discovery | Implemented baseline | Git-first discovery and user/CI overlays; replacement planned |
-| Multi-format documents and normalization | Implemented | Campaign 1 library/reader behavior and runtime qualification; landing pending |
-| Shared discovery and project selection | Planned | Document-aware search and membership |
-| Shared resolution, profiles, validation, provenance | Implemented | Pure additive APIs; 90 core tests plus reader/BDD parity; landing pending |
+| TOML resolver and legacy discovery | Implemented baseline | Git-first discovery and user/CI overlays retained for existing callers |
+| Multi-format documents and normalization | Implemented and landed | Campaign 1, PR #461; parent landing/cleanup receipt recorded |
+| Shared discovery and project selection | Implemented; PR pending | Campaign 2, issue #466; bounded policy/adapters, membership/selection and source loading; local qualification passes; review, landing and cleanup remain pending |
+| Shared resolution, profiles, validation, provenance | Implemented and landed | Campaign 1 additive APIs; prior baseline core 95 and reader/BDD 66; campaign 2 requalification tracked separately |
 | Microsoft configuration integration | Planned | Adapter; proposed extension name |
 | Shared query and edit services | Planned | Host-independent inspection and TOML edits |
 | Classic project migration | Planned | Shared planner/apply API, project migrate command, loss checks, and independent-equivalence verification |
 | Workspace migration | Planned | Bounded inventory, coordinated project plans, membership, and recovery |
 | Config CLI commands | Planned | Thin adapter over shared services |
-| Documentation foundation | Documented | Guide, reference, walkthrough, troubleshooting; runtime examples not yet executable |
-| Compatibility and end-to-end verification | In Progress | Campaign 1 tooling 245/245, reader 63/63, trimmed/native corpus runs pass; later command campaigns remain planned |
+| Documentation foundation | Documented | Library discovery examples and host obligations; CLI inspection/edit/migration examples remain planned |
+| Compatibility and end-to-end verification | In Progress | Campaign 1 landed baseline tooling 245, reader 66, core 95 and warning-qualified runtime evidence; current campaign results recorded separately |
 
 ## Implementation notes
+
+### Project/workspace discovery campaign, 2026-11-03
+
+- Track campaign 2 in [issue #466](https://github.com/finos/morphir-dotnet/issues/466).
+  The [delivery journal](project-workspace-discovery-delivery.md) records red/green
+  checkpoints, validation, base/head identities and outstanding parent gates.
+  Local qualification passes core 124, reader/BDD 153 and tooling 245; authored
+  source coverage is 94.89% core and 96.45% adapters. The implementation change
+  is archived at `openspec/changes/archive/2026-11-03-add-project-workspace-discovery/`,
+  with the synchronized `morphir-project-system` main spec. These are local
+  results; PR CI and review remain parent-owned.
+- Keep snapshot/request discovery and project selection pure in
+  `Morphir.Configuration`. File parsing, native access, mounted trees and
+  machine/environment capture belong to reusable .NET adapters in
+  `Morphir.Configuration.IO`; no CLI dependency is introduced.
+- Preserve `WorkspaceDiscovery`, `ManagementScenario`, and artifact callers as
+  Git-first compatibility entry points. New consumers choose document-aware
+  `ProjectSystem` explicitly. `Discover` returns inventory and selection; `Load`
+  resolves a root or one selected project independently.
+- Keep inventory separate from selection, and owning workspace context separate
+  from root-to-member settings. Invalid literal members remain identifiable.
+  Members cannot relocate the workspace output root.
+- Apply the same format groups to primaries, platform/global alternatives,
+  eligible personal overrides and active profiles. Isolation excludes machine
+  and personal sources before reading them, while retaining declared primaries,
+  explicitly selected configuration, active profiles and supplied values. Machine
+  inputs require explicit locations and a separately authorized `MachineTree`.
+
+### Shared configuration landing receipt, 2026-11-03
+
+- [PR #461](https://github.com/finos/morphir-dotnet/pull/461) landed at
+  `3d5b41c0f839c7b2648403ad6aba5c5644f7dfb5`, with verified squash tree
+  `66609771da2eb88ac9e3cab3c21b6e8d201a6748`.
+- The [parent completion receipt](https://github.com/finos/morphir-dotnet/pull/461#issuecomment-6598647710)
+  records its campaign worktree, local/remote branches and 33 reproducible
+  temporary artifacts cleaned. Campaign 2 starts from this main result.
+- Earlier core 95, readers 66, tooling 245, SDK conformance 27, full solution
+  build and trimmed/native smoke results are prerequisite evidence. They do not
+  substitute for validation of campaign 2's final tree.
 
 ### Shared configuration implementation, 2026-11-02
 
@@ -204,7 +243,8 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 - Keep commits at coherent task boundaries, with red checkpoints identified.
   See [delivery evidence](shared-configuration-delivery.md) for exact validation
   commands/checkpoints. Parent coordination owns review, landing and cleanup;
-  campaign completion remains pending those gates.
+  campaign 1 is now complete per the parent landing receipt above. Campaign 2
+  has its own review, landing and cleanup gates.
 
 ### Foundation decisions, 2026-11-02
 
@@ -216,12 +256,13 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 - Include explicit classic `morphir.json` migration with source retention, dry-run, and semantic equivalence checks; loading legacy files alone does not satisfy migration support.
 - Own migration under project/workspace commands, with no `config migrate` alias. Workspace migration reuses the single-project planner.
 - Deliver six campaigns through merged PRs to `main`, synchronized/archived specs, and verified campaign-owned worktree/branch cleanup.
-- This revision changes documentation only. Existing APIs have not changed.
+- These foundation notes describe the original planning revision. Later implementation campaigns add APIs without changing the cache-only compatibility entry points.
 
 ## Open implementation questions
 
 - Campaign 1 boundaries are `Morphir.Configuration` and `Morphir.Configuration.IO`;
-  later discovery/editing/host adapter signatures remain their campaigns' work.
+  discovery now uses `DiscoveryPolicy`, `IProjectTree`, and `ProjectSystem`.
+  Editing and Microsoft configuration integration remain later campaign work.
 - Existing cache-only APIs retain their legacy behavior through additive compatibility entry points. Document how consumers explicitly opt into the new discovery and profile model before moving them.
 - Final JSON result schemas and minor public signature details. The command semantics, selector scopes, and quoted key paths are covered by the OpenSpec changes; the CLI reference remains planned until implemented.
 - Campaign 1 pins parser/merge/profile fixtures and records coverage/native

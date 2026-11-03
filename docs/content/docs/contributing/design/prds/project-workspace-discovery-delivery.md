@@ -1,0 +1,265 @@
+# Project and workspace discovery delivery
+
+Campaign 2 tracks [issue #466](https://github.com/finos/morphir-dotnet/issues/466).
+Owned checkout: `/Users/damian/.t3/worktrees/morphir-dotnet/t3-2ee0222b`.
+Branch: `t3/add-project-workspace-discovery`.
+Prepared and current main baseline: `3d5b41c0f839c7b2648403ad6aba5c5644f7dfb5`.
+The initial checkout was clean. Its tree is
+`66609771da2eb88ac9e3cab3c21b6e8d201a6748`, the verified squash tree of
+[prerequisite PR #461](https://github.com/finos/morphir-dotnet/pull/461).
+The [parent completion receipt](https://github.com/finos/morphir-dotnet/pull/461#issuecomment-6598647710)
+records campaign 1 landing and cleanup, including its 33 reproducible temporary
+artifacts. That tree is a tree object, not a commit ancestry identifier.
+
+The parent owns PR review/check watching, merge and cleanup. This worker delivers
+one reviewable PR, without watching, merging, deleting branches/worktrees,
+force-pushing, publishing or deploying. Campaign completion remains pending until
+parent landing and cleanup receipts exist. Future campaigns remain active.
+
+## Validation checkpoints
+
+- Initial BDD scenario describes a member primary below a workspace. The capped
+  adapter test build fails with CS0246 for the absent `InMemoryProjectTree` and
+  `ProjectDiscoveryResult` APIs. No discovery implementation exists at this red
+  checkpoint. Logs are in `/private/tmp/morphir-discovery-tests/`.
+- All builds use `DOTNET_PROCESSOR_COUNT=2`, single-node MSBuild, disabled
+  parallel restore/build, and one heavy job at a time. Executable TUnit/Reqnroll
+  uses one worker and physical macOS temporary paths. Core uses Expecto.
+- `e849db3` records initial red; `7299331` records first passing API slice.
+- Root ambiguity was observed red with all 15 layout/extension cases green.
+  Boundary group then exposed outside-start host access and missing diagnostics
+  for a directory at a primary filename. Both regressions were made green.
+  An incomplete classic test fixture was corrected to a canonical project after
+  error propagation revealed its required `exposedModules` field was absent.
+- Membership group was observed red: 15/110 failed for globs/exclusions,
+  root/virtual identity, workspace.root, invalid/missing literals, duplicate/path
+  selection, defaults and bounds. After implementation adapter 110/110 passes,
+  zero build warnings/errors. Native adapter, scoped loading and qualification
+  remain pending. Evidence logs use `red-members-*` and `green-members-*`.
+- Machine planner first failed compilation for absent APIs, then Linux 1/1
+  passed. Expanded platform tests ran 14 cases with 4 pass, 7 fail, 3 error;
+  after implementation 14/14 passed. Overlay/ambiguity missing APIs were observed
+  red before implementation. Builds are serialized by the primary worker.
+
+## Adapter and loading checkpoints
+
+- `bd325c2` is an external checkpoint of the then-current files, followed by owned
+  `db17ca1`. Both are preserved. The source-planner and documentation helpers
+  confirm they ran no staging or commit commands.
+- Native adapter parity/link tests first failed compilation for the missing
+  filesystem adapter; after implementation adapter 112/112 passed. Tests compare
+  complete immutable discovery and selection results across native and memory
+  hosts, then compare complete loading results as well.
+- Loading first failed compilation for the absent API and options. After
+  implementation adapter 121/121 passed. Pure core passed 124/124, including the
+  new platform/overlay planner's 28 cases and a resolver ordering regression.
+  That regression failed at runtime with workspace personal TOML beating member
+  personal YAML. The separate member-personal stage now wins across formats.
+  The earlier substring-only Expecto filter selected zero tests; the recorded
+  red evidence reran the full `Resolution` list and ran 31 cases, 30 pass/1 fail.
+- Canonical schema failures, requesting below member links and member-personal
+  workspace output relocation produced 4 red failures, then 125/125 passed.
+  Isolation with supplied machine sources produced 1 red failure, then 127/127
+  passed. Directory enumeration failure lacked source evidence in a 1/128 red
+  run; after implementation adapter 128/128 passed. Focused builds have zero
+  warnings/errors. Native directory probes never open discovered links.
+- Implementation tasks 2.1 through 3.2 are fulfilled. Apply instructions were
+  refreshed after every checkbox update. Broader compatibility, runtime,
+  coverage, formatting and final archive qualification remain pending.
+
+## Broad verification and semantic audit
+
+- `b6ff7c5` protects bounded native/mounted loading and its initial red/green
+  regressions. Full solution build succeeds with the same 20 existing package
+  and generated-code warnings and zero errors.
+- All 14 configured Nuke-target suites pass serially using compiled Debug outputs:
+  C# core 237, tooling 245, configuration core 124, adapter/BDD 128 at that
+  checkpoint, internal generation 25, models/roundtrips 791, pipeline 299, SDK
+  175, SDK conformance 27, pipeline plugins 141, F# backend 333, Ion 463,
+  Myriad 4, and Myriad integration 12. See `suite-results.json` and each suite's
+  log under the owned temporary root. TUnit uses one worker, Expecto sequenced.
+- A read-only semantic audit then produced concrete regression tests. Adapter
+  run `red-audit-run.log` has 9 failures out of 137: explicit disabled profiles
+  inherited premature discovery errors, host warning suppression leaked discovery
+  warnings, sibling literal members with exclusions crashed, sibling globs were
+  missed, UNC authority was lost, build-named projects were implicitly pruned,
+  supplied default layers were falsely ambiguous, and two permitted owner-output
+  overlays left stale context. All nine are fixed; adapter 137/137 passes.
+- A follow-up invalid owner-output overlay failed from a member load, then passed
+  after retaining workspace validation errors in the owning context. Adapter
+  138/138 and core 124/124 pass. Discovery validates canonical declarations without
+  interpreting profile activation or precomputing suppressible format warnings.
+  Member inventories now honor within-boundary sibling literals/globs and declared
+  build-named directories. UNC paths retain their authority. Root personal/profile
+  output settings produce the same output context for root and member loads.
+- Fantomas formats owned F# files; C# whitespace formatting covers owned C# files.
+  Full `dotnet format Morphir.slnx --no-restore --verify-no-changes --verbosity quiet`
+  passes; unsupported F# projects are checked separately with Fantomas.
+- Final full-solution rebuild after these fixes succeeds with zero errors and the
+  same 20 existing warnings. Configured coverage runners pass core 124/124 and
+  adapter/BDD 153/153. The additional boundary cases cover selected-file misses,
+  unsupported formats, outside paths, personal access/link evidence, absent machine
+  authorization, relative Morphir home, invalid selection and native permission
+  failures. Their source-line union is core 3010/3172 = 94.89% and authored
+  adapter 624/647 = 96.45%, above campaign 1's 94.13% and 94.23% rates.
+  Reproduce with `scripts/configuration/summarize-coverage.py` over
+  `core-coverage/*/coverage.cobertura.xml` and `io-coverage.cobertura.xml`.
+- Consumer audit confirms ManagementScenario and ConfigResolver still reference
+  the unchanged legacy WorkspaceDiscovery. No existing caller was migrated to
+  DiscoveryPolicy or ProjectSystem. Task 3.3 is fulfilled and apply reports 7/8.
+
+## Runtime and final delivery qualification
+
+Validated implementation checkpoint: `230d1a4`. The later tracked changes contain
+only test whitespace, runtime README and final documentation/spec synchronization.
+Both full-solution builds succeeded with zero errors and 20 existing warnings.
+The final physical-temp tooling rerun passes 245/245. Full C# format verification,
+Fantomas checks and whitespace checks pass. No CLI dependency or old-consumer
+registration was introduced.
+
+Runtime commands are in `tests/Morphir.Configuration.IO.Smoke/README.md` and the
+exact argument arrays/results are retained in
+`/private/tmp/morphir-discovery-tests/runtime-results.json`. All three publishes
+use `DOTNET_PROCESSOR_COUNT=2`, `-m:1`, disabled parallel build/restore, Release
+`osx-arm64`, and the same physical temporary root. They run serially.
+
+- Strict trimmed publishing exits 1 on pinned CsToml IL2055/IL2067 and FSharp.Core
+  reflection/resource diagnostics. `publish-strict.log` retains those errors.
+- Warning-qualified trimmed and native publishing both exit 0 with explicit
+  `ILLinkTreatWarningsAsErrors=false`; normal dependency diagnostics remain
+  visible in `publish-trimmed.log` and `publish-native.log`. No suppression or
+  strict warning-free qualification is claimed.
+- Both published binaries exit 0 and report `success`, `formats=3`, JSON5,
+  normalization, profile loading, host parity, discovery, selection and bounded
+  loading, plus `syntax_cases=228` and `morphir_cases=26`. Native/mounted results
+  are compared structurally, active profiles remain in isolated loading, and
+  workspace output ownership is checked. `file` identifies the native executable
+  as Mach-O 64-bit arm64.
+- Publish-generated RID/ILCompiler changes in the three owned package lockfiles
+  were restored to their saved prepublish bytes, preserving the main dependency
+  pins CsToml 1.8.6 and YamlDotNet 16.3.0. No intentional dependency update was
+  reverted.
+
+Coverage reports under the same root pass 124 core and 153 reader/BDD tests.
+The source-line union is core 3010/3172, 94.89%, and authored IO 624/647, 96.45%.
+This excludes generated `obj/` code and exceeds the prior campaign's recorded
+rates. The coverage summary script, configured runners and arguments above
+reproduce those results. Optional access failures, selected-file errors, links
+and machine-host authorization are included in the adapter suite.
+
+## Specification and parent handback
+
+OpenSpec apply returned `all_done`, 8/8 tracked tasks complete. All artifact/task
+checks passed before sync/archive. The new main specification is
+`openspec/specs/morphir-project-system/spec.md`; its Purpose was copied verbatim
+and all 11 requirements and 19 scenarios were compared byte-for-byte with the
+approved delta. No delta operation headers remain in the main spec.
+
+Only this change is archived at
+`openspec/changes/archive/2026-11-03-add-project-workspace-discovery/`. Its original
+`.openspec.yaml`, proposal, design, delta and checked tasks are preserved.
+Prerequisite links in the two dependent proposals were updated without checking
+or archiving their tasks. Inspection, editing and both migration campaigns remain
+active, along with unrelated active changes.
+
+`mise run openspec:verify` passes managed schema/snapshot checks, all 21 strict
+active/spec validations, and both extension tests. Main was fetched again and
+remains `3d5b41c0f839c7b2648403ad6aba5c5644f7dfb5`; there is no base advancement
+to reconcile. The PR targets this current main. The final handback supplies the
+actual PR URL, head SHA and base SHA; local evidence is distinguished from CI.
+
+The checkout is retained for parent review. Reproducible evidence and published
+binaries are owned beneath `/private/tmp/morphir-discovery-tests/`, with no unique
+source edits held there. Parent owns review/CI watch, merge/landed verification
+and subsequent checkout/local-branch/remote-branch/temporary-artifact cleanup.
+No watch, merge, auto-merge, admin bypass, force-push, branch/worktree deletion,
+release or deployment was performed. Campaign completion remains pending parent
+landing and cleanup even though implementation, local validation and archive are
+complete.
+
+## Parent review: selected personal ownership
+
+A read-only adapter review reproduced an ownership bypass when an eligible
+personal file was explicitly selected. The member file could relocate the
+workspace output; a workspace personal file could supply a member's project
+source directory and exposed modules. Four public loading regressions, covering
+ordinary and isolated loading for both owners, failed before the fix.
+
+Loading now keeps the eligible personal source's original role alongside its
+selected contribution. Isolation reads only the explicitly selected personal
+file, retaining that ownership metadata without enabling other personal reads.
+Pure resolution uses the original personal roles when scoping selected values;
+the owner-context pass excludes selected member-personal files. The ordinary
+contribution still occurs only once at selected precedence.
+
+Both projects build without warnings. The full configured core runner passes
+124/124 and the adapter/BDD runner passes 157/157. The first parent adapter run
+used macOS's linked default temp path and failed three native-filesystem cases;
+the rerun with TMPDIR/TEMP/TMP set to
+`/private/tmp/morphir-discovery-tests/parent-review` passes all cases. Its log is
+`/private/tmp/morphir-discovery-tests/parent-review/adapters.log`. Owned F# and C#
+files were formatted and the working diff passes whitespace checks. Final native
+qualification, current-head CI and the independent discovery-policy review
+remain pending for these parent changes.
+
+The parent subsequently qualified implementation `05f7555` with additional smoke
+checks for explicitly selected workspace/member personal files, both with and
+without isolation. The trimmed and native osx-arm64 hosts both pass structural
+native/mounted parity, owner output and member-identity assertions, and all 228
+JSON5 syntax checks plus 26 Morphir documents. Publish commands match the smoke
+README with two logical processors, single-node builds and explicit warning
+qualification; outputs and logs are under the same `parent-review` directory.
+Pinned dependency warnings remain visible, and no strict warning-free claim is
+made. Publish-generated lockfile churn was restored to the committed bytes.
+
+Fresh configured coverage runners pass core 124/124 and adapters/BDD 157/157.
+Their authored-source union is core 3030/3189, 95.01%, and adapters 636/659,
+96.51%. Reports are under `parent-review/core-coverage` and
+`parent-review/adapter-coverage.cobertura.xml`, summarized with the existing
+coverage script. All eight host checks passed on the earlier `115a17d`; the
+ownership fix requires fresh CI. The separate discovery-policy review and
+landing/cleanup remain outstanding.
+
+## Parent review: discovery policy conformance
+
+The independent policy review confirmed two earlier bot findings remained
+actionable through the public discovery API, and reproduced a reserved-directory
+glob-seed bypass. The earlier topology-shape finding was already addressed:
+invalid project/workspace mappings and malformed member lists return structured
+validation errors and no accepted topology. Three additional existing-behavior
+test arguments retain coverage of those verified shape cases.
+
+- `36a07a8` assigns `MemberPrimary` to member inputs, embedded documents,
+  diagnostics and reports, including evidence collected during the initial
+  upward walk. A public API regression failed on the former RootPrimary role;
+  it now passes member sources directly into `Resolver.resolve` and retains
+  name, exposed modules and classic checkpoint defaults without adapter repair.
+- The same checkpoint adds glob-prefix reachability checks before inventory
+  requests. Two regressions failed with access errors from excluded or
+  impossible descendants. Both now pass, without observing those paths.
+  Fully excluded recursive branches are pruned while potentially matching
+  descendants retain the declared glob/exclusion semantics.
+- `25f7088` checks reserved components between the workspace declaration and a
+  glob directory before observing it. Three red regressions for `.morphir/*`,
+  `.config/*` and a deeper literal prefix containing `.config` now pass without
+  admitting hidden projects or selecting them automatically.
+
+The complete solution build succeeds with zero errors and 20 existing warnings.
+Fresh configured runners pass core 124/124 and adapters/BDD 166/166. Their
+authored-source coverage union is core 3100/3250, 95.38%, and adapters 636/659,
+96.51%. The reports and build/test logs are under `parent-review`, using
+`policy-*` names. Both affected libraries compile without warnings.
+
+The updated trimmed and native osx-arm64 smoke hosts pass direct member-source
+resolution with classic defaults, finite-glob traversal pruning, reserved glob
+seeds, selected personal ownership, native/mounted parity and all 254 upstream
+fixture checks. Publish logs and binaries are `policy-publish-trimmed.log`,
+`policy-publish-native.log`, `policy-trimmed/` and `policy-native/` under the same
+owned review directory. Builds are bounded and serial; pinned dependency linker
+diagnostics remain visible with explicit warning qualification. Temporary RID
+lockfile churn was restored after publishing.
+
+`mise run openspec:verify` passes all 21 active/spec items, managed checks and both
+extension tests. Changed-file F# and C# format checks and full-range whitespace
+checks pass. Main remains `3d5b41c0f839c7b2648403ad6aba5c5644f7dfb5`. Current-head
+CI, developer sign-off, main landing and owned artifact cleanup remain pending.

@@ -3,10 +3,19 @@
 This non-CLI host exercises equivalent formats, extended JSON5 and exact
 integers, duplicate/error diagnostics, classic normalization/raw retention,
 low-priority defaults, lazy profiles, source order and typed-host origin parity.
-With `--fixtures`, it also verifies hashes and runs all 228 official JSON5 syntax
+It also compares complete native/mounted workspace discovery, member selection
+and loading results, checks bounded invocation, isolated active profiles and
+shared workspace output ownership. With `--fixtures`, it verifies hashes and runs all 228 official JSON5 syntax
 checks and 26 pinned Morphir documents through the published executable.
+Explicitly selected workspace/member personal files are checked with isolation
+on and off; host parity includes the retained ownership restrictions and diagnostics.
+
+On macOS use a physical temporary directory for the filesystem boundary checks:
 
 ```sh
+mkdir -p /private/tmp/morphir-configuration-smoke
+export TMPDIR=/private/tmp/morphir-configuration-smoke
+export TEMP="$TMPDIR" TMP="$TMPDIR"
 DOTNET_PROCESSOR_COUNT=2 dotnet publish tests/Morphir.Configuration.IO.Smoke \
   -c Release -r osx-arm64 -m:1 -p:BuildInParallel=false \
   -p:PublishTrimmed=true -p:ILLinkTreatWarningsAsErrors=false \
