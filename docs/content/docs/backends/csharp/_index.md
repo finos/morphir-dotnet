@@ -2,7 +2,8 @@
 title: "C# generation"
 ---
 
-`Morphir.CodeGeneration.CSharp` is being implemented under
+`Morphir.CodeGeneration.CSharp` landed in
+[PR #478](https://github.com/finos/morphir-dotnet/pull/478), tracked by
 [issue #474](https://github.com/finos/morphir-dotnet/issues/474).
 The core accepts typed `VersionedModel` values in memory, preserves
 their source family/version, and returns immutable sources and diagnostics.
@@ -19,9 +20,11 @@ record operations. Ordered patterns include wildcard, alias, literal, tuple,
 constructor, empty-list, head/tail and unit patterns.
 The SDK binding table covers the frozen 67-operation inventory. Generated calls
 execute the 207 required frozen observations in both typed families. The eight
-representation exclusions remain exclusions. Remaining acceptance is tracked in
-the active OpenSpec tasks.
-It is not yet a complete backend. Decoding, configuration, source publication
+representation exclusions remain exclusions. The
+[main specification](../../../../../openspec/specs/morphir-csharp-transpilation/spec.md)
+and [archived 13/13 tasks](../../../../../openspec/changes/archive/2026-11-03-add-csharp-code-generation/tasks.md)
+record the delivered bounded core. Archive follow-up landing and coordinator
+cleanup remain pending. Decoding, configuration, source publication
 and compiler execution belong to callers. CLI registration and a production
 Roslyn adapter are separate initiatives.
 

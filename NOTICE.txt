@@ -119,3 +119,12 @@ Copyright 2026 FINOS contributors.
 The typed C# generator, tests and documentation are original contributions under
 this repository's Apache-2.0 license. No upstream implementation source is copied.
 All existing copyright, attribution and original evidence notices are retained.
+
+C# generator specification and archive follow-up (#478)
+
+Copyright 2026 FINOS contributors.
+
+This documentation-only contribution synchronizes and archives the landed C#
+generator specification, repairs links and records delivery status. It adds no
+third-party source, license or restriction. All existing notices, attribution
+and original-byte evidence remain applicable and are retained.

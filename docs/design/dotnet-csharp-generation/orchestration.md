@@ -1,6 +1,72 @@
 # C# generation coordination plan
 
-This is a static planning snapshot from before worker dispatch. Its planned statuses, executionStarted flag, settings and empty landing fields describe that snapshot, not live execution. The machine-readable [orchestration.json](orchestration.json) retains the same DAG and delivery gates. Archive follow-up repairs path references only; the legacy activeChangePath field now resolves to the [conformance archive](../../../openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance/proposal.md). Current landing and cleanup evidence is in the [conformance delivery record](conformance-delivery.md).
+This is a static planning snapshot from before worker dispatch. Its planned statuses, executionStarted flag, settings and empty landing fields describe that snapshot, not live execution. The machine-readable [orchestration.json](orchestration.json) retains the same DAG and delivery gates, with current generator evidence in its separate generatorDelivery field. Legacy activeChangePath fields resolve to dated archives after synchronization. Earlier landing and cleanup evidence remains in the [conformance delivery record](conformance-delivery.md) and [SDK runtime delivery record](sdk-runtime-delivery.md). Current generator evidence is below.
+
+## Generator landing and archive follow-up, 2026-11-03
+
+[PR #478](https://github.com/finos/morphir-dotnet/pull/478) is MERGED to main,
+submitted head `3db576da36a41abab960d59da130df4262486a38`, actual squash landing
+`a8ae8e456ac95875db1ee53ff4a21362315b467a`. Both trees equal
+`b65fea03980e445e094c38b0e9f6bfe8888cc948`. The archive worker independently
+queried that exact PR, refreshed main and verified the landed SHA is reachable.
+Original-head ancestry is not required. Final submitted-head hosted checks all
+passed, including all three OS jobs and both aggregate CI checks. One macOS
+existing CLI 30s timeout passed on one rerun; another same-SHA macOS run passed
+separately. The finite nested-alias P2 was fixed in `ac3fc4a`, replied to and
+resolved. No other-developer approval is claimed. Root used the user's standing
+admin-bypass authorization to squash land.
+
+All 13 implementation tasks are checked. Inline synchronization creates the
+[main spec](../../../openspec/specs/morphir-csharp-transpilation/spec.md) with
+eight requirements and 19 scenarios, preserving Purpose and requirement bodies.
+The complete change is at
+[2026-11-03-add-csharp-code-generation](../../../openspec/changes/archive/2026-11-03-add-csharp-code-generation/proposal.md).
+The [validation record](../../../openspec/changes/archive/2026-11-03-add-csharp-code-generation/validation.md)
+keeps historical counts and failed runs. Final source-bound generator evidence
+is 157/157, 2,978/3,188 production lines, 93.4128%, plus 18 pinned compiled
+consumers and packaged/trimmed host proof. Earlier integrated `068ae14` passed
+3,826 framework cases plus 15 cold and 71 inspection checks. Later local
+portability-corrected full Test passed 3,825/3,826, with an unrelated typed-number
+configuration rollback; unchanged Tooling reran 400/401 with rollback. These
+failures and earlier all-assembly instrumentation failures are separate from
+hosted final-head success. The user chose to keep C# scope focused.
+
+The source checkout `C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-1d28e9ab`
+is retained by root at submitted `3db576d`. Its proof root
+`C:/Temp/morphir-csharp-generator-1d28e9ab-20261103` remains untouched. The archive
+worker owns `C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-650c2d8f` on
+`t3/sync-csharp-transpilation-spec`, based on the verified squash landing. Its
+new proof, command logs, process inventories and temporary files are under
+`C:/Temp/morphir-csharp-archive-650c2d8f-20261103`, with exact workspace output
+paths in its retained inventory. No auxiliary is allocated or launched.
+
+This follow-up prepares synchronization and archive delivery. Its own PR must
+land before the spec/archive is on main. Root owns that decision and all cleanup;
+both checkouts and all evidence remain retained. No initiative completion,
+checkout cleanup, branch deletion or release publication is claimed. CLI remains
+undispatched. Its successor reads the stable
+[public API and diagnostic guide](../../content/docs/backends/csharp/diagnostics.md)
+and archived runtime API handoff, rechecking main at dispatch. The narrow shared
+edit and expensive-command leases end at archive-worker handoff.
+
+Archive-worker validation on the unchanged landed production tree passed the
+normal native `build.ps1 --target Test --configuration Release` in 518s, including
+Restore and Compile, all 3,826 framework cases, generator 157/157, 15 cold package
+checks and 71 inspection checks. No test was filtered, skipped or disabled.
+`PackAll --configuration Release --skip Restore Compile` passed in 55s and
+`TestBuild` with the same configuration/skip arguments passed 40/40. These skips
+reuse the preceding full rebuild. Strict `mise run openspec:verify` passed all
+22 items and two checker tests. `dotnet fsi scripts/validate-changelog.fsx` and
+native `Precommit --configuration Release` passed; the latter retains inherited
+unsupported-F# diagnostics. `dotnet husky run` failed native Git/Husky discovery
+despite native Git in PATH. Both configured checks ran directly; no hook was
+bypassed or disabled. The two restore-generated smoke lockfile RID changes were
+captured and restored. Archive verification checks all 11 preserved files, 13/13
+tasks, eight requirements, 19 scenarios, 113 local links/anchors, 12 frozen
+contract digests, 44 original evidence digests and seven raw business-fixture
+digests. No production file or frozen evidence changed. Coverage was not rerun
+for this documentation-only follow-up; the source-bound measurements above
+retain their original scope.
 
 ## Outcome and completion rule
 

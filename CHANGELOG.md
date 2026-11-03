@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CRITICAL**: Removed contradictory Claude co-author example from AGENTS.md and strengthened CLA compliance warnings in both AGENTS.md and CLAUDE.md (issue #270)
 
 ### Added
+- Synchronized the landed C# generator's eight requirements and 19 scenarios into the main specification and prepared its 13-task OpenSpec archive; archive follow-up landing and coordinator cleanup remain pending ([#474](https://github.com/finos/morphir-dotnet/issues/474), [#478](https://github.com/finos/morphir-dotnet/pull/478)).
 - Reusable in-memory C# generation for typed classic/v4 libraries with numeric 14/15 profiles, immutable structural values, executable functions/patterns/record operations, public SDK bindings, located whole-model refusals and traversal cancellation; compiled business/SDK observations and bounded modern package-host/trimming verification ([#474](https://github.com/finos/morphir-dotnet/issues/474)).
 - Synchronized and archived the landed C# and F# SDK runtime specifications, with stable API handoff paths and separate runtime delivery evidence; archive PR #472 landed; empty archive-directory cleanup remains pending ([#464](https://github.com/finos/morphir-dotnet/issues/464), [#465](https://github.com/finos/morphir-dotnet/issues/465)).
 - Independent immutable Morphir.SDK.CSharp runtime for the bounded .NET SDK contract, with checked scalars, persistent collections and public package consumer verification ([#464](https://github.com/finos/morphir-dotnet/issues/464))

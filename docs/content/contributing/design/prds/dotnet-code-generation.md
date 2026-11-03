@@ -14,8 +14,8 @@ owned worktrees. The coordinator retains the shared bootstrap checkout.
 | [establish-dotnet-sdk-conformance](../../../../../openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance/proposal.md) | Implementation and archive #463 landed; cleanup pending | Conformance lead, `t3/dotnet-sdk-conformance` | Planning PR #459, landed `890aacb61df601f2876112a2cdd4d9d6f5757ca6` | Inventory, profiles, schema and evidence |
 | [add-immutable-csharp-sdk](../../../../../openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/proposal.md) | Implementation and archive #472 landed; source worktree/artifacts removed | C# SDK lead, retired by coordinator | Conformance initiative | Immutable public SDK API |
 | [introduce-fsharp-sdk-package](../../../../../openspec/changes/archive/2026-11-03-introduce-fsharp-sdk-package/proposal.md) | Implementation and archive #472 landed; source worktree/artifacts removed | F# SDK lead, retired by coordinator | Conformance initiative | Package compatibility and covered corrections |
-| [add-csharp-code-generation](../../../../../openspec/changes/add-csharp-code-generation/proposal.md) | Implementing #474; typed lowering, SDK/business matrix and bounded trimming verified | C# generation lead, `t3/add-csharp-code-generation` | C# SDK initiative landed | Typed generation/options/diagnostics |
-| [integrate-csharp-generation-cli](../../../../../openspec/changes/integrate-csharp-generation-cli/proposal.md) | Planned | CLI lead, dispatched by coordinator | C# generation initiative | Existing CLI publication contract |
+| [add-csharp-code-generation](../../../../../openspec/changes/archive/2026-11-03-add-csharp-code-generation/proposal.md) | Implementation #478 landed; archive prepared, follow-up landing and cleanup pending | C# generation lead, `t3/add-csharp-code-generation`; coordinator retains cleanup | C# SDK initiative landed | Typed generation/options/diagnostics |
+| [integrate-csharp-generation-cli](../../../../../openspec/changes/integrate-csharp-generation-cli/proposal.md) | Planned, undispatched | CLI lead, dispatched only by coordinator | C# generation #478 landed; reverify API and main on dispatch | Existing CLI publication contract |
 
 The full Roslyn source-generator adapter remains deferred. C# generation's
 compiler-host smoke does not constitute that adapter.
@@ -30,9 +30,10 @@ No successor may guess a missing contract or use an unmerged sibling checkout.
 
 The static plan specifies Codex `gpt-6.1-sol` with `reasoningEffort: high` and
 one delivery-wide expensive-command slot. Actual resource leases are supplied
-by the coordinator. The generator lead holds the sole expensive-command lease
-and remains the sole Git writer in its isolated checkout. No auxiliary has been
-launched. The prior archive worker released its resources at handoff.
+by the coordinator. The generator source worker is stopped and root-owned.
+The archive worker has the sole bounded validation lease and a narrow status/link
+edit lease for this follow-up. No auxiliary has been launched. Leases are
+released at handoff; the coordinator owns landing and cleanup.
 
 ## Implementation notes
 
@@ -101,3 +102,14 @@ self-contained win-arm64 link trimming with identical observations/source hashes
 and no IL warnings. Tested package/adapter host remains .NET 10.0.14/SDK
 10.0.403/Windows arm64; other IDE hosts and generator Native AOT remain untested. Final
 delivery checks are in progress. CLI integration remains gated and undispatched.
+
+The paragraphs above retain their historical checkpoint counts. Generator
+[PR #478](https://github.com/finos/morphir-dotnet/pull/478) subsequently squash
+landed at `a8ae8e456ac95875db1ee53ff4a21362315b467a`, submitted head
+`3db576da36a41abab960d59da130df4262486a38`, with identical tree
+`b65fea03980e445e094c38b0e9f6bfe8888cc948` and final-head hosted checks green.
+The [generator PRD](add-csharp-code-generation.md#landing-and-archive-follow-up-2026-11-03)
+records the separate local configuration rollback failures, final generator
+coverage and approval limits. Its eight-requirement, 19-scenario main spec and
+13/13-task archive are prepared here. This follow-up must land and coordinator
+cleanup must finish before initiative completion. CLI remains undispatched.

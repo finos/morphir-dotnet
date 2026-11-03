@@ -4,6 +4,59 @@
   "executionStarted": false,
   "observedSourceBaseline": "1c8aa75f63d7ede19cb2ad75b73a6ee8690e4f6f",
   "purpose": "Five independently landed initiatives for immutable C# generation and language-specific SDK packages.",
+  "generatorDelivery": {
+    "observedOn": "2026-11-03",
+    "state": "implementation-landed-archive-prepared-landing-and-cleanup-pending",
+    "implementationTasks": { "completed": 13, "total": 13 },
+    "pullRequestUrl": "https://github.com/finos/morphir-dotnet/pull/478",
+    "submittedHeadSha": "3db576da36a41abab960d59da130df4262486a38",
+    "mergeMethod": "squash",
+    "landedSha": "a8ae8e456ac95875db1ee53ff4a21362315b467a",
+    "submittedAndLandedTree": "b65fea03980e445e094c38b0e9f6bfe8888cc948",
+    "exactMergedPrAndRefreshedMainReachabilityVerified": true,
+    "finalHeadHostedChecks": "all passed, all three OS jobs and both aggregate ci checks; one macOS existing CLI timeout rerun passed, separate same-SHA macOS passed",
+    "review": "finite nested-alias P2 fixed in ac3fc4a, replied/resolved; no other-developer approval claimed; root used standing user admin-bypass authorization",
+    "mainSpecPath": "openspec/specs/morphir-csharp-transpilation/spec.md",
+    "mainSpecRequirements": 8,
+    "mainSpecScenarios": 19,
+    "archivePath": "openspec/changes/archive/2026-11-03-add-csharp-code-generation",
+    "archiveFollowUpLanded": false,
+    "coordinatorCleanupComplete": false,
+    "cliDispatched": false,
+    "publicApiAndDiagnosticGuide": "docs/content/docs/backends/csharp/diagnostics.md",
+    "archiveWorkerValidation": {
+      "fullNativeTest": "PASS, normal Restore/Compile/Test, 518s, 3826 framework cases + 15 cold + 71 inspection; generator 157/157; no failures/skips/filters",
+      "packAll": "PASS, 55s, Release with Restore/Compile skipped after full rebuild",
+      "testBuild": "PASS, 40/40, same Release and skip arguments",
+      "strictOpenSpec": "mise run openspec:verify: 22 items and 2 tests passed",
+      "precommit": "PASS, inherited unsupported-F# formatter diagnostics retained",
+      "changelog": "PASS, dotnet fsi scripts/validate-changelog.fsx",
+      "husky": "native Git/Husky discovery failed; configured checks passed directly, no bypass",
+      "archiveAndFrozenVerification": "11 original files, 13/13 tasks, 8 requirements, 19 scenarios, 113 local links/anchors, 12 contract hashes, 44 original evidence hashes, 7 raw fixture hashes",
+      "coverage": "No new measurement for docs-only follow-up; production and original source-bound evidence unchanged",
+      "generatedLockfileDrift": "Two native restore RID-only smoke lockfile changes captured and restored"
+    },
+    "sourceEvidence": {
+      "generatorCases": "157/157",
+      "sourceBoundProductionLines": "2978/3188 = 93.4128%",
+      "compiledConsumers": 18,
+      "historicalIntegrated068": "3826 framework + 15 cold + 71 inspection passed",
+      "laterLocalFullTest": "3825/3826, unrelated configuration typed-number rollback; unchanged Tooling 400/401 rollback",
+      "scope": "Earlier all-assembly instrumentation failures retained. No configuration workaround. Hosted final-head green evidence is separate. Historical counts are not rewritten."
+    },
+    "sourceWorktree": "C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-1d28e9ab",
+    "sourceEvidenceRoot": "C:/Temp/morphir-csharp-generator-1d28e9ab-20261103",
+    "archiveWorker": {
+      "taskId": "csharp-generator-archive-20261103-01",
+      "threadId": "thread:delegated-task:command%3Amcp%3A5dc840b4-bb89-420d-8aaa-407f9470c193%3Adelegate-task%3Acsharp-generator-archive-20261103-01",
+      "baseSha": "a8ae8e456ac95875db1ee53ff4a21362315b467a",
+      "worktree": "C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-650c2d8f",
+      "branch": "t3/sync-csharp-transpilation-spec",
+      "evidenceRoot": "C:/Temp/morphir-csharp-archive-650c2d8f-20261103",
+      "auxiliaries": [],
+      "cleanupOwner": "root coordinator; retain checkout and all evidence"
+    }
+  },
   "dispatch": {
     "tool": "delegate_task",
     "isolation": "worktree",
@@ -298,13 +351,13 @@
       "dependsOn": [
         "add-immutable-csharp-sdk"
       ],
-      "activeChangePath": "openspec/changes/add-csharp-code-generation",
-      "handoffPath": "openspec/changes/add-csharp-code-generation/handoff.md",
+      "activeChangePath": "openspec/changes/archive/2026-11-03-add-csharp-code-generation",
+      "handoffPath": "openspec/changes/archive/2026-11-03-add-csharp-code-generation/handoff.md",
       "ownedPaths": [
         "src/Morphir.CodeGeneration.CSharp/**",
         "tests/Morphir.CodeGeneration.CSharp.Tests/**",
         "docs/content/docs/backends/csharp/**",
-        "openspec/changes/add-csharp-code-generation/**",
+        "openspec/changes/archive/2026-11-03-add-csharp-code-generation/**",
         "docs/content/contributing/design/prds/add-csharp-code-generation.md"
       ],
       "prerequisiteEvidence": [
