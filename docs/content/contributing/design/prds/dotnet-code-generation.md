@@ -15,7 +15,7 @@ owned worktrees. The coordinator retains the shared bootstrap checkout.
 | [add-immutable-csharp-sdk](../../../../../openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/proposal.md) | Implementation and archive #472 landed; source worktree/artifacts removed | C# SDK lead, retired by coordinator | Conformance initiative | Immutable public SDK API |
 | [introduce-fsharp-sdk-package](../../../../../openspec/changes/archive/2026-11-03-introduce-fsharp-sdk-package/proposal.md) | Implementation and archive #472 landed; source worktree/artifacts removed | F# SDK lead, retired by coordinator | Conformance initiative | Package compatibility and covered corrections |
 | [add-csharp-code-generation](../../../../../openspec/changes/archive/2026-11-03-add-csharp-code-generation/proposal.md) | Implementation #478 landed; archive prepared, follow-up landing and cleanup pending | C# generation lead, `t3/add-csharp-code-generation`; coordinator retains cleanup | C# SDK initiative landed | Typed generation/options/diagnostics |
-| [integrate-csharp-generation-cli](../../../../../openspec/changes/integrate-csharp-generation-cli/proposal.md) | Planned, undispatched | CLI lead, dispatched only by coordinator | C# generation #478 landed; reverify API and main on dispatch | Existing CLI publication contract |
+| [integrate-csharp-generation-cli](../../../../../openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli/proposal.md) | Implementation #482 landed; specifications archived here, archive landing and cleanup pending | CLI lead retired; archive worker, root owns cleanup | C# generation #478 and archive #480 landed | Existing CLI publication contract plus source-compatible namespace override |
 
 The full Roslyn source-generator adapter remains deferred. C# generation's
 compiler-host smoke does not constitute that adapter.
@@ -113,3 +113,13 @@ records the separate local configuration rollback failures, final generator
 coverage and approval limits. Its eight-requirement, 19-scenario main spec and
 13/13-task archive are prepared here. This follow-up must land and coordinator
 cleanup must finish before initiative completion. CLI remains undispatched.
+
+The undispatched CLI statements above describe earlier generator checkpoints.
+CLI implementation [#482](https://github.com/finos/morphir-dotnet/pull/482) is now
+squash landed at `0542145a4bcc0edf9c9dd2fb3122df36c73e80d0`, distinct from its
+submitted head `0e1e86d5e850adb70ec8027e324ba2234a22bdce`. All eight final-head
+hosted checks passed. Its six-requirement/12-scenario CLI specification and three
+additional generator namespace scenarios are synchronized in this dated archive
+follow-up. The [CLI delivery record](../../../../design/dotnet-csharp-generation/orchestration.md#cli-landing-and-specification-archive-2026-11-03)
+preserves the local configuration failure, warning/coverage limits and process
+incidents. Archive PR landing and all cleanup remain root-owned pending gates.

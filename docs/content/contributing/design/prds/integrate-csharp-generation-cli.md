@@ -1,11 +1,11 @@
 # Integrate C# generation into the CLI
 
-Status: In Progress. Issue: [#481](https://github.com/finos/morphir-dotnet/issues/481).
+Status: Implementation landed; specifications synchronized and archived in this follow-up. Archive PR landing and coordinator cleanup pending. Issue: [#481](https://github.com/finos/morphir-dotnet/issues/481).
 
 ## Problem and intended behavior
 
-The C# generator is available as an in-memory library, but `morphir generate`
-does not register it. Users need its typed behavior through the established
+Before this delivery, the in-memory C# generator was not registered by
+`morphir generate`. This delivery exposes its typed behavior through the established
 loading, reporting and safe publication flow. A successful invocation produces
 immutable C# sources without requiring a compiler. Consumers compile those
 sources separately against `Morphir.SDK.CSharp`.
@@ -27,8 +27,10 @@ sources separately against `Morphir.SDK.CSharp`.
   manifest. Preserve unowned files, unchanged timestamps and prior successful
   output after semantic, operational or cancellation failures. Remove only
   stale owned files. Reject unsafe paths and input/output overlap.
-- JSON mode writes one report to stdout and diagnostics to stderr. Exit codes
-  are 0 success, 1 semantic failure, 2 invocation/operational failure, 130 cancel.
+- JSON mode writes one report including structured diagnostics to stdout.
+  Human diagnostics and emitted logs use stderr; JSON mode need not duplicate
+  report diagnostics there. Exit codes are 0 success, 1 semantic failure,
+  2 invocation/operational failure, 130 cancel.
 - Execute real trimmed and NativeAOT CLI builds, then compile and run the
   emitted business models separately under SDK 10.0.403/C# 14 and isolated
   SDK 11.0.100-rc.2.26504.105/C# 15.
@@ -50,7 +52,9 @@ new orchestration paths, runtime changes and configuration semantics are exclude
 | Executed trimmed and NativeAOT CLI | Implemented | Acceptance-03 actual executables, empty compiler PATH, separate consumers 15000; native semantic refusals/no artifacts; inherited warnings retained |
 | Executed command reference and fresh consumers | Implemented | Fresh documented console/package/generate/build/run printed 5000; README and troubleshooting commands parsed |
 | Full tests, meaningful coverage, package and format checks | Checks performed, known unrelated failure | Latest full run 3960/3961 with unchanged configuration failure; CSharp 206/206, FSharp 333/333. Focused final core 216/216, coverage 3130/3340 and formatter 64/64; adapter 47/48. PackAll and 40 package checks passed; final native Precommit, pinned Fantomas, changelog and strict OpenSpec checks passed |
-| Landed main, archived specs and checkout cleanup | Planned | Coordinator owns these delivery gates |
+| Landed main and archived specifications | Implementation landed, archive follow-up prepared | #482 squash landed at 0542145a; 9/9 tasks; both deltas synchronized into main specifications and dated archive |
+| Archive contribution validation | Passed with Husky discovery limitation | Separate full native run 3971/3971 + 15 cold + 71 inspection; PackAll, TestBuild 40/40, strict OpenSpec 22 + 2, direct Precommit/changelog and archive/frozen/link audits passed; actual Husky discovery failed, no bypass |
+| Archive follow-up landing and checkout cleanup | Pending | Root must verify archive PR landing and all cleanup gates before initiative completion |
 
 ## Test plan
 
@@ -90,7 +94,7 @@ rewriting, IR migration, alternative equality protocol or ambient state is allow
 ## Open questions
 
 - Namespace API and exact core/shared leases approved by the coordinator.
-- Hosted review/landing and archival follow-up occur after implementation handoff.
+- Implementation #482 landed. Archive follow-up landing and root cleanup verification remain pending.
 
 ## Evidence and ownership
 
@@ -126,5 +130,31 @@ set custom.value 12 --type int returned config.edit_rolled_back. Preserve its
 No configuration fix, suppression, filtering or broad retry is part of this PR.
 Caller-token cancellation was observed through the real CLI command/renderer
 and real registered provider, with an owned test publication gate; it does not
-claim OS signal delivery coverage. See the active change's validation record for
+claim OS signal delivery coverage. See the [archived validation record](../../../../../openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli/validation.md) for
 exact commands, warnings, retained failures and ownership.
+
+### Landing and specification archive, 2026-11-03
+
+[PR #482](https://github.com/finos/morphir-dotnet/pull/482) is merged into main,
+submitted head `0e1e86d5e850adb70ec8027e324ba2234a22bdce`, squash landing
+`0542145a4bcc0edf9c9dd2fb3122df36c73e80d0`, identical tree
+`284eb3240006ec9a8a34ba539caceeb65be0844f`. The archive worker independently
+queried that exact PR, fetched main and checked landing ancestry. All eight
+final-head checks passed, including three OS jobs; automated review completed
+without findings and all threads were resolved. No developer approval is claimed.
+Root used the user's standing admin-bypass authorization.
+
+The [dated archive](../../../../../openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli/proposal.md)
+retains all nine checked tasks and the source-bound evidence above. The new
+[CLI spec](../../../../../openspec/specs/cli-csharp-generation/spec.md) has six
+requirements and 12 scenarios. The [generator spec](../../../../../openspec/specs/morphir-csharp-transpilation/spec.md)
+retains eight requirements and all 19 original scenarios, adding three namespace
+scenarios. Original deterministic naming and default API/output remain unchanged.
+The added namespace clauses sit under their corresponding scenarios to retain
+their full wording while meeting strict description-length validation.
+
+The [delivery record](../../../../design/dotnet-csharp-generation/orchestration.md#cli-landing-and-specification-archive-2026-11-03)
+records archive checks and retained artifacts. This follow-up is documentation
+only. No pinned/trimmed/native acceptance matrix or new coverage measurement was
+run for this follow-up.
+Archive landing and initiative cleanup remain pending until root verifies them.
