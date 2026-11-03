@@ -36,6 +36,49 @@ module Profiles =
           KeyPath = path
           Position = Map.tryFind path origin.Positions }
 
+    let private authorityErrors (sources: SourceInput list) (environment: Map<string, string>) =
+        let rootPaths =
+            sources
+            |> List.filter (fun input -> input.Source.Role = SourceRole.RootPrimary)
+            |> List.map (fun input -> input.Source.Path)
+            |> Set.ofList
+        let fileErrors =
+            sources
+            |> List.collect (fun input ->
+                let authorized =
+                    input.Source.Role = SourceRole.RootPrimary
+                    || (input.Source.Role = SourceRole.Selected && Set.contains input.Source.Path rootPaths)
+                match authorized, input.Content with
+                | false, SourceContent.Available doc ->
+                    let paths =
+                        match ConfigTree.tryFind [ "profiles" ] doc.Raw with
+                        | None -> []
+                        | Some (ConfigValue.Object fields) when not fields.IsEmpty ->
+                            fields |> Map.toList |> List.map (fun (key, _) -> [ "profiles"; key ])
+                        | Some _ -> [ [ "profiles" ] ]
+                    paths |> List.map (fun path ->
+                        { Code = "config.profiles.authority"
+                          Message = "Profile activation controls belong only to discovered root primary documents."
+                          Severity = DiagnosticSeverity.Error
+                          Source = input.Source
+                          KeyPath = path
+                          Position = Map.tryFind path doc.Positions })
+                | _ -> [])
+        let environmentErrors =
+            environment
+            |> Map.toList
+            |> List.choose (fun (name, _) ->
+                if name.StartsWith("MORPHIR_PROFILES__", System.StringComparison.Ordinal) then
+                    Some
+                        { Code = "config.profiles.authority"
+                          Message = "Environment values cannot supply profile activation controls."
+                          Severity = DiagnosticSeverity.Error
+                          Source = { Path = name; Role = SourceRole.Environment; Format = DocumentFormat.Memory; Order = 0; Profile = None }
+                          KeyPath = name.Substring("MORPHIR_".Length).Split("__") |> Array.map (fun segment -> segment.ToLowerInvariant()) |> Array.toList
+                          Position = None }
+                else None)
+        fileErrors @ environmentErrors
+
     let private controlErrors sources value =
         [ "active"; "default"; "include" ]
         |> List.choose (fun key ->
@@ -126,7 +169,7 @@ module Profiles =
             let includes = value |> readNames "include" |> Option.defaultValue []
             { Enabled = true
               Active = expand value (includes @ names)
-              Diagnostics = controlErrors sources value @ graphErrors sources value options }
+              Diagnostics = authorityErrors sources environment @ controlErrors sources value @ graphErrors sources value options }
         | ProfileSelection.Automatic ->
             let environmentNames =
                 environment
@@ -149,7 +192,7 @@ module Profiles =
                     includes @ (selected |> Option.defaultValue baseNames)
             { Enabled = not names.IsEmpty
               Active = expand baseValue names
-              Diagnostics = controlErrors sources baseValue @ graphErrors sources baseValue options }
+              Diagnostics = authorityErrors sources environment @ controlErrors sources baseValue @ graphErrors sources baseValue options }
         | ProfileSelection.Disabled ->
             { Enabled = false
               Active = []

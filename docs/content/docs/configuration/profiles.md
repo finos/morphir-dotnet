@@ -22,6 +22,9 @@ There is no implicit CI or default profile. A comma-separated environment
 selector trims names. A present whitespace-only environment selector disables
 profiles and suppresses includes and file loading. An explicit `Names []` selector
 still permits base includes.
+CSV trimming uses ASCII space, tab, newline, carriage return, vertical tab, and
+form feed. Empty CSV elements fail validation. Values such as `dev,,metrics` or
+`dev,` do not silently discard an empty name.
 The legacy `CiProfileMode` API retains its separate behavior.
 
 ## Control ownership and ordering
@@ -59,3 +62,9 @@ Errors identify the declaring control's source and key path. The resolver
 retains winning origins separately from the control plan. An explicit host owns
 the source inventory and workspace/member identity. The library does not infer
 either from current directories or ambient environment state.
+
+The qualification baseline is Moon-Lander
+[`d6216c7469c045548cb15b3f9321857ac41d2cd0`](https://github.com/moonrockz/moon-lander/tree/d6216c7469c045548cb15b3f9321857ac41d2cd0),
+specifically `pkgs/config/profile_types.mbt`, `pkgs/config/profiles/profiles.mbt`,
+and `pkgs/config/profiles/control_layers.mbt`. Its control merge keeps nulls until
+validation, unlike ordinary configuration merging.

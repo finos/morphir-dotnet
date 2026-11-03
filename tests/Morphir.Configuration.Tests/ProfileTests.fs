@@ -104,4 +104,11 @@ let tests =
             let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty DocumentDefaults.profileOptions
             Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.depth")) "33 group levels exceed the qualified bound"
         }
+        test "member controls fail before ownership filtering" {
+            let source = document SourceRole.MemberPrimary DocumentFormat.Json "member/morphir.json" [ "active", names [ "metrics" ] ]
+            let result = Profiles.plan [ source ] Map.empty DocumentDefaults.profileOptions
+            Expect.isTrue
+                (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.authority" && diagnostic.Source.Path = "member/morphir.json"))
+                "non-root controls cannot change activation"
+        }
     ]
