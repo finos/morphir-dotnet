@@ -84,4 +84,14 @@ let tests =
             let result = Profiles.plan sources Map.empty options
             Expect.equal result.Active [ "production"; "metrics"; "postgres" ] "root first depth-first expansion uses last occurrences"
         }
+        test "inactive group cycles fail with the declaring control origin" {
+            let groups = ConfigValue.Object (Map.ofList [ "a", names [ "b" ]; "b", names [ "a" ] ])
+            let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty DocumentDefaults.profileOptions
+            Expect.isTrue
+                (result.Diagnostics |> List.exists (fun diagnostic ->
+                    diagnostic.Code = "config.profiles.cycle"
+                    && diagnostic.Source.Path = "morphir.toml"
+                    && diagnostic.Message.Contains("a -> b -> a")))
+                "an inactive cycle cannot be hidden by selection"
+        }
     ]

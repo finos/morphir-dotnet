@@ -53,6 +53,44 @@ module Profiles =
 
     let private keepLast names = names |> List.rev |> List.distinct |> List.rev
 
+    let private groupGraph value =
+        match ConfigTree.tryFind [ "profiles"; "groups" ] value with
+        | Some (ConfigValue.Object groups) ->
+            groups |> Map.map (fun _ members ->
+                match members with
+                | ConfigValue.Array items -> items |> List.choose (function ConfigValue.String name -> Some name | _ -> None)
+                | _ -> [])
+        | _ -> Map.empty
+
+    let private graphErrors sources value =
+        let groups = groupGraph value
+        let mutable heights = Map.empty
+        let rec visit stack name =
+            match Map.tryFind name heights with
+            | Some height -> Ok height
+            | None when List.contains name stack ->
+                let cycle = (stack |> List.skipWhile ((<>) name)) @ [ name ]
+                Error (diagnostic sources [ "profiles"; "groups"; name ] "config.profiles.cycle" ("Profile group cycle: " + System.String.Join(" -> ", cycle)))
+            | None ->
+                match Map.tryFind name groups with
+                | None -> Ok 0
+                | Some members ->
+                    let rec childrenHeight children height =
+                        match children with
+                        | [] -> Ok height
+                        | child :: rest ->
+                            match visit (stack @ [ name ]) child with
+                            | Error error -> Error error
+                            | Ok childHeight -> childrenHeight rest (max height (1 + childHeight))
+                    childrenHeight members 1
+                    |> Result.map (fun height ->
+                        heights <- Map.add name height heights
+                        height)
+        groups
+        |> Map.toList
+        |> List.tryPick (fun (name, _) -> match visit [] name with Error error -> Some error | Ok _ -> None)
+        |> Option.toList
+
     let private expand value roots =
         let mutable memo = Map.empty
         let rec append stack name =
@@ -85,7 +123,7 @@ module Profiles =
             let includes = value |> readNames "include" |> Option.defaultValue []
             { Enabled = true
               Active = expand value (includes @ names)
-              Diagnostics = controlErrors sources value }
+              Diagnostics = controlErrors sources value @ graphErrors sources value }
         | ProfileSelection.Automatic ->
             let environmentNames =
                 environment
@@ -108,7 +146,7 @@ module Profiles =
                     includes @ (selected |> Option.defaultValue baseNames)
             { Enabled = not names.IsEmpty
               Active = expand baseValue names
-              Diagnostics = controlErrors sources baseValue }
+              Diagnostics = controlErrors sources baseValue @ graphErrors sources baseValue }
         | ProfileSelection.Disabled ->
             { Enabled = false
               Active = []
