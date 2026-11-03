@@ -139,7 +139,9 @@ public sealed class ConfigurationSteps : IDisposable
         _exit.Should().Be(expected, _stdout + _stderr);
         _json = JsonDocument.Parse(_stdout, new JsonDocumentOptions { MaxDepth = 256 });
         _json.RootElement.ValueKind.Should().Be(JsonValueKind.Object);
-        var schema = JsonSchema.FromText(File.ReadAllText(Path.Combine(RepositoryRoot().FullName, "docs", "spec", "schemas", "config-inspection-result.schema.json")));
+        // Parallel scenarios must not mutate the library's global schema registry.
+        var schema = JsonSchema.FromText(File.ReadAllText(Path.Combine(RepositoryRoot().FullName, "docs", "spec", "schemas", "config-inspection-result.schema.json")),
+            new BuildOptions { SchemaRegistry = new SchemaRegistry() });
         schema.Evaluate(_json.RootElement).IsValid.Should().BeTrue("the command report must match its published JSON schema");
         _json.RootElement.GetProperty("exitCode").GetInt32().Should().Be(expected);
     }

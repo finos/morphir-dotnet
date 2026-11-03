@@ -264,3 +264,35 @@ Other package evidence is under the owned `parent-review/sdk-package-temp`.
 OpenSpec verification on the combined tree passes all 22 active/spec items and
 both extension tests. Both independent reviews are complete and their reported
 findings are fixed. Fresh current-head CI, landing and artifact cleanup remain.
+
+
+### Concurrent schema-validation harness fix
+
+Current-head macOS run `41630213426`, head `8118ff0`, failed one tooling BDD
+case, quoted literal-dot paths, while constructing the published inspection
+schema. JsonSchema.Net reported `RefResolutionException` for a generated local
+URI ending in `#/$defs/entry`. The CLI execution itself had succeeded. All other
+suites passed; matrix fail-fast cancelled Ubuntu and Windows. The full failed
+job log is `parent-review/ci-macos-8118ff0.log`.
+
+Inspection scenarios had called `JsonSchema.FromText` without BuildOptions,
+sharing the library's global registry during concurrent schema construction.
+The pinned JsonSchema.Net 8.0.5 source uses an unsynchronized Dictionary for
+that registry. Both the [pinned BuildOptions source](https://github.com/json-everything/json-everything/blob/3520d7ac43e5c6c9b91abeac5af992eb82ffbf63/src/JsonSchema/BuildOptions.cs)
+and [registry source](https://github.com/json-everything/json-everything/blob/3520d7ac43e5c6c9b91abeac5af992eb82ffbf63/src/JsonSchema/SchemaRegistry.cs)
+confirm this shared mutable path; the [author's documentation](https://docs.json-everything.net/schema/basics/)
+recommends separate registries for concurrent builds or conflicting registrations.
+The test harness now supplies a fresh SchemaRegistry per schema, matching the
+existing production SchemaLoader pattern. No CLI/product, schema, dependency,
+workflow, coverage or scheduling policy changes are involved.
+
+The race is intermittent: the unchanged local 48-case BDD run with four workers
+passed, and a 512-build global-registry probe did not reproduce the CI failure.
+The actual CI failure remains the red evidence. After isolation, all 309 tooling
+tests pass with four workers, including all 48 configuration subprocess cases,
+and an isolated 512-build probe passes. Test compilation, formatting and
+whitespace checks pass. Successful receipts are
+`schema-registry-tooling-full.log` and `schema-registry-probe-isolated.log`;
+original baseline receipts remain separate. The earlier integrated full-suite
+and native qualifications still apply because this fix only changes the test
+schema-construction boundary. Fresh current-head CI remains required.
