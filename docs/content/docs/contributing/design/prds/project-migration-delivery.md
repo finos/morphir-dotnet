@@ -219,3 +219,15 @@ freshly rebuilt outputs and the same serial resource limits. Core now passes
 the original qualification table. `validation/summary.json` contains the
 refreshed command, exit-code and duration evidence. The full Models runner again
 passes all 791 model/codec roundtrips.
+
+Parent qualification after `98f1d39` passes full C# formatter verification,
+Fantomas including the shared profile helper, OpenSpec managed/extension checks,
+and fresh core/IO coverage collectors. `parent-coverage-summary.json` uses only
+current-source reports: core 4186/4343, 96.38%; IO 1553/1599, 97.12%.
+All three freshly published managed, trimmed and native osx-arm64 hosts pass
+27 migration checks, 44 editing checks, 228 JSON5 cases and 26 Morphir fixtures.
+Published stderr is empty. The trimmed/native dependency warning counts remain
+44/47 with explicit normal-warning qualification; no diagnostic suppression was
+introduced. Publish-only lockfiles were restored byte-for-byte. Exact commands
+and exit codes are in `parent-qualification-summary.json`, `publish/summary.json`
+and `publish-locks/restored.json` under the owned artifact root.
