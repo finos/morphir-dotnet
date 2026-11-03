@@ -90,6 +90,7 @@ partial class Build : NukeBuild
     AbsolutePath MorphirProject => SourceDirectory / "Morphir" / "Morphir.csproj";
     AbsolutePath MorphirToolProject => SourceDirectory / "Morphir.Tool" / "Morphir.Tool.csproj";
     AbsolutePath MorphirSDKProject => SourceDirectory / "Morphir.SDK" / "Morphir.SDK.fsproj";
+    AbsolutePath MorphirSDKFSharpProject => SourceDirectory / "Morphir.SDK.FSharp" / "Morphir.SDK.FSharp.fsproj";
     AbsolutePath MorphirCoreTestsProject => TestsDirectory / "Morphir.Core.Tests" / "Morphir.Core.Tests.csproj";
     AbsolutePath MorphirToolingTestsProject => TestsDirectory / "Morphir.Tooling.Tests" / "Morphir.Tooling.Tests.csproj";
     AbsolutePath MorphirModelsTestsProject => TestsDirectory / "Morphir.Models.Tests" / "Morphir.Models.Tests.fsproj";
@@ -122,13 +123,14 @@ partial class Build : NukeBuild
         {
             // Restore using .slnx solution file
             DotNetRestore(s => s
-                .SetProjectFile(SolutionFile));
+                .SetProjectFile(SolutionFile)
+                .AddProcessAdditionalArguments("-m:1", "-p:UseSharedCompilation=false", "-nodeReuse:false"));
         });
 
     /// <summary>
     /// Compile all projects in the solution
     /// Note: VBCSCompiler processes are cleaned up on Windows before build to prevent file locking issues.
-    /// Parallel builds are now enabled since the GenerateWolverineCode MSBuild target was removed.
+    /// Builds use one MSBuild node with shared compilation disabled.
     /// </summary>
     Target Compile => _ => _
         .DependsOn(Restore)
@@ -161,11 +163,12 @@ partial class Build : NukeBuild
             }
 
             // Build using .slnx solution file
-            // Parallel builds now enabled after removing GenerateWolverineCode MSBuild target
+            // Bound build resources for concurrent delivery work.
             DotNetBuild(s => s
                 .SetProjectFile(SolutionFile)
                 .SetConfiguration(Configuration)
-                .SetNoRestore(true));
+                .SetNoRestore(true)
+                .AddProcessAdditionalArguments("-m:1", "-p:UseSharedCompilation=false", "-nodeReuse:false"));
         });
 
     /// <summary>

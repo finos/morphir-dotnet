@@ -206,6 +206,12 @@ run the offline validator with:
 dotnet exec tests/Morphir.SDK.Conformance.Tests/bin/Debug/net10.0/Morphir.SDK.Conformance.Tests.dll --maximum-parallel-tests 2
 ```
 
+F# runtime consumers use `Morphir.SDK.FSharp`. Its namespace and runtime assembly
+remain `Morphir.SDK`, so existing generated source and runtime type identities
+remain valid. The legacy `Morphir.SDK` package depends on the canonical package
+and ships no runtime assembly. See the [F# runtime migration guide](src/Morphir.SDK.FSharp/README.md)
+for dependency selection and covered behavior corrections.
+
 ### Project Structure
 
 ```

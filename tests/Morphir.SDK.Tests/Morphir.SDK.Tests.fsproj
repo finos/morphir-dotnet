@@ -23,7 +23,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\Morphir.SDK\Morphir.SDK.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.SDK.FSharp\Morphir.SDK.FSharp.fsproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -41,7 +41,13 @@
         <Compile Include="LocalDateTests.fs" />
         <Compile Include="LocalTimeTests.fs" />
         <Compile Include="DecimalTests.fs" />
+        <Compile Include="DecimalCultureTests.fs" />
         <Compile Include="PropertyTests.fs" />
+        <Compile Include="PackageMigrationTests.fs" />
+        <Compile Include="ConformanceAssertions.fs" />
+        <Compile Include="ConformanceCases.fs" />
+        <Compile Include="GenericCompatibilityTests.fs" />
+        <Compile Include="RuntimeEntryPointTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

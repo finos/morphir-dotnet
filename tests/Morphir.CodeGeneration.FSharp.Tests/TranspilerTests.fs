@@ -732,6 +732,46 @@ let contractTests =
             match Transpiler.Generate("order.json", json) with
             | Error errors -> failtestf "%A" errors
             | Ok modules ->
+                let fixture =
+                    Path.Combine(
+                        __SOURCE_DIRECTORY__,
+                        "../Morphir.SDK.Tests/Packaging/Generated/Ordering.fs"
+                    )
+
+                Expect.isTrue
+                    (File.Exists fixture)
+                    ("Missing captured generated source:\n"
+                     + modules.Head.Source)
+
+                // Fantomas uses platform line endings. The captured Windows file
+                // is copied byte-for-byte by the package tests on every platform.
+                let expected =
+                    (File.ReadAllText fixture)
+                        .Replace("\r\n", "\n")
+                        .Replace("\n", Environment.NewLine)
+
+                Expect.equal
+                    modules.Head.Source
+                    expected
+                    "packaged fixture preserves platform emission bytes"
+
+                let v4 =
+                    ModelConformanceInputs.classic json
+                    |> ClassicToV4TestAdapter.promote
+
+                let v4Tree =
+                    Morphir.CodeGeneration.FSharp.Transpiler.generateModel
+                        v4
+                        (Morphir.IR.Pipeline.VFile.fromPath "order-v4")
+
+                Expect.isEmpty (diagnosticsOf v4Tree) "v4 model generates without errors"
+                let v4Modules = modulesOf v4Tree
+
+                Expect.equal
+                    v4Modules.Head.Source
+                    expected
+                    "v4 packaged fixture preserves platform emission bytes"
+
                 let runtime = typeof<Morphir.SDK.Order>.Assembly.Location
 
                 let code =

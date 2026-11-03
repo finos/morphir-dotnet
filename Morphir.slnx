@@ -36,6 +36,7 @@
     <Project Path="src\Morphir.Models\Morphir.Models.fsproj" />
     <Project Path="src\Morphir.Testing\Morphir.Testing.fsproj" />
     <Project Path="src\Morphir.SDK\Morphir.SDK.fsproj" />
+    <Project Path="src\Morphir.SDK.FSharp\Morphir.SDK.FSharp.fsproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Morphir.SDK.Conformance.Tests/Morphir.SDK.Conformance.Tests.csproj" />
