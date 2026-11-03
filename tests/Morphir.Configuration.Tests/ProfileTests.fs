@@ -235,4 +235,41 @@ let tests =
             let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty options
             Expect.equal (result.Active.Length, result.Diagnostics) (30, []) "memoized subgroups avoid enumerating exponentially repeated paths"
         }
+        test "enabled environment mapped controls are forbidden" {
+            let result = Profiles.plan [] (Map.ofList [ "MORPHIR_PROFILES__ACTIVE", "[\"dev\"]" ]) DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.authority" && diagnostic.KeyPath = [ "profiles"; "active" ])) "reserved selection does not authorize environment-mapped controls"
+        }
+        test "explicit selector ignores malformed selector environment" {
+            let options = { DocumentDefaults.profileOptions with Selection = ProfileSelection.Names [ "dev" ] }
+            let result = Profiles.plan [] (Map.ofList [ "MORPHIR_PROFILES", ",invalid" ]) options
+            Expect.equal (result.Active, result.Diagnostics) ([ "dev" ], []) "only the winning selector is parsed"
+        }
+        test "all profile control arrays preserve their required shape" {
+            let shapes =
+                [ [ "active", ConfigValue.Array [ ConfigValue.Boolean true ] ]
+                  [ "groups", ConfigValue.Null ]
+                  [ "groups", ConfigValue.Object (Map.ofList [ "production", ConfigValue.Array [ ConfigValue.Boolean true ] ]) ] ]
+            for controls in shapes do
+                let result = Profiles.plan [ root controls ] Map.empty DocumentDefaults.profileOptions
+                Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.shape")) "profile metadata does not coerce booleans or null into names"
+        }
+        test "literal name validation retains control positions" {
+            let source = root [ "include", names [ "bad/name" ] ]
+            let position = { Line = 7; Column = 3 }
+            let source =
+                match source.Content with
+                | SourceContent.Available doc -> { source with Content = SourceContent.Available { doc with Positions = Map.ofList [ [ "profiles"; "include" ], position ] } }
+                | _ -> failwith "test source must be available"
+            let result = Profiles.plan [ source ] Map.empty DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.name" && diagnostic.Position = Some position)) "reader source positions survive pure profile validation"
+        }
+        test "host expansion bound applies after deduplication" {
+            let options = { DocumentDefaults.profileOptions with MaxExpansions = 1; Selection = ProfileSelection.Names [ "dev"; "dev" ] }
+            let result = Profiles.plan [] Map.empty options
+            Expect.equal (result.Active, result.Diagnostics) ([ "dev" ], []) "repeated names do not consume distinct active capacity"
+        }
+        test "environment control authority follows normalized segments" {
+            let result = Profiles.plan [] (Map.ofList [ "MORPHIR_profiles__Active", "[\"dev\"]" ]) DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.authority" && diagnostic.KeyPath = [ "profiles"; "active" ])) "case normalization cannot bypass profile control authority"
+        }
     ]

@@ -95,15 +95,22 @@ module Profiles =
             environment
             |> Map.toList
             |> List.choose (fun (name, _) ->
-                if name.StartsWith("MORPHIR_PROFILES__", System.StringComparison.Ordinal) then
+                let path =
+                    if name.StartsWith("MORPHIR_", System.StringComparison.Ordinal) then
+                        name.Substring("MORPHIR_".Length).Split("__")
+                        |> Array.map (fun segment -> segment.ToLowerInvariant())
+                        |> Array.toList
+                    else []
+                match path with
+                | "profiles" :: _ :: _ ->
                     Some
                         { Code = "config.profiles.authority"
                           Message = "Environment values cannot supply profile activation controls."
                           Severity = DiagnosticSeverity.Error
                           Source = { Path = name; Role = SourceRole.Environment; Format = DocumentFormat.Memory; Order = 0; Profile = None }
-                          KeyPath = name.Substring("MORPHIR_".Length).Split("__") |> Array.map (fun segment -> segment.ToLowerInvariant()) |> Array.toList
+                          KeyPath = path
                           Position = None }
-                else None)
+                | _ -> None)
         fileErrors @ environmentErrors
 
     let private controlErrors sources value =
@@ -155,8 +162,6 @@ module Profiles =
         |> Option.map (function
             | ConfigValue.Array items -> items |> List.choose (function ConfigValue.String name -> Some name | _ -> None)
             | _ -> [])
-
-    let private keepLast names = names |> List.rev |> List.distinct |> List.rev
 
     let private groupGraph value =
         match ConfigTree.tryFind [ "profiles"; "groups" ] value with
