@@ -516,5 +516,62 @@
     "coldPackageLifecycleChecksPassed": 15,
     "buildPackageTestsPassed": 40,
     "runtimeTestsAreIndependentFollowUpWork": true
+  },
+  "sdkRuntimeDelivery": {
+    "state": "runtime-prs-landed-archive-follow-up-and-cleanup-pending",
+    "deliveryRecordPath": "docs/design/dotnet-csharp-generation/sdk-runtime-delivery.md",
+    "conformanceInitiativeRuntimeClaimUnchanged": true,
+    "contractArtifactCommit": "737e85b3a202ba733b153be637e33cf953342705",
+    "runtimeAcceptance": {
+      "csharp": {
+        "requiredExecuted": 207,
+        "requiredPassed": 207,
+        "exclusionsSeparate": 8
+      },
+      "fsharp": {
+        "requiredExecuted": 207,
+        "requiredPassed": 207,
+        "exclusionsSeparate": 8,
+        "resolvedHistoricalGapIds": [
+          "FS-DICT-UNION",
+          "FS-INT-CHECKED",
+          "FS-DECIMAL-DIV",
+          "FS-DECIMAL-TEXT"
+        ]
+      }
+    },
+    "implementations": [
+      {
+        "changeId": "add-immutable-csharp-sdk",
+        "pullRequestUrl": "https://github.com/finos/morphir-dotnet/pull/470",
+        "submittedHeadSha": "a6f16388ebea138137aa5c6e15589a2c0a14b550",
+        "landedSha": "55f73bdaa93b7bc55a48b184bab8e46a5636fd9e",
+        "mergeMethod": "squash",
+        "mergedAt": "2026-11-03T12:05:23Z",
+        "mergedPullRequestVerified": true,
+        "landedShaReachableFromRefreshedMain": true,
+        "submittedHeadHostChecksPassed": 8,
+        "otherDeveloperApprovalSubmitted": false,
+        "mergeAuthorization": "User standing blanket authorization for coordinator admin bypass; no other-developer approval supplied.",
+        "archivePath": "openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk"
+      },
+      {
+        "changeId": "introduce-fsharp-sdk-package",
+        "pullRequestUrl": "https://github.com/finos/morphir-dotnet/pull/469",
+        "submittedHeadSha": "7dde9e57bf1fd3a38fd1dc8df7cd0a65919d402d",
+        "landedSha": "4df3c1ad425f782bfe3cc02e30f577d87dca0f53",
+        "mergeMethod": "squash",
+        "mergedAt": "2026-11-03T11:28:55Z",
+        "mergedPullRequestVerified": true,
+        "landedShaReachableFromRefreshedMain": true,
+        "submittedHeadHostChecksPassed": 8,
+        "otherDeveloperApprovalSubmitted": false,
+        "mergeAuthorization": "User standing blanket authorization for coordinator admin bypass; no other-developer approval supplied.",
+        "archivePath": "openspec/changes/archive/2026-11-03-introduce-fsharp-sdk-package"
+      }
+    ],
+    "archiveFollowUpLanded": false,
+    "coordinatorCleanupComplete": false,
+    "generatorAndCliDispatched": false
   }
 }

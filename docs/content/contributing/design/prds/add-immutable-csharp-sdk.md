@@ -1,9 +1,9 @@
 # Immutable C# SDK
 
-Status: In Progress
+Status: Implementation landed; archive follow-up and coordinator cleanup pending
 
 Tracking: [issue #464](https://github.com/finos/morphir-dotnet/issues/464),
-[OpenSpec change](../../../../../openspec/changes/add-immutable-csharp-sdk/proposal.md),
+[OpenSpec change](../../../../../openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/proposal.md),
 [frozen contract](../../../../design/dotnet-sdk-contract.md).
 
 ## Goal
@@ -167,9 +167,9 @@ Both ordinary dependency graphs contain exactly one runtime package and no
 repository project references. Representative trimmed and NativeAOT win-arm64
 publications also executed with the same asserted output. Compiler revisions,
 official RC archive hash, artifact hashes, prerequisites and earlier failed
-setup attempts are recorded in [validation](../../../../../openspec/changes/add-immutable-csharp-sdk/validation.md).
+setup attempts are recorded in [validation](../../../../../openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/validation.md).
 
-The [downstream API handoff](../../../../../openspec/changes/add-immutable-csharp-sdk/api-handoff.md)
+The [downstream API handoff](../../../../../openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/api-handoff.md)
 defines the single reusable API, generated-record IMorphirValue equality/hash
 requirements, callback errors and comparator limits. Native C# unions and the
 source-generator adapter remain deferred. Native publication evidence is
@@ -198,3 +198,7 @@ failure, preserved artifacts and exact successful rerun evidence.
 No contract exceptions are accepted. Implementation acceptance is verified;
 Hosted CI/review, landing, spec sync/archive and worktree
 cleanup remain coordinator-owned delivery steps.
+
+## Runtime landing and archival follow-up, 2026-11-03
+
+The [SDK runtime delivery record](../../../../design/dotnet-csharp-generation/sdk-runtime-delivery.md) records the exact merged PR, distinct submitted and landed SHAs, final-head checks, review resolution, measured coverage and remaining ownership. All nine implementation tasks are complete. Canonical spec synchronization and the dated archive are prepared in this docs-only follow-up; its landing and coordinator cleanup are still required. No release publication or generator/CLI dispatch is claimed. Earlier checkpoint notes remain historical evidence.

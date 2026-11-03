@@ -199,13 +199,13 @@
       "dependsOn": [
         "establish-dotnet-sdk-conformance"
       ],
-      "activeChangePath": "openspec/changes/add-immutable-csharp-sdk",
-      "handoffPath": "openspec/changes/add-immutable-csharp-sdk/handoff.md",
+      "activeChangePath": "openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk",
+      "handoffPath": "openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/handoff.md",
       "ownedPaths": [
         "src/Morphir.SDK.CSharp/**",
         "tests/Morphir.SDK.CSharp.Tests/**",
         "docs/content/docs/sdk/csharp/**",
-        "openspec/changes/add-immutable-csharp-sdk/**",
+        "openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/**",
         "docs/content/contributing/design/prds/add-immutable-csharp-sdk.md"
       ],
       "prerequisiteEvidence": [
@@ -247,8 +247,8 @@
       "dependsOn": [
         "establish-dotnet-sdk-conformance"
       ],
-      "activeChangePath": "openspec/changes/introduce-fsharp-sdk-package",
-      "handoffPath": "openspec/changes/introduce-fsharp-sdk-package/handoff.md",
+      "activeChangePath": "openspec/changes/archive/2026-11-03-introduce-fsharp-sdk-package",
+      "handoffPath": "openspec/changes/archive/2026-11-03-introduce-fsharp-sdk-package/handoff.md",
       "ownedPaths": [
         "src/Morphir.SDK/**",
         "src/Morphir.SDK.FSharp/**",
@@ -256,7 +256,7 @@
         "src/Morphir.CodeGeneration.FSharp/** (runtime integration only)",
         "tests/Morphir.CodeGeneration.FSharp.Tests/** (runtime integration only)",
         "examples/** (F# runtime references only)",
-        "openspec/changes/introduce-fsharp-sdk-package/**",
+        "openspec/changes/archive/2026-11-03-introduce-fsharp-sdk-package/**",
         "docs/content/contributing/design/prds/introduce-fsharp-sdk-package.md"
       ],
       "prerequisiteEvidence": [

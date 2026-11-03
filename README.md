@@ -446,6 +446,8 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 - [Morphir Project](https://github.com/finos/morphir)
 - [Morphir Docs](https://morphir.finos.org/)
 
+SDK runtime delivery and archival evidence is recorded in the [runtime delivery record](docs/design/dotnet-csharp-generation/sdk-runtime-delivery.md). The canonical [C# runtime spec](openspec/specs/csharp-sdk-runtime/spec.md), [F# package spec](openspec/specs/fsharp-sdk-packaging/spec.md), and stable [C# API handoff](openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/api-handoff.md) describe the landed runtimes. Archive follow-up landing and coordinator cleanup remain pending.
+
 ## OpenSpec change proposals
 
 This repository uses the shared `html-design` OpenSpec workflow. New proposals

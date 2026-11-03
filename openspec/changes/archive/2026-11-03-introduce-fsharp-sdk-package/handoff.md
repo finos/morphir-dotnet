@@ -1,5 +1,7 @@
 # Codex handoff: introduce-fsharp-sdk-package
 
+Archived planning/implementation record. Runtime PR landed; this archive follow-up and coordinator cleanup remain pending. See [SDK runtime delivery](../../../../docs/design/dotnet-csharp-generation/sdk-runtime-delivery.md).
+
 ## Assignment and exact runtime
 
 Use Codex gpt-6.1-sol with reasoningEffort high. The coordinator supplies an isolated orchestrator-created worktree and a main-based commit containing this planning change and the merged predecessors. This brief is self-contained; no parent conversation is required.
