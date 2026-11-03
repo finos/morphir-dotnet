@@ -5,7 +5,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 1. Campaign setup
 
-- [ ] 1.1 Prepare an owned worktree/branch from current main after add-shared-configuration lands; verify its merged SHA is reachable, the worktree is clean, and the tracking/ownership receipt is recorded.
+- [x] 1.1 Prepare an owned worktree/branch from current main after add-shared-configuration lands; verify its merged SHA is reachable, the worktree is clean, and the tracking/ownership receipt is recorded.
 
 ## 2. Document-aware roots
 
