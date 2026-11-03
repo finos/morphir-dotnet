@@ -728,3 +728,63 @@ compiled exact-version lookup pass for both packages. Native Precommit passes in
 37s with the same unsupported-F# diagnostics. Strict OpenSpec passes all 22 items
 and two checker tests. No publishing target was executed. The integration changes
 no generator F# files, so the reviewed 18-file Fantomas result remains applicable.
+
+## Coordinator cross-platform test correction
+
+The macOS job for initial head `460dde8` reported six fixture hash errors and
+two large-literal cancellation assertion failures. These were generator test
+defects, independent of the configuration instrumentation failures above. The
+same tests remained at integrated head `068ae14` and were corrected in this PR.
+
+Five embedded business fixtures had expected hashes captured from a Windows
+CRLF checkout, while their repository blobs contain LF. Embedding those LF bytes
+locally reproduced five errors in seven original-fixture tests. The initial
+`--filter-test-list Original` invocation selected zero cases and is retained as
+setup evidence only; the corrected case filter produced the actual RED result.
+The fix pins only those five paths to LF in `.gitattributes` and freezes their
+checked-in LF hashes. It does not modify any JSON blob or normalize content inside
+the hash checker. The two already byte-pinned MorphirIon resources retain their
+original hashes. All fifteen Git filter combinations across the five paths and
+`core.autocrlf=false/true/input` produce the same expected raw bytes.
+
+The cancellation test's one-million-character call could finish before its
+30ms request delay on macOS. Completed calls now supply no cancellation evidence;
+the test tries at most four bounded lengths, up to 64 million characters. Passing
+still requires an observed active call to return Cancelled without partial
+sources, preserving family/version and stopping within the existing 500ms limit.
+Exceptions, generation failures and failure to observe cancellation remain test
+failures. The alias-expansion cancellation check retains its active-call gate.
+No generator production implementation changed. The fresh focused suite passes
+157/157 with LF resources; local observed stop latencies are 1.442ms for alias
+expansion and 0.380/0.238ms for classic/v4 literal generation. Hosted macOS
+validation is required; these are Windows observations.
+
+The first post-correction full Test invocation reused existing outputs with
+Restore/Compile skipped. Generator 157/157 and every other executed suite passed,
+but 102 Tooling CLI cases failed while loading missing Configuration, Ion or
+IR.Pipeline assemblies. That result is retained as `ci-portable-full-Test`; its
+aggregate failure prevented cold package-consumer checks. A normal native
+Restore/Compile/Test run rebuilds the full output closure without source edits.
+
+That normal run passes Restore in 2s and Compile in 1m27. Its Test body executes
+all 3,826 framework cases in 4m46, including generator 157/157; one existing
+Tooling configuration case, explicit `2.0 --type number`, returns rolled-back
+instead of written. All other 3,825 cases and 71 inspection checks pass. The
+aggregate failure prevents the 15 cold package-consumer checks from running.
+This is not a green full-suite result. Unlike the earlier coverage failures,
+this occurrence has no coverage collector. It establishes that instrumentation
+alone does not explain the intermittent rollback behavior. The user-selected
+C# scope remains unchanged; no configuration code, test, timeout or checker was
+modified. A single unchanged Tooling executable rerun is recorded separately.
+That rerun passes 400/401 and fails the separate typed-values/scoped-targets
+scenario for the same number edit, again with rolled-back. No further retries
+or configuration investigation were performed. Required hosted checks must pass
+on the corrected head before landing; the earlier `068ae14` integrated pass is
+historical evidence, not a claim that these later runs were green.
+
+Native Precommit passes in 34s with inherited unsupported-F# diagnostics; both
+changed F# test files pass the pinned Fantomas check. Strict OpenSpec passes all
+22 items and two tests, and diff checks pass. Production source, package/build
+settings and frozen SDK evidence are unchanged, so the earlier source-bound
+coverage, package and pinned-compiler proofs remain applicable within their
+recorded limits. No publication or configuration workaround was introduced.

@@ -67,7 +67,7 @@ let private model depth =
             )
     }
 
-let private duringActive label input =
+let private tryDuringActive label input =
     use cancellation = new CancellationTokenSource()
     use started = new ManualResetEventSlim(false)
     let mutable outcome = Error(Exception "The worker did not run.")
@@ -101,11 +101,16 @@ let private duringActive label input =
     let stopped = worker.Join(TimeSpan.FromSeconds 30.0)
     latency.Stop()
     Expect.isTrue stopped "the owned generation thread must exit before the assertion"
-    Expect.isTrue wasRunning "cancellation occurred during a nonempty active generation"
 
     match outcome with
     | Error error -> raise error
+    | Ok result when result.Status = GenerationStatus.Success ->
+        // A fast runner may finish this bounded input before the requesting thread
+        // wakes. This attempt supplies no cancellation evidence; try a larger input.
+        printfn "Mid-generation cancellation %s: completed before cancellation" label
+        false
     | Ok result ->
+        Expect.isTrue wasRunning "cancellation occurred during a nonempty active generation"
         Expect.equal result.Status GenerationStatus.Cancelled "caller cancellation"
         Expect.isEmpty result.Sources "whole-model cancellation returns no partial sources"
         Expect.equal result.Family input.Family "typed family survives cancellation"
@@ -115,22 +120,27 @@ let private duringActive label input =
             input.SourceVersion.Text
             "source version survives cancellation"
 
-    printfn
-        "Mid-generation cancellation %s: active=%b, stopLatencyMs=%.3f"
-        label
-        wasRunning
-        latency.Elapsed.TotalMilliseconds
+        printfn
+            "Mid-generation cancellation %s: active=%b, stopLatencyMs=%.3f"
+            label
+            wasRunning
+            latency.Elapsed.TotalMilliseconds
 
-    Expect.isTrue
-        (latency.Elapsed < TimeSpan.FromMilliseconds 500.0)
-        (sprintf "Cancellation should interrupt %s promptly, observed %A" label latency.Elapsed)
+        Expect.isTrue
+            (latency.Elapsed < TimeSpan.FromMilliseconds 500.0)
+            (sprintf "Cancellation should interrupt %s promptly, observed %A" label latency.Elapsed)
+
+        true
 
 let duringAliasExpansion () =
     let warm =
         CSharpGenerator.Generate(model 3, GenerationOptions.Default, CancellationToken.None)
 
     Expect.equal warm.Status GenerationStatus.Success "the acyclic source model is admitted"
-    duringActive "alias expansion" (model 22)
+
+    Expect.isTrue
+        (tryDuringActive "alias expansion" (model 22))
+        "the large alias DAG must still be active when cancelled"
 
 let duringLargeLiteral (make: FunctionCases.Definition list -> VersionedModel) =
     let definition value : FunctionCases.Definition = {
@@ -148,4 +158,15 @@ let duringLargeLiteral (make: FunctionCases.Definition list -> VersionedModel) =
         )
 
     Expect.equal warm.Status GenerationStatus.Success "the literal input is admitted"
-    duringActive "large string generation" (make [ definition (String('x', 1000000)) ])
+
+    let cancelledDuringGeneration =
+        [ 1000000; 4000000; 16000000; 64000000 ]
+        |> List.exists (fun length ->
+            tryDuringActive
+                (sprintf "large string generation (%d characters)" length)
+                (make [ definition (String('x', length)) ])
+        )
+
+    Expect.isTrue
+        cancelledDuringGeneration
+        "at least one bounded nonempty literal generation must be cancelled while active"

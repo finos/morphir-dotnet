@@ -16,27 +16,27 @@ let sources = [
     {
         Name = "car-rental-v1.json"
         Path = "examples/car-rental/models/car-rental-v1.json"
-        Sha256 = "d0bfc9a2b995ed9ee1b4cbcdd71ea9a52d38c2aa17cf39d3436cf3cd65c6b9fb"
+        Sha256 = "79faf84e7b3328f27ce968178fa2ec0f41c3b5ea0aed93e6acd44d4863ab0311"
     }
     {
         Name = "car-rental-v2.json"
         Path = "examples/car-rental/models/car-rental-v2.json"
-        Sha256 = "2392ecb6de47ec307db9d5e78a492a4d4d2906be7e61c91ef9c1b1ce4141acc0"
+        Sha256 = "929a5eabb202ea3704f335697406f92aa2c424400a3da2a82562c8ac35491fa3"
     }
     {
         Name = "car-rental-v3.json"
         Path = "examples/car-rental/models/car-rental-v3.json"
-        Sha256 = "96e8f19a11c3445ca725530281a32ea42b899e755c57a451a91fd35f9cdb9b97"
+        Sha256 = "637945a5943c4909abb4f6006ae48413a07c96ccec77ebd86170ec4da0e1977e"
     }
     {
         Name = "daily-rate-v3.json"
         Path = "tests/Fixtures/MorphirIR/daily-rate-v3.json"
-        Sha256 = "8a30c24fac7d4f3cc86290e9cbd49597b77bb44957c93f9b2eca13966d029ef7"
+        Sha256 = "d93da69798fd94ac1362738587b0d3586533173daef67ad11e7695a167a37f37"
     }
     {
         Name = "daily-rate-v4.json"
         Path = "tests/Fixtures/MorphirIR/daily-rate-v4.json"
-        Sha256 = "2bdaaf2b6415203d6b699bac915a4f104224efd370743ffef5eae09ff70d1568"
+        Sha256 = "1209abae3b32764518e01138fe42a57212cd4c3791963fe00e1ecf46ae109f7f"
     }
     {
         Name = "books-and-records-example.json"
