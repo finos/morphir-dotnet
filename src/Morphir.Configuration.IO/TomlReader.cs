@@ -1,4 +1,5 @@
 using System.Text;
+using System.Globalization;
 using CsToml;
 using CsToml.Values;
 using Microsoft.FSharp.Collections;
@@ -35,10 +36,17 @@ internal static class TomlReader
             case TomlValueType.Float: return ConfigValue.NewNumber(node.GetDouble());
             case TomlValueType.Boolean: return ConfigValue.NewBoolean(node.GetBool());
             case TomlValueType.LocalDate:
+                node.TryGetDateOnly(out var date);
+                return ConfigValue.NewTemporal("LocalDate", date.ToString("O", CultureInfo.InvariantCulture));
             case TomlValueType.LocalTime:
+                node.TryGetTimeOnly(out var time);
+                return ConfigValue.NewTemporal("LocalTime", time.ToString("O", CultureInfo.InvariantCulture));
             case TomlValueType.LocalDateTime:
+                node.TryGetDateTime(out var local);
+                return ConfigValue.NewTemporal("LocalDateTime", local.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff", CultureInfo.InvariantCulture));
             case TomlValueType.OffsetDateTime:
-                return ConfigValue.NewTemporal(node.ValueType.ToString(), node.GetString());
+                node.TryGetDateTimeOffset(out var offset);
+                return ConfigValue.NewTemporal("OffsetDateTime", offset.ToString("O", CultureInfo.InvariantCulture));
             case TomlValueType.Array:
                 var values = new List<ConfigValue>();
                 for (var i = 0; i < node.GetArray().Count; i++)

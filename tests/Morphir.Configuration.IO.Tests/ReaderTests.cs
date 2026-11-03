@@ -87,6 +87,37 @@ public sealed class ReaderTests
     }
 
     [Test]
+    [Arguments("th-TH")]
+    [Arguments("fi-FI")]
+    [Arguments("ar-SA")]
+    public void TomlTemporalValuesUseInvariantIsoFormatting(string culture)
+    {
+        var previous = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo(culture);
+            var input = ConfigurationReader.ReadText("dates.toml", """
+                date = 1979-05-27
+                early_date = 0001-01-01
+                time = 12:34:56.123456
+                local = 1979-05-27T12:34:56.123456
+                offset = 1979-05-27T12:34:56.123456+05:30
+                """);
+            var document = ((SourceContent.Available)input.Content).Item;
+            var fields = ((ConfigValue.Object)document.Values).Item;
+            fields["date"].Should().Be(ConfigValue.NewTemporal("LocalDate", "1979-05-27"));
+            fields["early_date"].Should().Be(ConfigValue.NewTemporal("LocalDate", "0001-01-01"));
+            fields["time"].Should().Be(ConfigValue.NewTemporal("LocalTime", "12:34:56.1234560"));
+            fields["local"].Should().Be(ConfigValue.NewTemporal("LocalDateTime", "1979-05-27T12:34:56.1234560"));
+            fields["offset"].Should().Be(ConfigValue.NewTemporal("OffsetDateTime", "1979-05-27T12:34:56.1234560+05:30"));
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = previous;
+        }
+    }
+
+    [Test]
     public void NormalizationMakesOnlyExactSecretReferencesAtomicWithoutExecutingThem()
     {
         var document = ((SourceContent.Available)ConfigurationReader.ReadText("secrets.json5",
