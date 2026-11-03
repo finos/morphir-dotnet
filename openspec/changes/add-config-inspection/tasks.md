@@ -5,7 +5,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 1. Campaign setup
 
-- [ ] 1.1 Prepare an owned worktree/branch after shared configuration and discovery are merged; verify both landed SHAs are on main, baseline status is clean, and tracking records are linked.
+- [x] 1.1 Prepare an owned worktree/branch after shared configuration and discovery are merged; verify both landed SHAs are on main, baseline status is clean, and tracking records are linked.
 
 ## 2. Shared queries
 
