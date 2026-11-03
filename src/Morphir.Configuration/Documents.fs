@@ -7,7 +7,9 @@ type ConfigValue =
     | String of string
     | Boolean of bool
     | Integer of int64
+    | BigInteger of System.Numerics.BigInteger
     | Number of double
+    | Temporal of kind: string * text: string
     | Array of ConfigValue list
     | Object of Map<string, ConfigValue>
     | SecretReference of Map<string, ConfigValue>
@@ -32,6 +34,7 @@ type SourceRole =
     | UserOverride = 8
     | Environment = 9
     | Explicit = 10
+    | WorkspaceUserOverride = 11
 
 type SourceIdentity =
     { Path: string
@@ -160,6 +163,17 @@ module DocumentDefaults =
 
 /// Tree operations shared by embedded hosts and adapters.
 module ConfigTree =
+    /// Completed ordinary loads omit null object fields while retaining null array elements.
+    let rec clean value =
+        match value with
+        | ConfigValue.Object fields ->
+            fields
+            |> Map.filter (fun _ value -> value <> ConfigValue.Null)
+            |> Map.map (fun _ value -> clean value)
+            |> ConfigValue.Object
+        | ConfigValue.Array items -> ConfigValue.Array (List.map clean items)
+        | _ -> value
+
     let rec tryFind path value =
         match path, value with
         | [], _ -> Some value
@@ -184,8 +198,10 @@ module ValueMerge =
     /// Higher arrays and incompatible shapes replace complete lower values.
     let rec merge lower higher =
         match lower, higher with
+        | _, ConfigValue.Null -> lower
         | ConfigValue.Object left, ConfigValue.Object right ->
             right
+            |> Map.filter (fun _ value -> value <> ConfigValue.Null)
             |> Map.fold (fun result key value ->
                 let merged = Map.tryFind key result |> Option.map (fun old -> merge old value) |> Option.defaultValue value
                 Map.add key merged result) left

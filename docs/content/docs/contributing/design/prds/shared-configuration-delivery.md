@@ -25,3 +25,23 @@ cleanup. An open PR or checked task list does not complete this campaign.
 - Initial red: `dotnet run --project tests/Morphir.Configuration.Tests -p:BuildInParallel=false -m:1 -- --filter 'Document merge' --sequenced`
   failed with FS0039 for the absent `ConfigValue` and `ValueMerge` APIs. No
   production document behavior had been added. All implementation tasks remain.
+
+- `bb51a21`: initial red contract, FS0039 for the absent document APIs.
+- `0fe2abb`: additive contracts; first array replacement Expecto case passes.
+  The successful compilation used `dotnet run`, which forwarded `-m:1` to
+  Expecto and failed runner argument parsing. Subsequent checks use
+  `dotnet build <project> -m:1 -p:BuildInParallel=false`, followed by the built
+  executable with `--sequenced` for Expecto.
+- `6423ca7` / `294de9f` / `fe23ee9`: profile selector red/green checkpoints.
+- `a727a2a`: 10 profile cases pass, including raw control nulls and inactive
+  cycles/depth. Ordinary-null overlay case was observed red, then both document
+  merge cases passed. The initial format-order resolver case passes. These are
+  focused results; full source/profile/reader qualification remains in progress.
+- `92c7253`: reader checkpoint is explicitly incomplete. Reader build has zero
+  warnings/errors; typed values and extended JSON5 tests pass. Classic
+  normalization was observed red before its implementation.
+- Source resolution red group: capped core build succeeds with zero warnings;
+  9 focused cases run, 4 pass and 5 fail for runtime overrides, selected-source
+  deduplication, member filtering/defaults, environment mapping, and required
+  selected misses. Member profile-control authority also fails as expected,
+  10 other profile tests pass. This checkpoint is not PR-ready.

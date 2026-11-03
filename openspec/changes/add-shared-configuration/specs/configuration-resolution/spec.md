@@ -20,6 +20,25 @@ Resolution SHALL apply defaults, system, global, root primaries, selected file, 
 ### Requirement: Merge preserves document semantics
 Maps SHALL merge recursively, arrays SHALL replace completely, incompatible value shapes SHALL replace earlier values, and secret references SHALL act as indivisible leaves. Resolution SHALL NOT mutate inputs.
 
+Ordinary null overlays SHALL leave earlier values and their origins unchanged.
+Completed loads SHALL recursively omit null-valued object fields, including
+objects nested in arrays, while retaining null array elements. Resolution SHALL
+use an ordered left fold; shape replacement does not permit associative regrouping.
+Raw profile-control metadata SHALL use a separate merge where null replaces
+earlier controls and fails typing rather than restoring the earlier value.
+
+#### Scenario: Ordinary null is not an unset
+- **WHEN** a lower source provides a=1 and a higher source provides a=null
+- **THEN** a remains 1 with the lower source origin
+
+#### Scenario: Null cleanup retains array elements
+- **WHEN** a completed load contains items=[{a:null},null]
+- **THEN** items equals [{},null]
+
+#### Scenario: Null profile control does not resurrect an earlier list
+- **WHEN** a higher root primary supplies profiles.active=null over an earlier list
+- **THEN** enabled profile processing fails control typing at that higher source
+
 #### Scenario: Shorter replacement array
 - **WHEN** a lower source supplies three members and a higher source supplies one
 - **THEN** the effective array contains only the one higher-source member
@@ -89,6 +108,13 @@ Enabled profile activation controls SHALL come only from root primary documents.
 
 ### Requirement: Profile expansion preserves precedence
 Profile groups SHALL expand depth first with includes before selected roots and last-occurrence deduplication. Group replacement SHALL be whole-value. Cycles, including inactive cycles, and exceeded graph bounds SHALL fail. Per active name, workspace files SHALL precede member files in format order; later names SHALL win.
+
+Expansion SHALL emit each root before its group descendants, then retain last
+occurrences. Names SHALL match `[a-z][a-z0-9_-]{0,63}`. Bounds SHALL be 64 groups,
+64 members per group, 32 group levels, and 128 distinct active names. Inactive
+groups SHALL also be checked for cycles and depth. Explicit empty host selection
+SHALL still allow includes; disabled selection or a present whitespace-only
+MORPHIR_PROFILES SHALL suppress includes and control interpretation.
 
 #### Scenario: Later workspace profile wins
 - **WHEN** active names are postgres then metrics, member postgres sets a setting, and workspace metrics replaces it

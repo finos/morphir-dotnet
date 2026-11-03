@@ -1,0 +1,994 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://morphir.finos.org/schemas/morphir-config-v1.json",
+  "title": "Morphir Configuration",
+  "description": "JSON Schema for the serialization-independent Morphir configuration model underlying morphir.toml and morphir.yaml.",
+  "type": "object",
+  "properties": {
+    "morphir": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "min_cli_version": {
+          "type": "string"
+        },
+        "dev_mode": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "workspace": {
+      "type": "object",
+      "properties": {
+        "root": {
+          "type": "string"
+        },
+        "out_dir": {
+          "description": "Out directory for every task in the workspace, relative to the workspace root, must stay inside it.",
+          "default": ".morphir/out",
+          "type": "string"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "default_member": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "source_directory": {
+          "type": "string"
+        },
+        "exposed_modules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "module_prefix": {
+          "type": "string"
+        },
+        "decorations": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/decoration"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "authors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "license": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ir": {
+      "type": "object",
+      "properties": {
+        "format_version": {
+          "type": "integer",
+          "maximum": 10,
+          "minimum": 1
+        },
+        "layout": {
+          "description": "Storage layout compile writes.",
+          "default": "single-file",
+          "type": "string",
+          "enum": [ "single-file", "document-tree" ]
+        },
+        "format": {
+          "description": "Serialization format compile writes.",
+          "default": "json",
+          "type": "string",
+          "enum": [ "json", "yaml", "ion" ]
+        },
+        "strict_mode": {
+          "type": "boolean"
+        },
+        "mode": {
+          "description": "Deprecated alias for layout: classic means single-file, vfs means document-tree. Read for one release, then removed.",
+          "type": "string",
+          "enum": [ "classic", "vfs" ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "codegen": {
+      "type": "object",
+      "properties": {
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "template_dir": {
+          "type": "string"
+        },
+        "output_format": {
+          "type": "string",
+          "enum": [ "pretty", "compact", "minified" ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "cache": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "dir": {
+          "type": "string"
+        },
+        "max_size": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "logging": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [ "debug", "info", "warn", "error" ]
+        },
+        "format": {
+          "type": "string",
+          "enum": [ "text", "json" ]
+        },
+        "file": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ui": {
+      "type": "object",
+      "properties": {
+        "color": {
+          "type": "boolean"
+        },
+        "interactive": {
+          "type": "boolean"
+        },
+        "theme": {
+          "type": "string",
+          "enum": [ "default", "light", "dark" ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "tasks": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/task"
+      }
+    },
+    "workflows": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/workflow"
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "properties": {
+        "wit": {
+          "$ref": "#/definitions/typeMappingConfig"
+        },
+        "protobuf": {
+          "$ref": "#/definitions/typeMappingConfig"
+        },
+        "json": {
+          "$ref": "#/definitions/typeMappingConfig"
+        }
+      },
+      "additionalProperties": true
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/toolchain"
+      }
+    },
+    "frontend": {
+      "type": "object",
+      "properties": {
+        "language": {
+          "type": "string"
+        },
+        "emit_parse_stage": {
+          "type": "boolean"
+        },
+        "emit_parse_stage_fatal": {
+          "type": "boolean"
+        },
+        "elm": {
+          "description": "Settings the Elm frontend reads, sent to the provider as compile options.",
+          "type": "object",
+          "properties": {
+            "extension": {
+              "description": "The extension id that provides Elm, for example morphir-elm-native. Defaults to the language's default provider; --extension overrides it. The same key is valid under any frontend.<language> table.",
+              "type": "string",
+              "pattern": "^\\S(.*\\S)?$"
+            },
+            "prelude": {
+              "description": "The implicit imports and SDK module aliases every Elm module is compiled against: the name of a built-in prelude, or a table describing one.",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "implicit_import": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "module": {
+                            "type": "string"
+                          },
+                          "exposing": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    },
+                    "module_alias": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    },
+                    "package": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "module": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "types": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "constructors": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "additionalProperties": true
+                                  }
+                                }
+                              },
+                              "additionalProperties": true
+                            }
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              ]
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "sources": {
+      "description": "Remote source settings (morphir_common::remote::config::RemoteSourceConfig). Fields serialize in camelCase.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "allow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deny": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trustedGithubOrgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cache": {
+          "$ref": "#/definitions/sourcesCache"
+        },
+        "network": {
+          "$ref": "#/definitions/sourcesNetwork"
+        }
+      },
+      "additionalProperties": true
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/dependency"
+      }
+    },
+    "dev-dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/dependency"
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/extension"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "definitions": {
+    "secretReference": {
+      "description": "Where to obtain a secret. Exactly one of env, file, command, or keyring.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [ "env" ],
+          "properties": {
+            "env": {
+              "description": "Name of the environment variable that holds the secret.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [ "file" ],
+          "properties": {
+            "file": {
+              "description": "Path to a file whose contents are the secret. Relative paths resolve against the declaring configuration file; ~ expands to the home directory.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [ "command" ],
+          "properties": {
+            "command": {
+              "description": "A non-empty program followed by string arguments, which may be empty, executed directly without a shell.",
+              "type": "array",
+              "minItems": 1,
+              "items": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ],
+              "additionalItems": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [ "keyring" ],
+          "properties": {
+            "keyring": {
+              "type": "object",
+              "required": [ "service", "account" ],
+              "properties": {
+                "service": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "account": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "secretValue": {
+      "description": "A credential. Either a literal string or one secret reference.",
+      "x-secret": true,
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/definitions/secretReference"
+        }
+      ]
+    },
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "taskCommon": {
+      "type": "object",
+      "not": {
+        "description": "depends is an alternative spelling of depends_on (not both); run is the string form of a command task and is incompatible with cmd and with action (see the TOML specification's Tasks and workflows section).",
+        "anyOf": [
+          {
+            "required": [ "depends_on", "depends" ]
+          },
+          {
+            "required": [ "run", "cmd" ]
+          },
+          {
+            "required": [ "run", "action" ]
+          }
+        ]
+      },
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [ "intrinsic", "command" ]
+        },
+        "action": {
+          "type": "string"
+        },
+        "cmd": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pre": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "post": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "env": {
+          "$ref": "#/definitions/stringMap"
+        },
+        "mounts": {
+          "$ref": "#/definitions/stringMap"
+        },
+        "description": {
+          "type": "string"
+        },
+        "run": {
+          "description": "Shell command to run (alternative to cmd).",
+          "type": "string"
+        },
+        "depends": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cwd": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "intrinsicTask": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/taskCommon"
+        },
+        {
+          "type": "object",
+          "not": {
+            "required": [ "cmd" ]
+          },
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [ "intrinsic" ]
+            },
+            "action": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "commandTask": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/taskCommon"
+        },
+        {
+          "type": "object",
+          "not": {
+            "required": [ "action" ]
+          },
+          "required": [ "kind" ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [ "command" ]
+            },
+            "cmd": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "task": {
+      "description": "Project task definition. A string is shorthand for a command task run through the shell; with kind omitted, a table that sets run is a command task, and any other table is intrinsic.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/definitions/commandTask"
+        },
+        {
+          "$ref": "#/definitions/intrinsicTask"
+        }
+      ]
+    },
+    "workflowStage": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "parallel": {
+          "type": "boolean"
+        },
+        "condition": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "workflow": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "extends": {
+          "type": "string"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/workflowStage"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "typeMappingPrimitive": {
+      "type": "object",
+      "properties": {
+        "external": {
+          "type": "string"
+        },
+        "morphir": {
+          "type": "string"
+        },
+        "bidirectional": {
+          "type": "boolean"
+        },
+        "priority": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "typeMappingContainer": {
+      "type": "object",
+      "properties": {
+        "external_pattern": {
+          "type": "string"
+        },
+        "morphir_pattern": {
+          "type": "string"
+        },
+        "type_params": {
+          "type": "integer"
+        },
+        "bidirectional": {
+          "type": "boolean"
+        },
+        "priority": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "typeMappingConfig": {
+      "type": "object",
+      "properties": {
+        "primitives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/typeMappingPrimitive"
+          }
+        },
+        "containers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/typeMappingContainer"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "toolchainAcquire": {
+      "type": "object",
+      "properties": {
+        "backend": {
+          "type": "string"
+        },
+        "package": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "executable": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "toolchainInputs": {
+      "description": "Inputs may be an array (files) or an object with files/artifacts.",
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "artifacts": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "toolchainOutput": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "toolchainTask": {
+      "type": "object",
+      "properties": {
+        "exec": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "inputs": {
+          "$ref": "#/definitions/toolchainInputs"
+        },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/toolchainOutput"
+          }
+        },
+        "fulfills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "$ref": "#/definitions/stringMap"
+        }
+      },
+      "additionalProperties": true
+    },
+    "toolchain": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string"
+        },
+        "working_dir": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "string"
+        },
+        "env": {
+          "$ref": "#/definitions/stringMap"
+        },
+        "acquire": {
+          "$ref": "#/definitions/toolchainAcquire"
+        },
+        "tasks": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/toolchainTask"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "decoration": {
+      "type": "object",
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "ir": {
+          "type": "string"
+        },
+        "entry_point": {
+          "type": "string"
+        },
+        "storage_location": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "dependency": {
+      "description": "A dependency: a version string, or a detailed table.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "git": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            },
+            "branch": {
+              "type": "string"
+            },
+            "rev": {
+              "type": "string"
+            },
+            "workspace": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "extension": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "sourcesCache": {
+      "description": "morphir_common::remote::config::CacheConfig. Fields serialize in camelCase.",
+      "type": "object",
+      "properties": {
+        "directory": {
+          "type": "string"
+        },
+        "maxSizeMb": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ttlSecs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "sourcesNetwork": {
+      "description": "morphir_common::remote::config::NetworkConfig. Fields serialize in camelCase.",
+      "type": "object",
+      "properties": {
+        "timeoutSecs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "httpProxy": {
+          "type": "string"
+        },
+        "httpsProxy": {
+          "type": "string"
+        },
+        "maxRedirects": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "userAgent": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

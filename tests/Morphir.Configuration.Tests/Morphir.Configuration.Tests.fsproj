@@ -30,6 +30,7 @@
         <Compile Include="CiDetectionTests.fs" />
         <Compile Include="DocumentMergeTests.fs" />
         <Compile Include="ProfileTests.fs" />
+        <Compile Include="ResolutionTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
