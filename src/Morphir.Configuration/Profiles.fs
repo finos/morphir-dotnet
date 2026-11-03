@@ -51,6 +51,28 @@ module Profiles =
             | ConfigValue.Array items -> items |> List.choose (function ConfigValue.String name -> Some name | _ -> None)
             | _ -> [])
 
+    let private keepLast names = names |> List.rev |> List.distinct |> List.rev
+
+    let private expand value roots =
+        let mutable memo = Map.empty
+        let rec append stack name =
+            match Map.tryFind name memo with
+            | Some expanded -> expanded
+            | None when Set.contains name stack -> [ name ]
+            | None ->
+                let children =
+                    match ConfigTree.tryFind [ "profiles"; "groups"; name ] value with
+                    | Some (ConfigValue.Array members) ->
+                        members
+                        |> List.choose (function ConfigValue.String child -> Some child | _ -> None)
+                    | _ -> []
+                let expanded =
+                    children
+                    |> List.fold (fun output child -> keepLast (output @ append (Set.add name stack) child)) [ name ]
+                memo <- Map.add name expanded memo
+                expanded
+        roots |> List.fold (fun output name -> keepLast (output @ append Set.empty name)) []
+
     let plan (sources: SourceInput list) (environment: Map<string, string>) (options: ProfileOptions) =
         match options.Selection with
         | ProfileSelection.Automatic when
@@ -62,7 +84,7 @@ module Profiles =
             let value = baseValue sources
             let includes = value |> readNames "include" |> Option.defaultValue []
             { Enabled = true
-              Active = includes @ names
+              Active = expand value (includes @ names)
               Diagnostics = controlErrors sources value }
         | ProfileSelection.Automatic ->
             let environmentNames =
@@ -85,7 +107,7 @@ module Profiles =
                     let includes = readNames "include" baseValue |> Option.defaultValue []
                     includes @ (selected |> Option.defaultValue baseNames)
             { Enabled = not names.IsEmpty
-              Active = names
+              Active = expand baseValue names
               Diagnostics = controlErrors sources baseValue }
         | ProfileSelection.Disabled ->
             { Enabled = false

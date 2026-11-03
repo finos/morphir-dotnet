@@ -77,4 +77,11 @@ let tests =
             let result = Profiles.plan sources (Map.ofList [ "MORPHIR_PROFILES", " \t " ]) DocumentDefaults.profileOptions
             Expect.equal (result.Enabled, result.Active, result.Diagnostics) (false, [], []) "disabled selection never interprets controls"
         }
+        test "groups expand root first and keep duplicate names last" {
+            let groups = ConfigValue.Object (Map.ofList [ "production", names [ "postgres"; "metrics" ] ])
+            let sources = [ root [ "include", names [ "metrics" ]; "groups", groups ] ]
+            let options = { DocumentDefaults.profileOptions with Selection = ProfileSelection.Names [ "production"; "postgres" ] }
+            let result = Profiles.plan sources Map.empty options
+            Expect.equal result.Active [ "production"; "metrics"; "postgres" ] "root first depth-first expansion uses last occurrences"
+        }
     ]
