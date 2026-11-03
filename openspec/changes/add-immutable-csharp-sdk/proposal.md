@@ -23,7 +23,7 @@ None. Existing backend, model and publication contracts are preserved.
 
 ## Tracking
 
-- Requires an integrated, verified commit of [establish-dotnet-sdk-conformance](../establish-dotnet-sdk-conformance/proposal.md).
+- Requires an integrated, verified commit of [establish-dotnet-sdk-conformance](../archive/2026-11-03-establish-dotnet-sdk-conformance/proposal.md).
 - Delivery plan, merged-to-main completion and cleanup gates: [orchestration](../../../docs/design/dotnet-csharp-generation/orchestration.md).
 - Worker brief: [handoff](handoff.md). No GitHub issue exists for this new change yet; the coordinator must create or link one before contribution, without inventing an ID.
 - Establish the feature PRD and index entry during implementation before production code, as specified in tasks. Implementation is not authorized by creating this proposal.

@@ -157,13 +157,13 @@
       "title": "Establish .NET SDK conformance",
       "status": "planned",
       "dependsOn": [],
-      "activeChangePath": "openspec/changes/establish-dotnet-sdk-conformance",
-      "handoffPath": "openspec/changes/establish-dotnet-sdk-conformance/handoff.md",
+      "activeChangePath": "openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance",
+      "handoffPath": "openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance/handoff.md",
       "ownedPaths": [
         "tests/Fixtures/MorphirSDK/**",
         "tests/Morphir.SDK.Conformance.Tests/**",
         "docs/design/dotnet-sdk-contract.md",
-        "openspec/changes/establish-dotnet-sdk-conformance/**",
+        "openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance/**",
         "docs/content/contributing/design/prds/establish-dotnet-sdk-conformance.md"
       ],
       "prerequisiteEvidence": [],

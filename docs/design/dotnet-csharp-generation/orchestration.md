@@ -1,6 +1,6 @@
 # C# generation coordination plan
 
-This is a planning artifact. No worker has been launched and no implementation is complete. The machine-readable [orchestration.json](orchestration.json) describes the same DAG and delivery gates.
+This is a static planning snapshot from before worker dispatch. Its planned statuses, executionStarted flag, settings and empty landing fields describe that snapshot, not live execution. The machine-readable [orchestration.json](orchestration.json) retains the same DAG and delivery gates. Archive follow-up repairs path references only; the legacy activeChangePath field now resolves to the [conformance archive](../../../openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance/proposal.md). Current landing and cleanup evidence is in the [conformance delivery record](conformance-delivery.md).
 
 ## Outcome and completion rule
 
