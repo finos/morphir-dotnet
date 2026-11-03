@@ -49,4 +49,15 @@ let tests =
             let result = Profiles.plan sources Map.empty DocumentDefaults.profileOptions
             Expect.equal result.Active [ "active" ] "base active is preferred to the fallback selector"
         }
+        test "base includes still activate with an explicit empty selection" {
+            let sources = [ root [ "include", names [ "metrics" ] ] ]
+            let options = { DocumentDefaults.profileOptions with Selection = ProfileSelection.Names [] }
+            let result = Profiles.plan sources Map.empty options
+            Expect.equal result.Active [ "metrics" ] "an empty explicit list permits policy includes"
+        }
+        test "base include activates before automatic root selection" {
+            let sources = [ root [ "include", names [ "metrics" ]; "active", names [ "postgres" ] ] ]
+            let result = Profiles.plan sources Map.empty DocumentDefaults.profileOptions
+            Expect.equal result.Active [ "metrics"; "postgres" ] "base includes precede active roots"
+        }
     ]
