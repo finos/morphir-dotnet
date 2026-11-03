@@ -45,6 +45,8 @@ def rules(node):
     for source, target in [('minimum', 'Minimum'), ('maximum', 'Maximum'), ('minLength', 'MinLength'), ('minItems', 'MinItems')]:
         if source in node:
             output.append(target + ' ' + str(node[source]))
+    if 'pattern' in node:
+        output.append('Pattern ' + quoted(node['pattern']))
     for source, target in [('anyOf', 'Any'), ('oneOf', 'One'), ('allOf', 'All')]:
         if source in node:
             output.append(target + ' ' + seq(map(rules, node[source])))
@@ -71,6 +73,7 @@ module internal ConfigurationSchema =
         | Maximum of int
         | MinLength of int
         | MinItems of int
+        | Pattern of string
         | Any of Rule list list
         | One of Rule list list
         | All of Rule list list

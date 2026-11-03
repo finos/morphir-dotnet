@@ -524,6 +524,36 @@ let tests =
                 (Map.containsKey path result.Origins)
                 "a nonempty map has child origins instead of an obsolete leaf origin"
         }
+        test "schema validates Elm extension whitespace patterns" {
+            let identity = source "extension.toml" SourceRole.RootPrimary DocumentFormat.Toml
+            let path = [ "frontend"; "elm"; "extension" ]
+
+            for extension, invalid in [ " ", true; " .elm", true; ".elm ", true; ".elm", false ] do
+                let result =
+                    Resolver.resolve
+                        { DocumentDefaults.resolutionInput with
+                            Sources = [
+                                supplied
+                                    identity
+                                    (obj [
+                                        "frontend",
+                                        obj [ "elm", obj [ "extension", text extension ] ]
+                                    ])
+                            ]
+                        }
+
+                Expect.equal
+                    (result.Diagnostics
+                     |> List.exists (fun d ->
+                         d.Code = "config.validation"
+                         && d.KeyPath = path
+                         && d.Source = identity
+                     ))
+                    invalid
+                    ("the pinned schema pattern applies to '"
+                     + extension
+                     + "'")
+        }
         test "schema validates nested tasks and finite bounded known numbers without execution" {
             let raw =
                 obj [

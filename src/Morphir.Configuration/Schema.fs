@@ -17,6 +17,7 @@ module internal ConfigurationSchema =
         | Maximum of int
         | MinLength of int
         | MinItems of int
+        | Pattern of string
         | Any of Rule list list
         | One of Rule list list
         | All of Rule list list
@@ -459,7 +460,7 @@ module internal ConfigurationSchema =
                     "elm",
                     [
                         Kind "object"
-                        Property("extension", [ Kind "string" ])
+                        Property("extension", [ Kind "string"; Pattern "^\\S(.*\\S)?$" ])
                         Property(
                             "prelude",
                             [

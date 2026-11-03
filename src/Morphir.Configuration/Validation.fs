@@ -150,6 +150,20 @@ module Validation =
                 | ConfigValue.Array items when items.Length < bound ->
                     error "Array has too few elements."
                 | _ -> []
+            | Pattern pattern ->
+                match value with
+                | ConfigValue.String text when
+                    not (
+                        System.Text.RegularExpressions.Regex.IsMatch(
+                            text,
+                            pattern,
+                            System.Text.RegularExpressions.RegexOptions.CultureInvariant
+                            ||| System.Text.RegularExpressions.RegexOptions.NonBacktracking
+                        )
+                    )
+                    ->
+                    error "String does not match the required pattern."
+                | _ -> []
             | Any alternatives ->
                 if
                     alternatives
