@@ -42,12 +42,27 @@ module DiscoveryPolicy =
         yield ProjectPath.join path "morphir-workspace.json"
     ]
 
-    let private location path (snapshot: ProjectSnapshot) =
+    let private bindContent source content =
+        let bindDiagnostic (diagnostic: ConfigDiagnostic) = { diagnostic with Source = source }
+
+        match content with
+        | SourceContent.Available document ->
+            SourceContent.Available
+                { document with
+                    Source = source
+                    Diagnostics = List.map bindDiagnostic document.Diagnostics
+                }
+        | SourceContent.Invalid diagnostics ->
+            SourceContent.Invalid(List.map bindDiagnostic diagnostics)
+        | SourceContent.Missing -> SourceContent.Missing
+
+    let private location role path (snapshot: ProjectSnapshot) =
         let sources =
             candidates path
             |> List.choose (fun candidate ->
                 let source =
                     { identity candidate with
+                        Role = role
                         Order =
                             (if candidate.EndsWith("/morphir-workspace.json") then
                                  0
@@ -57,12 +72,6 @@ module DiscoveryPolicy =
 
                 match Map.tryFind candidate snapshot.Entries with
                 | Some(ProjectEntry.File content) ->
-                    let content =
-                        match content with
-                        | SourceContent.Available d ->
-                            SourceContent.Available { d with Source = source }
-                        | _ -> content
-
                     Some
                         {
                             Source = source
@@ -98,6 +107,11 @@ module DiscoveryPolicy =
                             Required = true
                         }
                 | _ -> None
+            )
+            |> List.map (fun input ->
+                { input with
+                    Content = bindContent input.Source input.Content
+                }
             )
             |> List.sortBy (fun source ->
                 int source.Source.Format, source.Source.Order, source.Source.Path
@@ -167,10 +181,16 @@ module DiscoveryPolicy =
             Path = path
             Values = ConfigTree.clean values
             Sources = sources
-            Diagnostics = diagnostics
+            Diagnostics =
+                diagnostics
+                |> List.map (fun diagnostic ->
+                    { diagnostic with
+                        Source = { diagnostic.Source with Role = role }
+                    }
+                )
         }
 
-    let private reports path (snapshot: ProjectSnapshot) =
+    let private reports role path (snapshot: ProjectSnapshot) =
         candidates path
         |> List.choose (fun candidate ->
             Map.tryFind candidate snapshot.Entries
@@ -189,7 +209,7 @@ module DiscoveryPolicy =
                         SourceStatus.Failed, "Primary path is a directory"
 
                 {
-                    Source = identity candidate
+                    Source = { identity candidate with Role = role }
                     Status = status
                     Contributed = false
                     Detail = detail
@@ -240,15 +260,55 @@ module DiscoveryPolicy =
         Diagnostics = []
     }
 
-    let private result start (root: ProjectLocation) workspace projects reports diagnostics = {
-        StartDirectory = start
-        Location = root.Path
-        Workspace = workspace
-        Root = root
-        Projects = projects
-        Sources = reports
-        Diagnostics = diagnostics
-    }
+    let private result
+        start
+        (root: ProjectLocation)
+        workspace
+        (projects: ProjectInfo list)
+        reports
+        diagnostics
+        =
+        let memberPaths =
+            projects
+            |> List.filter (fun project ->
+                project.Path
+                <> root.Path
+            )
+            |> List.collect (fun project ->
+                project.Path
+                :: candidates project.Path
+            )
+            |> Set.ofList
+
+        let bindIdentity (source: SourceIdentity) =
+            if Set.contains source.Path memberPaths then
+                { source with
+                    Role = SourceRole.MemberPrimary
+                }
+            else
+                source
+
+        {
+            StartDirectory = start
+            Location = root.Path
+            Workspace = workspace
+            Root = root
+            Projects = projects
+            Sources =
+                reports
+                |> List.map (fun (report: SourceReport) ->
+                    { report with
+                        Source = bindIdentity report.Source
+                    }
+                )
+            Diagnostics =
+                diagnostics
+                |> List.map (fun (diagnostic: ConfigDiagnostic) ->
+                    { diagnostic with
+                        Source = bindIdentity diagnostic.Source
+                    }
+                )
+        }
 
     // Segment glob matching is case-sensitive and independent of the native platform.
     let private segmentMatch (pattern: string) (value: string) =
@@ -270,12 +330,12 @@ module DiscoveryPolicy =
 
         loop 0 0
 
-    let private globMatch (pattern: string) (path: string) =
-        let split (s: string) =
-            s.Replace('\\', '/').Split('/', System.StringSplitOptions.RemoveEmptyEntries)
-            |> Array.toList
-            |> List.filter ((<>) ".")
+    let private globParts (path: string) =
+        path.Replace('\\', '/').Split('/', System.StringSplitOptions.RemoveEmptyEntries)
+        |> Array.toList
+        |> List.filter ((<>) ".")
 
+    let private globMatch (pattern: string) (path: string) =
         let rec loop patterns parts =
             match patterns, parts with
             | [], [] -> true
@@ -289,7 +349,22 @@ module DiscoveryPolicy =
             | pattern :: tail, part :: rest when segmentMatch pattern part -> loop tail rest
             | _ -> false
 
-        loop (split pattern) (if path = "." then [] else split path)
+        loop (globParts pattern) (globParts path)
+
+    // Match an observed directory prefix without requiring evidence from its children.
+    let private globMayMatch descendantsOnly pattern path =
+        let rec loop patterns parts =
+            match patterns, parts with
+            | remaining, [] ->
+                not descendantsOnly
+                || not (List.isEmpty remaining)
+            | "**" :: tail, _ :: rest ->
+                loop tail parts
+                || loop patterns rest
+            | pattern :: tail, part :: rest when segmentMatch pattern part -> loop tail rest
+            | _ -> false
+
+        loop (globParts pattern) (globParts path)
 
     let private isGlob (pattern: string) =
         pattern.Contains('*')
@@ -355,9 +430,10 @@ module DiscoveryPolicy =
                     diagnostics
             )
 
-        let rec inventory root pending found diagnostics =
+        let rec inventory mayVisit pending found diagnostics =
             match pending with
             | [] -> Ok(List.rev found, diagnostics)
+            | path :: tail when not (mayVisit path) -> inventory mayVisit tail found diagnostics
             | path :: tail ->
                 match Map.tryFind path snapshot.Entries with
                 | None -> Error [ path ]
@@ -372,7 +448,7 @@ module DiscoveryPolicy =
                         |> List.sort
 
                     inventory
-                        root
+                        mayVisit
                         (safe
                          @ tail)
                         (path
@@ -380,14 +456,14 @@ module DiscoveryPolicy =
                         diagnostics
                 | Some(ProjectEntry.Failure message) ->
                     inventory
-                        root
+                        mayVisit
                         tail
                         found
                         (diagnostics
                          @ [
                              diagnostic path "discovery.read_error" DiagnosticSeverity.Error message
                          ])
-                | _ -> inventory root tail found diagnostics
+                | _ -> inventory mayVisit tail found diagnostics
 
         let members start (root: ProjectLocation) evidence diagnostics =
             let basePath =
@@ -437,6 +513,25 @@ module DiscoveryPolicy =
                 excludes
                 |> List.map (ProjectPath.join basePath)
 
+            let mayVisit path =
+                let excluded =
+                    absoluteExcludes
+                    |> List.exists (fun pattern -> globMatch pattern path)
+
+                let excludedSubtree =
+                    absoluteExcludes
+                    |> List.exists (fun pattern ->
+                        pattern.EndsWith("/**", System.StringComparison.Ordinal)
+                        && globMatch pattern path
+                    )
+
+                (absolutePatterns
+                 |> List.exists (fun pattern -> globMayMatch false pattern path))
+                && (not excluded
+                    || (not excludedSubtree
+                        && (absolutePatterns
+                            |> List.exists (fun pattern -> globMayMatch true pattern path))))
+
             let outside =
                 basePath
                 :: literals
@@ -465,7 +560,7 @@ module DiscoveryPolicy =
             else
                 let directories =
                     if not globRoots.IsEmpty then
-                        inventory basePath globRoots [] []
+                        inventory mayVisit globRoots [] []
                     else
                         Ok([], [])
 
@@ -514,7 +609,8 @@ module DiscoveryPolicy =
                             |> List.choose (fun path ->
                                 let memberLocation =
                                     match Map.find path snapshot.Entries with
-                                    | ProjectEntry.Directory _ -> location path snapshot
+                                    | ProjectEntry.Directory _ ->
+                                        location SourceRole.MemberPrimary path snapshot
                                     | _ -> emptyLocation path
 
                                 let literal = List.contains path literals
@@ -615,7 +711,9 @@ module DiscoveryPolicy =
 
                         let memberEvidence =
                             paths
-                            |> List.collect (fun path -> reports path snapshot)
+                            |> List.collect (fun path ->
+                                reports SourceRole.MemberPrimary path snapshot
+                            )
 
                         complete
                             start
@@ -637,11 +735,11 @@ module DiscoveryPolicy =
             if not requests.IsEmpty then
                 DiscoveryStep.Requests requests
             else
-                let current = location path snapshot
+                let current = location SourceRole.RootPrimary path snapshot
 
                 let evidence =
                     evidence
-                    @ reports path snapshot
+                    @ reports SourceRole.RootPrimary path snapshot
 
                 let diagnostics =
                     diagnostics
