@@ -2,6 +2,7 @@
 
 | PRD | Status | Phase | Current task |
 | --- | --- | --- | --- |
+| [C# code generation](./add-csharp-code-generation.md) | In Progress | Compiler-host foundation | In-memory API and packaged modern-host smoke, #474 |
 | [Immutable C# SDK](./add-immutable-csharp-sdk.md) | Implementation landed | Archive follow-up | #470 landed; spec sync/archive prepared; coordinator cleanup pending |
 | [.NET SDKs and C# generation](dotnet-code-generation.md) | In Progress | SDK archive follow-up | Both runtimes landed; land combined archive PR and finish coordinator cleanup |
 | [Establish .NET SDK conformance](establish-dotnet-sdk-conformance.md) | In Progress | Cleanup pending | #462 and archive #463 landed; coordinator retains policy-blocked directory cleanup, #460 |

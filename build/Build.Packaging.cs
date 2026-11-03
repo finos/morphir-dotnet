@@ -70,9 +70,18 @@ partial class Build
                 .SetOutputDirectory(OutputDir)
                 .SetProperty("Version", versionString));
 
+            foreach (var project in new[] { MorphirModelsProject, MorphirCodeGenerationCSharpProject })
+            {
+                DotNetPack(s => s
+                    .SetProject(project)
+                    .SetConfiguration(Configuration)
+                    .SetOutputDirectory(OutputDir)
+                    .SetProperty("Version", versionString));
+            }
+
             // Validate library packages
             Serilog.Log.Information("Validating library packages...");
-            var libraryProjects = new[] { "Morphir.Core", "Morphir.Tooling", "Morphir", "Morphir.SDK.FSharp", "Morphir.SDK.CSharp" };
+            var libraryProjects = new[] { "Morphir.Core", "Morphir.Tooling", "Morphir", "Morphir.SDK.FSharp", "Morphir.SDK.CSharp", "Morphir.Models", "Morphir.CodeGeneration.CSharp" };
             foreach (var project in libraryProjects)
             {
                 var packagePath = PathHelper.GetLibraryPackagePath(project, versionString, OutputDir);

@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CRITICAL**: Removed contradictory Claude co-author example from AGENTS.md and strengthened CLA compliance warnings in both AGENTS.md and CLAUDE.md (issue #270)
 
 ### Added
+- In-memory C# generation foundation and packaged modern compiler-host verification, tracked in [#474](https://github.com/finos/morphir-dotnet/issues/474).
 - Synchronized and archived the landed C# and F# SDK runtime specifications, with stable API handoff paths and separate runtime delivery evidence; archival PR landing and coordinator cleanup remain pending ([#464](https://github.com/finos/morphir-dotnet/issues/464), [#465](https://github.com/finos/morphir-dotnet/issues/465)).
 - Independent immutable Morphir.SDK.CSharp runtime for the bounded .NET SDK contract, with checked scalars, persistent collections and public package consumer verification ([#464](https://github.com/finos/morphir-dotnet/issues/464))
 - Canonical `Morphir.SDK.FSharp` runtime package and dependency-only `Morphir.SDK` compatibility package, preserving existing runtime identities, with packaged source/binary checks and the frozen F# conformance adapter ([#465](https://github.com/finos/morphir-dotnet/issues/465))

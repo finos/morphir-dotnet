@@ -74,6 +74,11 @@ and exit codes. Editing and migration remain planned. See the
 C#/.NET public types. See the [C# SDK guide](docs/content/docs/sdk/csharp/_index.md)
 for its bounded operation contract and package usage.
 
+The in-memory [C# generation foundation](docs/content/docs/backends/csharp/_index.md)
+accepts typed models and explicit numeric language profiles. Broader lowering is
+in progress under [#474](https://github.com/finos/morphir-dotnet/issues/474).
+Its future CLI adapter is a separate initiative.
+
 ## Getting Started
 
 ### Building from source

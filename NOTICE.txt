@@ -92,3 +92,11 @@ This docs-only contribution synchronizes and archives the landed SDK runtime
 specifications, repairs handoff links and records delivery evidence. It adds no
 third-party source, license or restriction. All existing copyright, attribution,
 license and original-byte evidence notices remain applicable and are retained.
+
+Typed C# generation foundation (#474)
+
+Copyright 2026 FINOS contributors.
+
+The typed C# generator, tests and documentation are original contributions under
+this repository's Apache-2.0 license. No upstream implementation source is copied.
+All existing copyright, attribution and original evidence notices are retained.

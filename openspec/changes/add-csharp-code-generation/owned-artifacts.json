@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "change": "add-csharp-code-generation",
+  "checkout": "C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-1d28e9ab",
+  "branch": "t3/add-csharp-code-generation",
+  "temporaryRoots": [
+    {
+      "path": "C:/Temp/morphir-csharp-generator-1d28e9ab-20261103",
+      "owner": "generator lead",
+      "contents": "Captured logs/process manifests, issue body, validation wrapper, preserved failed and successful package hosts, private package caches, local proof feeds, coverage tool 18.7.0 and coverage reports"
+    }
+  ],
+  "workspaceOutputs": [
+    "C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-1d28e9ab/artifacts",
+    "C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-1d28e9ab/build/bin",
+    "C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-1d28e9ab/build/obj",
+    "All ignored bin/obj/TestResults outputs beneath this exact owned checkout's src and tests directories"
+  ],
+  "toolchains": [],
+  "auxiliaries": [],
+  "runningOwnedHelpers": [],
+  "sharedCachesNotOwned": [
+    "C:/Users/damre/.nuget/packages",
+    "Installed stable .NET SDK and reference packs",
+    "Shared repository Git object store"
+  ],
+  "cleanupOwner": "root coordinator after delivery and stopped worker",
+  "untouchedRootCleanupLimitations": ["t3-1e3c6fbe", "t3-eff883da"]
+}
