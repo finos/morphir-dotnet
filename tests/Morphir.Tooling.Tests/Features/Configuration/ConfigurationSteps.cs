@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text.Json;
 using Json.Schema;
 using FluentAssertions;
+using Morphir.Configuration;
 
 namespace Morphir.Tooling.Tests.Features.Configuration;
 
@@ -195,7 +196,7 @@ public sealed class ConfigurationSteps : IDisposable
     {
         var origin = _json!.RootElement.GetProperty("entries")[0].GetProperty("origins")[0].GetProperty("source");
         origin.GetProperty("role").GetString().Should().Be("MemberPrimary");
-        origin.GetProperty("path").GetString().Should().Be(Path.Combine(_root, "app", "morphir.toml"));
+        origin.GetProperty("path").GetString().Should().Be(ProjectPath.join(_root, "app/morphir.toml"));
     }
 
     [Then("human inspection succeeds without exposing sensitive values")]
@@ -210,7 +211,7 @@ public sealed class ConfigurationSteps : IDisposable
     public void Explanation()
     {
         var contributions = _json!.RootElement.GetProperty("contributions").EnumerateArray().ToArray();
-        contributions.Select(c => c.GetProperty("source").GetProperty("path").GetString()).Should().Contain(Path.Combine(_root, "morphir.toml")).And.Contain(Path.Combine(_root, "app", "morphir.toml"));
+        contributions.Select(c => c.GetProperty("source").GetProperty("path").GetString()).Should().Contain(ProjectPath.join(_root, "morphir.toml")).And.Contain(ProjectPath.join(_root, "app/morphir.toml"));
         contributions.Last().GetProperty("winner").GetBoolean().Should().BeTrue();
     }
 

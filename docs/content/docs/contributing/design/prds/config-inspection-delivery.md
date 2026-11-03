@@ -178,3 +178,22 @@ Logs and receipts are owned under `parent-review`, including `host-final-build.l
 OpenSpec verification was refreshed after the host fixes and passes all 22
 active/spec items and both extension tests. Current-head CI and the independent
 query review remain pending before the authorized landing and cleanup.
+
+
+### Windows CI follow-up
+
+The failed Windows job in run `41624211494` used the superseded `45196ca` head.
+Twenty-one non-isolated subprocess cases failed with C:/ProgramData read errors
+from the D: invocation-volume authorization bug, fixed in `740aeba`. One isolated
+explanation case passed execution but compared canonical '/' source paths with
+native Windows backslash paths. Both the explanation and origin assertions now
+construct expected canonical paths through `ProjectPath.join`. This changes only
+test expectations; public report paths retain the shared canonical contract.
+The Ubuntu/macOS jobs were cancelled by the matrix's default fail-fast behavior
+after Windows failed. Current-head checks must qualify the replacement commit;
+none of those older results are treated as current-head evidence. The downloaded
+failure log is retained under `parent-review/ci-windows-45196ca.log`.
+
+The affected explanation and origin subprocess cases each pass after this
+test-only correction, and the tooling test build, changed-file formatter and
+whitespace checks pass. Native Windows confirmation remains CI-owned.
