@@ -261,7 +261,7 @@
           "Dunet": "[1.16.2, )",
           "Generator.Equals": "[3.3.0, )",
           "LanguageExt.Core": "[5.0.0-beta-77, )",
-          "Vogen": "[8.0.5, )"
+          "Vogen": "[8.0.7, )"
         }
       },
       "Dunet": {
@@ -317,9 +317,9 @@
       },
       "Vogen": {
         "type": "CentralTransitive",
-        "requested": "[8.0.5, )",
-        "resolved": "8.0.5",
-        "contentHash": "hUGafk0LpUn3ooZNOOczByhVSGqBaI96bCn0DkreSd2bwHGrMfdRoCqNrB4w0/y5bufyYaABqQ8wWBPgx5QdNw=="
+        "requested": "[8.0.7, )",
+        "resolved": "8.0.7",
+        "contentHash": "0DrJ2ZPEGoJlzwqhum2LaZJ2FzJzgy5HP0km+XYL2MC/hS4Sn5/C35oRyob146Yjlf5xit2tmPx5xhI2BXkhLw=="
       }
     }
   }

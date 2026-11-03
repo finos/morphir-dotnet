@@ -65,7 +65,7 @@
       .NET libraries. Microsoft's October 2026 CVRF lists PyPI/crates.io fixes
       only. Dependency-Check conflates the language-specific CPEs.
       The separate real .NET vulnerability CVE-2026-85925 is NOT suppressed:
-      Certificates is upgraded to 4.9.1, Keys to 4.10.1 and Secrets to 4.11.1,
+      Certificates is upgraded to 4.9.1, Keys to 4.10.2 and Secrets to 4.11.1,
       the fixed NuGet versions in Microsoft's CVRF.
       Review owner: @DamianReeves; pending PR review.
       Verification date: 2026-10-31; next quarterly review: 2027-01-31.
@@ -74,7 +74,7 @@
       https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-85925
       https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-Oct
     ]]></notes>
-    <packageUrl regex="true">^pkg:generic/Azure\.Security\.KeyVault\.(Certificates@4\.9\.1|Keys@4\.10\.1|Secrets@4\.11\.1)$</packageUrl>
+    <packageUrl regex="true">^pkg:generic/Azure\.Security\.KeyVault\.(Certificates@4\.9\.1|Keys@4\.10\.2|Secrets@4\.11\.1)$</packageUrl>
     <cve>CVE-2026-85922</cve>
   </suppress>
 
