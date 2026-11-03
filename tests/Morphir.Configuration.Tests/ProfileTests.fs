@@ -149,4 +149,19 @@ let tests =
             let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty DocumentDefaults.profileOptions
             Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.shape" && diagnostic.KeyPath = [ "profiles"; "groups"; "production" ])) "a scalar cannot replace a group member list"
         }
+        test "inactive group and member names are validated" {
+            let groups = ConfigValue.Object (Map.ofList [ "Bad", names [ "../unsafe" ] ])
+            let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty DocumentDefaults.profileOptions
+            Expect.equal (result.Diagnostics |> List.filter (fun diagnostic -> diagnostic.Code = "config.profiles.name") |> List.length) 2 "group names and their members use the same name boundary"
+        }
+        test "inactive group member counts are bounded" {
+            let groups = ConfigValue.Object (Map.ofList [ "production", names (List.replicate 65 "dev") ])
+            let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.members")) "65 members exceed the 64-member declaration bound even when duplicated"
+        }
+        test "inactive group definition counts are bounded" {
+            let groups = [ for index in 1 .. 65 -> "g" + string index, names [] ] |> Map.ofList |> ConfigValue.Object
+            let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.groups")) "65 groups exceed the declaration bound"
+        }
     ]

@@ -135,9 +135,17 @@ module Profiles =
                 | Some (ConfigValue.Object groups) ->
                     groups |> Map.toList |> List.collect (fun (name, members) ->
                         let path = [ "profiles"; "groups"; name ]
+                        let origin = diagnostic sources path "" ""
+                        let validateNames names =
+                            nameErrors origin.Source path names
+                            |> List.map (fun error -> { error with Position = origin.Position })
+                        let groupNameErrors = validateNames [ name ]
                         match members with
-                        | ConfigValue.Array items when items |> List.forall (function ConfigValue.String _ -> true | _ -> false) -> []
-                        | _ -> [ diagnostic sources path "config.profiles.shape" "Profile group members require an array of literal strings." ])
+                        | ConfigValue.Array items when items |> List.forall (function ConfigValue.String _ -> true | _ -> false) ->
+                            groupNameErrors
+                            @ (items |> List.choose (function ConfigValue.String memberName -> Some memberName | _ -> None) |> validateNames)
+                            @ (if items.Length > 64 then [ diagnostic sources path "config.profiles.members" "Profile groups permit at most 64 members." ] else [])
+                        | _ -> groupNameErrors @ [ diagnostic sources path "config.profiles.shape" "Profile group members require an array of literal strings." ])
                 | Some _ -> [ diagnostic sources [ "profiles"; "groups" ] "config.profiles.shape" "Profile groups requires a table." ]
             arrayErrors @ unknownErrors @ groupErrors
         | Some _ -> [ diagnostic sources [ "profiles" ] "config.profiles.shape" "Profiles requires a table." ]
@@ -186,10 +194,13 @@ module Profiles =
                         else
                             heights <- Map.add name height heights
                             Ok height)
-        groups
-        |> Map.toList
-        |> List.tryPick (fun (name, _) -> match visit [] name with Error error -> Some error | Ok _ -> None)
-        |> Option.toList
+        if groups.Count > 64 then
+            [ diagnostic sources [ "profiles"; "groups" ] "config.profiles.groups" "Profile controls permit at most 64 groups." ]
+        else
+            groups
+            |> Map.toList
+            |> List.tryPick (fun (name, _) -> match visit [] name with Error error -> Some error | Ok _ -> None)
+            |> Option.toList
 
     let private expand value roots =
         let mutable memo = Map.empty
