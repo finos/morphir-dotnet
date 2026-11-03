@@ -5,7 +5,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 1. Campaign setup
 
-- [ ] 1.1 Prepare an owned worktree/branch after discovery and config editing land; verify prerequisite landed SHAs, clean status, and campaign ownership/tracking.
+- [x] 1.1 Prepare an owned worktree/branch after discovery and config editing land; verify prerequisite landed SHAs, clean status, and campaign ownership/tracking.
 
 ## 2. Mapping and loss accounting
 
