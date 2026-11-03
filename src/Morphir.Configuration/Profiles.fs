@@ -2,6 +2,33 @@ namespace Morphir.Configuration
 
 /// Plans profile activation from explicit inputs without reading profile files.
 module Profiles =
+    let private asciiTrim (text: string) = text.Trim([| ' '; '\t'; '\n'; '\r'; '\u000b'; '\u000c' |])
+
+    let private isProfileName (name: string) =
+        not (System.String.IsNullOrEmpty name)
+        && name.Length <= 64
+        && name.[0] >= 'a' && name.[0] <= 'z'
+        && name |> Seq.forall (fun character ->
+            (character >= 'a' && character <= 'z')
+            || (character >= '0' && character <= '9')
+            || character = '_' || character = '-')
+
+    let private nameErrors source path names =
+        names
+        |> List.choose (fun name ->
+            if isProfileName name then None
+            else
+                Some
+                    { Code = "config.profiles.name"
+                      Message = "Profile names must match [a-z][a-z0-9_-]{0,63}: " + name
+                      Severity = DiagnosticSeverity.Error
+                      Source = source
+                      KeyPath = path
+                      Position = None })
+
+    let private selectorSource role name =
+        { Path = name; Role = role; Format = DocumentFormat.Memory; Order = 0; Profile = None }
+
     let private baseDocuments (sources: SourceInput list) =
         sources
         |> List.filter (fun input -> input.Source.Role = SourceRole.RootPrimary)
@@ -172,7 +199,7 @@ module Profiles =
     let plan (sources: SourceInput list) (environment: Map<string, string>) (options: ProfileOptions) =
         match options.Selection with
         | ProfileSelection.Automatic when
-            environment |> Map.tryFind "MORPHIR_PROFILES" |> Option.exists System.String.IsNullOrWhiteSpace ->
+            environment |> Map.tryFind "MORPHIR_PROFILES" |> Option.exists (fun text -> asciiTrim text = "") ->
             { Enabled = false
               Active = []
               Diagnostics = [] }
@@ -181,15 +208,16 @@ module Profiles =
             let includes = value |> readNames "include" |> Option.defaultValue []
             { Enabled = true
               Active = expand value (includes @ names)
-              Diagnostics = authorityErrors sources environment @ controlErrors sources value @ graphErrors sources value options }
+              Diagnostics =
+                nameErrors (selectorSource SourceRole.Explicit "<profiles>") [ "profiles" ] names
+                @ authorityErrors sources environment @ controlErrors sources value @ graphErrors sources value options }
         | ProfileSelection.Automatic ->
             let environmentNames =
                 environment
                 |> Map.tryFind "MORPHIR_PROFILES"
                 |> Option.map (fun value ->
                     value.Split(',')
-                    |> Array.map (fun name -> name.Trim())
-                    |> Array.filter (fun name -> name <> "")
+                    |> Array.map asciiTrim
                     |> Array.toList)
             let baseValue = baseValue sources
             let baseNames =
@@ -204,7 +232,9 @@ module Profiles =
                     includes @ (selected |> Option.defaultValue baseNames)
             { Enabled = not names.IsEmpty
               Active = expand baseValue names
-              Diagnostics = authorityErrors sources environment @ controlErrors sources baseValue @ graphErrors sources baseValue options }
+              Diagnostics =
+                (environmentNames |> Option.map (nameErrors (selectorSource SourceRole.Environment "MORPHIR_PROFILES") [ "profiles" ]) |> Option.defaultValue [])
+                @ authorityErrors sources environment @ controlErrors sources baseValue @ graphErrors sources baseValue options }
         | ProfileSelection.Disabled ->
             { Enabled = false
               Active = []

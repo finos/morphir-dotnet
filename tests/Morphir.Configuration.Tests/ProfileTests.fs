@@ -125,4 +125,17 @@ let tests =
             let result = Profiles.plan [ root [ "typo", names [ "dev" ] ] ] Map.empty DocumentDefaults.profileOptions
             Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.unknown" && diagnostic.KeyPath = [ "profiles"; "typo" ])) "misspelled controls must not disappear"
         }
+        test "explicit names reject unsafe and interpolated spellings" {
+            let options = { DocumentDefaults.profileOptions with Selection = ProfileSelection.Names [ "../secret"; "${PROFILE}"; "Upper"; "" ] }
+            let result = Profiles.plan [] Map.empty options
+            Expect.equal (result.Diagnostics |> List.filter (fun diagnostic -> diagnostic.Code = "config.profiles.name") |> List.length) 4 "each supplied name is a literal lowercase ASCII identifier"
+        }
+        test "environment CSV rejects empty elements with variable origin" {
+            let result = Profiles.plan [] (Map.ofList [ "MORPHIR_PROFILES", "dev,,metrics" ]) DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.name" && diagnostic.Source.Path = "MORPHIR_PROFILES")) "empty elements fail at the selector boundary"
+        }
+        test "environment trimming is ASCII only" {
+            let result = Profiles.plan [] (Map.ofList [ "MORPHIR_PROFILES", "\u00a0" ]) DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.name")) "Unicode whitespace is an invalid name rather than a disable control"
+        }
     ]
