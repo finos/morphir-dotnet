@@ -12,25 +12,54 @@ on and off; host parity includes the retained ownership restrictions and diagnos
 Portable Windows inputs also exercise machine sources on another drive and a
 redirected UNC share through separate authorized hosts.
 
-On macOS use a physical temporary directory for the filesystem boundary checks:
+The host also exercises configuration editing outside the CLI. It patches comments,
+BOM/CRLF text, inline fields and typed complete composites, preserves signed zero,
+and proves identical edits and unrepresentable nulls do not change bytes. A
+read-only in-memory transaction host throws if preview attempts any write or
+writer coordination. Native checks cover YAML-to-TOML promotion, inherited-value
+origins after unset, no-op timestamps, explicit YAML refusal, source and absent
+alternate-primary preconditions, staging/install/rollback faults and external
+writer conflicts.
+
+Incomplete recovery must return owned backup/journal metadata and preserve the
+uncertain installed bytes. The host verifies the candidate and backup before
+simulating manual recovery, then removes the returned owned artifacts. If a check
+fails while recovery remains pending, the host retains that temporary directory
+and prints its location to stderr. These checks qualify per-file installation;
+they make no multi-file group-atomicity claim.
+
+On macOS use a physical campaign temporary directory. Run the following publishes
+and executions sequentially. The reflection serialization switch stays disabled
+in all three modes:
 
 ```sh
-mkdir -p /private/tmp/morphir-configuration-smoke
-export TMPDIR=/private/tmp/morphir-configuration-smoke
+mkdir -p /private/tmp/morphir-config-editing/smoke/tmp
+export TMPDIR=/private/tmp/morphir-config-editing/smoke/tmp
 export TEMP="$TMPDIR" TMP="$TMPDIR"
+
+DOTNET_PROCESSOR_COUNT=2 dotnet publish tests/Morphir.Configuration.IO.Smoke \
+  -c Release -r osx-arm64 -m:1 -p:BuildInParallel=false \
+  -p:PublishTrimmed=false -p:PublishAot=false \
+  -p:JsonSerializerIsReflectionEnabledByDefault=false \
+  -o /private/tmp/morphir-config-editing/smoke/managed
+/private/tmp/morphir-config-editing/smoke/managed/Morphir.Configuration.IO.Smoke \
+  --fixtures tests/Fixtures/Configuration
+
 DOTNET_PROCESSOR_COUNT=2 dotnet publish tests/Morphir.Configuration.IO.Smoke \
   -c Release -r osx-arm64 -m:1 -p:BuildInParallel=false \
   -p:PublishTrimmed=true -p:ILLinkTreatWarningsAsErrors=false \
-  -o /tmp/morphir-config-trimmed
-/tmp/morphir-config-trimmed/Morphir.Configuration.IO.Smoke \
+  -p:JsonSerializerIsReflectionEnabledByDefault=false \
+  -o /private/tmp/morphir-config-editing/smoke/trimmed
+/private/tmp/morphir-config-editing/smoke/trimmed/Morphir.Configuration.IO.Smoke \
   --fixtures tests/Fixtures/Configuration
 
 DOTNET_PROCESSOR_COUNT=2 dotnet publish tests/Morphir.Configuration.IO.Smoke \
   -c Release -r osx-arm64 -m:1 -p:BuildInParallel=false \
   -p:PublishAot=true -p:PublishTrimmed=true \
   -p:ILLinkTreatWarningsAsErrors=false -p:TrimmerSingleWarn=false \
-  -o /tmp/morphir-config-native
-/tmp/morphir-config-native/Morphir.Configuration.IO.Smoke \
+  -p:JsonSerializerIsReflectionEnabledByDefault=false \
+  -o /private/tmp/morphir-config-editing/smoke/native
+/private/tmp/morphir-config-editing/smoke/native/Morphir.Configuration.IO.Smoke \
   --fixtures tests/Fixtures/Configuration
 ```
 
@@ -57,3 +86,14 @@ serialization or generic F# pretty-printing under AOT.
 The delivery journal records exact commands, results, warning limitations and
 checkpoint SHAs. A future dependency update must rerun this host and fixture
 suite before claiming equivalent runtime evidence.
+
+## Editing managed checkpoint
+
+The local development build passes with zero warnings/errors. Its executable
+passes all 37 new editing checks: 9 editor, 15 shared planning/application and
+13 transaction checks. The same invocation retains all 228 grammar checks and
+26 pinned Morphir documents. Evidence is under
+`/private/tmp/morphir-config-editing/smoke/managed-build.log` and
+`managed-run.log`. This checkpoint is a managed build/run; published managed,
+trimmed and native results belong in the campaign delivery journal after running
+the commands above.

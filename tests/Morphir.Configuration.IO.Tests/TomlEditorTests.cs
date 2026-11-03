@@ -245,5 +245,41 @@ public sealed class TomlEditorTests
         }
     }
 
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void CompleteInlineDottedSubtreesReplaceOrRemoveAllTheirEntries(bool unset)
+    {
+        const string text = "custom = { a.b = 1, a.c = 2, keep = 'original' } # retain\n";
+        var replacement = ConfigValue.NewObject(Microsoft.FSharp.Collections.MapModule.OfSeq(new[] { Tuple.Create("replacement", ConfigValue.NewBoolean(true)) }));
+        var result = TomlEditor.Edit(text, ["custom", "a"], unset ? null : replacement);
+        result.Success.Should().BeTrue(result.ErrorCode);
+        result.Text.Should().Contain("keep = 'original'").And.EndWith(" } # retain\n");
+        var expected = unset ? "custom = { keep = 'original' }" : "custom = { a = { replacement = true }, keep = 'original' }";
+        Read(result.Text).Should().Be(Read(expected));
+    }
+
+    [Test]
+    public void InlineArrayCommentsAndPartialMultilineStringQuotesStayUntouched()
+    {
+        const string text = "custom = { items = [1, # keep array\n 2], keep = true }\ntext = \"\"\"single \" quote\nkept\"\"\"\n";
+        var result = TomlEditor.Edit(text, ["custom", "keep"], ConfigValue.NewBoolean(false));
+        result.Success.Should().BeTrue(result.ErrorCode);
+        result.Text.Should().Be(text.Replace("keep = true", "keep = false", StringComparison.Ordinal));
+    }
+
+    [Test]
+    public void StringControlEscapesAndUnrepresentableUnicodeAreVerified()
+    {
+        var controls = TomlEditor.Edit("value='old'\n", ["value"], ConfigValue.NewString("a\tb\rc\n"));
+        controls.Success.Should().BeTrue(controls.ErrorCode);
+        controls.Text.Should().Be("value=\"a\\tb\\rc\\n\"\n");
+        const string original = "value='old' # unchanged\n";
+        var invalid = TomlEditor.Edit(original, ["value"], ConfigValue.NewString("\uD800"));
+        invalid.Success.Should().BeFalse();
+        invalid.ErrorCode.Should().Be("config.edit.verification");
+        invalid.Text.Should().Be(original);
+    }
+
     private static ConfigValue Read(string text) => ((SourceContent.Available)ConfigurationReader.ReadText("fixture.toml", text).Content).Item.Raw;
 }

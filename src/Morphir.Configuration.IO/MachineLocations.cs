@@ -24,7 +24,7 @@ public static partial class ProjectSystem
         throw new ArgumentException("Machine locations must use absolute paths.", nameof(path));
     }
 
-    private static MachineLocationInput ResolveMachineLocations(MachineLocationInput machine, string startDirectory)
+    internal static MachineLocationInput ResolveMachineLocations(MachineLocationInput machine, string startDirectory)
     {
         var environment = machine.Environment;
         if (environment.TryGetValue("MORPHIR_HOME", out var home) && !string.IsNullOrEmpty(home) && !ProjectPath.isAbsolute(home))

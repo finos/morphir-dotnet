@@ -132,3 +132,9 @@ explicit files and supplied environment/explicit values.
 See the [configuration guide](../../docs/content/guides/configuration.md) for
 layouts, membership and selection rules. Legacy Git-first tooling entry points
 remain unchanged. Discovery does not edit configuration or execute commands.
+
+## Editing boundary
+
+`ConfigurationEditService` plans one scoped TOML change over explicitly supplied project and storage hosts. `Plan` performs no writer acquisition or staging. `Apply` delegates to `ConfigurationTransaction`, which checks observed inputs, coordinates overlapping native writers, stages on the destination filesystem and installs each file atomically. `TomlEditor` patches source spans and verifies the complete raw candidate through the unchanged canonical reader. Byte encoding/BOM and unrelated presentation are retained.
+
+Use the [shared editing reference](../../docs/content/docs/configuration/editing.md) for pure F# planning, embedded and native consumption, typed values, effective winners, preconditions and recovery. The transaction service does not reuse generated-output publication, prune user files or promise multi-file group atomicity. Native mutex coordination is machine-local; custom hosts own stronger store-specific coordination.

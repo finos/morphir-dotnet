@@ -481,4 +481,28 @@ let tests =
                 (Some(text "private-value"))
                 "canonical application value retained separately"
         }
+        test "raw references redact through the shared presentation entry point" {
+            let raw =
+                obj [
+                    "reference", obj [ "command", ConfigValue.Array [ text "never-run" ] ]
+                    "safe", text "visible"
+                ]
+
+            let redacted = Editing.redactValue [ "custom" ] raw
+
+            Expect.equal
+                (ConfigTree.tryFind [ "reference" ] redacted)
+                (Some(text "[REDACTED]"))
+                "opaque reference"
+
+            Expect.equal
+                (ConfigTree.tryFind [ "safe" ] redacted)
+                (Some(text "visible"))
+                "ordinary value"
+
+            Expect.equal
+                (Editing.parseValue EditValueType.Array "[\"one\",{\"label\":\"two\"}]")
+                (Ok(ConfigValue.Array [ text "one"; obj [ "label", text "two" ] ]))
+                "nested string inputs"
+        }
     ]
