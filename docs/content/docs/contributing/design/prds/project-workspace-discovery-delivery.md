@@ -40,3 +40,29 @@ parent landing and cleanup receipts exist. Future campaigns remain active.
   passed. Expanded platform tests ran 14 cases with 4 pass, 7 fail, 3 error;
   after implementation 14/14 passed. Overlay/ambiguity missing APIs were observed
   red before implementation. Builds are serialized by the primary worker.
+
+## Adapter and loading checkpoints
+
+- `bd325c2` is an external checkpoint of the then-current files, followed by owned
+  `db17ca1`. Both are preserved. The source-planner and documentation helpers
+  confirm they ran no staging or commit commands.
+- Native adapter parity/link tests first failed compilation for the missing
+  filesystem adapter; after implementation adapter 112/112 passed. Tests compare
+  complete immutable discovery and selection results across native and memory
+  hosts, then compare complete loading results as well.
+- Loading first failed compilation for the absent API and options. After
+  implementation adapter 121/121 passed. Pure core passed 124/124, including the
+  new platform/overlay planner's 28 cases and a resolver ordering regression.
+  That regression failed at runtime with workspace personal TOML beating member
+  personal YAML. The separate member-personal stage now wins across formats.
+  The earlier substring-only Expecto filter selected zero tests; the recorded
+  red evidence reran the full `Resolution` list and ran 31 cases, 30 pass/1 fail.
+- Canonical schema failures, requesting below member links and member-personal
+  workspace output relocation produced 4 red failures, then 125/125 passed.
+  Isolation with supplied machine sources produced 1 red failure, then 127/127
+  passed. Directory enumeration failure lacked source evidence in a 1/128 red
+  run; after implementation adapter 128/128 passed. Focused builds have zero
+  warnings/errors. Native directory probes never open discovered links.
+- Implementation tasks 2.1 through 3.2 are fulfilled. Apply instructions were
+  refreshed after every checkbox update. Broader compatibility, runtime,
+  coverage, formatting and final archive qualification remain pending.

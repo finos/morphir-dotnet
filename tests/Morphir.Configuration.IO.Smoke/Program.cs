@@ -131,7 +131,35 @@ try
     var profileResult = ConfigurationLoader.LoadAndResolve(Input([], ProfileSelection.NewNames(List(["postgres", "metrics"]))),
         [new ConfigurationCandidate(postgres.Source, () => postgres), new ConfigurationCandidate(metrics.Source, () => metrics)]);
     Check(At(profileResult.Effective, "custom", "winner").Equals(ConfigValue.NewString("workspace metrics")), "Profile name precedence failed");
-    Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
+    var discoveryRoot = ProjectPath.normalize(Path.Combine(Path.GetTempPath(), "morphir-discovery-smoke-" + Guid.NewGuid().ToString("N")));
+    var discoveryFiles = new Dictionary<string, string>
+    {
+        [discoveryRoot + "/morphir.toml"] = "[workspace]\nmembers=['packages/*']\nout_dir='generated'\n[profiles]\nactive=['ci']",
+        [discoveryRoot + "/packages/app/.config/morphir/config.yml"] = "project: {name: App}\ncustom: {value: primary}",
+        [discoveryRoot + "/packages/app/.config/morphir/config.profile.ci.toml"] = "[custom]\nvalue='profile'",
+        [discoveryRoot + "/packages/app/.config/morphir/config.user.toml"] = "[custom]\nvalue='personal'",
+        [discoveryRoot + "/packages/app/src/input.elm"] = "module Input exposing (..)"
+    };
+    try
+    {
+        foreach (var (path, text) in discoveryFiles) { Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllText(path, text); }
+        var memoryTree = new InMemoryProjectTree(discoveryRoot, discoveryFiles);
+        var nativeTree = new FileSystemProjectTree(discoveryRoot);
+        var memoryDiscovery = ProjectSystem.Discover(memoryTree, discoveryRoot + "/packages/app/src/input.elm");
+        var nativeDiscovery = ProjectSystem.Discover(nativeTree, discoveryRoot + "/packages/app/src/input.elm");
+        Check(memoryDiscovery.Discovery.Equals(nativeDiscovery.Discovery) && memoryDiscovery.Selection.Equals(nativeDiscovery.Selection), "Native/mounted discovery evidence differs");
+        Check(nativeDiscovery.Discovery.Location == discoveryRoot && nativeDiscovery.Selection.Projects.Single().Name.Value == "App", "Workspace/member selection failed");
+        var nativeLoaded = ProjectSystem.Load(nativeTree, nativeDiscovery.Discovery, nativeDiscovery.Selection.Projects.Single(), new ProjectLoadOptions { Isolated = true });
+        var memoryLoaded = ProjectSystem.Load(memoryTree, memoryDiscovery.Discovery, memoryDiscovery.Selection.Projects.Single(), new ProjectLoadOptions { Isolated = true });
+        Check(nativeLoaded.Equals(memoryLoaded), "Native/mounted loading evidence differs");
+        Check(At(nativeLoaded.Effective, "custom", "value").Equals(ConfigValue.NewString("profile")), "Isolated active profile did not win");
+        Check(nativeLoaded.OwningWorkspace.Value.OutputDirectory.Value == discoveryRoot + "/generated", "Workspace output ownership lost");
+        Check(!nativeLoaded.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error), "Discovery load failed validation");
+        var bounded = ProjectSystem.Discover(memoryTree, "/outside");
+        Check(bounded.Discovery.Diagnostics.Any(d => d.Code == "discovery.boundary"), "Outside invocation accepted");
+    }
+    finally { if (Directory.Exists(discoveryRoot)) Directory.Delete(discoveryRoot, true); }
+    Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"discovery\":true,\"selection\":true,\"bounded_loading\":true,\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
     return 0;
 }
 catch (Exception error)

@@ -43,7 +43,7 @@ public sealed class InMemoryProjectTree : IProjectTree
 public sealed record ProjectDiscoveryResult(ProjectDiscovery Discovery, ProjectSelection Selection);
 
 /// <summary>Fulfills the shared pure policy's requests without CLI construction.</summary>
-public static class ProjectSystem
+public static partial class ProjectSystem
 {
     public static ProjectDiscoveryResult Discover(IProjectTree tree, string startPath, string? selector = null)
     {

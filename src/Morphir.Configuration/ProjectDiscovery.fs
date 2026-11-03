@@ -33,7 +33,8 @@ module DiscoveryPolicy =
             |> List.choose (fun (_, sources) ->
                 if sources.Length < 2 then None else
                 Some(diagnostic path "discovery.ambiguous" DiagnosticSeverity.Error ("Ambiguous primary candidates: " + (sources |> List.map (fun s -> s.Source.Path) |> String.concat ", "))))
-        let diagnostics = ambiguity @ (sources |> List.collect (fun source -> match source.Content with SourceContent.Invalid ds -> ds | SourceContent.Available d -> d.Diagnostics | SourceContent.Missing -> []))
+        let validation = Resolver.resolve { DocumentDefaults.resolutionInput with Sources = sources }
+        let diagnostics = ambiguity @ validation.Diagnostics
         let values = sources |> List.fold (fun value source -> match source.Content with SourceContent.Available d -> ValueMerge.merge value d.Values | _ -> value) DocumentDefaults.emptyValue
         { Path = path; Values = ConfigTree.clean values; Sources = sources; Diagnostics = diagnostics }
     let private reports path (snapshot: ProjectSnapshot) =
@@ -89,7 +90,13 @@ module DiscoveryPolicy =
 
     let evaluate (request: DiscoveryRequest) (snapshot: ProjectSnapshot) =
         let missing paths = paths |> List.distinct |> List.filter (fun path -> not (Map.containsKey path snapshot.Entries))
-        let complete start root workspace projects evidence diagnostics = DiscoveryStep.Complete(result start root workspace projects evidence diagnostics)
+        let complete start root workspace projects evidence diagnostics =
+            let observed = evidence |> List.map (fun report -> report.Source.Path) |> Set.ofList
+            let extra = snapshot.Entries |> Map.toList |> List.choose (fun (path, entry) ->
+                if Set.contains path observed then None else
+                let status = match entry with ProjectEntry.Failure _ -> Some SourceStatus.Failed | ProjectEntry.Link -> Some SourceStatus.Skipped | _ -> None
+                status |> Option.map (fun status -> { Source = {identity path with Format=DocumentFormat.Memory}; Status=status; Contributed=false; Detail=(match entry with ProjectEntry.Failure message -> message | _ -> "Discovered link is not followed") }))
+            DiscoveryStep.Complete(result start root workspace projects (evidence @ extra) diagnostics)
         let rec inventory root pending found diagnostics =
             match pending with
             | [] -> Ok(List.rev found, diagnostics)
@@ -124,11 +131,16 @@ module DiscoveryPolicy =
                         |> List.filter (fun path -> not (excludes |> List.exists (fun pattern -> globMatch pattern (ProjectPath.relative basePath path))))
                         |> List.filter (fun path -> path <> root.Path)
                         |> List.distinct |> List.sort
-                    let requests = missing (paths |> List.collect (fun path -> path :: candidates path))
+                    let directoryRequests = missing paths
+                    let requests =
+                        if not directoryRequests.IsEmpty then directoryRequests
+                        else paths |> List.collect (fun path ->
+                            match Map.find path snapshot.Entries with ProjectEntry.Directory _ -> candidates path | _ -> []) |> missing
                     if not requests.IsEmpty then DiscoveryStep.Requests requests
                     else
                         let projects = paths |> List.choose (fun path ->
-                            let memberLocation = location path snapshot
+                            let memberLocation =
+                                match Map.find path snapshot.Entries with ProjectEntry.Directory _ -> location path snapshot | _ -> emptyLocation path
                             let literal = List.contains path literals
                             let extra =
                                 match Map.find path snapshot.Entries with

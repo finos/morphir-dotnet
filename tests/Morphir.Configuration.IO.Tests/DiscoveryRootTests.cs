@@ -108,4 +108,51 @@ public sealed class DiscoveryRootTests
         var result = ProjectSystem.Discover(new FaultTree(ProjectEntry.NewDirectory(FSharpList<string>.Empty)), "/repo");
         result.Discovery.Diagnostics.ToArray().Should().Contain(d => d.Code == "discovery.invalid_candidate");
     }
+
+    [Test]
+    [Arguments("{workspace:false}")]
+    [Arguments("{project:{name:42}}")]
+    public void InvalidCanonicalDocumentsAreDiagnosed(string contents)
+    {
+        var result = ProjectSystem.Discover(Tree(new() { ["/repo/morphir.json"] = contents }), "/repo");
+        result.Discovery.Diagnostics.ToArray().Should().Contain(d => d.Severity == DiagnosticSeverity.Error);
+    }
+
+    private sealed class LinkedMemberTree : IProjectTree
+    {
+        public List<string> Reads { get; } = [];
+        public string Boundary => "/repo";
+        public ProjectEntry Observe(string path)
+        {
+            Reads.Add(path);
+            if (path == "/repo") return ProjectEntry.NewDirectory(ListModule.OfSeq(new[] { "/repo/linked" }));
+            if (path == "/repo/linked") return ProjectEntry.Link;
+            if (path == "/repo/morphir.toml") return ProjectEntry.NewFile(ConfigurationReader.ReadText(path, "[workspace]\nmembers=['linked']").Content);
+            return ProjectEntry.Missing;
+        }
+    }
+
+    [Test]
+    public void PolicyDoesNotRequestFilesBelowADiscoveredMemberLink()
+    {
+        var tree = new LinkedMemberTree();
+        ProjectSystem.Discover(tree, "/repo");
+        tree.Reads.Should().NotContain(p => p.StartsWith("/repo/linked/"));
+    }
+
+    private sealed class UnlistableTree : IProjectTree
+    {
+        public string Boundary => "/repo";
+        public ProjectEntry Observe(string path) => path == "/repo" ? ProjectEntry.NewDirectory(ListModule.OfSeq(new[]{"/repo/locked"}))
+            : path == "/repo/locked" ? ProjectEntry.NewFailure("Cannot enumerate locked directory")
+            : path == "/repo/morphir.toml" ? ProjectEntry.NewFile(ConfigurationReader.ReadText(path,"[workspace]\nmembers=['**']").Content)
+            : ProjectEntry.Missing;
+    }
+
+    [Test]
+    public void DirectoryEnumerationFailureHasSourceEvidence()
+    {
+        var result=ProjectSystem.Discover(new UnlistableTree(),"/repo");
+        result.Discovery.Sources.ToArray().Should().Contain(s=>s.Source.Path=="/repo/locked" && s.Status.IsFailed);
+    }
 }

@@ -56,7 +56,8 @@ profiles, validation and winning origins without constructing the CLI.
 `Morphir.Configuration.IO` reads explicit files or supplied text and exposes
 bounded project/workspace discovery through native and in-memory trees. See the
 [discovery guide](docs/content/guides/configuration.md#discovery-library-api) for
-`ProjectSystem.Discover`, membership/selection, host boundaries and machine sources.
+`ProjectSystem.Discover`, per-root/member `ProjectSystem.Load`, membership/selection,
+host boundaries and explicitly authorized machine sources.
 Existing Git-first artifact discovery, cache-only tooling and CI overlays keep
 their compatibility behavior. CLI inspection, editing and migration remain planned. See the
 [reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.

@@ -109,3 +109,26 @@ The [official JSON5 grammar corpus](../../tests/Fixtures/Configuration/json5-tes
 adds 114 syntax cases under both file extensions, including Unicode identifier
 cases and CR/CRLF/LF strings/comments. Per-file hashes and the upstream MIT
 license are retained. Duplicate-key acceptance is an intentional difference.
+
+## Project and workspace discovery
+
+`ProjectSystem.Discover(tree, startPath, selector)` fulfills the pure
+`DiscoveryPolicy.evaluate` snapshot requests with either `FileSystemProjectTree`
+or `InMemoryProjectTree`. The tree boundary is inclusive; discovered links are
+not followed. Directory evidence lists only immediate directory/link paths, not
+arbitrary file contents. Native boundaries need physical ancestors, for example
+`/private/tmp` on macOS. Missing optional candidates and access failures retain
+distinct reports.
+
+`ProjectSystem.Load(tree, discovery, project, options)` resolves a standalone
+root or one selected member. `ProjectLoadOptions` supplies isolation, a selected
+file, the existing `ResolutionInput`, and optional machine inputs. Capture native
+location inputs with `ProjectSystem.CaptureMachineLocations(environment)` or
+construct `MachineLocationInput` explicitly. Machine access requires a separately
+authorized `MachineTree`; capturing locations never grants filesystem access.
+Isolated loading omits machine and personal inputs while retaining profiles,
+explicit files and supplied environment/explicit values.
+
+See the [configuration guide](../../docs/content/guides/configuration.md) for
+layouts, membership and selection rules. Legacy Git-first tooling entry points
+remain unchanged. Discovery does not edit configuration or execute commands.

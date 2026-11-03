@@ -175,7 +175,7 @@ A report of `Missing` means the optional path was absent. `Failed` retains a par
 
 ### A machine file is ambiguous
 
-Global candidates include the platform configuration directory and the alternate Morphir home. Two files in the same format group conflict even when they are in different directories. `MORPHIR_HOME` replaces only the home alternative. A relative `XDG_CONFIG_HOME` is ignored. Remove the unintended duplicate or use different format groups when deliberate layering is required.
+Global candidates include the platform configuration directory and the alternate Morphir home. Two files in the same format group conflict even when they are in different directories. `MORPHIR_HOME` replaces only the home alternative. A relative `XDG_CONFIG_HOME` is ignored. Requesting non-isolated machine loading without `MachineTree` produces `discovery.machine_host_required`; pass a separately authorized tree together with the explicit machine locations. Neither API implies ambient machine-file access. Remove the unintended duplicate or use different format groups when deliberate layering is required.
 
 ### A member output setting has no effect
 

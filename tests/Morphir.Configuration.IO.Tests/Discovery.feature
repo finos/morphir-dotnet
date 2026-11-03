@@ -32,3 +32,8 @@ Feature: Bounded project and workspace discovery
     Given conflicting TOML primaries across layouts
     When the host discovers from inside the member
     Then both conflicting paths are diagnosed
+
+  Scenario: Isolated loading keeps active profiles and omits personal files
+    Given a project with an active profile and personal settings
+    When the host loads the project in isolation
+    Then only the primary and active profile supply project settings

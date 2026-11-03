@@ -9,14 +9,14 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 2. Document-aware roots
 
-- [ ] 2.1 Write failing BDD/API cases for every primary layout/extension, supplemental workspace JSON, same-group ambiguity, nearest workspace/project fallback, file inputs, Git-only roots, and boundaries; confirm red using the adapter test runner.
-- [ ] 2.2 Implement the shared snapshot/request-based discovery policy plus filesystem and in-memory loading adapters without System.CommandLine references; verify the root and ambiguity cases pass and update discovery examples in the guide.
-- [ ] 2.3 Add red-then-green cases for inaccessible candidates, absent optional inputs, mounted boundaries, and discovered links; verify no reads escape the host boundary and source reports distinguish misses from failures, with documented adapter obligations.
+- [x] 2.1 Write failing BDD/API cases for every primary layout/extension, supplemental workspace JSON, same-group ambiguity, nearest workspace/project fallback, file inputs, Git-only roots, and boundaries; confirm red using the adapter test runner.
+- [x] 2.2 Implement the shared snapshot/request-based discovery policy plus filesystem and in-memory loading adapters without System.CommandLine references; verify the root and ambiguity cases pass and update discovery examples in the guide.
+- [x] 2.3 Add red-then-green cases for inaccessible candidates, absent optional inputs, mounted boundaries, and discovered links; verify no reads escape the host boundary and source reports distinguish misses from failures, with documented adapter obligations.
 
 ## 3. Members and scoped sources
 
-- [ ] 3.1 Write failing membership/selection cases for globs/exclusions, virtual/root projects, literal missing/invalid members, duplicate names, path-before-name selection, deepest invocation, defaults, and workspace output ownership; confirm red then implement and verify each group.
-- [ ] 3.2 Implement platform system/global candidates, MORPHIR_HOME/XDG handling, same-group global ambiguity, adjacent override/profile stems, and isolation with parameterized platform tests; verify ordering through the shared resolver and document machine locations.
+- [x] 3.1 Write failing membership/selection cases for globs/exclusions, virtual/root projects, literal missing/invalid members, duplicate names, path-before-name selection, deepest invocation, defaults, and workspace output ownership; confirm red then implement and verify each group.
+- [x] 3.2 Implement platform system/global candidates, MORPHIR_HOME/XDG handling, same-group global ambiguity, adjacent override/profile stems, and isolation with parameterized platform tests; verify ordering through the shared resolver and document machine locations.
 - [ ] 3.3 Document the standalone/member API and preserve the old WorkspaceDiscovery behavior for ManagementScenario and artifact callers; run the existing workspace/artifact regression suite and prove native/in-memory results match.
 
 ## 4. Integration verification

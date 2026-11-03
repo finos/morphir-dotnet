@@ -122,6 +122,7 @@ module Resolver =
 
                 6, profile, (if source.Role = SourceRole.WorkspaceProfile then 0 else 1)
             | SourceRole.WorkspaceUserOverride -> 8, 0, 0
+            | SourceRole.UserOverride -> 8, 1, 0
             | role -> int role, 0, 0
 
         sources
@@ -153,6 +154,7 @@ module Resolver =
         let memberOwned =
             source.Role = SourceRole.MemberPrimary
             || source.Role = SourceRole.MemberProfile
+            || (input.Scope = ProjectScope.Member && source.Role = SourceRole.UserOverride)
             || (source.Role = SourceRole.Selected
                 && Set.contains source.Path memberPaths)
 

@@ -7,7 +7,7 @@ description: "Workspace discovery through shared libraries, with planned inspect
 
 # Configure a workspace
 
-The shared libraries read these files and expose bounded workspace/member discovery. The `morphir config`, editing, and project/workspace migration commands shown later remain planned. Use the [PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}) and [delivery journal]({{< relref "/docs/contributing/design/prds/project-workspace-discovery-delivery" >}}) to check implementation and validation status.
+The shared libraries read these files and expose bounded workspace/member discovery and source loading. Campaign 2 is implemented with final validation and parent review/landing/cleanup pending. The `morphir config`, editing, and project/workspace migration commands shown later remain planned. Use the [PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}) and [delivery journal]({{< relref "/docs/contributing/design/prds/project-workspace-discovery-delivery" >}}) to check implementation and validation status.
 
 ## Declare the workspace
 
@@ -56,6 +56,18 @@ A mounted host can supply the same contents with `InMemoryProjectTree`. Both ada
 The boundary includes `/repo` and excludes its parents. An input file starts discovery in its containing directory. Only the nearest declared workspace participates; discovery does not merge configuration from every ancestor. If no workspace is found, the nearest primary location is a standalone project. With no primary, the start directory remains the location. Neither `.git` nor an empty `.morphir` directory declares a workspace through this API.
 
 Keep missing and invalid members visible in diagnostics. A nonexistent literal member produces a warning; a literal directory with no configuration or an invalid document requires attention. Excluded members are absent from the selected membership. Read source reports to distinguish an optional miss from a read failure.
+
+Resolve that member independently through the shared loader:
+
+```csharp
+var selected = result.Selection.Projects.Single();
+var effective = ProjectSystem.Load(tree, result.Discovery, selected,
+    new ProjectLoadOptions { Isolated = true });
+```
+
+Isolation retains declared primaries and supplied values while omitting machine and personal files. For active profiles, supply the desired profile selection through `ProjectLoadOptions.Input`. To load the root instead, omit the `ProjectInfo` argument. The owning workspace context carries an absolute output directory separately from the member settings; the member does not inherit the root's `project` or `workspace` document subtrees.
+
+Machine files require both explicit `MachineLocationInput` and a separately authorized `MachineTree`. No ambient machine access is implied by this example. A relative `SelectedPath` resolves from the invocation directory, while the project selector resolves from the effective workspace root.
 
 Existing artifact-management commands still use their legacy Git-first `WorkspaceDiscovery`. They do not switch root policies when these libraries are installed.
 

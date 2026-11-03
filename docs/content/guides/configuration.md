@@ -13,7 +13,7 @@ Morphir configuration describes projects, workspace membership, and tooling sett
 
 The shared configuration libraries read TOML, YAML, JSON/JSON5, normalize classic manifests, resolve typed settings, and retain origins and diagnostics. Named profiles use explicit activation. Campaign 1 landed in [PR #461](https://github.com/finos/morphir-dotnet/pull/461).
 
-Campaign 2 adds bounded document-aware discovery, membership, selection, and applicable source loading through library APIs. Its [delivery journal]({{< relref "/docs/contributing/design/prds/project-workspace-discovery-delivery" >}}) records current validation and handback status. The `morphir config`, editing, and project/workspace migration commands below remain planned.
+Campaign 2 implements bounded document-aware discovery, membership, selection, and applicable source loading through library APIs. Final validation, review, landing, and cleanup remain pending. Its [delivery journal]({{< relref "/docs/contributing/design/prds/project-workspace-discovery-delivery" >}}) records current validation and handback status. The `morphir config`, editing, and project/workspace migration commands below remain planned.
 
 Existing cache-only tooling retains Git-first discovery and its separate CI overlay. It does not opt into the new policy automatically. Follow the [layered configuration PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}), the [walkthrough]({{< relref "/docs/getting-started/configuration" >}}), and the [planned CLI reference]({{< relref "/docs/cli/config" >}}) for their respective status.
 
@@ -99,7 +99,7 @@ A root with only a `workspace` section is a virtual workspace. It does not becom
 
 For project selection, resolve a relative explicit path from the effective workspace root and match it before trying a project name. A duplicate name produces a diagnostic, but each canonical path remains selectable. An unknown or ambiguous explicit selector is an error. Without an explicit selector, select the deepest member containing the invocation directory, then `workspace.default_member`, then the workspace's projects. Defaults use the same path-before-name matching. An invalid default is an error. A future edit operation that would target multiple projects must request a single selector.
 
-`workspace.out_dir` defaults to `.morphir/out` relative to the workspace root. A member cannot relocate that root; attempted member output overrides produce diagnostics. The owning workspace is returned separately from the member document. Root `project` and `workspace` subtrees do not become member settings. `workspace.output_dir` is a removed alias; `workspace.projects` and camel-case `outputDir` are not the canonical field names.
+`workspace.out_dir` defaults to `.morphir/out` relative to the workspace root. A member cannot relocate that root; attempted member output overrides produce diagnostics. The owning workspace is returned separately from the member document. Its `Root` is the normalized effective `workspace.root`, and `OutputDirectory` is the normalized absolute output path. Root `project` and `workspace` subtrees do not become member settings. `workspace.output_dir` is a removed alias; `workspace.projects` and camel-case `outputDir` are not the canonical field names.
 
 ## Configuration precedence
 
@@ -116,7 +116,7 @@ Apply sources from lowest to highest precedence:
 9. `MORPHIR_` environment values.
 10. Explicit command-line setting values.
 
-Selecting an already discovered primary through `--config` moves its ordinary values to the explicit-file layer; it is not applied twice. It does not replace all other discovered settings.
+Selecting an already discovered primary with `ProjectLoadOptions.SelectedPath`, or the planned `--config` option, moves its ordinary values to the explicit-file layer; it is not applied twice. It does not replace all other discovered settings. A relative selected configuration path resolves from the invocation directory, or the containing directory when discovery starts with an input file. Relative project selectors instead resolve from the effective workspace root.
 
 Maps merge recursively. Arrays replace the entire earlier array, including when the replacement is empty. Scalars and incompatible value shapes replace earlier values. Secret references are indivisible values. Preserve the winning source for each leaf and array, together with source reports for inspection and diagnostics.
 
@@ -130,10 +130,10 @@ Global user configuration uses the `morphir` stem under:
 
 - Linux: an absolute `$XDG_CONFIG_HOME/morphir`, otherwise `$HOME/.config/morphir`.
 - macOS: an absolute `$XDG_CONFIG_HOME/morphir`, otherwise `$HOME/Library/Application Support/morphir`.
-- Windows: the user's Roaming AppData directory under `morphir`.
+- Windows: the supplied Roaming AppData directory under `morphir`, falling back to `<home>/AppData/Roaming/morphir`.
 - The alternate Morphir home, `$HOME/.morphir` or `%USERPROFILE%\.morphir`. A nonempty `MORPHIR_HOME` replaces this home location without replacing the platform config directory.
 
-Apply format layering at these sources as well. Multiple alternatives within one format group are ambiguous, including global candidates split across the platform and Morphir home locations. A TOML file in the platform directory and a YAML file in Morphir home layer normally. An empty `MORPHIR_HOME` retains the default home alternative. Relative `XDG_CONFIG_HOME` is ignored. Native path/environment capture is an adapter operation; embedded hosts supply their own platform inputs and permitted trees.
+Apply format layering at these sources as well. Multiple alternatives within one format group are ambiguous, including global candidates split across the platform and Morphir home locations. A TOML file in the platform directory and a YAML file in Morphir home layer normally. An empty `MORPHIR_HOME` retains the default home alternative. Relative `XDG_CONFIG_HOME` is ignored. The host supplies `MachineLocationInput` and its platform directories/environment explicitly. A relative nonempty `MORPHIR_HOME` resolves from the invocation directory. Machine loading also requires a separately authorized `MachineTree`; neither discovery nor loading implicitly reads the process environment or ambient filesystem. Embedded hosts supply only the mounts they permit.
 
 ### Environment values
 
@@ -252,11 +252,33 @@ A native host supplies `new FileSystemProjectTree(boundary)` instead. A standalo
 
 `DiscoveryPolicy.evaluate` is the pure F# boundary. It accepts a `DiscoveryRequest` and `ProjectSnapshot`, then returns either `DiscoveryStep.Requests` for additional evidence or `DiscoveryStep.Complete`. `DiscoveryPolicy.select` can select again from the resulting inventory without filesystem access. No CLI or `System.CommandLine` dependency is required.
 
+### Loading one root or member
+
+`ProjectSystem.Load(IProjectTree tree, ProjectDiscovery discovery, ProjectInfo? project = null, ProjectLoadOptions? options = null)` returns a `DocumentResolution` with effective values, winning origins, ordered source reports, active profiles, owning workspace context, and diagnostics. Omit `project` to resolve the discovered root. Pass one selected `ProjectInfo` to resolve a member. Load each selected project independently so project identities and member settings remain separate.
+
+```csharp
+var project = result.Selection.Projects.Single();
+var resolution = ProjectSystem.Load(tree, result.Discovery, project,
+    new ProjectLoadOptions { Isolated = true });
+```
+
+`ProjectLoadOptions` exposes these host controls:
+
+| Property | Meaning |
+| --- | --- |
+| `Input` | Supplied `ResolutionInput` for sources, environment values, explicit values, profile selection, and warning suppression; defaults to `DocumentDefaults.resolutionInput` |
+| `Isolated` | Omit machine and personal files before reading; retain primaries, selected configuration, active profiles, and supplied values |
+| `SelectedPath` | Optional required configuration file, resolved from the invocation directory when relative |
+| `Machine` | Optional explicit `MachineLocationInput` for platform candidates |
+| `MachineTree` | Separate `IProjectTree` authorizing machine-file access; required when non-isolated machine loading is requested |
+
+Requesting non-isolated machine loading with `Machine` but no `MachineTree` produces `discovery.machine_host_required`. A host can omit both to use only the project tree and supplied values. Each tree enforces its own boundary, and isolation avoids machine-tree reads entirely. Invalid or unrelated `ProjectInfo` records are diagnosed rather than treated as healthy selected members.
+
 ### Host boundary and evidence obligations
 
 An `IProjectTree` exposes its `Boundary` and `Observe(path)`. Use canonical absolute paths with `/` separators in shared evidence, including Windows drive paths. A mounted host must return only permitted directory children and must reject paths outside its mount. It must distinguish missing entries, directories, parsed files, links, and access failures. A failure to read a candidate is an error, not evidence that it was absent.
 
-Never follow a discovered symbolic link to read configuration or enumerate members. Native adapters must check linked ancestors as well as the final candidate; lexical prefix checks alone cannot enforce a filesystem boundary. A host that supplies snapshot entries directly has the same obligation. Keep the tree stable during one discovery operation, or repeat discovery after a change.
+Never follow a discovered symbolic link to read configuration or enumerate members. Native adapters must check linked ancestors as well as the final candidate; use a physical boundary path such as `/private/tmp/...` on macOS. Lexical prefix checks alone cannot enforce a filesystem boundary. A host that supplies snapshot entries directly has the same obligation. Keep the tree stable during one discovery operation, or repeat discovery after a change.
 
 Source reports distinguish loaded, missing, skipped, and failed inputs. Optional missing candidates remain visible without becoming required-file errors. Invalid documents and inaccessible candidates retain their paths and diagnostics. Inactive profiles and isolated machine/personal inputs are not read. Equivalent native and mounted evidence must produce the same roots, member selection, source ordering, and diagnostics.
 

@@ -7,7 +7,7 @@ description: "Shared configuration, project discovery, and configuration inspect
 
 # Layered configuration and workspaces
 
-**Status**: In Progress; campaign 1 landed and cleaned; campaign 2 implementation and validation underway
+**Status**: In Progress; campaign 1 landed and cleaned; campaign 2 implemented; final validation, landing and cleanup pending
 
 **Created**: 2025-12-22
 
@@ -121,7 +121,7 @@ Each campaign is one cohesive implementation change delivered through one review
 | 5 | `add-classic-project-migration` | Shared loss-checked migration and project migrate | 2, 4 |
 | 6 | `add-workspace-migration` | Bounded repository adoption and coordinated workspace migrate | 5 |
 
-Planning artifacts are under `openspec/changes/<change-name>/`. Every change contains a proposal, capability specs, `design.html`, and implementation tasks. Campaign 1 is landed and cleaned. Campaign 2 is being implemented against that verified main baseline; its [delivery journal](project-workspace-discovery-delivery.md) records current evidence. Campaigns 3 through 6 remain planned and must follow the prerequisites above. A checked task list or an open PR does not satisfy the landing and cleanup gates.
+Planning artifacts are under `openspec/changes/<change-name>/`. Every change contains a proposal, capability specs, `design.html`, and implementation tasks. Campaign 1 is landed and cleaned. Campaign 2 is implemented against that verified main baseline, with final validation, review, landing and cleanup pending; its [delivery journal](project-workspace-discovery-delivery.md) records current evidence. Campaigns 3 through 6 remain planned and must follow the prerequisites above. A checked task list or an open PR does not satisfy the landing and cleanup gates.
 
 ### Campaign completion
 
@@ -174,7 +174,7 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 | Configuration project and cache models | Implemented baseline | Cache-only F# records and merge functions exist |
 | TOML resolver and legacy discovery | Implemented baseline | Git-first discovery and user/CI overlays retained for existing callers |
 | Multi-format documents and normalization | Implemented and landed | Campaign 1, PR #461; parent landing/cleanup receipt recorded |
-| Shared discovery and project selection | In Progress | Campaign 2, issue #466; bounded policy/adapters, membership/selection and source planning; validation in delivery journal |
+| Shared discovery and project selection | Implemented; validation pending | Campaign 2, issue #466; bounded policy/adapters, membership/selection and source loading; final validation, review, landing and cleanup remain pending |
 | Shared resolution, profiles, validation, provenance | Implemented and landed | Campaign 1 additive APIs; prior baseline core 95 and reader/BDD 66; campaign 2 requalification tracked separately |
 | Microsoft configuration integration | Planned | Adapter; proposed extension name |
 | Shared query and edit services | Planned | Host-independent inspection and TOML edits |
@@ -197,14 +197,16 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
   `Morphir.Configuration.IO`; no CLI dependency is introduced.
 - Preserve `WorkspaceDiscovery`, `ManagementScenario`, and artifact callers as
   Git-first compatibility entry points. New consumers choose document-aware
-  `ProjectSystem` explicitly.
+  `ProjectSystem` explicitly. `Discover` returns inventory and selection; `Load`
+  resolves a root or one selected project independently.
 - Keep inventory separate from selection, and owning workspace context separate
   from root-to-member settings. Invalid literal members remain identifiable.
   Members cannot relocate the workspace output root.
 - Apply the same format groups to primaries, platform/global alternatives,
   eligible personal overrides and active profiles. Isolation excludes machine
   and personal sources before reading them, while retaining declared primaries,
-  explicitly selected configuration, active profiles and supplied values.
+  explicitly selected configuration, active profiles and supplied values. Machine
+  inputs require explicit locations and a separately authorized `MachineTree`.
 
 ### Shared configuration landing receipt, 2026-11-03
 

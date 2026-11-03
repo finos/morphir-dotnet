@@ -51,4 +51,28 @@ public sealed class DiscoverySteps
         message.Should().Contain("/repo/morphir.toml").And.Contain("/repo/.morphir/morphir.toml");
         _result.Discovery.Diagnostics.ToArray().Should().Contain(d => d.Code == "discovery.ambiguous");
     }
+    private DocumentResolution _resolution = null!;
+
+    [Given("a project with an active profile and personal settings")]
+    public void ProfileFiles() => _tree = new InMemoryProjectTree("/repo", new Dictionary<string, string>
+    {
+        ["/repo/morphir.toml"] = "[project]\nname='App'\n[profiles]\nactive=['ci']",
+        ["/repo/morphir.profile.ci.yml"] = "custom: {value: profile}",
+        ["/repo/morphir.user.toml"] = "[custom]\nvalue='personal'",
+        ["/repo/morphir.profile.unused.toml"] = "broken TOML"
+    });
+
+    [When("the host loads the project in isolation")]
+    public void IsolatedLoad()
+    {
+        var discovery = ProjectSystem.Discover(_tree, "/repo");
+        _resolution = ProjectSystem.Load(_tree, discovery.Discovery, options: new ProjectLoadOptions { Isolated = true });
+    }
+
+    [Then("only the primary and active profile supply project settings")]
+    public void ProfileOnly()
+    {
+        ProjectLoadingTests.Value(_resolution, "custom", "value").Should().Be(ConfigValue.NewString("profile"));
+        _tree.ObservedPaths.Should().NotContain("/repo/morphir.user.toml").And.NotContain("/repo/morphir.profile.unused.toml");
+    }
 }
