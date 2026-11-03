@@ -73,3 +73,12 @@ Morphir.SDK.CSharp provides independently implemented .NET runtime behavior
 against the pinned Morphir SDK contract; upstream evidence and notices remain
 in tests/Fixtures/MorphirSDK/evidence.
 Copyright 2026 FINOS contributors.
+
+SDK runtime specification and archive follow-up (#464, #465)
+
+Copyright 2026 FINOS contributors.
+
+This docs-only contribution synchronizes and archives the landed SDK runtime
+specifications, repairs handoff links and records delivery evidence. It adds no
+third-party source, license or restriction. All existing copyright, attribution,
+license and original-byte evidence notices remain applicable and are retained.

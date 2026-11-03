@@ -1,5 +1,7 @@
 # Tasks
 
+Archived planning/implementation record. Runtime PR landed; this archive follow-up and coordinator cleanup remain pending. See [SDK runtime delivery](../../../../docs/design/dotnet-csharp-generation/sdk-runtime-delivery.md).
+
 Read [design](design.html), [spec](specs/fsharp-sdk-packaging/spec.md) and [handoff](handoff.md). Implementation starts only on a main-based checkout containing the planning and predecessor merge commits. The initiative is not complete until its PR is merged into main and its clean worker worktree is removed.
 
 ## 1. Canonical and compatibility package graph

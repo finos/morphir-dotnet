@@ -1,7 +1,7 @@
 # Introduce the canonical F# SDK package
 
-Status: In Progress. Contribution: [issue #465](https://github.com/finos/morphir-dotnet/issues/465).
-Implementation plan: [OpenSpec change](../../../../../openspec/changes/introduce-fsharp-sdk-package/proposal.md).
+Status: Implementation landed; archive follow-up and coordinator cleanup pending. Contribution: [issue #465](https://github.com/finos/morphir-dotnet/issues/465).
+Implementation plan: [OpenSpec change](../../../../../openspec/changes/archive/2026-11-03-introduce-fsharp-sdk-package/proposal.md).
 
 ## Purpose and scope
 
@@ -356,3 +356,7 @@ threshold claims. Exact final hashes for all 14 source files and the conservativ
 span classifier are in `runtime-review-metrics.json`, with original OpenCover and
 Cobertura reports alongside it under the retained semantic-validation directory.
 The earlier pre-format report and matched-old/current evidence remain intact.
+
+## Runtime landing and archival follow-up, 2026-11-03
+
+The [SDK runtime delivery record](../../../../design/dotnet-csharp-generation/sdk-runtime-delivery.md) records the exact merged PR, distinct submitted and landed SHAs, final-head checks, review resolution, measured coverage and remaining ownership. All nine implementation tasks are complete. Canonical spec synchronization and the dated archive are prepared in this docs-only follow-up; its landing and coordinator cleanup are still required. No release publication or generator/CLI dispatch is claimed. Earlier checkpoint notes remain historical evidence.

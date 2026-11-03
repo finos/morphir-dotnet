@@ -1,5 +1,7 @@
 # Proposal
 
+Archived planning/implementation record. Runtime PR landed; this archive follow-up and coordinator cleanup remain pending. See [SDK runtime delivery](../../../../docs/design/dotnet-csharp-generation/sdk-runtime-delivery.md).
+
 ## Why
 
 Generated C# needs a runtime with immutable C# public types and Morphir behavior, without exposing FSharp.Core types or depending on compiler and CLI libraries.
@@ -23,9 +25,9 @@ None. Existing backend, model and publication contracts are preserved.
 
 ## Tracking
 
-- Requires an integrated, verified commit of [establish-dotnet-sdk-conformance](../archive/2026-11-03-establish-dotnet-sdk-conformance/proposal.md).
-- Delivery plan, merged-to-main completion and cleanup gates: [orchestration](../../../docs/design/dotnet-csharp-generation/orchestration.md).
-- Worker brief: [handoff](handoff.md). No GitHub issue exists for this new change yet; the coordinator must create or link one before contribution, without inventing an ID.
+- Requires an integrated, verified commit of [establish-dotnet-sdk-conformance](../2026-11-03-establish-dotnet-sdk-conformance/proposal.md).
+- Delivery plan, merged-to-main completion and cleanup gates: [orchestration](../../../../docs/design/dotnet-csharp-generation/orchestration.md).
+- Worker brief: [handoff](handoff.md). Contribution issue: [#464](https://github.com/finos/morphir-dotnet/issues/464).
 - Establish the feature PRD and index entry during implementation before production code, as specified in tasks. Implementation is not authorized by creating this proposal.
 
 ## Impact
