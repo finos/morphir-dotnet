@@ -25,7 +25,7 @@ None. Existing publication and virtual-file requirements remain unchanged.
 
 ## Tracking
 
-- [Layered configuration PRD](../../../docs/content/docs/contributing/design/prds/layered-configuration.md).
+- [Layered configuration PRD](../../../../docs/content/docs/contributing/design/prds/layered-configuration.md).
 - Implementation prerequisites: none.
 - GitHub tracking issue: [#458](https://github.com/finos/morphir-dotnet/issues/458).
 

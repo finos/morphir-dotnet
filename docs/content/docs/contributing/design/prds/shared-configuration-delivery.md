@@ -164,3 +164,25 @@ cleanup. An open PR or checked task list does not complete this campaign.
   `all_done`. Strict change validation passes. This does not declare campaign
   completion: PR review/checks, main landing and owned worktree/local/remote branch
   cleanup remain parent responsibilities.
+
+## Specification handback
+
+The completed implementation change is archived at
+`openspec/changes/archive/2026-11-02-add-shared-configuration/`. Main specifications
+are `openspec/specs/configuration-documents/spec.md` and
+`openspec/specs/configuration-resolution/spec.md`. All 22 added requirements and
+their scenarios were compared with the delta specs; new Purpose sections were
+copied verbatim. Strict validation passes all 9 main specs and all 7 remaining
+active changes, 16/16 items with no issues.
+
+The other five campaign plans remain active with zero checked implementation
+tasks. Only their shared-configuration prerequisite links were updated where
+needed. The original six-plan snapshot remains in inherited commit `c6fcf0c` and
+this PR's history. Do not start dependent implementation until this PR lands.
+
+Parent handback must record the created PR URL, actual head SHA and base SHA, then
+own review/check watching, merge verification and separate worktree/local/remote
+branch cleanup receipts. No PR watch, branch deletion, worktree removal, force
+push, admin bypass, release or deployment was performed by this implementation
+worker. Reproducible build/coverage logs and published smoke artifacts under
+`/tmp/morphir-config-*` are retained for parent inspection and later cleanup.
