@@ -7,15 +7,17 @@ description: "Morphir configuration formats, discovery, precedence, and shared h
 
 # Configuration
 
-Morphir configuration describes projects, workspace membership, and tooling settings. The target design shares discovery, resolution, inspection, and editing across the CLI and other hosts.
+Morphir configuration describes projects, workspace membership, and tooling settings. Shared libraries provide typed documents, source resolution, and project discovery to native and embedded hosts. Inspection commands, editing, and migration are later delivery campaigns.
 
 ## Implementation status
 
-The current .NET library supports cache settings from TOML, Git-root-first workspace discovery, adjacent user overrides, and an optional CI overlay. It does not yet implement the multi-format project system or the `morphir config` commands described below.
+The shared configuration libraries read TOML, YAML, JSON/JSON5, normalize classic manifests, resolve typed settings, and retain origins and diagnostics. Named profiles use explicit activation. Campaign 1 landed in [PR #461](https://github.com/finos/morphir-dotnet/pull/461).
 
-The remaining sections describe the agreed target behavior. Follow the [layered configuration PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}) for implementation status, the [walkthrough]({{< relref "/docs/getting-started/configuration" >}}) for examples, and the [planned CLI reference]({{< relref "/docs/cli/config" >}}) for commands.
+Campaign 2 adds bounded document-aware discovery, membership, selection, and applicable source loading through library APIs. Its [delivery journal]({{< relref "/docs/contributing/design/prds/project-workspace-discovery-delivery" >}}) records current validation and handback status. The `morphir config`, editing, and project/workspace migration commands below remain planned.
 
-### Current cache configuration
+Existing cache-only tooling retains Git-first discovery and its separate CI overlay. It does not opt into the new policy automatically. Follow the [layered configuration PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}), the [walkthrough]({{< relref "/docs/getting-started/configuration" >}}), and the [planned CLI reference]({{< relref "/docs/cli/config" >}}) for their respective status.
+
+### Legacy cache configuration
 
 For the existing resolver, place cache overrides in `.morphir/morphir.toml` at the discovered workspace root:
 
@@ -27,7 +29,7 @@ global = "/custom/global/cache"
 
 The parser also accepts these keys under `[cache]`. An adjacent `.morphir/morphir.user.toml` overrides the base file. `.morphir/morphir.ci.toml` applies after the user file when `CiProfileMode` is `On`, or when it is `Auto` and CI is detected; `Off` disables it. Without a workspace, resolution uses global configuration and model defaults only.
 
-The existing global file is `morphir.toml` under `%APPDATA%\Morphir` on Windows, `$XDG_CONFIG_HOME/morphir` or `$HOME/.config/morphir` on Linux, and `$HOME/Library/Application Support/morphir` on macOS. These are the current paths, before the planned machine-location rules below.
+The existing global file is `morphir.toml` under `%APPDATA%\Morphir` on Windows, `$XDG_CONFIG_HOME/morphir` or `$HOME/.config/morphir` on Linux, and `$HOME/Library/Application Support/morphir` on macOS. These paths belong to the compatibility API. The shared project system uses the machine-location rules below.
 
 ## Compatibility target
 
@@ -45,7 +47,9 @@ At each project or workspace directory, inspect these primary layouts:
 | Hidden | `.morphir/morphir` | `.morphir/morphir.user` |
 | Dot-config | `.config/morphir/config` | `.config/morphir/config.user` |
 
-Each stem accepts `.json`, `.json5`, `.yaml`, `.yml`, or `.toml`. Both JSON extensions accept JSON5 syntax, including comments, unquoted keys, single-quoted strings, and trailing commas.
+Each stem accepts `.json`, `.json5`, `.yaml`, `.yml`, or `.toml`. Both JSON extensions accept JSON5 syntax, including comments, unquoted keys, single-quoted strings, and trailing commas. Duplicate JSON/JSON5 keys are rejected.
+
+YAML follows the pinned MoonBit Moon-Lander Default profile, including nulls, expanded anchors/aliases, empty streams, and custom scalar tags. Raw documents retain nulls for profile-control validation; ordinary null object fields do not erase lower values, and null array elements remain values. The adapters use CsToml 1.8.6 and YamlDotNet 16.3.0. See the [configuration API reference]({{< relref "/docs/configuration/resolution" >}}) and the library's `src/Morphir.Configuration.IO/README.md` for the pinned compatibility evidence.
 
 The enclosing directory is the project location. For example, `/repo/.config/morphir/config.toml` identifies `/repo`, not `/repo/.config/morphir`.
 
@@ -81,19 +85,21 @@ YAML beside TOML produces `config.yaml_beside_toml`. JSON values that survive be
 4. Select the first directory whose merged primary documents contain a `workspace` section. Stop searching above it.
 5. If no declared workspace exists before the discovery boundary, use the nearest project primary location.
 
-A discovery boundary limits the upward walk. Mounted browser filesystems and explicit host boundaries must not be crossed. With no primary location, use the host's starting location and applicable defaults. A bare `.git` or `.morphir` directory does not declare a workspace under the target rules.
+A discovery boundary includes its own directory and limits the upward walk, file reads, and member enumeration. Mounted filesystems and explicit host boundaries must not be crossed, including through `..` segments or discovered links. With no primary location, use the host's starting location and applicable defaults. A bare `.git` or `.morphir` directory does not declare a workspace through the new API.
 
 Starting in `/repo/app/src`, a project at `/repo/app/morphir.json` must still find a workspace at `/repo/morphir.toml`. If `/repo/app/morphir.toml` itself declares a workspace, that nearer workspace wins and `/repo/morphir.toml` is not read. Configuration from every ancestor is not merged into the result.
 
 ### Members and project selection
 
-Use `workspace.members` to discover member directories, then apply `workspace.exclude`. Resolve membership paths from the workspace root, including `workspace.root` when configured. Each member uses the same configuration layouts and format rules as the root.
+Use `workspace.members` to discover member directories, then apply `workspace.exclude`. Resolve `workspace.root` relative to the declaration location and keep it within the supplied boundary. Resolve member and exclusion paths from that effective workspace root. Glob syntax uses `*` and `?` within one path segment and `**` across segments. Each member uses the same configuration layouts and format rules as the root.
+
+Membership is an inventory operation, separate from project selection. Member paths are canonicalized and ordered deterministically. Exclusions remove matching members before selection. Missing literal members produce warnings. Existing literal directories without a primary and members with invalid documents remain identifiable through structured diagnostics; an ambiguous member configuration is an error. Hidden configuration directories do not become projects.
 
 A root with only a `workspace` section is a virtual workspace. It does not become its own member through `*` or `**`. A root that also declares `project` is a root project.
 
-For project selection, an explicit path or unique name takes priority. Otherwise, select the deepest member containing the invocation directory, then `workspace.default_member`, then the workspace's projects. An edit that would target multiple projects must request a single selector.
+For project selection, resolve a relative explicit path from the effective workspace root and match it before trying a project name. A duplicate name produces a diagnostic, but each canonical path remains selectable. An unknown or ambiguous explicit selector is an error. Without an explicit selector, select the deepest member containing the invocation directory, then `workspace.default_member`, then the workspace's projects. Defaults use the same path-before-name matching. An invalid default is an error. A future edit operation that would target multiple projects must request a single selector.
 
-`workspace.out_dir` defaults to `.morphir/out` relative to the workspace root. A member cannot relocate that root. `workspace.output_dir` is a removed alias; `workspace.projects` and camel-case `outputDir` are not the canonical field names.
+`workspace.out_dir` defaults to `.morphir/out` relative to the workspace root. A member cannot relocate that root; attempted member output overrides produce diagnostics. The owning workspace is returned separately from the member document. Root `project` and `workspace` subtrees do not become member settings. `workspace.output_dir` is a removed alias; `workspace.projects` and camel-case `outputDir` are not the canonical field names.
 
 ## Configuration precedence
 
@@ -114,7 +120,7 @@ Selecting an already discovered primary through `--config` moves its ordinary va
 
 Maps merge recursively. Arrays replace the entire earlier array, including when the replacement is empty. Scalars and incompatible value shapes replace earlier values. Secret references are indivisible values. Preserve the winning source for each leaf and array, together with source reports for inspection and diagnostics.
 
-System/global files provide tooling defaults and exclude the entire `project` and `workspace` subtrees. A selected member receives applicable tooling settings without inheriting the root's `project` or `workspace` document subtrees. The owning workspace context supplies topology and its output root separately. Profile files cannot change workspace roots or member selection.
+System/global files provide tooling defaults and exclude the entire `project` and `workspace` subtrees. Their contents cannot declare the root or workspace membership. A selected member receives applicable tooling settings without inheriting the root's `project` or `workspace` document subtrees. The owning workspace context supplies topology and its output root separately. Profile files cannot change workspace roots or member selection.
 
 ### Machine configuration locations
 
@@ -127,7 +133,7 @@ Global user configuration uses the `morphir` stem under:
 - Windows: the user's Roaming AppData directory under `morphir`.
 - The alternate Morphir home, `$HOME/.morphir` or `%USERPROFILE%\.morphir`. A nonempty `MORPHIR_HOME` replaces this home location without replacing the platform config directory.
 
-Apply format layering at these sources as well. Multiple alternatives within one format group are ambiguous, including global candidates split across the platform and Morphir home locations.
+Apply format layering at these sources as well. Multiple alternatives within one format group are ambiguous, including global candidates split across the platform and Morphir home locations. A TOML file in the platform directory and a YAML file in Morphir home layer normally. An empty `MORPHIR_HOME` retains the default home alternative. Relative `XDG_CONFIG_HOME` is ignored. Native path/environment capture is an adapter operation; embedded hosts supply their own platform inputs and permitted trees.
 
 ### Environment values
 
@@ -141,9 +147,11 @@ Select profiles from explicit `--profiles` or `--no-profiles`, then a present `M
 
 Active files use `morphir.profile.<name>.<ext>` or the corresponding hidden/dot-config stem. For each active name, apply workspace files before member files. Later active names win. Includes and groups follow MoonBit's profile rules; member files and user overrides cannot set activation controls. Inactive files are not read.
 
-Personal overrides are adjacent to their eligible primaries and use the matching stem in the layout table. Add applicable `*.user.*` paths, `.morphir/cache/`, and `.morphir/out/` to the repository's ignore policy. Discovery and editing do not change ignore files automatically.
+Personal overrides are adjacent to their eligible primaries and use the matching stem in the layout table. A dot-config primary permits `config.user.<ext>` and `config.profile.<name>.<ext>` in the same directory, rather than root-level `morphir.user.<ext>`. Apply the same format groups and ambiguity checks to eligible overrides and each active profile. Profiles and personal files do not identify roots. Workspace personal overrides precede member personal overrides. Add applicable `*.user.*` paths, `.morphir/cache/`, and `.morphir/out/` to the repository's ignore policy. Discovery and editing do not change ignore files automatically.
 
-The existing `.morphir/morphir.ci.toml` and `CiProfileMode` behavior belong to the current loader. The new design uses named profiles rather than implicitly treating CI detection as activation. Migration of that API remains an implementation task.
+Isolated loading omits system/global sources and personal override files before reading them. It retains declared primaries, an explicitly selected configuration file, eligible active profiles, and supplied environment/explicit values. Only requested active profile files are read.
+
+The existing `.morphir/morphir.ci.toml` and `CiProfileMode` behavior belong to the compatibility loader. The shared loader uses named profiles; `CI=true` does not activate one. Existing callers keep their behavior until they explicitly migrate to the shared APIs.
 
 ## Equivalent project files
 
@@ -212,18 +220,48 @@ Validate edits before writing, install changes atomically, and reject concurrent
 
 ## Sharing configuration between hosts
 
-The planned architecture has three reusable parts:
+The architecture separates these responsibilities:
 
-- Core models and pure rules for typed documents, merging, validation, profiles, membership, selection, provenance, queries, edit/migration planning, and equivalence checks.
-- Shared discovery/loading services with file, directory, environment, and write access supplied by host adapters. Native hosts can use filesystem adapters; other hosts can supply mounted or in-memory documents.
-- A `Microsoft.Extensions.Configuration` adapter exposing the resolved result through the proposed `AddMorphirConfiguration(...)` integration.
+- `Morphir.Configuration` contains immutable models and pure rules for typed documents, merging, validation, profiles, membership, selection, and provenance. Query, edit/migration planning, and equivalence services remain planned.
+- `Morphir.Configuration.IO` parses documents and supplies discovery/loading adapters. Native hosts use filesystem access; other hosts supply mounted or in-memory trees. Write services remain planned.
+- A future `Microsoft.Extensions.Configuration` adapter will expose the resolved result through the proposed `AddMorphirConfiguration(...)` integration.
 
 The CLI translates arguments into requests and formats results and exit codes. Other hosts use the same library services without referencing the CLI or constructing a command-line application. Editing is an explicit library operation, not a write through `IConfiguration`.
 
 The typed Morphir document remains authoritative. Standard providers flatten values into string keys and do not by themselves enforce whole-array replacement, case-sensitive document keys, or per-value provenance. Preserve those semantics before projecting settings for .NET consumers. Native AOT support requires explicit or source-generated binding.
 
-### Current library API
+### Discovery library API
 
-Until the new APIs are implemented, `Morphir.Tooling.Configuration.ConfigResolver.ResolveConfigAsync` loads the existing cache-only model in `Morphir.Configuration`. `ConfigResolution` exposes `Effective`, `Layers`, `WorkspaceRoot`, and `CiProfileApplied`. `Merge.mergeConfigs` merges cache paths, and `CiDetection` accepts injected environment values. These APIs do not yet provide the target project system, editing, or Microsoft configuration adapter.
+`ProjectSystem.Discover` in `Morphir.Configuration.IO` accepts an `IProjectTree`, an absolute start path, and an optional project selector. The result keeps `Discovery` and `Selection` separate. Discovery includes the root location, owning workspace context, complete member inventory, source reports, and diagnostics. Selection identifies the applicable projects and any selector errors.
+
+```csharp
+using Morphir.Configuration.IO;
+
+var tree = new InMemoryProjectTree("/repo", new Dictionary<string, string>
+{
+    ["/repo/morphir.toml"] = "[workspace]\nmembers = ['app']",
+    ["/repo/app/morphir.json"] = "{name:'App'}",
+    ["/repo/app/src/input.elm"] = "module Input exposing (..)"
+});
+var result = ProjectSystem.Discover(tree, "/repo/app/src/input.elm");
+// result.Discovery.Location is /repo.
+// result.Selection.Projects identifies /repo/app.
+```
+
+A native host supplies `new FileSystemProjectTree(boundary)` instead. A standalone project uses the same entry point and has no owning workspace. Project selection does not copy ancestor project identity into a member.
+
+`DiscoveryPolicy.evaluate` is the pure F# boundary. It accepts a `DiscoveryRequest` and `ProjectSnapshot`, then returns either `DiscoveryStep.Requests` for additional evidence or `DiscoveryStep.Complete`. `DiscoveryPolicy.select` can select again from the resulting inventory without filesystem access. No CLI or `System.CommandLine` dependency is required.
+
+### Host boundary and evidence obligations
+
+An `IProjectTree` exposes its `Boundary` and `Observe(path)`. Use canonical absolute paths with `/` separators in shared evidence, including Windows drive paths. A mounted host must return only permitted directory children and must reject paths outside its mount. It must distinguish missing entries, directories, parsed files, links, and access failures. A failure to read a candidate is an error, not evidence that it was absent.
+
+Never follow a discovered symbolic link to read configuration or enumerate members. Native adapters must check linked ancestors as well as the final candidate; lexical prefix checks alone cannot enforce a filesystem boundary. A host that supplies snapshot entries directly has the same obligation. Keep the tree stable during one discovery operation, or repeat discovery after a change.
+
+Source reports distinguish loaded, missing, skipped, and failed inputs. Optional missing candidates remain visible without becoming required-file errors. Invalid documents and inaccessible candidates retain their paths and diagnostics. Inactive profiles and isolated machine/personal inputs are not read. Equivalent native and mounted evidence must produce the same roots, member selection, source ordering, and diagnostics.
+
+### Legacy cache API
+
+`Morphir.Tooling.Configuration.ConfigResolver.ResolveConfigAsync` continues to load the cache-only `MorphirConfig`. `ConfigResolution` exposes `Effective`, `Layers`, `WorkspaceRoot`, and `CiProfileApplied`; `Merge.mergeConfigs` merges cache paths. `WorkspaceDiscovery`, `ManagementScenario`, and existing artifact callers retain Git-first root selection. New consumers opt into `ProjectSystem` explicitly.
 
 See [troubleshooting]({{< relref "/docs/cli/troubleshooting#configuration-planned" >}}) for wrong roots, ambiguous files, and settings that remain overridden.

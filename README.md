@@ -53,8 +53,12 @@ Provides tooling for the Morphir ecosystem and .NET libraries that can be used t
 The additive [shared configuration libraries](docs/content/docs/configuration/resolution.md)
 provide typed TOML, YAML, JSON/JSON5 documents, pure source resolution, named
 profiles, validation and winning origins without constructing the CLI.
-`Morphir.Configuration.IO` reads explicit files or supplied text. Existing
-cache-only tooling and CI overlays keep their compatibility behavior. See the
+`Morphir.Configuration.IO` reads explicit files or supplied text and exposes
+bounded project/workspace discovery through native and in-memory trees. See the
+[discovery guide](docs/content/guides/configuration.md#discovery-library-api) for
+`ProjectSystem.Discover`, membership/selection, host boundaries and machine sources.
+Existing Git-first artifact discovery, cache-only tooling and CI overlays keep
+their compatibility behavior. CLI inspection, editing and migration remain planned. See the
 [reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.
 
 ## Getting Started

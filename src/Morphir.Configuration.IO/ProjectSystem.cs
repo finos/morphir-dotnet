@@ -34,7 +34,7 @@ public sealed class InMemoryProjectTree : IProjectTree
         ObservedPaths.Add(path);
         if (!ProjectPath.contains(Boundary, path)) return ProjectEntry.NewFailure("Outside mounted boundary");
         if (_files.TryGetValue(path, out var text)) return ProjectEntry.NewFile(ConfigurationReader.ReadText(path, text).Content);
-        if (_directories.Contains(path)) return ProjectEntry.NewDirectory(ReaderValues.List(_directories.Concat(_files.Keys)
+        if (_directories.Contains(path)) return ProjectEntry.NewDirectory(ReaderValues.List(_directories
             .Where(p => p != path && ProjectPath.parent(p) == path).Order(StringComparer.Ordinal)));
         return ProjectEntry.Missing;
     }

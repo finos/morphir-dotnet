@@ -23,6 +23,7 @@
         <Compile Include="Resolver.fs" />
         <Compile Include="ProjectTypes.fs" />
         <Compile Include="ProjectDiscovery.fs" />
+        <Compile Include="ProjectSources.fs" />
     </ItemGroup>
 
 </Project>
