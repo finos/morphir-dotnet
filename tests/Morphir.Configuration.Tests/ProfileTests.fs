@@ -38,4 +38,10 @@ let tests =
             let result = Profiles.plan sources env options
             Expect.equal result.Active [ "metrics" ] "the explicit host selector has authority"
         }
+        test "present environment selection replaces base selection" {
+            let sources = [ root [ "active", names [ "base" ] ] ]
+            let env = Map.ofList [ "MORPHIR_PROFILES", " postgres, metrics " ]
+            let result = Profiles.plan sources env DocumentDefaults.profileOptions
+            Expect.equal result.Active [ "postgres"; "metrics" ] "trimmed comma-separated environment names win"
+        }
     ]
