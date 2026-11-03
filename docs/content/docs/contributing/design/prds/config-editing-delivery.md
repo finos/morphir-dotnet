@@ -196,3 +196,46 @@ and 13 approved scenarios remain unchanged.
 The reviewer probes are owned at `/private/tmp/morphir-config-editing-review-planning`.
 No review was posted as a human approval. Parent-owned current-head CI, final
 qualification, landing and cleanup remain outstanding at this checkpoint.
+
+
+### Parent final review qualification
+
+Runtime fixes are committed at `fa7782d`; the separate Windows fixture correction
+is `214eee4`. All 17 configured runners pass on the final runtime source, using
+one TUnit worker, sequenced Expecto and serial nested builds. The refreshed
+counts are core 149, IO/BDD 277, tooling/BDD 363 and Microsoft 22; the other
+configured suites retain their baseline counts. All three new subprocess
+regressions pass. `parent-review/final-validation.json` records every exit code
+and links to the corresponding `final-<project>.log` receipts.
+
+The full solution build succeeds with no errors and 9 existing warnings on this
+incremental invocation. Changed C# formatter verification and F# Fantomas checks
+pass. OpenSpec verification passes all 22 active/spec items and both extension
+tests. Current-source coverage unions the refreshed core collector and IO
+coverage files, never the pre-edit source-line mappings: core 3775/3932, 96.01%,
+and IO 1392/1436, 96.94%, in `ownership-coverage-summary.json`.
+
+Fresh managed, trimmed and native osx-arm64 IO hosts pass all 44 editing checks,
+9 editor, 22 shared planning/application and 13 transaction, as well as 228 JSON5
+syntax checks, 26 pinned Morphir documents and existing host/discovery/machine
+checks. New mixed-layout personal and explicit other-member owner paths execute
+in each published mode. Receipts are `ownership-io-managed.log`,
+`io-trimmed-result.json` and `io-native-result.json`; published stderr is empty.
+Pinned dependency linker diagnostics remain visible under explicit
+ILLinkTreatWarningsAsErrors=false, with no authored-source diagnostic suppression.
+Publish-only lockfile changes were restored byte-for-byte from the captured
+SHA-256 manifest; the checkout is clean apart from this qualification record.
+
+The serializer host still passes 71 managed checks in the full run. Its prior
+71-check trimmed/native receipts remain applicable: neither report/DTO/context
+source nor dependency versions, target framework or publish options changed.
+The changed F# selection helper and IO planning service are outside that host's
+call graph; its shared Editing.plan calls and serialization/redaction behavior
+remain unchanged. Newly changed selection paths have the fresh IO-host native
+qualification above.
+
+Main was refreshed and remains validated base
+`618fbf7b6c5b542122450bf61f4f794e590fe4f5`. Both independent reviews have completed;
+all reported material findings are addressed. Fresh current-head CI remains
+required before the authorized landing and owned cleanup. All added parent
+evidence remains under `/private/tmp/morphir-config-editing/parent-review/`.
