@@ -16,7 +16,7 @@ partial class Build
 
     /// <summary>
     /// Publish library NuGet packages to NuGet.org
-    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir, Morphir.SDK.FSharp, Morphir.SDK
+    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir, Morphir.SDK.FSharp, Morphir.SDK, Morphir.SDK.CSharp
     /// Requires: --api-key parameter
     /// Parameters: --nuget-source (default: https://api.nuget.org/v3/index.json)
     /// </summary>
@@ -81,7 +81,7 @@ partial class Build
             }
 
             // Publish the runtime before its dependency-only compatibility package.
-            foreach (var packageId in new[] { "Morphir.SDK.FSharp", "Morphir.SDK" })
+            foreach (var packageId in new[] { "Morphir.SDK.FSharp", "Morphir.SDK", "Morphir.SDK.CSharp" })
             {
                 var sdkPackage = PathHelper.GetLibraryPackagePath(packageId, Version.ToString(), OutputDir);
                 if (!File.Exists(sdkPackage))
@@ -149,7 +149,7 @@ partial class Build
 
     /// <summary>
     /// Publish library NuGet packages to local feed for testing
-    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir, Morphir.SDK.FSharp, Morphir.SDK
+    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir, Morphir.SDK.FSharp, Morphir.SDK, Morphir.SDK.CSharp
     /// Output: artifacts/local-feed/
     /// Parameters: --local-source (default: artifacts/local-feed)
     /// </summary>
@@ -205,7 +205,7 @@ partial class Build
                     .SetSkipDuplicate(true));
             }
 
-            foreach (var packageId in new[] { "Morphir.SDK.FSharp", "Morphir.SDK" })
+            foreach (var packageId in new[] { "Morphir.SDK.FSharp", "Morphir.SDK", "Morphir.SDK.CSharp" })
             {
                 var sdkPackage = PathHelper.GetLibraryPackagePath(packageId, Version.ToString(), OutputDir);
                 if (!File.Exists(sdkPackage))

@@ -63,9 +63,16 @@ partial class Build
                 .SetOutputDirectory(OutputDir)
                 .SetProperty("Version", versionString));
 
+            Serilog.Log.Information("Packing Morphir.SDK.CSharp...");
+            DotNetPack(s => s
+                .SetProject(MorphirSDKCSharpProject)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(OutputDir)
+                .SetProperty("Version", versionString));
+
             // Validate library packages
             Serilog.Log.Information("Validating library packages...");
-            var libraryProjects = new[] { "Morphir.Core", "Morphir.Tooling", "Morphir", "Morphir.SDK.FSharp" };
+            var libraryProjects = new[] { "Morphir.Core", "Morphir.Tooling", "Morphir", "Morphir.SDK.FSharp", "Morphir.SDK.CSharp" };
             foreach (var project in libraryProjects)
             {
                 var packagePath = PathHelper.GetLibraryPackagePath(project, versionString, OutputDir);
