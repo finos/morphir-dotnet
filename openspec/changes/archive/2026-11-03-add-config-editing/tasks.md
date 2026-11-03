@@ -21,7 +21,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 ## 4. CLI editing and integration
 
 - [x] 4.1 Add red-then-green subprocess scenarios and thin config set/unset adapters for --type, --dry-run, scoped targets, JSON, inherited values, overridden writes, and exit codes; verify stdout is parseable and update CLI/walkthrough examples in this group.
-- [ ] 4.2 Run format/build/analyzers, configuration/editor and tooling suites, contract/coverage checks, and concurrent-writer tests; verify no generated-output publication requirements were weakened or repurposed and record results.
+- [x] 4.2 Run format/build/analyzers, configuration/editor and tooling suites, contract/coverage checks, and concurrent-writer tests; verify no generated-output publication requirements were weakened or repurposed and record results.
 
 ## Workflow follow-up
 
@@ -34,3 +34,7 @@ These are required campaign-completion steps after tracked implementation work, 
 - Verify the campaign worktree is clean and contains no unique unmerged work. Remove only this campaign's worktree and local/remote branches through the owning workspace/forge mechanisms, checking for automatic remote deletion first. Confirm their absence; do not force-remove or broadly prune.
 - Remove owned temporary build/test artifacts only when they contain no unique work. Preserve unrelated worktrees/branches and any unresolved recovery journal/backups; resolve or explicitly report a cleanup blocker rather than declaring completion.
 - Deliver a receipt with PR URL, landed SHA, required-check/review evidence, archive/spec-sync location, and separate worktree/local-branch/remote-branch cleanup results. Keep the campaign incomplete while any landing or owned-cleanup obligation remains.
+
+## Implementation handoff
+
+All eight tracked tasks are locally qualified. The parent owns the remaining review, CI, merge and cleanup follow-up above. The user explicitly approved workstream admin bypass for parent; the implementation worker will not watch, merge, force-push or delete branches. Source validation and archive evidence are recorded in `docs/content/docs/contributing/design/prds/config-editing-delivery.md`.

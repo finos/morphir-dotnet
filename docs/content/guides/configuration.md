@@ -7,18 +7,18 @@ description: "Morphir configuration formats, discovery, precedence, and shared h
 
 # Configuration
 
-Morphir configuration describes projects, workspace membership, and tooling settings. Shared libraries provide typed documents, source resolution, and project discovery to native and embedded hosts. Shared queries, CLI inspection and an opt-in Microsoft configuration adapter are available. Editing and migration remain later delivery campaigns.
+Morphir configuration describes projects, workspace membership, and tooling settings. Shared libraries provide typed documents, source resolution, and project discovery to native and embedded hosts. Shared queries, CLI inspection and an opt-in Microsoft configuration adapter are available. Shared TOML editing is available; project/workspace migration remain later delivery campaigns.
 
 ## Implementation status
 
 The shared configuration libraries read TOML, YAML, JSON/JSON5, normalize classic manifests, resolve typed settings, and retain origins and diagnostics. Named profiles use explicit activation. Campaign 1 landed in [PR #461](https://github.com/finos/morphir-dotnet/pull/461).
 
 Campaign 2 landed bounded document-aware discovery in [PR #467](https://github.com/finos/morphir-dotnet/pull/467).
-Campaign 3 adds [shared queries]({{< relref "/docs/configuration/inspection" >}}),
+Campaign 3 landed [shared queries]({{< relref "/docs/configuration/inspection" >}}),
 `morphir config get/list/show/path/explain` and the
 [Microsoft adapter]({{< relref "/docs/configuration/microsoft" >}}).
-See the [inspection journal]({{< relref "/docs/contributing/design/prds/config-inspection-delivery" >}}) for validation and outstanding parent landing/cleanup gates.
-Editing and project/workspace migration examples remain planned.
+See the [inspection journal]({{< relref "/docs/contributing/design/prds/config-inspection-delivery" >}}) for its verified validation and landing/cleanup receipt.
+Campaign 4 adds [shared editing]({{< relref "/docs/configuration/editing" >}}) and `morphir config set/unset`, including dry-run, typed inputs, effective explanations, optimistic conflicts and recovery. Its [delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) records local qualification and parent delivery gates. Project/workspace migration examples remain planned.
 
 Existing cache-only tooling retains Git-first discovery and its separate CI overlay. It does not opt into the new policy automatically. Follow the [layered configuration PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}), the [walkthrough]({{< relref "/docs/getting-started/configuration" >}}), and the [CLI reference]({{< relref "/docs/cli/config" >}}) for their respective status.
 

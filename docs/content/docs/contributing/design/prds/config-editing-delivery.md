@@ -1,7 +1,7 @@
 # Configuration editing delivery journal
 
 Tracking issue: [#473](https://github.com/finos/morphir-dotnet/issues/473).
-Change: `add-config-editing`. Implementation is in progress; landing and cleanup remain parent-owned.
+Change: `add-config-editing`. Implementation is locally qualified and archived; review, CI, landing and cleanup remain parent-owned.
 
 ## Ownership and prerequisite
 
@@ -55,3 +55,77 @@ The actual generated report sources also pass a 71-check managed serializer host
 `core-number-red.log` reproduces rejection of a large literal despite explicit floating input; `core-number-green.log` passes after accepting finite explicit numbers while retaining Int64/composite integer limits. This changes edit input typing only; canonical readers and accepted TOML/YAML/JSON/JSON5 profiles remain unchanged.
 
 The first broad local driver stopped after five passing suites on Bash 3.2's empty-array handling. That driver was repaired to use positional arguments and infer Expecto from project metadata; no product change was needed. Its evidence is preserved in `validation-initial/`. The current broad run uses each configured executable runner, one TUnit worker, sequenced Expecto, bounded nested builds and a process-local path to the already installed PowerShell 7.5.3. No global tool setting changed.
+
+## Final local qualification
+
+The source checkpoint is `cb6ff29`. All 17 configured runners pass; `validation/summary.json` records these exact counts.
+
+| Runner | Passed |
+| --- | ---: |
+| `Morphir.CodeGeneration.FSharp.Tests` | 333 |
+| `Morphir.Configuration.IO.Tests` | 266 |
+| `Morphir.Configuration.Inspection.Smoke` | 71 |
+| `Morphir.Configuration.Microsoft.Tests` | 22 |
+| `Morphir.Configuration.Tests` | 149 |
+| `Morphir.Core.Tests` | 237 |
+| `Morphir.IR.Pipeline.Plugins.Tests` | 141 |
+| `Morphir.IR.Pipeline.Tests` | 299 |
+| `Morphir.Internal.CodeGeneration.Tests` | 25 |
+| `Morphir.Ion.Tests` | 463 |
+| `Morphir.Models.Tests` | 791 |
+| `Morphir.Myriad.Integration.Tests` | 12 |
+| `Morphir.Myriad.Tests` | 4 |
+| `Morphir.SDK.CSharp.Tests` | 20 |
+| `Morphir.SDK.Conformance.Tests` | 27 |
+| `Morphir.SDK.Tests` | 403 |
+| `Morphir.Tooling.Tests` | 360 |
+
+The solution build passes with 20 existing package/generated-code warnings and no errors. C# formatter verification and Fantomas verification pass. The new managed configuration and serializer builds have no warnings/errors. `delivery-coverage.json` records core 3766/3922, 96.02%, and IO 1381/1425, 96.91% on the final source.
+
+Both non-CLI hosts pass managed, trimmed and native `osx-arm64` qualification. The IO host passes 37 new checks, all 228 JSON5 grammar cases, 26 pinned Morphir documents and its existing host/discovery/machine-root checks. The linked-source CLI serializer host passes 71 checks in each mode, with reflection serialization disabled. `publish-summary.json` records actual receipts and warning counts. IO trimmed/native retain 44/47 pinned dependency warning lines; serializer trimmed/native retain 42/47. `ILLinkTreatWarningsAsErrors=false` is explicit on each publish, no diagnostic is suppressed, and no warning-free dependency claim is made. No authored-source linker/AOT diagnostic occurs. Exact prepublish lockfile bytes were restored through the captured SHA-256 manifest.
+
+### Reproduction
+
+Run one heavy job at a time from the repository root. Use physical paths on macOS:
+
+```sh
+export DOTNET_PROCESSOR_COUNT=2 BuildInParallel=false
+export TMPDIR=/private/tmp/morphir-config-editing/tmp
+export TEMP="$TMPDIR" TMP="$TMPDIR"
+export PATH="/Users/damian/.local/share/mise/installs/powershell/7.5.3:$PATH"
+dotnet build Morphir.slnx -m:1 -p:BuildInParallel=false
+# For each runner in the table, use its compiled executable:
+dotnet tests/Morphir.Configuration.Tests/bin/Debug/net10.0/Morphir.Configuration.Tests.dll --sequenced
+dotnet tests/Morphir.Configuration.IO.Tests/bin/Debug/net10.0/Morphir.Configuration.IO.Tests.dll --maximum-parallel-tests 1
+# Other Expecto projects use --sequenced; other TUnit projects use one worker.
+dotnet format Morphir.slnx --no-restore --verify-no-changes --verbosity quiet
+dotnet fantomas --check src/Morphir.Configuration/Editing.fs tests/Morphir.Configuration.Tests/EditingTests.fs
+```
+
+`run-validation.sh` under the campaign evidence root contains the complete 17-runner sequence and bounded process environment. It reads each test project's framework metadata; the serializer smoke takes no runner flags. Nested SDK packs/builds remain serial, using the installed process-local PowerShell. Runtime source is unchanged by the later archive and documentation commits.
+
+Coverage is measured after correctness gates:
+
+```sh
+dotnet tests/Morphir.Configuration.IO.Tests/bin/Debug/net10.0/Morphir.Configuration.IO.Tests.dll --maximum-parallel-tests 1 --coverage --coverage-output-format cobertura --coverage-output "$TMPDIR/io.cobertura.xml"
+dotnet test tests/Morphir.Configuration.Tests/Morphir.Configuration.Tests.fsproj --no-build --no-restore -m:1 -p:BuildInParallel=false --collect:"XPlat Code Coverage" --results-directory "$TMPDIR/core-coverage"
+/usr/bin/python3 scripts/configuration/summarize-coverage.py "$TMPDIR"/core-coverage/*/coverage.cobertura.xml "$TMPDIR/io.cobertura.xml"
+```
+
+Each smoke README gives exact managed/trimmed/native commands. The published modes use `-m:1 -p:BuildInParallel=false -p:PublishTrimmed=true -p:PublishAot=<false|true> -p:TrimmerSingleWarn=false -p:ILLinkTreatWarningsAsErrors=false -p:JsonSerializerIsReflectionEnabledByDefault=false`. The IO executable receives `--fixtures <repo>/tests/Fixtures/Configuration`. `run-publish.sh` and the lockfile capture/restore manifest retain the exact successful sequence.
+
+### Main integration and archive
+
+Main advanced through the documentation-only [SDK archive PR #472](https://github.com/finos/morphir-dotnet/pull/472), landing at `618fbf7b6c5b542122450bf61f4f794e590fe4f5`. It was merged normally into the owned branch. Runtime sources and configuration/tooling tests are byte-identical to `cb6ff29`. Independent SDK main specs and archives match main exactly. Fresh SDK conformance passes 27/27 after integrating its readiness metadata. No SDK archive was authored or altered by this campaign.
+
+Only `add-config-editing` was synchronized and archived at `openspec/changes/archive/2026-11-03-add-config-editing/`. Its main capability is `openspec/specs/configuration-editing/spec.md`. All eight tasks are complete. The nine requirement bodies, 13 scenarios and Purpose match the approved delta exactly. The archived design/proposal/task links are checked; the classic migration prerequisite link is repaired. Independent migration work remains unimplemented.
+
+Strict OpenSpec validation passes 22/22 active/spec items before and after archiving. The html-design snapshot check and both extension tests pass. The generated-output publication main spec and implementation remain unchanged. The archive receipt and task-boundary instruction snapshots are retained under the campaign evidence root.
+
+### Handoff limits and ownership
+
+Local qualification does not claim current-head CI, independent review, landing or campaign completion. Parent owns those gates, including the explicitly authorized workstream admin bypass and subsequent checkout/local-branch/remote-branch/temp cleanup. The implementation worker does not watch, merge, force-push, delete branches or publish releases.
+
+Native writes coordinate cooperating processes on one machine; shared stores needing distributed coordination must supply it through their host. Per-file atomic installation does not provide multi-file group/crash atomicity. Native no-follow policy can reject the conventional macOS `/etc` alias; an authorized physical TOML target avoids that alias. Windows paths and separate drive/UNC hosts are covered by the shared host fixtures; the local native publication target is `osx-arm64`.
+
+All owned external build/test/publish evidence is under `/private/tmp/morphir-config-editing/`, including `tmp`, `editor`, `transaction`, `smoke`, `publish`, `publish-locks`, `validation`, `validation-initial`, coverage files and instruction/archive receipts. Generated `bin`, `obj` and test outputs inside the retained owned checkout also belong to this campaign. Shared tool/package caches are not campaign cleanup targets. No unresolved native recovery artifact was found after the successful qualification runs. Preserve any recovery data discovered during later review instead of deleting it to manufacture a clean result.
