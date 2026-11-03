@@ -70,7 +70,9 @@ and `morphir config set/unset` provide typed, scoped TOML previews and writes,
 source-preserving changes, optimistic conflicts and explicit recovery ownership.
 Shared [classic project migration](docs/content/docs/configuration/project-migration.md)
 and `morphir project migrate` provide loss-checked previews and guarded TOML
-adoption while retaining classic bytes. Workspace migration remains planned. See the
+adoption while retaining classic bytes. Shared [workspace migration](docs/content/docs/configuration/workspace-migration.md)
+adds bounded inventory, verified membership and recoverable batch application through
+`morphir workspace migrate [directory]`. See the
 [reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.
 
 ## SDK libraries

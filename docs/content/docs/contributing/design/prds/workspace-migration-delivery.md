@@ -80,3 +80,25 @@ Setup completed before runtime changes. Proposal now links actual issue #479. Ta
   found in the helper's final inventory.
 - Native coordination is machine-local, and file replacement is per-file atomic.
   No cross-file crash-atomicity or distributed-lock guarantee is claimed.
+
+### Common-context verification and source policy
+
+`transactions/lead-declared-controls-red.log` passes one and fails one declared
+control test. `transactions/lead-layout-red.log` fails both mixed-layout cases.
+The aggregate now compares declared controls with activation disabled through the
+same shared control policy as single-project verification. It supplies an explicit
+existing supported TOML target to the shared planner, preserving owner anchors
+and all existing target/ambiguity guards. Both root and member layouts pass.
+
+`source-policy-red-run.log` reproduces a normalized legacy JSON5 primary being
+misreported as already migrated. Inventory now sends every normalized legacy
+candidate to the project planner, which retains its established `.json` classic
+source contract and returns `migration.classic_required` for `.json5` primaries.
+Full JSON5 syntax in supported `morphir.json` remains accepted; no reader policy
+is changed or loosened. Canonical JSON5 projects remain valid canonical projects.
+
+The first final planner build tried to call an internal F# helper from C# and
+failed compilation. Its subsequently invoked stale-DLL tests are not a current
+qualification gate. `planner-final-build-02.log` is the successful rebuilt source,
+followed by `planner-final-io-02.log`, 371/371 current tests. Task 2.3 was marked
+only after that qualification, at the refreshed source location.

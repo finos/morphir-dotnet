@@ -11,7 +11,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 - [x] 2.1 Write failing BDD/API cases for roots with no workspace, include/exclude patterns, default skipped directories, nested workspace boundaries, discovered links, existing migrated members, virtual/root projects, and stable ordering; confirm red before inventory implementation.
 - [x] 2.2 Implement bounded shared inventory and aggregate plans by composing the project migrator, preserving existing membership/defaults/settings and using explicit member paths; verify the inventory/planning suite and document the adoption command's scan rules.
-- [ ] 2.3 Add failing then passing verification of project conversion in a common proposed workspace context, with separately reported ownership/membership/selection/output-root effects; verify source paths/non-adoption settings stay equivalent and document that generated files are not moved.
+- [x] 2.3 Add failing then passing verification of project conversion in a common proposed workspace context, with separately reported ownership/membership/selection/output-root effects; verify source paths/non-adoption settings stay equivalent and document that generated files are not moved.
 
 ## 3. Coordinated application
 

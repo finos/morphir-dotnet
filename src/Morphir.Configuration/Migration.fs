@@ -64,6 +64,10 @@ type MigrationVerification = {
 
 /// Single-project configuration conversion. No filesystem or ambient state is consulted.
 module ProjectMigration =
+    /// Declared profile controls remain observable while profile activation is disabled.
+    /// Aggregate hosts use the same control merge policy as independent verification.
+    let declaredControls sources = Profiles.declaredControls sources
+
     let rec same left right =
         match left, right with
         | ConfigValue.Number left, ConfigValue.Number right ->

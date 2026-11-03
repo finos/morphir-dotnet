@@ -35,11 +35,26 @@ public sealed class ProjectMigrationPreview
     }
 }
 
+/// <summary>Explicit proposed base workspace shared by aggregate conversion hosts.
+/// Contains only declared base primaries; no ambient overlays are loaded.</summary>
+public sealed class ProjectMigrationContext(string rootPath, FSharpOption<OwningWorkspace>? workspace, IEnumerable<SourceInput> rootSources)
+{
+    public string RootPath { get; } = rootPath;
+    public FSharpOption<OwningWorkspace>? Workspace { get; } = workspace;
+    public ImmutableArray<SourceInput> RootSources { get; } = rootSources.ToImmutableArray();
+}
+
 /// <summary>Plans one classic project over an explicitly bounded tree. A storage adapter is optional
 /// for read-only hosts; only an adapter-backed verified plan can be applied by its creating service.</summary>
 public sealed class ProjectMigrationService(IProjectTree tree, IConfigurationTransactionHost? storage = null)
 {
     public ProjectMigrationPreview Plan(string startPath, string? inputPath = null, string? outputPath = null)
+        => PlanCore(startPath, inputPath, outputPath, null);
+
+    public ProjectMigrationPreview PlanInWorkspace(string startPath, ProjectMigrationContext context, string? inputPath = null, string? outputPath = null)
+        => PlanCore(startPath, inputPath, outputPath, context);
+
+    private ProjectMigrationPreview PlanCore(string startPath, string? inputPath, string? outputPath, ProjectMigrationContext? context)
     {
         string? sourcePath = null, targetPath = null, projectPath = null;
         var diagnostics = new List<ConfigDiagnostic>();
@@ -95,7 +110,12 @@ public sealed class ProjectMigrationService(IProjectTree tree, IConfigurationTra
             var role = project.Path == found.Discovery.Location ? SourceRole.RootPrimary : SourceRole.MemberPrimary;
             // Only declared base primary documents participate. No loader call can read personal,
             // machine or activated-profile sources during migration.
-            var sources = found.Discovery.Root.Sources.ToList();
+            if (context is not null && (context.RootPath != found.Discovery.Location
+                || !Equals(context.Workspace, found.Discovery.Workspace)
+                || context.RootSources.Any(s => s.Source.Role != SourceRole.RootPrimary
+                    || !DiscoveryPolicy.candidates(context.RootPath).Contains(s.Source.Path))))
+                return Fail("migration.context", "Proposed context must belong to the discovered workspace base primaries.");
+            var sources = context is null ? found.Discovery.Root.Sources.ToList() : context.RootSources.ToList();
             if (role == SourceRole.MemberPrimary)
                 sources.AddRange(project.Location.Sources.Select(s => Rebind(s, role)));
             var classics = project.Location.Sources.Where(s => s.Source.Path.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
