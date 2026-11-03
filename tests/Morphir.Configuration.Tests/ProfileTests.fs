@@ -72,4 +72,9 @@ let tests =
                     && diagnostic.KeyPath = [ "profiles"; "active" ]))
                 "a higher null does not resurrect a lower selector"
         }
+        test "whitespace environment disables malformed controls and includes" {
+            let sources = [ root [ "active", ConfigValue.Null; "include", names [ "metrics" ] ] ]
+            let result = Profiles.plan sources (Map.ofList [ "MORPHIR_PROFILES", " \t " ]) DocumentDefaults.profileOptions
+            Expect.equal (result.Enabled, result.Active, result.Diagnostics) (false, [], []) "disabled selection never interprets controls"
+        }
     ]

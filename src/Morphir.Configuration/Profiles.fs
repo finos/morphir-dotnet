@@ -53,6 +53,11 @@ module Profiles =
 
     let plan (sources: SourceInput list) (environment: Map<string, string>) (options: ProfileOptions) =
         match options.Selection with
+        | ProfileSelection.Automatic when
+            environment |> Map.tryFind "MORPHIR_PROFILES" |> Option.exists System.String.IsNullOrWhiteSpace ->
+            { Enabled = false
+              Active = []
+              Diagnostics = [] }
         | ProfileSelection.Names names ->
             let value = baseValue sources
             let includes = value |> readNames "include" |> Option.defaultValue []
