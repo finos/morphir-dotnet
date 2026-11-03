@@ -3,6 +3,7 @@
 namespace Morphir.CodeGeneration.CSharp
 
 open Morphir.IR
+open System.Threading
 open TypeEmission
 
 /// Typed runtime bindings, separate from host packages and compiler services.
@@ -19,7 +20,8 @@ module internal SdkMapping =
         Output: Shape
     }
 
-    let signature operation =
+    let signature (ct: CancellationToken) operation =
+        ct.ThrowIfCancellationRequested()
         List.foldBack (fun input output -> Arrow(input, output)) operation.Inputs operation.Output
 
     let tryResolve fresh constrain name =
@@ -260,7 +262,8 @@ module internal SdkMapping =
             case "basics" "order" [] (local.ToUpperInvariant()) []
         | _ -> None
 
-    let rec private comparer location shape =
+    let rec private comparer (ct: CancellationToken) location shape =
+        ct.ThrowIfCancellationRequested()
         let root = "global::Morphir.SDK.CSharp.MorphirComparers."
 
         match shape with
@@ -279,7 +282,7 @@ module internal SdkMapping =
         | Named(name, [ item ]) when sdk name = Some("list", "list") ->
             root
             + "List("
-            + comparer location item
+            + comparer ct location item
             + ")"
         | Product items when
             items.Length = 2
@@ -287,7 +290,7 @@ module internal SdkMapping =
             ->
             root
             + "Tuple("
-            + String.concat ", " (List.map (comparer location) items)
+            + String.concat ", " (List.map (comparer ct location) items)
             + ")"
         | _ ->
             Admission.fail
@@ -295,7 +298,16 @@ module internal SdkMapping =
                 location
                 "No structural SDK comparer exists for this key type."
 
-    let emit render resolve location (operation: Operation) (args: string list) =
+    let emit
+        (ct: CancellationToken)
+        render
+        resolve
+        location
+        (operation: Operation)
+        (args: string list)
+        =
+        ct.ThrowIfCancellationRequested()
+
         let call target inputs =
             target
             + "("
@@ -348,7 +360,7 @@ module internal SdkMapping =
 
             factory (
                 args
-                @ [ comparer location key ]
+                @ [ comparer ct location key ]
             )
         | "Dict", "Get"
         | "Dict", "Remove"

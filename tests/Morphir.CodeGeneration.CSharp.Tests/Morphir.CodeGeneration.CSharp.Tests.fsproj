@@ -24,6 +24,7 @@
     <Compile Include="PatternCases.fs" />
     <Compile Include="SdkCases.fs" />
     <Compile Include="FrozenSdkCases.fs" />
+    <Compile Include="CancellationCases.fs" />
     <Compile Include="Tests.fs" />
     <None Include="Generation.feature" />
   </ItemGroup>

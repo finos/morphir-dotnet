@@ -30,14 +30,19 @@ module internal TypeEmission =
         Location: string
     }
 
-    let validateName location (Name words as name) =
+    let validateName (ct: CancellationToken) location (Name words as name) =
+        ct.ThrowIfCancellationRequested()
+
         if
             List.isEmpty words
             || words
                |> List.exists (fun word ->
                    String.IsNullOrEmpty word
                    || word
-                      |> Seq.exists (fun c -> not (Char.IsAsciiLetterOrDigit c))
+                      |> Seq.exists (fun c ->
+                          ct.ThrowIfCancellationRequested()
+                          not (Char.IsAsciiLetterOrDigit c)
+                      )
                )
         then
             Admission.fail
@@ -46,13 +51,15 @@ module internal TypeEmission =
                 ("Invalid Morphir name "
                  + sprintf "%A" name)
 
-    let uniqueNames location names =
+    let uniqueNames ct location names =
         names
-        |> List.iter (fun (name, _) -> validateName location name)
+        |> List.iter (fun (name, _) -> validateName ct location name)
 
         names
         |> List.groupBy snd
         |> List.iter (fun (target, owners) ->
+            ct.ThrowIfCancellationRequested()
+
             if owners.Length > 1 then
                 Admission.fail
                     "name-collision"
@@ -123,19 +130,20 @@ module internal TypeEmission =
         + (moduleName path).TrimStart('@')
         + ".g.cs"
 
-    let validateModules pkg modules =
+    let validateModules ct pkg modules =
         let (PackageName(Path package)) = pkg
 
         if List.isEmpty package then
             Admission.fail "invalid-name" "$package" "The package path is empty."
 
         package
-        |> List.iter (validateName "$package")
+        |> List.iter (validateName ct "$package")
 
         let paths =
             Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 
         for path, values in modules do
+            ct.ThrowIfCancellationRequested()
             let (ModulePath(Path parts)) = path
 
             let loc =
@@ -146,14 +154,17 @@ module internal TypeEmission =
                 Admission.fail "invalid-name" loc "The module path is empty."
 
             parts
-            |> List.iter (validateName loc)
+            |> List.iter (validateName ct loc)
 
             uniqueNames
+                ct
                 loc
                 (values
                  |> List.map (fun name -> name, identifier name))
 
             for name in values do
+                ct.ThrowIfCancellationRequested()
+
                 if
                     identifier name = moduleName path
                     || List.contains (title name) protocolNames
@@ -375,23 +386,26 @@ module internal TypeEmission =
           ]
         | _ -> []
 
-    let rec substitute mapping =
-        function
+    let rec substitute (ct: CancellationToken) mapping shape =
+        ct.ThrowIfCancellationRequested()
+
+        match shape with
         | Parameter name as original ->
             Map.tryFind name mapping
             |> Option.defaultValue original
-        | Named(name, args) -> Named(name, List.map (substitute mapping) args)
-        | Product items -> Product(List.map (substitute mapping) items)
+        | Named(name, args) -> Named(name, List.map (substitute ct mapping) args)
+        | Product items -> Product(List.map (substitute ct mapping) items)
         | Fields fields ->
             Fields(
                 fields
-                |> List.map (fun (name, t) -> name, substitute mapping t)
+                |> List.map (fun (name, t) -> name, substitute ct mapping t)
             )
-        | Arrow(input, output) -> Arrow(substitute mapping input, substitute mapping output)
+        | Arrow(input, output) -> Arrow(substitute ct mapping input, substitute ct mapping output)
         | Unit -> Unit
 
-    let rec expand catalog visiting location shape =
-        let next = expand catalog visiting location
+    let rec expand (ct: CancellationToken) catalog visiting location shape =
+        ct.ThrowIfCancellationRequested()
+        let next = expand ct catalog visiting location
 
         match shape with
         | Parameter _ -> shape
@@ -419,10 +433,12 @@ module internal TypeEmission =
                          + qualified name)
 
                 expand
+                    ct
                     catalog
                     (Set.add name visiting)
                     location
                     (substitute
+                        ct
                         (List.zip ps args
                          |> Map.ofList)
                         body)
@@ -436,28 +452,30 @@ module internal TypeEmission =
         | Arrow(input, output) -> Arrow(next input, next output)
         | Unit -> Unit
 
-    let rec freeParameters =
-        function
+    let rec freeParameters (ct: CancellationToken) shape =
+        ct.ThrowIfCancellationRequested()
+
+        match shape with
         | Parameter name -> Set.singleton name
         | Named(_, args)
         | Product args ->
             args
-            |> List.map freeParameters
+            |> List.map (freeParameters ct)
             |> Set.unionMany
         | Fields fields ->
             fields
             |> List.map (
                 snd
-                >> freeParameters
+                >> freeParameters ct
             )
             |> Set.unionMany
-        | Arrow(input, output) -> Set.union (freeParameters input) (freeParameters output)
+        | Arrow(input, output) -> Set.union (freeParameters ct input) (freeParameters ct output)
         | Unit -> Set.empty
 
-    let private recordParameters catalog declaration body =
+    let private recordParameters ct catalog declaration body =
         let used =
-            expand catalog (Set.singleton declaration.Name) declaration.Location body
-            |> freeParameters
+            expand ct catalog (Set.singleton declaration.Name) declaration.Location body
+            |> freeParameters ct
 
         if not (Set.isSubset used (Set.ofList declaration.Parameters)) then
             Admission.fail
@@ -468,8 +486,10 @@ module internal TypeEmission =
         declaration.Parameters
         |> List.filter (fun name -> Set.contains name used)
 
-    let private matchShape parameters template actual =
+    let private matchShape (ct: CancellationToken) parameters template actual =
         let rec normalized shape =
+            ct.ThrowIfCancellationRequested()
+
             match shape with
             | Fields fields ->
                 Fields(
@@ -483,6 +503,8 @@ module internal TypeEmission =
             | other -> other
 
         let rec matched bindings template actual =
+            ct.ThrowIfCancellationRequested()
+
             let many bindings left right =
                 if
                     List.length left
@@ -530,8 +552,9 @@ module internal TypeEmission =
 
         matched Map.empty template actual
 
-    let recordTarget (catalog: Map<FQName, Declaration>) location shape =
-        let actual = expand catalog Set.empty location shape
+    let recordTarget (ct: CancellationToken) (catalog: Map<FQName, Declaration>) location shape =
+        ct.ThrowIfCancellationRequested()
+        let actual = expand ct catalog Set.empty location shape
 
         catalog
         |> Map.toList
@@ -540,12 +563,12 @@ module internal TypeEmission =
         |> List.tryPick (fun candidate ->
             match candidate.Definition with
             | Alias(Fields _ as body) ->
-                let parameters = recordParameters catalog candidate body
+                let parameters = recordParameters ct catalog candidate body
 
                 let template =
-                    expand catalog (Set.singleton candidate.Name) candidate.Location body
+                    expand ct catalog (Set.singleton candidate.Name) candidate.Location body
 
-                matchShape parameters template actual
+                matchShape ct parameters template actual
                 |> Option.map (fun bindings ->
                     candidate,
                     parameters
@@ -601,7 +624,7 @@ module internal TypeEmission =
         | Product _ ->
             Admission.fail "tuple-arity" location "A C# tuple requires at least two elements."
         | Fields _ ->
-            let owner, args = recordTarget catalog location shape
+            let owner, args = recordTarget ct catalog location shape
 
             qualified owner.Name
             + arguments next args
@@ -682,11 +705,12 @@ module internal TypeEmission =
                     | Alias(Fields _ as body) ->
                         let concrete =
                             substitute
+                                ct
                                 (List.zip declaration.Parameters args
                                  |> Map.ofList)
                                 body
 
-                        let owner, args = recordTarget catalog location concrete
+                        let owner, args = recordTarget ct catalog location concrete
 
                         qualified owner.Name
                         + arguments next args
@@ -703,18 +727,22 @@ module internal TypeEmission =
 
                         let body =
                             substitute
+                                ct
                                 (List.zip declaration.Parameters args
                                  |> Map.ofList)
                                 body
 
                         render catalog ct location bound (Set.add name visiting) body
 
-    let private protocol name fields isOverride =
+    let private protocol (ct: CancellationToken) name fields isOverride =
+        ct.ThrowIfCancellationRequested()
         let modifier = if isOverride then "override " else ""
 
         let equality =
             fields
             |> List.map (fun field ->
+                ct.ThrowIfCancellationRequested()
+
                 " && global::Morphir.SDK.CSharp.Basics.Equal("
                 + field
                 + ", otherValue."
@@ -806,7 +834,7 @@ module internal TypeEmission =
 
         let effectiveParameters =
             match declaration.Definition with
-            | Alias(Fields _ as body) -> recordParameters catalog declaration body
+            | Alias(Fields _ as body) -> recordParameters ct catalog declaration body
             | _ -> declaration.Parameters
 
         let className =
@@ -835,6 +863,7 @@ module internal TypeEmission =
         + assignments
         + "}\n"
         + protocol
+            ct
             className
             (fields
              |> List.map (
@@ -914,22 +943,24 @@ module internal TypeEmission =
                 }
             )
 
-    let rec validatePublicType catalog location =
-        function
+    let rec validatePublicType (ct: CancellationToken) catalog location shape =
+        ct.ThrowIfCancellationRequested()
+
+        match shape with
         | Parameter _
         | Unit -> ()
         | Arrow(input, output) ->
-            validatePublicType catalog location input
-            validatePublicType catalog location output
+            validatePublicType ct catalog location input
+            validatePublicType ct catalog location output
         | Fields fields ->
             fields
             |> List.iter (
                 snd
-                >> validatePublicType catalog location
+                >> validatePublicType ct catalog location
             )
         | Product items ->
             items
-            |> List.iter (validatePublicType catalog location)
+            |> List.iter (validatePublicType ct catalog location)
         | Named(name, args) ->
             match Map.tryFind name catalog with
             | Some declaration when not declaration.Public ->
@@ -941,7 +972,7 @@ module internal TypeEmission =
             | _ -> ()
 
             args
-            |> List.iter (validatePublicType catalog location)
+            |> List.iter (validatePublicType ct catalog location)
 
     let prepareWith additions model ct =
         let raw =
@@ -950,6 +981,7 @@ module internal TypeEmission =
 
         let checkFields location className fields =
             uniqueNames
+                ct
                 location
                 (fields
                  |> List.map (fun (name, _) -> name, identifier name))
@@ -970,10 +1002,13 @@ module internal TypeEmission =
                          + " protocol or constructor.")
 
         for declaration in raw do
+            ct.ThrowIfCancellationRequested()
+
             if not declaration.Synthetic then
-                validateName declaration.Location declaration.Name.LocalName
+                validateName ct declaration.Location declaration.Name.LocalName
 
             uniqueNames
+                ct
                 declaration.Location
                 (declaration.Parameters
                  |> List.map (fun name -> name, generic name))
@@ -984,6 +1019,7 @@ module internal TypeEmission =
             | Alias _ -> ()
             | Cases(_, cases) ->
                 uniqueNames
+                    ct
                     declaration.Location
                     (cases
                      |> List.map (fun (name, _) -> name, identifier name))
@@ -1021,8 +1057,10 @@ module internal TypeEmission =
         let original =
             raw
             |> List.map (fun declaration ->
+                ct.ThrowIfCancellationRequested()
+
                 let expanded =
-                    expand rawCatalog (Set.singleton declaration.Name) declaration.Location
+                    expand ct rawCatalog (Set.singleton declaration.Name) declaration.Location
 
                 let body =
                     match declaration.Definition with
@@ -1065,11 +1103,13 @@ module internal TypeEmission =
             |> Map.ofList
 
         for declaration in declarations do
+            ct.ThrowIfCancellationRequested()
+
             let emitted =
                 match declaration.Definition with
                 | Cases _ -> true
                 | Alias(Fields _ as body) ->
-                    let owner, _ = recordTarget catalog declaration.Location body in
+                    let owner, _ = recordTarget ct catalog declaration.Location body in
                     owner.Name = declaration.Name
                 | _ -> false
 
@@ -1113,14 +1153,14 @@ module internal TypeEmission =
 
             if declaration.Public then
                 match declaration.Definition with
-                | Alias body -> validatePublicType catalog declaration.Location body
+                | Alias body -> validatePublicType ct catalog declaration.Location body
                 | Cases(true, cases) ->
                     cases
                     |> List.iter (fun (_, fields) ->
                         fields
                         |> List.iter (
                             snd
-                            >> validatePublicType catalog declaration.Location
+                            >> validatePublicType ct catalog declaration.Location
                         )
                     )
                 | Cases(false, _) -> ()
@@ -1139,7 +1179,7 @@ module internal TypeEmission =
                         match declaration.Definition with
                         | Alias(Fields fields) ->
                             let owner, _ =
-                                recordTarget catalog declaration.Location (Fields fields)
+                                recordTarget ct catalog declaration.Location (Fields fields)
 
                             if owner.Name = declaration.Name then
                                 valueClass catalog ct declaration name "" access fields

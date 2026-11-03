@@ -8,9 +8,14 @@ open TypeEmission
 open ValueLowering
 
 module internal ValueEmission =
-    let private signature definition =
+    let private signature (ct: CancellationToken) definition =
+        ct.ThrowIfCancellationRequested()
+
         List.foldBack
-            (fun (_, input) output -> Arrow(input, output))
+            (fun (_, input) output ->
+                ct.ThrowIfCancellationRequested()
+                Arrow(input, output)
+            )
             definition.Inputs
             definition.Output
 
@@ -28,6 +33,7 @@ module internal ValueEmission =
             let mutable nextId = 0
 
             let fresh () =
+                ct.ThrowIfCancellationRequested()
                 nextId <- nextId + 1
 
                 "__m"
@@ -76,7 +82,7 @@ module internal ValueEmission =
 
                 let fields =
                     candidate.Fields
-                    |> List.map (fun (name, shape) -> name, substitute substitutions shape)
+                    |> List.map (fun (name, shape) -> name, substitute ct substitutions shape)
 
                 let output =
                     if candidate.IsRecord then
@@ -100,7 +106,8 @@ module internal ValueEmission =
                 fields, output, target
 
             let recordExpression shape values =
-                let owner, _ = recordTarget catalog loc (checkedValue.CheckedType shape)
+                ct.ThrowIfCancellationRequested()
+                let owner, _ = recordTarget ct catalog loc (checkedValue.CheckedType shape)
 
                 let fields =
                     match owner.Definition with
@@ -646,11 +653,11 @@ module internal ValueEmission =
                     curry
                         operation.Inputs
                         operation.Output
-                        (SdkMapping.emit typ checkedValue.CheckedType loc operation)
+                        (SdkMapping.emit ct typ checkedValue.CheckedType loc operation)
                 | TReference(target, args) ->
                     let targetParameters =
-                        signature target.Definition
-                        |> freeParameters
+                        signature ct target.Definition
+                        |> freeParameters ct
                         |> Set.toList
 
                     let substitutions =
@@ -661,10 +668,10 @@ module internal ValueEmission =
                         target.Definition.Inputs
                         |> List.map (
                             snd
-                            >> substitute substitutions
+                            >> substitute ct substitutions
                         )
 
-                    let output = substitute substitutions target.Definition.Output
+                    let output = substitute ct substitutions target.Definition.Output
 
                     let methodName =
                         qualified target.Name

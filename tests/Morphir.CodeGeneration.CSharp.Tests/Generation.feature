@@ -1,6 +1,11 @@
 Feature: Reusable typed C# library generation
   A host supplies a decoded Morphir library without invoking the CLI.
 
+  Scenario: Cancellation interrupts an active nonempty traversal
+    Given an admitted acyclic alias graph with expensive tuple expansion
+    When the caller cancels while generation is running
+    Then expansion stops promptly and the whole-model result has no sources
+
   Scenario: The initial SDK slice preserves arithmetic and variant meaning
     Given equivalent classic and v4 libraries using arithmetic, comparisons and List.map
     And Maybe.map and error-first Result.map with present and absent payloads

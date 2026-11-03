@@ -244,6 +244,14 @@ let externalDiagnostics model (consumer: string) =
 [<Tests>]
 let tests =
     testList "C# generation" [
+        testCase "Mid-traversal cancellation interrupts acyclic alias expansion"
+        <| fun _ -> CancellationCases.duringAliasExpansion ()
+        for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
+            testCase (
+                "Large nonempty literal cancellation "
+                + family
+            )
+            <| fun _ -> CancellationCases.duringLargeLiteral make
         for family in [ "classic"; "v4" ] do
             testCase (
                 "Public functions cannot expose private nominal types "

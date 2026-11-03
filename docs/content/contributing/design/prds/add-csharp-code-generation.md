@@ -21,7 +21,7 @@ defines acceptance. PR readiness precedes coordinator-owned landing and archival
 | Deterministic naming, paths and literals | Implemented | Reordered declarations, Turkish culture, keywords/capture, portable collisions, Unicode/numeric fidelity and empty allocation |
 | Ordered patterns, conditionals, record operations and self recursion | Implemented | Shared compiled first-match, constructor/tuple/list/alias/literal patterns, lexical binding and input persistence; reversed v4 field order checked separately |
 | Admitted SDK operations and explicit refusals | Implemented | All 67 frozen operations execute 207 required observations through both typed paths, including persistence and equality/hash invariants; eight exclusions remain exclusions |
-| Determinism, located refusals and traversal cancellation | Planned | Positive and negative behavior tests |
+| Determinism, located refusals and traversal cancellation | Implemented | Active alias expansion and both-family large-string generation cancel without sources; invalid later modules retain the whole-model boundary |
 | Package, trimming, full tests and coverage | Planned | Exact commands and denominators required |
 
 ## Design and boundary
@@ -46,8 +46,8 @@ representation exclusions. Historical F# gaps remain historical evidence.
 
 The packaged modern compiler-host smoke passed with the real Models dependency
 closure. Legacy IDE and netstandard hosts remain untested. Root-approved shared
-solution/build/package/docs registrations are integrated. Cancellation during traversal,
-business fixtures and final package/trimming acceptance remain open.
+solution/build/package/docs registrations are integrated. Business fixtures and
+final package/trimming acceptance remain open.
 
 The type checkpoint uses get-only classes and closed nested cases in both
 profiles. Transparent aliases expand to their structural representation, while

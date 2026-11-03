@@ -103,8 +103,10 @@ module internal ValueLowering =
         | TLiteralPattern of LiteralEmission.Literal
         | TUnitPattern
 
-    let rec classicPattern (ct: CancellationToken) location =
-        function
+    let rec classicPattern (ct: CancellationToken) location pattern =
+        ct.ThrowIfCancellationRequested()
+
+        match pattern with
         | Morphir.IR.Classic.WildcardPattern _ ->
             ct.ThrowIfCancellationRequested()
             Wild
@@ -120,8 +122,10 @@ module internal ValueLowering =
             LiteralPattern(LiteralEmission.classic ct location literal)
         | Morphir.IR.Classic.UnitPattern _ -> UnitPattern
 
-    let rec v4Pattern (ct: CancellationToken) location =
-        function
+    let rec v4Pattern (ct: CancellationToken) location pattern =
+        ct.ThrowIfCancellationRequested()
+
+        match pattern with
         | Morphir.IR.V4.WildcardPattern _ ->
             ct.ThrowIfCancellationRequested()
             Wild
@@ -137,9 +141,14 @@ module internal ValueLowering =
             LiteralPattern(LiteralEmission.v4 ct location literal)
         | Morphir.IR.V4.UnitPattern _ -> UnitPattern
 
-    let private signature definition =
+    let private signature (ct: CancellationToken) definition =
+        ct.ThrowIfCancellationRequested()
+
         List.foldBack
-            (fun (_, input) output -> Arrow(input, output))
+            (fun (_, input) output ->
+                ct.ThrowIfCancellationRequested()
+                Arrow(input, output)
+            )
             definition.Inputs
             definition.Output
 
@@ -473,6 +482,7 @@ module internal ValueLowering =
         let mutable domains = []
 
         member _.Fresh() =
+            ct.ThrowIfCancellationRequested()
             count <- count + 1
 
             let name =
@@ -486,7 +496,7 @@ module internal ValueLowering =
             ct.ThrowIfCancellationRequested()
             let next = this.Resolve
 
-            match expand catalog Set.empty "$types" shape with
+            match expand ct catalog Set.empty "$types" shape with
             | Parameter name when Map.containsKey name bindings -> next bindings[name]
             | Named(name, args) -> Named(name, List.map next args)
             | Product items -> Product(List.map next items)
@@ -516,7 +526,7 @@ module internal ValueLowering =
             | Parameter name, value
             | value, Parameter name when Set.contains name fresh ->
                 if
-                    freeParameters value
+                    freeParameters ct value
                     |> Set.contains name
                 then
                     Admission.fail "type-mismatch" location "An infinite function type is required."
@@ -552,7 +562,7 @@ module internal ValueLowering =
 
         member this.Instantiate shape =
             let parameters =
-                freeParameters shape
+                freeParameters ct shape
                 |> Set.toList
 
             let args =
@@ -560,6 +570,7 @@ module internal ValueLowering =
                 |> List.map (fun _ -> this.Fresh())
 
             substitute
+                ct
                 (List.zip parameters args
                  |> Map.ofList)
                 shape,
@@ -648,10 +659,10 @@ module internal ValueLowering =
                                     snd
                                     >> List.map (
                                         snd
-                                        >> substitute mapping
+                                        >> substitute ct mapping
                                     )
                                 )
-                            | Alias body -> [ substitute mapping body ]
+                            | Alias body -> [ substitute ct mapping body ]
                         | _ -> []
 
                     List.forall (equatable visited) args
@@ -716,7 +727,7 @@ module internal ValueLowering =
 
             if
                 not (
-                    Set.intersect (freeParameters shape) fresh
+                    Set.intersect (freeParameters ct shape) fresh
                     |> Set.isEmpty
                 )
             then
@@ -747,11 +758,12 @@ module internal ValueLowering =
             let loc = top.Location
 
             let parameters =
-                signature top.Definition
-                |> freeParameters
+                signature ct top.Definition
+                |> freeParameters ct
                 |> Set.toList
 
             uniqueNames
+                ct
                 loc
                 (parameters
                  |> List.map (fun name -> name, generic name))
@@ -852,7 +864,7 @@ module internal ValueLowering =
 
                 let fields =
                     candidate.Fields
-                    |> List.map (fun (name, typ) -> name, substitute substitutions typ)
+                    |> List.map (fun (name, typ) -> name, substitute ct substitutions typ)
 
                 let output =
                     if candidate.IsRecord then
@@ -872,7 +884,7 @@ module internal ValueLowering =
                         match pattern with
                         | Wild -> TWild
                         | As(inner, name) ->
-                            validateName location name
+                            validateName ct location name
                             let inner = bind expected inner
 
                             if Map.containsKey name bindings then
@@ -972,7 +984,7 @@ module internal ValueLowering =
                         List.foldBack (fun (_, input) output -> Arrow(input, output)) fields output
                     | Reference name ->
                         match SdkMapping.tryResolve state.Fresh (state.Constrain loc) name with
-                        | Some operation -> TSdk operation, SdkMapping.signature operation
+                        | Some operation -> TSdk operation, SdkMapping.signature ct operation
                         | None when
                             sdk name
                             |> Option.isSome
@@ -991,7 +1003,7 @@ module internal ValueLowering =
                                     ("No implementation for "
                                      + FQName.toString name)
                             | Some target ->
-                                let typ, args = state.Instantiate(signature target.Definition)
+                                let typ, args = state.Instantiate(signature ct target.Definition)
                                 TReference(target, args), typ
                     | Apply(f, x) ->
                         let f = infer env f
@@ -1023,6 +1035,7 @@ module internal ValueLowering =
                         TList items, Named(LiteralEmission.sdk "list" "list", [ itemType ])
                     | Record fields ->
                         uniqueNames
+                            ct
                             loc
                             (fields
                              |> List.map (fun (name, _) -> name, identifier name))
@@ -1037,19 +1050,20 @@ module internal ValueLowering =
                             |> List.map (fun (name, value) -> name, value.Type)
                         )
                     | Field(target, name) ->
-                        validateName loc name
+                        validateName ct loc name
                         let target = infer env target
                         let output = state.Fresh()
                         state.Field loc target.Type name output
                         TField(target, name), output
                     | FieldFunction name ->
-                        validateName loc name
+                        validateName ct loc name
                         let input = state.Fresh()
                         let output = state.Fresh()
                         state.Field loc input name output
                         TFieldFunction name, Arrow(input, output)
                     | Update(target, fields) ->
                         uniqueNames
+                            ct
                             loc
                             (fields
                              |> List.map (fun (name, _) -> name, identifier name))
@@ -1111,14 +1125,15 @@ module internal ValueLowering =
                         TPatternLambda(pattern, input, body), Arrow(input, body.Type)
                     | UnitValue -> TUnit, TypeEmission.Unit
                     | Lambda(name, body) ->
-                        validateName loc name
+                        validateName ct loc name
                         let input = state.Fresh()
                         let body = infer (Map.add name input env) body
                         TLambda(name, input, body), Arrow(input, body.Type)
                     | Let(name, definition, rest) ->
-                        validateName loc name
+                        validateName ct loc name
 
                         uniqueNames
+                            ct
                             loc
                             (definition.Inputs
                              |> List.map (fun (name, _) -> name, identifier name))
@@ -1150,6 +1165,7 @@ module internal ValueLowering =
                 { Type = typ; Node = node }
 
             uniqueNames
+                ct
                 loc
                 (top.Definition.Inputs
                  |> List.map (fun (name, _) -> name, identifier name))
@@ -1223,7 +1239,7 @@ module internal ValueLowering =
                                              + string index]
                                 }
                             Parameters =
-                                freeParameters typ
+                                freeParameters ct typ
                                 |> Set.toList
                             Public = exported
                             Synthetic = true
@@ -1288,10 +1304,11 @@ module internal ValueLowering =
 
                 if exported then
                     validatePublicType
+                        ct
                         catalog
                         checkedValue.Top.Location
-                        (checkedValue.CheckedType(signature checkedValue.Top.Definition))
+                        (checkedValue.CheckedType(signature ct checkedValue.Top.Definition))
 
-                yield! shape exported (signature checkedValue.Top.Definition)
+                yield! shape exported (signature ct checkedValue.Top.Definition)
                 yield! expression checkedValue.Body
         ]

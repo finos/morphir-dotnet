@@ -58,9 +58,12 @@ SDK constructors now bind the real Maybe/Result factories and Order cases.
 Patterns use the public Match/IsJust/IsOk API; no private runtime representation
 or null branch encoding is introduced. Constructor value references are admitted.
 
-Task 3.4 still needs cancellation through expansion/allocation/emission inner
-loops, a final whole-model boundary check, and a real nonempty traversal test.
-Business fixtures, trimming, whole-suite coverage and final handoff remain open.
+Cancellation now reaches alias expansion, substitution, shape matching, public
+type validation, name allocation, SDK comparer recursion, typed value traversal
+and text emission. A final token check precedes the successful whole-model result.
+Active alias expansion and million-character strings in both families return
+Cancelled with no sources. Business fixtures, trimming, whole-suite coverage and
+final handoff remain open.
 
 ## SDK bindings and checked domains
 

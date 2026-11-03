@@ -115,8 +115,16 @@ to the corresponding double constants. Invalid UTF-16 strings fail explicitly.
 Type checking runs before a successful source set is returned. Unknown variables
 and references, inconsistent applications, infinite types and unsupported numeric
 constraints produce located diagnostics. Local recursive groups remain outside
-the admitted slice. Traversal cancellation and business-fixture acceptance are
-still being implemented.
+the admitted slice. Business-fixture acceptance is still being implemented.
+
+Cancellation checks cover typed traversal, recursive alias/record expansion,
+name allocation, SDK comparer construction and text emission. The final result
+boundary checks the token again before returning success. Cancellation returns
+`Cancelled`, the original typed family/source version, and no sources. The
+active-generation tests interrupt alias expansion and million-character strings
+in both families. Their measured stop times describe that bounded test run,
+not a general latency guarantee. Invalid later modules also return no partial
+source set.
 
 Matches evaluate their subject once and select the first matching branch.
 Destructuring and pattern lambdas bind fresh lexical identities after their

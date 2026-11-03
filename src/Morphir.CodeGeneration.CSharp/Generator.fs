@@ -43,24 +43,33 @@ module internal Foundation =
         let values = ValueEmission.emit catalog ct checkedValues
 
         let sources pkg modules =
+            ct.ThrowIfCancellationRequested()
+
             if not (List.isEmpty modules) then
                 TypeEmission.validateModules
+                    ct
                     pkg
                     (modules
                      |> List.map (fun (path, _, names) -> path, names))
 
             for path, _, names in modules do
+                ct.ThrowIfCancellationRequested()
+
                 for name in names do
+                    ct.ThrowIfCancellationRequested()
+
                     for declaration in
                         catalog
                         |> Map.toList
                         |> List.map snd do
+                        ct.ThrowIfCancellationRequested()
+
                         let emitted =
                             match declaration.Definition with
                             | TypeEmission.Cases _ -> true
                             | TypeEmission.Alias(TypeEmission.Fields _ as body) ->
                                 let owner, _ =
-                                    TypeEmission.recordTarget catalog declaration.Location body
+                                    TypeEmission.recordTarget ct catalog declaration.Location body
 
                                 owner.Name = declaration.Name
                             | _ -> false
@@ -174,7 +183,9 @@ type CSharpGenerator private () =
                     "$sourceVersion"
                     "The source version is not supported for this model family."
 
-            result GenerationStatus.Success (Foundation.sources model cancellationToken) []
+            let sources = Foundation.sources model cancellationToken
+            cancellationToken.ThrowIfCancellationRequested()
+            result GenerationStatus.Success sources []
         with
         | :? OperationCanceledException when cancellationToken.IsCancellationRequested ->
             result GenerationStatus.Cancelled [] []
