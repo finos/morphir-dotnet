@@ -17,7 +17,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 - [x] 3.1 Write failing membership/selection cases for globs/exclusions, virtual/root projects, literal missing/invalid members, duplicate names, path-before-name selection, deepest invocation, defaults, and workspace output ownership; confirm red then implement and verify each group.
 - [x] 3.2 Implement platform system/global candidates, MORPHIR_HOME/XDG handling, same-group global ambiguity, adjacent override/profile stems, and isolation with parameterized platform tests; verify ordering through the shared resolver and document machine locations.
-- [ ] 3.3 Document the standalone/member API and preserve the old WorkspaceDiscovery behavior for ManagementScenario and artifact callers; run the existing workspace/artifact regression suite and prove native/in-memory results match.
+- [x] 3.3 Document the standalone/member API and preserve the old WorkspaceDiscovery behavior for ManagementScenario and artifact callers; run the existing workspace/artifact regression suite and prove native/in-memory results match.
 
 ## 4. Integration verification
 

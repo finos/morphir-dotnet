@@ -37,11 +37,24 @@ let tests =
                 { DocumentDefaults.resolutionInput with
                     Scope = ProjectScope.Member
                     Sources = [
-                        supplied (source "root.user.toml" SourceRole.WorkspaceUserOverride DocumentFormat.Toml) (obj ["custom", text "root"])
-                        supplied (source "app.user.yaml" SourceRole.UserOverride DocumentFormat.Yaml) (obj ["custom", text "member"])
-                    ] }
+                        supplied
+                            (source
+                                "root.user.toml"
+                                SourceRole.WorkspaceUserOverride
+                                DocumentFormat.Toml)
+                            (obj [ "custom", text "root" ])
+                        supplied
+                            (source "app.user.yaml" SourceRole.UserOverride DocumentFormat.Yaml)
+                            (obj [ "custom", text "member" ])
+                    ]
+                }
+
             let result = Resolver.resolve input
-            Expect.equal (ConfigTree.tryFind ["custom"] result.Effective) (Some(text "member")) "member override stage wins across formats"
+
+            Expect.equal
+                (ConfigTree.tryFind [ "custom" ] result.Effective)
+                (Some(text "member"))
+                "member override stage wins across formats"
         }
         test "format order merges keys and reports the winning source" {
             let json = source "morphir.json" SourceRole.RootPrimary DocumentFormat.Json

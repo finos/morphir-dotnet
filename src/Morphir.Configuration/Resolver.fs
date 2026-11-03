@@ -154,7 +154,8 @@ module Resolver =
         let memberOwned =
             source.Role = SourceRole.MemberPrimary
             || source.Role = SourceRole.MemberProfile
-            || (input.Scope = ProjectScope.Member && source.Role = SourceRole.UserOverride)
+            || (input.Scope = ProjectScope.Member
+                && source.Role = SourceRole.UserOverride)
             || (source.Role = SourceRole.Selected
                 && Set.contains source.Path memberPaths)
 

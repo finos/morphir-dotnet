@@ -131,4 +131,36 @@ public sealed class DiscoveryMemberTests
         result.Discovery.Diagnostics.ToArray().Should().Contain(d => d.Code == "discovery.boundary");
         tree.ObservedPaths.Should().OnlyContain(p => p == "/repo" || p.StartsWith("/repo/"));
     }
+
+    [Test]
+    [Arguments("../app")]
+    [Arguments("../a*")]
+    public void BoundedSiblingMembersRespectWorkspaceRootAndExclusions(string pattern)
+    {
+        var tree = new InMemoryProjectTree("/repo", new Dictionary<string, string>
+        {
+            ["/repo/morphir.toml"] = "[workspace]\nroot='packages'\nmembers=['" + pattern + "']\nexclude=['skip']",
+            ["/repo/app/morphir.toml"] = "[project]\nname='App'"
+        }, ["/repo/packages"]);
+        ProjectSystem.Discover(tree, "/repo").Discovery.Projects.Select(p => p.Path).Should().Equal("/repo/app");
+    }
+
+    [Test]
+    public void WindowsNetworkPathsRetainTheirAuthority()
+    {
+        ProjectPath.normalize("//server/profiles/Ada").Should().Be("//server/profiles/Ada");
+        var input = new MachineLocationInput(MachinePlatform.Windows, "C:/Users/Ada", Microsoft.FSharp.Core.FSharpOption<string>.Some("//server/profiles/Ada/Roaming"), null, MapModule.Empty<string, string>());
+        ProjectSources.machineCandidates(input, false).Select(s => s.Path).Should().Contain("//server/profiles/Ada/Roaming/morphir/morphir.toml");
+    }
+
+    [Test]
+    public void DeclaredGlobsCanIncludeBuildNamedProjectDirectories()
+    {
+        var tree = new InMemoryProjectTree("/repo", new Dictionary<string, string>
+        {
+            ["/repo/morphir.toml"] = "[workspace]\nmembers=['*']",
+            ["/repo/build/morphir.toml"] = "[project]\nname='Build'"
+        });
+        ProjectSystem.Discover(tree, "/repo").Discovery.Projects.Select(p => p.Path).Should().Equal("/repo/build");
+    }
 }

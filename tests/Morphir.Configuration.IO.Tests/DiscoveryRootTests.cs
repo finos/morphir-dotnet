@@ -143,16 +143,16 @@ public sealed class DiscoveryRootTests
     private sealed class UnlistableTree : IProjectTree
     {
         public string Boundary => "/repo";
-        public ProjectEntry Observe(string path) => path == "/repo" ? ProjectEntry.NewDirectory(ListModule.OfSeq(new[]{"/repo/locked"}))
+        public ProjectEntry Observe(string path) => path == "/repo" ? ProjectEntry.NewDirectory(ListModule.OfSeq(new[] { "/repo/locked" }))
             : path == "/repo/locked" ? ProjectEntry.NewFailure("Cannot enumerate locked directory")
-            : path == "/repo/morphir.toml" ? ProjectEntry.NewFile(ConfigurationReader.ReadText(path,"[workspace]\nmembers=['**']").Content)
+            : path == "/repo/morphir.toml" ? ProjectEntry.NewFile(ConfigurationReader.ReadText(path, "[workspace]\nmembers=['**']").Content)
             : ProjectEntry.Missing;
     }
 
     [Test]
     public void DirectoryEnumerationFailureHasSourceEvidence()
     {
-        var result=ProjectSystem.Discover(new UnlistableTree(),"/repo");
-        result.Discovery.Sources.ToArray().Should().Contain(s=>s.Source.Path=="/repo/locked" && s.Status.IsFailed);
+        var result = ProjectSystem.Discover(new UnlistableTree(), "/repo");
+        result.Discovery.Sources.ToArray().Should().Contain(s => s.Source.Path == "/repo/locked" && s.Status.IsFailed);
     }
 }

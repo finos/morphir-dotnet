@@ -93,8 +93,24 @@ public static partial class ProjectSystem
                 sources.AddRange(ProjectSources.overlayCandidates(members, SourceRole.MemberProfile, FSharpOption<string>.Some(name)).Select(s => Read(tree, s)));
             }
         diagnostics.AddRange(ProjectSources.ambiguities(ReaderValues.List(sources)));
+        // Resolve the owner's permitted overlays independently. Member identity and
+        // member-personal/profile output attempts cannot relocate this context.
+        var owner = discovery.Workspace;
+        if (owner is not null)
+        {
+            var memberPaths = members.Select(s => s.Source.Path).ToHashSet(StringComparer.Ordinal);
+            var ownerSources = sources.Where(s => !member || (s.Source.Role is not (SourceRole.MemberPrimary or SourceRole.MemberProfile or SourceRole.UserOverride)
+                && !(s.Source.Role == SourceRole.Selected && memberPaths.Contains(s.Source.Path))));
+            var ownerInput = new ResolutionInput(ReaderValues.List(ownerSources), options.Input.Environment, options.Input.Explicit,
+                options.Input.Profiles, ProjectScope.Root, owner, options.Input.SuppressWarnings);
+            var ownerResult = Resolver.resolve(ownerInput);
+            if (member) diagnostics.AddRange(ownerResult.Diagnostics.Where(d => d.Code == "config.validation" && d.KeyPath.FirstOrDefault() == "workspace"));
+            var output = ConfigTree.tryFind(ReaderValues.List(new[] { "workspace", "out_dir" }), ownerResult.Effective);
+            if (output?.Value is ConfigValue.String value)
+                owner = FSharpOption<OwningWorkspace>.Some(new(owner.Value.Root, FSharpOption<string>.Some(ProjectPath.join(owner.Value.Root, value.Item))));
+        }
         var input = new ResolutionInput(ReaderValues.List(sources), options.Input.Environment, options.Input.Explicit,
-            options.Input.Profiles, member ? ProjectScope.Member : ProjectScope.Root, discovery.Workspace, options.Input.SuppressWarnings);
+            options.Input.Profiles, member ? ProjectScope.Member : ProjectScope.Root, owner, options.Input.SuppressWarnings);
         var result = Resolver.resolve(input);
         return new(result.Effective, result.Origins, ReaderValues.List(result.Sources.Select(s => skipped.GetValueOrDefault(s.Source.Path, s))),
             result.ActiveProfiles, result.OwningWorkspace, ReaderValues.List(result.Diagnostics.Concat(diagnostics).Distinct()));

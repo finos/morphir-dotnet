@@ -66,3 +66,44 @@ parent landing and cleanup receipts exist. Future campaigns remain active.
 - Implementation tasks 2.1 through 3.2 are fulfilled. Apply instructions were
   refreshed after every checkbox update. Broader compatibility, runtime,
   coverage, formatting and final archive qualification remain pending.
+
+## Broad verification and semantic audit
+
+- `b6ff7c5` protects bounded native/mounted loading and its initial red/green
+  regressions. Full solution build succeeds with the same 20 existing package
+  and generated-code warnings and zero errors.
+- All 14 configured Nuke-target suites pass serially using compiled Debug outputs:
+  C# core 237, tooling 245, configuration core 124, adapter/BDD 128 at that
+  checkpoint, internal generation 25, models/roundtrips 791, pipeline 299, SDK
+  175, SDK conformance 27, pipeline plugins 141, F# backend 333, Ion 463,
+  Myriad 4, and Myriad integration 12. See `suite-results.json` and each suite's
+  log under the owned temporary root. TUnit uses one worker, Expecto sequenced.
+- A read-only semantic audit then produced concrete regression tests. Adapter
+  run `red-audit-run.log` has 9 failures out of 137: explicit disabled profiles
+  inherited premature discovery errors, host warning suppression leaked discovery
+  warnings, sibling literal members with exclusions crashed, sibling globs were
+  missed, UNC authority was lost, build-named projects were implicitly pruned,
+  supplied default layers were falsely ambiguous, and two permitted owner-output
+  overlays left stale context. All nine are fixed; adapter 137/137 passes.
+- A follow-up invalid owner-output overlay failed from a member load, then passed
+  after retaining workspace validation errors in the owning context. Adapter
+  138/138 and core 124/124 pass. Discovery validates canonical declarations without
+  interpreting profile activation or precomputing suppressible format warnings.
+  Member inventories now honor within-boundary sibling literals/globs and declared
+  build-named directories. UNC paths retain their authority. Root personal/profile
+  output settings produce the same output context for root and member loads.
+- Fantomas formats owned F# files; C# whitespace formatting covers owned C# files.
+  Full `dotnet format Morphir.slnx --no-restore --verify-no-changes --verbosity quiet`
+  passes; unsupported F# projects are checked separately with Fantomas.
+- Final full-solution rebuild after these fixes succeeds with zero errors and the
+  same 20 existing warnings. Configured coverage runners pass core 124/124 and
+  adapter/BDD 153/153. The additional boundary cases cover selected-file misses,
+  unsupported formats, outside paths, personal access/link evidence, absent machine
+  authorization, relative Morphir home, invalid selection and native permission
+  failures. Their source-line union is core 3010/3172 = 94.89% and authored
+  adapter 624/647 = 96.45%, above campaign 1's 94.13% and 94.23% rates.
+  Reproduce with `scripts/configuration/summarize-coverage.py` over
+  `core-coverage/*/coverage.cobertura.xml` and `io-coverage.cobertura.xml`.
+- Consumer audit confirms ManagementScenario and ConfigResolver still reference
+  the unchanged legacy WorkspaceDiscovery. No existing caller was migrated to
+  DiscoveryPolicy or ProjectSystem. Task 3.3 is fulfilled and apply reports 7/8.

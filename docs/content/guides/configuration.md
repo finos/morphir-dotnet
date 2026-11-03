@@ -287,3 +287,9 @@ Source reports distinguish loaded, missing, skipped, and failed inputs. Optional
 `Morphir.Tooling.Configuration.ConfigResolver.ResolveConfigAsync` continues to load the cache-only `MorphirConfig`. `ConfigResolution` exposes `Effective`, `Layers`, `WorkspaceRoot`, and `CiProfileApplied`; `Merge.mergeConfigs` merges cache paths. `WorkspaceDiscovery`, `ManagementScenario`, and existing artifact callers retain Git-first root selection. New consumers opt into `ProjectSystem` explicitly.
 
 See [troubleshooting]({{< relref "/docs/cli/troubleshooting#configuration-planned" >}}) for wrong roots, ambiguous files, and settings that remain overridden.
+
+The discovery result records primary topology. Loading recalculates the owning
+output directory from permitted workspace overlays, including active profiles
+and workspace personal files. Root and member loads therefore share the same
+output context. Member profiles and personal files cannot relocate it. Invalid
+workspace output overlays remain diagnostics even when loading a member.
