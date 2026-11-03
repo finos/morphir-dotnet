@@ -66,19 +66,32 @@ public static partial class ProjectSystem
         var members = member ? ReaderValues.List(project!.Location.Sources.Select(s => Rebind(s, SourceRole.MemberPrimary))) : FSharpList<SourceInput>.Empty;
         sources.AddRange(roots);
         sources.AddRange(members);
+        var rootRole = member ? SourceRole.WorkspaceUserOverride : SourceRole.UserOverride;
+        var rootPersonal = ProjectSources.overlayCandidates(roots, rootRole, null);
+        var memberPersonal = ProjectSources.overlayCandidates(members, SourceRole.UserOverride, null);
+        if (!options.Isolated)
+        {
+            sources.AddRange(rootPersonal.Select(s => Read(tree, s)));
+            sources.AddRange(memberPersonal.Select(s => Read(tree, s)));
+        }
         if (options.SelectedPath is not null)
         {
             var path = ProjectPath.join(discovery.StartDirectory, options.SelectedPath);
             var existing = sources.FirstOrDefault(s => s.Source.Path == path);
+            if (existing is null)
+            {
+                var personal = rootPersonal.Concat(memberPersonal).FirstOrDefault(s => s.Path == path);
+                if (personal is not null)
+                {
+                    // Isolation omits automatic personal reads, but explicit selection
+                    // retains the selected file's discovered ownership metadata.
+                    existing = Read(tree, personal, true);
+                    sources.Add(existing);
+                }
+            }
             sources.Add(existing is null
                 ? Read(tree, new SourceIdentity(path, FormatOf(path), SourceRole.Selected, 0, null), true)
                 : Rebind(existing, SourceRole.Selected));
-        }
-        if (!options.Isolated)
-        {
-            var rootRole = member ? SourceRole.WorkspaceUserOverride : SourceRole.UserOverride;
-            sources.AddRange(ProjectSources.overlayCandidates(roots, rootRole, null).Select(s => Read(tree, s)));
-            sources.AddRange(ProjectSources.overlayCandidates(members, SourceRole.UserOverride, null).Select(s => Read(tree, s)));
         }
         var explicitSource = new SourceIdentity("<explicit>", DocumentFormat.Memory, SourceRole.Explicit, int.MaxValue, null);
         var explicitDocument = new ConfigurationDocument(explicitSource, options.Input.Explicit, options.Input.Explicit,
@@ -98,7 +111,8 @@ public static partial class ProjectSystem
         var owner = discovery.Workspace;
         if (owner is not null)
         {
-            var memberPaths = members.Select(s => s.Source.Path).ToHashSet(StringComparer.Ordinal);
+            var memberPaths = sources.Where(s => s.Source.Role is SourceRole.MemberPrimary or SourceRole.MemberProfile or SourceRole.UserOverride)
+                .Select(s => s.Source.Path).ToHashSet(StringComparer.Ordinal);
             var ownerSources = sources.Where(s => !member || (s.Source.Role is not (SourceRole.MemberPrimary or SourceRole.MemberProfile or SourceRole.UserOverride)
                 && !(s.Source.Role == SourceRole.Selected && memberPaths.Contains(s.Source.Path))));
             var ownerInput = new ResolutionInput(ReaderValues.List(ownerSources), options.Input.Environment, options.Input.Explicit,

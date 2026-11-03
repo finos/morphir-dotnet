@@ -430,13 +430,20 @@ module Resolver =
 
         let rootPaths =
             input.Sources
-            |> List.filter (fun source -> source.Source.Role = SourceRole.RootPrimary)
+            |> List.filter (fun source ->
+                source.Source.Role = SourceRole.RootPrimary
+                || source.Source.Role = SourceRole.WorkspaceUserOverride
+            )
             |> List.map (fun source -> source.Source.Path)
             |> Set.ofList
 
         let memberPaths =
             input.Sources
-            |> List.filter (fun source -> source.Source.Role = SourceRole.MemberPrimary)
+            |> List.filter (fun source ->
+                source.Source.Role = SourceRole.MemberPrimary
+                || (input.Scope = ProjectScope.Member
+                    && source.Source.Role = SourceRole.UserOverride)
+            )
             |> List.map (fun source -> source.Source.Path)
             |> Set.ofList
 

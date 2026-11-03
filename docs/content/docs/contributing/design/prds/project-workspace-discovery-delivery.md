@@ -176,3 +176,28 @@ No watch, merge, auto-merge, admin bypass, force-push, branch/worktree deletion,
 release or deployment was performed. Campaign completion remains pending parent
 landing and cleanup even though implementation, local validation and archive are
 complete.
+
+## Parent review: selected personal ownership
+
+A read-only adapter review reproduced an ownership bypass when an eligible
+personal file was explicitly selected. The member file could relocate the
+workspace output; a workspace personal file could supply a member's project
+source directory and exposed modules. Four public loading regressions, covering
+ordinary and isolated loading for both owners, failed before the fix.
+
+Loading now keeps the eligible personal source's original role alongside its
+selected contribution. Isolation reads only the explicitly selected personal
+file, retaining that ownership metadata without enabling other personal reads.
+Pure resolution uses the original personal roles when scoping selected values;
+the owner-context pass excludes selected member-personal files. The ordinary
+contribution still occurs only once at selected precedence.
+
+Both projects build without warnings. The full configured core runner passes
+124/124 and the adapter/BDD runner passes 157/157. The first parent adapter run
+used macOS's linked default temp path and failed three native-filesystem cases;
+the rerun with TMPDIR/TEMP/TMP set to
+`/private/tmp/morphir-discovery-tests/parent-review` passes all cases. Its log is
+`/private/tmp/morphir-discovery-tests/parent-review/adapters.log`. Owned F# and C#
+files were formatted and the working diff passes whitespace checks. Final native
+qualification, current-head CI and the independent discovery-policy review
+remain pending for these parent changes.

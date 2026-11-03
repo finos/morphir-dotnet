@@ -118,6 +118,8 @@ Apply sources from lowest to highest precedence:
 
 Selecting an already discovered primary with `ProjectLoadOptions.SelectedPath`, or the planned `--config` option, moves its ordinary values to the explicit-file layer; it is not applied twice. It does not replace all other discovered settings. A relative selected configuration path resolves from the invocation directory, or the containing directory when discovery starts with an input file. Relative project selectors instead resolve from the effective workspace root.
 
+An explicitly selected eligible personal file keeps its workspace or member ownership restrictions, including in isolated loading. Selecting a member's personal file cannot relocate workspace output. Selecting a workspace personal file does not pass its project identity into a member, while its permitted workspace output setting still supplies the shared owning context.
+
 Maps merge recursively. Arrays replace the entire earlier array, including when the replacement is empty. Scalars and incompatible value shapes replace earlier values. Secret references are indivisible values. Preserve the winning source for each leaf and array, together with source reports for inspection and diagnostics.
 
 System/global files provide tooling defaults and exclude the entire `project` and `workspace` subtrees. Their contents cannot declare the root or workspace membership. A selected member receives applicable tooling settings without inheriting the root's `project` or `workspace` document subtrees. The owning workspace context supplies topology and its output root separately. Profile files cannot change workspace roots or member selection.

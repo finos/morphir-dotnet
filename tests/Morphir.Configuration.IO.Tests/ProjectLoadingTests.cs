@@ -12,6 +12,48 @@ public sealed class ProjectLoadingTests
             new ProfileOptions(profiles ?? ProfileSelection.Automatic, 32, 4096), ProjectScope.Root, null, FSharpList<string>.Empty);
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void SelectedMemberPersonalFilesCannotRelocateWorkspaceOutput(bool isolated)
+    {
+        var tree = new InMemoryProjectTree("/repo", new Dictionary<string, string>
+        {
+            ["/repo/morphir.toml"] = "[workspace]\nmembers=['app']\nout_dir='generated'",
+            ["/repo/app/morphir.toml"] = "[project]\nname='App'",
+            ["/repo/app/morphir.user.toml"] = "[workspace]\nout_dir='escaped'\n[custom]\nselected=true"
+        });
+        var discovery = ProjectSystem.Discover(tree, "/repo", "app");
+        var result = ProjectSystem.Load(tree, discovery.Discovery, discovery.Selection.Projects.Single(),
+            new ProjectLoadOptions { SelectedPath = "app/morphir.user.toml", Isolated = isolated });
+
+        result.OwningWorkspace!.Value.OutputDirectory!.Value.Should().Be("/repo/generated");
+        result.Diagnostics.ToArray().Should().Contain(d => d.Code == "config.member_output");
+        Value(result, "custom", "selected").Should().Be(ConfigValue.NewBoolean(true));
+        result.Sources.Count(s => s.Source.Path == "/repo/app/morphir.user.toml" && s.Contributed).Should().Be(1);
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void SelectedWorkspacePersonalFilesCannotSupplyMemberIdentity(bool isolated)
+    {
+        var tree = new InMemoryProjectTree("/repo", new Dictionary<string, string>
+        {
+            ["/repo/morphir.toml"] = "[workspace]\nmembers=['app']\nout_dir='generated'",
+            ["/repo/app/morphir.toml"] = "[project]\nname='App'",
+            ["/repo/morphir.user.toml"] = "[project]\nsource_directory='root-only'\nexposed_modules=['Root.Api']\n[workspace]\nout_dir='shared'\n[custom]\nselected=true"
+        });
+        var discovery = ProjectSystem.Discover(tree, "/repo", "app");
+        var result = ProjectSystem.Load(tree, discovery.Discovery, discovery.Selection.Projects.Single(),
+            new ProjectLoadOptions { SelectedPath = "morphir.user.toml", Isolated = isolated });
+
+        Value(result, "project", "source_directory").Should().Be(ConfigValue.NewString("src"));
+        Value(result, "project", "exposed_modules").Should().BeNull();
+        result.OwningWorkspace!.Value.OutputDirectory!.Value.Should().Be("/repo/shared");
+        Value(result, "custom", "selected").Should().Be(ConfigValue.NewBoolean(true));
+    }
+
+    [Test]
     public void LoadingAMemberKeepsWorkspaceContextWithoutInheritingRootIdentity()
     {
         var tree = new InMemoryProjectTree("/repo", new Dictionary<string, string>
