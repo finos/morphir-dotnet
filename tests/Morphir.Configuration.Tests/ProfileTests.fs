@@ -111,4 +111,18 @@ let tests =
                 (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.authority" && diagnostic.Source.Path = "member/morphir.json"))
                 "non-root controls cannot change activation"
         }
+        test "profile controls require a table at the root" {
+            let source = root []
+            let malformed = ConfigValue.Object (Map.ofList [ "profiles", ConfigValue.Null ])
+            let source =
+                match source.Content with
+                | SourceContent.Available doc -> { source with Content = SourceContent.Available { doc with Raw = malformed; Values = malformed } }
+                | _ -> failwith "test source must be available"
+            let result = Profiles.plan [ source ] Map.empty DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.shape" && diagnostic.KeyPath = [ "profiles" ])) "a null table is a literal shape error"
+        }
+        test "unknown profile controls are rejected" {
+            let result = Profiles.plan [ root [ "typo", names [ "dev" ] ] ] Map.empty DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.unknown" && diagnostic.KeyPath = [ "profiles"; "typo" ])) "misspelled controls must not disappear"
+        }
     ]

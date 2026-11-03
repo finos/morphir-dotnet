@@ -80,13 +80,25 @@ module Profiles =
         fileErrors @ environmentErrors
 
     let private controlErrors sources value =
-        [ "active"; "default"; "include" ]
-        |> List.choose (fun key ->
-            let path = [ "profiles"; key ]
-            match ConfigTree.tryFind path value with
-            | Some (ConfigValue.Array items) when items |> List.forall (function ConfigValue.String _ -> true | _ -> false) -> None
-            | None -> None
-            | Some _ -> Some (diagnostic sources path "config.profiles.shape" "Profile controls require an array of literal strings."))
+        match ConfigTree.tryFind [ "profiles" ] value with
+        | None -> []
+        | Some (ConfigValue.Object fields) ->
+            let arrayErrors =
+                [ "active"; "default"; "include" ]
+                |> List.choose (fun key ->
+                    let path = [ "profiles"; key ]
+                    match ConfigTree.tryFind path value with
+                    | Some (ConfigValue.Array items) when items |> List.forall (function ConfigValue.String _ -> true | _ -> false) -> None
+                    | None -> None
+                    | Some _ -> Some (diagnostic sources path "config.profiles.shape" "Profile controls require an array of literal strings."))
+            let unknownErrors =
+                fields
+                |> Map.toList
+                |> List.choose (fun (key, _) ->
+                    if List.contains key [ "active"; "default"; "include"; "groups" ] then None
+                    else Some (diagnostic sources [ "profiles"; key ] "config.profiles.unknown" ("Unknown profile control: " + key)))
+            arrayErrors @ unknownErrors
+        | Some _ -> [ diagnostic sources [ "profiles" ] "config.profiles.shape" "Profiles requires a table." ]
 
     let private readNames path value =
         ConfigTree.tryFind [ "profiles"; path ] value
