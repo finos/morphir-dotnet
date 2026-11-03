@@ -34,6 +34,11 @@ internal static class TomlReader
             case TomlValueType.Integer: return ConfigValue.NewInteger(node.GetInt64());
             case TomlValueType.Float: return ConfigValue.NewNumber(node.GetDouble());
             case TomlValueType.Boolean: return ConfigValue.NewBoolean(node.GetBool());
+            case TomlValueType.LocalDate:
+            case TomlValueType.LocalTime:
+            case TomlValueType.LocalDateTime:
+            case TomlValueType.OffsetDateTime:
+                return ConfigValue.NewTemporal(node.ValueType.ToString(), node.GetString());
             case TomlValueType.Array:
                 var values = new List<ConfigValue>();
                 for (var i = 0; i < node.GetArray().Count; i++)

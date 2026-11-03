@@ -32,6 +32,8 @@ public static class ConfigurationReader
             if (tree.Value is not ConfigValue.Object)
                 throw new ReaderException("config.document_shape", "Configuration root must be an object", []);
             var document = Normalization.normalize(source, tree.Value, tree.Positions);
+            if (document.Diagnostics.Any(item => item.Severity == DiagnosticSeverity.Error))
+                return new SourceInput(source, SourceContent.NewInvalid(document.Diagnostics), required);
             return new SourceInput(source, SourceContent.NewAvailable(document), required);
         }
         catch (ReaderException error)
@@ -42,7 +44,7 @@ public static class ConfigurationReader
         catch (YamlException error)
         {
             return Invalid(source, required, ReaderValues.Diagnostic(source, "config.parse_error", error.Message,
-                position: new SourcePosition((int)error.Start.Line + 1, (int)error.Start.Column + 1)));
+                position: new SourcePosition((int)error.Start.Line, (int)error.Start.Column)));
         }
         catch (CsTomlException error)
         {

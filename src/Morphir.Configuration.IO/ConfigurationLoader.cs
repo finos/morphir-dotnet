@@ -1,4 +1,5 @@
 using Microsoft.FSharp.Collections;
+using Microsoft.FSharp.Core;
 
 namespace Morphir.Configuration.IO;
 
@@ -14,7 +15,10 @@ public static class ConfigurationLoader
         var sources = input.Sources.ToList();
         foreach (var candidate in inventory.Where(item => !IsProfile(item.Source)))
             sources.Add(candidate.Read());
-        var ordinary = ReaderValues.List(sources);
+        var explicitSource = new SourceIdentity("<explicit>", DocumentFormat.Memory, SourceRole.Explicit, int.MaxValue, FSharpOption<string>.None);
+        var explicitDocument = new ConfigurationDocument(explicitSource, input.Explicit, input.Explicit,
+            MapModule.Empty<FSharpList<string>, SourcePosition>(), FSharpList<ConfigDiagnostic>.Empty, FSharpList<LegacyField>.Empty);
+        var ordinary = ReaderValues.List(sources.Append(new SourceInput(explicitSource, SourceContent.NewAvailable(explicitDocument), true)));
         var plan = Profiles.plan(ordinary, input.Environment, input.Profiles);
         if (plan.Enabled && !plan.Diagnostics.Any(item => item.Severity == DiagnosticSeverity.Error))
         {

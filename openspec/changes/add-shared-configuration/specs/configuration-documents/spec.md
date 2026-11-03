@@ -17,6 +17,36 @@ Readers SHALL accept TOML, YAML/YML, and JSON/JSON5 documents by extension and p
 - **WHEN** one document contains the string "4" and another contains the integer 4
 - **THEN** their typed values remain different before schema validation or host projection
 
+### Requirement: YAML follows the pinned MoonBit Default profile
+YAML readers SHALL match the Moon-Lander 0.8.0 Default profile used by the pinned
+MoonBit host. Nulls SHALL be retained for later control validation and ordinary
+merge cleanup. Anchors and aliases SHALL expand without executing code. An empty
+stream SHALL produce an empty object. Plain yes/no words and dates SHALL remain
+strings, quoted numeric strings SHALL remain strings, and supported numeric and
+boolean scalars SHALL retain their types. Custom scalar tags SHALL produce
+strings. Duplicate keys, merge keys, multiple documents, non-string keys, and
+non-mapping roots SHALL fail with source diagnostics.
+
+This intentionally differs from core's stricter YAML profile, which rejects
+nulls, anchors, aliases and custom tags. JSON/JSON5 duplicate-key rejection is
+also an intentional stricter policy than Moon-Lander's last-duplicate-wins parser.
+
+#### Scenario: Anchors retain values without losing scalar types
+- **WHEN** a YAML mapping anchors an object containing an integer and aliases it
+- **THEN** both fields contain the same typed object and their source is retained
+
+#### Scenario: YAML null remains available to profile validation
+- **WHEN** a YAML root primary supplies profiles.active=null
+- **THEN** raw null is retained and enabled profile processing fails its control type
+
+#### Scenario: Empty YAML stream
+- **WHEN** a supplied YAML stream is empty
+- **THEN** the reader returns an empty object without a parse error
+
+#### Scenario: Custom scalar tag
+- **WHEN** a YAML scalar has a custom tag and numeric-looking text
+- **THEN** its configuration value is a string
+
 ### Requirement: JSON extensions support JSON5 syntax
 Files ending in .json and .json5 SHALL accept JSON5 comments, unquoted keys, single-quoted strings, and trailing commas. Unsupported extensions SHALL return a diagnostic naming the input.
 

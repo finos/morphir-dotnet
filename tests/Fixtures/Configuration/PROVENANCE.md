@@ -48,6 +48,11 @@ Canonical dependencies and unknown settings are preserved rather than repeating
 the upstream JSON wrapper's removal of canonical dependency objects. Raw legacy
 fields remain available for later migration loss accounting.
 
-YAML acceptance policy is pending the user's choice between the core strict
-profile and the current MoonBit Default profile. No qualification claim is made
-while that decision is pending. TOML 1.0 inputs remain supported with CsToml.
+YAML uses the pinned Moon-Lander 0.8.0 Default profile used by MoonBit. This is an
+approved difference from core's stricter YAML specification. Nulls are retained;
+anchors/aliases expand; an empty stream becomes an empty object; custom scalar
+tags become strings. Duplicate and merge keys, multiple documents, non-string
+keys and non-mapping roots are rejected. Plain yes/no and dates remain strings,
+quoted numbers remain strings, and typed booleans/numbers remain distinct.
+See the pinned [Default parser tests](https://github.com/moonrockz/moon-lander/blob/d6216c7469c045548cb15b3f9321857ac41d2cd0/pkgs/config/parsers/yaml/yaml_test.mbt).
+TOML 1.0 inputs remain supported with CsToml.

@@ -21,6 +21,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="**/*.feature" />
+    <None Include="../Fixtures/Configuration/**/*" Link="Fixtures/Configuration/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Using Include="Reqnroll" />
   </ItemGroup>
 </Project>
