@@ -25,7 +25,7 @@ The current T3 catalog was inspected and supports this exact target:
 }
 ~~~
 
-Use orchestrator delegate_task with isolation worktree, mode async and role implementation. One child Codex thread owns one change and one initiative PR. Put settings in target.options; do not silently substitute a provider, model or effort. Recheck capabilities before actual dispatch under the orchestration rules for that session.
+Use orchestrator delegate_task with isolation worktree, mode async and role implementation. One child Codex delivery lead owns one change and one initiative PR; bounded auxiliary delegation follows the policy below. Put settings in target.options; do not silently substitute a provider, model or effort. Recheck capabilities before actual dispatch under the orchestration rules for that session.
 
 Children receive no parent history. Read the matching handoff.md and include its contents, the absolute repository context supplied by the orchestrator, predecessor PR URLs and verified merge SHAs, frozen contract paths, and the shared-file coordination policy in the task. The orchestrator prepares the checkout; never create a child checkout in a shell or ask the child to set one up.
 
@@ -43,7 +43,21 @@ These are orchestrated child threads. Do not substitute a top-level thread launc
 4. integrate-csharp-generation-cli starts after initiative 4 is merged into main and the typed generation/option/diagnostic contract is verified.
 5. The deferred add-morphir-csharp-source-generator is not an active/scaffolded change. Its early compiler-host constraints and test-only smoke belong to initiative 4.
 
-Maximum useful concurrency is two initiatives. A successor starts from main with its dependency merged, not a sibling's unmerged worktree or a guessed interface. Worktree cleanup of a predecessor may finish independently after its merge; never report the predecessor complete until cleanup is verified.
+Maximum initiative-lead concurrency remains two, independently of the shared auxiliary budget. A successor starts from main with its dependency merged, not a sibling's unmerged worktree or a guessed interface. Worktree cleanup of a predecessor may finish independently after its merge; never report the predecessor complete until cleanup is verified.
+
+## Auxiliary agents and machine resources
+
+Each initiative delivery lead may use up to three concurrent auxiliary agents in addition to the lead, only for useful, bounded, independent work. This is a ceiling, not a request to fill slots. Keep at most two initiative leads active. Start conservatively with one auxiliary and expand only after checking CPU, memory and other resource headroom.
+
+The initial coordinator-wide budget is three active auxiliary agents total across the delivery threads. Leads request and release slots through the root coordinator; two leads share this budget rather than each launching three. Increasing the global ceiling requires an explicit resource assessment and a recorded root-coordinator decision consistent with the user's resource constraint. The per-lead ceiling remains three.
+
+All leads and auxiliaries use the exact Codex gpt-6.1-sol, reasoningEffort high target above. Use T3 delegate_task for explicitly configured auxiliary children, with settings in target.options. Discover orchestrator capabilities once in each thread before its first delegation, and again only under the host's error/provider-change rules. Do not silently substitute a provider, model or effort. No recursive fan-out is permitted below the auxiliary layer; each auxiliary receives a bounded brief and does not delegate again.
+
+Only one expensive local restore, build, test, coverage, pack, publish or Native AOT job may run across this delivery at a time. The root coordinator allocates this slot to a lead or auxiliary. Bound the command's internal parallelism with supported options, and back off or serialize work under sustained CPU or memory pressure. Lightweight reading and review do not need the expensive-command slot.
+
+Read-only review agents may share a checkout. Writing agents need explicit disjoint file ownership or orchestrator-created isolated worktrees, with serial integration into the initiative lead's checkout. Never create child worktrees in a shell. Each lead integrates auxiliary results, runs the integrated required checks, owns its single initiative PR, and reports every child task, worktree and helper to the root coordinator. The root coordinator retains PR watching, landing, archive follow-up and final cleanup. Delegated children, including initiative leads and auxiliaries, never watch PRs.
+
+Follow each delegate's returned next instruction and event-driven completion without polling or sleep loops. Cancel no-longer-needed agents with task_cancel. Release allocated agent and expensive-command slots when work finishes. Record auxiliary task/thread identity, ownership, worktree path if any, integrated result and helper state in the delivery record.
 
 ## Ownership and shared integration
 
@@ -79,7 +93,7 @@ Sync and archive the initiative through its OpenSpec workflow. If archive is aft
 
 ## Worktree cleanup
 
-Cleanup is the coordinator's responsibility after the worker is idle and the initiative and archival PRs are confirmed merged with their recorded landed commits on main. Capture the worker's exact worktree path when it is created. Stop only that worker's helpers and release its file handles.
+Cleanup is the coordinator's responsibility after the worker is idle and the initiative and archival PRs are confirmed merged with their recorded landed commits on main. Capture the lead's and every auxiliary's exact worktree path when created. After auxiliary results are integrated, stop or cancel the auxiliary and its owned helpers and release its file handles. Cleanup evidence covers every auxiliary worktree/helper as well as the lead, using the same clean-status, last submitted-head, landed-PR and squash-safe checks where applicable. An auxiliary without its own PR records its final delivered commit and integration into the initiative PR; compare its clean HEAD to that recorded commit and verify its results in the landed initiative PR. Do not invent an auxiliary landed PR. Never remove the shared coordinator checkout or discard uncommitted work.
 
 From outside the worker worktree, verify the resolved absolute path is the recorded owned path, belongs to the intended repository/worktree root and is not the coordinator or another worker's checkout. Check Git status including untracked files and confirm the worker HEAD matches its last recorded submitted PR head, with no extra local commits. Preserve any unexpected work and keep cleanup pending until it is accounted for. A clean branch can legitimately remain absent from git branch --merged after a squash; that does not invalidate the merged-PR evidence. Never force-delete or recursively remove a guessed path.
 
@@ -89,7 +103,7 @@ Worktree removal does not require deleting its branch. Branch deletion and relea
 
 ## Worker handback
 
-The handback must include the change ID, PR URL, head SHA, exact validation commands/results, review/check state, changed public contracts, migration notes, any shared-file edits still needed, worker worktree identity, and owned running helpers. A child stops once its PR-ready handoff is delivered; the coordinator then completes landing and cleanup.
+The handback must include the change ID, PR URL, head SHA, exact validation commands/results, review/check state, changed public contracts, migration notes, any shared-file edits still needed, lead worktree identity, all auxiliary tasks/worktrees and integrated results, slot releases, and owned running helpers. A child stops once its PR-ready handoff is delivered; the coordinator then completes landing and cleanup.
 
 The child's final line follows the host contract: PR <full URL>, head <SHA>, checks and reviews <state>.
 

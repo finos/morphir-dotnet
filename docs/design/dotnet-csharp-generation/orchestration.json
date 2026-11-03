@@ -20,6 +20,45 @@
   },
   "initialConcurrency": 1,
   "maxConcurrentInitiatives": 2,
+  "agentPolicy": {
+    "perLeadAuxiliaryLimit": 3,
+    "globalAuxiliaryLimit": 3,
+    "initialAuxiliaryLimitPerLead": 1,
+    "maxAuxiliaryFanoutDepth": 1,
+    "fanoutDepthMeaning": "One auxiliary layer below an initiative lead; auxiliaries cannot delegate",
+    "slotOwner": "root-coordinator",
+    "globalLimitIncreaseRequires": [
+      "explicit-resource-assessment",
+      "recorded-root-coordinator-decision-consistent-with-user-resource-constraint"
+    ],
+    "delegationTool": "delegate_task",
+    "targetSource": "dispatch.target",
+    "capabilitiesBeforeFirstDelegationPerThread": true,
+    "expansionRequires": "CPU, memory and resource headroom assessment",
+    "writingIsolation": "Explicit disjoint file ownership or orchestrator-created isolated worktrees; serial lead integration",
+    "recursiveDelegationAllowed": false,
+    "unusedTaskCancellationTool": "task_cancel",
+    "completionMode": "Follow delegate next instructions and event-driven completion; no polling or sleep loops",
+    "leadResponsibility": "Integrate auxiliaries, run integrated required checks, own one initiative PR, report all child tasks/worktrees/helpers",
+    "prWatchOwner": "root-coordinator",
+    "delegatedChildrenMayWatchPrs": false
+  },
+  "resourcePolicy": {
+    "expensiveCommandConcurrency": 1,
+    "slotOwner": "root-coordinator",
+    "expensiveCommands": [
+      "restore",
+      "build",
+      "test",
+      "coverage",
+      "pack",
+      "publish",
+      "Native AOT"
+    ],
+    "internalParallelism": "Bound with supported command options",
+    "pressureResponse": "Back off or serialize under sustained CPU or memory pressure",
+    "lightweightReadingAndReviewRequireSlot": false
+  },
   "prerequisites": [
     "Planning artifacts and this plan are committed and available on main.",
     "The coordinator's selected dispatch HEAD equals a verified main commit; delegate_task worktrees start from the parent commit, not uncommitted files.",
@@ -68,6 +107,9 @@
     "hosting-service-recorded-landed-commit-confirmed-on-main",
     "specs-synced-and-change-archived-on-main",
     "worker-and-owned-helpers-stopped",
+    "all-auxiliary-results-integrated-and-tasks-stopped",
+    "all-owned-auxiliary-worktrees-and-helpers-cleaned",
+    "auxiliary-and-expensive-command-slots-released",
     "worker-worktree-clean",
     "owned-worker-worktree-directory-removed",
     "owned-worker-git-worktree-registration-removed",
