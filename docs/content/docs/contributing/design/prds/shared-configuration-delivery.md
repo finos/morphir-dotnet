@@ -256,3 +256,44 @@ existing `scripts/configuration/summarize-coverage.py` tool. Changed-file
 Fantomas checks and C# whitespace formatting pass; full-range and working-diff
 whitespace checks pass. New-head CI, landing and owned checkout/branch cleanup
 remain outstanding.
+
+## Current-main dependency requalification
+
+All eight CI checks passed on `3684497`; all inline review threads are resolved.
+The user explicitly authorized merging with admin bypass. Before executing the
+merge, a fresh main-ref check found `125bfcbbd97f343c39606d923ad17a6b3e2ecaa4`,
+ahead of the previously validated base. Its changes include SDK conformance
+fixtures/tests and dependency patches, including CsToml 1.8.3 to 1.8.6.
+
+`bb4fb95` integrates current main without conflicts. Both the configuration
+runners and the SDK conformance runner remain in the combined Nuke test target.
+`b210343` updates only the new configuration projects' affected lockfiles and
+reader version documentation to match main's CsToml 1.8.6 and System.IO.Hashing
+10.0.11. No dependency version from main is reverted.
+
+Requalification on that integrated tree:
+
+- Full `Morphir.slnx` build passes, zero errors and the same 20 warnings in
+  existing package/generated-code projects. It uses two logical processors,
+  single-node MSBuild and disabled parallel restore/build.
+- Configured runners pass core 95/95, reader/BDD 66/66, SDK conformance 27/27,
+  and tooling 245/245. Tooling uses `/private/tmp/morphir-shared-config-tests`
+  for its physical temporary directory and one test worker.
+- `mise run openspec:verify` passes the managed schema/snapshot checks, strict
+  validation of all 21 active/spec items, and both extension tests.
+- Strict trimmed publishing still fails on pinned dependency diagnostics.
+  The warning-qualified trimmed and native hosts both pass 228 JSON5 syntax
+  checks, 26 Morphir documents, and the host's culture, schema, normalization,
+  lazy-profile and in-memory parity checks with CsToml 1.8.6. The serializer
+  source at the NuGet repository commit retains its closed TomlDocument branch
+  before generic formatter resolution; the smoke README links that revision.
+
+Reproducible logs are `/tmp/morphir-config-main-refresh-build.log`,
+`/tmp/morphir-config-main-refresh-tooling.log`, `/tmp/morphir-config-main-strict.log`,
+`/tmp/morphir-config-main-trimmed.log`, and `/tmp/morphir-config-main-native.log`.
+Published hosts are `/tmp/morphir-config-main-trimmed` and
+`/tmp/morphir-config-main-native`. Publish-generated RID/ILCompiler lock changes
+were removed after qualification, retaining the committed dependency updates.
+
+Current-head CI, the authorized admin merge, landed-commit verification and
+owned artifact cleanup remain outstanding.
