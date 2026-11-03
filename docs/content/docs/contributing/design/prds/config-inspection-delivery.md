@@ -218,3 +218,49 @@ validate the published JSON schema, leaf values, exit code and redaction. Both
 pass. The CLI reference documents an appropriate depth limit for consumers.
 The disposable review probe directory is
 `/private/tmp/morphir-config-inspection-review-queries`.
+
+
+Depth qualification is complete: managed, trimmed and native osx-arm64 serializer
+hosts each pass all 48 checks with reflection serialization disabled and empty
+stderr. The full tooling suite passes 309/309, including 48 subprocess scenarios.
+Full solution compilation and changed-file formatting pass. Only documented
+FSharp.Core dependency linker diagnostics remain; publish-only lockfiles were
+inspected and restored. Receipts are `parent-review/depth-*-result.json`.
+
+### Integration with updated main
+
+Main advanced to `4df3c1ad425f782bfe3cc02e30f577d87dca0f53` with the canonical
+F# SDK package migration, PR #469. The SDK runtime moves to a canonical project
+while preserving its namespace and assembly identity. It does not change the
+configuration libraries, readers, Microsoft adapter or serializer sources, so
+their native qualification remains applicable. The solution/README auto-merged;
+NOTICE had an append conflict, resolved by preserving the entire SDK notice
+followed by the entire configuration notice. No history was rewritten.
+
+The combined tree builds with zero errors and 20 existing warnings. All 16
+configured runners pass sequentially with one TUnit worker, sequenced Expecto,
+two logical processors and a dotnet wrapper serializing nested builds/packs.
+Results: C# core 237, tooling 309, configuration core 136, IO/BDD 179, Microsoft
+adapter 22, serializer 48 checks, internal generation 25, model/roundtrips 791,
+pipeline 299, SDK 403, SDK conformance 27, pipeline plugins 141, F# backend 333,
+Ion 463, Myriad 4 and packaged Myriad integration 12.
+
+Two SDK package-consumer checks initially failed because the installed
+PowerShell shim had no selected version. Process-local selection of PowerShell
+7.5.3 allowed them to run; the final ownership check then found four stale SDK
+DLLs under this checkout's pre-migration ignored bin/obj outputs. Those two
+ignored directories contained no tracked files and were removed. The unchanged
+SDK suite then passed 403/403, including both package versions and all canonical,
+legacy, combined, generated-source and precompiled-binary consumers. No SDK
+product code or global tool configuration was changed for these environment
+issues. Original failed receipts remain separate from the successful rerun.
+
+`parent-review/integrated-final-results.json` indexes the final receipts, including
+`integrated-sdk-final.log`. The first unselected-shim attempts named two disposable
+paths outside the main evidence directory; neither contains product work:
+`/private/tmp/morphir-fsharp-sdk-packages-a13f59919fc0435dbd9ec893900a2f45` and
+`/private/tmp/morphir-fsharp-sdk-packages-f52a160b844543a4859e20842d67a7c9`.
+Other package evidence is under the owned `parent-review/sdk-package-temp`.
+OpenSpec verification on the combined tree passes all 22 active/spec items and
+both extension tests. Both independent reviews are complete and their reported
+findings are fixed. Fresh current-head CI, landing and artifact cleanup remain.
