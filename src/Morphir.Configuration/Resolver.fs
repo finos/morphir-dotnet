@@ -40,9 +40,28 @@ module Resolver =
                     )
                     (left, origins)
 
+            let winners =
+                if Map.isEmpty values then
+                    winners
+                else
+                    Map.remove path winners
+
             ConfigValue.Object values, winners
         | _, ConfigValue.Object fields when not (Map.isEmpty fields) ->
-            mergeAt path DocumentDefaults.emptyValue higher (clearOrigins path origins) document
+            let merged, winners =
+                mergeAt path DocumentDefaults.emptyValue higher (clearOrigins path origins) document
+
+            match merged with
+            | ConfigValue.Object values when Map.isEmpty values ->
+                merged,
+                Map.add
+                    path
+                    {
+                        Source = document.Source
+                        Position = Map.tryFind path document.Positions
+                    }
+                    winners
+            | _ -> merged, winners
         | _ ->
             let origin = {
                 Source = document.Source

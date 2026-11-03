@@ -456,6 +456,74 @@ let tests =
                 (Some(ConfigValue.Boolean true))
                 "unknown values retained"
         }
+        test "null-only replacement objects keep provenance and fail known scalar validation" {
+            let identity = source "null-shape.json" SourceRole.RootPrimary DocumentFormat.Json
+            let path = [ "ir"; "format_version" ]
+
+            let result =
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [
+                            supplied
+                                identity
+                                (obj [
+                                    "ir", obj [ "format_version", obj [ "x", ConfigValue.Null ] ]
+                                ])
+                        ]
+                    }
+
+            Expect.equal
+                (ConfigTree.tryFind path result.Effective)
+                (Some(obj []))
+                "the object replaces the default integer"
+
+            Expect.isTrue
+                (result.Diagnostics
+                 |> List.exists (fun d ->
+                     d.Code = "config.validation"
+                     && d.KeyPath = path
+                     && d.Source = identity
+                 ))
+                "the invalid object is diagnosed at its replacing source"
+        }
+        test "populated objects discard stale empty-object provenance" {
+            let lower = source "empty.json" SourceRole.RootPrimary DocumentFormat.Json
+            let higher = source "populated.toml" SourceRole.RootPrimary DocumentFormat.Toml
+            let path = [ "tasks"; "bad" ]
+
+            let result =
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [
+                            supplied lower (obj [ "tasks", obj [ "bad", obj [] ] ])
+                            supplied
+                                higher
+                                (obj [
+                                    "tasks",
+                                    obj [
+                                        "bad",
+                                        obj [
+                                            "run", text "echo"
+                                            "cmd", ConfigValue.Array [ text "echo" ]
+                                        ]
+                                    ]
+                                ])
+                        ]
+                    }
+
+            Expect.isTrue
+                (result.Diagnostics
+                 |> List.exists (fun d ->
+                     d.Code = "config.validation"
+                     && d.KeyPath = path
+                     && d.Source = higher
+                 ))
+                "the conflicting task fields are diagnosed at their owning source"
+
+            Expect.isFalse
+                (Map.containsKey path result.Origins)
+                "a nonempty map has child origins instead of an obsolete leaf origin"
+        }
         test "schema validates nested tasks and finite bounded known numbers without execution" {
             let raw =
                 obj [
