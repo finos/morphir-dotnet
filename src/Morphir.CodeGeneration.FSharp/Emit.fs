@@ -10,7 +10,35 @@ open Fabulous.AST
 open type Fabulous.AST.Ast
 
 module internal Emit =
-    let words (Name value) = value
+    let words (Name value) =
+        if
+            List.isEmpty value
+            || value
+               |> List.exists (fun word ->
+                   String.IsNullOrEmpty word
+                   || word[0] < 'a'
+                   || word[0] > 'z'
+                   || word
+                      |> Seq.exists (fun character ->
+                          not (
+                              character
+                              >= 'a'
+                              && character
+                                 <= 'z'
+                              || character
+                                 >= '0'
+                                 && character
+                                    <= '9'
+                          )
+                      )
+               )
+        then
+            Decode.fail
+                "invalid-name"
+                "$"
+                "Generation names require nonempty lowercase alphanumeric words starting with a letter."
+
+        value
 
     let capitalize (value: string) =
         value.Substring(0, 1).ToUpperInvariant()
@@ -132,7 +160,18 @@ module internal Emit =
         else
             text
 
-    let namesOfPath (Path names) = names
+    let namesOfPath (Path names) =
+        if List.isEmpty names then
+            Decode.fail "invalid-name" "$" "Generation paths require at least one name."
+
+        names
+        |> List.iter (
+            words
+            >> ignore
+        )
+
+        names
+
     let moduleNames (ModulePath path) = namesOfPath path
     let packageNames (PackageName path) = namesOfPath path
 
@@ -160,33 +199,11 @@ module internal Emit =
     let literal value =
         match value with
         | BoolLiteral value -> if value then "true" else "false"
-        | CharLiteral value -> $"'\\u{int value:X4}'"
-        | StringLiteral value -> JsonSerializer.Serialize(value)
-        | WholeNumberLiteral value ->
-            if
-                value < int64 Int32.MinValue
-                || value > int64 Int32.MaxValue
-            then
-                Decode.fail "literal-range" "$" "The mapped Morphir Int range is Int32."
-
-            value.ToString(CultureInfo.InvariantCulture)
-        | FloatLiteral value ->
-            if not (Double.IsFinite value) then
-                Decode.fail "literal-range" "$" "Non-finite float literal."
-
-            let text = value.ToString("R", CultureInfo.InvariantCulture)
-
-            if
-                text.Contains('.')
-                || text.Contains('E')
-            then
-                text
-            else
-                text
-                + ".0"
-        | DecimalLiteral value ->
-            value.ToString(CultureInfo.InvariantCulture)
-            + "M"
+        | CharLiteral value -> TargetSyntax.charLiteral value
+        | StringLiteral value -> TargetSyntax.stringLiteral value
+        | WholeNumberLiteral value -> TargetSyntax.integer (System.Numerics.BigInteger value)
+        | FloatLiteral value -> TargetSyntax.floatLiteral value
+        | DecimalLiteral value -> TargetSyntax.decimalLiteral value
 
     let private formatCore source =
         let parsed =
@@ -204,7 +221,12 @@ module internal Emit =
 
     let format source =
         try
-            formatCore source
+            // The emitter already produces complete F# source. Fantomas requires dynamic generic
+            // reflection, so native hosts retain that source and validate it through the same corpus.
+            if System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported then
+                formatCore source
+            else
+                source
         with error ->
             Decode.fail
                 "fsharp-generation"
@@ -213,6 +235,9 @@ module internal Emit =
                  + error.Message)
 
     let generate (model: Decode.Model) =
+        packageNames model.Package
+        |> ignore
+
         let distinct location names =
             names
             |> List.fold
@@ -382,29 +407,28 @@ module internal Emit =
                                 + ">"
 
                         if sdk q then
-                            match sdkName q, rendered with
-                            | "basics.int", [] -> "int"
-                            | "basics.float", [] -> "float"
-                            | "basics.bool", []
-                            | "bool.bool", [] -> "bool"
-                            | "basics.order", [] -> "Morphir.SDK.Order"
-                            | "string.string", [] -> "string"
-                            | "char.char", [] -> "char"
-                            | "decimal.decimal", [] -> "decimal"
-                            | "list.list", [ _ ] -> application "list"
-                            | "maybe.maybe", [ _ ] -> application "option"
-                            | "result.result", [ error; success ] ->
-                                "Result<"
-                                + success
-                                + ", "
-                                + error
-                                + ">"
-                            | _ ->
+                            match TargetSyntax.sdkType (sdkName q) rendered with
+                            | Some target -> target
+                            | None ->
                                 Decode.fail
                                     "unsupported-sdk"
                                     moduleName
                                     $"Unmapped SDK type {FQName.toString q}."
                         elif Map.containsKey q types then
+                            let parameters =
+                                match Map.find q types with
+                                | Type.TypeAliasDefinition(parameters, _)
+                                | Type.CustomTypeDefinition(parameters, _) -> parameters
+
+                            if
+                                parameters.Length
+                                <> args.Length
+                            then
+                                Decode.fail
+                                    "type-arity"
+                                    moduleName
+                                    $"Wrong type argument count for {FQName.toString q}."
+
                             application (qualify q (pascal q.LocalName))
                         else
                             Decode.fail
@@ -414,18 +438,9 @@ module internal Emit =
 
                 let ctor q =
                     if sdk q then
-                        match sdkName q with
-                        | "maybe.just" -> "Some", 1
-                        | "maybe.nothing" -> "None", 0
-                        | "result.ok" -> "Ok", 1
-                        | "result.err" -> "Error", 1
-                        | "basics.l_t"
-                        | "basics.lt" -> "Morphir.SDK.LT", 0
-                        | "basics.e_q"
-                        | "basics.eq" -> "Morphir.SDK.EQ", 0
-                        | "basics.g_t"
-                        | "basics.gt" -> "Morphir.SDK.GT", 0
-                        | _ ->
+                        match TargetSyntax.sdkConstructor (sdkName q) with
+                        | Some mapped -> mapped
+                        | None ->
                             Decode.fail
                                 "unsupported-sdk"
                                 moduleName
@@ -441,23 +456,9 @@ module internal Emit =
 
                 let reference q =
                     if sdk q then
-                        match sdkName q with
-                        | "basics.add" -> "(+)"
-                        | "basics.subtract" -> "(-)"
-                        | "basics.multiply" -> "(*)"
-                        | "basics.divide" -> "(/)"
-                        | "basics.equal" -> "(=)"
-                        | "basics.notequal" -> "(<>)"
-                        | "basics.lessthan" -> "(<)"
-                        | "basics.greaterthan" -> "(>)"
-                        | "basics.lessthanorequal" -> "(<=)"
-                        | "basics.greaterthanorequal" -> "(>=)"
-                        | "basics.compare" -> "Morphir.SDK.Basics.compare"
-                        | "basics.identity" -> "id"
-                        | "list.map" -> "List.map"
-                        | "maybe.map" -> "Option.map"
-                        | "result.map" -> "Result.map"
-                        | _ ->
+                        match TargetSyntax.sdkValue (sdkName q) with
+                        | Some mapped -> mapped
+                        | None ->
                             Decode.fail
                                 "unsupported-sdk"
                                 moduleName
@@ -957,19 +958,40 @@ module internal Emit =
                         + expression expected body
                         + ")"
                     | Value.LetRecursion(_, definitions, body) ->
-                        let bindings =
-                            definitions
-                            |> Map.toList
-                            |> List.map (fun (name, definition) ->
-                                binding (localIdent name) definition
+                        let isFunction definition =
+                            not (List.isEmpty definition.InputTypes)
+                            || (
+                                match definition.Body with
+                                | Value.Lambda _ -> true
+                                | _ -> false
                             )
-                            |> String.concat " and "
 
-                        "(let rec "
-                        + bindings
-                        + " in "
-                        + expression expected body
-                        + ")"
+                        let groups =
+                            DependencyOrder.bindings
+                                moduleName
+                                Validate.freeVariables
+                                isFunction
+                                definitions
+
+                        let bindings =
+                            groups
+                            |> List.map (fun (recursive, entries) ->
+                                (if recursive then "let rec " else "let ")
+                                + (entries
+                                   |> List.map (fun (name, definition) ->
+                                       binding (localIdent name) definition
+                                   )
+                                   |> String.concat " and ")
+                            )
+
+                        if List.isEmpty bindings then
+                            expression expected body
+                        else
+                            "("
+                            + String.concat " in " bindings
+                            + " in "
+                            + expression expected body
+                            + ")"
                     | Value.Destructure(_, p, target, body) ->
                         "(let "
                         + pattern p
@@ -1153,32 +1175,4 @@ module internal Emit =
                 }
             )
 
-        let rec order donePaths remaining =
-            match remaining with
-            | [] -> []
-            | _ ->
-                match
-                    remaining
-                    |> List.tryFind (fun (_, dependencies, _) ->
-                        Set.isSubset dependencies donePaths
-                    )
-                with
-                | None ->
-                    Decode.fail
-                        "module-cycle"
-                        "$"
-                        ("Cyclic module dependencies: "
-                         + (remaining
-                            |> List.map (fun (path, _, _) -> modulePath path)
-                            |> String.concat ", "))
-                | Some(path, _, generated) ->
-                    generated
-                    :: order
-                        (Set.add path donePaths)
-                        (remaining
-                         |> List.filter (fun (other, _, _) ->
-                             other
-                             <> path
-                         ))
-
-        order Set.empty emitted
+        DependencyOrder.modules modulePath emitted

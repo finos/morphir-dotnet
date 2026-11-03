@@ -12,92 +12,11 @@ open Morphir.CodeGeneration.FSharp.Tests.TranspilerAdapter
 module F = Morphir.CodeGeneration.FSharp.Tests.Fixtures
 
 let executeWithReferences references (modules: GeneratedModule list) code =
-    let directory =
-        Path.Combine(
-            Path.GetTempPath(),
-            "morphir-backend-"
-            + Guid.NewGuid().ToString("N")
-        )
-
-    Directory.CreateDirectory(directory)
-    |> ignore
-
-    try
-        for m in modules do
-            let file = Path.Combine(directory, m.RelativePath)
-
-            Directory.CreateDirectory(Path.GetDirectoryName file)
-            |> ignore
-
-            File.WriteAllText(file, m.Source)
-
-        let loads =
-            modules
-            |> List.map (fun m ->
-                "#load @\""
-                + Path.Combine(directory, m.RelativePath)
-                + "\""
-            )
-            |> String.concat "\n"
-
-        let script = Path.Combine(directory, "consumer.fsx")
-
-        File.WriteAllText(
-            script,
-            (references
-             |> List.map (fun reference ->
-                 "#r @\""
-                 + reference
-                 + "\""
-             )
-             |> String.concat "\n")
-            + "\n"
-            + loads
-            + "\n"
-            + code
-        )
-
-        let dotnetHost =
-            Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")
-            |> Option.ofObj
-            |> Option.defaultWith (fun () ->
-                Path.GetFullPath(
-                    Path.Combine(
-                        System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory(),
-                        "../../..",
-                        if OperatingSystem.IsWindows() then
-                            "dotnet.exe"
-                        else
-                            "dotnet"
-                    )
-                )
-            )
-
-        let start = ProcessStartInfo(dotnetHost)
-        start.ArgumentList.Add("fsi")
-        start.ArgumentList.Add("--warnaserror+")
-        start.ArgumentList.Add("--exec")
-        start.ArgumentList.Add(script)
-        start.RedirectStandardOutput <- true
-        start.RedirectStandardError <- true
-        use child = Process.Start(start)
-        let output = child.StandardOutput.ReadToEndAsync()
-        let error = child.StandardError.ReadToEndAsync()
-
-        if not (child.WaitForExit(60000)) then
-            child.Kill(true)
-            failtest "compiler timeout"
-
-        Expect.equal
-            child.ExitCode
-            0
-            (error.Result
-             + "\n"
-             + output.Result)
-
-        output.Result.Trim()
-    finally
-        Directory.Delete(directory, true)
+    GenerationCompiler.executeWithReferences
+        references
+        (modules
+         |> List.map (fun file -> file.RelativePath, file.Source))
+        code
 
 let execute modules code = executeWithReferences [] modules code
 
@@ -202,6 +121,7 @@ let tests =
             | Ok _ -> failtest "a digit word must not generate"
             | Error errors ->
                 Expect.equal errors.Head.Category "invalid-name" "name diagnostic"
+
                 Expect.stringContains
                     errors.Head.Message
                     "Names must contain nonempty lowercase alphanumeric words."
@@ -265,71 +185,18 @@ let tests =
                     "qualified references retain module identity while variables retain lexical identity"
         testCase "module references survive every lexical binding form"
         <| fun _ ->
-            let capture = F.op "add" (F.reference "capture" "rate") (F.variable "rate")
-
-            let argument =
-                F.a [ box "AsPattern"; null; F.a [ box "WildcardPattern"; null ]; F.n "rate" ]
-
-            let local =
-                F.a [
-                    box "LetDefinition"
-                    null
-                    F.n "rate"
-                    F.definition [] F.intType (F.integer 7)
-                    capture
-                ]
-
-            let lambda = F.apply (F.a [ box "Lambda"; null; argument; capture ]) [ F.integer 7 ]
-
-            let matched =
-                F.a [ box "PatternMatch"; null; F.integer 7; F.a [ F.a [ argument; capture ] ] ]
-
-            let destructured = F.a [ box "Destructure"; null; argument; F.integer 7; capture ]
-
-            let recursiveBody =
-                F.a [
-                    box "IfThenElse"
-                    null
-                    F.op "equal" (F.variable "n") (F.integer 0)
-                    F.reference "capture" "rate"
-                    F.apply (F.variable "rate") [ F.op "subtract" (F.variable "n") (F.integer 1) ]
-                ]
-
-            let recursive =
-                F.a [
-                    box "LetRecursion"
-                    null
-                    F.a [
-                        F.a [ F.n "rate"; F.definition [ "n", F.intType ] F.intType recursiveBody ]
-                    ]
-                    F.apply (F.variable "rate") [ F.integer 3 ]
-                ]
-
-            let json =
-                F.model [
-                    "capture",
-                    [],
-                    [
-                        F.binding "rate" [] F.intType (F.integer 5000)
-                        F.binding
-                            "locals"
-                            []
-                            (F.tTuple (List.replicate 5 F.intType))
-                            (F.a [
-                                box "Tuple"
-                                null
-                                F.a [ local; lambda; matched; destructured; recursive ]
-                            ])
-                    ]
-                ]
+            let json = ModelConformanceInputs.lexicalCaptureJson ()
 
             match Transpiler.Generate("capture.json", json) with
             | Error errors -> failtestf "%A" errors
             | Ok modules ->
+                let oracle: GenerationConformance.BehaviorCase<unit> =
+                    GenerationCases.lexicalCapture [] []
+
                 Expect.equal
-                    (execute modules "printfn \"%A\" Car.Rental.Capture.locals")
-                    "(5007, 5007, 5007, 5007, 5000)"
-                    "local lets, lambdas, matches, destructuring and recursion preserve reference identity"
+                    (execute modules oracle.Consumer)
+                    oracle.ExpectedOutput
+                    "shared behavior"
         testCase "unbound variables are generation errors"
         <| fun _ ->
             let json =
@@ -341,132 +208,46 @@ let tests =
                 Expect.equal errors.Head.Category "unbound-variable" "scope diagnostic"
         testCase "local recursion and lexical shadowing execute"
         <| fun _ ->
-            let countdownBody =
-                F.a [
-                    box "IfThenElse"
-                    null
-                    F.op "equal" (F.variable "n") (F.integer 0)
-                    F.integer 0
-                    F.apply (F.variable "loop") [ F.op "subtract" (F.variable "n") (F.integer 1) ]
-                ]
-
-            let body =
-                F.a [
-                    box "LetRecursion"
-                    null
-                    F.a [
-                        F.a [ F.n "loop"; F.definition [ "n", F.intType ] F.intType countdownBody ]
-                    ]
-                    F.apply (F.variable "loop") [ F.variable "n" ]
-                ]
-
-            let shadow =
-                F.a [
-                    box "LetDefinition"
-                    null
-                    F.n "x"
-                    F.definition [] F.intType (F.integer 9)
-                    F.variable "x"
-                ]
-
-            let json =
-                F.model [
-                    "locals",
-                    [],
-                    [
-                        F.binding "countdown" [ "n", F.intType ] F.intType body
-                        F.binding "shadow" [ "x", F.intType ] F.intType shadow
-                    ]
-                ]
+            let json = ModelConformanceInputs.localRecursionJson ()
 
             match Transpiler.Generate("locals.json", json) with
             | Error errors -> failtestf "%A" errors
             | Ok modules ->
+                let oracle: GenerationConformance.BehaviorCase<unit> =
+                    GenerationCases.localRecursion [] []
+
                 Expect.equal
-                    (execute
-                        modules
-                        "printfn \"%d %d\" (Car.Rental.Locals.countdown 5) (Car.Rental.Locals.shadow 2)")
-                    "0 9"
-                    "recursion and lexical binding"
+                    (execute modules oracle.Consumer)
+                    oracle.ExpectedOutput
+                    "shared behavior"
         testCase "anonymous records and field functions execute"
         <| fun _ ->
-            let recordType = F.tRecord [ "value", F.intType ]
-
-            let record =
-                F.a [ box "Record"; recordType; F.a [ F.a [ F.n "value"; F.integer 3 ] ] ]
-
-            let update =
-                F.a [
-                    box "UpdateRecord"
-                    recordType
-                    F.variable "record"
-                    F.a [ F.a [ F.n "value"; F.integer 7 ] ]
-                ]
-
-            let accessor = F.a [ box "FieldFunction"; null; F.n "value" ]
-
-            let json =
-                F.model [
-                    "records",
-                    [],
-                    [
-                        F.binding "item" [] recordType record
-                        F.binding "change" [ "record", recordType ] recordType update
-                        F.binding "accessor" [] (F.tFunction recordType F.intType) accessor
-                    ]
-                ]
+            let json = ModelConformanceInputs.recordOperationsJson ()
 
             match Transpiler.Generate("records.json", json) with
             | Error errors -> failtestf "%A" errors
             | Ok modules ->
+                let oracle: GenerationConformance.BehaviorCase<unit> =
+                    GenerationCases.recordOperations [] []
+
                 Expect.equal
-                    (execute
-                        modules
-                        "let old = Car.Rental.Records.item\nlet changed = Car.Rental.Records.change old\nprintfn \"%d %d\" (Car.Rental.Records.accessor old) changed.value")
-                    "3 7"
-                    "anonymous record remains immutable"
+                    (execute modules oracle.Consumer)
+                    oracle.ExpectedOutput
+                    "shared behavior"
         testCase "SDK list Maybe and Result mappings preserve function and type argument order"
         <| fun _ ->
-            let increment =
-                F.a [ box "Lambda"; null; F.bind "x"; F.op "add" (F.variable "x") (F.integer 1) ]
-
-            let numbers = F.a [ box "List"; null; F.a [ F.integer 1; F.integer 2 ] ]
-
-            let map modName value =
-                F.apply (F.sdkReference modName "map") [ increment; value ]
-
-            let json =
-                F.model [
-                    "mappings",
-                    [],
-                    [
-                        F.binding "numbers" [] (F.listType F.intType) (map "list" numbers)
-                        F.binding
-                            "maybe"
-                            []
-                            (F.tRef (F.sdk "maybe" "maybe") [ F.intType ])
-                            (map
-                                "maybe"
-                                (F.apply (F.constructor (F.sdk "maybe" "just")) [ F.integer 3 ]))
-                        F.binding
-                            "result"
-                            []
-                            (F.tRef (F.sdk "result" "result") [ F.stringType; F.intType ])
-                            (map
-                                "result"
-                                (F.apply (F.constructor (F.sdk "result" "ok")) [ F.integer 4 ]))
-                    ]
-                ]
+            let json = ModelConformanceInputs.sdkMappingsJson ()
 
             match Transpiler.Generate("mappings.json", json) with
             | Error errors -> failtestf "%A" errors
             | Ok modules ->
+                let oracle: GenerationConformance.BehaviorCase<unit> =
+                    GenerationCases.sdkMappings [] []
+
                 Expect.equal
-                    (execute
-                        modules
-                        "printfn \"%A %A %A\" Car.Rental.Mappings.numbers Car.Rental.Mappings.maybe Car.Rental.Mappings.result")
-                    "[2; 3] Some 4 Ok 5"
-                    "SDK behavior"
+                    (execute modules oracle.Consumer)
+                    oracle.ExpectedOutput
+                    "shared SDK behavior"
         testCase "non-function initialization cycles fail before returning source"
         <| fun _ ->
             let json =
@@ -759,7 +540,8 @@ let tests =
                         "let a,b,c,d,e,f = Car.Rental.Literals.values\nprintfn \"%b %d %d %d %.1f %.2M\" a (int b) c.Length d e f")
                     "true 39 4 -2147483648 1.5 2.25"
                     "literal values"
-        testCase "generation keeps rounding a long decimal and refusing an exponent in a decimal string"
+        testCase
+            "generation keeps rounding a long decimal and refusing an exponent in a decimal string"
         <| fun _ ->
             let decimalType = F.tRef (F.sdk "decimal" "decimal") []
 
@@ -770,7 +552,11 @@ let tests =
                         "decimals",
                         [],
                         [
-                            F.binding "value" [] decimalType (F.literal "DecimalLiteral" (box (text: string)))
+                            F.binding
+                                "value"
+                                []
+                                decimalType
+                                (F.literal "DecimalLiteral" (box (text: string)))
                         ]
                     ]
                 )
@@ -779,7 +565,10 @@ let tests =
             match generate "1.00000000000000000000000000000001" with
             | Error errors -> failtestf "%A" errors
             | Ok modules ->
-                Expect.stringContains modules.Head.Source "1.0000000000000000000000000000M" "rounded as before"
+                Expect.stringContains
+                    modules.Head.Source
+                    "1.0000000000000000000000000000M"
+                    "rounded as before"
 
             Expect.isError (generate "1e2") "generation never read an exponent in a decimal string"
 
@@ -1212,7 +1001,9 @@ let optimizationEquivalenceTests =
         | Error errors -> failtestf "%A" errors
 
     let sourceText (modules: GeneratedModule list) =
-        modules |> List.map (fun m -> m.Source) |> String.concat "\n"
+        modules
+        |> List.map (fun m -> m.Source)
+        |> String.concat "\n"
 
     let floatType = F.tRef (F.sdk "basics" "float") []
     let flt (value: float) = F.literal "FloatLiteral" (box value)
@@ -1223,20 +1014,43 @@ let optimizationEquivalenceTests =
             [],
             [
                 F.binding "added" [] F.intType (F.op "add" (F.integer 40) (F.integer 2))
-                F.binding "nested" [] F.intType (F.op "multiply" (F.op "add" (F.integer 1) (F.integer 2)) (F.integer 4))
+                F.binding
+                    "nested"
+                    []
+                    F.intType
+                    (F.op "multiply" (F.op "add" (F.integer 1) (F.integer 2)) (F.integer 4))
                 F.binding "subtracted" [] F.intType (F.op "subtract" (F.integer 2) (F.integer 5))
                 F.binding "truncated" [] F.intType (F.op "divide" (F.integer -7) (F.integer 2))
-                F.binding "overflowing" [] F.intType (F.op "add" (F.integer 2147483647) (F.integer 1))
+                F.binding
+                    "overflowing"
+                    []
+                    F.intType
+                    (F.op "add" (F.integer 2147483647) (F.integer 1))
                 F.binding "floats" [] floatType (F.op "divide" (flt 1.0) (flt 4.0))
                 F.binding "less" [] F.boolType (F.op "less_than" (F.integer 1) (F.integer 2))
-                F.binding "not_less" [] F.boolType (F.op "greater_than_or_equal" (F.integer 1) (F.integer 2))
+                F.binding
+                    "not_less"
+                    []
+                    F.boolType
+                    (F.op "greater_than_or_equal" (F.integer 1) (F.integer 2))
                 F.binding "same" [] F.boolType (F.op "equal" (F.str "a") (F.str "a"))
                 F.binding "different" [] F.boolType (F.op "not_equal" (F.str "a") (F.str "a"))
             ]
         ]
 
     let printAll =
-        [ "added"; "nested"; "subtracted"; "truncated"; "overflowing"; "floats"; "less"; "notLess"; "same"; "different" ]
+        [
+            "added"
+            "nested"
+            "subtracted"
+            "truncated"
+            "overflowing"
+            "floats"
+            "less"
+            "notLess"
+            "same"
+            "different"
+        ]
         |> List.map (fun name -> $"printfn \"{name} %%A\" Car.Rental.Folding.{name}")
         |> String.concat "\n"
 
@@ -1246,7 +1060,10 @@ let optimizationEquivalenceTests =
             let optimized = generated true ("folding.json", foldable)
             let plain = generated false ("folding.json", foldable)
 
-            Expect.notEqual (sourceText optimized) (sourceText plain) "folding should change the source"
+            Expect.notEqual
+                (sourceText optimized)
+                (sourceText plain)
+                "folding should change the source"
 
             let optimizedOutput = execute optimized printAll
             let plainOutput = execute plain printAll
@@ -1255,9 +1072,13 @@ let optimizationEquivalenceTests =
             Expect.stringContains optimizedOutput "added 42" "the fixture should have run"
             Expect.stringContains optimizedOutput "truncated -3" "division should truncate"
         for version in [ 1; 2; 3 ] do
-            testCase $"car rental version {version} should behave the same with optimization on and off"
+            testCase
+                $"car rental version {version} should behave the same with optimization on and off"
             <| fun _ ->
-                let input = ($"car-rental-v{version}.json", ModelResources.read $"car-rental-v{version}.json")
+                let input =
+                    ($"car-rental-v{version}.json",
+                     ModelResources.read $"car-rental-v{version}.json")
+
                 let consumer = "printfn \"%A\" (Car.Rental.Workflow.rent 3)"
                 let optimizedOutput = execute (generated true input) consumer
                 let plainOutput = execute (generated false input) consumer
@@ -1272,6 +1093,12 @@ let main argv =
         []
         argv
         (testList "Backend" [
+            GenerationConformanceTests.tests
+            TypedGenerationTests.tests
+            TypedValidationTests.tests
+            GenerationOptionsTests.tests
+            ModelConformanceTests.tests
+            GenerationRequirementsTests.tests
             tests
             contractTests
             optimizationEquivalenceTests

@@ -1,5 +1,15 @@
 namespace Morphir.CodeGeneration.FSharp
 
+/// Options shared by typed-model and legacy JSON generation.
+type GenerationOptions =
+    {
+        /// Whether to run exact constant folding. Validation always runs.
+        Optimize: bool
+    }
+
+    /// Existing callers keep constant folding enabled.
+    static member Default = { Optimize = true }
+
 /// One generated file in the manifest.
 type ManifestEntry = {
     /// The module's dotted path, which selects it for the Myriad host

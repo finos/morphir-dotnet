@@ -198,7 +198,7 @@ public class IrToolingScenario : IMorphirCliScenario
         builder.Logging.AddSerilog(Serilog.Log.Logger, dispose: true);
 
         // Configure services
-        builder.Services.AddMediator();
+        Infrastructure.MediatorRegistration.Add(builder.Services);
         builder.Services.AddSingleton<Infrastructure.JsonSchema.SchemaLoader>();
         builder.Services.AddSingleton<Infrastructure.JsonSchema.SchemaValidator>();
 

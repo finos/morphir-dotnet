@@ -56,6 +56,14 @@ jobs:
 
         steps:
             - uses: actions/checkout@v6.0.1
+            - name: Configure physical test temporary directory
+              shell: pwsh
+              run: |
+                  # macOS defaults to /var/folders through a linked /var ancestor.
+                  # Keep input/publication link-refusal tests on the runner-owned path on every OS.
+                  foreach ($name in "TMPDIR", "TEMP", "TMP") {
+                      "$name=$env:RUNNER_TEMP" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  }
             - name: Setup .NET SDK
               uses: actions/setup-dotnet@v5
               with:

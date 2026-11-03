@@ -8,33 +8,134 @@ open Morphir.IR.Classic.Documented
 open Morphir.IR.Pipeline
 open Morphir.IR.Pipeline.Plugins
 
-let private sdkFn name = FQName.fromString ("Morphir.SDK:Basics:" + name) ":"
-let private userFn name = FQName.fromString ("My.App:Rules:" + name) ":"
+[<Tests>]
+let exactScalarTests =
+    testList "Exact scalar folding" [
+        for name, operation, left, right, expected in
+            [
+                "integer subtraction",
+                ArithmeticOperation.Subtract,
+                -2147483648I,
+                -1I,
+                Some -2147483647I
+                "integer multiplication", ArithmeticOperation.Multiply, 2I, 3I, Some 6I
+                "integer division truncates", ArithmeticOperation.Divide, 7I, 3I, Some 2I
+                "integer zero divisor", ArithmeticOperation.Divide, 1I, 0I, None
+                "integer division overflow", ArithmeticOperation.Divide, -2147483648I, -1I, None
+            ] do
+            test name {
+                Expect.equal
+                    (ExactScalarFolding.tryInt32 operation left right)
+                    expected
+                    "Int32 arithmetic profile"
+            }
+        for name, operation, left, right, expected in
+            [
+                "subtraction", ArithmeticOperation.Subtract, 4.5, 0.5, Some 4.0
+                "multiplication", ArithmeticOperation.Multiply, 1.5, 2.0, Some 3.0
+                "division", ArithmeticOperation.Divide, 3.0, 2.0, Some 1.5
+                "rounded division", ArithmeticOperation.Divide, 1.0, 3.0, None
+                "rounded addition", ArithmeticOperation.Add, 0.1, 0.2, None
+                "overflow", ArithmeticOperation.Multiply, System.Double.MaxValue, 2.0, None
+                "zero divisor", ArithmeticOperation.Divide, 1.0, 0.0, None
+                "nonfinite input", ArithmeticOperation.Add, infinity, 0.0, None
+            ] do
+            test name {
+                Expect.equal
+                    (ExactScalarFolding.tryFloat operation left right)
+                    expected
+                    "only proved exact results fold"
+            }
+        test "negative zero retains its sign" {
+            let result =
+                ExactScalarFolding.tryFloat ArithmeticOperation.Multiply -0.0 2.0
+                |> Option.get
 
-let private whole (value: int64): Value<unit, unit> = Value.Literal((), Literal.WholeNumberLiteral value)
-let private boolean (value: bool): Value<unit, unit> = Value.Literal((), Literal.BoolLiteral value)
+            Expect.equal
+                (System.BitConverter.DoubleToInt64Bits result)
+                System.Int64.MinValue
+                "IEEE sign bit"
+        }
+        test "integer overflow preserves the operation" {
+            Expect.isNone
+                (ExactScalarFolding.tryInt32 ArithmeticOperation.Add 2147483647I 1I)
+                "Int32 result required"
+        }
+        test "out of profile integer operands cannot fold into range" {
+            Expect.isNone
+                (ExactScalarFolding.tryInt32 ArithmeticOperation.Subtract 2147483648I 1I)
+                "validate operands too"
+        }
+    ]
+
+let private sdkFn name =
+    FQName.fromString
+        ("Morphir.SDK:Basics:"
+         + name)
+        ":"
+
+let private userFn name =
+    FQName.fromString
+        ("My.App:Rules:"
+         + name)
+        ":"
+
+let private whole (value: int64) : Value<unit, unit> =
+    Value.Literal((), Literal.WholeNumberLiteral value)
+
+let private boolean (value: bool) : Value<unit, unit> =
+    Value.Literal((), Literal.BoolLiteral value)
 
 let private apply2 (fn: FQName) left right : Value<unit, unit> =
     Value.Apply((), Value.Apply((), Value.Reference((), fn), left), right)
 
-let private intType: Type<unit> = Type.Reference((), FQName.fromString "Morphir.SDK:Basics:Int" ":", [])
+let private intType: Type<unit> =
+    Type.Reference((), FQName.fromString "Morphir.SDK:Basics:Int" ":", [])
 
-let private definition (body: Value<unit, unit>) : ValueDefinition<unit, unit> =
-    { InputTypes = []; OutputType = intType; Body = body }
+let private definition (body: Value<unit, unit>) : ValueDefinition<unit, unit> = {
+    InputTypes = []
+    OutputType = intType
+    Body = body
+}
 
 let private package (body: Value<unit, unit>) : Package.PackageDefinition<unit, unit> =
     let moduleDefinition: Module.ModuleDefinition<unit, unit> = {
         Types = Map.empty
-        Values = Map.ofList [ Name.fromString "value", { Access = Public; Value = WithoutDocumentation(definition body) } ]
+        Values =
+            Map.ofList [
+                Name.fromString "value",
+                {
+                    Access = Public
+                    Value = WithoutDocumentation(definition body)
+                }
+            ]
         Doc = None
     }
 
-    { Modules = Map.ofList [ ModulePath.modulePath (Path [ Name.fromString "Rules" ]), { Access = Public; Value = moduleDefinition } ] }
+    {
+        Modules =
+            Map.ofList [
+                ModulePath.modulePath (Path [ Name.fromString "Rules" ]),
+                {
+                    Access = Public
+                    Value = moduleDefinition
+                }
+            ]
+    }
 
 let private bodyOf (result: Package.PackageDefinition<unit, unit>) =
-    let moduleDefinition = result.Modules |> Map.toList |> List.head |> snd
+    let moduleDefinition =
+        result.Modules
+        |> Map.toList
+        |> List.head
+        |> snd
 
-    match moduleDefinition.Value.Values |> Map.toList |> List.head |> snd with
+    match
+        moduleDefinition.Value.Values
+        |> Map.toList
+        |> List.head
+        |> snd
+    with
     | { Value = WithoutDocumentation value } -> value.Body
     | { Value = WithDocumentation(_, value) } -> value.Body
 
@@ -43,36 +144,110 @@ let private run options body =
     let result, file = plugin.Transform (package body) VFile.empty
     bodyOf (Option.get result), file
 
-let private folded = fst << run Optimizer.foldingOnly
+let private folded =
+    fst
+    << run Optimizer.foldingOnly
 
 [<Tests>]
 let foldingTests =
     let cases: (string * string * Literal * Literal * Literal) list = [
-        "adds whole numbers", "add", Literal.WholeNumberLiteral 2L, Literal.WholeNumberLiteral 3L, Literal.WholeNumberLiteral 5L
-        "subtracts whole numbers", "subtract", Literal.WholeNumberLiteral 5L, Literal.WholeNumberLiteral 3L, Literal.WholeNumberLiteral 2L
-        "multiplies whole numbers", "multiply", Literal.WholeNumberLiteral 4L, Literal.WholeNumberLiteral 5L, Literal.WholeNumberLiteral 20L
-        "divides whole numbers, truncating", "divide", Literal.WholeNumberLiteral -7L, Literal.WholeNumberLiteral 2L, Literal.WholeNumberLiteral -3L
-        "adds floats", "add", Literal.FloatLiteral 1.5, Literal.FloatLiteral 2.5, Literal.FloatLiteral 4.0
-        "compares equal", "equal", Literal.WholeNumberLiteral 5L, Literal.WholeNumberLiteral 5L, Literal.BoolLiteral true
-        "compares unequal strings", "equal", Literal.StringLiteral "a", Literal.StringLiteral "b", Literal.BoolLiteral false
-        "compares notEqual", "notEqual", Literal.BoolLiteral true, Literal.BoolLiteral false, Literal.BoolLiteral true
-        "compares lessThan", "lessThan", Literal.WholeNumberLiteral 3L, Literal.WholeNumberLiteral 5L, Literal.BoolLiteral true
-        "compares lessThanOrEqual", "lessThanOrEqual", Literal.WholeNumberLiteral 5L, Literal.WholeNumberLiteral 5L, Literal.BoolLiteral true
-        "compares greaterThan floats", "greaterThan", Literal.FloatLiteral 1.0, Literal.FloatLiteral 2.0, Literal.BoolLiteral false
-        "compares greaterThanOrEqual", "greaterThanOrEqual", Literal.WholeNumberLiteral 5L, Literal.WholeNumberLiteral 6L, Literal.BoolLiteral false
+        "adds whole numbers",
+        "add",
+        Literal.WholeNumberLiteral 2L,
+        Literal.WholeNumberLiteral 3L,
+        Literal.WholeNumberLiteral 5L
+        "subtracts whole numbers",
+        "subtract",
+        Literal.WholeNumberLiteral 5L,
+        Literal.WholeNumberLiteral 3L,
+        Literal.WholeNumberLiteral 2L
+        "multiplies whole numbers",
+        "multiply",
+        Literal.WholeNumberLiteral 4L,
+        Literal.WholeNumberLiteral 5L,
+        Literal.WholeNumberLiteral 20L
+        "divides whole numbers, truncating",
+        "divide",
+        Literal.WholeNumberLiteral -7L,
+        Literal.WholeNumberLiteral 2L,
+        Literal.WholeNumberLiteral -3L
+        "adds floats",
+        "add",
+        Literal.FloatLiteral 1.5,
+        Literal.FloatLiteral 2.5,
+        Literal.FloatLiteral 4.0
+        "compares equal",
+        "equal",
+        Literal.WholeNumberLiteral 5L,
+        Literal.WholeNumberLiteral 5L,
+        Literal.BoolLiteral true
+        "compares unequal strings",
+        "equal",
+        Literal.StringLiteral "a",
+        Literal.StringLiteral "b",
+        Literal.BoolLiteral false
+        "compares notEqual",
+        "notEqual",
+        Literal.BoolLiteral true,
+        Literal.BoolLiteral false,
+        Literal.BoolLiteral true
+        "compares lessThan",
+        "lessThan",
+        Literal.WholeNumberLiteral 3L,
+        Literal.WholeNumberLiteral 5L,
+        Literal.BoolLiteral true
+        "compares lessThanOrEqual",
+        "lessThanOrEqual",
+        Literal.WholeNumberLiteral 5L,
+        Literal.WholeNumberLiteral 5L,
+        Literal.BoolLiteral true
+        "compares greaterThan floats",
+        "greaterThan",
+        Literal.FloatLiteral 1.0,
+        Literal.FloatLiteral 2.0,
+        Literal.BoolLiteral false
+        "compares greaterThanOrEqual",
+        "greaterThanOrEqual",
+        Literal.WholeNumberLiteral 5L,
+        Literal.WholeNumberLiteral 6L,
+        Literal.BoolLiteral false
     ]
 
     let unfolded: (string * string * Literal * Literal) list = [
-        "the sum overflows Int", "add", Literal.WholeNumberLiteral 2147483647L, Literal.WholeNumberLiteral 1L
-        "the product overflows Int", "multiply", Literal.WholeNumberLiteral 100000L, Literal.WholeNumberLiteral 100000L
-        "the minimum is divided by minus one", "divide", Literal.WholeNumberLiteral -2147483648L, Literal.WholeNumberLiteral -1L
-        "an input is out of range, even if the result is not", "add", Literal.WholeNumberLiteral 3000000000L, Literal.WholeNumberLiteral -2000000000L
-        "a comparison input is out of range", "lessThan", Literal.WholeNumberLiteral 3000000000L, Literal.WholeNumberLiteral 1L
-        "dividing a whole number by zero", "divide", Literal.WholeNumberLiteral 10L, Literal.WholeNumberLiteral 0L
+        "the sum overflows Int",
+        "add",
+        Literal.WholeNumberLiteral 2147483647L,
+        Literal.WholeNumberLiteral 1L
+        "the product overflows Int",
+        "multiply",
+        Literal.WholeNumberLiteral 100000L,
+        Literal.WholeNumberLiteral 100000L
+        "the minimum is divided by minus one",
+        "divide",
+        Literal.WholeNumberLiteral -2147483648L,
+        Literal.WholeNumberLiteral -1L
+        "an input is out of range, even if the result is not",
+        "add",
+        Literal.WholeNumberLiteral 3000000000L,
+        Literal.WholeNumberLiteral -2000000000L
+        "a comparison input is out of range",
+        "lessThan",
+        Literal.WholeNumberLiteral 3000000000L,
+        Literal.WholeNumberLiteral 1L
+        "dividing a whole number by zero",
+        "divide",
+        Literal.WholeNumberLiteral 10L,
+        Literal.WholeNumberLiteral 0L
         "dividing a float by zero", "divide", Literal.FloatLiteral 1.0, Literal.FloatLiteral 0.0
-        "a float result is infinite", "multiply", Literal.FloatLiteral 1e308, Literal.FloatLiteral 10.0
+        "a float result is infinite",
+        "multiply",
+        Literal.FloatLiteral 1e308,
+        Literal.FloatLiteral 10.0
         "literal types differ", "equal", Literal.WholeNumberLiteral 1L, Literal.FloatLiteral 1.0
-        "the SDK boolean and is unmapped", "and", Literal.BoolLiteral true, Literal.BoolLiteral false
+        "the SDK boolean and is unmapped",
+        "and",
+        Literal.BoolLiteral true,
+        Literal.BoolLiteral false
         "the SDK boolean or is unmapped", "or", Literal.BoolLiteral true, Literal.BoolLiteral false
         "string append is unmapped", "append", Literal.StringLiteral "a", Literal.StringLiteral "b"
     ]
@@ -81,7 +256,10 @@ let foldingTests =
         testList "should fold when the result matches run time" [
             for name, fn, left, right, expected in cases do
                 test name {
-                    Expect.equal (Optimizer.tryFold (sdkFn fn) left right) (Some expected) "should fold"
+                    Expect.equal
+                        (Optimizer.tryFold (sdkFn fn) left right)
+                        (Some expected)
+                        "should fold"
                 }
         ]
 
@@ -94,18 +272,29 @@ let foldingTests =
 
         test "should not fold a user function named like an SDK function" {
             Expect.isNone
-                (Optimizer.tryFold (userFn "add") (Literal.WholeNumberLiteral 2L) (Literal.WholeNumberLiteral 3L))
+                (Optimizer.tryFold
+                    (userFn "add")
+                    (Literal.WholeNumberLiteral 2L)
+                    (Literal.WholeNumberLiteral 3L))
                 "the user's function must run"
         }
 
         test "should recognize an SDK module other than Basics as not foldable" {
             let listAdd = FQName.fromString "Morphir.SDK:List:add" ":"
 
-            Expect.isNone (Optimizer.tryFold listAdd (Literal.WholeNumberLiteral 2L) (Literal.WholeNumberLiteral 3L)) "wrong module"
+            Expect.isNone
+                (Optimizer.tryFold
+                    listAdd
+                    (Literal.WholeNumberLiteral 2L)
+                    (Literal.WholeNumberLiteral 3L))
+                "wrong module"
         }
 
         test "plugin should fold inside a package value" {
-            Expect.equal (folded (apply2 (sdkFn "add") (whole 2L) (whole 3L))) (whole 5L) "should fold"
+            Expect.equal
+                (folded (apply2 (sdkFn "add") (whole 2L) (whole 3L)))
+                (whole 5L)
+                "should fold"
         }
 
         test "plugin should leave a user's add call alone" {
@@ -115,7 +304,8 @@ let foldingTests =
         }
 
         test "plugin should fold bottom-up so nested expressions collapse" {
-            let body = apply2 (sdkFn "add") (apply2 (sdkFn "add") (whole 1L) (whole 2L)) (whole 3L)
+            let body =
+                apply2 (sdkFn "add") (apply2 (sdkFn "add") (whole 1L) (whole 2L)) (whole 3L)
 
             Expect.equal (folded body) (whole 6L) "(1 + 2) + 3"
         }
@@ -126,7 +316,11 @@ let foldingTests =
             let attributed: Value<unit, string> =
                 Value.Apply(
                     "outer",
-                    Value.Apply("inner", Value.Reference("ref", sdkFn "add"), Value.Literal("left", Literal.WholeNumberLiteral 2L)),
+                    Value.Apply(
+                        "inner",
+                        Value.Reference("ref", sdkFn "add"),
+                        Value.Literal("left", Literal.WholeNumberLiteral 2L)
+                    ),
                     Value.Literal("right", Literal.WholeNumberLiteral 3L)
                 )
 
@@ -135,21 +329,50 @@ let foldingTests =
                 Values =
                     Map.ofList [
                         Name.fromString "value",
-                        { Access = Public
-                          Value = WithoutDocumentation { InputTypes = []; OutputType = intType; Body = attributed } }
+                        {
+                            Access = Public
+                            Value =
+                                WithoutDocumentation
+                                    {
+                                        InputTypes = []
+                                        OutputType = intType
+                                        Body = attributed
+                                    }
+                        }
                     ]
                 Doc = None
             }
 
-            let input: Package.PackageDefinition<unit, string> =
-                { Modules = Map.ofList [ ModulePath.modulePath (Path [ Name.fromString "Rules" ]), { Access = Public; Value = moduleDefinition } ] }
+            let input: Package.PackageDefinition<unit, string> = {
+                Modules =
+                    Map.ofList [
+                        ModulePath.modulePath (Path [ Name.fromString "Rules" ]),
+                        {
+                            Access = Public
+                            Value = moduleDefinition
+                        }
+                    ]
+            }
 
             let result, _ = plugin.Transform input VFile.empty
-            let controlled = (Option.get result).Modules |> Map.toList |> List.head |> snd
 
-            match controlled.Value.Values |> Map.toList |> List.head |> snd with
+            let controlled =
+                (Option.get result).Modules
+                |> Map.toList
+                |> List.head
+                |> snd
+
+            match
+                controlled.Value.Values
+                |> Map.toList
+                |> List.head
+                |> snd
+            with
             | { Value = WithoutDocumentation value } ->
-                Expect.equal value.Body (Value.Literal("outer", Literal.WholeNumberLiteral 5L)) "should keep the outer attributes"
+                Expect.equal
+                    value.Body
+                    (Value.Literal("outer", Literal.WholeNumberLiteral 5L))
+                    "should keep the outer attributes"
             | other -> failtestf "unexpected value %A" other
         }
 
@@ -161,22 +384,49 @@ let foldingTests =
                 Values =
                     Map.ofList [
                         Name.fromString "value",
-                        { Access = Private
-                          Value = WithDocumentation("docs", definition (apply2 (sdkFn "add") (whole 2L) (whole 3L))) }
+                        {
+                            Access = Private
+                            Value =
+                                WithDocumentation(
+                                    "docs",
+                                    definition (apply2 (sdkFn "add") (whole 2L) (whole 3L))
+                                )
+                        }
                     ]
                 Doc = None
             }
 
-            let input: Package.PackageDefinition<unit, unit> =
-                { Modules = Map.ofList [ ModulePath.modulePath (Path [ Name.fromString "Rules" ]), { Access = Private; Value = moduleDefinition } ] }
+            let input: Package.PackageDefinition<unit, unit> = {
+                Modules =
+                    Map.ofList [
+                        ModulePath.modulePath (Path [ Name.fromString "Rules" ]),
+                        {
+                            Access = Private
+                            Value = moduleDefinition
+                        }
+                    ]
+            }
 
             let result, _ = plugin.Transform input VFile.empty
-            let controlled = (Option.get result).Modules |> Map.toList |> List.head |> snd
+
+            let controlled =
+                (Option.get result).Modules
+                |> Map.toList
+                |> List.head
+                |> snd
 
             Expect.equal controlled.Access Private "module access"
 
-            match controlled.Value.Values |> Map.toList |> List.head |> snd with
-            | { Access = Private; Value = WithDocumentation("docs", value) } -> Expect.equal value.Body (whole 5L) "should fold"
+            match
+                controlled.Value.Values
+                |> Map.toList
+                |> List.head
+                |> snd
+            with
+            | {
+                  Access = Private
+                  Value = WithDocumentation("docs", value)
+              } -> Expect.equal value.Body (whole 5L) "should fold"
             | other -> failtestf "unexpected value %A" other
         }
 
@@ -184,7 +434,12 @@ let foldingTests =
             let _, file = run Optimizer.foldingOnly (apply2 (sdkFn "add") (whole 2L) (whole 3L))
 
             Expect.isNonEmpty file.Messages "should report the fold"
-            Expect.all file.Messages (fun message -> message.Severity = Info) "should only be informational"
+
+            Expect.all
+                file.Messages
+                (fun message -> message.Severity = Info)
+                "should only be informational"
+
             Expect.equal file.Messages.Head.Location (Some "Rules.value") "should name the value"
             Expect.equal file.Messages.Head.Source (Some "optimizer") "should name the plugin"
         }
@@ -207,7 +462,9 @@ let traversalTests =
     let forms: (string * Value<unit, unit> * Value<unit, unit>) list = [
         "tuple", Value.Tuple((), [ foldable ]), Value.Tuple((), [ five ])
         "list", Value.List((), [ foldable ]), Value.List((), [ five ])
-        "record", Value.Record((), Map.ofList [ x, foldable ]), Value.Record((), Map.ofList [ x, five ])
+        "record",
+        Value.Record((), Map.ofList [ x, foldable ]),
+        Value.Record((), Map.ofList [ x, five ])
         "field", Value.Field((), foldable, x), Value.Field((), five, x)
         "application argument",
         Value.Apply((), Value.Reference((), userFn "f"), foldable),
@@ -219,9 +476,15 @@ let traversalTests =
         "let recursion",
         Value.LetRecursion((), Map.ofList [ x, nested foldable ], foldable),
         Value.LetRecursion((), Map.ofList [ x, nested five ], five)
-        "destructure", Value.Destructure((), wildcard, foldable, foldable), Value.Destructure((), wildcard, five, five)
-        "if", Value.IfThenElse((), foldable, foldable, foldable), Value.IfThenElse((), five, five, five)
-        "pattern match", Value.PatternMatch((), foldable, [ wildcard, foldable ]), Value.PatternMatch((), five, [ wildcard, five ])
+        "destructure",
+        Value.Destructure((), wildcard, foldable, foldable),
+        Value.Destructure((), wildcard, five, five)
+        "if",
+        Value.IfThenElse((), foldable, foldable, foldable),
+        Value.IfThenElse((), five, five, five)
+        "pattern match",
+        Value.PatternMatch((), foldable, [ wildcard, foldable ]),
+        Value.PatternMatch((), five, [ wildcard, five ])
         "record update",
         Value.UpdateRecord((), foldable, Map.ofList [ x, foldable ]),
         Value.UpdateRecord((), five, Map.ofList [ x, five ])
@@ -240,7 +503,13 @@ let simplificationTests =
     let y = Value.Variable((), Name.fromString "y")
     let yes = boolean true
     let no = boolean false
-    let identity = Value.Lambda((), Pattern.AsPattern((), Pattern.WildcardPattern(), Name.fromString "v"), Value.Variable((), Name.fromString "v"))
+
+    let identity =
+        Value.Lambda(
+            (),
+            Pattern.AsPattern((), Pattern.WildcardPattern(), Name.fromString "v"),
+            Value.Variable((), Name.fromString "v")
+        )
 
     let rewrites: (string * Value<unit, unit> * Value<unit, unit>) list = [
         "true && x", apply2 (sdkFn "and") yes x, x
@@ -304,8 +573,9 @@ let pipelineTests =
                 stringify compiler
             }
 
-            MorphirProcessor.processFile VFile.empty proc |> ignore
+            MorphirProcessor.processFile VFile.empty proc
+            |> ignore
 
-            Expect.equal compiled (Some (whole 5L)) "compiler should see the optimized model"
+            Expect.equal compiled (Some(whole 5L)) "compiler should see the optimized model"
         }
     ]

@@ -220,6 +220,13 @@
           "FSharp.Core": "[11.0.100, )"
         }
       },
+      "morphir.testing": {
+        "type": "Project",
+        "dependencies": {
+          "Expecto": "[10.2.3, )",
+          "FSharp.Core": "[11.0.100, )"
+        }
+      },
       "Fabulous.AST": {
         "type": "CentralTransitive",
         "requested": "[1.10.0, )",

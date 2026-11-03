@@ -11,6 +11,8 @@ The Morphir .NET CLI provides powerful command-line tools for working with Morph
 
 ## Available Commands
 
+- [morphir generate](./generate/) - Generate F# from classic or v4 JSON/Ion libraries
+
 ### IR Management
 
 - **[morphir ir verify](./ir-verify/)** - Validate Morphir IR JSON files against official schemas

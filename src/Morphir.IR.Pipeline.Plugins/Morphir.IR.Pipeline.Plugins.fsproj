@@ -13,6 +13,7 @@
   <ItemGroup>
     <Compile Include="ClassicPackage.fs" />
     <Compile Include="TypeValidator.fs" />
+    <Compile Include="ExactScalarFolding.fs" />
     <Compile Include="Optimizer.fs" />
     <Compile Include="PrettyPrinter.fs" />
   </ItemGroup>

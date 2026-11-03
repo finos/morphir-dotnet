@@ -48,6 +48,7 @@ public sealed class MorphirCliBuilder
     private readonly RootCommand _rootCommand;
     private readonly List<Action<IServiceCollection>> _serviceConfigurations = new();
     private readonly List<Action<RootCommand>> _commandConfigurations = new();
+    private readonly List<Func<IServiceProvider, Command>> _hostedCommands = new();
     private readonly List<ICommandProvider> _commandProviders = new();
 
     internal MorphirCliBuilder(string[] args, string description = "Morphir CLI")
@@ -102,6 +103,13 @@ public sealed class MorphirCliBuilder
     public MorphirCliBuilder AddCommand(Command command)
     {
         _rootCommand.Subcommands.Add(command);
+        return this;
+    }
+
+    /// <summary>Adds a command whose action uses this application's service provider.</summary>
+    public MorphirCliBuilder AddCommand(Func<IServiceProvider, Command> createCommand)
+    {
+        _hostedCommands.Add(createCommand);
         return this;
     }
 
@@ -176,6 +184,8 @@ public sealed class MorphirCliBuilder
         }
 
         var host = _hostBuilder.Build();
+        foreach (var createCommand in _hostedCommands)
+            _rootCommand.Subcommands.Add(createCommand(host.Services));
         return new MorphirCliApp(host, _rootCommand, Args);
     }
 
@@ -204,7 +214,7 @@ public sealed class MorphirCliBuilder
     private void ConfigureDefaultServices()
     {
         // Configure Foundatio.Mediator - uses source generators for handler discovery (trimming/AOT-friendly)
-        _hostBuilder.Services.AddMediator();
+        Infrastructure.MediatorRegistration.Add(_hostBuilder.Services);
 
         // Register infrastructure services
         _hostBuilder.Services.AddSingleton<Infrastructure.JsonSchema.SchemaLoader>();
@@ -243,11 +253,14 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
         await _host.StartAsync(cancellationToken);
         try
         {
-            return _rootCommand.Parse(_args).Invoke();
+            var result = _rootCommand.Parse(_args);
+            return result.Errors.Count > 0 && result.CommandResult.Command is IMorphirParseErrorHandler handler
+                ? handler.HandleParseErrors(result)
+                : await result.InvokeAsync(cancellationToken: cancellationToken);
         }
         finally
         {
-            await _host.StopAsync(cancellationToken);
+            await _host.StopAsync(CancellationToken.None);
         }
     }
 
@@ -260,7 +273,7 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
         _host.Start();
         try
         {
-            return _rootCommand.Parse(_args).Invoke();
+            return Invoke(_rootCommand.Parse(_args));
         }
         finally
         {
@@ -272,6 +285,11 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
     /// Disposes the application and its underlying host.
     /// </summary>
     public void Dispose() => _host.Dispose();
+
+    private static int Invoke(System.CommandLine.ParseResult result) =>
+        result.Errors.Count > 0 && result.CommandResult.Command is IMorphirParseErrorHandler handler
+            ? handler.HandleParseErrors(result)
+            : result.Invoke();
 
     /// <summary>
     /// Asynchronously disposes the application and its underlying host.

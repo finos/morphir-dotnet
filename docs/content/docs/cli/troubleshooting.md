@@ -495,6 +495,29 @@ The CLI should create directories automatically. If this fails:
    morphir dist install <url> <version>
    ```
 
+## Generation failures
+
+`morphir generate` requires explicit input, target and output paths. It does not
+read `morphir.toml` or `morphir.yml`. Use exact target `fsharp` and Boolean option
+`--option optimize=false` to disable folding. Unknown options and quoted strings
+where Booleans are required return exit 2.
+
+Use JSON/Ion bare IR, or an Ion tree rooted at `manifest.ion`. YAML models,
+JSON/YAML trees and MEP envelopes have explicit unsupported-format/profile
+diagnostics. A codec error identifies the input or tree member and logical
+location. A semantic refusal returns exit 1 and preserves previous output.
+
+Keep input and output paths separate and remove links from output paths.
+Linked ancestors are also refused. On macOS, system temporary paths under
+`/var` can pass through an OS-provided link. Use the physical path or, in CI,
+a runner-owned temporary directory for model fixtures and generated output.
+Publication owns only paths listed in `.morphir-generated.json`. Staging
+failures preserve previous output; commit-time failures can leave mixed files.
+Fix the reported filesystem problem and rerun generation. In `--json` mode,
+parse stdout and collect logs from stderr separately.
+
+See [morphir generate](../generate/) for the complete command contract.
+
 ## Getting Help
 
 - **Documentation:** [Morphir .NET Docs](/)
