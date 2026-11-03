@@ -155,7 +155,7 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
 
 ## Configuration
 
-The shared libraries and `morphir config get/list/show/path/explain` provide multi-format resolution, bounded discovery and inspection. Editing and migration commands remain planned. Existing artifact/cache tooling retains TOML cache settings and Git-first discovery. See the [guide]({{< relref "/guides/configuration" >}}) for the library APIs and the [command reference]({{< relref "/docs/cli/config" >}}) for implemented read options and planned editing.
+The shared libraries and `morphir config get/list/show/path/explain` provide multi-format resolution, bounded discovery and inspection. Configuration editing uses shared plan/apply services; migration commands remain planned. Existing artifact/cache tooling retains TOML cache settings and Git-first discovery. See the [guide]({{< relref "/guides/configuration" >}}) for the library APIs and the [command reference]({{< relref "/docs/cli/config" >}}) for read/write options and recovery semantics.
 
 ### Wrong workspace or missing project
 
@@ -206,6 +206,17 @@ The optional adapter rejects case-distinct paths, literal `:` separators and emp
 ### A configuration write fails
 
 Check the reported target, permissions, parse/validation diagnostics, and whether another process changed the file. Explicit YAML/JSON file targets are readable but not writable through these commands; select a scope with a TOML target. For a concurrent-change conflict, reload and review the new contents before retrying. Failed validation or a write conflict must leave the file unchanged.
+
+`--json` changes output only; it does not infer input types. Use `--type bool` for `ui.color`, `--type int` for an integer, or complete JSON arrays/objects with their explicit type. Nulls, duplicate object keys and out-of-range integers cannot be written as these TOML edit values. A missing unset exits 1 even when another source supplies the effective value.
+
+At a workspace root, an automatic edit targets the workspace primary. `--user` follows the selected project, including `default_member`. Use the reported target before applying a preview. A successful root write can remain overridden by a selected member, profile, personal file or environment source; read the nested effective explanation and winning origins.
+
+A stale plan includes more than a changed destination. New alternate primaries, changed lower-format sources, active-profile inputs and relevant directory inventories also invalidate it. Reload and review before retrying. Identical writes do not touch the timestamp.
+
+Native trees do not follow links. On macOS `/etc` is a conventional symlink, so a default system edit can fail before writing. An explicitly authorized physical TOML path avoids that alias; do not relax a discovery boundary or follow an unrelated link to hide the error.
+
+`rolled-back` is a failure with the original target restored and owned temporary data removed. `recovery-required` identifies retained stage, backup, journal or directory artifacts with their transaction owner. Preserve them and inspect the target/journal before restoring a matching backup. A cleanup failure can retain artifacts after the data outcome is already known. Do not assume an I/O failure means unchanged bytes, and do not delete recoverable data or another transaction's artifacts. Native coordination is machine-local; a multi-machine store requires a host-supplied coordination protocol. Per-file atomic replacement does not imply multi-file group atomicity.
+
 
 ### A classic project migration is blocked
 

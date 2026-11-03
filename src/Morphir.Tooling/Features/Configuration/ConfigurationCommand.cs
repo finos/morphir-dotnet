@@ -8,7 +8,7 @@ using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.Configuration;
 
-/// <summary>Registers inspection commands without reading configuration or constructing a resolver.</summary>
+/// <summary>Registers configuration commands without reading configuration or constructing a resolver.</summary>
 public sealed class ConfigurationCommandProvider : ICommandProvider, IMorphirHostInitializationErrorHandler
 {
     private readonly IConfigurationInspectionHost _host;
@@ -23,6 +23,8 @@ public sealed class ConfigurationCommandProvider : ICommandProvider, IMorphirHos
         var config = new ConfigurationCommand("config", _host, _hostInitializationFailed);
         foreach (var name in new[] { "get", "list", "show", "path", "explain" })
             config.Subcommands.Add(new ConfigurationCommand(name, _host, _hostInitializationFailed));
+        config.Subcommands.Add(new ConfigurationEditingCommand("set", new NativeConfigurationEditingHost(), _hostInitializationFailed));
+        config.Subcommands.Add(new ConfigurationEditingCommand("unset", new NativeConfigurationEditingHost(), _hostInitializationFailed));
         rootCommand.Subcommands.Add(config);
     }
 }
@@ -52,7 +54,7 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
     public ConfigurationCommand(string operation, IConfigurationInspectionHost host) : this(operation, host, false) { }
 
     internal ConfigurationCommand(string operation, IConfigurationInspectionHost host, bool hostInitializationFailed) : base(operation,
-        operation == "config" ? "Inspect Morphir configuration" : "Inspect " + operation + " configuration")
+        operation == "config" ? "Inspect and edit Morphir configuration" : "Inspect " + operation + " configuration")
     {
         _host = host;
         _hostInitializationFailed = hostInitializationFailed;
@@ -82,7 +84,7 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
         if (selectors.Count(x => x) > 1) return Render(Failure("Scope selectors are mutually exclusive."), json);
         if (parsed.GetValue(_file) is not null && parsed.GetValue(_config) is not null)
             return Render(Failure("--file and --config cannot be combined."), json);
-        if (Name == "config") return Render(Failure("Specify get, list, show, path or explain."), json);
+        if (Name == "config") return Render(Failure("Specify get, list, show, path, explain, set or unset."), json);
         FSharpList<string> key = FSharpList<string>.Empty;
         if (_key is not null)
         {

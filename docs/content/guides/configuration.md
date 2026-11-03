@@ -7,18 +7,18 @@ description: "Morphir configuration formats, discovery, precedence, and shared h
 
 # Configuration
 
-Morphir configuration describes projects, workspace membership, and tooling settings. Shared libraries provide typed documents, source resolution, and project discovery to native and embedded hosts. Shared queries, CLI inspection and an opt-in Microsoft configuration adapter are available. Editing and migration remain later delivery campaigns.
+Morphir configuration describes projects, workspace membership, and tooling settings. Shared libraries provide typed documents, source resolution, and project discovery to native and embedded hosts. Shared queries, CLI inspection and an opt-in Microsoft configuration adapter are available. Shared TOML editing is available; project/workspace migration remain later delivery campaigns.
 
 ## Implementation status
 
 The shared configuration libraries read TOML, YAML, JSON/JSON5, normalize classic manifests, resolve typed settings, and retain origins and diagnostics. Named profiles use explicit activation. Campaign 1 landed in [PR #461](https://github.com/finos/morphir-dotnet/pull/461).
 
 Campaign 2 landed bounded document-aware discovery in [PR #467](https://github.com/finos/morphir-dotnet/pull/467).
-Campaign 3 adds [shared queries]({{< relref "/docs/configuration/inspection" >}}),
+Campaign 3 landed [shared queries]({{< relref "/docs/configuration/inspection" >}}),
 `morphir config get/list/show/path/explain` and the
 [Microsoft adapter]({{< relref "/docs/configuration/microsoft" >}}).
-See the [inspection journal]({{< relref "/docs/contributing/design/prds/config-inspection-delivery" >}}) for validation and outstanding parent landing/cleanup gates.
-Editing and project/workspace migration examples remain planned.
+See the [inspection journal]({{< relref "/docs/contributing/design/prds/config-inspection-delivery" >}}) for its verified validation and landing/cleanup receipt.
+Campaign 4 adds [shared editing]({{< relref "/docs/configuration/editing" >}}) and `morphir config set/unset`, including dry-run, typed inputs, effective explanations, optimistic conflicts and recovery. Its [delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) records local qualification and parent delivery gates. Project/workspace migration examples remain planned.
 
 Existing cache-only tooling retains Git-first discovery and its separate CI overlay. It does not opt into the new policy automatically. Follow the [layered configuration PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}), the [walkthrough]({{< relref "/docs/getting-started/configuration" >}}), and the [CLI reference]({{< relref "/docs/cli/config" >}}) for their respective status.
 
@@ -223,7 +223,7 @@ The workspace plan reports intended topology, member/default selection, and shar
 
 The [config read commands]({{< relref "/docs/cli/config" >}}) expose effective values, source paths, contributing layers and source-scoped inspection. Reads default to effective configuration. Arrays remain whole values and quoted path segments address literal dots. Stdout carries results; diagnostics go to stderr. JSON reports contain structured diagnostics and conform to the published schema.
 
-Editing remains planned. Writes will target one file and report whether another layer still overrides the written value.
+`config set/unset` target one TOML file and report the effective value and origin, including higher overrides. Use `--dry-run` to preview without writes. See the [shared editing API]({{< relref "/docs/configuration/editing" >}}) and [CLI reference]({{< relref "/docs/cli/config" >}}).
 
 TOML is the written format. Preserve existing TOML comments and formatting. When a target has only YAML/JSON primaries, create its corresponding TOML primary and leave the lower-format files unchanged. Write complete replacement values for arrays and objects being set. Removing a TOML setting may reveal a lower-format or inherited value; it does not delete that value from other sources.
 
@@ -233,8 +233,8 @@ Validate edits before writing, install changes atomically, and reject concurrent
 
 The architecture separates these responsibilities:
 
-- `Morphir.Configuration` contains immutable models and pure rules for typed documents, merging, validation, profiles, membership, selection, and provenance. Pure inspection is available; edit/migration planning and equivalence services remain planned.
-- `Morphir.Configuration.IO` parses documents and supplies discovery/loading adapters. Native hosts use filesystem access; other hosts supply mounted or in-memory trees. Write services remain planned.
+- `Morphir.Configuration` contains immutable models and pure rules for typed documents, merging, validation, profiles, membership, selection, and provenance. Pure inspection and edit planning are available; migration planning and equivalence services remain planned.
+- `Morphir.Configuration.IO` parses documents and supplies discovery/loading adapters. Native hosts use filesystem access; other hosts supply mounted or in-memory trees. Reusable TOML editing and preconditioned transaction services are available.
 - `Morphir.Configuration.Microsoft` exposes one resolved result through opt-in `AddMorphirConfiguration(...)`. Its [consumer example]({{< relref "/docs/configuration/microsoft" >}}) uses generated or explicit binding without a CLI dependency.
 
 The CLI translates arguments into requests and formats results and exit codes. Other hosts use the same library services without referencing the CLI or constructing a command-line application. Editing is an explicit library operation, not a write through `IConfiguration`.

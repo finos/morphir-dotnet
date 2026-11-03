@@ -33,6 +33,7 @@
         <Compile Include="ResolutionTests.fs" />
         <Compile Include="ProjectSourceTests.fs" />
         <Compile Include="InspectionTests.fs" />
+        <Compile Include="EditingTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

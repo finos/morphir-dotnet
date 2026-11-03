@@ -5,23 +5,23 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 1. Campaign setup
 
-- [ ] 1.1 Prepare an owned worktree/branch after add-config-inspection is merged; verify its landed SHA, clean baseline, and recorded worktree/branch ownership.
+- [x] 1.1 Prepare an owned worktree/branch after add-config-inspection is merged; verify its landed SHA, clean baseline, and recorded worktree/branch ownership.
 
 ## 2. Targets and plans
 
-- [ ] 2.1 Write failing shared-API/BDD cases for scope selection, ambiguous defaults, quoted key paths, typed scalar/composite inputs, set/unset inheritance, invalid values, and no-write previews; confirm red before implementation.
-- [ ] 2.2 Implement shared target selection, immutable edit plans, validation, and resulting-effective-value explanations; verify the plan suite through an in-memory host and update scope/value/preview documentation.
+- [x] 2.1 Write failing shared-API/BDD cases for scope selection, ambiguous defaults, quoted key paths, typed scalar/composite inputs, set/unset inheritance, invalid values, and no-write previews; confirm red before implementation.
+- [x] 2.2 Implement shared target selection, immutable edit plans, validation, and resulting-effective-value explanations; verify the plan suite through an in-memory host and update scope/value/preview documentation.
 
 ## 3. TOML editing and application
 
-- [ ] 3.1 Write failing roundtrip/fault cases for comment-preserving changes, unrelated values, JSON/YAML-only promotion, explicit non-TOML targets, unchanged writes, and stale source/target or alternate-primary observations; confirm red before the writer.
-- [ ] 3.2 Implement the TOML syntax-preserving editor and adapter-owned preconditioned transaction service with serialized overlapping writers and per-file atomic replacement; verify those cases pass and document preconditions and host write guarantees.
-- [ ] 3.3 Inject staging/replacement/rollback faults and verify typed outcomes, retained recovery evidence only when needed, cleanup after success/complete rollback, and no silent overwrites; document recovery behavior with the failing and passing fault-suite results.
+- [x] 3.1 Write failing roundtrip/fault cases for comment-preserving changes, unrelated values, JSON/YAML-only promotion, explicit non-TOML targets, unchanged writes, and stale source/target or alternate-primary observations; confirm red before the writer.
+- [x] 3.2 Implement the TOML syntax-preserving editor and adapter-owned preconditioned transaction service with serialized overlapping writers and per-file atomic replacement; verify those cases pass and document preconditions and host write guarantees.
+- [x] 3.3 Inject staging/replacement/rollback faults and verify typed outcomes, retained recovery evidence only when needed, cleanup after success/complete rollback, and no silent overwrites; document recovery behavior with the failing and passing fault-suite results.
 
 ## 4. CLI editing and integration
 
-- [ ] 4.1 Add red-then-green subprocess scenarios and thin config set/unset adapters for --type, --dry-run, scoped targets, JSON, inherited values, overridden writes, and exit codes; verify stdout is parseable and update CLI/walkthrough examples in this group.
-- [ ] 4.2 Run format/build/analyzers, configuration/editor and tooling suites, contract/coverage checks, and concurrent-writer tests; verify no generated-output publication requirements were weakened or repurposed and record results.
+- [x] 4.1 Add red-then-green subprocess scenarios and thin config set/unset adapters for --type, --dry-run, scoped targets, JSON, inherited values, overridden writes, and exit codes; verify stdout is parseable and update CLI/walkthrough examples in this group.
+- [x] 4.2 Run format/build/analyzers, configuration/editor and tooling suites, contract/coverage checks, and concurrent-writer tests; verify no generated-output publication requirements were weakened or repurposed and record results.
 
 ## Workflow follow-up
 
@@ -34,3 +34,7 @@ These are required campaign-completion steps after tracked implementation work, 
 - Verify the campaign worktree is clean and contains no unique unmerged work. Remove only this campaign's worktree and local/remote branches through the owning workspace/forge mechanisms, checking for automatic remote deletion first. Confirm their absence; do not force-remove or broadly prune.
 - Remove owned temporary build/test artifacts only when they contain no unique work. Preserve unrelated worktrees/branches and any unresolved recovery journal/backups; resolve or explicitly report a cleanup blocker rather than declaring completion.
 - Deliver a receipt with PR URL, landed SHA, required-check/review evidence, archive/spec-sync location, and separate worktree/local-branch/remote-branch cleanup results. Keep the campaign incomplete while any landing or owned-cleanup obligation remains.
+
+## Implementation handoff
+
+All eight tracked tasks are locally qualified. The parent owns the remaining review, CI, merge and cleanup follow-up above. The user explicitly approved workstream admin bypass for parent; the implementation worker will not watch, merge, force-push or delete branches. Source validation and archive evidence are recorded in `docs/content/docs/contributing/design/prds/config-editing-delivery.md`.

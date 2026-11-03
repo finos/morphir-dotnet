@@ -12,5 +12,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.Configuration/Morphir.Configuration.fsproj" />
     <Compile Include="../../src/Morphir.Tooling/Features/Configuration/ConfigurationReport.cs" Link="ConfigurationReport.cs" />
+    <Compile Include="../../src/Morphir.Tooling/Features/Configuration/ConfigurationEditReport.cs" Link="ConfigurationEditReport.cs" />
   </ItemGroup>
 </Project>

@@ -65,7 +65,10 @@ scoped queries and redacted explanations. The optional
 [Microsoft adapter](docs/content/docs/configuration/microsoft.md) projects one
 resolved document with explicit/source-generated Options binding. See the
 [CLI reference](docs/content/docs/cli/config.md) for read controls, JSON schema
-and exit codes. Editing and migration remain planned. See the
+and exit codes. Shared [editing services](docs/content/docs/configuration/editing.md)
+and `morphir config set/unset` provide typed, scoped TOML previews and writes,
+source-preserving changes, optimistic conflicts and explicit recovery ownership.
+Project/workspace migration remain separate plans. See the
 [reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.
 
 ## SDK libraries

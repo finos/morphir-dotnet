@@ -2,7 +2,7 @@
 title: "Config commands"
 linkTitle: "Config"
 weight: 30
-description: "Inspect effective and scoped Morphir configuration"
+description: "Inspect and edit Morphir configuration through shared services"
 ---
 
 # Config commands
@@ -17,6 +17,8 @@ morphir config list [options]
 morphir config show [options]
 morphir config path [options]
 morphir config explain <key> [options]
+morphir config set <key> <value> [--type <type>] [--dry-run] [options]
+morphir config unset <key> [--dry-run] [options]
 ```
 
 | Command | Result |
@@ -80,7 +82,7 @@ Without an explicit boundary, the native CLI searches within the current filesys
 
 ## JSON contract
 
-Every command emits one object with these fields. The [JSON Schema](https://github.com/finos/morphir-dotnet/blob/main/docs/spec/schemas/config-inspection-result.schema.json) is checked against subprocess results in the CLI behavior suite. No F# union or reflection-based serialization is exposed.
+Every read command emits one object with these fields. The [JSON Schema](https://github.com/finos/morphir-dotnet/blob/main/docs/spec/schemas/config-inspection-result.schema.json) is checked against subprocess results in the CLI behavior suite. No F# union or reflection-based serialization is exposed.
 
 | Field | Type and meaning |
 | --- | --- |
@@ -154,9 +156,9 @@ Stdout contains only results. Human diagnostic text goes to stderr in both human
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Successful inspection, including present empty values and optional missing sources |
-| `1` | Requested get/explain key not found in the selected scope |
-| `2` | Invalid usage, ambiguous configuration/selection, malformed required configuration or loading failure |
+| `0` | Successful inspection, preview or edit, including unchanged and overridden writes |
+| `1` | Requested get/explain key or targeted unset entry not found |
+| `2` | Usage, validation, I/O, ambiguous selection, stale-plan conflict or recovery failure |
 
 IR verification retains its existing interpretation of code `1`.
 
@@ -171,14 +173,80 @@ morphir config get ir.format_version --isolated --discovery-boundary . --profile
 
 Isolation preserves supplied environment values and selected profiles. Control the job's environment as well when checking reproducibility. An explicitly selected eligible personal file retains its discovered ownership restrictions even under isolation.
 
-## Planned editing and migration
+## Editing one TOML target
 
-`config set` and `config unset` are separate active plans and are not registered by this inspection scenario. Project and workspace migration are also planned separately. Their designs include explicit targets, TOML preservation, validation and concurrent-write checks. Do not use those planned commands until their implementation is delivered.
+`set` and `unset` select one file, then use the same reusable planner and writer available to embedded hosts. Without a selector, an invocation inside a project targets its primary. At a declared workspace root it targets the workspace primary, including a virtual workspace. A missing or ambiguous default context fails before writing.
+
+Use one of `--workspace`, `--project <name-or-path>`, `--user`, `--global`, `--system` or `--file <path>`. `--user` uses the selected project's adjacent personal file, including a selected default member; a virtual root with no selected project uses its root-adjacent personal file. Existing personal files are considered across every eligible layout of that owner. Multiple personal TOML candidates remain ambiguous. An explicit personal file in another declared member retains that member's ownership and effective context, including under isolation. Multiple selectors fail. Explicit `--file` targets must end in `.toml`. `--config` remains a selected read overlay and cannot be combined with `--file`.
+
+The editor uses an existing TOML primary when present. A JSON/YAML-only scope receives the corresponding TOML primary at the same layout. It leaves lower-format files unchanged and refuses a new same-format primary ambiguity. Comments, unrelated entries, key spelling, ordering, line endings, BOM and accepted BOM encodings are preserved. Repeating an identical set does not rewrite the file or update its timestamp.
+
+Strings are the default, even with `--json`. Explicit types use JSON literal syntax:
+
+| `--type` | Input |
+| --- | --- |
+| `string` | Literal command argument, including an empty string |
+| `bool` or `boolean` | `true` or `false` |
+| `int` or `integer` | Signed 64-bit JSON integer |
+| `number` | Finite JSON number, retained as a TOML float |
+| `array` | Complete JSON array |
+| `object` | Complete JSON object |
+
+Duplicate object keys, null values and nested nulls fail. Integer input and integer tokens inside composite values must fit Int64; explicit `number` input chooses finite floating-point precision, including for large literals. Arrays and objects replace the complete target entry. Paths address whole arrays and opaque references; traversal through an atomic ancestor fails. Known settings are validated in the authored target as well as the effective candidate, so a higher environment value cannot hide an invalid edit.
+
+```bash
+morphir config set ui.color false --type bool --global --dry-run --json
+morphir config set custom.caption false --json  # writes the string "false"
+morphir config set custom.targets '["csharp"]' --type array
+morphir config set custom.generator '{"enabled":true,"targets":["csharp"]}' --type object
+morphir config set 'codegen."custom.generator".enabled' false --type bool
+morphir config unset custom.caption --user --dry-run
+```
+
+`unset` removes only the target's authored entry. It adds no tombstone and never deletes an inherited value from another file. Removing an override can reveal JSON, YAML, another scope or a default. A missing target entry exits 1. A write that remains overridden still exits 0; the report identifies its effective value and winning origins.
+
+Profile, isolation, warning-suppression and discovery-boundary controls retain their read meanings. The explicit edit target is read for editing even when isolation excludes it from the resulting effective view. Independent workspace/global/system/file selectors do not turn an invalid automatic member selection into a target selection. Effective explanations use a valid selected member when available, so a successful workspace write can remain overridden by that member.
+
+## Editing JSON reports
+
+Every editing invocation with `--json` emits one object matching the [editing JSON Schema](https://github.com/finos/morphir-dotnet/blob/main/docs/spec/schemas/config-edit-result.schema.json). Stdout contains only this report; safe diagnostics go to stderr.
+
+| Field | Meaning |
+| --- | --- |
+| `operation` | `set` or `unset` |
+| `outcome` | `preview`, `written`, `unchanged`, `conflict`, `rolled-back`, `recovery-required`, `io-failure` or `failed` |
+| `target`, `key` | Selected source metadata and canonical quoted path, or null before target selection |
+| `before`, `after` | Redacted target-entry values; null represents an absent entry |
+| `changed`, `dryRun` | Whether the proposed target differs, and whether this is a preview |
+| `effective` | The nested inspection explanation with contributions, origins and its own type metadata |
+| `diagnostics` | Safe codes and source/key/position metadata |
+| `recoveryArtifacts` | Retained `{path, kind, transactionId}` records |
+| `exitCode` | Stable outer command category, 0/1/2 |
+| `valueTypes` | Type metadata for outer before/after values |
+
+A nested effective explanation can report a missing value while a successful unset still returns outer exit 0. `changed` describes the proposed edit; after a conflict or rollback it does not claim that the candidate remains installed. Sensitive names and opaque reference shapes are redacted before rendering, including raw before/after input. No command executes a reference or resolves a secret.
+
+## Preconditions and recovery
+
+`--dry-run` performs no writer acquisition, staging or filesystem change. Application rechecks the plan's observed source/target identities, discovery inventories and absent alternate candidates under writer coordination. A stale source, destination or alternate-primary observation produces a conflict and leaves the preexisting destination unchanged. Reload, inspect the competing change and create a fresh plan.
+
+Native writes stage on the destination filesystem and atomically install each file. The reusable transaction service supports multiple destinations for future callers, but does not promise group or crash atomicity across files. Generated-output publication and pruning manifests are separate and unchanged.
+
+Native configuration writers use machine-local OS coordination. An embedded host writing a shared store from several machines must supply distributed coordination itself. External editors that do not participate can race with the final filesystem operation; this is an optimistic precondition protocol, not a lock on arbitrary applications.
+
+After a complete rollback, the command exits 2 and cleans its temporary artifacts. An incomplete rollback or cleanup returns typed recovery information with retained paths and ownership. Preserve those files, inspect the target and journal, and restore or reconcile from the matching backup before retrying. Do not remove artifacts from another transaction. See [troubleshooting]({{< relref "/docs/cli/troubleshooting#configuration" >}}).
+
+Native filesystem access keeps the existing no-follow policy. On macOS, the conventional `/etc` path is a symlink, so the default system target can return an I/O-category failure before writing. Use an explicitly authorized physical TOML path when needed. A permission failure likewise returns 2; previews do not request elevated access or create directories.
+
+## Planned migration
+
+Project and workspace migration remain separate active changes. Editing does not remove classic manifests, perform migration equivalence checks or adopt workspace membership automatically.
 
 ## Related documentation
 
 - [Configuration guide]({{< relref "/guides/configuration" >}})
 - [Configuration walkthrough]({{< relref "/docs/getting-started/configuration" >}})
+- [Shared editing API]({{< relref "/docs/configuration/editing" >}})
 - [Shared inspection API]({{< relref "/docs/configuration/inspection" >}})
 - [Configuration troubleshooting]({{< relref "/docs/cli/troubleshooting#configuration" >}})
 - [Layered configuration PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}})
