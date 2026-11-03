@@ -7,6 +7,72 @@ open Morphir.Configuration.Tests.ResolutionTests
 [<Tests>]
 let tests =
     testList "Inspection" [
+        test "file scoped classic inspections exclude synthetic defaults" {
+            let identity = source "morphir.json" SourceRole.RootPrimary DocumentFormat.Json
+
+            let inspect extra =
+                let raw =
+                    obj (
+                        [ "name", text "Classic"; "exposedModules", ConfigValue.Array [] ]
+                        @ extra
+                    )
+
+                let document = Normalization.normalize identity raw Map.empty
+
+                Resolver.resolveDetailed
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [
+                            {
+                                Source = identity
+                                Content = SourceContent.Available document
+                                Required = true
+                            }
+                        ]
+                    }
+
+            let details = inspect []
+            let scope = QueryScope.File identity.Path
+            let key = [ "pipeline"; "backend" ]
+
+            Expect.equal
+                (Inspection.get QueryScope.Effective key details).Value
+                (Some(text "checkpoint"))
+                "effective compatibility default remains"
+
+            Expect.isFalse
+                (Inspection.get scope key details).Found
+                "the file does not author the synthetic default"
+
+            Expect.isEmpty
+                (Inspection.explain scope key details).Contributions
+                "no default contribution in file scope"
+
+            Expect.isNone
+                (ConfigTree.tryFind key (Inspection.show scope details).Value.Value)
+                "show omits the default"
+
+            Expect.isFalse
+                ((Inspection.list scope details).Entries
+                 |> List.exists (fun entry -> entry.Path = key))
+                "list omits the default"
+
+            Expect.isFalse
+                ((Inspection.path scope details).Sources
+                 |> List.exists (fun report -> report.Source.Role = SourceRole.Defaults))
+                "reports omit synthetic layers"
+
+            let authored = inspect [ "pipeline", obj [ "backend", text "authored" ] ]
+
+            Expect.equal
+                (Inspection.get scope key authored).Value
+                (Some(text "authored"))
+                "actual file values remain inspectable"
+
+            Expect.equal
+                (Inspection.explain scope key authored).Contributions.Length
+                1
+                "only the actual document contributes"
+        }
         test "scoped queries do not fill misses from effective configuration" {
             let details =
                 Resolver.resolveDetailed

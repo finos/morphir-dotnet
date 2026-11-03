@@ -234,7 +234,10 @@ module Inspection =
             | QueryScope.File _ -> false
 
         match scope with
-        | QueryScope.File path -> source.Path = path
+        | QueryScope.File path ->
+            source.Path = path
+            && source.Role
+               <> SourceRole.Defaults
         | _ ->
             roleMatches source.Role
             || (source.Role = SourceRole.Selected
