@@ -25,3 +25,18 @@ parent landing and cleanup receipts exist. Future campaigns remain active.
 - All builds use `DOTNET_PROCESSOR_COUNT=2`, single-node MSBuild, disabled
   parallel restore/build, and one heavy job at a time. Executable TUnit/Reqnroll
   uses one worker and physical macOS temporary paths. Core uses Expecto.
+- `e849db3` records initial red; `7299331` records first passing API slice.
+- Root ambiguity was observed red with all 15 layout/extension cases green.
+  Boundary group then exposed outside-start host access and missing diagnostics
+  for a directory at a primary filename. Both regressions were made green.
+  An incomplete classic test fixture was corrected to a canonical project after
+  error propagation revealed its required `exposedModules` field was absent.
+- Membership group was observed red: 15/110 failed for globs/exclusions,
+  root/virtual identity, workspace.root, invalid/missing literals, duplicate/path
+  selection, defaults and bounds. After implementation adapter 110/110 passes,
+  zero build warnings/errors. Native adapter, scoped loading and qualification
+  remain pending. Evidence logs use `red-members-*` and `green-members-*`.
+- Machine planner first failed compilation for absent APIs, then Linux 1/1
+  passed. Expanded platform tests ran 14 cases with 4 pass, 7 fail, 3 error;
+  after implementation 14/14 passed. Overlay/ambiguity missing APIs were observed
+  red before implementation. Builds are serialized by the primary worker.

@@ -83,7 +83,7 @@ module DiscoveryPolicy =
             | _ -> false
         loop (split pattern) (if path = "." then [] else split path)
     let private isGlob (pattern: string) = pattern.Contains('*') || pattern.Contains('?')
-    let private reserved path =
+    let private reserved (path: string) =
         let name = path.Substring(path.LastIndexOf('/') + 1)
         List.contains name [ ".git"; ".hg"; ".svn"; ".morphir"; ".config"; "node_modules"; "bin"; "obj"; "dist"; "build"; "target" ]
 
