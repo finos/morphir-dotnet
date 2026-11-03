@@ -74,8 +74,10 @@ blocked by automatic approval policy and is not retried. The generator does not
 own either directory or the root bootstrap checkout.
 
 Generator [#474](https://github.com/finos/morphir-dotnet/issues/474) now implements
-the existing initiative from the verified archive base. Its early fresh-package
-.NET 10.0.14/SDK 10.0.403 Windows arm64 host adds generated source, compiles and
-executes a constant, and tests caller cancellation. Broader lowering and
-mid-traversal cancellation remain pending. CLI integration is still gated and
+the existing initiative from the verified archive base. At function checkpoint
+`a4cc96a`, the packaged .NET 10 host passes 92 tests; the shared classic/v4
+type/function corpus compiles and executes under both pinned numeric 14/15
+compilers. The tested adapter host is .NET 10.0.14/SDK 10.0.403 Windows arm64.
+Ordered patterns, record operations, broader SDK mapping and mid-traversal
+cancellation remain pending. CLI integration is still gated and
 undispatched. Historical counts above describe their original checked revisions.

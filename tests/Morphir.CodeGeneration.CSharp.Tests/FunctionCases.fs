@@ -8,6 +8,7 @@ open Morphir.IR.Model
 type Ty =
     | Int
     | Generic of string
+    | RawGeneric of Name
     | Fn of Ty * Ty
 
 type Expr =
@@ -108,6 +109,7 @@ let classicWith definitions =
         function
         | Int -> Morphir.IR.Classic.Type.Reference(a, TypeCases.sdk "basics" "int", [])
         | Generic name -> Morphir.IR.Classic.Type.Variable(a, n name)
+        | RawGeneric name -> Morphir.IR.Classic.Type.Variable(a, name)
         | Fn(input, output) -> Morphir.IR.Classic.Type.Function(a, typ input, typ output)
 
     let rec value =
@@ -185,6 +187,7 @@ let v4With definitions =
         function
         | Int -> Morphir.IR.V4.Type.Reference(ta, TypeCases.sdk "basics" "int", [])
         | Generic name -> Morphir.IR.V4.Type.Variable(ta, n name)
+        | RawGeneric name -> Morphir.IR.V4.Type.Variable(ta, name)
         | Fn(input, output) -> Morphir.IR.V4.Type.Function(ta, typ input, typ output)
 
     let rec value =

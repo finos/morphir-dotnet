@@ -370,6 +370,11 @@ module internal ValueLowering =
                 |> freeParameters
                 |> Set.toList
 
+            uniqueNames
+                loc
+                (parameters
+                 |> List.map (fun name -> name, generic name))
+
             let rec infer env (expression: Expression) =
                 ct.ThrowIfCancellationRequested()
                 let loc = expression.Location

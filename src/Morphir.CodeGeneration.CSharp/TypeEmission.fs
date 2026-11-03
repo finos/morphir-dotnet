@@ -64,6 +64,18 @@ module internal TypeEmission =
                         |> String.concat " and "))
         )
 
+    let protocolNames = [
+        "MorphirEquals"
+        "MorphirHashCode"
+        "Equals"
+        "GetHashCode"
+        "GetType"
+        "ToString"
+        "ReferenceEquals"
+        "MemberwiseClone"
+        "Finalize"
+    ]
+
     let title (Name words) =
         let text =
             words
@@ -142,12 +154,15 @@ module internal TypeEmission =
                  |> List.map (fun name -> name, identifier name))
 
             for name in values do
-                if identifier name = moduleName path then
+                if
+                    identifier name = moduleName path
+                    || List.contains (title name) protocolNames
+                then
                     Admission.fail
                         "name-collision"
                         loc
                         (title name
-                         + " shares the generated module class identity.")
+                         + " shares the generated module class or inherited CLR member identity.")
 
             let relative = sourcePath pkg path
 
@@ -1040,7 +1055,10 @@ module internal TypeEmission =
             if
                 emitted
                 && (identifier declaration.Name.LocalName = moduleName declaration.Name.ModulePath
-                    || List.contains (title declaration.Name.LocalName) genericNames)
+                    || List.contains
+                        (title declaration.Name.LocalName)
+                        (genericNames
+                         @ protocolNames))
             then
                 Admission.fail
                     "name-collision"

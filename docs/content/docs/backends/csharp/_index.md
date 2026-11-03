@@ -87,6 +87,10 @@ under that class. Source paths use safe prefixes, such as
 `p_Example/m_FunctionsModule.g.cs`, including on Windows. Portable comparisons
 ignore case. A collision diagnostic identifies both owners. Generated local
 identities are fresh within each function and do not depend on source spelling.
+Names that collide with a required structural protocol, generic parameter or
+inherited CLR member fail with a located `name-collision`. Malformed typed names
+fail with `invalid-name`. An empty library succeeds without allocating a package
+namespace or file path.
 
 Top-level definitions emit typed static methods. Function values and partial
 applications use nested `Func` values that call those methods. Local bindings

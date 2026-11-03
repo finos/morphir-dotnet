@@ -7,7 +7,7 @@
     {
       "path": "C:/Temp/morphir-csharp-generator-1d28e9ab-20261103",
       "owner": "generator lead",
-      "contents": "Captured logs/process manifests, issue body, validation wrapper, preserved failed and successful package hosts, private package caches, local proof feeds, coverage tool 18.7.0 and coverage reports"
+      "contents": "Captured logs/process manifests, issue body, validation wrapper, preserved failed and successful package hosts, private package caches, local proof feeds, coverage tool 18.7.0, coverage reports and unregistered pending pattern-test drafts"
     }
   ],
   "workspaceOutputs": [

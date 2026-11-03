@@ -282,3 +282,50 @@ in the denominator. The fresh package host rerun `functions-host-02` also passes
 remains unchecked pending remaining allocation edge cases and final determinism
 verification. The source/compiler proof above predates only additional refusal
 guards, which do not change these valid corpus sources. No shared file changed.
+
+## Allocation completion and status-doc lease
+
+Four final allocation tests exposed three RED behaviors: empty libraries with an
+empty package path unnecessarily failed namespace validation, and inherited CLR
+module/type member identities produced success-shaped invalid output. The
+corrections preserve empty success and refuse those collisions. Reversing v4
+type/module declaration insertion order preserves exact returned sources. All
+96 focused Release tests pass. Task 2.2 is now verified and checked.
+
+Root granted a narrow status-only lease for the PRD index and umbrella. The index
+records the completed SDK archive #472 and retained empty-directory cleanup
+limitations. The umbrella binds its stronger type/function host claims to
+checkpoint `a4cc96a` and its 92-test denominator, with the exact tested modern
+host and still-gated CLI. No historical evidence or blocked/locked directory is
+changed. The lease will be released after this boundary is committed and pushed.
+
+The 96-test allocation boundary passed the full native run in 7m14, with 3,497
+suite tests plus 15 cold checks and 48 inspection checks. PackAll passed in 47s,
+TestBuild passed 40/40, fresh package metadata/exact lookup passed, and Precommit
+passed in 31s. Static generator coverage measured 1,482/1,632, 90.80882352941176%.
+
+A final audit added function-generic collision and empty-name cases. The first
+helper normalized `"a"` and `"A"` to the same valid Morphir name. Its two wrong
+expectations caused `allocation-final-full-test` to fail, 98/100 generator tests,
+with all other executed suites passing. That failure is retained. The corrected
+fixture constructs distinct typed `Name` values directly. Removing the new guard
+then produces four actual RED failures in `function-generics-raw-red.log`.
+Reusing `uniqueNames` for function type parameters makes the 100-test focused
+Release suite pass. The fresh bounded Release build precedes a new native full
+Test run with Restore/Compile skipped; no runtime suite is substituted or omitted.
+
+The corrected native full run passed in 5m38. Its captured totals are 3,501 suite
+tests, including generator 100/100, plus 15 cold checks and 48 inspection smoke
+checks, with zero failures/skips/ignored tests. Fresh PackAll passed in 46s,
+TestBuild passed 40/40, metadata and compiled exact-version package lookup passed,
+and Precommit passed in 30s with the inherited F# diagnostics. The fresh packaged
+host passes 100/100 in `allocation-host-01`; all four real compiler executions
+pass in `allocation-matrix-01`, preserving the previously recorded valid source
+hashes. Static generator coverage is 1,495/1,637, 91.32559560171044%, in
+`allocation-complete.cobertura.xml`. No authored generator code is excluded.
+
+All ten owned F# files, changelog validation, strict OpenSpec's 22 items, snapshot
+checker and its two tests are checked before commit. Leased Markdown relative
+links resolve. No publishing target, blocked directory, other shared path or
+auxiliary is involved. Temporary pattern test drafts remain unregistered and are
+explicitly not passing acceptance evidence.

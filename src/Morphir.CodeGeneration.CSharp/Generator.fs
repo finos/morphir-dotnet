@@ -39,10 +39,11 @@ module internal Foundation =
             |> ValueLowering.emit catalog ct
 
         let sources pkg modules =
-            TypeEmission.validateModules
-                pkg
-                (modules
-                 |> List.map (fun (path, _, names) -> path, names))
+            if not (List.isEmpty modules) then
+                TypeEmission.validateModules
+                    pkg
+                    (modules
+                     |> List.map (fun (path, _, names) -> path, names))
 
             for path, _, names in modules do
                 for name in names do

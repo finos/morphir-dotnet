@@ -244,6 +244,169 @@ let externalDiagnostics model (consumer: string) =
 [<Tests>]
 let tests =
     testList "C# generation" [
+        for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
+            testCase (
+                "Function generic parameter collisions are located "
+                + family
+            )
+            <| fun _ ->
+                let definition: FunctionCases.Definition = {
+                    Name = "bad"
+                    Inputs = [
+                        "x", FunctionCases.RawGeneric(Name [ "a" ])
+                        "y", FunctionCases.RawGeneric(Name [ "A" ])
+                    ]
+                    Output = FunctionCases.Generic "a"
+                    Body = FunctionCases.Variable "x"
+                }
+
+                let result =
+                    CSharpGenerator.Generate(
+                        make [ definition ],
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal result.Status GenerationStatus.Failure "generic target collision"
+                Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+
+            testCase (
+                "Empty function type parameter names are refused "
+                + family
+            )
+            <| fun _ ->
+                let definition: FunctionCases.Definition = {
+                    Name = "bad"
+                    Inputs = [ "x", FunctionCases.Generic "" ]
+                    Output = FunctionCases.Generic ""
+                    Body = FunctionCases.Variable "x"
+                }
+
+                let result =
+                    CSharpGenerator.Generate(
+                        make [ definition ],
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal result.Status GenerationStatus.Failure "invalid type parameter"
+                Expect.equal result.Diagnostics.Head.Rule "invalid-name" "stable category"
+        testCase "An empty library needs no package namespace allocation"
+        <| fun _ ->
+            let model =
+                { classicEmpty "3" with
+                    Distribution =
+                        DistributionModel.Classic(
+                            Distribution.Library(
+                                PackageName(Path []),
+                                Map.empty,
+                                { Modules = Map.empty }
+                            )
+                        )
+                }
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Success "empty libraries succeed"
+            Expect.isEmpty result.Sources "no source allocation"
+        testCase "Inherited CLR members cannot become success-shaped module collisions"
+        <| fun _ ->
+            let model =
+                constantModel ()
+                |> mapClassicModules (
+                    Map.map (fun _ modul ->
+                        let value =
+                            modul.Value.Values
+                            |> Map.toList
+                            |> List.head
+                            |> snd
+
+                        { modul with
+                            Value =
+                                { modul.Value with
+                                    Values = Map.ofList[Name.fromString "getHashCode", value]
+                                }
+                        }
+                    )
+                )
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Failure "inherited member collision"
+            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+        testCase "A generated type name cannot collide with its required protocol"
+        <| fun _ ->
+            let model =
+                RefusalCases.classic [] (Type.Record(LiteralCases.a, []))
+                |> mapClassicModules (
+                    Map.map (fun _ modul ->
+                        let declaration =
+                            modul.Value.Types
+                            |> Map.toList
+                            |> List.head
+                            |> snd
+
+                        { modul with
+                            Value =
+                                { modul.Value with
+                                    Types = Map.ofList[Name.fromString "getHashCode", declaration]
+                                }
+                        }
+                    )
+                )
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Failure "type protocol collision"
+            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+        testCase "Reordered v4 declarations preserve source paths and bytes"
+        <| fun _ ->
+            let model = TypeCases.v4 ()
+
+            let reordered =
+                match model.Distribution with
+                | DistributionModel.V4(Morphir.IR.V4.Library(pkg, deps, definition)) ->
+                    let modules =
+                        definition.Modules
+                        |> Morphir.IR.V4.OrderedMap.toList
+                        |> List.rev
+                        |> List.map (fun (name, modul) ->
+                            name,
+                            { modul with
+                                Value =
+                                    { modul.Value with
+                                        Types =
+                                            modul.Value.Types
+                                            |> Morphir.IR.V4.OrderedMap.toList
+                                            |> List.rev
+                                            |> TypeCases.ordered
+                                    }
+                            }
+                        )
+                        |> TypeCases.ordered
+
+                    { model with
+                        Distribution =
+                            DistributionModel.V4(
+                                Morphir.IR.V4.Library(pkg, deps, { Modules = modules })
+                            )
+                    }
+                | _ -> failwith "v4 fixture"
+
+            let first =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            let second =
+                CSharpGenerator.Generate(
+                    reordered,
+                    GenerationOptions.Default,
+                    CancellationToken.None
+                )
+
+            Expect.equal second.Sources first.Sources "same artifacts"
         for caseName in [ "morphirEquals"; "tA" ] do
             testCase (
                 "Case identities cannot hide protocols or generic parameters "

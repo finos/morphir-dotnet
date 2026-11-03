@@ -18,6 +18,7 @@ defines acceptance. PR readiness precedes coordinator-owned landing and archival
 | Classic and v4 typed lowering | In Progress | Independent typed type walkers; expressions pending; no serialization or migration bridge |
 | Immutable aliases, records, cases and structural equality | Implemented | Shared type corpus compiled/executed in all four family/profile combinations |
 | Typed function values, application, lambdas and nonrecursive lets | Implemented | Shared compiled capture/shadowing/partial-application/callback-order observations across both families/profiles |
+| Deterministic naming, paths and literals | Implemented | Reordered declarations, Turkish culture, keywords/capture, portable collisions, Unicode/numeric fidelity and empty allocation |
 | Expressions, lexical scope, ordered patterns and SDK calls | Planned | Shared behavior corpus |
 | Determinism, located refusals and traversal cancellation | Planned | Positive and negative behavior tests |
 | Package, trimming, full tests and coverage | Planned | Exact commands and denominators required |
