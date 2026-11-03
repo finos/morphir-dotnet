@@ -53,4 +53,15 @@ using var explain = JsonDocument.Parse(ConfigurationReport.From(Inspection.expla
 Check(explain.RootElement.GetProperty("valueTypes").EnumerateArray().Any(t => t.GetProperty("pointer").GetString() == "/contributions/0/value"), "contribution number metadata");
 Check(explain.RootElement.GetProperty("valueTypes").EnumerateArray().Any(t => t.GetProperty("pointer").GetString() == "/entries/0/value"), "entry number metadata");
 Check(explain.RootElement.GetProperty("exitCode").GetInt32() == 0, "valid number succeeds");
+var classicSource = new SourceIdentity("morphir.json", DocumentFormat.Json, SourceRole.RootPrimary, 0, null);
+var classic = Normalization.normalize(classicSource, Obj(("name", ConfigValue.NewString("Classic")),
+    ("exposedModules", ConfigValue.NewArray(FSharpList<ConfigValue>.Empty))), MapModule.Empty<FSharpList<string>, SourcePosition>());
+var classicDetails = Resolver.resolveDetailed(new ResolutionInput(ListModule.OfSeq(new[] { new SourceInput(classicSource, SourceContent.NewAvailable(classic), true) }),
+    defaults.Environment, defaults.Explicit, defaults.Profiles, defaults.Scope, defaults.OwningWorkspace, defaults.SuppressWarnings));
+var backend = ListModule.OfSeq(new[] { "pipeline", "backend" });
+Check(Inspection.get(QueryScope.Effective, backend, classicDetails).Found, "effective classic default remains");
+using var fileGet = JsonDocument.Parse(ConfigurationReport.From(Inspection.get(QueryScope.NewFile("morphir.json"), backend, classicDetails), true, true).ToJson());
+Check(fileGet.RootElement.GetProperty("exitCode").GetInt32() == 1 && !fileGet.RootElement.GetProperty("found").GetBoolean(), "file query does not fill a synthetic default");
+using var fileExplain = JsonDocument.Parse(ConfigurationReport.From(Inspection.explain(QueryScope.NewFile("morphir.json"), backend, classicDetails), true, true).ToJson());
+Check(fileExplain.RootElement.GetProperty("contributions").GetArrayLength() == 0, "file explanation omits synthetic layers");
 Console.WriteLine($"{{\"success\":true,\"checks\":{checks},\"generatedSerialization\":true}}");

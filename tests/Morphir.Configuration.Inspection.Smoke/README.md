@@ -5,6 +5,8 @@ by the CLI and its generated System.Text.Json context. Reflection serialization
 is disabled. It exercises NaN, positive and negative infinity, finite numeric
 types, temporal text/kind, JSON Pointer escaping, nested arrays/null, ordinary
 tag-shaped objects, redaction before encoding, and entry/contribution metadata.
+It also checks that classic compatibility defaults remain effective while file
+queries and explanations report their absence from the authored document.
 
 Nonfinite values appear as `{"$number":"NaN"}`,
 `{"$number":"Infinity"}` or `{"$number":"-Infinity"}`. The report's

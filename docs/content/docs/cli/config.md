@@ -55,6 +55,8 @@ Effective configuration is the default. A scope selects its own sources before m
 
 Selectors are mutually exclusive. `--file` and `--config` cannot be combined. `--file` reads a required file, even when it was not a discovered primary. `--config` overlays a required selected file during effective resolution. Relative file paths start at the invocation directory. Neither option writes anything.
 
+An invalid `workspace.default_member` produces a selection error for effective, project and adjacent-user queries. Workspace, global, system and file scopes inspect their own sources independently of automatic project selection. File scope also excludes synthetic classic compatibility defaults, so an unauthored `pipeline.backend` remains missing there.
+
 A workspace-root invocation reads the root unless shared selection chooses one default project. Invocation inside a member reads that member with applicable inherited settings. Use `--workspace` or an explicit project selector when inspecting a particular primary scope. Ambiguous or unknown project selectors fail visibly.
 
 ## Resolution and output options

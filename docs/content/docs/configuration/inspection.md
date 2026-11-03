@@ -62,6 +62,11 @@ User means the override adjacent to the inspected target. File identities are
 canonical absolute paths supplied by the host. Scoped inspection reads each
 source's own normalized values; effective queries retain ownership filters.
 
+File scope excludes synthetic compatibility defaults even when they share the
+manifest's path. For a classic manifest with no authored `pipeline.backend`,
+the file-scoped query reports missing while the effective query can still return
+the compatibility value `checkpoint`.
+
 `InspectionResult` has `Operation`, `Scope`, optional `Key`, `Found`, optional
 `Value`, `Entries`, `Sources`, `Contributions`, and `Diagnostics`.
 

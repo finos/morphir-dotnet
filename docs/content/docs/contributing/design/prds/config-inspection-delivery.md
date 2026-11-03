@@ -91,3 +91,41 @@ Main was fetched immediately before PR preparation and remains the validated bas
 ### Final published-host refresh
 
 After the NaN selection and Unicode fixes, the adapter was rebuilt/published from final delivery checkpoint `569e7cf8fe1e7fc5ca8e2a9001e7cd3ac3895a72`. Managed/trimmed/native receipts all pass 43 checks, and the final adapter suite passes 22/22. Logs `final-microsoft-tests.log`, `final-microsoft-publish-trimmed.log`, `final-microsoft-publish-native.log`; JSON/stderr receipts use `final-microsoft-{managed,trimmed,native}`. Warning counts remain 44/47, exclusively pinned dependencies, with no new adapter/binder/serializer diagnostic. Captured lockfiles were restored exactly and the checkout was clean. The subsequent commit changes this receipt only. Final head/base/PR identities are recorded in the linked tracking issue and parent handback.
+
+## Parent review regressions and qualification
+
+Two current-head bot findings were reproduced before correction:
+
+- `ca5b1ef`: ordinary effective and adjacent-user queries returned success despite
+  `discovery.invalid_default` from automatic selection. Two subprocess scenarios
+  failed with exit 0 rather than 2. The native inspection host now retains
+  selection diagnostics for effective/project/user scopes. Four additional
+  scenarios verify workspace, global, system and file scopes bypass unrelated
+  automatic member selection. The full tooling runner passes 305/305.
+- `082e66f`: a file-scoped classic manifest query included the synthetic
+  checkpoint default because its default layer shares the manifest path.
+  A public query regression failed before matching excluded Defaults roles.
+  Get/list/show/path/explain now inspect the actual file layer; effective
+  compatibility defaults and explicitly authored values remain available.
+  The complete core runner passes 136/136.
+
+The refreshed full solution build succeeds with zero errors and 20 existing
+package/generated-code warnings. IO/BDD passes 171/171 and the Microsoft adapter
+suite passes 22/22. The actual CLI DTO smoke adds three file-scope assertions;
+managed, trimmed and native osx-arm64 hosts each pass all 24 checks with reflection
+serialization disabled. New adapter/binder/serializer diagnostics remain absent;
+the documented FSharp.Core warnings remain visible under explicit warning
+qualification. Publish-generated lockfile churn was restored.
+
+Fresh configured coverage reports under `parent-review` union to core 3417/3567,
+95.79%; IO 639/662, 96.53%; Microsoft adapter 118/119, 99.16%. The summary is
+`parent-review/coverage-summary.json`. Builds, subprocess tests and publishing
+were bounded to two logical processors and serial heavy jobs. Both selection
+and file-scope behavior are documented in the CLI and shared query references.
+OpenSpec verification passes all 22 active/spec items, managed schema checks and
+both extension tests. Changed-file formatting and whitespace checks pass.
+
+All new evidence is owned under `/private/tmp/morphir-config-inspection/parent-review`.
+Current-head CI and the independent query/provider reviews remain pending, along
+with main landing and owned artifact cleanup. Blanket admin-bypass authorization
+from the user remains in effect after checks and verified review fixes complete.
