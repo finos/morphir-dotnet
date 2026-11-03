@@ -27,3 +27,15 @@ The existing resolution result and constructor remain compatible. Additive detai
 ## Shared query green checkpoint
 
 Core 131/131 and IO/BDD 170/170 pass using executable configured runners, with physical temp paths for filesystem tests. Both builds have zero warnings/errors. Logs `core-green-build.log`, `core-green.log`, `shared-bdd-green-build.log`, `shared-bdd-green.log`. The shared API reference is `docs/content/docs/configuration/inspection.md`. Existing `DocumentResolution` and cache-only APIs remain intact; additive detailed resolution retains canonical and applied layers without extra reads.
+
+## Additional behavior checkpoints
+
+Selected-personal query-scope regression failed 1/10 before preserving its discovered scope after promotion to the selected layer. Core then passes 134/134. Shape-blocking and composite-winner explanations and safe parser-diagnostic presentation also pass. Logs `selection-red*`, `selection-green*`.
+
+CLI initially passes 34/35 BDD subprocess cases and 9 observer cases; the remaining deliberately red case proves unrelated malformed appsettings were loaded by the builder during help. The help-only builder path disables host defaults; ordinary execution defaults remain compatible. Log `cli-host-help-red.log` records that failure before the fix.
+
+## Microsoft adapter checkpoint
+
+Adapter managed tests pass 22/22 after runtime RED13/13 and boundary RED5/22. Added tests prove earlier host providers cannot leak stale array indices or descendants under replacement values; unrelated host siblings remain. Empty .NET key segments are rejected alongside case/separator collisions. Builds are warning-free. Authored adapter coverage is 118/119 lines, 99.16%.
+
+The non-CLI managed, trimmed and native hosts each pass 43 checks, including concrete source-generated/explicit binding, missing versus empty arrays, nested values, collision diagnostics, canonical access and bounded native-tree loading. See `tests/Morphir.Configuration.Microsoft.Smoke/README.md` for exact commands. Logs `microsoft-publish-trimmed.log` and `microsoft-publish-native.log` retain 44/47 pinned CsToml/FSharp.Core warnings respectively; no new adapter/binder/serialization diagnostics occur. Runtime qualification uses `ILLinkTreatWarningsAsErrors=false`; strict warning-free publishing remains unsupported by those pinned dependencies. Publish RID lockfile churn was restored from exact prepublish bytes.

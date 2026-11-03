@@ -15,7 +15,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 ## 3. Microsoft configuration adapter
 
 - [x] 3.1 Write failing .NET host tests for complete/empty arrays, nested values, canonical metadata access, case/separator collisions, and opt-in registration; confirm red before adding the adapter.
-- [ ] 3.2 Add Morphir.Configuration.Microsoft with AddMorphirConfiguration over one resolved result and explicit/source-generated binding support; verify host/options tests, a trimmed/AOT published smoke host, and the documented consumer example.
+- [x] 3.2 Add Morphir.Configuration.Microsoft with AddMorphirConfiguration over one resolved result and explicit/source-generated binding support; verify host/options tests, a trimmed/AOT published smoke host, and the documented consumer example.
 
 ## 4. CLI inspection
 
