@@ -12,7 +12,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 - [x] 2.1 Write failing Expecto/API and BDD contract scenarios for equivalent formats, typed values, full JSON5 syntax, duplicate keys, malformed inputs, and legacy/canonical conflicts; run the focused configured runners and retain the red results.
 - [x] 2.2 Add immutable typed document/source/diagnostic contracts in Morphir.Configuration and format readers in a new Morphir.Configuration.IO library; implement only enough for those tests to pass and verify the core has no CLI/framework/file-I/O dependency.
-- [ ] 2.3 Qualify CsToml/YamlDotNet reuse and the full JSON5 reader against pinned fixtures and trimming constraints, preserve raw legacy fields for migration loss accounting, and document supported reader behavior; verify equivalent values/origins and invalid-input diagnostics in the reader suite.
+- [x] 2.3 Qualify CsToml/YamlDotNet reuse and the full JSON5 reader against pinned fixtures and trimming constraints, preserve raw legacy fields for migration loss accounting, and document supported reader behavior; verify equivalent values/origins and invalid-input diagnostics in the reader suite.
 
 ## 3. Resolution and profile semantics
 
@@ -23,7 +23,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 ## 4. Compatibility and integration
 
 - [x] 4.1 Keep existing cache models, Merge functions, CiProfileMode, and legacy resolver callers working through additive contracts; run existing Morphir.Configuration.Tests and tooling configuration tests and document the opt-in transition.
-- [ ] 4.2 Verify a non-CLI in-memory host resolves the same fixtures as the reader adapter, run format/build/analyzers and applicable configured tests/coverage, and publish/run a trimmed adapter smoke host; record exact commands and results before PR review.
+- [x] 4.2 Verify a non-CLI in-memory host resolves the same fixtures as the reader adapter, run format/build/analyzers and applicable configured tests/coverage, and publish/run a trimmed adapter smoke host; record exact commands and results before PR review.
 
 ## Workflow follow-up
 

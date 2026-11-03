@@ -140,3 +140,27 @@ cleanup. An open PR or checked task list does not complete this campaign.
   red, then the same `config.document_shape` error was added without altering
   valid documents. Complete suites now pass core 90/90 and reader 63/63, with
   zero build warnings. Final runtime/coverage refresh follows this code checkpoint.
+
+## Delivery validation receipt
+
+- Validated implementation checkpoint: `d5e4d2f`. Complete core 90/90, reader/BDD
+  63/63 and tooling 245/245 pass. The full solution builds with zero errors and
+  the same 20 package/generated-code warnings in unchanged projects.
+- Full `dotnet format Morphir.slnx --no-restore --verify-no-changes --verbosity quiet`
+  exits zero. Fantomas checks all owned F# files successfully. The schema generator
+  reproduces its formatted output byte for byte. `git diff --check` passes.
+- Final configured coverage runs pass 90 and 63 tests. Their source-line union is
+  core 2079/2213 = 93.94% and authored readers 434/461 = 94.14%. Reports are
+  `/tmp/morphir-configuration-core-coverage-delivery/9ad9e498-b5be-4d0a-a1e2-02ba9374276c/coverage.cobertura.xml`
+  and `/tmp/morphir-configuration-reader-coverage-delivery.cobertura.xml`.
+- Both final published executables return
+  `{"success":true,"formats":3,"json5":true,"normalization":true,"profile_loading":true,"host_parity":true,"syntax_cases":228,"morphir_cases":26}`.
+  Publish logs are `/tmp/morphir-config-trimmed-delivery.log` and
+  `/tmp/morphir-config-native-delivery.log`; binaries are under
+  `/tmp/morphir-config-trimmed` and `/tmp/morphir-config-native`. Warning severity
+  is explicitly normal for runtime qualification. Strict linker-as-errors still
+  fails in pinned dependencies; no diagnostic suppression hides that limitation.
+- All 10 tracked implementation tasks are complete and OpenSpec apply reports
+  `all_done`. Strict change validation passes. This does not declare campaign
+  completion: PR review/checks, main landing and owned worktree/local/remote branch
+  cleanup remain parent responsibilities.
