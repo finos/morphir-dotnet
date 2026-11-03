@@ -261,6 +261,40 @@ documentation links, PowerShell parsing and git diff --check passed.
 All nine implementation tasks are now verified. PR delivery, newer-main
 integration, review, landing, archive and cleanup remain separate workflow steps.
 
+## Coordinator integration with landed F# SDK
+
+PR #469 landed by squash at `4df3c1ad425f782bfe3cc02e30f577d87dca0f53`.
+The coordinator merged that verified main into the C# delivery, retaining both
+runtime/test registrations, configuration/discovery changes, notices and docs.
+PackLibs packs the canonical F# runtime before its compatibility package, then
+the C# runtime. The DLL validator checks both runtime packages; the separate
+F# package matrix checks the dependency-only compatibility package. Both library
+publishing targets use exact versioned paths for all three SDK packages.
+
+C# runtime and test source remain exact at the submitted `ed8aa66` checkpoint.
+The compiler-profile, trimmed/NativeAOT and production coverage evidence above
+therefore remains applicable. F# source and tests match the verified landed main.
+All 12 frozen file digests still match, including documented LF normalization.
+
+The first integrated Test run built successfully but rejected stale DLLs retained
+in this checkout's old `src/Morphir.SDK/bin` and `obj` directories. Their timestamps
+preceded the package migration. They were moved, without deletion, into
+`C:/Temp/morphir-csharp-sdk-5a5ac278-20261103/pre-fsharp-migration-outputs/`,
+with source/destination paths and DLL hashes recorded in `inventory.json`.
+No runtime, oracle, test or assertion was changed for that environmental failure.
+The second full native Nuke Test run passes all 3,290 suite tests and 15 cold
+package lifecycle checks in 5m31 using the already compiled solution. This includes
+both SDK suites (C# 20 and F# 403), configuration 124, configuration I/O 166 and
+unchanged generator 333; no test is skipped. Restore/Compile target skips reuse
+the successful initial integrated build. Native Precommit passes in 28 seconds
+with its inherited unsupported-F# diagnostics. PackAll passes in 34 seconds,
+including both SDK runtime validators; TestBuild passes all 40 package tests
+with zero skips. Changelog validation and strict OpenSpec verification pass
+(21 items and two checker tests). Both runtime packages and the compatibility
+package exist at their exact versioned publishing paths. Publishing targets
+remain unexecuted. The platform-only smoke lock-file RID change from restore
+is discarded; no unrelated source or repository configuration change is included.
+
 ## Ownership
 
 One reserved read-only auxiliary completed in this shared checkout, no edits,

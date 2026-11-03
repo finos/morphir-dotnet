@@ -11,6 +11,7 @@ Explore our guides to learn how to use Morphir .NET effectively.
 
 ## Available Guides
 
+- [Configuration]({{< relref "/guides/configuration" >}}) - Current support and the planned shared configuration/project system
 - [IR Modeling](/docs/guides/ir-modeling/) - Learn how to model Morphir IR in .NET
 - [Serialization](/docs/guides/serialization/) - Working with JSON serialization
 - [Testing](/docs/guides/testing/) - Testing strategies and best practices

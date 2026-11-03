@@ -1,0 +1,101 @@
+{
+  "baseSha": "7e37689c55eae9510cf12dafd130dc4ae8e3baf1",
+  "packageId": "Morphir.SDK",
+  "packageVersion": "0.3.0-rc.2",
+  "assemblyIdentity": "Morphir.SDK, Version=0.3.0.0, Culture=neutral, PublicKeyToken=null",
+  "consumerExecuted": true,
+  "productionPackagingUnmodified": true,
+  "hashes": [
+    {
+      "path": "C:\\Temp\\morphir-fsharp-sdk-757a20ef-baseline-20261103-r2\\old-feed\\Morphir.SDK.0.3.0-rc.2.nupkg",
+      "sha256": "6268f165ae03beb03d69485a33c8b9cd37960ad876c67026a446e369f06a0205"
+    },
+    {
+      "path": "C:\\Temp\\morphir-fsharp-sdk-757a20ef-baseline-20261103-r2\\old-consumer\\bin\\Release\\net10.0\\Morphir.SDK.dll",
+      "sha256": "b33b1af466d8ffdb8f322c9ac091029e9f519616ce0890de68e1138dfda48aa4"
+    },
+    {
+      "path": "C:\\Temp\\morphir-fsharp-sdk-757a20ef-baseline-20261103-r2\\old-consumer\\bin\\Release\\net10.0\\LegacyConsumer.dll",
+      "sha256": "41afc3e57b4ebf350467d0d812d0fdb63eda1878eecd9099d30c992d60768228"
+    },
+    {
+      "path": "C:\\Temp\\morphir-fsharp-sdk-757a20ef-baseline-20261103-r2\\old-consumer\\Program.fs",
+      "sha256": "c063da37606959471b04f147d9e5a2942475236242142132257dba35004fade1"
+    },
+    {
+      "path": "C:\\Temp\\morphir-fsharp-sdk-757a20ef-baseline-20261103-r2\\old-public-api.txt",
+      "sha256": "efb9e51d732dddb69fab78dd4535a09e9b85227f0b3e4f325e836172739bc77f"
+    }
+  ],
+  "sourceHashes": [
+    {
+      "path": "Basics.fs",
+      "sha256": "58097b6e54083e1d47696ed8de8a5a221a224b7c9015651b954c98cd2e063538"
+    },
+    {
+      "path": "Bool.fs",
+      "sha256": "e6fa489837eb43c2d897f935de67ff7e7b43c2daed996e94aacaf3e2a9355dfa"
+    },
+    {
+      "path": "Char.fs",
+      "sha256": "ee3a137f6b85b3591df73700b5beaf8db9cf3147eb67ea692ed6006b5b5ddd0a"
+    },
+    {
+      "path": "Decimal.fs",
+      "sha256": "d1807c65cdfab51a10d25510d434b6641051e1bb546d684631e41826596a316c"
+    },
+    {
+      "path": "Dict.fs",
+      "sha256": "a39c02d044b76b4bd3d4b1474edbce27d35968adc0e6dddbc60cc6b4a07aa842"
+    },
+    {
+      "path": "Int.fs",
+      "sha256": "a7602f3c735cea4da37d5e14bb213a62b0137ad6a53526bd5a90237bba184705"
+    },
+    {
+      "path": "List.fs",
+      "sha256": "78da064fd75768347854dae7a770f24964ce6349c91a9af13b6a052466b4ad50"
+    },
+    {
+      "path": "LocalDate.fs",
+      "sha256": "94792151f7a5d54b06354eaf50eb1a7d8039cfa0f1e42b66ac5e5ee68a7a75c6"
+    },
+    {
+      "path": "LocalTime.fs",
+      "sha256": "4d5bfd67cd18e383559c85c414ff50ea1f23652b4bbb2f60809767ef5321632f"
+    },
+    {
+      "path": "Maybe.fs",
+      "sha256": "f9cb4e6bae3d4903d2535e97dbb312b2916917d322aaa4840e57ee80e0e83137"
+    },
+    {
+      "path": "Morphir.SDK.fsproj",
+      "sha256": "0d17b6f8a12eb025e97e5b47cca246eac4cf0e70c01ab1e64abfd9c16af775b7"
+    },
+    {
+      "path": "packages.lock.json",
+      "sha256": "55333e5f8f7cad9243bff3f540e47070f1c8ae055befc244b5dc00085be95f88"
+    },
+    {
+      "path": "README.md",
+      "sha256": "62ac1ebf60f6b34e7fbcea76da3014a5beb632ce31a00841a3b9c81375cf5e16"
+    },
+    {
+      "path": "Result.fs",
+      "sha256": "990a3457f20821e98cb2f4c2bd69f82968ab04d8d0b3644ae2b36c26f244302b"
+    },
+    {
+      "path": "Set.fs",
+      "sha256": "ebf2f17845476113b3470e6ac8b6dcfb140757b98945d565d5f934c86b09db06"
+    },
+    {
+      "path": "String.fs",
+      "sha256": "2560e89f797b05197b41dd82c0a918a5272b3c1f5761fd4b36c26f055041278f"
+    },
+    {
+      "path": "Tuple.fs",
+      "sha256": "05048a3e29c76e0e4f870d594ca813c49a00aaea5c0e0409c0b2fe7c4f10bfec"
+    }
+  ],
+  "testInputPurpose": "Genuine old binary captured and executed before production packaging changes. Never rebuild during migration checks. Old package/runtime retained outside repository."
+}

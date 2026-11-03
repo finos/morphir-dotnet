@@ -14,6 +14,16 @@
         <Compile Include="Types.fs" />
         <Compile Include="Merge.fs" />
         <Compile Include="CiDetection.fs" />
+        <Compile Include="Documents.fs" />
+        <Compile Include="Normalization.fs" />
+        <Compile Include="Profiles.fs" />
+        <Compile Include="EnvironmentMapping.fs" />
+        <Compile Include="Schema.fs" />
+        <Compile Include="Validation.fs" />
+        <Compile Include="Resolver.fs" />
+        <Compile Include="ProjectTypes.fs" />
+        <Compile Include="ProjectDiscovery.fs" />
+        <Compile Include="ProjectSources.fs" />
     </ItemGroup>
 
 </Project>

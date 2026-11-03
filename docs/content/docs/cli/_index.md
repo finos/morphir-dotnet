@@ -20,7 +20,10 @@ The Morphir .NET CLI provides powerful command-line tools for working with Morph
 
 ### Project Management
 
-_(Future commands will be documented here)_
+- Planned [morphir project migrate]({{< relref "/docs/cli/project" >}}) converts one classic project to the newer project system.
+- Planned [morphir workspace migrate]({{< relref "/docs/cli/workspace" >}}) inventories and adopts projects within a bounded repository directory.
+
+These migration commands are not yet implemented.
 
 ## Installation
 
@@ -80,7 +83,9 @@ These exit codes are designed for CI/CD integration and scripting.
 
 ## Configuration
 
-_(Future: Configuration file format and options will be documented here)_
+The [configuration guide]({{< relref "/guides/configuration" >}}) separates the current TOML cache loader from the planned shared configuration and project system.
+
+The planned [morphir config commands]({{< relref "/docs/cli/config" >}}) inspect effective values, explain sources, and edit scoped TOML settings. These commands are not yet implemented. Start with the [workspace configuration walkthrough]({{< relref "/docs/getting-started/configuration" >}}) for the intended workflow.
 
 ## Troubleshooting
 

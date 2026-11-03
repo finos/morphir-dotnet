@@ -181,8 +181,20 @@ neither publishing target was executed and machine NuGet configuration was not
 changed. Final formatting and OpenSpec evidence supplements the runtime
 checkpoint's full-suite, coverage, PackAll and TestBuild results.
 
+### Coordinator integration
+
+The C# branch incorporates verified main with F# SDK squash commit
+`4df3c1ad425f782bfe3cc02e30f577d87dca0f53`. Shared build and publication
+registrations preserve both runtimes and the dependency-only F# compatibility
+package. C# runtime/test source and the earlier pinned-profile/NativeAOT proofs
+remain unchanged. The full integrated rerun passes all 3,290 suite tests and 15
+cold package lifecycle checks, including C# 20, F# 403 and generator 333. Native
+Precommit, PackAll, all 40 package tests, changelog and strict OpenSpec checks
+pass. See validation for the first run's stale legacy build-output
+failure, preserved artifacts and exact successful rerun evidence.
+
 ## Open questions
 
 No contract exceptions are accepted. Implementation acceptance is verified;
-PR review, newer-main integration, landing, spec sync/archive and worktree
+Hosted CI/review, landing, spec sync/archive and worktree
 cleanup remain coordinator-owned delivery steps.

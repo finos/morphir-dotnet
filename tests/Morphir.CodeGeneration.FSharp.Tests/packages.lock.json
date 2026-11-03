@@ -214,7 +214,7 @@
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
       },
-      "morphir.sdk": {
+      "morphir.sdk.fsharp": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[11.0.100, )"

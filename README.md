@@ -50,6 +50,18 @@ Defines a standard format for storing and sharing business logic. A clear set of
 
 Provides tooling for the Morphir ecosystem and .NET libraries that can be used to help you work with Morphir.
 
+The additive [shared configuration libraries](docs/content/docs/configuration/resolution.md)
+provide typed TOML, YAML, JSON/JSON5 documents, pure source resolution, named
+profiles, validation and winning origins without constructing the CLI.
+`Morphir.Configuration.IO` reads explicit files or supplied text and exposes
+bounded project/workspace discovery through native and in-memory trees. See the
+[discovery guide](docs/content/guides/configuration.md#discovery-library-api) for
+`ProjectSystem.Discover`, per-root/member `ProjectSystem.Load`, membership/selection,
+host boundaries and explicitly authorized machine sources.
+Existing Git-first artifact discovery, cache-only tooling and CI overlays keep
+their compatibility behavior. CLI inspection, editing and migration remain planned. See the
+[reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.
+
 ## SDK libraries
 
 `Morphir.SDK.CSharp` is an independent `net10.0` runtime package with immutable
@@ -193,6 +205,12 @@ run the offline validator with:
 ```powershell
 dotnet exec tests/Morphir.SDK.Conformance.Tests/bin/Debug/net10.0/Morphir.SDK.Conformance.Tests.dll --maximum-parallel-tests 2
 ```
+
+F# runtime consumers use `Morphir.SDK.FSharp`. Its namespace and runtime assembly
+remain `Morphir.SDK`, so existing generated source and runtime type identities
+remain valid. The legacy `Morphir.SDK` package depends on the canonical package
+and ships no runtime assembly. See the [F# runtime migration guide](src/Morphir.SDK.FSharp/README.md)
+for dependency selection and covered behavior corrections.
 
 ### Project Structure
 

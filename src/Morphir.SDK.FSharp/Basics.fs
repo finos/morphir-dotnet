@@ -28,13 +28,22 @@ module Basics =
     let inline identity value = id value
 
     /// <summary>Addition operator</summary>
-    let inline add value1 value2 = (+) value1 value2
+    let inline add value1 value2 =
+        match box value1, box value2 with
+        | (:? int as left), (:? int as right) -> unbox (box (Checked.(+) left right))
+        | _ -> (+) value1 value2
 
     /// <summary>Subtraction operator</summary>
-    let inline subtract value1 value2 = (-) value1 value2
+    let inline subtract value1 value2 =
+        match box value1, box value2 with
+        | (:? int as left), (:? int as right) -> unbox (box (Checked.(-) left right))
+        | _ -> (-) value1 value2
 
     /// <summary>Multiplication operator</summary>
-    let inline multiply value1 value2 = (*) value1 value2
+    let inline multiply value1 value2 =
+        match box value1, box value2 with
+        | (:? int as left), (:? int as right) -> unbox (box (Checked.(*) left right))
+        | _ -> (*) value1 value2
 
     /// <summary>Division operator</summary>
     let inline divide value1 value2 = (/) value1 value2
@@ -58,11 +67,19 @@ module Basics =
         else number
 
     /// <summary>Negate a number</summary>
-    let inline negate number = -number
+    let inline negate number =
+        match box number with
+        | :? int as value -> unbox (box (Checked.(~-) value))
+        | _ -> -number
 
     /// <summary>Compare two values and return Order</summary>
     let inline compare x y =
-        match System.Collections.Generic.Comparer<_>.Default.Compare(x, y) with
+        let comparison =
+            match box x, box y with
+            | (:? string as left), (:? string as right) -> System.String.CompareOrdinal(left, right)
+            | _ -> System.Collections.Generic.Comparer<_>.Default.Compare(x, y)
+
+        match comparison with
         | n when n < 0 -> LT
         | 0 -> EQ
         | _ -> GT
@@ -95,11 +112,19 @@ module Basics =
     let inline sqrt x = sqrt x
 
     /// <summary>Remainder after division (modulo)</summary>
-    let inline remainderBy divisor dividend = dividend % divisor
+    let inline remainderBy divisor dividend =
+        match box divisor, box dividend with
+        | (:? int as divisor), (:? int as dividend) when
+            divisor = -1
+            && dividend = System.Int32.MinValue
+            ->
+            unbox (box 0)
+        | _ -> dividend % divisor
 
     /// <summary>Modulo operation (different from remainder for negative numbers)</summary>
     let modBy divisor dividend =
-        let r = dividend % divisor
+        let r = remainderBy divisor dividend
+
         if (r > 0 && divisor < 0) || (r < 0 && divisor > 0) then
             r + divisor
         else
@@ -116,3 +141,44 @@ module Basics =
 
     /// <summary>Convert turns to radians (1 turn = 2π radians)</summary>
     let inline turns t = t * 2.0 * System.Math.PI
+
+    let private checkedInt (value: float) =
+        if not (System.Double.IsFinite value) then
+            raise (System.ArithmeticException("A non-finite Float has no Int32 result."))
+
+        if
+            value < float System.Int32.MinValue
+            || value > float System.Int32.MaxValue
+        then
+            raise (System.OverflowException("The rounded value is outside Int32."))
+
+        int value
+
+    /// <summary>Round to the nearest Int32, resolving halves toward positive infinity.</summary>
+    let round (value: float) =
+        let low = System.Math.Floor value
+
+        (if
+             value
+             - low
+             >= 0.5
+         then
+             low + 1.0
+         else
+             low)
+        |> checkedInt
+
+    /// <summary>Round down to Int32; reject non-finite and out-of-range results.</summary>
+    let floor (value: float) =
+        System.Math.Floor value
+        |> checkedInt
+
+    /// <summary>Round up to Int32; reject non-finite and out-of-range results.</summary>
+    let ceiling (value: float) =
+        System.Math.Ceiling value
+        |> checkedInt
+
+    /// <summary>Truncate toward zero to Int32; reject non-finite and out-of-range results.</summary>
+    let truncate (value: float) =
+        System.Math.Truncate value
+        |> checkedInt

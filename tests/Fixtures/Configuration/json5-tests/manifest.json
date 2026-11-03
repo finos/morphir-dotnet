@@ -1,0 +1,628 @@
+{
+  "repository": "https://github.com/json5/json5-tests",
+  "revision": "ceb24d4080137d70833f86c25659c1331b80a387",
+  "license": "MIT",
+  "policyDifference": "objects/duplicate-keys.json is deliberately rejected; all other extension expectations follow upstream README",
+  "files": [
+    {
+      "path": "LICENSE.md",
+      "sha256": "e1db2a9e1a27b3896a0ae653658ee7d51b548a80fc982b839459fae76a3be1a7",
+      "expected": "metadata"
+    },
+    {
+      "path": "README.md",
+      "sha256": "8e5cb7ff0db122518126b4475c240e62c2601cc9ec6c7afe25a6bcb86e079d70",
+      "expected": "metadata"
+    },
+    {
+      "path": "arrays/empty-array.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "expected": "accepted"
+    },
+    {
+      "path": "arrays/leading-comma-array.js",
+      "sha256": "d1fcef8a0cb6e2377de855669eb1f622482d7b2e4bd7f15530e826b327528d13",
+      "expected": "rejected"
+    },
+    {
+      "path": "arrays/lone-trailing-comma-array.js",
+      "sha256": "af7fb1d8d01772176045e9597e5080fd135ea0a0e532bf7ec552156af912f571",
+      "expected": "rejected"
+    },
+    {
+      "path": "arrays/no-comma-array.errorSpec",
+      "sha256": "5dd3de985bd09e73188b5fa9a29c25918165acc0f2cbabf30caf550c7f7f02aa",
+      "expected": "metadata"
+    },
+    {
+      "path": "arrays/no-comma-array.txt",
+      "sha256": "94c3e7f7fc1c46bb72c2e18ccdc7fcea04503c4d58a750b6feb43a53532e0dd4",
+      "expected": "rejected"
+    },
+    {
+      "path": "arrays/regular-array.json",
+      "sha256": "1ad800fc824823980fd1e8cbbe0cdb58d2b951a4f88a0b258f4c495a307ebcc8",
+      "expected": "accepted"
+    },
+    {
+      "path": "arrays/trailing-comma-array.json5",
+      "sha256": "cccf2794f16a934c733d514737ac1d211a94bec367a1a97bf5fb4a868b6b8061",
+      "expected": "accepted"
+    },
+    {
+      "path": "comments/block-comment-following-array-element.json5",
+      "sha256": "c1d0762a946aa9a82dda72596c49e1c9d59bbbff796c5ec09c9e50521bf1ce7f",
+      "expected": "accepted"
+    },
+    {
+      "path": "comments/block-comment-following-top-level-value.json5",
+      "sha256": "d95e7cb0f42dabe3b86942ad445475dabd709db839a8638d8263e85d690d5d45",
+      "expected": "accepted"
+    },
+    {
+      "path": "comments/block-comment-in-string.json",
+      "sha256": "349192fd47fca5f68f80adc58aad68764e81231718c180f1267a127a62933e2c",
+      "expected": "accepted"
+    },
+    {
+      "path": "comments/block-comment-preceding-top-level-value.json5",
+      "sha256": "4993f5b08728a09fecf0eeb812d9087f8b7c0ad4d71746c3ac8938fe607d9d9d",
+      "expected": "accepted"
+    },
+    {
+      "path": "comments/block-comment-with-asterisks.json5",
+      "sha256": "f5dd34f546b1ea82dc1a0f2e0a995bb3404b471cd6e9b645cc8091ed13f99b73",
+      "expected": "accepted"
+    },
+    {
+      "path": "comments/inline-comment-following-array-element.json5",
+      "sha256": "4a16ed16dc8f5da5ff73a761efdce77be03599f4b8b56b4ce090a479793b7d13",
+      "expected": "accepted"
+    },
+    {
+      "path": "comments/inline-comment-following-top-level-value.json5",
+      "sha256": "400e2c6832b5aaafa3f48aa26880059ceca2eea38279ac1677d94e2c9f96d345",
+      "expected": "accepted"
+    },
+    {
+      "path": "comments/inline-comment-in-string.json",
+      "sha256": "766a90994c894a74eafac0a1797944d3b42f446786447254aaebe7e39b05cbbc",
+      "expected": "accepted"
+    },
+    {
+      "path": "comments/inline-comment-preceding-top-level-value.json5",
+      "sha256": "90ecd0eea9dd568f58ce9fc91eab47480957b2956801da5125168a689bb3a519",
+      "expected": "accepted"
+    },
+    {
+      "path": "comments/irregular-block-comment.json",
+      "sha256": "4df98cc9c444caf7d5680d29b420ee3ce0249eef0a18e1d7b0e5a6a4be690dd2",
+      "expected": "accepted"
+    },
+    {
+      "path": "comments/top-level-block-comment.errorSpec",
+      "sha256": "3824acb23cc020413c572d6db8c326f43e7848396a66f44d46c45583363a9a5a",
+      "expected": "metadata"
+    },
+    {
+      "path": "comments/top-level-block-comment.txt",
+      "sha256": "96d37b66b865316afa053dd3f40b273a88a9cb5f2d25c8243539dba0a7c73203",
+      "expected": "rejected"
+    },
+    {
+      "path": "comments/top-level-inline-comment.errorSpec",
+      "sha256": "de8196ba244f8c09e58fe94dd3d514c02f368923ef66230a82f9c7da89eae635",
+      "expected": "metadata"
+    },
+    {
+      "path": "comments/top-level-inline-comment.txt",
+      "sha256": "a6a6ac3f59d5bde0cb7de0d0c8051612072fc8f49efccb4f8a385e2b61302521",
+      "expected": "rejected"
+    },
+    {
+      "path": "comments/unterminated-block-comment.txt",
+      "sha256": "37dbcfcd2999244bbe34d76411853b63fc2887291450b38584678ed7c02c5c8e",
+      "expected": "rejected"
+    },
+    {
+      "path": "misc/empty.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected": "rejected"
+    },
+    {
+      "path": "misc/npm-package.json",
+      "sha256": "810a9c818366e3ae9fb8c11775316860ab264d8981a7d47954d26bbefd4d2a02",
+      "expected": "accepted"
+    },
+    {
+      "path": "misc/npm-package.json5",
+      "sha256": "cd42a24b8b14de8587106016225145f252ec19c077f690ec44670af52bd6d83a",
+      "expected": "accepted"
+    },
+    {
+      "path": "misc/readme-example.json5",
+      "sha256": "fd6f0189aa080fccef2ab5e95abb3c35061c5b10df6cd4e4246d260187b0d117",
+      "expected": "accepted"
+    },
+    {
+      "path": "misc/valid-whitespace.json5",
+      "sha256": "1eeb2e22c9da3bdf18db25475fb238d667417304ad7cf2624a982d9ab8a80eef",
+      "expected": "accepted"
+    },
+    {
+      "path": "new-lines/comment-cr.json5",
+      "sha256": "68bd2494beb91261fb95c4745b677263a4e8dcce81ea03ef160d5001947e51f9",
+      "expected": "accepted"
+    },
+    {
+      "path": "new-lines/comment-crlf.json5",
+      "sha256": "eb5cc165ab7489d7feb3481657c78f2cfca553f917ed9dae6a593fc93ecb9c87",
+      "expected": "accepted"
+    },
+    {
+      "path": "new-lines/comment-lf.json5",
+      "sha256": "3b1dc552953fb5d94af160f00d8581c865c8b6a8f6a0a9b6f02948cb2450b4a0",
+      "expected": "accepted"
+    },
+    {
+      "path": "new-lines/escaped-cr.json5",
+      "sha256": "858048863f082dbc4551bd2182600f7b7ff992fd249f236d006bb8de2d9699f9",
+      "expected": "accepted"
+    },
+    {
+      "path": "new-lines/escaped-crlf.json5",
+      "sha256": "8dcfe52985fd633d5c1eb64a19fadb863b561e4bc30231f32d568deec242d8b1",
+      "expected": "accepted"
+    },
+    {
+      "path": "new-lines/escaped-lf.json5",
+      "sha256": "9d1a48fb8faeefcbe387d648eb3f5586bf863abbc9f27bd7b31c5f93ec4c719b",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/float-leading-decimal-point.json5",
+      "sha256": "eb5bde5c0af226f06479c3608311e454b35d498b43a4010feff3f89fc67553e5",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/float-leading-zero.json",
+      "sha256": "8d5c1b5a87c51f970807fc0c2057b3ab3aaf11638ab667dc5956edc8f5bcf138",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/float-trailing-decimal-point-with-integer-exponent.json5",
+      "sha256": "87e2ca3ec7578b0e29f827b4c0e6bad3451f9c2266106c58df2c61773de1c3d4",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/float-trailing-decimal-point.json5",
+      "sha256": "e2e5fa9e83c66f5d1d95288e114b6eadd5d508216901eb43756d620ba58441e4",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/float-with-integer-exponent.json",
+      "sha256": "d04fc2bb43ddad254f13c5cab240eaf745edd136767bc93d3cb4612d63d9cd13",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/float.json",
+      "sha256": "44804414f85bef9588f60086587fd6e8871b39123c831ec129624f4d81a95fea",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/hexadecimal-empty.txt",
+      "sha256": "d0a00c80ae48701de756e7a5a5a59eabb25c71cd60b9cee5a193e895b25b163f",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/hexadecimal-lowercase-letter.json5",
+      "sha256": "929f11e57a2e4c761725b9979267e80a6636df13d413b72460143735de9bffb4",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/hexadecimal-uppercase-x.json5",
+      "sha256": "278ee9d288641eadfaa3a7ec26862224a7c66a3aa2cd072716d41cd2ea25a4ca",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/hexadecimal-with-integer-exponent.json5",
+      "sha256": "d0b7b34ab5f08584a6301314108854e2e5b097806faf160e2dd1a2eeafef6072",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/hexadecimal.json5",
+      "sha256": "015bb22876fed374a2d6b90bedf2901e2e1709a714acabc3c026ee4cead595f7",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/infinity.json5",
+      "sha256": "fdad2f29068ebb0c933499d47bc072d31bcae62158b7956b6f51a3f7d5ca5a37",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/integer-with-float-exponent.txt",
+      "sha256": "b21587480f818c2ddf95168a2a02ef0db161a6109948b00b1747dc8ff2b96213",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/integer-with-hexadecimal-exponent.txt",
+      "sha256": "21008e85780f1e12e7c46107fd7e8f270a66f0f26661231d2759372194313a2b",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/integer-with-integer-exponent.json",
+      "sha256": "b2abaaf64830cfe2e8eb56f267e448f92e9bcedfa4e7a2e6704920960d7986ed",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/integer-with-negative-float-exponent.txt",
+      "sha256": "319236cf9555bce4abcb4c972017a1630f138be37bc912c2157b31489a6d18a9",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/integer-with-negative-hexadecimal-exponent.txt",
+      "sha256": "27fffda6ebefb09f1650aa8f342a6b7fe314938989be0da5baf346c109d7d480",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/integer-with-negative-integer-exponent.json",
+      "sha256": "2809b105ea3daa707aa749b224cb08dff9ac700e6a51cdd998f0e7142cc7e184",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/integer-with-negative-zero-integer-exponent.json",
+      "sha256": "e3f3257a1ae6436f2acef4f9db51eba551a4cce97d031ed92b8669dacff409c5",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/integer-with-positive-float-exponent.txt",
+      "sha256": "53d6e6b43db3101cbec1143adf17bc9883494ced5a2cb3c8ab39836fff315dec",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/integer-with-positive-hexadecimal-exponent.txt",
+      "sha256": "c00d300b1547e999c1e5eaaf82e4a166afc2b174e09d2b8f5c68012eb2644a74",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/integer-with-positive-integer-exponent.json",
+      "sha256": "48ecf80fcef186e4555369940e867ef39604decdb67fde13aa03f3246b6680cf",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/integer-with-positive-zero-integer-exponent.json",
+      "sha256": "2935c53347bb5d85abad632dc6ffafe7d7151b227900fbbe670e0a6d5ef61dc7",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/integer-with-zero-integer-exponent.json",
+      "sha256": "aede3747e3946f1c1f112d75968c65a067f3e580b6c93218b96c8aeadba142a9",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/integer.json",
+      "sha256": "238903180cc104ec2c5d8b3f20c5bc61b389ec0a967df8cc208cdc7cd454174f",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/lone-decimal-point.txt",
+      "sha256": "eb4bd64f7014f7d42e9d358035802242741b974e8dfcd37c59f9c21ce29d781e",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/nan.json5",
+      "sha256": "3f3ea8a1afc0f5a6ce7ace3152abfdaa52ea3726c4f66e728790f42cbc005901",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-float-leading-decimal-point.json5",
+      "sha256": "3bafa65e1203018fcfe44ab63feddf13d9891dbedabc05b69848bfc81861d321",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-float-leading-zero.json",
+      "sha256": "4a2332905378bca1713f0d3d7bbe8c2f23bd82be99c55ee4fea232eced1f5655",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-float-trailing-decimal-point.json5",
+      "sha256": "61d3999f512c194dcb973c832aa389bfb41827087d0d89f35bce142b1afe4b87",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-float.json",
+      "sha256": "a67b5b961361fbb7296c243b057cdb31329d191625a8c2917b04111f893250d1",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-hexadecimal.json5",
+      "sha256": "b7f66fdd95a0988cc5f4d41b104b7d7511cd640b823d72a9c63eec1c8568e2a3",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-infinity.json5",
+      "sha256": "761dd7a9ef3147855443eef442fbfdd099eec1dedbd2f8594f73b7195a6bb160",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-integer.json",
+      "sha256": "0e55cbbc9d11449b186092d82905aa6974858df7a0b7d706ae51c4716c9461ef",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-noctal.js",
+      "sha256": "cb9ca07f8e84554ffa5456b046c259fb7cb2f5cce83cb67b97ab8db3771043e6",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/negative-octal.txt",
+      "sha256": "e3e02da73332a61f889b29db21cc36cccb4699554394c09cfb47183f8fa3660b",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/negative-zero-float-leading-decimal-point.json5",
+      "sha256": "5b12edd70419c78e7472ec554de6c163f0a10d4c62ced5ae8b1b63d09608380c",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-zero-float-trailing-decimal-point.json5",
+      "sha256": "e699123f70cf0afe3c26ebe11b47c7ba9cb4f8894cdca6555a448768c965e605",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-zero-float.json",
+      "sha256": "8c64e3f449e2b457b1c47e9e2864d25e03e9f4bd6cd0883819d67b45c584a73d",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-zero-hexadecimal.json5",
+      "sha256": "1730debf746e10e620f62cdb18a0a1eed090e2631cdb7708ab900706b604b5f3",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-zero-integer.json",
+      "sha256": "dde762c792f326de5677fd0629e0a0d9541a153228dd46781c4aeb5e842f460e",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/negative-zero-octal.txt",
+      "sha256": "df9e931434f373c48dd963c6fb45b8d33b025cc6d20480e40bd0422c1a5848e6",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/noctal-with-leading-octal-digit.js",
+      "sha256": "e975df1aa7cc1b7e78f250709b26028e24f5e6b79108521ade43969870eef73c",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/noctal.js",
+      "sha256": "5ca8a15a5d9d5a15371a07c8059f0db017af494d4bf395461b39a8a054f61d97",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/octal.txt",
+      "sha256": "1cbabfc451e94f47d5c338f8a1ec9817d9772d6531b51beb2aadc9e6844a85f3",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/positive-float-leading-decimal-point.json5",
+      "sha256": "d2f270e669fd591620bc3a814ea95dfa0d409da8610482a7e63003814f235790",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-float-leading-zero.json5",
+      "sha256": "ab41a109b92794da3a75022ba1d75ed96f655a79b2f0836a9787445a3cf545b0",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-float-trailing-decimal-point.json5",
+      "sha256": "b1b0304d3f7d987d9044f4a7ab75e26e773013460586a5b4ec51d4dfac429c09",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-float.json5",
+      "sha256": "365e3f55b0fe8b0bbc9bbafdf0ce67660e7b317637eabc062c24836c13e49ba1",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-hexadecimal.json5",
+      "sha256": "36222adf2670ec1afbd8d6efcf18b4fd5c4fe50c8214d4caa081a6e10344a91b",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-infinity.json5",
+      "sha256": "eac3891b0c2b010c734bfdbe835ad9544202200815b64c108a37514d50434565",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-integer.json5",
+      "sha256": "2b35cbb8b4026bdc63cdc192015ac0131e7b738cfec67fbb6c032275b57a39c0",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-noctal.js",
+      "sha256": "155d9c3db152740c62e37fc98d009ed0a1d876863b7f2fc2844280fa7849d74c",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/positive-octal.txt",
+      "sha256": "7de2d71329f6dae81c924cec4d8c07487e616cfbf6093c22c1556142e4e4fe84",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/positive-zero-float-leading-decimal-point.json5",
+      "sha256": "0ae4e0bc4fea568df7513b0f44b8c03ff1546c0fb00a86cdcdea9139f30f593e",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-zero-float-trailing-decimal-point.json5",
+      "sha256": "348014f35bcc739871dfe3d4d9a619eff672c6224753b8dadaed5327fcc71fa0",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-zero-float.json5",
+      "sha256": "a5e8cfc7f671f4bb80052193f88505f5616ca67411ea9946ecf48da1d3872f4d",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-zero-hexadecimal.json5",
+      "sha256": "1891c20f455ee112554851b6d808ea0a10d08b1819cdc345b870ee773117c827",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-zero-integer.json5",
+      "sha256": "bfccdd6c5c2faa710a992013eb60ebc3159d693e638b8215aaf74602a09fd058",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/positive-zero-octal.txt",
+      "sha256": "48174c7f14a0bcf2177794d84badba659fe43e45957dd041facd2ec3098176ad",
+      "expected": "rejected"
+    },
+    {
+      "path": "numbers/zero-float-leading-decimal-point.json5",
+      "sha256": "6c1b82e13dd9bb9ff1589a2723ba0fa12b600127ad7e5ddbf44b39fb1a58a3f0",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/zero-float-trailing-decimal-point.json5",
+      "sha256": "f45920c624da7379375e1929c7a09f39c7a3c43147892712ac65e8faf8b08aee",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/zero-float.json",
+      "sha256": "51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/zero-hexadecimal.json5",
+      "sha256": "682fbb22114e95876c4eae23a5952ef81ac6dfa997563a05ba0404cf12840a74",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/zero-integer-with-integer-exponent.json",
+      "sha256": "ffd060936f2c18c7bd93aac9fdaf5e19d06f7ef75771b8e6007f3890b1e25cd6",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/zero-integer.json",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "expected": "accepted"
+    },
+    {
+      "path": "numbers/zero-octal.txt",
+      "sha256": "d9b2aefb1febe2dd6e403f634e18917a8c0dd1a440c976e9fe126b465ae9fc8d",
+      "expected": "rejected"
+    },
+    {
+      "path": "objects/duplicate-keys.json",
+      "sha256": "5fc81e547d8e652bc0dd3d3606d91a2392266bebe29b777cd13fc32e0d24b338",
+      "expected": "rejected"
+    },
+    {
+      "path": "objects/empty-object.json",
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": "accepted"
+    },
+    {
+      "path": "objects/illegal-unquoted-key-number.errorSpec",
+      "sha256": "298b709478f55ddd5a19f0da1f588fb2d1998acda4d475e4b238197ba6bab3d5",
+      "expected": "metadata"
+    },
+    {
+      "path": "objects/illegal-unquoted-key-number.txt",
+      "sha256": "5044dffc4536e8ee65a75881695165637118a3a9e391e00dd872d3ab66dc1490",
+      "expected": "rejected"
+    },
+    {
+      "path": "objects/illegal-unquoted-key-symbol.errorSpec",
+      "sha256": "4e740afa80ea3ef5522e73c5b776c72bf49d788b9553dbec28f345ca6722069a",
+      "expected": "metadata"
+    },
+    {
+      "path": "objects/illegal-unquoted-key-symbol.txt",
+      "sha256": "2a8c2466d6d80d6446aa15dd4e5e42e58847c950f3785e776a41c03581b52321",
+      "expected": "rejected"
+    },
+    {
+      "path": "objects/leading-comma-object.errorSpec",
+      "sha256": "298b709478f55ddd5a19f0da1f588fb2d1998acda4d475e4b238197ba6bab3d5",
+      "expected": "metadata"
+    },
+    {
+      "path": "objects/leading-comma-object.txt",
+      "sha256": "53eea58e8f39a9eed53cc6eea3ad3de5a202856a12086008878e02132428bb90",
+      "expected": "rejected"
+    },
+    {
+      "path": "objects/lone-trailing-comma-object.txt",
+      "sha256": "de41b154c827fc20ef7f49c772d144f1aaa6d8522d2a85c4bf1684a93757c608",
+      "expected": "rejected"
+    },
+    {
+      "path": "objects/no-comma-object.txt",
+      "sha256": "13ba7aab131aa66a61ccf0666814e59ec2a6e73e24f20a8e8edf38c2282d8e60",
+      "expected": "rejected"
+    },
+    {
+      "path": "objects/reserved-unquoted-key.json5",
+      "sha256": "dae49b7b0c8e32afdc2812288a356eb91f72771792a113fe58260875ec51f10c",
+      "expected": "accepted"
+    },
+    {
+      "path": "objects/single-quoted-key.json5",
+      "sha256": "f3e7903b9378effc528407e75874ef50569d28b7ea88818cfbe05b88f0dd1099",
+      "expected": "accepted"
+    },
+    {
+      "path": "objects/trailing-comma-object.json5",
+      "sha256": "b8789c5c8431c1a463c608302200bdaecb807f4cafab8c85543841047641e145",
+      "expected": "accepted"
+    },
+    {
+      "path": "objects/unquoted-keys.json5",
+      "sha256": "d9bac3a455f2f135642997457eb2c071ac5cd8e3b6047ba5904799e0ebbb27ef",
+      "expected": "accepted"
+    },
+    {
+      "path": "strings/escaped-single-quoted-string.json5",
+      "sha256": "493e1fd38a480ee7c32fff76b8fc78bb499b7fe07fe16de4211a938f6477500a",
+      "expected": "accepted"
+    },
+    {
+      "path": "strings/multi-line-string.json5",
+      "sha256": "402b8bd110ec431e7e0710ef9ff818eb6f26a66db0089f0e052aeaa8b3bd7114",
+      "expected": "accepted"
+    },
+    {
+      "path": "strings/no-comma-array.errorSpec",
+      "sha256": "faf82ccc617174c1293bc6cf82332743de0f8ec8cb71f18697b8dec4ac859147",
+      "expected": "metadata"
+    },
+    {
+      "path": "strings/single-quoted-string.json5",
+      "sha256": "c3a5789ee2dd379f5136ee028030c1b090fbda5d290bfedd06d816f5a142d43b",
+      "expected": "accepted"
+    },
+    {
+      "path": "strings/unescaped-multi-line-string.errorSpec",
+      "sha256": "3b09240fb899268735d41ec64481dbb0c53f3a9682786162605ac60e032cc055",
+      "expected": "metadata"
+    },
+    {
+      "path": "strings/unescaped-multi-line-string.txt",
+      "sha256": "fc90c41812102f247fbddead609cb41226887dafe14d1bb4ec4bb7a990d9120e",
+      "expected": "rejected"
+    },
+    {
+      "path": "todo/unicode-escaped-unquoted-key.json5",
+      "sha256": "3293ae840988a525f73c7f1df4493138f1322e87f1ee69c8642115cad6a1ba8a",
+      "expected": "accepted"
+    },
+    {
+      "path": "todo/unicode-unquoted-key.json5",
+      "sha256": "18060b7cfc523a4e61c4e3e5122d040b3e17ecc7e143b3dcf148f3619dced452",
+      "expected": "accepted"
+    }
+  ]
+}
