@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>integrate-csharp-generation-cli</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>integrate-csharp-generation-cli</h1>
+<p class="meta">OpenSpec change | 2026-11-02 | Proposed, implementation not started</p>
+<p><a href="proposal.md">Proposal</a> | <a href="tasks.md">Tasks</a> | <a href="handoff.md">Codex handoff</a></p>
+<nav class="toc" aria-label="Contents"><ul><li><a href="#context">Context</a></li><li><a href="#goals">Goals and non-goals</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#ownership">Thread ownership and dependency gates</a></li><li><a href="#verification">Verification</a></li><li><a href="#risks">Risks and trade-offs</a></li><li><a href="#migration">Migration plan</a></li></ul></nav>
+<h2 id="context">Context</h2><p>The generation application already resolves exact targets, validates immutable backend options, loads typed JSON/Ion models, and publishes VFileTree through an ownership manifest. GenerationScenario statically registers the F# provider. The completed add-generate-command change contains newer behavior than the archived main F# spec.</p>
+<h2 id="goals">Goals and non-goals</h2><p>Add a thin first-party C# provider and CLI evidence while retaining the current application/publication contracts. Exclude config discovery, new publisher semantics, a build command, plugin installation and Roslyn integration.</p>
+<h2 id="decisions">Decisions</h2>
+<h3 id="land-1">LAND-1. Squash-aware landing and cleanup</h3><p>Prefer squash merging for initiative and archival PRs unless PR instructions or repository settings select another method. Record the actual method, the distinct final submitted head SHA and the hosting service's recorded landed SHA. Verify that the exact PR is merged into main and its landed commit is reachable from refreshed main. Original worker commits need not remain ancestors of main after a squash. Successors use main with the landed SHA. Before cleanup, verify a clean owned worktree and HEAD matching its last submitted PR head with no extra local commits; git branch --merged is not landing proof for a squash.</p>
+<h3 id="cscli-1">CSCLI-1. Adapt the library at the existing boundary</h3><p>Implement CSharpGenerationBackend : IGenerationBackend and register it beside FSharpGenerationBackend in GenerationScenario. Declare only the exact model/distribution capabilities verified by the library. Adapt generated text sources to VFileTree and diagnostics to GenerationDiagnostic. Do not change the resolver to special-case C#, reopen retained input or load the generator dynamically.</p>
+<h3 id="cscli-2">CSCLI-2. Use a small validated option vocabulary</h3><p>Accept numeric JSON language-version 14 or 15, default 14, and optional namespace as a validated C# namespace string. Reuse core validation so direct and CLI callers agree. Repeated options retain the existing last-wins rule. Wrong JSON kinds, preview/latest aliases, unsupported numbers, invalid names and unknown keys are invocation errors. Namespace selection affects generated names only through the core's deterministic naming contract. Do not add a second top-level language flag or advertise unavailable optimization options.</p>
+<h3 id="cscli-3">CSCLI-3. Keep compiler and publication work with the caller</h3><p>The backend request has no output directory; successful sources are published through GenerationPublisher. JSON stdout, stderr diagnostics and exit codes retain existing behavior. The CLI emits source without installing or invoking a compiler. Tests compile the resulting files separately under the matching toolchain. Static registration, source-generated report serialization and reflection-free execution preserve trimming/AOT.</p>
+<h3 id="cscli-4">CSCLI-4. Add a cohesive C# capability without rewriting in-flight history</h3><p>cli-model-generation is currently defined in add-generate-command, which is complete but not archived here. This change adds cli-csharp-generation alongside it and references the existing contracts. Do not modify or archive another change, or rewrite main specs to pretend that delta is already merged. During integration, verify the prerequisite CLI implementation commit and preserve its entire published contract.</p>
+<h2 id="ownership">Thread ownership and dependency gates</h2><p>Start implementation only after <a href="../add-csharp-code-generation/proposal.md">add-csharp-code-generation</a> has a verified PR merged into main. Start the worker checkout from main containing those merge commits, not an unmerged sibling branch.</p><p>Use the exact <a href="handoff.md">worker brief</a> and <a href="../../../docs/design/dotnet-csharp-generation/orchestration.md">coordination rules</a>. Runtime and generation signatures come from the merged predecessor. Shared solution, package and PRD-index edits are integrated serially. The worker owns only this change and its listed implementation areas.</p><p>Completion requires a PR merged into main, verification of the merge commit, and removal of this initiative's clean worker worktree. An open PR or checked task list is not completion. Preserve uncommitted or unrelated work; do not remove the coordinator's checkout.</p>
+<h2 id="verification">Verification</h2><p>Use the scenarios in <a href="specs/cli-csharp-generation/spec.md">cli-csharp-generation</a> and the per-group checks in <a href="tasks.md">tasks.md</a>. Follow red/green/refactor for production behavior. Test actual packaged/runtime/generated consumers where applicable; record exact toolchain versions and commands. Before contribution, run the repository-required full suite, coverage and formatting checks in addition to focused tests. No AI coauthor trailers.</p><p>Land only after the PR's required checks and reviews pass. Link created or pushed PRs through the orchestrator. If checks or reviews are pending, use the PR-watch mechanism and resume from its event rather than calling the initiative done. Final evidence records the PR URL, head and merge SHAs, checks/reviews, confirmed main inclusion and workspace cleanup.</p>
+<h2 id="risks">Risks and trade-offs</h2><table><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody><tr><td>Tests prove only a fake backend</td><td>Exercise the real registered provider with nonempty typed libraries and execute its output.</td></tr><tr><td>A semantic failure becomes an operational exit</td><td>Map the library's typed failures to the established 1/2/130 categories and test each.</td></tr><tr><td>Unsafe output damages user data</td><td>Reuse the existing publisher and its overlap/path/ownership failure tests for the C# target.</td></tr></tbody></table>
+<h2 id="migration">Migration plan</h2><p>Add one provider registration, a project reference and additive docs. Keep existing F# invocations and JSON schema behavior. Rollback removes the C# registration and dependency; do not remove generated user files or change ownership-manifest semantics.</p>
+
+</main>
+</body>
+</html>
