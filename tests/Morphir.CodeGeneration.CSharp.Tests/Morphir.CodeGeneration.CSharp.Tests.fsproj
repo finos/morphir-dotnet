@@ -17,6 +17,8 @@
     <Reference Include="Microsoft.CodeAnalysis.CSharp" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="TypeCases.fs" />
+    <Compile Include="RefusalCases.fs" />
     <Compile Include="Tests.fs" />
     <None Include="Generation.feature" />
   </ItemGroup>

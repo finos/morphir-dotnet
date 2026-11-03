@@ -32,3 +32,21 @@ Feature: Reusable typed C# library generation
     Given an unsupported declaration after a valid module
     When generation runs
     Then a located rule diagnostic is returned without any sources
+
+  Scenario: Immutable generic types retain SDK meaning
+    Given equivalent classic and v4 aliases, generic records and custom cases
+    When both numeric compiler profiles compile and execute the type consumer
+    Then payloads are get-only and Result has error first and value second
+    And a separate consumer cannot access private constructors
+
+  Scenario: Structural equality uses the SDK protocol
+    Given independently allocated nested records, lists and custom cases
+    When the compiled consumer compares typed and boxed values and hashes
+    Then every payload follows Morphir equality including NaN and signed zero
+    And decimal scale does not change equality or hashing
+
+  Scenario: Transparent aliases preserve structural visibility
+    Given a public alias of a private closed record
+    When the compiled consumer constructs the public alias
+    Then a public immutable structural representation is available
+    But a public payload exposing a private nominal type fails generation

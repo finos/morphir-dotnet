@@ -15,8 +15,8 @@ defines acceptance. PR readiness precedes coordinator-owned landing and archival
 | In-memory entry-point foundation | Implemented | Empty input and caller cancellation tests written first; broad lowering pending |
 | Modern packaged compiler-host closure | Implemented | Fresh packages, incremental driver AddSource, compiled/executed constant and cancellation |
 | Numeric C# 14 and 15 profiles | Implemented | Actual matching compilers compile and execute identical constant-source bytes; broad corpus pending |
-| Classic and v4 typed lowering | Planned | No serialization or migration bridge |
-| Immutable aliases, records, cases and structural equality | Planned | Compiled consumers |
+| Classic and v4 typed lowering | In Progress | Independent typed type walkers; expressions pending; no serialization or migration bridge |
+| Immutable aliases, records, cases and structural equality | Implemented | Shared type corpus compiled/executed in all four family/profile combinations |
 | Expressions, lexical scope, ordered patterns and SDK calls | Planned | Shared behavior corpus |
 | Determinism, located refusals and traversal cancellation | Planned | Positive and negative behavior tests |
 | Package, trimming, full tests and coverage | Planned | Exact commands and denominators required |
@@ -41,7 +41,15 @@ representation exclusions. Historical F# gaps remain historical evidence.
 
 ## Open questions
 
-The entry point is provisional until the packaged modern compiler-host smoke
-passes with the real Models dependency closure. Legacy IDE and netstandard hosts
-remain untested. Shared solution/build/package/docs registrations are coordinated
-serially with the root.
+The packaged modern compiler-host smoke passed with the real Models dependency
+closure. Legacy IDE and netstandard hosts remain untested. Root-approved shared
+solution/build/package/docs registrations are integrated and their serial edit
+lease is released. Expression lowering, naming/capture, cancellation during
+traversal and final package/trimming acceptance remain open.
+
+The type checkpoint uses get-only classes and closed nested cases in both
+profiles. Transparent aliases expand to their structural representation, while
+custom cases retain nominal identity. Public aliases of private structural
+records produce usable public records; exposing a private nominal type fails.
+Generated equality and hashing explicitly use the SDK structural protocol for
+exactly the same payloads, including nested collections and boxed cases.

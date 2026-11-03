@@ -1,4 +1,4 @@
-module Morphir.CodeGeneration.CSharp.Tests
+module Morphir.CodeGeneration.CSharp.Tests.Program
 
 open System
 open System.Threading
@@ -158,9 +158,248 @@ let hostSmoke model =
     let generated = assembly.GetType("Example.Sample", true)
     Expect.equal (generated.GetMethod("Answer").Invoke(null, [||]) :?> int) 42 "executed constant"
 
+let executeConsumer model language consumer =
+    let result =
+        CSharpGenerator.Generate(model, { LanguageVersion = language }, CancellationToken.None)
+
+    Expect.equal result.Status GenerationStatus.Success (sprintf "%A" result.Diagnostics)
+    let runtime = typeof<Morphir.SDK.CSharp.Unit>.Assembly.Location
+
+    let refs =
+        Array.append (references ()) [|
+            MetadataReference.CreateFromFile(runtime) :> MetadataReference
+        |]
+
+    let trees = [ for source in result.Sources -> CSharpSyntaxTree.ParseText(source.Text) ]
+
+    let trees =
+        CSharpSyntaxTree.ParseText(consumer: string)
+        :: trees
+
+    let compilation =
+        CSharpCompilation.Create(
+            "Consumer"
+            + Guid.NewGuid().ToString("N"),
+            trees,
+            refs,
+            CSharpCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                generalDiagnosticOption = ReportDiagnostic.Error
+            )
+        )
+
+    use stream = new IO.MemoryStream()
+    let emitted = compilation.Emit(stream)
+    Expect.isTrue emitted.Success (String.Join("\n", emitted.Diagnostics))
+    let assembly = Reflection.Assembly.Load(stream.ToArray())
+    assembly.GetType("Observation", true).GetMethod("Run").Invoke(null, [||]) :?> int
+
+let externalDiagnostics model (consumer: string) =
+    let result =
+        CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+    Expect.equal result.Status GenerationStatus.Success (sprintf "%A" result.Diagnostics)
+
+    let refs =
+        Array.append (references ()) [|
+            MetadataReference.CreateFromFile(typeof<Morphir.SDK.CSharp.Unit>.Assembly.Location)
+            :> MetadataReference
+        |]
+
+    let trees =
+        result.Sources
+        |> List.map (fun source -> CSharpSyntaxTree.ParseText(source.Text))
+
+    let library =
+        CSharpCompilation.Create(
+            "GeneratedLibrary"
+            + Guid.NewGuid().ToString("N"),
+            trees,
+            refs,
+            CSharpCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                generalDiagnosticOption = ReportDiagnostic.Error
+            )
+        )
+
+    use stream = new IO.MemoryStream()
+    let emitted = library.Emit(stream)
+    Expect.isTrue emitted.Success (String.Join("\n", emitted.Diagnostics))
+
+    let libraryReference =
+        MetadataReference.CreateFromImage(ImmutableArray.CreateRange<byte>(stream.ToArray()))
+        :> MetadataReference
+
+    let compilation =
+        CSharpCompilation.Create(
+            "External",
+            [ CSharpSyntaxTree.ParseText(consumer) ],
+            Array.append refs [| libraryReference |],
+            CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+        )
+
+    compilation.GetDiagnostics()
+    |> Seq.toList
+
 [<Tests>]
 let tests =
     testList "C# generation" [
+        for label, rule, model in
+            RefusalCases.classicCases
+            @ RefusalCases.v4Cases do
+            testCase (
+                "Located type refusal "
+                + label
+            )
+            <| fun _ ->
+                let result =
+                    CSharpGenerator.Generate(
+                        model,
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal result.Status GenerationStatus.Failure "no success-shaped result"
+                Expect.isEmpty result.Sources "no partial output"
+                Expect.equal result.Diagnostics.Head.Rule rule "stable refusal"
+                Expect.isNonEmpty result.Diagnostics.Head.Location "model location"
+        for family, model in [ "classic", TypeCases.classic; "v4", TypeCases.v4 ] do
+            testCase (
+                "Private constructors remain inaccessible to a separate consumer "
+                + family
+            )
+            <| fun _ ->
+                let diagnostics =
+                    externalDiagnostics
+                        (model ()
+                         |> TypeCases.hideConstructors)
+                        "public class External { public static object Run() => new Example.Data.Choice<int>.Value(3); }"
+
+                Expect.isTrue
+                    (diagnostics
+                     |> List.exists (fun diagnostic -> diagnostic.Id = "CS0122"))
+                    "consumer cannot construct a hidden case"
+        testCase "Generation is invariant under Turkish culture"
+        <| fun _ ->
+            let current = Globalization.CultureInfo.CurrentCulture
+
+            try
+                Globalization.CultureInfo.CurrentCulture <-
+                    Globalization.CultureInfo.InvariantCulture
+
+                let first =
+                    CSharpGenerator.Generate(
+                        constantModel (),
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Globalization.CultureInfo.CurrentCulture <-
+                    Globalization.CultureInfo.GetCultureInfo("tr-TR")
+
+                let second =
+                    CSharpGenerator.Generate(
+                        constantModel (),
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal
+                    second.Status
+                    GenerationStatus.Success
+                    "culture must not change admission"
+
+                Expect.equal second.Sources first.Sources "same paths and bytes"
+            finally
+                Globalization.CultureInfo.CurrentCulture <- current
+        testCase "Two public records mapping to one C# identity are refused"
+        <| fun _ ->
+            let model =
+                TypeCases.classic ()
+                |> mapClassicModules (
+                    Map.map (fun _ controlled ->
+                        let person =
+                            controlled.Value.Types
+                            |> Map.find (Name.fromString "person")
+
+                        { controlled with
+                            Value =
+                                { controlled.Value with
+                                    Types =
+                                        Map.ofList [
+                                            Name [ "a"; "b" ], person
+                                            Name [ "AB" ], person
+                                        ]
+                                }
+                        }
+                    )
+                )
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Failure "collision before source success"
+            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable rule"
+            Expect.isEmpty result.Sources "no writable partial output"
+        testCase "Private modules are internal in generated source"
+        <| fun _ ->
+            let model =
+                constantModel ()
+                |> mapClassicModules (
+                    Map.map (fun _ controlled ->
+                        { controlled with
+                            Access = AccessControlled.Private
+                        }
+                    )
+                )
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.stringContains
+                result.Sources.Head.Text
+                "internal static class"
+                "module visibility"
+        for family, model in [ "classic", TypeCases.classic; "v4", TypeCases.v4 ] do
+            testCase (
+                "Compiled immutable type construction "
+                + family
+            )
+            <| fun _ ->
+                Expect.equal
+                    (executeConsumer (model ()) 14 TypeCases.consumer)
+                    17
+                    "independent construction observation"
+
+            testCase (
+                "Compiled structural value protocol "
+                + family
+            )
+            <| fun _ ->
+                Expect.equal
+                    (executeConsumer (model ()) 14 TypeCases.equalityConsumer)
+                    1
+                    "independent boxed/nested numeric observations"
+
+            testCase (
+                "Record aliases retain structural transparency "
+                + family
+            )
+            <| fun _ ->
+                Expect.equal
+                    (executeConsumer (model ()) 14 TypeCases.aliasConsumer)
+                    15
+                    "equivalent records share the represented type"
+
+            testCase (
+                "Nested closed records retain typed immutable properties "
+                + family
+            )
+            <| fun _ ->
+                Expect.equal
+                    (executeConsumer (model ()) 14 TypeCases.nestedConsumer)
+                    1
+                    "nested/function/unit types"
         testCase "Empty v4 libraries preserve their typed family and source declaration"
         <| fun _ ->
             for version in [ "4"; "4.0.0" ] do
@@ -451,15 +690,20 @@ let tests =
 [<EntryPoint>]
 let main args =
     if
-        args.Length = 3
+        args.Length = 4
         && args[0] = "--export-profile"
     then
         let options = {
             LanguageVersion = Int32.Parse(args[1], Globalization.CultureInfo.InvariantCulture)
         }
 
-        let result =
-            CSharpGenerator.Generate(constantModel (), options, CancellationToken.None)
+        let model =
+            if args[2] = "classic" then
+                TypeCases.classic ()
+            else
+                TypeCases.v4 ()
+
+        let result = CSharpGenerator.Generate(model, options, CancellationToken.None)
 
         if
             result.Status
@@ -468,12 +712,34 @@ let main args =
             failwithf "%A" result.Diagnostics
 
         for source in result.Sources do
-            let path = IO.Path.Combine(args[2], source.RelativePath)
+            let path = IO.Path.Combine(args[3], source.RelativePath)
 
             IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(path))
             |> ignore
 
             IO.File.WriteAllText(path, source.Text, UTF8Encoding(false))
+
+        let consumers =
+            [
+                "Construction", TypeCases.consumer
+                "Equality", TypeCases.equalityConsumer
+                "Aliases", TypeCases.aliasConsumer
+                "Nested", TypeCases.nestedConsumer
+            ]
+            |> List.map (fun (name, body) ->
+                "namespace "
+                + name
+                + " {\n"
+                + body
+                + "\n}\n"
+            )
+            |> String.concat ""
+
+        IO.File.WriteAllText(
+            IO.Path.Combine(args[3], "Observation.cs"),
+            consumers,
+            UTF8Encoding(false)
+        )
 
         0
     else

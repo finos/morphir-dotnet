@@ -43,24 +43,30 @@ function Invoke-Proof([string]$Name, [string]$WorkingDirectory, [string[]]$Argum
 $feed = Join-Path $proof 'feed'
 New-Item -ItemType Directory -Force -Path $feed | Out-Null
 $version = '0.0.0-generatorproof'
-foreach ($project in @('Morphir.Models', 'Morphir.CodeGeneration.CSharp')) {
-    Invoke-Proof "pack-$project" $repo @('pack', "src/$project/$project.fsproj", '-o', $feed, '-p:Version=0.0.0-generatorproof', '-m:1', '-p:UseSharedCompilation=false', '-nodeReuse:false', '--nologo')
+foreach ($project in @('Morphir.Models', 'Morphir.CodeGeneration.CSharp', 'Morphir.SDK.CSharp')) {
+    $extension = if ($project -eq 'Morphir.SDK.CSharp') { 'csproj' } else { 'fsproj' }
+    Invoke-Proof "pack-$project" $repo @('pack', "src/$project/$project.$extension", '-o', $feed, '-p:Version=0.0.0-generatorproof', '-m:1', '-p:UseSharedCompilation=false', '-nodeReuse:false', '--nologo')
 }
 $consumer = Join-Path $proof 'consumer'
 New-Item -ItemType Directory -Force -Path $consumer | Out-Null
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Tests.fs') -Destination $consumer
-@'
+[xml]$sourceProject = Get-Content (Join-Path $PSScriptRoot 'Morphir.CodeGeneration.CSharp.Tests.fsproj') -Raw
+$sources = @($sourceProject.Project.ItemGroup.Compile.Include | Where-Object { $_ })
+foreach ($source in $sources) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $source) -Destination $consumer }
+$compileItems = ($sources | ForEach-Object { '<Compile Include="' + $_ + '" />' }) -join "`n"
+$projectText = @'
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><GenerateProgramFile>false</GenerateProgramFile><DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference></PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Morphir.CodeGeneration.CSharp" Version="0.0.0-generatorproof" />
+    <PackageReference Include="Morphir.SDK.CSharp" Version="0.0.0-generatorproof" />
     <PackageReference Include="Expecto" Version="10.2.3" />
     <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" />
     <Reference Include="Microsoft.CodeAnalysis.CSharp" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll" />
-    <Compile Include="Tests.fs" />
+    <!-- COMPILE -->
   </ItemGroup>
 </Project>
-'@ | Set-Content -LiteralPath (Join-Path $consumer 'Host.fsproj')
+'@
+$projectText.Replace('<!-- COMPILE -->', $compileItems) | Set-Content -LiteralPath (Join-Path $consumer 'Host.fsproj')
 @'
 {"sdk":{"version":"10.0.403","rollForward":"disable"}}
 '@ | Set-Content -LiteralPath (Join-Path $consumer 'global.json')

@@ -151,3 +151,75 @@ of ambient SDK, and unknown numeric values fail before emission, as previously
 observed RED/GREEN. Root global.json is unchanged. Compiler release status is
 metadata, not another language option. Production code is unchanged from the
 foundation checkpoint, so its full-suite and coverage evidence still apply.
+
+## Immutable type checkpoint
+
+Separate classic/v4 typed walkers now lower transparent aliases, generics,
+tuples, closed records, nested anonymous records, custom cases, function types
+and unit. BDD and compiled consumer failures preceded these changes. Additional
+RED observations exposed culture-sensitive names, nominal record aliases,
+generic concrete-record aliases, Dict key constraints, base-typed case equality,
+public aliases of private structural records and private nominal payload leaks.
+The retained logs record each failure and correction. Unsupported/open types,
+arity errors, cyclic aliases, unbound parameters, incomplete bodies and private
+nominal leaks return located failures without sources.
+
+The shared independent type observations execute construction, Result error/value
+meaning, nested structural equality, transparent aliases and get-only payloads.
+Both typed families compile and run under both pinned numeric compilers, with
+warnings treated as errors. `type-matrix-02/profiles.json` records all four runs,
+each printing `generated-consumer:types-passed`. Their source SHA-256 is identical:
+`2bf6dec3b80dc924d19cc0f12c29c3ce8867367068fd8888cb1664d648ed9c4e`.
+Separate-assembly consumer tests reject private constructors. The fresh packaged
+modern host in `type-host-02` runs all 45 tests, zero ignored/failed/errored.
+
+The production-only static coverage report `types-final.cobertura.xml` measures
+796/881 lines, 90.35187287173666%, using all 45 Release tests. No authored code is
+excluded. The prior type report measured 757/817, 92.65605875152998%, before the
+additional alias visibility code; both denominators are retained. These measure
+the current generator, not whole-repository coverage or pending lowerings.
+
+Naming/portable paths, full expressions, mid-traversal cancellation, broad fixture
+execution and trimming remain unchecked. No production Roslyn adapter or CLI
+registration is introduced. The root shared-file leases were released after the
+foundation checkpoint and no shared path is edited in this type checkpoint.
+
+The type checkpoint's native full Nuke Test passed Restore/Compile/Test in 7m25.
+The captured suite totals are 3,446 tests, zero failed/ignored/skipped, including
+the explicit new sequential suite's 45/45, plus 15 cold package checks and 48
+separate configuration inspection smoke checks. This is a fresh full-suite
+measurement, not the historical foundation count. ANSI color sequences are
+removed before parsing the retained `types-suite-totals.json` evidence.
+
+`PackAll --configuration Release --skip Restore Compile` passed in 47s, then
+`TestBuild --configuration Release --skip Restore Compile` passed all 40 tests,
+zero failures/skips. `verify-package-metadata.ps1` checked the fresh
+`0.3.0-rc.2` packages and compiled `build/bin/Release/_build.dll` exact lookup;
+`types-package-metadata.json` records both package hashes and real dependencies.
+No publishing target ran. Native Precommit passed in 30s with the same inherited
+unsupported-F# diagnostics. Fantomas `--check` passes all six owned F# files;
+changelog validation passes; strict OpenSpec validation passes 22 items, its
+snapshot checker passes, and its two tests pass. `git diff --check` is clean.
+
+## Pinned implementation references
+
+Read-only source retrieval uses the exact planning revisions, with captured
+trees/source files under the owned `prior-art` directory. No source was copied
+into production. Python `560a6503b8ffcab87ea667391579b747757bec0d`,
+`rust/crates/morphir-python-binding/src/backend/functions.rs`, separates signature
+validation from emission and preserves flattened application argument order.
+Its refusal of multi-argument partial applications is a source limitation, not
+this change's acceptance boundary. Gleam
+`dcfa73c218276dd8e172bbc0a2b579110bce8e46`, backend `visitor.rs`, explicitly
+refuses parameterized local lets, record expressions without resolved named
+constructors and record updates; its local-only value reference rendering is
+also insufficient for this generator's qualification requirement.
+
+MoonBit `10732eaf2f05b10ca6e94a78121e2753c814acd8`,
+`pkgs/morphir-elm/backend/lower_values.mbt`, and Elm vnext
+`1be5323eb24d943c7cb3ac965d5a51d13fd83e5d`,
+`moonbit/backend/lower_values.mbt`, demonstrate explicit scope binding/reservation
+and ordered application flattening. This emitter will use fresh lexical target
+identities and typed nested Func values for the required capture/partial-apply
+behavior. These references inform implementation choices; they are not test
+oracles or evidence of C# conformance.

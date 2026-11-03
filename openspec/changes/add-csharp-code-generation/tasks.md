@@ -10,9 +10,9 @@ Read [design](design.html), [spec](specs/morphir-csharp-transpilation/spec.md) a
 
 ## 2. Types, names and immutable values
 
-- [ ] 2.1 Write failing BDD/consumer cases for aliases, generics, tuples, records and custom cases, then implement classic and v4 typed admission/lowering; verify immutable public payloads, visibility and Result parameter meaning under both compilers.
+- [x] 2.1 Write failing BDD/consumer cases for aliases, generics, tuples, records and custom cases, then implement classic and v4 typed admission/lowering; verify immutable public payloads, visibility and Result parameter meaning under both compilers.
 - [ ] 2.2 Implement deterministic namespace/module/source allocation and literal escaping after failing keyword, lexical capture, culture and portable-collision cases; verify stable .g.cs paths/bytes and located refusal of unresolvable collisions.
-- [ ] 2.3 Document SDK type mappings and implement generated record/variant equality using structural SDK values; verify independently allocated nested values compare and hash consistently through a compiled consumer.
+- [x] 2.3 Document SDK type mappings and implement generated record/variant equality using structural SDK values; verify independently allocated nested values compare and hash consistently through a compiled consumer.
 
 ## 3. Executable logic and refusals
 

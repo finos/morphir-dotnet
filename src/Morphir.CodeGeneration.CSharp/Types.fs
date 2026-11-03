@@ -26,6 +26,19 @@ type GenerationDiagnostic = {
     Message: string
 }
 
+exception internal Refusal of GenerationDiagnostic
+
+module internal Admission =
+    let fail rule location message =
+        raise (
+            Refusal
+                {
+                    Rule = rule
+                    Location = location
+                    Message = message
+                }
+        )
+
 /// UTF-8 source text, without BOM, with LF newlines and a portable relative path.
 type GeneratedSource = { RelativePath: string; Text: string }
 

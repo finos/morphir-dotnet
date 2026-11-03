@@ -45,28 +45,34 @@ function Run([string]$Name, [string]$Exe, [string]$Directory, [string[]]$Argumen
     } finally { $process.Dispose() }
 }
 $results = [Collections.Generic.List[object]]::new()
+$feed = Join-Path $proof 'feed'
+New-Item -ItemType Directory -Path $feed | Out-Null
+[void](Run 'pack-runtime' $StableDotnet $repo @('pack','src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj','--no-restore','-o',$feed,'-p:Version=0.0.0-generatorprofiles','-m:1','-p:UseSharedCompilation=false','-nodeReuse:false') (Split-Path $StableDotnet))
 foreach ($profile in @(@{name='stable';language=14;sdk='10.0.403';exe=$StableDotnet}, @{name='rc2';language=15;sdk='11.0.100-rc.2.26504.105';exe=$RcDotnet})) {
-    $directory = Join-Path $proof $profile.name
+  foreach ($family in @('classic','v4')) {
+    $step = "$($profile.name)-$family"
+    $directory = Join-Path $proof $step
     New-Item -ItemType Directory -Path $directory | Out-Null
-    [void](Run "$($profile.name)-export" $StableDotnet $repo @('exec',$testDll,'--export-profile',"$($profile.language)",$directory) (Split-Path $StableDotnet))
+    [void](Run "$step-export" $StableDotnet $repo @('exec',$testDll,'--export-profile',"$($profile.language)",$family,$directory) (Split-Path $StableDotnet))
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'profile-consumer.cs.txt') -Destination (Join-Path $directory 'Program.cs')
     @{sdk=@{version=$profile.sdk;rollForward='disable';allowPrerelease=($profile.name -eq 'rc2')}} | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $directory 'global.json')
     @"
-<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>$($profile.language).0</LangVersion><UseAppHost>false</UseAppHost><RuntimeFrameworkVersion>10.0.14</RuntimeFrameworkVersion></PropertyGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>$($profile.language).0</LangVersion><UseAppHost>false</UseAppHost><RuntimeFrameworkVersion>10.0.14</RuntimeFrameworkVersion></PropertyGroup><ItemGroup><PackageReference Include="Morphir.SDK.CSharp" Version="0.0.0-generatorprofiles" /></ItemGroup></Project>
 "@ | Set-Content (Join-Path $directory 'Consumer.csproj')
-    '<configuration><packageSources><clear/></packageSources><fallbackPackageFolders><clear/></fallbackPackageFolders></configuration>' | Set-Content (Join-Path $directory 'NuGet.Config')
+    "<configuration><packageSources><clear/><add key=`"runtime`" value=`"$feed`"/></packageSources><fallbackPackageFolders><clear/></fallbackPackageFolders><packageSourceMapping><clear/><packageSource key=`"runtime`"><package pattern=`"Morphir.SDK.CSharp`"/></packageSource></packageSourceMapping></configuration>" | Set-Content (Join-Path $directory 'NuGet.Config')
     $root = Split-Path $profile.exe
-    $sdk = Run "$($profile.name)-sdk" $profile.exe $directory @('--version') $root
+    $sdk = Run "$step-sdk" $profile.exe $directory @('--version') $root
     if ($sdk -ne $profile.sdk) { throw 'Unexpected SDK selected.' }
-    $compiler = Run "$($profile.name)-compiler" $profile.exe $directory @('exec',(Join-Path $root "sdk/$sdk/Roslyn/bincore/csc.dll"),'-version') $root
+    $compiler = Run "$step-compiler" $profile.exe $directory @('exec',(Join-Path $root "sdk/$sdk/Roslyn/bincore/csc.dll"),'-version') $root
     $bounds = @('-m:1','-p:UseSharedCompilation=false','-nodeReuse:false')
-    [void](Run "$($profile.name)-restore" $profile.exe $directory (@('restore','Consumer.csproj','--configfile','NuGet.Config','--packages',(Join-Path $directory 'packages')) + $bounds) $root)
-    [void](Run "$($profile.name)-build" $profile.exe $directory (@('build','Consumer.csproj','--no-restore','-c','Release','-warnaserror') + $bounds) $root)
-    $output = Run "$($profile.name)-run" $StableDotnet $directory @('exec','bin/Release/net10.0/Consumer.dll') (Split-Path $StableDotnet)
-    if ($output -ne 'generated-consumer:42') { throw 'Independent constant observation mismatch.' }
+    [void](Run "$step-restore" $profile.exe $directory (@('restore','Consumer.csproj','--configfile','NuGet.Config','--packages',(Join-Path $directory 'packages')) + $bounds) $root)
+    [void](Run "$step-build" $profile.exe $directory (@('build','Consumer.csproj','--no-restore','-c','Release','-warnaserror') + $bounds) $root)
+    $output = Run "$step-run" $StableDotnet $directory @('exec','bin/Release/net10.0/Consumer.dll') (Split-Path $StableDotnet)
+    if ($output -ne 'generated-consumer:types-passed') { throw 'Independent type observation mismatch.' }
     $sources = @(Get-ChildItem -LiteralPath $directory -Filter '*.g.cs' -Recurse | ForEach-Object { @{path=[IO.Path]::GetRelativePath($directory,$_.FullName);sha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()} })
-    $results.Add(@{profile=$profile.name;language=$profile.language;sdk=$sdk;compiler=$compiler;runtime='10.0.14';output=$output;sources=$sources})
+    $results.Add(@{profile=$profile.name;family=$family;language=$profile.language;sdk=$sdk;compiler=$compiler;runtime='10.0.14';output=$output;sources=$sources})
 }
-if (($results[0].sources | ConvertTo-Json -Compress) -ne ($results[1].sources | ConvertTo-Json -Compress)) { throw 'Profile public sources differ.' }
+}
+foreach ($result in $results) { if (($results[0].sources | ConvertTo-Json -Compress) -ne ($result.sources | ConvertTo-Json -Compress)) { throw 'Profile/family public sources differ.' } }
 $results | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $proof 'profiles.json')
 Write-Output "Both numeric compiler profiles compiled and executed: $proof/profiles.json"
