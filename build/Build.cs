@@ -91,6 +91,7 @@ partial class Build : NukeBuild
     AbsolutePath MorphirToolProject => SourceDirectory / "Morphir.Tool" / "Morphir.Tool.csproj";
     AbsolutePath MorphirSDKProject => SourceDirectory / "Morphir.SDK" / "Morphir.SDK.fsproj";
     AbsolutePath MorphirSDKFSharpProject => SourceDirectory / "Morphir.SDK.FSharp" / "Morphir.SDK.FSharp.fsproj";
+    AbsolutePath MorphirSDKCSharpProject => SourceDirectory / "Morphir.SDK.CSharp" / "Morphir.SDK.CSharp.csproj";
     AbsolutePath MorphirCoreTestsProject => TestsDirectory / "Morphir.Core.Tests" / "Morphir.Core.Tests.csproj";
     AbsolutePath MorphirToolingTestsProject => TestsDirectory / "Morphir.Tooling.Tests" / "Morphir.Tooling.Tests.csproj";
     AbsolutePath MorphirModelsTestsProject => TestsDirectory / "Morphir.Models.Tests" / "Morphir.Models.Tests.fsproj";

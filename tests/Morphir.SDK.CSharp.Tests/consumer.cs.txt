@@ -1,0 +1,47 @@
+using System.Globalization;
+using Morphir.SDK.CSharp;
+using SdkDecimal = Morphir.SDK.CSharp.Decimal;
+using IntList = Morphir.SDK.CSharp.List<int>;
+
+CultureInfo.CurrentCulture = new CultureInfo("tr-TR");
+static void Check(bool condition) { if (!condition) throw new InvalidOperationException("SDK public consumer assertion failed."); }
+var original = IntList.FromEnumerable(new[] { 1, 2 });
+var mapped = original.Map(x => Basics.Add(x, 1));
+Check(original.Equals(IntList.FromEnumerable(new[] { 1, 2 })));
+Check(mapped.Equals(IntList.FromEnumerable(new[] { 2, 3 })));
+Check(Maybe<int>.Nothing.Map<int>(_ => throw new InvalidOperationException()).Equals(Maybe<int>.Nothing));
+Check(Maybe<int>.Just(7).Map(x => Basics.Add(x, 1)).Equals(Maybe<int>.Just(8)));
+Check(Result<string, int>.Err("negative").Map(x => x + 1).Match(e => e, _ => "wrong") == "negative");
+Check(Result<string, int>.Ok(7).AndThen(x => Result<string, string>.Ok(x.ToString(CultureInfo.InvariantCulture))).Match(_ => "wrong", x => x) == "7");
+Check(Unit.Value == default && Basics.LT == Order.LT && Basics.EQ == Order.EQ && Basics.GT == Order.GT);
+var keys = MorphirComparers.List(MorphirComparers.Int);
+var dict = Dict<IntList, Maybe<IntList>>.Singleton(original, Maybe<IntList>.Just(mapped), keys);
+var equal = Dict<IntList, Maybe<IntList>>.Singleton(IntList.FromEnumerable(new[] { 1, 2 }), Maybe<IntList>.Just(IntList.FromEnumerable(new[] { 2, 3 })), keys);
+Check(dict.Equals(equal) && dict.GetHashCode() == equal.GetHashCode());
+Check(dict.Union(Dict<IntList, Maybe<IntList>>.Singleton(original, Maybe<IntList>.Nothing, keys)).Equals(dict));
+var replaced = Dict<string, double>.Singleton("zero", 0d, MorphirComparers.String).Insert("zero", BitConverter.Int64BitsToDouble(long.MinValue));
+Check(replaced.Get("zero").Match(BitConverter.DoubleToInt64Bits, () => 1L) == long.MinValue);
+var set = Set<string>.FromEnumerable(new[] { "\uE000", "\U00010000", "a" }, MorphirComparers.String);
+Check(set.ToList().Equals(Morphir.SDK.CSharp.List<string>.FromEnumerable(new[] { "a", "\U00010000", "\uE000" })));
+Check(MorphirComparers.Tuple(MorphirComparers.Int, MorphirComparers.String, MorphirComparers.Char).Compare((1, "a", 'b'), (1, "a", 'c')) < 0);
+var first = new DomainValue(7d, original);
+var second = new DomainValue(7d, IntList.FromEnumerable(new[] { 1, 2 }));
+Check(Basics.Equal<object>(first, second) && Basics.Equal((first, 1), (second, 1)));
+Check(MorphirValue.Hash((first, 1)) == MorphirValue.Hash((second, 1)));
+Check(!Basics.Equal<object>(first with { Number = double.NaN }, second with { Number = double.NaN }));
+Check(Basics.Equal(-0d, 0d) && MorphirValue.Hash(-0d) == MorphirValue.Hash(0d));
+Check(Basics.Round(-2.5) == -2 && Basics.RemainderBy(-1, int.MinValue) == 0);
+Check(SdkDecimal.ToString(SdkDecimal.Add(1.50m, 0.25m)) == "1.75");
+Check(SdkDecimal.Div(1m, 8m).Equals(Maybe<decimal>.Just(0.125m)) && !SdkDecimal.Div(1m, 0m).IsJust);
+Check(MorphirValue.Hash(1.00m) == MorphirValue.Hash(1m));
+try { Basics.Add(int.MaxValue, 1); throw new InvalidOperationException("Expected overflow"); } catch (OverflowException) { }
+try { Basics.Truncate(double.NaN); throw new InvalidOperationException("Expected nonfinite conversion"); } catch (NonFiniteConversionException) { }
+Console.WriteLine("sdk-consumer:passed");
+
+sealed record DomainValue(double Number, IntList Values) : IMorphirValue
+{
+    public bool MorphirEquals(IMorphirValue other) => other is DomainValue x && Basics.Equal(Number, x.Number) && Basics.Equal(Values, x.Values);
+    public int MorphirHashCode() => MorphirValue.Hash((Number, Values));
+    public bool Equals(DomainValue? other) => other is not null && MorphirEquals(other);
+    public override int GetHashCode() => MorphirHashCode();
+}

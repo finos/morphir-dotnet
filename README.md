@@ -62,6 +62,12 @@ Existing Git-first artifact discovery, cache-only tooling and CI overlays keep
 their compatibility behavior. CLI inspection, editing and migration remain planned. See the
 [reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.
 
+## SDK libraries
+
+`Morphir.SDK.CSharp` is an independent `net10.0` runtime package with immutable
+C#/.NET public types. See the [C# SDK guide](docs/content/docs/sdk/csharp/_index.md)
+for its bounded operation contract and package usage.
+
 ## Getting Started
 
 ### Building from source

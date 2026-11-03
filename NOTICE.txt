@@ -68,3 +68,8 @@ adds compatibility checks and corrects covered runtime behavior against the
 already attributed shared .NET SDK evidence. It adds no third-party source,
 license or restriction. Existing FINOS, Morgan Stanley and upstream evidence
 notices and licenses remain applicable and are retained.
+
+Morphir.SDK.CSharp provides independently implemented .NET runtime behavior
+against the pinned Morphir SDK contract; upstream evidence and notices remain
+in tests/Fixtures/MorphirSDK/evidence.
+Copyright 2026 FINOS contributors.
