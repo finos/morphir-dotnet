@@ -196,6 +196,7 @@ partial class Build
             "Morphir.SDK.CSharp.Tests",
             "Morphir.IR.Pipeline.Plugins.Tests",
             "Morphir.CodeGeneration.FSharp.Tests",
+            "Morphir.CodeGeneration.CSharp.Tests",
             "Morphir.Ion.Tests",
             "Morphir.Myriad.Tests",
             "Morphir.Myriad.Integration.Tests",
@@ -203,7 +204,9 @@ partial class Build
         {
             Serilog.Log.Information("Running {Project}...", project);
             var testDll = TestsDirectory / project / "bin" / configuration / "net10.0" / $"{project}.dll";
-            var exitCode = RunCommand("dotnet", "exec", testDll);
+            var exitCode = project == "Morphir.CodeGeneration.CSharp.Tests"
+                ? RunCommand("dotnet", "exec", testDll, "--sequenced")
+                : RunCommand("dotnet", "exec", testDll);
             if (exitCode != 0)
             {
                 Serilog.Log.Error("{Project}: exit code {ExitCode}", project, exitCode);

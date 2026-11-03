@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Expecto" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="YoloDev.Expecto.TestSdk" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+    <ProjectReference Include="../../src/Morphir.CodeGeneration.CSharp/Morphir.CodeGeneration.CSharp.fsproj" />
+    <ProjectReference Include="../../src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj" />
+    <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" />
+    <Reference Include="Microsoft.CodeAnalysis.CSharp" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="TypeCases.fs" />
+    <Compile Include="RefusalCases.fs" />
+    <Compile Include="LiteralCases.fs" />
+    <Compile Include="FunctionCases.fs" />
+    <Compile Include="PatternCases.fs" />
+    <Compile Include="SdkCases.fs" />
+    <Compile Include="FrozenSdkCases.fs" />
+    <Compile Include="CancellationCases.fs" />
+    <Compile Include="BusinessCases.fs" />
+    <Compile Include="Tests.fs" />
+    <None Include="Generation.feature" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../Fixtures/MorphirSDK/inventory.json" LogicalName="FrozenSDK.inventory.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirSDK/cases.json" LogicalName="FrozenSDK.cases.json" />
+    <EmbeddedResource Include="../../examples/car-rental/models/car-rental-v1.json" LogicalName="Business.car-rental-v1.json" />
+    <EmbeddedResource Include="../../examples/car-rental/models/car-rental-v2.json" LogicalName="Business.car-rental-v2.json" />
+    <EmbeddedResource Include="../../examples/car-rental/models/car-rental-v3.json" LogicalName="Business.car-rental-v3.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirIR/daily-rate-v3.json" LogicalName="Business.daily-rate-v3.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirIR/daily-rate-v4.json" LogicalName="Business.daily-rate-v4.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/v4/books-and-records-example.json" LogicalName="Business.books-and-records-example.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/v4/complete-example.json" LogicalName="Business.complete-example.json" />
+  </ItemGroup>
+</Project>

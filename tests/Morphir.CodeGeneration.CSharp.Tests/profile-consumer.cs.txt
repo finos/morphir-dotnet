@@ -1,0 +1,7 @@
+using System;
+
+if (Construction.Observation.Run() != 17 || Equality.Observation.Run() != 1
+    || Aliases.Observation.Run() != 15 || Nested.Observation.Run() != 1 || Functions.Observation.Run() != 1 || Patterns.Observation.Run() != 1
+    || SDK.Observation.Run() != 1 || FrozenSDK.Observation.Run() != 207)
+    throw new Exception("Generated type behavior changed.");
+Console.WriteLine("generated-consumer:types-passed");

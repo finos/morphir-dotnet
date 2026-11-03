@@ -5,6 +5,8 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <RootNamespace>Morphir</RootNamespace>
         <Description>Morphir IR model definitions in F#</Description>
+        <PackageReleaseNotes>### Added
+Typed classic and v4 Morphir IR models with source-version preservation for in-memory backend consumers.</PackageReleaseNotes>
         <PackageTags>$(PackageTags);morphir;fsharp;ir</PackageTags>
         <!-- Enable trimming analyzers for AOT/trimming compatibility -->
         <EnableTrimAnalyzer>true</EnableTrimAnalyzer>

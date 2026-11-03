@@ -111,3 +111,11 @@ The pure migration planner, independent equivalence checks, IO coordinator,
 CLI provider, tests and documentation are original contributions under this
 repository's Apache-2.0 license. No third-party source or new dependency is
 added. All existing notices, attribution and licensed evidence remain intact.
+
+Typed C# generation foundation (#474)
+
+Copyright 2026 FINOS contributors.
+
+The typed C# generator, tests and documentation are original contributions under
+this repository's Apache-2.0 license. No upstream implementation source is copied.
+All existing copyright, attribution and original evidence notices are retained.

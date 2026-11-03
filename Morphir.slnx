@@ -20,6 +20,7 @@
   <Folder Name="/src/">
     <Project Path="src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj" />
     <Project Path="src/Morphir.CodeGeneration.FSharp/Morphir.CodeGeneration.FSharp.fsproj" />
+    <Project Path="src/Morphir.CodeGeneration.CSharp/Morphir.CodeGeneration.CSharp.fsproj" />
     <Project Path="src/Morphir.Myriad/Morphir.Myriad.fsproj" />
     <Project Path="src/Morphir.Myriad.Build/Morphir.Myriad.Build.csproj" />
     <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
@@ -43,6 +44,7 @@
     <Project Path="tests/Morphir.SDK.Conformance.Tests/Morphir.SDK.Conformance.Tests.csproj" />
     <Project Path="tests/Morphir.SDK.CSharp.Tests/Morphir.SDK.CSharp.Tests.csproj" />
     <Project Path="tests/Morphir.CodeGeneration.FSharp.Tests/Morphir.CodeGeneration.FSharp.Tests.fsproj" />
+    <Project Path="tests/Morphir.CodeGeneration.CSharp.Tests/Morphir.CodeGeneration.CSharp.Tests.fsproj" />
     <Project Path="tests/Morphir.Myriad.Tests/Morphir.Myriad.Tests.fsproj" />
     <Project Path="tests/Morphir.Myriad.Integration.Tests/Morphir.Myriad.Integration.Tests.csproj" />
     <Project Path="tests/Morphir.Configuration.Tests/Morphir.Configuration.Tests.fsproj" />

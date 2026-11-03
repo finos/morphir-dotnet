@@ -79,6 +79,13 @@ adoption while retaining classic bytes. Workspace migration remains planned. See
 C#/.NET public types. See the [C# SDK guide](docs/content/docs/sdk/csharp/_index.md)
 for its bounded operation contract and package usage.
 
+The in-memory [C# generator](docs/content/docs/backends/csharp/_index.md) lowers
+typed classic/v4 libraries with explicit numeric C# 14/15 profiles, immutable
+values, executable functions/patterns/record operations and public SDK bindings.
+Original business fixtures and the bounded modern package-host/trimming checks
+are verified under [#474](https://github.com/finos/morphir-dotnet/issues/474).
+Final delivery checks are in progress. CLI integration is a separate gated initiative.
+
 ## Getting Started
 
 ### Building from source
@@ -451,7 +458,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 - [Morphir Project](https://github.com/finos/morphir)
 - [Morphir Docs](https://morphir.finos.org/)
 
-SDK runtime delivery and archival evidence is recorded in the [runtime delivery record](docs/design/dotnet-csharp-generation/sdk-runtime-delivery.md). The canonical [C# runtime spec](openspec/specs/csharp-sdk-runtime/spec.md), [F# package spec](openspec/specs/fsharp-sdk-packaging/spec.md), and stable [C# API handoff](openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/api-handoff.md) describe the landed runtimes. Archive follow-up landing and coordinator cleanup remain pending.
+SDK runtime delivery and archival evidence is recorded in the [runtime delivery record](docs/design/dotnet-csharp-generation/sdk-runtime-delivery.md). The canonical [C# runtime spec](openspec/specs/csharp-sdk-runtime/spec.md), [F# package spec](openspec/specs/fsharp-sdk-packaging/spec.md), and stable [C# API handoff](openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/api-handoff.md) describe the landed runtimes. SDK archive #472 landed; source SDK worktrees and their owned artifacts were removed. Empty shared archive directory cleanup remains pending with the recorded permission/policy limitations.
 
 ## OpenSpec change proposals
 

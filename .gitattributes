@@ -47,6 +47,13 @@ scripts/features/openspec_ext.feature text eol=lf
 # Vendored Morphir Ion fixtures are checked by SHA-256, so their bytes must not change
 tests/Fixtures/MorphirIon/** -text
 
+# Embedded business fixtures use their checked-in LF bytes for provenance hashes.
+examples/car-rental/models/car-rental-v1.json text eol=lf
+examples/car-rental/models/car-rental-v2.json text eol=lf
+examples/car-rental/models/car-rental-v3.json text eol=lf
+tests/Fixtures/MorphirIR/daily-rate-v3.json text eol=lf
+tests/Fixtures/MorphirIR/daily-rate-v4.json text eol=lf
+
 # Configuration corpus and schema snapshots are also verified by their raw hashes.
 tests/Fixtures/Configuration/** -text
 

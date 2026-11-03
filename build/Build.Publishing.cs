@@ -81,7 +81,7 @@ partial class Build
             }
 
             // Publish the runtime before its dependency-only compatibility package.
-            foreach (var packageId in new[] { "Morphir.SDK.FSharp", "Morphir.SDK", "Morphir.SDK.CSharp" })
+            foreach (var packageId in new[] { "Morphir.SDK.FSharp", "Morphir.SDK", "Morphir.SDK.CSharp", "Morphir.Models", "Morphir.CodeGeneration.CSharp" })
             {
                 var sdkPackage = PathHelper.GetLibraryPackagePath(packageId, Version.ToString(), OutputDir);
                 if (!File.Exists(sdkPackage))
@@ -205,7 +205,7 @@ partial class Build
                     .SetSkipDuplicate(true));
             }
 
-            foreach (var packageId in new[] { "Morphir.SDK.FSharp", "Morphir.SDK", "Morphir.SDK.CSharp" })
+            foreach (var packageId in new[] { "Morphir.SDK.FSharp", "Morphir.SDK", "Morphir.SDK.CSharp", "Morphir.Models", "Morphir.CodeGeneration.CSharp" })
             {
                 var sdkPackage = PathHelper.GetLibraryPackagePath(packageId, Version.ToString(), OutputDir);
                 if (!File.Exists(sdkPackage))

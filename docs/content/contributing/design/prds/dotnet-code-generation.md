@@ -12,9 +12,9 @@ owned worktrees. The coordinator retains the shared bootstrap checkout.
 | Initiative | Status | Implementation owner | Predecessor on main | Contract |
 | --- | --- | --- | --- | --- |
 | [establish-dotnet-sdk-conformance](../../../../../openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance/proposal.md) | Implementation and archive #463 landed; cleanup pending | Conformance lead, `t3/dotnet-sdk-conformance` | Planning PR #459, landed `890aacb61df601f2876112a2cdd4d9d6f5757ca6` | Inventory, profiles, schema and evidence |
-| [add-immutable-csharp-sdk](../../../../../openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/proposal.md) | Implementation landed; archive follow-up/cleanup pending | C# SDK lead, dispatched by coordinator | Conformance initiative | Immutable public SDK API |
-| [introduce-fsharp-sdk-package](../../../../../openspec/changes/archive/2026-11-03-introduce-fsharp-sdk-package/proposal.md) | Implementation landed; archive follow-up/cleanup pending | F# SDK lead, dispatched by coordinator | Conformance initiative | Package compatibility and covered corrections |
-| [add-csharp-code-generation](../../../../../openspec/changes/add-csharp-code-generation/proposal.md) | Planned | C# generation lead, dispatched by coordinator | C# SDK initiative | Typed generation/options/diagnostics |
+| [add-immutable-csharp-sdk](../../../../../openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/proposal.md) | Implementation and archive #472 landed; source worktree/artifacts removed | C# SDK lead, retired by coordinator | Conformance initiative | Immutable public SDK API |
+| [introduce-fsharp-sdk-package](../../../../../openspec/changes/archive/2026-11-03-introduce-fsharp-sdk-package/proposal.md) | Implementation and archive #472 landed; source worktree/artifacts removed | F# SDK lead, retired by coordinator | Conformance initiative | Package compatibility and covered corrections |
+| [add-csharp-code-generation](../../../../../openspec/changes/add-csharp-code-generation/proposal.md) | Implementing #474; typed lowering, SDK/business matrix and bounded trimming verified | C# generation lead, `t3/add-csharp-code-generation` | C# SDK initiative landed | Typed generation/options/diagnostics |
 | [integrate-csharp-generation-cli](../../../../../openspec/changes/integrate-csharp-generation-cli/proposal.md) | Planned | CLI lead, dispatched by coordinator | C# generation initiative | Existing CLI publication contract |
 
 The full Roslyn source-generator adapter remains deferred. C# generation's
@@ -30,9 +30,9 @@ No successor may guess a missing contract or use an unmerged sibling checkout.
 
 The static plan specifies Codex `gpt-6.1-sol` with `reasoningEffort: high` and
 one delivery-wide expensive-command slot. Actual resource leases are supplied
-by the coordinator. This bounded archive follow-up holds that slot and has no
-authorized auxiliaries. The implementation lead released its slots and stopped
-its helpers at handoff.
+by the coordinator. The generator lead holds the sole expensive-command lease
+and remains the sole Git writer in its isolated checkout. No auxiliary has been
+launched. The prior archive worker released its resources at handoff.
 
 ## Implementation notes
 
@@ -65,6 +65,39 @@ including the policy-blocked empty-directory removal; this worker does not retry
 
 Both SDK runtime PRs are now landed. Their
 [delivery record](../../../../design/dotnet-csharp-generation/sdk-runtime-delivery.md)
-separates runtime acceptance from the original conformance validation. This
-follow-up prepares their specs/archive; landing and coordinator cleanup remain
-pending. Generator and CLI work remain undispatched.
+separates runtime acceptance from the original conformance validation. Combined
+spec/archive PR #472 landed at `618fbf7b6c5b542122450bf61f4f794e590fe4f5`.
+The coordinator removed both source SDK worktrees and their owned evidence and
+toolchains, and retired their threads. Shared archive cleanup remains incomplete.
+Empty `t3-1e3c6fbe` is Windows permission-denied; prior empty `t3-eff883da` was
+blocked by automatic approval policy and is not retried. The generator does not
+own either directory or the root bootstrap checkout.
+
+Generator [#474](https://github.com/finos/morphir-dotnet/issues/474) now implements
+the existing initiative from the verified archive base. At function checkpoint
+`a4cc96a`, the packaged .NET 10 host passes 92 tests; the shared classic/v4
+type/function corpus compiles and executes under both pinned numeric 14/15
+compilers. The tested adapter host is .NET 10.0.14/SDK 10.0.403 Windows arm64.
+At that checkpoint, ordered patterns, record operations, broader SDK mapping and
+mid-traversal cancellation remained pending. CLI integration is still gated and
+undispatched. Historical counts above describe their original checked revisions.
+
+At pattern/record checkpoint `8dca9b6`, the packaged .NET 10 host passes 126/126
+tests. All four classic/v4 x pinned numeric 14/15 type/function/pattern/record
+consumers compile and execute. The tested adapter host remains
+.NET 10.0.14/SDK 10.0.403/Windows arm64; other compiler and IDE hosts remain
+untested. At that checkpoint, SDK mapping, mid-traversal cancellation and business-fixture acceptance
+remained pending. CLI integration remains gated and undispatched.
+
+At cancellation checkpoint `a2b67c9`, the packaged .NET 10 host passes 143/143;
+active traversal/emission cancellation returns no sources. Subsequent fixture
+evidence, recorded in the generator change's validation record, passes 153 focused
+tests and 18 actual pinned-compiler executions. These include original classic
+car-rental 1/2/3 and daily-rate inputs, direct v4 daily-rate, a labeled synthesized
+v4 car input, and a separately labeled compatible books-and-records type slice.
+Whole ecosystem originals with missing types or draft bodies still fail with
+located diagnostics and no partial output. A fresh typed package consumer passes
+self-contained win-arm64 link trimming with identical observations/source hashes
+and no IL warnings. Tested package/adapter host remains .NET 10.0.14/SDK
+10.0.403/Windows arm64; other IDE hosts and generator Native AOT remain untested. Final
+delivery checks are in progress. CLI integration remains gated and undispatched.
