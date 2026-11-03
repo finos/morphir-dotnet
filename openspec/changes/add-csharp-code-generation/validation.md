@@ -118,3 +118,36 @@ bounded MSBuild options and unique process-local TEMP/TMP under the owned
 `C:/Temp/morphir-csharp-generator-1d28e9ab-20261103` tree. The capture wrapper
 suppresses child windows and terminates/verifies its whole owned tree on timeout.
 No auxiliary agent has run. No shared/root cleanup directory has been touched.
+
+## Numeric compiler profiles
+
+The test-only exporter calls the same in-memory entry point with an explicit
+numeric profile, then writes its returned sources at the test boundary.
+`acquire-compiler.ps1` verifies the official RC2 ZIP against SHA-512
+`a74c1ab374a5167ada496dfe0d22367e9b5f2d89eb6d232122beb0e71b30db4bf868e3a06aa5df5aeea8be9fc3194218d2134e1c9de067419e18eed3b34c6e33`.
+It copies only matching 10.0.13 reference packs into the isolated toolchain and
+verifies all 1,063 destination files against source SHA-256. The full inventory
+is under the owned `toolchains/rc2/toolchain.json`. No machine SDK is installed.
+
+```powershell
+& tests/Morphir.CodeGeneration.CSharp.Tests/verify-profiles.ps1 -EvidenceDirectory C:/Temp/morphir-csharp-generator-1d28e9ab-20261103/profile-proof-01 -RcDotnet C:/Temp/morphir-csharp-generator-1d28e9ab-20261103/toolchains/rc2/sdk/dotnet.exe
+```
+
+Both fresh consumers restore with no feeds or dependencies, compile with numeric
+14.0/15.0 and warnings as errors, and actually execute `generated-consumer:42`.
+Both target net10.0 and run under the stable 10.0.14 runtime. The selected compiler
+versions were queried independently:
+
+- Stable SDK 10.0.403, csc 5.9.0-1.26523.112,
+  revision `5a2162bea6845eabc1fc721624a43568c65db3b1`.
+- RC2 SDK 11.0.100-rc.2.26504.105, csc 5.12.0-1.26504.105,
+  revision `820230c386db5b0106c5430b3e5aee92a7826bf5`.
+
+Both generated-source hashes are
+`db6b48392a4c499fb27bb4d1a71c4b3356d0f033306ae4c9152517f61048fef8`.
+This proves the initial constant fixture across both real compilers, not yet the
+pending broad family/behavior matrix. Default options remain 14 independently
+of ambient SDK, and unknown numeric values fail before emission, as previously
+observed RED/GREEN. Root global.json is unchanged. Compiler release status is
+metadata, not another language option. Production code is unchanged from the
+foundation checkpoint, so its full-suite and coverage evidence still apply.

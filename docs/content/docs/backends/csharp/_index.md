@@ -30,6 +30,14 @@ Mono.Cecil. Roslyn references come from the selected SDK only in the test host.
 Tooling, Ion, Pipeline and the CLI are absent from the core package closure.
 Language syntax compatibility does not establish IDE-host compatibility.
 
+Numeric language profiles and compiler release channels are separate. The same
+constant source has compiled and executed under C# 14.0 with stable SDK 10.0.403,
+compiler 5.9.0-1.26523.112, and C# 15.0 with SDK 11.0.100-rc.2.26504.105,
+compiler 5.12.0-1.26504.105. Both consumers target net10.0 and run on 10.0.14.
+The RC compiler is isolated under an owned test directory. Root global.json
+stays on the stable SDK. This initial profile proof does not cover the pending
+type/expression corpus.
+
 `tests/Morphir.CodeGeneration.CSharp.Tests/verify-host.ps1` packs the real core
 and Models into a local proof feed and restores a fresh consumer with a private
 cache. The first attempt exposed the F# SDK's implicit FSharp.Core 10.1.403

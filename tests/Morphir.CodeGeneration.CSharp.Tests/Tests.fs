@@ -449,4 +449,32 @@ let tests =
     ]
 
 [<EntryPoint>]
-let main args = runTestsWithCLIArgs [] args tests
+let main args =
+    if
+        args.Length = 3
+        && args[0] = "--export-profile"
+    then
+        let options = {
+            LanguageVersion = Int32.Parse(args[1], Globalization.CultureInfo.InvariantCulture)
+        }
+
+        let result =
+            CSharpGenerator.Generate(constantModel (), options, CancellationToken.None)
+
+        if
+            result.Status
+            <> GenerationStatus.Success
+        then
+            failwithf "%A" result.Diagnostics
+
+        for source in result.Sources do
+            let path = IO.Path.Combine(args[2], source.RelativePath)
+
+            IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(path))
+            |> ignore
+
+            IO.File.WriteAllText(path, source.Text, UTF8Encoding(false))
+
+        0
+    else
+        runTestsWithCLIArgs [] args tests

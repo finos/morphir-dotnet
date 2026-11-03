@@ -14,7 +14,7 @@ defines acceptance. PR readiness precedes coordinator-owned landing and archival
 | --- | --- | --- |
 | In-memory entry-point foundation | Implemented | Empty input and caller cancellation tests written first; broad lowering pending |
 | Modern packaged compiler-host closure | Implemented | Fresh packages, incremental driver AddSource, compiled/executed constant and cancellation |
-| Numeric C# 14 and 15 profiles | Planned | Actual pinned compiler execution required |
+| Numeric C# 14 and 15 profiles | Implemented | Actual matching compilers compile and execute identical constant-source bytes; broad corpus pending |
 | Classic and v4 typed lowering | Planned | No serialization or migration bridge |
 | Immutable aliases, records, cases and structural equality | Planned | Compiled consumers |
 | Expressions, lexical scope, ordered patterns and SDK calls | Planned | Shared behavior corpus |

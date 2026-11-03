@@ -1,0 +1,5 @@
+using System;
+
+if (Example.Sample.Answer() != 42)
+    throw new Exception("Generated constant changed.");
+Console.WriteLine("generated-consumer:42");

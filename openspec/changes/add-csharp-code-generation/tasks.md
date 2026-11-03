@@ -6,7 +6,7 @@ Read [design](design.html), [spec](specs/morphir-csharp-transpilation/spec.md) a
 
 - [x] 1.1 Confirm the C# SDK predecessor PR is merged into main and read its frozen public API; create the backend PRD and add a test-first in-memory entry-point skeleton; verify no Tooling, Ion or production Roslyn dependency is introduced.
 - [x] 1.2 Build the minimal test-only .NET 10 generator-driver/package-load smoke with the real model dependency closure before fixing the public API; verify AddSource compilation, cancellation and no CLI/file I/O, and publish the tested/untested host matrix.
-- [ ] 1.3 Pin isolated stable/RC test compiler builds and implement validated numeric language profiles 14 and 15 from failing option/consumer cases; verify default 14 is independent of the installed SDK and root global.json is unchanged.
+- [x] 1.3 Pin isolated stable/RC test compiler builds and implement validated numeric language profiles 14 and 15 from failing option/consumer cases; verify default 14 is independent of the installed SDK and root global.json is unchanged.
 
 ## 2. Types, names and immutable values
 

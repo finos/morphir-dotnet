@@ -16,7 +16,13 @@
     "C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-1d28e9ab/build/obj",
     "All ignored bin/obj/TestResults outputs beneath this exact owned checkout's src and tests directories"
   ],
-  "toolchains": [],
+  "toolchains": [
+    {
+      "path": "C:/Temp/morphir-csharp-generator-1d28e9ab-20261103/toolchains/rc2",
+      "sdk": "11.0.100-rc.2.26504.105",
+      "contents": "Official hash-verified win-arm64 ZIP, isolated extraction, official metadata and SHA-256 inventory of 1063 copied net10.0 reference files"
+    }
+  ],
   "auxiliaries": [],
   "runningOwnedHelpers": [],
   "sharedCachesNotOwned": [
