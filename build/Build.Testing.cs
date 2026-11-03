@@ -153,6 +153,12 @@ partial class Build
         var toolingTestDll = TestsDirectory / "Morphir.Tooling.Tests" / "bin" / configuration / "net10.0" / "Morphir.Tooling.Tests.dll";
         var toolingExitCode = RunCommand("dotnet", "exec", toolingTestDll);
 
+        // Reuse compiled outputs and invoke each configuration suite's configured runner.
+        var configurationTestDll = TestsDirectory / "Morphir.Configuration.Tests" / "bin" / configuration / "net10.0" / "Morphir.Configuration.Tests.dll";
+        var configurationExitCode = RunCommand("dotnet", "exec", configurationTestDll, "--sequenced");
+        var configurationIoTestDll = TestsDirectory / "Morphir.Configuration.IO.Tests" / "bin" / configuration / "net10.0" / "Morphir.Configuration.IO.Tests.dll";
+        var configurationIoExitCode = RunCommand("dotnet", "exec", configurationIoTestDll, "--maximum-parallel-tests", "1");
+
         // Run Morphir.Internal.CodeGeneration.Tests
         Serilog.Log.Information("");
         Serilog.Log.Information("Running Morphir.Internal.CodeGeneration.Tests...");
@@ -197,13 +203,15 @@ partial class Build
         }).ToArray();
 
         // Check if any tests failed
-        if (coreExitCode != 0 || toolingExitCode != 0 || codeGenExitCode != 0 || modelsExitCode != 0 || pipelineExitCode != 0 || sdkExitCode != 0 || myriadExitCodes.Any(code => code != 0))
+        if (coreExitCode != 0 || toolingExitCode != 0 || configurationExitCode != 0 || configurationIoExitCode != 0 || codeGenExitCode != 0 || modelsExitCode != 0 || pipelineExitCode != 0 || sdkExitCode != 0 || myriadExitCodes.Any(code => code != 0))
         {
             Serilog.Log.Error("");
             Serilog.Log.Error("================================================");
             Serilog.Log.Error("Tests FAILED");
             Serilog.Log.Error($"  Morphir.Core.Tests: exit code {coreExitCode}");
             Serilog.Log.Error($"  Morphir.Tooling.Tests: exit code {toolingExitCode}");
+            Serilog.Log.Error($"  Morphir.Configuration.Tests: exit code {configurationExitCode}");
+            Serilog.Log.Error($"  Morphir.Configuration.IO.Tests: exit code {configurationIoExitCode}");
             Serilog.Log.Error($"  Morphir.Internal.CodeGeneration.Tests: exit code {codeGenExitCode}");
             Serilog.Log.Error($"  Morphir.Models.Tests: exit code {modelsExitCode}");
             Serilog.Log.Error($"  Morphir.IR.Pipeline.Tests: exit code {pipelineExitCode}");

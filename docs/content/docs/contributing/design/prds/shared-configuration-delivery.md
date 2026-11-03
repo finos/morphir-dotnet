@@ -59,3 +59,23 @@ cleanup. An open PR or checked task list does not complete this campaign.
   Its source-order fix and selected-classic fallback cases await the next core
   run. Reader 36/36 includes official JSON5 syntax checks and pinned corpus
   hashes. YAML Default profile expansion and full qualification remain underway.
+- `542f129`: accepted YAML Default policy, reader normalization and policy docs
+  checkpoint. `93305d9` finishes 39 profile cases. Fresh complete core run passes
+  88/88 with zero build warnings, including host/default priority and selected
+  classic checkpoint-default regressions that were observed red first.
+- `dcedbb3`: readers pass 63/63 with zero build warnings, including the two
+  negative-zero cases observed red, official JSON5 conformance, YAML Default,
+  raw legacy loss accounting and lazy profile callback protection.
+- `DOTNET_PROCESSOR_COUNT=2 dotnet build Morphir.slnx -m:1 -p:BuildInParallel=false -p:RestoreDisableParallel=true`
+  succeeds, zero errors and 20 warnings in unchanged package/generated-code
+  projects. Both configuration suites are wired into the existing Nuke test
+  target using their configured runners, with bounded workers and compiled output
+  reuse. The managed non-CLI smoke executable succeeds.
+- The first complete tooling run used macOS's default `/var/folders/...` TMPDIR
+  and failed 78 generation/input-capture cases because those tests reject linked
+  ancestors. CI explicitly uses a physical temporary directory. A rerun with
+  `/private/tmp/morphir-shared-config-tests` is in progress; no production code was
+  changed for this environment adjustment.
+- OpenSpec progress is 7/10. Remaining: reader trimming/AOT qualification, legacy
+  tooling compatibility, final format/coverage/build evidence. Landing and owned
+  worktree/branch cleanup remain parent-coordinated after PR handback.

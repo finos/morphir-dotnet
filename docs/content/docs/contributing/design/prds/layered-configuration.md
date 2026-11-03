@@ -7,7 +7,7 @@ description: "Shared configuration, project discovery, and configuration inspect
 
 # Layered configuration and workspaces
 
-**Status**: Approved foundation; implementation planned
+**Status**: In Progress; campaign 1 implementation and qualification
 
 **Created**: 2025-12-22
 
@@ -173,9 +173,9 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 | --- | --- | --- |
 | Configuration project and cache models | Implemented baseline | Cache-only F# records and merge functions exist |
 | TOML resolver and legacy discovery | Implemented baseline | Git-first discovery and user/CI overlays; replacement planned |
-| Multi-format documents and normalization | Planned | TOML, YAML, JSON/JSON5, legacy fields |
+| Multi-format documents and normalization | In Progress | Campaign 1 code and behavioral fixtures; final coverage/AOT qualification underway |
 | Shared discovery and project selection | Planned | Document-aware search and membership |
-| Shared resolution, profiles, validation, provenance | Planned | MoonBit behavior |
+| Shared resolution, profiles, validation, provenance | In Progress | Pure additive APIs; focused resolution/profile tests passing |
 | Microsoft configuration integration | Planned | Adapter; proposed extension name |
 | Shared query and edit services | Planned | Host-independent inspection and TOML edits |
 | Classic project migration | Planned | Shared planner/apply API, project migrate command, loss checks, and independent-equivalence verification |
@@ -185,6 +185,26 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 | Compatibility and end-to-end verification | Planned | Required before advertising runtime support |
 
 ## Implementation notes
+
+### Shared configuration implementation, 2026-11-02
+
+- Track campaign 1 in [issue #458](https://github.com/finos/morphir-dotnet/issues/458).
+- Add typed document APIs beside cache-only records. Parsing and explicit file
+  reading live in `Morphir.Configuration.IO`; core normalization, profile planning,
+  source resolution and schema validation remain pure.
+- Accept Moon-Lander 0.8.0 Default YAML behavior by explicit user decision,
+  including nulls, anchors/aliases, empty streams and custom scalar tags. Record
+  the intentional difference from core's stricter YAML profile. JSON/JSON5
+  duplicate rejection is an approved stricter difference from Moon-Lander.
+- Pin core/MoonBit/framework revisions and fixture hashes. Qualify JSON5 with
+  the official grammar corpus, not comments-only System.Text.Json options.
+- Preserve raw nulls for control typing and raw legacy fields for loss accounting.
+  Ordinary null overlays preserve earlier values; completed loads omit null
+  object fields. Classic checkpoint defaults precede machine settings.
+- Keep commits at coherent task boundaries, with red checkpoints identified.
+  See [delivery evidence](shared-configuration-delivery.md) for exact validation
+  commands/checkpoints. Parent coordination owns review, landing and cleanup;
+  campaign completion remains pending those gates.
 
 ### Foundation decisions, 2026-11-02
 
@@ -200,7 +220,9 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 
 ## Open implementation questions
 
-- Final library/package boundaries and signatures.
+- Campaign 1 boundaries are `Morphir.Configuration` and `Morphir.Configuration.IO`;
+  later discovery/editing/host adapter signatures remain their campaigns' work.
 - Existing cache-only APIs retain their legacy behavior through additive compatibility entry points. Document how consumers explicitly opt into the new discovery and profile model before moving them.
 - Final JSON result schemas and minor public signature details. The command semantics, selector scopes, and quoted key paths are covered by the OpenSpec changes; the CLI reference remains planned until implemented.
-- Pin parser edge cases, including nulls and conflicting shapes, to upstream fixtures before claiming compatibility.
+- Campaign 1 pins parser/merge/profile fixtures; final coverage and native smoke
+  results must be recorded before handback.

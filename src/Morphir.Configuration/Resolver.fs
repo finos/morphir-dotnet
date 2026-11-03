@@ -171,7 +171,9 @@ module Resolver =
                 match source.Content with
                 | SourceContent.Available document when
                     (input.Scope = ProjectScope.Root && source.Source.Role = SourceRole.RootPrimary) ||
-                    (input.Scope = ProjectScope.Member && source.Source.Role = SourceRole.MemberPrimary) ->
+                    (input.Scope = ProjectScope.Member && source.Source.Role = SourceRole.MemberPrimary) ||
+                    (source.Source.Role = SourceRole.Selected &&
+                     (input.Scope = ProjectScope.Root || not (Set.contains source.Source.Path rootPaths))) ->
                     let values =
                         document.LegacyFields
                         |> List.filter (fun field -> field.Disposition = "default")
@@ -181,12 +183,13 @@ module Resolver =
                             | None -> tree) DocumentDefaults.emptyValue
                     Some (available {source.Source with Role = SourceRole.Defaults; Order = 1} values)
                 | _ -> None)
+            |> List.distinctBy (fun source -> source.Source.Path)
         let initial = DocumentDefaults.emptyValue, Map.empty, [], []
         let effective, origins, reports, diagnostics =
             sortSources plan.Active (standardDefaults :: legacyDefaults @ supplied)
             |> List.fold (fun (effective, origins, reports, diagnostics) source ->
                 let profile = source.Source.Role = SourceRole.WorkspaceProfile || source.Source.Role = SourceRole.MemberProfile
-                let duplicateSelected = source.Source.Role <> SourceRole.Selected && Set.contains source.Source.Path selectedPaths
+                let duplicateSelected = source.Source.Role <> SourceRole.Selected && source.Source.Role <> SourceRole.Defaults && Set.contains source.Source.Path selectedPaths
                 let inactive = profile && (not plan.Enabled || not (source.Source.Profile |> Option.exists (fun name -> List.contains name plan.Active)))
                 if duplicateSelected || inactive then
                     let report = {Source = source.Source; Status = SourceStatus.Skipped; Contributed = false; Detail = if inactive then "Inactive profile" else "Contributes once at selected layer"}
