@@ -5,4 +5,3 @@ Feature: Shared typed configuration contracts
     Given equivalent project documents in JSON5 YAML and TOML
     When those documents are read independently
     Then the canonical project values are equal with distinct source identities
-

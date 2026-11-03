@@ -196,3 +196,12 @@ with documentation-only C# generation/SDK planning, PR #459. It was merged at
 validation remains compatible. Strict OpenSpec validation on the reconciled base
 passes 21/21 items: 12 active changes and 9 main specs. All unrelated plans are
 preserved. Review/landing/cleanup remain outstanding at this handback checkpoint.
+
+## Parent review checkpoint
+
+The full PR diff whitespace check identified literal CR/CRLF bytes in the pinned
+JSON5 newline grammar fixtures. A narrow root attribute disables whitespace
+checking for those raw newline fixtures; their original bytes and hashes remain
+unchanged. An extra trailing blank line was removed from the shared reader BDD
+feature. These review changes do not change production behavior or dependency
+inputs. Full-range `git diff --check` passes with the fixture attribute applied.
