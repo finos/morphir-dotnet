@@ -7,7 +7,7 @@ description: "Shared configuration, project discovery, and configuration inspect
 
 # Layered configuration and workspaces
 
-**Status**: In Progress; campaigns 1 and 2 landed and cleaned; campaign 3 inspection locally qualified; parent PR review, landing and cleanup pending
+**Status**: In Progress; campaigns 1, 2 and 3 landed and cleaned; campaign 4 editing in progress
 
 **Created**: 2025-12-22
 
@@ -302,3 +302,7 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 - Campaign 1 pins parser/merge/profile fixtures and records coverage/native
   results. Pinned dependency linker/AOT warnings remain a qualification limitation;
   strict warning-free trimming is not claimed.
+
+### Configuration editing campaign, 2026-11-03
+
+In progress under [#473](https://github.com/finos/morphir-dotnet/issues/473), after merged PR #471. Shared plans, presentation-preserving TOML editing, preconditioned transactions and thin CLI adapters are tracked in the [delivery journal](config-editing-delivery.md). Migration campaigns remain separate.

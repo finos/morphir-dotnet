@@ -5,7 +5,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 1. Campaign setup
 
-- [ ] 1.1 Prepare an owned worktree/branch after add-config-inspection is merged; verify its landed SHA, clean baseline, and recorded worktree/branch ownership.
+- [x] 1.1 Prepare an owned worktree/branch after add-config-inspection is merged; verify its landed SHA, clean baseline, and recorded worktree/branch ownership.
 
 ## 2. Targets and plans
 
