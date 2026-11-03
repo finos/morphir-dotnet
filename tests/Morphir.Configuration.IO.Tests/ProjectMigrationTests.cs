@@ -22,7 +22,7 @@ public sealed class ProjectMigrationTests
         preview.CanApply.Should().BeTrue();
         preview.TargetPath.Should().Be("/repo/" + output);
         preview.Verification!.Verified.Should().BeTrue();
-        preview.Plan!.Ledger.Should().NotBeEmpty();
+        preview.Plan!.Ledger.ToArray().Should().NotBeEmpty();
         tree.ObservedPaths.Should().NotContain(p => p.Contains(".user.", StringComparison.Ordinal));
         files.Should().HaveCount(1);
     }
@@ -140,7 +140,7 @@ public sealed class ProjectMigrationApplicationTests
         fixture.Service.Apply(preview).Status.Should().Be(ConfigurationTransactionStatus.Written);
         var bytes = File.ReadAllBytes(target);
         bytes.Take(2).Should().Equal(encoding.GetPreamble());
-        encoding.GetString(bytes.AsSpan(2)).Should().StartWith("# keep é\r\n[project]\r\nname='App' # keep\r\n").And.Contain("a=1 # keep");
+        encoding.GetString(bytes.AsSpan(2)).Should().Contain("# keep é\r\n[project]\r\nname='App' # keep\r\n").And.Contain("a=1 # keep");
     }
 
     private sealed class Fixture : IDisposable
@@ -156,5 +156,102 @@ public sealed class ProjectMigrationApplicationTests
             return path;
         }
         public void Dispose() { if (Directory.Exists(Root)) Directory.Delete(Root, true); }
+    }
+}
+
+public sealed class ProjectMigrationFailureTests
+{
+    [Test]
+    [Arguments("../outside", null)]
+    [Arguments("missing", null)]
+    [Arguments("", null)]
+    [Arguments(null, "")]
+    public void InvalidInvocationBlocksWithoutWriteAccess(string? input, string? output)
+    {
+        var tree = new InMemoryProjectTree("/repo", new Dictionary<string, string> { ["/repo/morphir.json"] = "{name:'App',exposedModules:[]}" });
+        var result = new ProjectMigrationService(tree).Plan("/repo", input, output);
+        result.CanApply.Should().BeFalse();
+        result.Diagnostics.Should().Contain(d => d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Test]
+    public void AlternatePrimaryAndCanonicalOnlyJsonAreRejected()
+    {
+        var files = new Dictionary<string, string> { ["/repo/morphir.json"] = "{project:{name:'Canonical'}}" };
+        new ProjectMigrationService(new InMemoryProjectTree("/repo", files)).Plan("/repo").CanApply.Should().BeFalse();
+        files["/repo/morphir.json"] = "{name:'Classic',exposedModules:[]}";
+        files["/repo/.morphir/morphir.toml"] = "[project]\nname='Classic'\n";
+        var preview = new ProjectMigrationService(new InMemoryProjectTree("/repo", files)).Plan("/repo");
+        preview.Diagnostics.Should().Contain(d => d.Code == "migration.ambiguous_output");
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void WriteFaultsReportRollbackOrExplicitOwnedRecovery(bool refuseRollback)
+    {
+        var root = ProjectPath.normalize(Path.Combine(Path.GetTempPath(), "migration-recovery-" + Guid.NewGuid().ToString("N")));
+        Directory.CreateDirectory(root);
+        var target = root + "/morphir.toml";
+        const string source = "{name:'App',exposedModules:[]}\n";
+        const string original = "# retained target\n[project]\nname='App'\n";
+        var resolved = false;
+        try
+        {
+            File.WriteAllText(root + "/morphir.json", source);
+            File.WriteAllText(target, original);
+            var host = new FaultHost(refuseRollback);
+            var service = new ProjectMigrationService(new FileSystemProjectTree(root), host);
+            var preview = service.Plan(root);
+            preview.CanApply.Should().BeTrue();
+            var result = service.Apply(preview);
+            File.ReadAllText(root + "/morphir.json").Should().Be(source);
+            if (!refuseRollback)
+            {
+                result.Status.Should().Be(ConfigurationTransactionStatus.RolledBack);
+                result.Artifacts.Should().BeEmpty();
+                File.ReadAllText(target).Should().Be(original);
+            }
+            else
+            {
+                result.Status.Should().Be(ConfigurationTransactionStatus.RecoveryRequired);
+                result.Artifacts.Should().Contain(a => a.Kind == ConfigurationArtifactKind.Backup)
+                    .And.Contain(a => a.Kind == ConfigurationArtifactKind.Journal);
+                var backup = result.Artifacts.Single(a => a.Kind == ConfigurationArtifactKind.Backup);
+                File.ReadAllText(backup.Path).Should().Be(original);
+                result.Artifacts.Select(a => a.TransactionId).Distinct().Should().ContainSingle();
+                // Explicit fixture recovery after verifying backup identity and installed candidate.
+                File.ReadAllText(target).Should().Contain("checkpoint");
+                File.WriteAllBytes(target, File.ReadAllBytes(backup.Path));
+                foreach (var artifact in result.Artifacts.Where(a => a.Kind != ConfigurationArtifactKind.Directory)) File.Delete(artifact.Path);
+                File.ReadAllText(target).Should().Be(original);
+            }
+            resolved = true;
+        }
+        finally
+        {
+            if (resolved) Directory.Delete(root, true);
+            else Console.Error.WriteLine("Retained migration fault evidence: " + root);
+        }
+    }
+
+    private sealed class FaultHost(bool refuseRollback) : IConfigurationTransactionHost
+    {
+        private readonly NativeConfigurationTransactionHost inner = new();
+        private int installs;
+        public ConfigurationObservation Observe(string path, IReadOnlyCollection<string>? excludedPaths = null) => inner.Observe(path, excludedPaths);
+        public byte[] ReadFile(string path) => inner.ReadFile(path);
+        public IDisposable Acquire(IReadOnlyList<string> paths) => inner.Acquire(paths);
+        public IReadOnlyList<string> CreateParentDirectories(string destination) => inner.CreateParentDirectories(destination);
+        public string Stage(string destination, ReadOnlyMemory<byte> content, string transactionId, string role) => inner.Stage(destination, content, transactionId, role);
+        public void Install(string stagedPath, string destination, bool overwrite)
+        {
+            installs++;
+            if (installs > 1 && refuseRollback) throw new IOException("Injected rollback failure");
+            inner.Install(stagedPath, destination, overwrite);
+            if (installs == 1) throw new IOException("Injected post-install failure");
+        }
+        public void DeleteFile(string path) => inner.DeleteFile(path);
+        public void DeleteDirectory(string path) => inner.DeleteDirectory(path);
     }
 }

@@ -16,7 +16,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 - [x] 3.1 Write failing cases where retained legacy JSON or ambient overrides would hide a wrong candidate, including standalone and member context, defaults, paths, and expected provenance changes; confirm red before equivalence implementation.
 - [x] 3.2 Implement comparison with the converted source excluded and machine/personal/environment/CLI/active-profile overlays removed, retaining base workspace context; verify the equivalence suite and document exactly what is compared.
-- [ ] 3.3 Apply only verified plans through the transaction service with source/target/workspace drift checks; verify dry-run writes nothing, sources remain byte-identical, failed plans preserve files, and repeats do not rewrite, with migration/recovery docs updated.
+- [x] 3.3 Apply only verified plans through the transaction service with source/target/workspace drift checks; verify dry-run writes nothing, sources remain byte-identical, failed plans preserve files, and repeats do not rewrite, with migration/recovery docs updated.
 
 ## 4. Project CLI and integration
 
