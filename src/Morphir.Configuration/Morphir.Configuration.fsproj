@@ -18,6 +18,8 @@
         <Compile Include="Normalization.fs" />
         <Compile Include="Profiles.fs" />
         <Compile Include="EnvironmentMapping.fs" />
+        <Compile Include="Schema.fs" />
+        <Compile Include="Validation.fs" />
         <Compile Include="Resolver.fs" />
     </ItemGroup>
 

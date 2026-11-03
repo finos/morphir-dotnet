@@ -51,3 +51,11 @@ cleanup. An open PR or checked task list does not complete this campaign.
   filters, default settings, and selected missing-file errors now pass their
   previously failing cases. Validation, mixed-format warnings, remaining profile
   bounds, reader qualification, coverage/AOT and final docs remain.
+- `c48803f`: passing supplied-source implementation checkpoint. Canonical schema
+  validation and mixed-format diagnostics were then observed red and made green,
+  Resolution 13/13. The profile worker's `f06fecb` has 33/33 profile cases and the
+  then-current complete core suite 81/81 passing. A follow-up default-priority
+  regression was observed red, expected host IR default 3 but got builtin 4.
+  Its source-order fix and selected-classic fallback cases await the next core
+  run. Reader 36/36 includes official JSON5 syntax checks and pinned corpus
+  hashes. YAML Default profile expansion and full qualification remain underway.

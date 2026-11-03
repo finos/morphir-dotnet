@@ -43,7 +43,7 @@ module Resolver =
           ["ir"; "layout"], ConfigValue.String "single-file"
           ["ir"; "format"], ConfigValue.String "json" ]
         |> List.fold (fun tree (path, value) -> ConfigTree.set path value tree) DocumentDefaults.emptyValue
-        |> available (identity "<defaults>" SourceRole.Defaults)
+        |> available {identity "<defaults>" SourceRole.Defaults with Order = System.Int32.MinValue}
 
     let private sortSources active (sources: SourceInput list) =
         let rank (source: SourceIdentity) =
@@ -53,7 +53,11 @@ module Resolver =
                 6, profile, (if source.Role = SourceRole.WorkspaceProfile then 0 else 1)
             | SourceRole.WorkspaceUserOverride -> 8, 0, 0
             | role -> int role, 0, 0
-        sources |> List.sortBy (fun input -> rank input.Source, int input.Source.Format, input.Source.Order, input.Source.Path)
+        sources |> List.sortBy (fun input ->
+            let first, second =
+                if input.Source.Role = SourceRole.Defaults then input.Source.Order, int input.Source.Format
+                else int input.Source.Format, input.Source.Order
+            rank input.Source, first, second, input.Source.Path)
 
     let private scopeDocument input rootPaths memberPaths (document: ConfigurationDocument) =
         let source = document.Source
@@ -90,6 +94,68 @@ module Resolver =
                 values <- ConfigTree.set ["workspace"] filtered values
             | None -> ()
         {document with Values = values}, diagnostics
+
+    let private mixedFormatDiagnostics (input: ResolutionInput) =
+        let codes = Set.ofList ["config.yaml_beside_toml"; "config.json_keys_below_toml"]
+        let host = identity "<host-options>" SourceRole.Explicit
+        let mutable suppressed = input.SuppressWarnings |> List.map (fun code -> code, host)
+        let mutable errors = []
+        match Map.tryFind "MORPHIR_DIAGNOSTICS__SUPPRESS" input.Environment with
+        | Some value ->
+            let source = identity "MORPHIR_DIAGNOSTICS__SUPPRESS" SourceRole.Environment
+            suppressed <- suppressed @ (value.Split(',') |> Array.map (fun code -> code.Trim(), source) |> List.ofArray)
+        | None -> ()
+        for source in input.Sources do
+            if source.Source.Role = SourceRole.System || source.Source.Role = SourceRole.Global then
+                match source.Content with
+                | SourceContent.Available document ->
+                    let path = ["diagnostics"; "suppress"]
+                    match ConfigTree.tryFind path document.Values with
+                    | Some (ConfigValue.Array items) when items |> List.forall (function ConfigValue.String _ -> true | _ -> false) ->
+                        suppressed <- suppressed @ (items |> List.choose (function ConfigValue.String code -> Some (code, source.Source) | _ -> None))
+                    | Some _ ->
+                        errors <- errors @ [{Code = "config.suppression_shape"; Message = "diagnostics.suppress must be an array of warning codes."
+                                             Severity = DiagnosticSeverity.Error; Source = source.Source; KeyPath = path; Position = Map.tryFind path document.Positions}]
+                    | None -> ()
+                | _ -> ()
+        let suppressed = suppressed |> List.filter (fun (code, _) -> code <> "") |> List.distinct
+        let unknown =
+            suppressed |> List.choose (fun (code, source) ->
+                if Set.contains code codes then None
+                else Some {Code = "config.unknown_suppression"; Message = "Unknown configuration warning code: " + code
+                           Severity = DiagnosticSeverity.Warning; Source = source; KeyPath = ["diagnostics"; "suppress"]; Position = None})
+        let enabled code = not (suppressed |> List.exists (fun (candidate, _) -> code = candidate))
+        let groups =
+            input.Sources
+            |> List.filter (fun source -> source.Source.Role = SourceRole.RootPrimary || source.Source.Role = SourceRole.MemberPrimary)
+            |> List.groupBy (fun source -> source.Source.Role)
+        let warnings =
+            groups |> List.collect (fun (_, sources) ->
+                let documents =
+                    sortSources [] sources |> List.choose (fun source ->
+                        match source.Content with SourceContent.Available document -> Some document | _ -> None)
+                match documents |> List.tryFind (fun document -> document.Source.Format = DocumentFormat.Toml) with
+                | None -> []
+                | Some toml ->
+                    let yaml =
+                        if enabled "config.yaml_beside_toml" then
+                            documents |> List.choose (fun document ->
+                                if document.Source.Format <> DocumentFormat.Yaml then None
+                                else Some {Code = "config.yaml_beside_toml"; Message = document.Source.Path + " beside " + toml.Source.Path
+                                           Severity = DiagnosticSeverity.Warning; Source = document.Source; KeyPath = []; Position = None})
+                        else []
+                    let json =
+                        if enabled "config.json_keys_below_toml" then
+                            let _, winners =
+                                documents |> List.fold (fun (value, winners) document ->
+                                    mergeAt [] value (ConfigTree.remove "profiles" document.Values) winners document) (DocumentDefaults.emptyValue, Map.empty)
+                            winners |> Map.toList |> List.choose (fun (path, origin) ->
+                                if origin.Source.Format <> DocumentFormat.Json then None
+                                else Some {Code = "config.json_keys_below_toml"; Message = origin.Source.Path + " supplies " + String.concat "." path + " below " + toml.Source.Path
+                                           Severity = DiagnosticSeverity.Warning; Source = origin.Source; KeyPath = path; Position = origin.Position})
+                        else []
+                    yaml @ json)
+        errors @ unknown @ warnings
 
     let resolve (input: ResolutionInput) : DocumentResolution =
         let explicitSource =
@@ -144,9 +210,10 @@ module Resolver =
                     | SourceContent.Invalid errors ->
                         let report = { Source = source.Source; Status = SourceStatus.Failed; Contributed = false; Detail = "Invalid" }
                         effective, origins, reports @ [report], diagnostics @ errors) initial
-        { Effective = ConfigTree.clean effective
+        let effective = ConfigTree.clean effective
+        { Effective = effective
           Origins = origins
           Sources = reports
           ActiveProfiles = plan.Active
           OwningWorkspace = input.OwningWorkspace
-          Diagnostics = (plan.Diagnostics @ diagnostics) |> List.distinct }
+          Diagnostics = (plan.Diagnostics @ diagnostics @ Validation.validate effective origins @ mixedFormatDiagnostics input) |> List.distinct }

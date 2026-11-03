@@ -134,4 +134,101 @@ let tests =
             Expect.equal (result.Sources |> List.filter (fun r -> r.Status = SourceStatus.Missing) |> List.length) 2 "consulted misses retained"
             Expect.equal (result.Diagnostics |> List.filter (fun d -> d.Severity = DiagnosticSeverity.Error) |> List.map (fun d -> d.Source.Path)) [selected.Path] "selected cannot be optional"
         }
+        test "known values are validated at their winning source and position" {
+            let identity = source "wrong.toml" SourceRole.RootPrimary DocumentFormat.Toml
+            let raw = obj ["ir", obj ["format_version", text "4"]; "extra", ConfigValue.Boolean true]
+            let original = supplied identity raw
+            let positioned =
+                match original.Content with
+                | SourceContent.Available document ->
+                    {original with Content = SourceContent.Available {document with Positions = Map.ofList [["ir"; "format_version"], {Line = 3; Column = 2}]}}
+                | _ -> original
+            let result = Resolver.resolve {DocumentDefaults.resolutionInput with Sources = [positioned]}
+            let errors = result.Diagnostics |> List.filter (fun d -> d.Severity = DiagnosticSeverity.Error)
+            Expect.isTrue (errors |> List.exists (fun d -> d.Source = identity && d.KeyPath = ["ir"; "format_version"] && d.Position = Some {Line = 3; Column = 2})) "typed source diagnostic"
+            Expect.equal (ConfigTree.tryFind ["extra"] result.Effective) (Some (ConfigValue.Boolean true)) "unknown values retained"
+        }
+        test "schema validates nested tasks and finite bounded known numbers without execution" {
+            let raw = obj ["tasks", obj ["bad", obj ["run", text "do-not-execute"; "cmd", ConfigValue.Array [text "also-not-executed"]]]
+                           "ir", obj ["format_version", ConfigValue.Integer 11L]
+                           "logging", obj ["level", text "trace"]]
+            let result = Resolver.resolve {DocumentDefaults.resolutionInput with Sources = [supplied (source "schema.json" SourceRole.RootPrimary DocumentFormat.Json) raw]}
+            for path in [["tasks"; "bad"]; ["ir"; "format_version"]; ["logging"; "level"]] do
+                Expect.isTrue (result.Diagnostics |> List.exists (fun d -> d.KeyPath = path && d.Severity = DiagnosticSeverity.Error)) ("schema rejects " + String.concat "." path)
+        }
+        test "mixed format warnings resist workspace suppression and show surviving JSON keys" {
+            let json = source "morphir.json" SourceRole.RootPrimary DocumentFormat.Json
+            let yaml = source "morphir.yaml" SourceRole.RootPrimary DocumentFormat.Yaml
+            let toml = source "morphir.toml" SourceRole.RootPrimary DocumentFormat.Toml
+            let sources = [supplied json (obj ["json_only", text "kept"])
+                           supplied yaml (obj ["tool", text "yaml"])
+                           supplied toml (obj ["tool", text "toml"
+                                               "diagnostics", obj ["suppress", ConfigValue.Array [text "config.yaml_beside_toml"; text "config.json_keys_below_toml"]]])]
+            let input = {DocumentDefaults.resolutionInput with Sources = sources}
+            let result = Resolver.resolve input
+            Expect.isTrue (result.Diagnostics |> List.exists (fun d -> d.Code = "config.yaml_beside_toml" && d.Source = yaml)) "workspace cannot suppress YAML warning"
+            Expect.isTrue (result.Diagnostics |> List.exists (fun d -> d.Code = "config.json_keys_below_toml" && d.Source = json && d.KeyPath = ["json_only"])) "JSON survivor origin named"
+            let quiet = Resolver.resolve {input with Environment = Map.ofList ["MORPHIR_DIAGNOSTICS__SUPPRESS", "config.yaml_beside_toml,config.json_keys_below_toml,unknown"]}
+            Expect.isFalse (quiet.Diagnostics |> List.exists (fun d -> d.Code = "config.yaml_beside_toml" || d.Code = "config.json_keys_below_toml")) "host env suppression authorized"
+            Expect.isTrue (quiet.Diagnostics |> List.exists (fun d -> d.Code = "config.unknown_suppression")) "unknown code warns"
+        }
+        test "profile source order advances name after workspace and member formats" {
+            let profile path role name value =
+                supplied {source path role DocumentFormat.Toml with Profile = Some name} (obj ["tool", text value])
+            let result = Resolver.resolve
+                            {DocumentDefaults.resolutionInput with
+                                Profiles = {DocumentDefaults.profileOptions with Selection = ProfileSelection.Names ["postgres"; "metrics"]}
+                                Sources = [profile "member-pg" SourceRole.MemberProfile "postgres" "member postgres"
+                                           profile "workspace-metrics" SourceRole.WorkspaceProfile "metrics" "workspace metrics"]}
+            Expect.equal (ConfigTree.tryFind ["tool"] result.Effective) (Some (text "workspace metrics")) "later name's workspace beats earlier member"
+            Expect.equal result.Origins.[["tool"]].Source.Path "workspace-metrics" "winning profile path"
+        }
+        test "host defaults and legacy defaults have separate priorities below machine sources" {
+            let defaults = supplied (source "host-defaults.toml" SourceRole.Defaults DocumentFormat.Toml)
+                               (obj ["ir", obj ["format_version", ConfigValue.Integer 3L]
+                                     "pipeline", obj ["backend", text "host-default"]])
+            let classicSource = source "classic.json" SourceRole.RootPrimary DocumentFormat.Json
+            let classic = supplied classicSource (obj ["project", obj ["name", text "Classic"]])
+            let classic =
+                match classic.Content with
+                | SourceContent.Available doc ->
+                    {classic with Content = SourceContent.Available {doc with LegacyFields = [{RawPath = []; CanonicalPath = Some ["pipeline"; "backend"]; Value = text "checkpoint"; Disposition = "default"}]}}
+                | _ -> classic
+            let input = {DocumentDefaults.resolutionInput with Sources = [classic; defaults]}
+            let result = Resolver.resolve input
+            Expect.equal (ConfigTree.tryFind ["ir"; "format_version"] result.Effective) (Some (ConfigValue.Integer 3L)) "host defaults beat builtins"
+            Expect.equal (ConfigTree.tryFind ["pipeline"; "backend"] result.Effective) (Some (text "checkpoint")) "legacy derived defaults beat host fallback"
+            let machine = supplied (source "global" SourceRole.Global DocumentFormat.Toml) (obj ["pipeline", obj ["backend", text "custom"]])
+            let result = Resolver.resolve {input with Sources = machine :: input.Sources}
+            Expect.equal (ConfigTree.tryFind ["pipeline"; "backend"] result.Effective) (Some (text "custom")) "global beats legacy fallback"
+            let selected =
+                match classic.Content with
+                | SourceContent.Available document ->
+                    let identity = {classicSource with Role = SourceRole.Selected}
+                    {classic with Source = identity; Content = SourceContent.Available {document with Source = identity}}
+                | _ -> classic
+            let result = Resolver.resolve {input with Sources = [classic; selected]}
+            Expect.equal (ConfigTree.tryFind ["pipeline"; "backend"] result.Effective) (Some (text "checkpoint")) "selecting classic retains derived default contribution"
+            let result = Resolver.resolve {input with Sources = [selected]}
+            Expect.equal (ConfigTree.tryFind ["pipeline"; "backend"] result.Effective) (Some (text "checkpoint")) "explicit classic file also retains defaults"
+        }
     ]
+
+[<Tests>]
+let boundaryTests =
+    let roles = [SourceRole.Defaults; SourceRole.System; SourceRole.Global; SourceRole.RootPrimary
+                 SourceRole.Selected; SourceRole.MemberPrimary; SourceRole.WorkspaceProfile
+                 SourceRole.MemberProfile; SourceRole.UserOverride; SourceRole.Environment; SourceRole.Explicit]
+    roles
+    |> List.pairwise
+    |> List.map (fun (lower, higher) ->
+        testCase (string lower + " before " + string higher) (fun () ->
+            let document role =
+                let identity = {source (string role) role DocumentFormat.Memory with Profile = Some "active"}
+                supplied identity (obj ["boundary", text (string role)])
+            let result = Resolver.resolve
+                            {DocumentDefaults.resolutionInput with
+                                Profiles = {DocumentDefaults.profileOptions with Selection = ProfileSelection.Names ["active"]}
+                                Sources = [document higher; document lower]}
+            Expect.equal (ConfigTree.tryFind ["boundary"] result.Effective) (Some (text (string higher))) "each ladder boundary holds"))
+    |> testList "Resolution boundaries"
