@@ -178,6 +178,16 @@ This project was recently migrated from Just to Nuke. See [NUKE_MIGRATION.md](NU
 
 ## Developing
 
+The [shared .NET SDK contract](docs/design/dotnet-sdk-contract.md) freezes the
+bounded operation signatures, scalar limits and independent expectations used by
+both SDK deliveries. See the [fixture guide](tests/Fixtures/MorphirSDK/README.md)
+for the build command, schema and provenance. After building its test project,
+run the offline validator with:
+
+```powershell
+dotnet exec tests/Morphir.SDK.Conformance.Tests/bin/Debug/net10.0/Morphir.SDK.Conformance.Tests.dll --maximum-parallel-tests 2
+```
+
 ### Project Structure
 
 ```

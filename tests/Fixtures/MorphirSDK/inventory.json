@@ -1,0 +1,2378 @@
+{
+  "schemaVersion": 1,
+  "contractId": "morphir-dotnet-sdk-v1",
+  "profiles": [
+    {
+      "id": "dotnet-sdk-v1",
+      "integer": {
+        "representation": "System.Int32",
+        "minimum": "-2147483648",
+        "maximum": "2147483647",
+        "arithmetic": "checked exact result; Overflow, DivisionByZero, NonFiniteConversion"
+      },
+      "float": {
+        "representation": "System.Double IEEE 754 binary64",
+        "observations": [
+          "finite round-trip text",
+          "NaN",
+          "+Infinity",
+          "-Infinity",
+          "+0",
+          "-0"
+        ],
+        "comparable": "finite only; signed zeros equal"
+      },
+      "decimal": {
+        "representation": "System.Decimal exact subset",
+        "maximumCoefficient": "79228162514264337593543950335",
+        "minimumScale": 0,
+        "maximumScale": 28,
+        "canonical": "remove trailing coefficient zeros while scale > 0; zero has scale 0"
+      },
+      "text": {
+        "string": "well-formed UTF-16; ordinal code-unit comparison; no normalization or locale",
+        "char": "one non-surrogate BMP scalar in System.Char",
+        "excluded": "unpaired surrogates and supplementary Char; supplementary String remains supported"
+      },
+      "comparable": "Int, finite Float, Char, String, recursively homogeneous List and Tuple of comparable values; Decimal uses Decimal.compare; Bool, Unit, Order, Maybe, Result, Dict, Set and callbacks are not comparable",
+      "equality": "structural, with numeric Decimal scale normalization; NaN unequal; equal values must have equal in-process hashes, numeric hash values are not portable",
+      "exclusionCodes": [
+        "IntegerOutOfRange",
+        "IntegerNegativeExponent",
+        "CharOutOfRange",
+        "InvalidUtf16",
+        "NonFiniteComparable",
+        "DecimalScaleOutOfRange",
+        "DecimalCoefficientOutOfRange",
+        "DecimalNonTerminating"
+      ],
+      "errorCodes": [
+        "Overflow",
+        "DivisionByZero",
+        "NonFiniteConversion"
+      ]
+    }
+  ],
+  "callbacks": [
+    {
+      "id": "increment",
+      "type": "Fn<Int,Int>",
+      "meaning": "x -> checked(x + 1)"
+    },
+    {
+      "id": "showInt",
+      "type": "Fn<Int,String>",
+      "meaning": "x -> invariant base-10 integer text"
+    },
+    {
+      "id": "positiveMaybe",
+      "type": "Fn<Int,Maybe<Int>>",
+      "meaning": "x -> Just x if x > 0, otherwise Nothing"
+    },
+    {
+      "id": "positiveResult",
+      "type": "Fn<Int,Result<String,Int>>",
+      "meaning": "x -> Ok x if x > 0, otherwise Err negative"
+    },
+    {
+      "id": "setJustSeven",
+      "type": "Fn<Maybe<Int>,Maybe<Int>>",
+      "meaning": "_ -> Just 7"
+    },
+    {
+      "id": "removeEntry",
+      "type": "Fn<Maybe<Int>,Maybe<Int>>",
+      "meaning": "_ -> Nothing"
+    },
+    {
+      "id": "incrementMaybe",
+      "type": "Fn<Maybe<Int>,Maybe<Int>>",
+      "meaning": "Just x -> Just checked(x + 1); Nothing -> Nothing"
+    }
+  ],
+  "operations": [
+    {
+      "operation": "Morphir.SDK.Basics.add",
+      "classification": "required",
+      "typeParameters": {
+        "n": "number"
+      },
+      "parameters": [
+        {
+          "name": "a",
+          "type": "n"
+        },
+        {
+          "name": "b",
+          "type": "n"
+        }
+      ],
+      "result": "n",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "a + b; Int checked, Float IEEE 754",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.add/int",
+        "Basics.add/float",
+        "Basics.add/int-overflow",
+        "Basics.add/float-nan",
+        "Basics.add/float-smallest",
+        "Basics.add/int-minimum"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 97,
+        "declaration": "def add[N: (int, float)](a: N, b: N) -> N:"
+      },
+      "errorOutcomes": [
+        "Overflow"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.subtract",
+      "classification": "required",
+      "typeParameters": {
+        "n": "number"
+      },
+      "parameters": [
+        {
+          "name": "a",
+          "type": "n"
+        },
+        {
+          "name": "b",
+          "type": "n"
+        }
+      ],
+      "result": "n",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "a - b; Int checked, Float IEEE 754",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.subtract/int",
+        "Basics.subtract/float",
+        "Basics.subtract/int-overflow",
+        "Basics.subtract/float-nan"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 102,
+        "declaration": "def subtract[N: (int, float)](a: N, b: N) -> N:"
+      },
+      "errorOutcomes": [
+        "Overflow"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.multiply",
+      "classification": "required",
+      "typeParameters": {
+        "n": "number"
+      },
+      "parameters": [
+        {
+          "name": "a",
+          "type": "n"
+        },
+        {
+          "name": "b",
+          "type": "n"
+        }
+      ],
+      "result": "n",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "a * b; Int checked, Float IEEE 754",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.multiply/int",
+        "Basics.multiply/float",
+        "Basics.multiply/int-overflow",
+        "Basics.multiply/float-nan",
+        "Basics.multiply/float-overflow",
+        "Basics.multiply/float-underflow"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 107,
+        "declaration": "def multiply[N: (int, float)](a: N, b: N) -> N:"
+      },
+      "errorOutcomes": [
+        "Overflow"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.divide",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "a",
+          "type": "Float"
+        },
+        {
+          "name": "b",
+          "type": "Float"
+        }
+      ],
+      "result": "Float",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "IEEE 754 binary64 division; signed zero retained",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.divide/normal",
+        "Basics.divide/positive-zero",
+        "Basics.divide/negative-zero",
+        "Basics.divide/zero-zero",
+        "Basics.divide/negative-result-zero",
+        "Basics.divide/infinite"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 112,
+        "declaration": "def divide(a: float, b: float) -> float:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.integerDivide",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "a",
+          "type": "Int"
+        },
+        {
+          "name": "b",
+          "type": "Int"
+        }
+      ],
+      "result": "Int",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Truncate toward zero, with checked result. Zero divisor errors by explicit .NET extension.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.integerDivide/positive",
+        "Basics.integerDivide/negative",
+        "Basics.integerDivide/both-negative",
+        "Basics.integerDivide/zero",
+        "Basics.integerDivide/min-neg-one"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 125,
+        "declaration": "def integer_divide(a: int, b: int) -> int:"
+      },
+      "errorOutcomes": [
+        "Overflow",
+        "DivisionByZero"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.modBy",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "divisor",
+          "type": "Int"
+        },
+        {
+          "name": "dividend",
+          "type": "Int"
+        }
+      ],
+      "result": "Int",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Modulus has divisor sign; remainder has dividend sign. Compute exactly before Int32 range check.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.modBy/negative-dividend",
+        "Basics.modBy/negative-divisor",
+        "Basics.modBy/min-neg-one",
+        "Basics.modBy/zero"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 228,
+        "declaration": "def mod_by(modulus: int, a: int) -> int:"
+      },
+      "errorOutcomes": [
+        "DivisionByZero"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.remainderBy",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "divisor",
+          "type": "Int"
+        },
+        {
+          "name": "dividend",
+          "type": "Int"
+        }
+      ],
+      "result": "Int",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Modulus has divisor sign; remainder has dividend sign. Compute exactly before Int32 range check.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.remainderBy/negative-dividend",
+        "Basics.remainderBy/negative-divisor",
+        "Basics.remainderBy/min-neg-one",
+        "Basics.remainderBy/zero"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 239,
+        "declaration": "def remainder_by(divisor: int, a: int) -> int:"
+      },
+      "errorOutcomes": [
+        "DivisionByZero"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.negate",
+      "classification": "required",
+      "typeParameters": {
+        "n": "number"
+      },
+      "parameters": [
+        {
+          "name": "value",
+          "type": "n"
+        }
+      ],
+      "result": "n",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Int checked; Float IEEE 754. abs(-0) is +0.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.negate/int",
+        "Basics.negate/int-min",
+        "Basics.negate/signed-zero"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 251,
+        "declaration": "def negate[N: (int, float)](a: N) -> N:"
+      },
+      "errorOutcomes": [
+        "Overflow"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.abs",
+      "classification": "required",
+      "typeParameters": {
+        "n": "number"
+      },
+      "parameters": [
+        {
+          "name": "value",
+          "type": "n"
+        }
+      ],
+      "result": "n",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Int checked; Float IEEE 754. abs(-0) is +0.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.abs/int",
+        "Basics.abs/int-min",
+        "Basics.abs/signed-zero"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 256,
+        "declaration": "def abs[N: (int, float)](a: N) -> N:"
+      },
+      "errorOutcomes": [
+        "Overflow"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.power",
+      "classification": "required",
+      "typeParameters": {
+        "n": "number"
+      },
+      "parameters": [
+        {
+          "name": "base",
+          "type": "n"
+        },
+        {
+          "name": "exponent",
+          "type": "n"
+        }
+      ],
+      "result": "n",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Int exponent must be nonnegative, exact checked result; Float follows IEEE/Math.pow.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.power/int",
+        "Basics.power/int-overflow",
+        "Basics.power/float"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 160,
+        "declaration": "def power[N: (int, float)](base: N, exponent: N) -> N:"
+      },
+      "errorOutcomes": [
+        "Overflow"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.toFloat",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "value",
+          "type": "Int"
+        }
+      ],
+      "result": "Float",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "All admitted Int32 values convert exactly to binary64.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.toFloat/max",
+        "Basics.toFloat/min"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 193,
+        "declaration": "def to_float(a: int) -> float:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.round",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "value",
+          "type": "Float"
+        }
+      ],
+      "result": "Int",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "round ties toward positive infinity; floor down, ceiling up, truncate toward zero. Nonfinite errors, out-of-range errors.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.round/negative-half",
+        "Basics.round/nonfinite",
+        "Basics.round/out-of-range"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 198,
+        "declaration": "def round(a: float) -> int:"
+      },
+      "errorOutcomes": [
+        "Overflow",
+        "NonFiniteConversion"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.floor",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "value",
+          "type": "Float"
+        }
+      ],
+      "result": "Int",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "round ties toward positive infinity; floor down, ceiling up, truncate toward zero. Nonfinite errors, out-of-range errors.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.floor/negative-half",
+        "Basics.floor/nonfinite",
+        "Basics.floor/out-of-range"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 213,
+        "declaration": "def floor(a: float) -> int:"
+      },
+      "errorOutcomes": [
+        "Overflow",
+        "NonFiniteConversion"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.ceiling",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "value",
+          "type": "Float"
+        }
+      ],
+      "result": "Int",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "round ties toward positive infinity; floor down, ceiling up, truncate toward zero. Nonfinite errors, out-of-range errors.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.ceiling/negative-half",
+        "Basics.ceiling/nonfinite",
+        "Basics.ceiling/out-of-range"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 218,
+        "declaration": "def ceiling(a: float) -> int:"
+      },
+      "errorOutcomes": [
+        "Overflow",
+        "NonFiniteConversion"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.truncate",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "value",
+          "type": "Float"
+        }
+      ],
+      "result": "Int",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "round ties toward positive infinity; floor down, ceiling up, truncate toward zero. Nonfinite errors, out-of-range errors.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.truncate/negative-half",
+        "Basics.truncate/nonfinite",
+        "Basics.truncate/out-of-range"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 223,
+        "declaration": "def truncate(a: float) -> int:"
+      },
+      "errorOutcomes": [
+        "Overflow",
+        "NonFiniteConversion"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Basics.isNaN",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "value",
+          "type": "Float"
+        }
+      ],
+      "result": "Bool",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Classify the binary64 observation.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.isNaN/nan",
+        "Basics.isNaN/infinity"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 270,
+        "declaration": "def is_nan(a: float) -> bool:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.isInfinite",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "value",
+          "type": "Float"
+        }
+      ],
+      "result": "Bool",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Classify the binary64 observation.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.isInfinite/nan",
+        "Basics.isInfinite/infinity"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 275,
+        "declaration": "def is_infinite(a: float) -> bool:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.compare",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "a",
+          "type": "a"
+        },
+        {
+          "name": "b",
+          "type": "a"
+        }
+      ],
+      "result": "Order",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Homogeneous finite numbers, BMP chars, UTF-16 ordinal strings, lists and tuples; lexicographic, shorter prefix first.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.compare/int-lt",
+        "Basics.compare/int-eq",
+        "Basics.compare/int-gt",
+        "Basics.compare/float-zero",
+        "Basics.compare/decimal-text-order",
+        "Basics.compare/utf16",
+        "Basics.compare/no-normalization",
+        "Basics.compare/char",
+        "Basics.compare/list-prefix",
+        "Basics.compare/tuple"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 389,
+        "declaration": "def compare[A: Comparable](a: A, b: A) -> Order:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.lessThan",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "a",
+          "type": "a"
+        },
+        {
+          "name": "b",
+          "type": "a"
+        }
+      ],
+      "result": "Bool",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Uses the same admitted total comparison as Basics.compare.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.lessThan/int"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 400,
+        "declaration": "def less_than[A: Comparable](a: A, b: A) -> bool:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.lessThanOrEqual",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "a",
+          "type": "a"
+        },
+        {
+          "name": "b",
+          "type": "a"
+        }
+      ],
+      "result": "Bool",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Uses the same admitted total comparison as Basics.compare.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.lessThanOrEqual/int"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 410,
+        "declaration": "def less_than_or_equal[A: Comparable](a: A, b: A) -> bool:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.greaterThan",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "a",
+          "type": "a"
+        },
+        {
+          "name": "b",
+          "type": "a"
+        }
+      ],
+      "result": "Bool",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Uses the same admitted total comparison as Basics.compare.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.greaterThan/int"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 405,
+        "declaration": "def greater_than[A: Comparable](a: A, b: A) -> bool:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.greaterThanOrEqual",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "a",
+          "type": "a"
+        },
+        {
+          "name": "b",
+          "type": "a"
+        }
+      ],
+      "result": "Bool",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Uses the same admitted total comparison as Basics.compare.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.greaterThanOrEqual/int"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 415,
+        "declaration": "def greater_than_or_equal[A: Comparable](a: A, b: A) -> bool:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.min",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "a",
+          "type": "a"
+        },
+        {
+          "name": "b",
+          "type": "a"
+        }
+      ],
+      "result": "a",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Uses the same admitted total comparison as Basics.compare.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.min/int"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 425,
+        "declaration": "def min[A: Comparable](a: A, b: A) -> A:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.max",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "a",
+          "type": "a"
+        },
+        {
+          "name": "b",
+          "type": "a"
+        }
+      ],
+      "result": "a",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Uses the same admitted total comparison as Basics.compare.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.max/int"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 420,
+        "declaration": "def max[A: Comparable](a: A, b: A) -> A:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.clamp",
+      "classification": "required",
+      "typeParameters": {
+        "n": "number"
+      },
+      "parameters": [
+        {
+          "name": "low",
+          "type": "n"
+        },
+        {
+          "name": "high",
+          "type": "n"
+        },
+        {
+          "name": "value",
+          "type": "n"
+        }
+      ],
+      "result": "n",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Return low if value < low; otherwise high if value > high; otherwise value. Bounds must be ordered and Float finite.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.clamp/below",
+        "Basics.clamp/above",
+        "Basics.clamp/inside-float"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 261,
+        "declaration": "def clamp[A: Comparable](low: A, high: A, a: A) -> A:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.LT",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [],
+      "result": "Order",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Nullary Order constructor.",
+      "evidence": [
+        "elm:src/Morphir/IR/SDK/Basics.elm",
+        "python:packages/morphir/src/morphir/sdk/_compare.py"
+      ],
+      "requiredCaseIds": [
+        "Basics.LT/constructor"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/_compare.py",
+        "line": 21,
+        "declaration": "    LT = \"LT\""
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.EQ",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [],
+      "result": "Order",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Nullary Order constructor.",
+      "evidence": [
+        "elm:src/Morphir/IR/SDK/Basics.elm",
+        "python:packages/morphir/src/morphir/sdk/_compare.py"
+      ],
+      "requiredCaseIds": [
+        "Basics.EQ/constructor"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/_compare.py",
+        "line": 22,
+        "declaration": "    EQ = \"EQ\""
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.GT",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [],
+      "result": "Order",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Nullary Order constructor.",
+      "evidence": [
+        "elm:src/Morphir/IR/SDK/Basics.elm",
+        "python:packages/morphir/src/morphir/sdk/_compare.py"
+      ],
+      "requiredCaseIds": [
+        "Basics.GT/constructor"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/_compare.py",
+        "line": 23,
+        "declaration": "    GT = \"GT\""
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.List.singleton",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value"
+      },
+      "parameters": [
+        {
+          "name": "value",
+          "type": "a"
+        }
+      ],
+      "result": "List<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Construct a one-element immutable list.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "requiredCaseIds": [
+        "List.singleton/nested"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/list.py",
+        "line": 76,
+        "declaration": "def singleton[A](a: A) -> List[A]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.List.cons",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value"
+      },
+      "parameters": [
+        {
+          "name": "head",
+          "type": "a"
+        },
+        {
+          "name": "tail",
+          "type": "List<a>"
+        }
+      ],
+      "result": "List<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Prepend; retain the original tail.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "requiredCaseIds": [
+        "List.cons/prepend",
+        "List.cons/structural-hash"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/list.py",
+        "line": 91,
+        "declaration": "def cons[A](head: A, tail: Sequence[A]) -> List[A]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.List.map",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value",
+        "b": "value"
+      },
+      "parameters": [
+        {
+          "name": "callback",
+          "type": "Fn<a,b>"
+        },
+        {
+          "name": "list",
+          "type": "List<a>"
+        }
+      ],
+      "result": "List<b>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Preserve input values and list order; head/tail of empty is Nothing.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "requiredCaseIds": [
+        "List.map/normal",
+        "List.map/empty"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/list.py",
+        "line": 99,
+        "declaration": "def map[A, B](f: Callable[[A], B], xs: Sequence[A]) -> List[B]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.List.append",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value"
+      },
+      "parameters": [
+        {
+          "name": "left",
+          "type": "List<a>"
+        },
+        {
+          "name": "right",
+          "type": "List<a>"
+        }
+      ],
+      "result": "List<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Preserve input values and list order; head/tail of empty is Nothing.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "requiredCaseIds": [
+        "List.append/normal",
+        "List.append/empty"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/list.py",
+        "line": 196,
+        "declaration": "def append[A](xs: Sequence[A], ys: Sequence[A]) -> List[A]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.List.head",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value"
+      },
+      "parameters": [
+        {
+          "name": "list",
+          "type": "List<a>"
+        }
+      ],
+      "result": "Maybe<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Preserve input values and list order; head/tail of empty is Nothing.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "requiredCaseIds": [
+        "List.head/normal",
+        "List.head/empty"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/list.py",
+        "line": 291,
+        "declaration": "def head[A](xs: Sequence[A]) -> Maybe[A]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.List.tail",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value"
+      },
+      "parameters": [
+        {
+          "name": "list",
+          "type": "List<a>"
+        }
+      ],
+      "result": "Maybe<List<a>>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Preserve input values and list order; head/tail of empty is Nothing.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "requiredCaseIds": [
+        "List.tail/normal",
+        "List.tail/empty",
+        "List.tail/singleton"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/list.py",
+        "line": 296,
+        "declaration": "def tail[A](xs: Sequence[A]) -> Maybe[List[A]]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.List.length",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value"
+      },
+      "parameters": [
+        {
+          "name": "list",
+          "type": "List<a>"
+        }
+      ],
+      "result": "Int",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Preserve input values and list order; head/tail of empty is Nothing.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "requiredCaseIds": [
+        "List.length/normal",
+        "List.length/empty"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/list.py",
+        "line": 138,
+        "declaration": "def length[A](xs: Sequence[A]) -> int:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Maybe.Just",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value"
+      },
+      "parameters": [
+        {
+          "name": "value",
+          "type": "a"
+        }
+      ],
+      "result": "Maybe<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Morphir Result type parameters are error first, success second; constructors preserve payload meaning.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "elm:src/Morphir/IR/SDK/Maybe.elm"
+      ],
+      "requiredCaseIds": [
+        "Maybe.Just/constructor"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "line": 41,
+        "declaration": "class Just[A]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Maybe.Nothing",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value"
+      },
+      "parameters": [],
+      "result": "Maybe<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Morphir Result type parameters are error first, success second; constructors preserve payload meaning.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "elm:src/Morphir/IR/SDK/Maybe.elm"
+      ],
+      "requiredCaseIds": [
+        "Maybe.Nothing/constructor"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "line": 48,
+        "declaration": "class Nothing:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Maybe.map",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value",
+        "b": "value"
+      },
+      "parameters": [
+        {
+          "name": "callback",
+          "type": "Fn<a,b>"
+        },
+        {
+          "name": "value",
+          "type": "Maybe<a>"
+        }
+      ],
+      "result": "Maybe<b>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Apply only to Just/Ok. Propagate Nothing/Err unchanged; callback first, value last.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "elm:src/Morphir/IR/SDK/Maybe.elm"
+      ],
+      "requiredCaseIds": [
+        "Maybe.map/present",
+        "Maybe.map/absent"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "line": 70,
+        "declaration": "def map[A, B](f: Callable[[A], B], maybe: Maybe[A]) -> Maybe[B]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Maybe.andThen",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value",
+        "b": "value"
+      },
+      "parameters": [
+        {
+          "name": "callback",
+          "type": "Fn<a,Maybe<b>>"
+        },
+        {
+          "name": "value",
+          "type": "Maybe<a>"
+        }
+      ],
+      "result": "Maybe<b>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Apply only to Just/Ok. Propagate Nothing/Err unchanged; callback first, value last.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "elm:src/Morphir/IR/SDK/Maybe.elm"
+      ],
+      "requiredCaseIds": [
+        "Maybe.andThen/present",
+        "Maybe.andThen/absent",
+        "Maybe.andThen/callback-failure"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "line": 131,
+        "declaration": "def and_then[A, B](f: Callable[[A], Maybe[B]], maybe: Maybe[A]) -> Maybe[B]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Result.Ok",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value",
+        "e": "value"
+      },
+      "parameters": [
+        {
+          "name": "value",
+          "type": "a"
+        }
+      ],
+      "result": "Result<e,a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Morphir Result type parameters are error first, success second; constructors preserve payload meaning.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "elm:src/Morphir/IR/SDK/Result.elm"
+      ],
+      "requiredCaseIds": [
+        "Result.Ok/constructor"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/result.py",
+        "line": 34,
+        "declaration": "class Ok[A]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Result.Err",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value",
+        "e": "value"
+      },
+      "parameters": [
+        {
+          "name": "value",
+          "type": "e"
+        }
+      ],
+      "result": "Result<e,a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Morphir Result type parameters are error first, success second; constructors preserve payload meaning.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "elm:src/Morphir/IR/SDK/Result.elm"
+      ],
+      "requiredCaseIds": [
+        "Result.Err/constructor"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/result.py",
+        "line": 41,
+        "declaration": "class Err[E]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Result.map",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value",
+        "e": "value",
+        "b": "value"
+      },
+      "parameters": [
+        {
+          "name": "callback",
+          "type": "Fn<a,b>"
+        },
+        {
+          "name": "value",
+          "type": "Result<e,a>"
+        }
+      ],
+      "result": "Result<e,b>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Apply only to Just/Ok. Propagate Nothing/Err unchanged; callback first, value last.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "elm:src/Morphir/IR/SDK/Result.elm"
+      ],
+      "requiredCaseIds": [
+        "Result.map/present",
+        "Result.map/absent"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/result.py",
+        "line": 60,
+        "declaration": "def map[E, A, B](f: Callable[[A], B], result: Result[E, A]) -> Result[E, B]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Result.andThen",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value",
+        "e": "value",
+        "b": "value"
+      },
+      "parameters": [
+        {
+          "name": "callback",
+          "type": "Fn<a,Result<e,b>>"
+        },
+        {
+          "name": "value",
+          "type": "Result<e,a>"
+        }
+      ],
+      "result": "Result<e,b>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Apply only to Just/Ok. Propagate Nothing/Err unchanged; callback first, value last.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "elm:src/Morphir/IR/SDK/Result.elm"
+      ],
+      "requiredCaseIds": [
+        "Result.andThen/present",
+        "Result.andThen/absent",
+        "Result.andThen/callback-failure"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/result.py",
+        "line": 135,
+        "declaration": "def and_then[E, A, B]("
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Dict.empty",
+      "classification": "required",
+      "typeParameters": {
+        "k": "comparable",
+        "v": "value"
+      },
+      "parameters": [],
+      "result": "Dict<k,v>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Keys ascend using admitted comparison. fromList duplicate keys use last value; union overlap uses FIRST dictionary. Updates retain old inputs.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "requiredCaseIds": [
+        "Dict.empty/empty"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/dict.py",
+        "line": 97,
+        "declaration": "def empty[K: Comparable, V]() -> Dict[K, V]:  # pyright: ignore[reportInvalidTypeVarUse]"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Dict.singleton",
+      "classification": "required",
+      "typeParameters": {
+        "k": "comparable",
+        "v": "value"
+      },
+      "parameters": [
+        {
+          "name": "key",
+          "type": "k"
+        },
+        {
+          "name": "value",
+          "type": "v"
+        }
+      ],
+      "result": "Dict<k,v>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Keys ascend using admitted comparison. fromList duplicate keys use last value; union overlap uses FIRST dictionary. Updates retain old inputs.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "requiredCaseIds": [
+        "Dict.singleton/normal"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/dict.py",
+        "line": 102,
+        "declaration": "def singleton[K: Comparable, V](key: K, value: V) -> Dict[K, V]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Dict.fromList",
+      "classification": "required",
+      "typeParameters": {
+        "k": "comparable",
+        "v": "value"
+      },
+      "parameters": [
+        {
+          "name": "pairs",
+          "type": "List<Tuple<k,v>>"
+        }
+      ],
+      "result": "Dict<k,v>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Keys ascend using admitted comparison. fromList duplicate keys use last value; union overlap uses FIRST dictionary. Updates retain old inputs.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "requiredCaseIds": [
+        "Dict.fromList/duplicate-last",
+        "Dict.fromList/empty",
+        "Dict.fromList/nested-keys-values"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/dict.py",
+        "line": 184,
+        "declaration": "def from_list[K: Comparable, V](pairs: Sequence[tuple[K, V]]) -> Dict[K, V]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Dict.get",
+      "classification": "required",
+      "typeParameters": {
+        "k": "comparable",
+        "v": "value"
+      },
+      "parameters": [
+        {
+          "name": "key",
+          "type": "k"
+        },
+        {
+          "name": "dict",
+          "type": "Dict<k,v>"
+        }
+      ],
+      "result": "Maybe<v>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Keys ascend using admitted comparison. fromList duplicate keys use last value; union overlap uses FIRST dictionary. Updates retain old inputs.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "requiredCaseIds": [
+        "Dict.get/present",
+        "Dict.get/absent"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/dict.py",
+        "line": 155,
+        "declaration": "def get[K: Comparable, V](key: K, dict_: Dict[K, V]) -> Maybe[V]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Dict.insert",
+      "classification": "required",
+      "typeParameters": {
+        "k": "comparable",
+        "v": "value"
+      },
+      "parameters": [
+        {
+          "name": "key",
+          "type": "k"
+        },
+        {
+          "name": "value",
+          "type": "v"
+        },
+        {
+          "name": "dict",
+          "type": "Dict<k,v>"
+        }
+      ],
+      "result": "Dict<k,v>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Keys ascend using admitted comparison. fromList duplicate keys use last value; union overlap uses FIRST dictionary. Updates retain old inputs.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "requiredCaseIds": [
+        "Dict.insert/replace",
+        "Dict.insert/new"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/dict.py",
+        "line": 107,
+        "declaration": "def insert[K: Comparable, V](key: K, value: V, dict_: Dict[K, V]) -> Dict[K, V]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Dict.update",
+      "classification": "required",
+      "typeParameters": {
+        "k": "comparable",
+        "v": "value"
+      },
+      "parameters": [
+        {
+          "name": "key",
+          "type": "k"
+        },
+        {
+          "name": "callback",
+          "type": "Fn<Maybe<v>,Maybe<v>>"
+        },
+        {
+          "name": "dict",
+          "type": "Dict<k,v>"
+        }
+      ],
+      "result": "Dict<k,v>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Keys ascend using admitted comparison. fromList duplicate keys use last value; union overlap uses FIRST dictionary. Updates retain old inputs.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "requiredCaseIds": [
+        "Dict.update/present",
+        "Dict.update/missing-insert",
+        "Dict.update/remove",
+        "Dict.update/missing-noop"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/dict.py",
+        "line": 119,
+        "declaration": "def update[K: Comparable, V]("
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Dict.remove",
+      "classification": "required",
+      "typeParameters": {
+        "k": "comparable",
+        "v": "value"
+      },
+      "parameters": [
+        {
+          "name": "key",
+          "type": "k"
+        },
+        {
+          "name": "dict",
+          "type": "Dict<k,v>"
+        }
+      ],
+      "result": "Dict<k,v>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Keys ascend using admitted comparison. fromList duplicate keys use last value; union overlap uses FIRST dictionary. Updates retain old inputs.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "requiredCaseIds": [
+        "Dict.remove/present",
+        "Dict.remove/missing"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/dict.py",
+        "line": 134,
+        "declaration": "def remove[K: Comparable, V](key: K, dict_: Dict[K, V]) -> Dict[K, V]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Dict.toList",
+      "classification": "required",
+      "typeParameters": {
+        "k": "comparable",
+        "v": "value"
+      },
+      "parameters": [
+        {
+          "name": "dict",
+          "type": "Dict<k,v>"
+        }
+      ],
+      "result": "List<Tuple<k,v>>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Keys ascend using admitted comparison. fromList duplicate keys use last value; union overlap uses FIRST dictionary. Updates retain old inputs.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "requiredCaseIds": [
+        "Dict.toList/ordered",
+        "Dict.toList/empty"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/dict.py",
+        "line": 179,
+        "declaration": "def to_list[K: Comparable, V](dict_: Dict[K, V]) -> tuple[tuple[K, V], ...]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Dict.union",
+      "classification": "required",
+      "typeParameters": {
+        "k": "comparable",
+        "v": "value"
+      },
+      "parameters": [
+        {
+          "name": "left",
+          "type": "Dict<k,v>"
+        },
+        {
+          "name": "right",
+          "type": "Dict<k,v>"
+        }
+      ],
+      "result": "Dict<k,v>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Keys ascend using admitted comparison. fromList duplicate keys use last value; union overlap uses FIRST dictionary. Updates retain old inputs.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "requiredCaseIds": [
+        "Dict.union/first-wins",
+        "Dict.union/empty-left"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/dict.py",
+        "line": 281,
+        "declaration": "def union[K: Comparable, V](left: Dict[K, V], right: Dict[K, V]) -> Dict[K, V]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Set.empty",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [],
+      "result": "Set<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Unique elements, ascending traversal, structural equality/hash, persistent updates.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "requiredCaseIds": [
+        "Set.empty/empty"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/set.py",
+        "line": 86,
+        "declaration": "def empty[A: Comparable]() -> Set[A]:  # pyright: ignore[reportInvalidTypeVarUse]"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Set.singleton",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "value",
+          "type": "a"
+        }
+      ],
+      "result": "Set<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Unique elements, ascending traversal, structural equality/hash, persistent updates.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "requiredCaseIds": [
+        "Set.singleton/normal"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/set.py",
+        "line": 91,
+        "declaration": "def singleton[A: Comparable](value: A) -> Set[A]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Set.fromList",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "values",
+          "type": "List<a>"
+        }
+      ],
+      "result": "Set<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Unique elements, ascending traversal, structural equality/hash, persistent updates.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "requiredCaseIds": [
+        "Set.fromList/duplicates"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/set.py",
+        "line": 142,
+        "declaration": "def from_list[A: Comparable](values: Sequence[A]) -> Set[A]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Set.insert",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "value",
+          "type": "a"
+        },
+        {
+          "name": "set",
+          "type": "Set<a>"
+        }
+      ],
+      "result": "Set<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Unique elements, ascending traversal, structural equality/hash, persistent updates.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "requiredCaseIds": [
+        "Set.insert/new",
+        "Set.insert/duplicate"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/set.py",
+        "line": 96,
+        "declaration": "def insert[A: Comparable](value: A, set_: Set[A]) -> Set[A]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Set.remove",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "value",
+          "type": "a"
+        },
+        {
+          "name": "set",
+          "type": "Set<a>"
+        }
+      ],
+      "result": "Set<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Unique elements, ascending traversal, structural equality/hash, persistent updates.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "requiredCaseIds": [
+        "Set.remove/present",
+        "Set.remove/missing"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/set.py",
+        "line": 108,
+        "declaration": "def remove[A: Comparable](value: A, set_: Set[A]) -> Set[A]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Set.toList",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "set",
+          "type": "Set<a>"
+        }
+      ],
+      "result": "List<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Unique elements, ascending traversal, structural equality/hash, persistent updates.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "requiredCaseIds": [
+        "Set.toList/ordered"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/set.py",
+        "line": 137,
+        "declaration": "def to_list[A: Comparable](set_: Set[A]) -> tuple[A, ...]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Set.union",
+      "classification": "required",
+      "typeParameters": {
+        "a": "comparable"
+      },
+      "parameters": [
+        {
+          "name": "left",
+          "type": "Set<a>"
+        },
+        {
+          "name": "right",
+          "type": "Set<a>"
+        }
+      ],
+      "result": "Set<a>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Unique elements, ascending traversal, structural equality/hash, persistent updates.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "requiredCaseIds": [
+        "Set.union/overlap"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/set.py",
+        "line": 202,
+        "declaration": "def union[A: Comparable](left: Set[A], right: Set[A]) -> Set[A]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.equal",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value"
+      },
+      "parameters": [
+        {
+          "name": "left",
+          "type": "a"
+        },
+        {
+          "name": "right",
+          "type": "a"
+        }
+      ],
+      "result": "Bool",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Structural equality across supported immutable values. Decimal scale and insertion history are irrelevant; NaN is unequal to itself.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.equal/list",
+        "Basics.equal/dict",
+        "Basics.equal/set",
+        "Basics.equal/result",
+        "Basics.equal/decimal-scale",
+        "Basics.equal/unit",
+        "Basics.equal/nan",
+        "Basics.equal/signed-zero"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 371,
+        "declaration": "def equal(a: object, b: object) -> bool:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Basics.notEqual",
+      "classification": "required",
+      "typeParameters": {
+        "a": "value"
+      },
+      "parameters": [
+        {
+          "name": "left",
+          "type": "a"
+        },
+        {
+          "name": "right",
+          "type": "a"
+        }
+      ],
+      "result": "Bool",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Structural equality across supported immutable values. Decimal scale and insertion history are irrelevant; NaN is unequal to itself.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "requiredCaseIds": [
+        "Basics.notEqual/list",
+        "Basics.notEqual/dict",
+        "Basics.notEqual/set",
+        "Basics.notEqual/result",
+        "Basics.notEqual/decimal-scale",
+        "Basics.notEqual/unit",
+        "Basics.notEqual/nan",
+        "Basics.notEqual/signed-zero"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/basics.py",
+        "line": 380,
+        "declaration": "def not_equal(a: object, b: object) -> bool:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Decimal.add",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "a",
+          "type": "Decimal"
+        },
+        {
+          "name": "b",
+          "type": "Decimal"
+        }
+      ],
+      "result": "Decimal",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Exact Decimal96 common domain. No implicit rounding. div zero is Nothing; nonterminating or out-of-profile results are representation exclusions, not runtime passes.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "requiredCaseIds": [
+        "Decimal.add/exact",
+        "Decimal.add/overflow",
+        "Decimal.add/min-scale",
+        "Decimal.add/max"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "line": 211,
+        "declaration": "def add(a: Decimal, b: Decimal) -> Decimal:"
+      },
+      "errorOutcomes": [
+        "Overflow"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Decimal.sub",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "a",
+          "type": "Decimal"
+        },
+        {
+          "name": "b",
+          "type": "Decimal"
+        }
+      ],
+      "result": "Decimal",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Exact Decimal96 common domain. No implicit rounding. div zero is Nothing; nonterminating or out-of-profile results are representation exclusions, not runtime passes.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "requiredCaseIds": [
+        "Decimal.sub/exact",
+        "Decimal.sub/negative-overflow"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "line": 216,
+        "declaration": "def sub(a: Decimal, b: Decimal) -> Decimal:"
+      },
+      "errorOutcomes": [
+        "Overflow"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Decimal.mul",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "a",
+          "type": "Decimal"
+        },
+        {
+          "name": "b",
+          "type": "Decimal"
+        }
+      ],
+      "result": "Decimal",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Exact Decimal96 common domain. No implicit rounding. div zero is Nothing; nonterminating or out-of-profile results are representation exclusions, not runtime passes.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "requiredCaseIds": [
+        "Decimal.mul/exact",
+        "Decimal.mul/overflow"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "line": 221,
+        "declaration": "def mul(a: Decimal, b: Decimal) -> Decimal:"
+      },
+      "errorOutcomes": [
+        "Overflow"
+      ]
+    },
+    {
+      "operation": "Morphir.SDK.Decimal.div",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "a",
+          "type": "Decimal"
+        },
+        {
+          "name": "b",
+          "type": "Decimal"
+        }
+      ],
+      "result": "Maybe<Decimal>",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Exact Decimal96 common domain. No implicit rounding. div zero is Nothing; nonterminating or out-of-profile results are representation exclusions, not runtime passes.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "requiredCaseIds": [
+        "Decimal.div/exact",
+        "Decimal.div/zero"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "line": 226,
+        "declaration": "def div(a: Decimal, b: Decimal) -> Maybe[Decimal]:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Decimal.compare",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "a",
+          "type": "Decimal"
+        },
+        {
+          "name": "b",
+          "type": "Decimal"
+        }
+      ],
+      "result": "Order",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Exact Decimal96 common domain. No implicit rounding. div zero is Nothing; nonterminating or out-of-profile results are representation exclusions, not runtime passes.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "requiredCaseIds": [
+        "Decimal.compare/scale"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "line": 275,
+        "declaration": "def compare(a: Decimal, b: Decimal) -> Order:"
+      },
+      "errorOutcomes": []
+    },
+    {
+      "operation": "Morphir.SDK.Decimal.toString",
+      "classification": "required",
+      "typeParameters": {},
+      "parameters": [
+        {
+          "name": "value",
+          "type": "Decimal"
+        }
+      ],
+      "result": "String",
+      "profile": "dotnet-sdk-v1",
+      "meaning": "Exact Decimal96 common domain. No implicit rounding. div zero is Nothing; nonterminating or out-of-profile results are representation exclusions, not runtime passes.",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "requiredCaseIds": [
+        "Decimal.toString/trim-scale",
+        "Decimal.toString/zero"
+      ],
+      "sourceBinding": {
+        "source": "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "line": 191,
+        "declaration": "def to_string(d: Decimal) -> str:"
+      },
+      "errorOutcomes": []
+    }
+  ],
+  "knownGaps": [
+    {
+      "id": "FS-DICT-UNION",
+      "runtime": "fsharp",
+      "owner": "introduce-fsharp-sdk-package",
+      "location": "src/Morphir.SDK/Dict.fs:66",
+      "observation": "Map.fold inserts dict2 into dict1, so second dictionary wins. Required expectation remains first dictionary wins."
+    },
+    {
+      "id": "FS-INT-CHECKED",
+      "runtime": "fsharp",
+      "owner": "introduce-fsharp-sdk-package",
+      "location": "src/Morphir.SDK/Basics.fs:31",
+      "observation": "Inline arithmetic uses default unchecked operators/pown, not the admitted checked Int32 boundary. No runtime conformance is claimed here."
+    },
+    {
+      "id": "FS-DECIMAL-DIV",
+      "runtime": "fsharp",
+      "owner": "introduce-fsharp-sdk-package",
+      "location": "src/Morphir.SDK/Decimal.fs:50",
+      "observation": "Existing divide returns decimal and throws on zero. Canonical Decimal.div returns Maybe<Decimal>, Nothing for zero."
+    },
+    {
+      "id": "FS-DECIMAL-TEXT",
+      "runtime": "fsharp",
+      "owner": "introduce-fsharp-sdk-package",
+      "location": "src/Morphir.SDK/Decimal.fs:10",
+      "observation": "ToString() uses current culture and retains authored scale. Canonical text is invariant positional, with trailing fractional zeros removed."
+    }
+  ],
+  "outsideInitialInventory": [
+    "Trigonometry, dates/times, Int fixed-width conversions beyond Int32, decimal parsing/conversion/rounding, and collection operations not enumerated here need a reviewed contract extension; unknown operations fail validation."
+  ],
+  "discrepancies": [
+    {
+      "id": "integer-zero",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "moonbit:pkgs/morphir-sdk/integer/integer.mbt"
+      ],
+      "decision": "Python/Elm integerDivide(7,0) yields 0; MoonBit exact-integer extension raises DivisionByZero. dotnet-sdk-v1 explicitly adopts the latter as an extension, not Elm parity. Int32 checked overflow is also a .NET restriction."
+    },
+    {
+      "id": "text-order",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "python:packages/morphir/src/morphir/sdk/string.py",
+        "moonbit:pkgs/morphir-sdk/string/string.mbt"
+      ],
+      "decision": "Python compares code points; Elm compares UTF-16 units. dotnet-sdk-v1 selects Elm's ordinal UTF-16 order. Supplemental strings remain admitted; supplementary Char is an explicit representation exclusion."
+    },
+    {
+      "id": "float-abs-negative-zero",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "moonbit:pkgs/morphir-sdk/basics/basics.mbt"
+      ],
+      "decision": "Python abs delegates to builtins.abs and returns +0 for -0. MoonBit abs_float tests value < 0.0, so its else branch preserves -0. dotnet-sdk-v1 selects Python/IEEE absolute value +0 and retains the signed-zero case as required."
+    },
+    {
+      "id": "decimal-limits",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "moonbit:pkgs/morphir-sdk/decimal/checked.mbt",
+        "moonbit:pkgs/morphir-sdk/decimal/decimal.mbt"
+      ],
+      "decision": "Python uses 50-digit half-up context, MoonBit classic decimal truncates at exponent -32 and checked API is separate. Admit exact Decimal96 results only. Preserve outside-domain reference observations in excluded cases; never round them to .NET output."
+    },
+    {
+      "id": "result-order",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "gleam:rust/crates/morphir-gleam-binding/README.md"
+      ],
+      "decision": "Morphir Result<error,value>; F# and Gleam host Result<value,error> reverse generic parameter meanings. Adapters must map payloads, not generic positions."
+    },
+    {
+      "id": "oracle-revision",
+      "evidence": [
+        "moonbit:pkgs/morphir-sdk/conformance/elm_oracle.json",
+        "elm:moonbit/README.md"
+      ],
+      "decision": "The MoonBit cached Elm oracle was generated at Elm bc99af69a8b24d391311fae3822a87eafef3c334, not the pinned vnext repository revision 1be5323e. Preserve its internal revision and compiler/package metadata; it is historical supporting evidence, not an execution claim for vnext."
+    }
+  ]
+}

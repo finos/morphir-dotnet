@@ -1,0 +1,46 @@
+Morphir - FINOS
+Copyright 2014 - 2020 Morgan Stanley
+
+This product includes software developed at the Fintech Open Source Foundation (https://www.finos.org/).
+This product includes software developed at Morgan Stanley.
+
+Shared .NET SDK conformance evidence
+
+Source excerpts, complete source files, documentation and cached observations
+under tests/Fixtures/MorphirSDK/evidence are copied without local edits from:
+
+morphir-python - FINOS
+Copyright 2026 - FINOS - info@finos.org
+Revision 560a6503b8ffcab87ea667391579b747757bec0d
+Apache-2.0 license: tests/Fixtures/MorphirSDK/evidence/python/LICENSE
+Package license: tests/Fixtures/MorphirSDK/evidence/python/packages/morphir/LICENSE
+Original notice: tests/Fixtures/MorphirSDK/evidence/python/NOTICE
+
+morphir-moonbit - FINOS
+Copyright 2026 - FINOS info@finos.org
+Revision 10732eaf2f05b10ca6e94a78121e2753c814acd8
+Apache-2.0 license: tests/Fixtures/MorphirSDK/evidence/moonbit/LICENSE
+Original notice: tests/Fixtures/MorphirSDK/evidence/moonbit/NOTICE
+
+morphir-gleam - FINOS
+Copyright 2026 - FINOS - info@finos.org
+Revision dcfa73c218276dd8e172bbc0a2b579110bce8e46
+Apache-2.0 license: tests/Fixtures/MorphirSDK/evidence/gleam/LICENSE
+Original notice: tests/Fixtures/MorphirSDK/evidence/gleam/NOTICE
+
+Morphir - FINOS
+Copyright 2014 - 2020 Morgan Stanley
+Revision 1be5323eb24d943c7cb3ac965d5a51d13fd83e5d of finos/morphir-elm
+Apache-2.0 license: tests/Fixtures/MorphirSDK/evidence/elm/LICENSE
+Original notice: tests/Fixtures/MorphirSDK/evidence/elm/NOTICE
+
+Each project notice states that it includes software developed at the Fintech
+Open Source Foundation. The Elm notice also retains the Morgan Stanley notice.
+Complete source notices and all applicable licenses accompany the copied files.
+The local tagged cases and inventory adapt this evidence with documented .NET
+representation restrictions and explicit extensions. Their provenance, selected
+differences and original-byte hashes are recorded in:
+tests/Fixtures/MorphirSDK/PROVENANCE.md
+tests/Fixtures/MorphirSDK/provenance.json
+
+The repository's existing NOTICE remains applicable and is preserved verbatim.

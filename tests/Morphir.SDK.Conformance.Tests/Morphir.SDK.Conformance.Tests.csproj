@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
+    <ReqnrollUseIntermediateOutputPathForCodeBehind>true</ReqnrollUseIntermediateOutputPathForCodeBehind>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="JsonSchema.Net" />
+    <PackageReference Include="Reqnroll" />
+    <PackageReference Include="Reqnroll.TUnit" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <Content Include="**/*.feature" />
+    <Content Include="../Fixtures/MorphirSDK/**/*" Link="Fixtures/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

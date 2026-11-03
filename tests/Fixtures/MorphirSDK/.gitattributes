@@ -1,0 +1,3 @@
+# Evidence hashes cover original upstream bytes, including line endings.
+evidence/** -text
+*.json text eol=lf

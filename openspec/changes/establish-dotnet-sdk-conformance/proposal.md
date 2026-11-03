@@ -25,7 +25,7 @@ None. Existing backend, model and publication contracts are preserved.
 
 - This is the first implementation change; no other new change is a prerequisite.
 - Delivery plan, merged-to-main completion and cleanup gates: [orchestration](../../../docs/design/dotnet-csharp-generation/orchestration.md).
-- Worker brief: [handoff](handoff.md). No GitHub issue exists for this new change yet; the coordinator must create or link one before contribution, without inventing an ID.
+- Worker brief: [handoff](handoff.md). Implementation tracking: [issue #460](https://github.com/finos/morphir-dotnet/issues/460), created before test-tool implementation.
 - Establish the feature PRD and index entry during implementation before production code, as specified in tasks. Implementation is not authorized by creating this proposal.
 
 ## Impact

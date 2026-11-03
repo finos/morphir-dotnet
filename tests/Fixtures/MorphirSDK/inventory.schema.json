@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:morphir:dotnet-sdk:inventory:v1",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "contractId": {
+      "const": "morphir-dotnet-sdk-v1"
+    },
+    "profiles": {
+      "const": [
+        {
+          "id": "dotnet-sdk-v1",
+          "integer": {
+            "representation": "System.Int32",
+            "minimum": "-2147483648",
+            "maximum": "2147483647",
+            "arithmetic": "checked exact result; Overflow, DivisionByZero, NonFiniteConversion"
+          },
+          "float": {
+            "representation": "System.Double IEEE 754 binary64",
+            "observations": [
+              "finite round-trip text",
+              "NaN",
+              "+Infinity",
+              "-Infinity",
+              "+0",
+              "-0"
+            ],
+            "comparable": "finite only; signed zeros equal"
+          },
+          "decimal": {
+            "representation": "System.Decimal exact subset",
+            "maximumCoefficient": "79228162514264337593543950335",
+            "minimumScale": 0,
+            "maximumScale": 28,
+            "canonical": "remove trailing coefficient zeros while scale > 0; zero has scale 0"
+          },
+          "text": {
+            "string": "well-formed UTF-16; ordinal code-unit comparison; no normalization or locale",
+            "char": "one non-surrogate BMP scalar in System.Char",
+            "excluded": "unpaired surrogates and supplementary Char; supplementary String remains supported"
+          },
+          "comparable": "Int, finite Float, Char, String, recursively homogeneous List and Tuple of comparable values; Decimal uses Decimal.compare; Bool, Unit, Order, Maybe, Result, Dict, Set and callbacks are not comparable",
+          "equality": "structural, with numeric Decimal scale normalization; NaN unequal; equal values must have equal in-process hashes, numeric hash values are not portable",
+          "exclusionCodes": [
+            "IntegerOutOfRange",
+            "IntegerNegativeExponent",
+            "CharOutOfRange",
+            "InvalidUtf16",
+            "NonFiniteComparable",
+            "DecimalScaleOutOfRange",
+            "DecimalCoefficientOutOfRange",
+            "DecimalNonTerminating"
+          ],
+          "errorCodes": [
+            "Overflow",
+            "DivisionByZero",
+            "NonFiniteConversion"
+          ]
+        }
+      ]
+    },
+    "callbacks": {
+      "const": [
+        {
+          "id": "increment",
+          "type": "Fn<Int,Int>",
+          "meaning": "x -> checked(x + 1)"
+        },
+        {
+          "id": "showInt",
+          "type": "Fn<Int,String>",
+          "meaning": "x -> invariant base-10 integer text"
+        },
+        {
+          "id": "positiveMaybe",
+          "type": "Fn<Int,Maybe<Int>>",
+          "meaning": "x -> Just x if x > 0, otherwise Nothing"
+        },
+        {
+          "id": "positiveResult",
+          "type": "Fn<Int,Result<String,Int>>",
+          "meaning": "x -> Ok x if x > 0, otherwise Err negative"
+        },
+        {
+          "id": "setJustSeven",
+          "type": "Fn<Maybe<Int>,Maybe<Int>>",
+          "meaning": "_ -> Just 7"
+        },
+        {
+          "id": "removeEntry",
+          "type": "Fn<Maybe<Int>,Maybe<Int>>",
+          "meaning": "_ -> Nothing"
+        },
+        {
+          "id": "incrementMaybe",
+          "type": "Fn<Maybe<Int>,Maybe<Int>>",
+          "meaning": "Just x -> Just checked(x + 1); Nothing -> Nothing"
+        }
+      ]
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "classification": {
+            "const": "required"
+          },
+          "typeParameters": {
+            "type": "object",
+            "additionalProperties": {
+              "enum": [
+                "number",
+                "comparable",
+                "value"
+              ]
+            }
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "type"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "result": {
+            "type": "string",
+            "minLength": 1
+          },
+          "profile": {
+            "const": "dotnet-sdk-v1"
+          },
+          "meaning": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true,
+            "minItems": 1
+          },
+          "requiredCaseIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true,
+            "minItems": 1
+          },
+          "sourceBinding": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "declaration": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "source",
+              "line",
+              "declaration"
+            ],
+            "additionalProperties": false
+          },
+          "errorOutcomes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation",
+          "classification",
+          "typeParameters",
+          "parameters",
+          "result",
+          "profile",
+          "meaning",
+          "evidence",
+          "requiredCaseIds",
+          "sourceBinding",
+          "errorOutcomes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "knownGaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "runtime": {
+            "const": "fsharp"
+          },
+          "owner": {
+            "const": "introduce-fsharp-sdk-package"
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observation": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "runtime",
+          "owner",
+          "location",
+          "observation"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "outsideInitialInventory": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "discrepancies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true,
+            "minItems": 1
+          },
+          "decision": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "evidence",
+          "decision"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "contractId",
+    "profiles",
+    "callbacks",
+    "operations",
+    "knownGaps",
+    "outsideInitialInventory",
+    "discrepancies"
+  ],
+  "additionalProperties": false
+}

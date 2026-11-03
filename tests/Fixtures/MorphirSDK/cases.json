@@ -1,0 +1,6996 @@
+{
+  "schemaVersion": 1,
+  "contractId": "morphir-dotnet-sdk-v1",
+  "cases": [
+    {
+      "caseId": "Basics.add/int",
+      "operation": "Morphir.SDK.Basics.add",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "7"
+        },
+        {
+          "tag": "int",
+          "value": "3"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "10"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.add/float",
+      "operation": "Morphir.SDK.Basics.add",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "1.5"
+        },
+        {
+          "tag": "float",
+          "value": "0.5"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "2"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.add/int-overflow",
+      "operation": "Morphir.SDK.Basics.add",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "2147483647"
+        },
+        {
+          "tag": "int",
+          "value": "1"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact mathematical result is outside signed Int32."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [
+        "FS-INT-CHECKED"
+      ],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.add/float-nan",
+      "operation": "Morphir.SDK.Basics.add",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        },
+        {
+          "tag": "float",
+          "value": "1"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "NaN"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.subtract/int",
+      "operation": "Morphir.SDK.Basics.subtract",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "7"
+        },
+        {
+          "tag": "int",
+          "value": "3"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "4"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.subtract/float",
+      "operation": "Morphir.SDK.Basics.subtract",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "1.5"
+        },
+        {
+          "tag": "float",
+          "value": "0.5"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "1"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.subtract/int-overflow",
+      "operation": "Morphir.SDK.Basics.subtract",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-2147483648"
+        },
+        {
+          "tag": "int",
+          "value": "1"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact mathematical result is outside signed Int32."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [
+        "FS-INT-CHECKED"
+      ],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.subtract/float-nan",
+      "operation": "Morphir.SDK.Basics.subtract",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        },
+        {
+          "tag": "float",
+          "value": "1"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "NaN"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.multiply/int",
+      "operation": "Morphir.SDK.Basics.multiply",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "7"
+        },
+        {
+          "tag": "int",
+          "value": "3"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "21"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.multiply/float",
+      "operation": "Morphir.SDK.Basics.multiply",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "1.5"
+        },
+        {
+          "tag": "float",
+          "value": "0.5"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "0.75"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.multiply/int-overflow",
+      "operation": "Morphir.SDK.Basics.multiply",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "2147483647"
+        },
+        {
+          "tag": "int",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact mathematical result is outside signed Int32."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [
+        "FS-INT-CHECKED"
+      ],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.multiply/float-nan",
+      "operation": "Morphir.SDK.Basics.multiply",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        },
+        {
+          "tag": "float",
+          "value": "1"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "NaN"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.divide/normal",
+      "operation": "Morphir.SDK.Basics.divide",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "7"
+        },
+        {
+          "tag": "float",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "3.5"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.divide/positive-zero",
+      "operation": "Morphir.SDK.Basics.divide",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "1"
+        },
+        {
+          "tag": "float",
+          "value": "+0"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "+Infinity"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.divide/negative-zero",
+      "operation": "Morphir.SDK.Basics.divide",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "1"
+        },
+        {
+          "tag": "float",
+          "value": "-0"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "-Infinity"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.divide/zero-zero",
+      "operation": "Morphir.SDK.Basics.divide",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "+0"
+        },
+        {
+          "tag": "float",
+          "value": "+0"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "NaN"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.divide/negative-result-zero",
+      "operation": "Morphir.SDK.Basics.divide",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-0"
+        },
+        {
+          "tag": "float",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "-0"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.divide/infinite",
+      "operation": "Morphir.SDK.Basics.divide",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "+Infinity"
+        },
+        {
+          "tag": "float",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "+Infinity"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.integerDivide/positive",
+      "operation": "Morphir.SDK.Basics.integerDivide",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "7"
+        },
+        {
+          "tag": "int",
+          "value": "3"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "2"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.integerDivide/negative",
+      "operation": "Morphir.SDK.Basics.integerDivide",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-7"
+        },
+        {
+          "tag": "int",
+          "value": "3"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "-2"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.integerDivide/both-negative",
+      "operation": "Morphir.SDK.Basics.integerDivide",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-7"
+        },
+        {
+          "tag": "int",
+          "value": "-3"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "2"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.integerDivide/zero",
+      "operation": "Morphir.SDK.Basics.integerDivide",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "7"
+        },
+        {
+          "tag": "int",
+          "value": "0"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "DivisionByZero",
+          "detail": "Integer divisor is zero in the admitted .NET extension."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.integerDivide/min-neg-one",
+      "operation": "Morphir.SDK.Basics.integerDivide",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-2147483648"
+        },
+        {
+          "tag": "int",
+          "value": "-1"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact mathematical result is outside signed Int32."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.modBy/negative-dividend",
+      "operation": "Morphir.SDK.Basics.modBy",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "3"
+        },
+        {
+          "tag": "int",
+          "value": "-7"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "2"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.modBy/negative-divisor",
+      "operation": "Morphir.SDK.Basics.modBy",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-3"
+        },
+        {
+          "tag": "int",
+          "value": "7"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "-2"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.modBy/min-neg-one",
+      "operation": "Morphir.SDK.Basics.modBy",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-1"
+        },
+        {
+          "tag": "int",
+          "value": "-2147483648"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "0"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.modBy/zero",
+      "operation": "Morphir.SDK.Basics.modBy",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "0"
+        },
+        {
+          "tag": "int",
+          "value": "7"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "DivisionByZero",
+          "detail": "Integer divisor is zero in the admitted .NET extension."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.remainderBy/negative-dividend",
+      "operation": "Morphir.SDK.Basics.remainderBy",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "3"
+        },
+        {
+          "tag": "int",
+          "value": "-7"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "-1"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.remainderBy/negative-divisor",
+      "operation": "Morphir.SDK.Basics.remainderBy",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-3"
+        },
+        {
+          "tag": "int",
+          "value": "7"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "1"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.remainderBy/min-neg-one",
+      "operation": "Morphir.SDK.Basics.remainderBy",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-1"
+        },
+        {
+          "tag": "int",
+          "value": "-2147483648"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "0"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.remainderBy/zero",
+      "operation": "Morphir.SDK.Basics.remainderBy",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "0"
+        },
+        {
+          "tag": "int",
+          "value": "7"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "DivisionByZero",
+          "detail": "Integer divisor is zero in the admitted .NET extension."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.negate/int",
+      "operation": "Morphir.SDK.Basics.negate",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-3"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "3"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.negate/int-min",
+      "operation": "Morphir.SDK.Basics.negate",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-2147483648"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact mathematical result is outside signed Int32."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [
+        "FS-INT-CHECKED"
+      ],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.negate/signed-zero",
+      "operation": "Morphir.SDK.Basics.negate",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-0"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "+0"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.abs/int",
+      "operation": "Morphir.SDK.Basics.abs",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-3"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "3"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.abs/int-min",
+      "operation": "Morphir.SDK.Basics.abs",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-2147483648"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact mathematical result is outside signed Int32."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.abs/signed-zero",
+      "operation": "Morphir.SDK.Basics.abs",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-0"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "+0"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.power/int",
+      "operation": "Morphir.SDK.Basics.power",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "2"
+        },
+        {
+          "tag": "int",
+          "value": "10"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "1024"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.power/int-overflow",
+      "operation": "Morphir.SDK.Basics.power",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "2"
+        },
+        {
+          "tag": "int",
+          "value": "31"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact mathematical result is outside signed Int32."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [
+        "FS-INT-CHECKED"
+      ],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.power/int-negative-exponent",
+      "operation": "Morphir.SDK.Basics.power",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "2"
+        },
+        {
+          "tag": "int",
+          "value": "-1"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "0.5"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "representation-excluded",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {},
+      "exclusion": {
+        "code": "IntegerNegativeExponent",
+        "reason": "Reference returns Float 0.5, outside Int -> Int closure."
+      }
+    },
+    {
+      "caseId": "Basics.power/float",
+      "operation": "Morphir.SDK.Basics.power",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-1"
+        },
+        {
+          "tag": "float",
+          "value": "0.5"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "NaN"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.toFloat/max",
+      "operation": "Morphir.SDK.Basics.toFloat",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "2147483647"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "2147483647"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.toFloat/min",
+      "operation": "Morphir.SDK.Basics.toFloat",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-2147483648"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "-2147483648"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.toFloat/outside-int",
+      "operation": "Morphir.SDK.Basics.toFloat",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "2147483648"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "2147483648"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "representation-excluded",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {},
+      "exclusion": {
+        "code": "IntegerOutOfRange",
+        "reason": "Input exceeds signed Int32."
+      }
+    },
+    {
+      "caseId": "Basics.round/negative-half",
+      "operation": "Morphir.SDK.Basics.round",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-2.5"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "-2"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.round/nonfinite",
+      "operation": "Morphir.SDK.Basics.round",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "NonFiniteConversion",
+          "detail": "NaN has no Int32 result."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.round/out-of-range",
+      "operation": "Morphir.SDK.Basics.round",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "2147483648"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact mathematical result is outside signed Int32."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.floor/negative-half",
+      "operation": "Morphir.SDK.Basics.floor",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-2.5"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "-3"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.floor/nonfinite",
+      "operation": "Morphir.SDK.Basics.floor",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "NonFiniteConversion",
+          "detail": "NaN has no Int32 result."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.floor/out-of-range",
+      "operation": "Morphir.SDK.Basics.floor",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "2147483648"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact mathematical result is outside signed Int32."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.ceiling/negative-half",
+      "operation": "Morphir.SDK.Basics.ceiling",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-2.5"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "-2"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.ceiling/nonfinite",
+      "operation": "Morphir.SDK.Basics.ceiling",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "NonFiniteConversion",
+          "detail": "NaN has no Int32 result."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.ceiling/out-of-range",
+      "operation": "Morphir.SDK.Basics.ceiling",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "2147483648"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact mathematical result is outside signed Int32."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.truncate/negative-half",
+      "operation": "Morphir.SDK.Basics.truncate",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-2.5"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "-2"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.truncate/nonfinite",
+      "operation": "Morphir.SDK.Basics.truncate",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "NonFiniteConversion",
+          "detail": "NaN has no Int32 result."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.truncate/out-of-range",
+      "operation": "Morphir.SDK.Basics.truncate",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "2147483648"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact mathematical result is outside signed Int32."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.isNaN/nan",
+      "operation": "Morphir.SDK.Basics.isNaN",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.isNaN/infinity",
+      "operation": "Morphir.SDK.Basics.isNaN",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "+Infinity"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.isInfinite/nan",
+      "operation": "Morphir.SDK.Basics.isInfinite",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.isInfinite/infinity",
+      "operation": "Morphir.SDK.Basics.isInfinite",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "+Infinity"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.compare/int-lt",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "int",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "LT"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.compare/int-eq",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "2"
+        },
+        {
+          "tag": "int",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "EQ"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.compare/int-gt",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "3"
+        },
+        {
+          "tag": "int",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "GT"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.compare/float-zero",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-0"
+        },
+        {
+          "tag": "float",
+          "value": "+0"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "EQ"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.compare/decimal-text-order",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "String"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "10"
+        },
+        {
+          "tag": "string",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "LT"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.compare/utf16",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "String"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "\ud800\udc00"
+        },
+        {
+          "tag": "string",
+          "value": "\ue000"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "LT"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.compare/no-normalization",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "String"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "e\u0301"
+        },
+        {
+          "tag": "string",
+          "value": "\u00e9"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "LT"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.compare/char",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "Char"
+      },
+      "arguments": [
+        {
+          "tag": "char",
+          "value": "A"
+        },
+        {
+          "tag": "char",
+          "value": "a"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "LT"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.compare/list-prefix",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "List<Int>"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            }
+          ]
+        },
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "0"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "LT"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.compare/tuple",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "Tuple<Int,String>"
+      },
+      "arguments": [
+        {
+          "tag": "tuple",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "string",
+              "value": "b"
+            }
+          ]
+        },
+        {
+          "tag": "tuple",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "string",
+              "value": "a"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "GT"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.compare/nonfinite-key",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        },
+        {
+          "tag": "float",
+          "value": "1"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "EQ"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "representation-excluded",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {},
+      "exclusion": {
+        "code": "NonFiniteComparable",
+        "reason": "NaN is not a total ordered key. Python's fallback comparison reports EQ; that is not admitted parity."
+      }
+    },
+    {
+      "caseId": "Basics.compare/supplementary-char",
+      "operation": "Morphir.SDK.Basics.compare",
+      "typeArguments": {
+        "a": "Char"
+      },
+      "arguments": [
+        {
+          "tag": "char",
+          "value": "\ud800\udc00"
+        },
+        {
+          "tag": "char",
+          "value": "a"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "GT"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "representation-excluded",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {},
+      "exclusion": {
+        "code": "CharOutOfRange",
+        "reason": "One Unicode scalar exceeds one non-surrogate UTF-16 Char."
+      }
+    },
+    {
+      "caseId": "Basics.lessThan/int",
+      "operation": "Morphir.SDK.Basics.lessThan",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "int",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.lessThanOrEqual/int",
+      "operation": "Morphir.SDK.Basics.lessThanOrEqual",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "int",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.greaterThan/int",
+      "operation": "Morphir.SDK.Basics.greaterThan",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "int",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.greaterThanOrEqual/int",
+      "operation": "Morphir.SDK.Basics.greaterThanOrEqual",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "int",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.min/int",
+      "operation": "Morphir.SDK.Basics.min",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "int",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "1"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.max/int",
+      "operation": "Morphir.SDK.Basics.max",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "int",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "2"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.clamp/below",
+      "operation": "Morphir.SDK.Basics.clamp",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "int",
+          "value": "5"
+        },
+        {
+          "tag": "int",
+          "value": "0"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "1"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.clamp/above",
+      "operation": "Morphir.SDK.Basics.clamp",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "int",
+          "value": "5"
+        },
+        {
+          "tag": "int",
+          "value": "6"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "5"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.clamp/inside-float",
+      "operation": "Morphir.SDK.Basics.clamp",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "1"
+        },
+        {
+          "tag": "float",
+          "value": "5"
+        },
+        {
+          "tag": "float",
+          "value": "3"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "3"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.LT/constructor",
+      "operation": "Morphir.SDK.Basics.LT",
+      "typeArguments": {},
+      "arguments": [],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "LT"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "elm:src/Morphir/IR/SDK/Basics.elm",
+        "python:packages/morphir/src/morphir/sdk/_compare.py"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.EQ/constructor",
+      "operation": "Morphir.SDK.Basics.EQ",
+      "typeArguments": {},
+      "arguments": [],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "EQ"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "elm:src/Morphir/IR/SDK/Basics.elm",
+        "python:packages/morphir/src/morphir/sdk/_compare.py"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.GT/constructor",
+      "operation": "Morphir.SDK.Basics.GT",
+      "typeArguments": {},
+      "arguments": [],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "GT"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "elm:src/Morphir/IR/SDK/Basics.elm",
+        "python:packages/morphir/src/morphir/sdk/_compare.py"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "List.singleton/nested",
+      "operation": "Morphir.SDK.List.singleton",
+      "typeArguments": {
+        "a": "Maybe<List<Int>>"
+      },
+      "arguments": [
+        {
+          "tag": "just",
+          "value": {
+            "tag": "list",
+            "items": [
+              {
+                "tag": "int",
+                "value": "1"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "just",
+              "value": {
+                "tag": "list",
+                "items": [
+                  {
+                    "tag": "int",
+                    "value": "1"
+                  },
+                  {
+                    "tag": "int",
+                    "value": "2"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "List.cons/prepend",
+      "operation": "Morphir.SDK.List.cons",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "2"
+            },
+            {
+              "tag": "int",
+              "value": "3"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            },
+            {
+              "tag": "int",
+              "value": "3"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "List.map/normal",
+      "operation": "Morphir.SDK.List.map",
+      "typeArguments": {
+        "a": "Int",
+        "b": "String"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "showInt"
+        },
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "string",
+              "value": "1"
+            },
+            {
+              "tag": "string",
+              "value": "2"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "List.map/empty",
+      "operation": "Morphir.SDK.List.map",
+      "typeArguments": {
+        "a": "Int",
+        "b": "String"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "showInt"
+        },
+        {
+          "tag": "list",
+          "items": []
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "list",
+          "items": []
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "List.append/normal",
+      "operation": "Morphir.SDK.List.append",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            }
+          ]
+        },
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "List.append/empty",
+      "operation": "Morphir.SDK.List.append",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": []
+        },
+        {
+          "tag": "list",
+          "items": []
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "list",
+          "items": []
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "List.head/normal",
+      "operation": "Morphir.SDK.List.head",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "just",
+          "value": {
+            "tag": "int",
+            "value": "1"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "List.head/empty",
+      "operation": "Morphir.SDK.List.head",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": []
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "nothing"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "List.tail/normal",
+      "operation": "Morphir.SDK.List.tail",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "just",
+          "value": {
+            "tag": "list",
+            "items": [
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "List.tail/empty",
+      "operation": "Morphir.SDK.List.tail",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": []
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "nothing"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "List.tail/singleton",
+      "operation": "Morphir.SDK.List.tail",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "just",
+          "value": {
+            "tag": "list",
+            "items": []
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "List.length/normal",
+      "operation": "Morphir.SDK.List.length",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "2"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "List.length/empty",
+      "operation": "Morphir.SDK.List.length",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": []
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "0"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Maybe.Just/constructor",
+      "operation": "Morphir.SDK.Maybe.Just",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "7"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "just",
+          "value": {
+            "tag": "int",
+            "value": "7"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "elm:src/Morphir/IR/SDK/Maybe.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Maybe.Nothing/constructor",
+      "operation": "Morphir.SDK.Maybe.Nothing",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [],
+      "expected": {
+        "value": {
+          "tag": "nothing"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "elm:src/Morphir/IR/SDK/Maybe.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Maybe.map/present",
+      "operation": "Morphir.SDK.Maybe.map",
+      "typeArguments": {
+        "a": "Int",
+        "b": "String"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "showInt"
+        },
+        {
+          "tag": "just",
+          "value": {
+            "tag": "int",
+            "value": "7"
+          }
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "just",
+          "value": {
+            "tag": "string",
+            "value": "7"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "elm:src/Morphir/IR/SDK/Maybe.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Maybe.map/absent",
+      "operation": "Morphir.SDK.Maybe.map",
+      "typeArguments": {
+        "a": "Int",
+        "b": "String"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "showInt"
+        },
+        {
+          "tag": "nothing"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "nothing"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "elm:src/Morphir/IR/SDK/Maybe.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Maybe.andThen/present",
+      "operation": "Morphir.SDK.Maybe.andThen",
+      "typeArguments": {
+        "a": "Int",
+        "b": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "positiveMaybe"
+        },
+        {
+          "tag": "just",
+          "value": {
+            "tag": "int",
+            "value": "7"
+          }
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "just",
+          "value": {
+            "tag": "int",
+            "value": "7"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "elm:src/Morphir/IR/SDK/Maybe.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Maybe.andThen/absent",
+      "operation": "Morphir.SDK.Maybe.andThen",
+      "typeArguments": {
+        "a": "Int",
+        "b": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "positiveMaybe"
+        },
+        {
+          "tag": "nothing"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "nothing"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "elm:src/Morphir/IR/SDK/Maybe.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Maybe.andThen/callback-failure",
+      "operation": "Morphir.SDK.Maybe.andThen",
+      "typeArguments": {
+        "a": "Int",
+        "b": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "positiveMaybe"
+        },
+        {
+          "tag": "just",
+          "value": {
+            "tag": "int",
+            "value": "-1"
+          }
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "nothing"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/maybe.py",
+        "elm:src/Morphir/IR/SDK/Maybe.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Result.Ok/constructor",
+      "operation": "Morphir.SDK.Result.Ok",
+      "typeArguments": {
+        "a": "Int",
+        "e": "String"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "7"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "ok",
+          "value": {
+            "tag": "int",
+            "value": "7"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "elm:src/Morphir/IR/SDK/Result.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Result.Err/constructor",
+      "operation": "Morphir.SDK.Result.Err",
+      "typeArguments": {
+        "a": "Int",
+        "e": "String"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "failure"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "err",
+          "value": {
+            "tag": "string",
+            "value": "failure"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "elm:src/Morphir/IR/SDK/Result.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Result.map/present",
+      "operation": "Morphir.SDK.Result.map",
+      "typeArguments": {
+        "a": "Int",
+        "e": "String",
+        "b": "String"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "showInt"
+        },
+        {
+          "tag": "ok",
+          "value": {
+            "tag": "int",
+            "value": "7"
+          }
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "ok",
+          "value": {
+            "tag": "string",
+            "value": "7"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "elm:src/Morphir/IR/SDK/Result.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Result.map/absent",
+      "operation": "Morphir.SDK.Result.map",
+      "typeArguments": {
+        "a": "Int",
+        "e": "String",
+        "b": "String"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "showInt"
+        },
+        {
+          "tag": "err",
+          "value": {
+            "tag": "string",
+            "value": "failure"
+          }
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "err",
+          "value": {
+            "tag": "string",
+            "value": "failure"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "elm:src/Morphir/IR/SDK/Result.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Result.andThen/present",
+      "operation": "Morphir.SDK.Result.andThen",
+      "typeArguments": {
+        "a": "Int",
+        "e": "String",
+        "b": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "positiveResult"
+        },
+        {
+          "tag": "ok",
+          "value": {
+            "tag": "int",
+            "value": "7"
+          }
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "ok",
+          "value": {
+            "tag": "int",
+            "value": "7"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "elm:src/Morphir/IR/SDK/Result.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Result.andThen/absent",
+      "operation": "Morphir.SDK.Result.andThen",
+      "typeArguments": {
+        "a": "Int",
+        "e": "String",
+        "b": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "positiveResult"
+        },
+        {
+          "tag": "err",
+          "value": {
+            "tag": "string",
+            "value": "failure"
+          }
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "err",
+          "value": {
+            "tag": "string",
+            "value": "failure"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "elm:src/Morphir/IR/SDK/Result.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Result.andThen/callback-failure",
+      "operation": "Morphir.SDK.Result.andThen",
+      "typeArguments": {
+        "a": "Int",
+        "e": "String",
+        "b": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "callback",
+          "id": "positiveResult"
+        },
+        {
+          "tag": "ok",
+          "value": {
+            "tag": "int",
+            "value": "-1"
+          }
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "err",
+          "value": {
+            "tag": "string",
+            "value": "negative"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/result.py",
+        "elm:src/Morphir/IR/SDK/Result.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Dict.empty/empty",
+      "operation": "Morphir.SDK.Dict.empty",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": []
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Dict.singleton/normal",
+      "operation": "Morphir.SDK.Dict.singleton",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "a"
+        },
+        {
+          "tag": "int",
+          "value": "1"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Dict.fromList/duplicate-last",
+      "operation": "Morphir.SDK.Dict.fromList",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "tuple",
+              "items": [
+                {
+                  "tag": "string",
+                  "value": "b"
+                },
+                {
+                  "tag": "int",
+                  "value": "2"
+                }
+              ]
+            },
+            {
+              "tag": "tuple",
+              "items": [
+                {
+                  "tag": "string",
+                  "value": "a"
+                },
+                {
+                  "tag": "int",
+                  "value": "0"
+                }
+              ]
+            },
+            {
+              "tag": "tuple",
+              "items": [
+                {
+                  "tag": "string",
+                  "value": "a"
+                },
+                {
+                  "tag": "int",
+                  "value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "equalTo": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        },
+        "hashEqualTo": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        },
+        "preserveArguments": [
+          0
+        ]
+      }
+    },
+    {
+      "caseId": "Dict.fromList/empty",
+      "operation": "Morphir.SDK.Dict.fromList",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": []
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": []
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Dict.fromList/nested-keys-values",
+      "operation": "Morphir.SDK.Dict.fromList",
+      "typeArguments": {
+        "k": "List<Int>",
+        "v": "Maybe<List<Int>>"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "tuple",
+              "items": [
+                {
+                  "tag": "list",
+                  "items": [
+                    {
+                      "tag": "int",
+                      "value": "1"
+                    },
+                    {
+                      "tag": "int",
+                      "value": "0"
+                    }
+                  ]
+                },
+                {
+                  "tag": "nothing"
+                }
+              ]
+            },
+            {
+              "tag": "tuple",
+              "items": [
+                {
+                  "tag": "list",
+                  "items": [
+                    {
+                      "tag": "int",
+                      "value": "1"
+                    }
+                  ]
+                },
+                {
+                  "tag": "just",
+                  "value": {
+                    "tag": "list",
+                    "items": [
+                      {
+                        "tag": "int",
+                        "value": "7"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "list",
+                "items": [
+                  {
+                    "tag": "int",
+                    "value": "1"
+                  }
+                ]
+              },
+              {
+                "tag": "just",
+                "value": {
+                  "tag": "list",
+                  "items": [
+                    {
+                      "tag": "int",
+                      "value": "7"
+                    }
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "tag": "list",
+                "items": [
+                  {
+                    "tag": "int",
+                    "value": "1"
+                  },
+                  {
+                    "tag": "int",
+                    "value": "0"
+                  }
+                ]
+              },
+              {
+                "tag": "nothing"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "equalTo": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "list",
+                "items": [
+                  {
+                    "tag": "int",
+                    "value": "1"
+                  }
+                ]
+              },
+              {
+                "tag": "just",
+                "value": {
+                  "tag": "list",
+                  "items": [
+                    {
+                      "tag": "int",
+                      "value": "7"
+                    }
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "tag": "list",
+                "items": [
+                  {
+                    "tag": "int",
+                    "value": "1"
+                  },
+                  {
+                    "tag": "int",
+                    "value": "0"
+                  }
+                ]
+              },
+              {
+                "tag": "nothing"
+              }
+            ]
+          ]
+        },
+        "hashEqualTo": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "list",
+                "items": [
+                  {
+                    "tag": "int",
+                    "value": "1"
+                  }
+                ]
+              },
+              {
+                "tag": "just",
+                "value": {
+                  "tag": "list",
+                  "items": [
+                    {
+                      "tag": "int",
+                      "value": "7"
+                    }
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "tag": "list",
+                "items": [
+                  {
+                    "tag": "int",
+                    "value": "1"
+                  },
+                  {
+                    "tag": "int",
+                    "value": "0"
+                  }
+                ]
+              },
+              {
+                "tag": "nothing"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "Dict.get/present",
+      "operation": "Morphir.SDK.Dict.get",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "a"
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "just",
+          "value": {
+            "tag": "int",
+            "value": "1"
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Dict.get/absent",
+      "operation": "Morphir.SDK.Dict.get",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "z"
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "nothing"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Dict.insert/replace",
+      "operation": "Morphir.SDK.Dict.insert",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "a"
+        },
+        {
+          "tag": "int",
+          "value": "7"
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "7"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          2
+        ]
+      }
+    },
+    {
+      "caseId": "Dict.insert/new",
+      "operation": "Morphir.SDK.Dict.insert",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "c"
+        },
+        {
+          "tag": "int",
+          "value": "3"
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "c"
+              },
+              {
+                "tag": "int",
+                "value": "3"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          2
+        ]
+      }
+    },
+    {
+      "caseId": "Dict.update/present",
+      "operation": "Morphir.SDK.Dict.update",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "a"
+        },
+        {
+          "tag": "callback",
+          "id": "incrementMaybe"
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          2
+        ]
+      }
+    },
+    {
+      "caseId": "Dict.update/missing-insert",
+      "operation": "Morphir.SDK.Dict.update",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "c"
+        },
+        {
+          "tag": "callback",
+          "id": "setJustSeven"
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "c"
+              },
+              {
+                "tag": "int",
+                "value": "7"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          2
+        ]
+      }
+    },
+    {
+      "caseId": "Dict.update/remove",
+      "operation": "Morphir.SDK.Dict.update",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "a"
+        },
+        {
+          "tag": "callback",
+          "id": "removeEntry"
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          2
+        ]
+      }
+    },
+    {
+      "caseId": "Dict.update/missing-noop",
+      "operation": "Morphir.SDK.Dict.update",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "z"
+        },
+        {
+          "tag": "callback",
+          "id": "incrementMaybe"
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          2
+        ]
+      }
+    },
+    {
+      "caseId": "Dict.remove/present",
+      "operation": "Morphir.SDK.Dict.remove",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "a"
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "Dict.remove/missing",
+      "operation": "Morphir.SDK.Dict.remove",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "string",
+          "value": "z"
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "Dict.toList/ordered",
+      "operation": "Morphir.SDK.Dict.toList",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "tuple",
+              "items": [
+                {
+                  "tag": "string",
+                  "value": "a"
+                },
+                {
+                  "tag": "int",
+                  "value": "1"
+                }
+              ]
+            },
+            {
+              "tag": "tuple",
+              "items": [
+                {
+                  "tag": "string",
+                  "value": "b"
+                },
+                {
+                  "tag": "int",
+                  "value": "2"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Dict.toList/empty",
+      "operation": "Morphir.SDK.Dict.toList",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "dict",
+          "entries": []
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "list",
+          "items": []
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Dict.union/first-wins",
+      "operation": "Morphir.SDK.Dict.union",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "99"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "c"
+              },
+              {
+                "tag": "int",
+                "value": "3"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "c"
+              },
+              {
+                "tag": "int",
+                "value": "3"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [
+        "FS-DICT-UNION"
+      ],
+      "invariants": {
+        "preserveArguments": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "Dict.union/empty-left",
+      "operation": "Morphir.SDK.Dict.union",
+      "typeArguments": {
+        "k": "String",
+        "v": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "dict",
+          "entries": []
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/dict.py",
+        "elm:src/Morphir/IR/SDK/Dict.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Set.empty/empty",
+      "operation": "Morphir.SDK.Set.empty",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [],
+      "expected": {
+        "value": {
+          "tag": "set",
+          "items": []
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Set.singleton/normal",
+      "operation": "Morphir.SDK.Set.singleton",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Set.fromList/duplicates",
+      "operation": "Morphir.SDK.Set.fromList",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "3"
+            },
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "3"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            },
+            {
+              "tag": "int",
+              "value": "3"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "equalTo": {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            },
+            {
+              "tag": "int",
+              "value": "3"
+            }
+          ]
+        },
+        "hashEqualTo": {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            },
+            {
+              "tag": "int",
+              "value": "3"
+            }
+          ]
+        },
+        "preserveArguments": [
+          0
+        ]
+      }
+    },
+    {
+      "caseId": "Set.insert/new",
+      "operation": "Morphir.SDK.Set.insert",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "2"
+        },
+        {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "Set.insert/duplicate",
+      "operation": "Morphir.SDK.Set.insert",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "Set.remove/present",
+      "operation": "Morphir.SDK.Set.remove",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "Set.remove/missing",
+      "operation": "Morphir.SDK.Set.remove",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "7"
+        },
+        {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Set.toList/ordered",
+      "operation": "Morphir.SDK.Set.toList",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Set.union/overlap",
+      "operation": "Morphir.SDK.Set.union",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        },
+        {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "2"
+            },
+            {
+              "tag": "int",
+              "value": "3"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            },
+            {
+              "tag": "int",
+              "value": "3"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/set.py",
+        "elm:src/Morphir/IR/SDK/Set.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "preserveArguments": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "Basics.equal/list",
+      "operation": "Morphir.SDK.Basics.equal",
+      "typeArguments": {
+        "a": "List<Maybe<Int>>"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "just",
+              "value": {
+                "tag": "int",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "just",
+              "value": {
+                "tag": "int",
+                "value": "1"
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.equal/dict",
+      "operation": "Morphir.SDK.Basics.equal",
+      "typeArguments": {
+        "a": "Dict<String,Int>"
+      },
+      "arguments": [
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.equal/set",
+      "operation": "Morphir.SDK.Basics.equal",
+      "typeArguments": {
+        "a": "Set<Int>"
+      },
+      "arguments": [
+        {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        },
+        {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.equal/result",
+      "operation": "Morphir.SDK.Basics.equal",
+      "typeArguments": {
+        "a": "Result<String,Int>"
+      },
+      "arguments": [
+        {
+          "tag": "err",
+          "value": {
+            "tag": "string",
+            "value": "failure"
+          }
+        },
+        {
+          "tag": "err",
+          "value": {
+            "tag": "string",
+            "value": "failure"
+          }
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.equal/decimal-scale",
+      "operation": "Morphir.SDK.Basics.equal",
+      "typeArguments": {
+        "a": "Decimal"
+      },
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "15",
+          "scale": 1
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "150",
+          "scale": 2
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.equal/unit",
+      "operation": "Morphir.SDK.Basics.equal",
+      "typeArguments": {
+        "a": "Unit"
+      },
+      "arguments": [
+        {
+          "tag": "unit"
+        },
+        {
+          "tag": "unit"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.equal/nan",
+      "operation": "Morphir.SDK.Basics.equal",
+      "typeArguments": {
+        "a": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        },
+        {
+          "tag": "float",
+          "value": "NaN"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.equal/signed-zero",
+      "operation": "Morphir.SDK.Basics.equal",
+      "typeArguments": {
+        "a": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-0"
+        },
+        {
+          "tag": "float",
+          "value": "+0"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.notEqual/list",
+      "operation": "Morphir.SDK.Basics.notEqual",
+      "typeArguments": {
+        "a": "List<Maybe<Int>>"
+      },
+      "arguments": [
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "just",
+              "value": {
+                "tag": "int",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "just",
+              "value": {
+                "tag": "int",
+                "value": "1"
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.notEqual/dict",
+      "operation": "Morphir.SDK.Basics.notEqual",
+      "typeArguments": {
+        "a": "Dict<String,Int>"
+      },
+      "arguments": [
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        },
+        {
+          "tag": "dict",
+          "entries": [
+            [
+              {
+                "tag": "string",
+                "value": "a"
+              },
+              {
+                "tag": "int",
+                "value": "1"
+              }
+            ],
+            [
+              {
+                "tag": "string",
+                "value": "b"
+              },
+              {
+                "tag": "int",
+                "value": "2"
+              }
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.notEqual/set",
+      "operation": "Morphir.SDK.Basics.notEqual",
+      "typeArguments": {
+        "a": "Set<Int>"
+      },
+      "arguments": [
+        {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        },
+        {
+          "tag": "set",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.notEqual/result",
+      "operation": "Morphir.SDK.Basics.notEqual",
+      "typeArguments": {
+        "a": "Result<String,Int>"
+      },
+      "arguments": [
+        {
+          "tag": "err",
+          "value": {
+            "tag": "string",
+            "value": "failure"
+          }
+        },
+        {
+          "tag": "err",
+          "value": {
+            "tag": "string",
+            "value": "failure"
+          }
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.notEqual/decimal-scale",
+      "operation": "Morphir.SDK.Basics.notEqual",
+      "typeArguments": {
+        "a": "Decimal"
+      },
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "15",
+          "scale": 1
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "150",
+          "scale": 2
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.notEqual/unit",
+      "operation": "Morphir.SDK.Basics.notEqual",
+      "typeArguments": {
+        "a": "Unit"
+      },
+      "arguments": [
+        {
+          "tag": "unit"
+        },
+        {
+          "tag": "unit"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.notEqual/nan",
+      "operation": "Morphir.SDK.Basics.notEqual",
+      "typeArguments": {
+        "a": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "NaN"
+        },
+        {
+          "tag": "float",
+          "value": "NaN"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": true
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.notEqual/signed-zero",
+      "operation": "Morphir.SDK.Basics.notEqual",
+      "typeArguments": {
+        "a": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-0"
+        },
+        {
+          "tag": "float",
+          "value": "+0"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "bool",
+          "value": false
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.add/exact",
+      "operation": "Morphir.SDK.Decimal.add",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "15",
+          "scale": 1
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "25",
+          "scale": 2
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "decimal",
+          "coefficient": "175",
+          "scale": 2
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.add/overflow",
+      "operation": "Morphir.SDK.Decimal.add",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "79228162514264337593543950335",
+          "scale": 0
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 0
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact decimal coefficient exceeds 96 bits at every scale."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.add/scale-29",
+      "operation": "Morphir.SDK.Decimal.add",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 29
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "0",
+          "scale": 0
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 29
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "representation-excluded",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {},
+      "exclusion": {
+        "code": "DecimalScaleOutOfRange",
+        "reason": "Nonzero digit at scale 29 cannot be represented exactly in Decimal96."
+      }
+    },
+    {
+      "caseId": "Decimal.add/coefficient-97-bits",
+      "operation": "Morphir.SDK.Decimal.add",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "79228162514264337593543950336",
+          "scale": 0
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "0",
+          "scale": 0
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "decimal",
+          "coefficient": "79228162514264337593543950336",
+          "scale": 0
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "representation-excluded",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {},
+      "exclusion": {
+        "code": "DecimalCoefficientOutOfRange",
+        "reason": "Input coefficient exceeds 96 bits."
+      }
+    },
+    {
+      "caseId": "Decimal.add/min-scale",
+      "operation": "Morphir.SDK.Decimal.add",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 28
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "0",
+          "scale": 0
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 28
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.add/max",
+      "operation": "Morphir.SDK.Decimal.add",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "79228162514264337593543950335",
+          "scale": 0
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "0",
+          "scale": 0
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "decimal",
+          "coefficient": "79228162514264337593543950335",
+          "scale": 0
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.sub/exact",
+      "operation": "Morphir.SDK.Decimal.sub",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "15",
+          "scale": 1
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "25",
+          "scale": 2
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "decimal",
+          "coefficient": "125",
+          "scale": 2
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.mul/exact",
+      "operation": "Morphir.SDK.Decimal.mul",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "15",
+          "scale": 1
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "25",
+          "scale": 2
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "decimal",
+          "coefficient": "375",
+          "scale": 3
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.mul/result-scale",
+      "operation": "Morphir.SDK.Decimal.mul",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 28
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 1
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 29
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "representation-excluded",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {},
+      "exclusion": {
+        "code": "DecimalScaleOutOfRange",
+        "reason": "Exact result needs scale 29. .NET rounding to zero is not admitted."
+      }
+    },
+    {
+      "caseId": "Decimal.div/exact",
+      "operation": "Morphir.SDK.Decimal.div",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 0
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "8",
+          "scale": 0
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "just",
+          "value": {
+            "tag": "decimal",
+            "coefficient": "125",
+            "scale": 3
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.div/zero",
+      "operation": "Morphir.SDK.Decimal.div",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 0
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "0",
+          "scale": 0
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "nothing"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [
+        "FS-DECIMAL-DIV"
+      ],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.div/nonterminating",
+      "operation": "Morphir.SDK.Decimal.div",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 0
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "3",
+          "scale": 0
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "just",
+          "value": {
+            "tag": "decimal",
+            "coefficient": "33333333333333333333333333333333333333333333333333",
+            "scale": 50
+          }
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "representation-excluded",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {},
+      "exclusion": {
+        "code": "DecimalNonTerminating",
+        "reason": "Python's 50-digit rounded observation retained; MoonBit truncates at exponent -32. Neither is exact Decimal96 parity."
+      }
+    },
+    {
+      "caseId": "Decimal.compare/scale",
+      "operation": "Morphir.SDK.Decimal.compare",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "150",
+          "scale": 2
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "15",
+          "scale": 1
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "order",
+          "value": "EQ"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.toString/trim-scale",
+      "operation": "Morphir.SDK.Decimal.toString",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "150",
+          "scale": 2
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "string",
+          "value": "1.5"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [
+        "FS-DECIMAL-TEXT"
+      ],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.toString/zero",
+      "operation": "Morphir.SDK.Decimal.toString",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "0",
+          "scale": 2
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "string",
+          "value": "0"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [
+        "FS-DECIMAL-TEXT"
+      ],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.multiply/float-overflow",
+      "operation": "Morphir.SDK.Basics.multiply",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "1.7976931348623157E+308"
+        },
+        {
+          "tag": "float",
+          "value": "2"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "+Infinity"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.multiply/float-underflow",
+      "operation": "Morphir.SDK.Basics.multiply",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "-5E-324"
+        },
+        {
+          "tag": "float",
+          "value": "0.5"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "-0"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.add/float-smallest",
+      "operation": "Morphir.SDK.Basics.add",
+      "typeArguments": {
+        "n": "Float"
+      },
+      "arguments": [
+        {
+          "tag": "float",
+          "value": "5E-324"
+        },
+        {
+          "tag": "float",
+          "value": "+0"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "float",
+          "value": "5E-324"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Basics.add/int-minimum",
+      "operation": "Morphir.SDK.Basics.add",
+      "typeArguments": {
+        "n": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "-2147483648"
+        },
+        {
+          "tag": "int",
+          "value": "0"
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "int",
+          "value": "-2147483648"
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/basics.py",
+        "elm:src/Morphir/IR/SDK/Basics.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "List.cons/structural-hash",
+      "operation": "Morphir.SDK.List.cons",
+      "typeArguments": {
+        "a": "Int"
+      },
+      "arguments": [
+        {
+          "tag": "int",
+          "value": "1"
+        },
+        {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/list.py",
+        "elm:src/Morphir/IR/SDK/List.elm"
+      ],
+      "basis": "source-derived",
+      "knownGaps": [],
+      "invariants": {
+        "equalTo": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        },
+        "hashEqualTo": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "int",
+              "value": "1"
+            },
+            {
+              "tag": "int",
+              "value": "2"
+            }
+          ]
+        },
+        "preserveArguments": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "Decimal.sub/negative-overflow",
+      "operation": "Morphir.SDK.Decimal.sub",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "-79228162514264337593543950335",
+          "scale": 0
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "1",
+          "scale": 0
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact negative decimal result exceeds Decimal96 magnitude."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    },
+    {
+      "caseId": "Decimal.mul/overflow",
+      "operation": "Morphir.SDK.Decimal.mul",
+      "typeArguments": {},
+      "arguments": [
+        {
+          "tag": "decimal",
+          "coefficient": "79228162514264337593543950335",
+          "scale": 0
+        },
+        {
+          "tag": "decimal",
+          "coefficient": "2",
+          "scale": 0
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "Overflow",
+          "detail": "Exact decimal product exceeds Decimal96 magnitude."
+        }
+      },
+      "profile": "dotnet-sdk-v1",
+      "classification": "required",
+      "evidence": [
+        "python:packages/morphir/src/morphir/sdk/decimal.py",
+        "elm:src/Morphir/IR/SDK/Decimal.elm"
+      ],
+      "basis": "dotnet-extension",
+      "knownGaps": [],
+      "invariants": {}
+    }
+  ]
+}
