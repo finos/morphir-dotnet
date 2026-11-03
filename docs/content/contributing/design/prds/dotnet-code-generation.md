@@ -11,7 +11,7 @@ owned worktrees. The coordinator retains the shared bootstrap checkout.
 
 | Initiative | Status | Implementation owner | Predecessor on main | Contract |
 | --- | --- | --- | --- | --- |
-| [establish-dotnet-sdk-conformance](../../../../../openspec/changes/establish-dotnet-sdk-conformance/proposal.md) | In progress | Conformance lead, `t3/dotnet-sdk-conformance` | Planning PR #459, landed `890aacb61df601f2876112a2cdd4d9d6f5757ca6` | Inventory, profiles, schema and evidence |
+| [establish-dotnet-sdk-conformance](../../../../../openspec/changes/establish-dotnet-sdk-conformance/proposal.md) | PR-ready, landing pending | Conformance lead, `t3/dotnet-sdk-conformance` | Planning PR #459, landed `890aacb61df601f2876112a2cdd4d9d6f5757ca6` | Inventory, profiles, schema and evidence |
 | [add-immutable-csharp-sdk](../../../../../openspec/changes/add-immutable-csharp-sdk/proposal.md) | Planned | C# SDK lead, dispatched by coordinator | Conformance initiative | Immutable public SDK API |
 | [introduce-fsharp-sdk-package](../../../../../openspec/changes/introduce-fsharp-sdk-package/proposal.md) | Planned | F# SDK lead, dispatched by coordinator | Conformance initiative | Package compatibility and covered corrections |
 | [add-csharp-code-generation](../../../../../openspec/changes/add-csharp-code-generation/proposal.md) | Planned | C# generation lead, dispatched by coordinator | C# SDK initiative | Typed generation/options/diagnostics |
@@ -45,6 +45,14 @@ lease to register its new test project in `Morphir.slnx` and maintain this PRD a
 the conformance index entry. Other initiatives remain untouched.
 
 ## Delivery evidence
+
+The conformance [readiness manifest](../../../../../tests/Fixtures/MorphirSDK/readiness.json)
+pins submitted contract artifact commit `737e85b3a202ba733b153be637e33cf953342705`.
+It names 67 operations, 207 required cases, eight representation exclusions and
+four required F# gaps. Local Nuke Test passed 2,752 suite tests and 15 package
+lifecycle checks; PackAll and all 40 TestBuild checks passed. The offline
+conformance suite passes 27 tests with 93.42% measured validator line coverage.
+The other four initiatives remain gated on verified predecessor merges on main.
 
 The coordinator records PR URLs, final submitted heads, distinct landed SHAs,
 archive paths and cleanup evidence after each milestone. The conformance PRD

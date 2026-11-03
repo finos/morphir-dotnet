@@ -19,7 +19,7 @@ Read [design](design.html), [spec](specs/dotnet-sdk-conformance/spec.md) and [ha
 
 - [x] 3.1 Integrate only this change's solution/test registration and PRD-index edits through the coordinator; verify the integrated test invocation discovers the new validator project.
 - [x] 3.2 Run strict OpenSpec validation, the fixture validator, repository-required formatting, full tests and coverage checks; record commands/results and verify no runtime or emitter behavior changed.
-- [ ] 3.3 Produce a readiness manifest listing the pinned contract commit, fixture IDs, follow-up owners and exact Codex configuration; verify both runtime initiatives are eligible only after this PR is merged to main.
+- [x] 3.3 Produce a readiness manifest listing the pinned contract commit, fixture IDs, follow-up owners and exact Codex configuration; verify both runtime initiatives are eligible only after this PR is merged to main.
 
 ## Workflow follow-up
 

@@ -22,8 +22,8 @@ generation and CLI integration belong to successor initiatives.
 | Operation signatures and scalar profiles | Implemented | 67 operations, direct/callback errors and precise scalar boundaries |
 | Tagged cases and named runtime gaps | Implemented | 215 cases, 207 required, eight exclusions and four required F# gaps |
 | Offline validator and regression tests | Implemented | 27 passing tests; 93.42% measured validator line coverage |
-| Frozen schema and downstream handoff | In progress | Schema and README frozen; pinned readiness manifest remains |
-| Integrated validation | In progress | Initial full Windows Nuke Test passed; final review and package-build checks remain |
+| Frozen schema and downstream handoff | Implemented | Pinned readiness manifest, all fixture IDs and successor merge gates verified |
+| Integrated validation | Implemented | Full Nuke Test/PackAll/TestBuild, strict OpenSpec, scoped coverage and hooks' configured checks passed |
 
 ## Acceptance
 
@@ -200,6 +200,22 @@ checks/reviews.
 
 ## Delivery state
 
-Implementation is underway. PR landing, spec synchronization/archive and owned
-worktree cleanup remain the root coordinator's responsibility. An open PR is an
-intermediate milestone.
+Implementation is PR-ready. The [readiness manifest](../../../../../tests/Fixtures/MorphirSDK/readiness.json)
+pins contract artifact commit `737e85b3a202ba733b153be637e33cf953342705`, all
+67 operation IDs, 207 required case IDs, eight explicit exclusions, four F# gap
+owners, 12 contract-file hashes and the exact Codex `gpt-6.1-sol`/high dispatch
+configuration. `python C:/Temp/morphir-sdk-conformance-b255f4d7/audit-readiness.py`
+verified those counts, hashes, identities, disjoint classifications and merge
+gate conditions. The hashes use Git blob bytes, with CRLF normalization only
+when comparing non-evidence text checkout files.
+
+Both runtime initiatives remain in `awaiting-verified-main-merge`. The
+coordinator must verify this PR's actual landed SHA on refreshed main before
+dispatch. A squash need not preserve the submitted artifact commit's ancestry.
+The coordinator records the PR/landed SHA and advances the readiness/delivery
+state during landing/archive follow-up. No fixture exclusion, known gap, skip or
+expected failure can satisfy a required runtime case.
+
+PR landing, the required other-developer sign-off, spec synchronization/archive
+and owned worktree cleanup remain the root coordinator's responsibility. This
+initiative is not complete at the PR-ready milestone.
