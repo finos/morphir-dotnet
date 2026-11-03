@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <Description>Explicit-source Morphir configuration readers without CLI dependencies.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CsToml" />
+    <PackageReference Include="YamlDotNet" />
+    <ProjectReference Include="../Morphir.Configuration/Morphir.Configuration.fsproj" />
+  </ItemGroup>
+</Project>

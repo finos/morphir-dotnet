@@ -52,6 +52,15 @@ specification, repairs documentation paths and records verified delivery metadat
 It adds no third-party source, license or restriction. All source evidence,
 licenses, attribution and existing notices above remain unchanged.
 
+Project and workspace discovery submission
+
+Copyright 2026 FINOS
+
+The additive shared discovery policy, host adapters, tests and documentation are
+original contributions under this repository's Apache-2.0 license. This
+submission adds no third-party source or additional license restrictions.
+Existing notices, licensed evidence and attribution above remain unchanged.
+
 Canonical F# SDK package migration (#465)
 
 This contribution reorganizes the existing FINOS Morphir F# runtime packaging,

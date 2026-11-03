@@ -50,6 +50,18 @@ Defines a standard format for storing and sharing business logic. A clear set of
 
 Provides tooling for the Morphir ecosystem and .NET libraries that can be used to help you work with Morphir.
 
+The additive [shared configuration libraries](docs/content/docs/configuration/resolution.md)
+provide typed TOML, YAML, JSON/JSON5 documents, pure source resolution, named
+profiles, validation and winning origins without constructing the CLI.
+`Morphir.Configuration.IO` reads explicit files or supplied text and exposes
+bounded project/workspace discovery through native and in-memory trees. See the
+[discovery guide](docs/content/guides/configuration.md#discovery-library-api) for
+`ProjectSystem.Discover`, per-root/member `ProjectSystem.Load`, membership/selection,
+host boundaries and explicitly authorized machine sources.
+Existing Git-first artifact discovery, cache-only tooling and CI overlays keep
+their compatibility behavior. CLI inspection, editing and migration remain planned. See the
+[reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.
+
 ## Getting Started
 
 ### Building from source

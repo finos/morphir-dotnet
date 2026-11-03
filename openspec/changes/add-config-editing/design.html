@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-config-editing</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-config-editing</h1>
+<p class="meta">OpenSpec change | 2026-11-02 | Planning only; implementation pending</p>
+<p>Read the <a href="proposal.md">proposal</a>, <a href="specs/configuration-editing/spec.md">configuration-editing</a>, and the <a href="tasks.md">tasks</a>.</p>
+<nav class="toc" aria-label="Contents"><ul><li><a href="#context">Context</a></li><li><a href="#goals">Goals and non-goals</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#risks">Risks and trade-offs</a></li><li><a href="#migration">Migration plan</a></li><li><a href="#campaign-completion">Campaign completion</a></li></ul></nav>
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for motivation. The inspection campaign supplies segmented key paths, scoped queries, and CLI result formatting. CsToml's existing dictionary reader does not establish comment-preserving editing. The repository's safe-tree-publication capability writes generated output trees and may prune manifest-owned output; it is not a transaction system for user configuration.</p>
+<h2 id="goals">Goals and non-goals</h2>
+<p>Provide shared plan/apply editing that targets one file, preserves presentation, and detects stale observations. This campaign establishes the write boundary reused by migrations. YAML/JSON remain readable input formats; writes are TOML.</p>
+<h2 id="decisions">Decisions</h2>
+<h3 id="edit-1">EDIT-1. Separate pure plans from adapter-owned writes</h3>
+<p>Add immutable edit requests, target evidence, before/after typed values, diagnostics, and preconditions to Morphir.Configuration. Shared planning combines source ownership, key grammar, input typing, validation, and candidate resolution. IO adapters render and apply the plan. CLI set/unset only parse options and present results; a non-CLI editor can preview without a write adapter. Alternative considered: Writing files directly in CLI handlers was rejected because other hosts need identical planning and validation.</p>
+<h3 id="toml-1">TOML-1. Use token-preserving TOML updates</h3>
+<p>Implement or select a token/CST-preserving editor behind Morphir.Configuration.IO and verify it with byte-level fixtures. Patch only the named entry/table and required whitespace; never deserialize and rewrite the whole document. Reparse the rendered candidate through the canonical reader and compare intended typed changes. Preserve line endings, unrelated comments, ordering, and formatting. A scope with no TOML primary receives its corresponding TOML file; direct YAML/JSON file targets fail. Alternative considered: Whole-document deserialize/serialize editing was rejected because it would discard presentation.</p>
+<h3 id="tgt-1">TGT-1. Capture target selection and source evidence</h3>
+<p>Resolve exactly one project/workspace/personal/global/system/explicit TOML target. Capture content identities and relevant listings used for absence and ambiguity decisions. Revalidate those observations immediately before commit under the adapter's overlapping-writer coordination. Checking only the target's last-write time would miss a new alternate primary or a changed source that invalidates the preview. Alternative considered: Timestamp-only preconditions were rejected because they miss content and candidate-inventory changes.</p>
+<h3 id="txn-1">TXN-1. Stage then atomically replace one destination</h3>
+<p>The native IO adapter validates and stages candidate bytes on the destination filesystem, checks preconditions, and uses an atomic per-file replacement primitive. Keep recovery state until the outcome is known. An ordinary validation/conflict failure writes nothing; an uncertain post-replacement failure reports recovery required. Remove owned temporary artifacts only on success or proven rollback. Do not use generated-output publication or its pruning manifests. Alternative considered: Using the generated-output publisher was rejected because user-file editing requires different ownership and recovery guarantees.</p>
+<h3 id="res-1">RES-1. Report the effective result after the scoped edit</h3>
+<p>Resolve the candidate and committed evidence through the same canonical service. Return target, written/unchanged state, effective value/origin, and the overriding source when applicable. Unset removes only the target entry; it can reveal lower layers. A byte-identical repeat does not rewrite the file. Dry-run reports the same plan without application. Alternative considered: Reporting only the written value was rejected because it would hide higher-precedence winners.</p>
+<h2 id="risks">Risks and trade-offs</h2>
+<table><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody><tr><td>Comment-preserving patch changes an unrelated key</td><td>Reparse candidate bytes, compare the intended typed diff, and assert unrelated fixture spans remain byte-identical.</td></tr><tr><td>Concurrent writer invalidates a preview</td><td>Use source/listing/content preconditions and one coordination protocol for all configuration writers; reject stale plans.</td></tr><tr><td>Filesystem error leaves outcome uncertain</td><td>Return typed recovery state with retained owned journal/backups rather than claiming rollback or deleting recoverable data.</td></tr></tbody></table>
+<h2 id="migration">Migration plan</h2>
+<p>Add set/unset to the existing configuration scenario after inspection lands. No files are touched until an explicit edit request is applied. Validate malformed values and conflicts before writes, exercise injected staging/replacement failures, and document recovery behavior. Rollback removes command registration but must preserve any outstanding recovery data.</p>
+<h2 id="campaign-completion">Campaign completion</h2>
+<p>This campaign is complete only after one reviewable PR has landed on <code>main</code> and the campaign-owned worktree and local/remote branches have been removed. Passing tests or opening a PR alone is not completion.</p>
+<ol>
+<li>Start from current <code>main</code> after the prerequisite campaigns have landed. Use one owned branch and worktree for this campaign, and record their identities.</li>
+<li>Complete behavior, tests, documentation, relevant formatter/AOT checks, and the repository's required checks. Update the PR description and evidence for its final head; address verified review findings.</li>
+<li>When implementation is complete, sync/archive this OpenSpec change in the campaign PR, preserve the reviewable design and specs, and validate the resulting planning state.</li>
+<li>Merge through the repository's normal review and required-check policy. No force push, admin bypass, deployment, or release is implied by this plan.</li>
+<li>Verify authoritative PR merged state, capture its landed commit SHA, and verify the change is present on <code>main</code>. After confirming the worktree has no unique uncommitted/unmerged work, remove that campaign's worktree and local/remote branches through the owning workspace/forge tools. Check they are absent. Do not force removal or prune unrelated artifacts.</li>
+<li>Report the PR URL, landed SHA, check/review evidence, archive/spec-sync outcome, and cleanup results. Preserve unrelated work and unresolved recovery journals; if cleanup or recovery is blocked, report it and keep the campaign unfinished.</li>
+</ol>
+
+</main>
+</body>
+</html>
