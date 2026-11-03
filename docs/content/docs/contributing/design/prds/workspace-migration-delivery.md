@@ -370,3 +370,20 @@ journals/backups and their surrounding user-change fixtures until explicitly
 inspected/recovered or dispositioned by the parent. Owned cleanup therefore
 remains an explicit parent obligation. Global caches/tools and unrelated
 campaign artifacts are excluded from ownership.
+
+### Current-main interaction at PR preparation
+
+GitHub main advanced during qualification to
+`0542145a4bcc0edf9c9dd2fb3122df36c73e80d0` through independent C# generation
+PRs #478, #480 and #482. The owned branch retains the explicitly required starting
+baseline `e3b9a053120a49e94c70c30cd4f62ef783672c64`; PR #477 remains its merged
+prerequisite. No unrelated generation work is copied or modified in this branch.
+The intervening production changes add a separate generation backend/reference
+and model package-release notes; they do not change configuration/project/workspace
+services. README/troubleshooting edits are in different sections.
+`git merge-tree --write-tree origin/main HEAD` succeeds without conflicts
+(integration tree `a866f8115332651717e14fe1b0a7ec4b8db3e460` at the documentation
+checkpoint). This is merge compatibility evidence, not execution of a merged
+checkout. The 17-runner/runtime receipts qualify this branch at its required
+baseline; parent-owned current-base PR CI remains necessary for the new backend
+and additional independent suites. The PR records the actual newer base separately.
