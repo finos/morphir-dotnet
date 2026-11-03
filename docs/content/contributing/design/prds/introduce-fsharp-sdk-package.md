@@ -311,3 +311,48 @@ changelog validation and native Windows Nuke Precommit. No hook bypass or
 
 All nine implementation tasks are verified. PR creation/hosting review, landing,
 archive and cleanup remain separate delivery steps owned with the coordinator.
+
+### Coordinator review follow-up
+
+PR #469 was integrated with main `23d274d4c87b367fdc79bd21843a9fdf5d74b13d`
+in normal merge commit `763720376a99c5cd3f97d46bca606764f316ca17`. The NOTICE
+resolution retains both the SDK attribution and main's configuration/discovery
+notices. The earlier full-suite results describe the implementation checkpoint,
+not this newly integrated main.
+
+Three review findings were independently confirmed and reproduced. The six
+culture tests initially had four failures: German parsing changed `1.5M` to
+`15M`, and French parsing rejected the invariant text. The later-version matrix
+failed all three graphs at actual assembly version `0.4.1.0`. The first version
+probe was ineffective because the changelog target overrode Version; its
+replacement uses an isolated changelog and asserts the requested packed version.
+Test-authoring/setup errors are retained separately from these behavioral REDs.
+
+The parser now tries canonical invariant decimal text first, without thousands
+separators, then retains current-culture parsing for other input. The package
+matrix derives identity from the canonical asset while still enforcing the
+existing name, culture and unsigned policy. The genuine old consumer remains
+unchanged. Both library publishing targets now select the exact versioned
+canonical package before the compatibility package. No publishing target has
+been executed.
+
+After the C# lead released the slot, coordinator SDK build passed without warnings
+and all 403 SDK tests passed, including 207 frozen required IDs, six culture cases,
+both package-version matrices and the unchanged old-binary/generated consumers.
+The final integrated Windows Nuke Test passes all 3,270 suite tests and 15 cold
+package lifecycle checks in 6m52. This includes main's 124 configuration and
+166 configuration-I/O tests, SDK 403 and unchanged generator 333. Native
+Precommit passes in 29 seconds with its inherited unsupported-F# diagnostics.
+PackAll passes in 31 seconds; TestBuild passes all 40 tests with zero skips.
+Both exact versioned SDK paths used by the compiled publishing registrations
+exist in the packed output. Publishing itself remains unexecuted.
+
+A fresh SDK-only AltCover run also passes all 403 SDK tests. The final measured
+source layout covers all 65 changed instrumentable sequence points and all 44
+point-start lines; Decimal.fromString covers all six of its sequence points.
+Whole-runtime coverage is 126/424 sequence points (29.717%) and 95/361 point-start
+lines (26.316%). These remain source-point metrics, not branch or aggregate
+threshold claims. Exact final hashes for all 14 source files and the conservative
+span classifier are in `runtime-review-metrics.json`, with original OpenCover and
+Cobertura reports alongside it under the retained semantic-validation directory.
+The earlier pre-format report and matched-old/current evidence remain intact.

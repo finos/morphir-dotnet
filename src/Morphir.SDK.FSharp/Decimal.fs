@@ -13,11 +13,26 @@ module Decimal =
             System.Globalization.CultureInfo.InvariantCulture
         )
 
-    /// <summary>Parse string to decimal</summary>
+    /// <summary>Parse invariant SDK text first, then other current-culture decimal input.</summary>
     let fromString (s: string) =
-        match System.Decimal.TryParse(s) with
+        let invariantStyles =
+            System.Globalization.NumberStyles.AllowLeadingWhite
+            ||| System.Globalization.NumberStyles.AllowTrailingWhite
+            ||| System.Globalization.NumberStyles.AllowLeadingSign
+            ||| System.Globalization.NumberStyles.AllowDecimalPoint
+
+        match
+            System.Decimal.TryParse(
+                s,
+                invariantStyles,
+                System.Globalization.CultureInfo.InvariantCulture
+            )
+        with
         | true, d -> Some d
-        | false, _ -> None
+        | false, _ ->
+            match System.Decimal.TryParse(s) with
+            | true, d -> Some d
+            | false, _ -> None
 
     /// <summary>Convert int to decimal</summary>
     let inline fromInt (n: int) = decimal n

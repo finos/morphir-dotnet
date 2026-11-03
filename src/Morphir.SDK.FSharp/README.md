@@ -64,6 +64,11 @@ operation or every host representation.
   before precomposed `"\u00e9"`; they no longer compare equal through collation.
 - `Decimal.toString` uses invariant positional text and removes fractional
   trailing zeros. `1.50M` becomes `"1.5"`, and scaled zero becomes `"0"`.
+  `Decimal.fromString` parses this canonical representation first under every
+  culture, then tries the caller's culture for other input. For example, under
+  `de-DE`, both `"1.5"` and localized `"1,5"` mean `1.5M`. Ambiguous dot-separated
+  input follows canonical decimal-point semantics rather than localized grouping.
+  Parsing remains a native API compatibility check outside the frozen inventory.
 - Additive `Basics.round`, `floor`, `ceiling` and `truncate` convert Float to
   Int32 with non-finite and overflow checks. Round resolves halves toward
   positive infinity: `round -2.5 = -2`.

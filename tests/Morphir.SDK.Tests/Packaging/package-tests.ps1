@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$EvidenceRoot,
-    [string]$ExistingFeed
+    [string]$ExistingFeed,
+    [string]$PackageVersion
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -60,13 +61,23 @@ try {
     $feed = if ($ExistingFeed) { (Resolve-Path -LiteralPath $ExistingFeed).Path } else { Join-Path $evidence 'feed' }
     if (-not $ExistingFeed) {
         $null = New-Item -ItemType Directory -Path $feed
-        Invoke-Captured 'canonical-pack' @('pack', (Join-Path $repo 'src/Morphir.SDK.FSharp/Morphir.SDK.FSharp.fsproj'), '-c', 'Release', '-o', $feed, '-m:1', '-p:UseSharedCompilation=false', '-nodeReuse:false')
-        Invoke-Captured 'legacy-pack' @('pack', (Join-Path $repo 'src/Morphir.SDK/Morphir.SDK.fsproj'), '-c', 'Release', '-o', $feed, '-m:1', '-p:UseSharedCompilation=false', '-nodeReuse:false')
+        $versionArguments = @()
+        if ($PackageVersion) {
+            # The existing changelog target sets Version and PackageVersion during
+            # packing. Exercise that real policy with an isolated changelog input.
+            $versionChangelog = Join-Path $evidence 'CHANGELOG.md'
+            "# Changelog`n`n## [$PackageVersion] - 2026-11-03`n`n### Added`n- Package migration version proof.`n" |
+                Set-Content -LiteralPath $versionChangelog -Encoding utf8 -NoNewline
+            $versionArguments = @("-p:ChangelogFile=$versionChangelog")
+        }
+        Invoke-Captured 'canonical-pack' (@('pack', (Join-Path $repo 'src/Morphir.SDK.FSharp/Morphir.SDK.FSharp.fsproj'), '-c', 'Release', '-o', $feed, '-m:1', '-p:UseSharedCompilation=false', '-nodeReuse:false') + $versionArguments)
+        Invoke-Captured 'legacy-pack' (@('pack', (Join-Path $repo 'src/Morphir.SDK/Morphir.SDK.fsproj'), '-c', 'Release', '-o', $feed, '-m:1', '-p:UseSharedCompilation=false', '-nodeReuse:false') + $versionArguments)
     }
     $legacyPackage = @(Get-ChildItem -LiteralPath $feed -Filter '*.nupkg' | Where-Object { (Read-Package $_.FullName).Metadata.id -eq 'Morphir.SDK' })
     if ($legacyPackage.Count -ne 1) { throw 'Feed must have exactly one legacy SDK package' }
     $legacy = Read-Package $legacyPackage[0].FullName
     $version = [string]$legacy.Metadata.version
+    if ($PackageVersion -and $version -ne $PackageVersion) { throw "Requested package version $PackageVersion but packed $version" }
     $baseline = Join-Path $PSScriptRoot 'Baseline'
     $oldBinary = Join-Path $baseline 'LegacyConsumer.dll'
     $oldHash = '41afc3e57b4ebf350467d0d812d0fdb63eda1878eecd9099d30c992d60768228'
@@ -115,8 +126,12 @@ try {
             $canonicalRuntime = Join-Path $cache "morphir.sdk.fsharp/$version/lib/net10.0/Morphir.SDK.dll"
             $canonicalHash = (Get-FileHash -LiteralPath $canonicalRuntime -Algorithm SHA256).Hash
             if ((Get-FileHash -LiteralPath $runtime -Algorithm SHA256).Hash -ne $canonicalHash) { throw 'Fresh output runtime differs from canonical package' }
+            $canonicalIdentity = [Reflection.AssemblyName]::GetAssemblyName($canonicalRuntime)
             $identity = [Reflection.AssemblyName]::GetAssemblyName($runtime).FullName
-            if ($identity -ne 'Morphir.SDK, Version=0.3.0.0, Culture=neutral, PublicKeyToken=null') { throw "Runtime identity changed: $identity" }
+            if ($identity -ne $canonicalIdentity.FullName) { throw "Runtime identity differs from canonical package: $identity" }
+            if ($canonicalIdentity.Name -ne 'Morphir.SDK' -or -not [string]::IsNullOrEmpty($canonicalIdentity.CultureName) -or $canonicalIdentity.GetPublicKeyToken().Length -ne 0) {
+                throw "Runtime name, culture or signing policy changed: $identity"
+            }
             $api = Join-Path $evidence "$graph-public-api.txt"
             Invoke-Captured "$graph-source-run" @('exec', (Join-Path $output 'LegacyConsumer.dll'), $api) $consumer
             $missing = @(Compare-Object (Get-Content -LiteralPath (Join-Path $baseline 'public-api.txt')) (Get-Content -LiteralPath $api) | Where-Object SideIndicator -EQ '<=')
