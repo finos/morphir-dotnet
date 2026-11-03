@@ -5,7 +5,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 1. Campaign setup
 
-- [ ] 1.1 Prepare an owned worktree/branch after add-classic-project-migration lands; verify its merged SHA, clean baseline, and recorded campaign tracking/ownership.
+- [x] 1.1 Prepare an owned worktree/branch after add-classic-project-migration lands; verify its merged SHA, clean baseline, and recorded campaign tracking/ownership.
 
 ## 2. Inventory and aggregate planning
 

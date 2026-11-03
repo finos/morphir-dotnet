@@ -7,7 +7,7 @@ description: "Shared configuration, project discovery, and configuration inspect
 
 # Layered configuration and workspaces
 
-**Status**: In Progress; campaigns 1 through 4 landed and cleaned; campaign 5 project migration locally qualified under #476; parent gates pending
+**Status**: In Progress; campaigns 1 through 5 landed and cleaned; campaign 6 workspace migration in progress under #479
 
 **Created**: 2025-12-22
 
@@ -178,8 +178,8 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 | Shared resolution, profiles, validation, provenance | Implemented and landed | Campaign 1 additive APIs; prior baseline core 95 and reader/BDD 66; campaign 2 requalification tracked separately |
 | Microsoft configuration integration | Implemented and landed | Campaign 3, PR #471; opt-in resolved provider, generated/explicit binding and managed/trimmed/native qualification retained |
 | Shared query and edit services | Implemented and landed | Campaigns 3 and 4, PR #475; shared plans, TOML editor, transactions and parent cleanup confirmed |
-| Classic project migration | Implemented locally; parent gates pending | Campaign 5, #476; pure planner, independent verification, guarded IO, project migrate and managed/trimmed/native qualification |
-| Workspace migration | Planned | Bounded inventory, coordinated project plans, membership, and recovery |
+| Classic project migration | Implemented and landed | Campaign 5, #476; pure planner, independent verification, guarded IO, project migrate and managed/trimmed/native qualification |
+| Workspace migration | In Progress | Bounded inventory, coordinated project plans, membership, and recovery |
 | Config CLI commands | Implemented locally; parent gates pending | Campaign 3 get/list/show/path/explain are landed. Campaign 4 set/unset use shared services; all 360 tooling tests pass, including 33 editing subprocess scenarios. Published-host qualification passes; parent delivery gates remain |
 | Documentation foundation | Updated for inspection and editing | Shared API and Microsoft consumer examples, read CLI schema/options, walkthrough and troubleshooting; editing API, preview/recovery and CLI examples are implemented; classic project migration reference and walkthrough implemented; workspace migration remains planned |
 | Compatibility and end-to-end verification | In Progress | Campaign 1 landed baseline tooling 245, reader 66, core 95 and warning-qualified runtime evidence; current campaign results recorded separately |
@@ -316,3 +316,11 @@ context. The IO coordinator reuses exact-buffer observations, the TOML editor
 and transaction boundary. Read-only hosts receive a redacted `Presentation`.
 The CLI remains a separate thin project provider. Qualification and parent gates
 are recorded in the [delivery journal](project-migration-delivery.md).
+
+### Workspace migration campaign, 2026-11-03
+
+Campaign 6 tracks [#479](https://github.com/finos/morphir-dotnet/issues/479).
+The [delivery journal](workspace-migration-delivery.md) records ownership,
+prerequisite ancestry, task progress and qualification. PR #477 landed at
+`e3b9a053120a49e94c70c30cd4f62ef783672c64`; its receipt confirms campaign 5
+cleanup. Parent owns campaign 6 review, CI watch, landing and cleanup.
