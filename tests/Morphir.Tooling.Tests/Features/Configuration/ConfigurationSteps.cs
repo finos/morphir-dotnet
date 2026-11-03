@@ -34,6 +34,13 @@ public sealed class ConfigurationSteps : IDisposable
     [Given("the inspection workspace contains sibling YAML")]
     public void Yaml() => File.WriteAllText(Path.Combine(_root, "morphir.yaml"), "custom:\n  yaml_only: true\n");
 
+    [Given("the inspection workspace has an invalid default member")]
+    public void InvalidDefaultMember()
+    {
+        var path = Path.Combine(_root, "morphir.toml");
+        File.WriteAllText(path, File.ReadAllText(path).Replace("members=['app']", "members=['app']\ndefault_member='missing'", StringComparison.Ordinal));
+    }
+
     [Given("the inspection member configuration is malformed")]
     public void Malformed() => File.WriteAllText(Path.Combine(_root, "app", "morphir.toml"), "[broken never-print-password");
 
@@ -174,6 +181,14 @@ public sealed class ConfigurationSteps : IDisposable
 
     [Then("the queried key is absent")]
     public void Absent() => _json!.RootElement.GetProperty("found").GetBoolean().Should().BeFalse();
+
+    [Then("inspection diagnostics include {string}")]
+    public void IncludesDiagnostic(string code) => _json!.RootElement.GetProperty("diagnostics").EnumerateArray()
+        .Select(d => d.GetProperty("code").GetString()).Should().Contain(code);
+
+    [Then("inspection diagnostics exclude {string}")]
+    public void ExcludesDiagnostic(string code) => _json!.RootElement.GetProperty("diagnostics").EnumerateArray()
+        .Select(d => d.GetProperty("code").GetString()).Should().NotContain(code);
 
     [Then("the get entry identifies its member origin")]
     public void Origin()

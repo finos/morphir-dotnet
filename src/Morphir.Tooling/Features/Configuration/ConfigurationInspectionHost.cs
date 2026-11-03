@@ -38,7 +38,8 @@ public sealed class NativeConfigurationInspectionHost : IConfigurationInspection
             MachineTree = invocation.Isolated ? null : new FileSystemProjectTree(Path.GetPathRoot(start)!)
         };
         var detailed = ProjectSystem.LoadDetailed(tree, discovered.Discovery, project, options);
-        var selectionErrors = invocation.Project is not null ? discovered.Selection.Diagnostics : FSharpList<ConfigDiagnostic>.Empty;
+        var usesProjectSelection = invocation.Scope.IsEffective || invocation.Scope.IsProject || invocation.Scope.IsUser;
+        var selectionErrors = usesProjectSelection ? discovered.Selection.Diagnostics : FSharpList<ConfigDiagnostic>.Empty;
         if (selectionErrors.IsEmpty) return detailed;
         var result = detailed.Resolution;
         return new ResolutionDetails(new DocumentResolution(result.Effective, result.Origins, result.Sources, result.ActiveProfiles,

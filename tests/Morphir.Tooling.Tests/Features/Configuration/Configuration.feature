@@ -2,6 +2,32 @@
 Feature: Inspect configuration without mutating the project
   Inspection shares canonical resolution with embedded hosts and keeps stdout scriptable.
 
+  Scenario Outline: Automatic selection preserves invalid workspace defaults
+    Given an inspection workspace with a member and a personal override
+    And the inspection workspace has an invalid default member
+    When I inspect with "<command>"
+    Then inspection exits with 2 and one JSON result
+    And inspection diagnostics include "discovery.invalid_default"
+
+    Examples:
+      | command                       |
+      | get ir.format --isolated      |
+      | get custom.winner --user      |
+
+  Scenario Outline: Independent scopes bypass automatic member selection
+    Given an inspection workspace with a member and a personal override
+    And the inspection workspace has an invalid default member
+    When I inspect with "<command>"
+    Then inspection exits with <exit> and one JSON result
+    And inspection diagnostics exclude "discovery.invalid_default"
+
+    Examples:
+      | command                                             | exit |
+      | get custom.workspace_only --workspace --isolated     | 0    |
+      | get custom.machine --global                         | 0    |
+      | get custom.missing --system                         | 1    |
+      | get custom.winner --file selected.toml --isolated    | 0    |
+
   Scenario Outline: Every read command returns one JSON result
     Given an inspection workspace with a member and a personal override
     When I inspect with "<command>"
