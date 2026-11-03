@@ -260,3 +260,19 @@ refusal cases. `ownership-io-final.log`, `ownership-final-build.log` and the
 refreshed `validation/summary.json` retain this evidence. These fixes keep the
 shared discovery API unchanged and enforce migration's narrower ownership
 contract in the reusable IO service.
+
+Final ownership qualification after `0d07db3` passes formatter/Fantomas,
+OpenSpec/extension verification and refreshed coverage collectors. Current-source
+coverage is core 4186/4343, 96.38%, and IO 1570/1616, 97.15%, recorded in
+`ownership-coverage-summary.json`. Fresh managed, trimmed and native hosts each
+pass 32 migration checks, 44 editing checks, 228 JSON5 cases and 26 Morphir
+fixtures. Published stderr is empty. Trimmed/native dependency warnings remain
+44/47 with the existing explicit warning-severity qualification. No diagnostic
+is suppressed. Publish lockfiles were restored byte-for-byte and no unresolved
+recovery remains. Exact argument arrays, exits and warning counts are retained
+in the refreshed parent qualification and publication summaries.
+
+Both independent reviews of the delivered baseline are complete. All three
+reported findings and the related explicit-layout anchor defect have been
+reproduced and corrected by the parent with regression evidence. Current-head
+CI, authorized landing and audited cleanup remain outstanding campaign gates.
