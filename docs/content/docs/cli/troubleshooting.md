@@ -582,3 +582,42 @@ write failures. A `rolled-back` outcome restored the original target; a
 `recovery-required` outcome names owned journal, stage and backup artifacts.
 Preserve them and later user edits until manual recovery is resolved. Migration
 retains the original classic source and never edits workspace membership.
+
+
+## Workspace migration blocks or needs recovery
+
+Run `morphir workspace migrate <directory> --dry-run --json` and inspect
+`inventory`, `projects`, `diagnostics`, and `verified`. The selected directory is
+the boundary even if it has no workspace. A child invocation does not adopt its
+parent or siblings. Excluded candidates, default skipped directories, links,
+and nested workspace boundaries appear in the inventory. Include/exclude controls
+are root relative and repeatable; existing workspace exclusions stay effective.
+
+One unsupported classic field or conflicting TOML value blocks the entire batch.
+Resolve the reported project blocker and create a fresh preview. Migration retains
+classic JSON bytes, uses the single-project loss ledger, and excludes ambient
+personal/machine/profile/environment settings from equivalence checks. An adoption
+effect for shared output roots does not permit source-directory or setting drift.
+Generated artifacts remain where they are.
+
+A conflict means input, target, listing, or topology evidence changed after
+planning. Replan after reviewing that change. Do not weaken filesystem boundary or
+link guards. On macOS use physical `/private/tmp` rather than its linked aliases.
+
+`recovery-required` is unfinished work. Preserve all listed journals, stages,
+backups, and user-modified targets. Overlapping configuration edits, project
+migration, and workspace migration remain blocked until explicit recovery resolves
+the journal. `uncertainDirectories` identifies directories whose creation receipt
+was interrupted. Do not delete them even if they are empty. Explicit recovery can
+preserve reviewed uncertain directories and reports them in `preservedDirectories`.
+Inspect the shared transaction recovery report before choosing a recovery action. It identifies restored and unresolved paths; unresolved user
+changes are preserved. See [workspace API and recovery]({{< relref
+"/docs/configuration/workspace-migration" >}}) for the supported API. There is no
+claim of cross-file crash atomicity, and silently deleting artifacts is not
+recovery.
+
+Every JSON result, including parse or host-initialization failure, follows the
+[workspace result schema](https://github.com/finos/morphir-dotnet/blob/main/docs/spec/schemas/workspace-migration-result.schema.json).
+Exit 0 means applicable preview, success, or valid-workspace no-op. Exit 2 means
+blocked, invalid, failed, or recovery required. Diagnostics go to stderr and stdout
+contains one JSON document when `--json` is supplied.

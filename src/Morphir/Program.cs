@@ -40,6 +40,7 @@ public static class Program
             .AddScenario<ManagementScenario>()
             .AddScenario<ConfigurationScenario>()
             .AddScenario<ProjectScenario>()
+            .AddScenario<WorkspaceScenario>()
             .AddCommand(CreateInfoCommand())
             .Build();
 

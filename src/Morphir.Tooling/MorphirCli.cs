@@ -69,7 +69,7 @@ public sealed class MorphirCliBuilder
             _hostBuilder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = help });
         }
         catch (Exception error) when ((args.FirstOrDefault() == "config"
-            || args.Length >= 2 && args[0] == "project" && args[1] == "migrate")
+            || args.Length >= 2 && args[0] is "project" or "workspace" && args[1] == "migrate")
             && error is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or FormatException)
         {
             // Retain the failure for an opted-in command's structured renderer.

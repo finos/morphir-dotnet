@@ -102,3 +102,34 @@ failed compilation. Its subsequently invoked stale-DLL tests are not a current
 qualification gate. `planner-final-build-02.log` is the successful rebuilt source,
 followed by `planner-final-io-02.log`, 371/371 current tests. Task 2.3 was marked
 only after that qualification, at the refreshed source location.
+
+### CLI adapter and subprocess contracts
+
+The actual baseline CLI and tooling test assembly were built before CLI runtime
+implementation. `cli/cli-red-run-02.log` contains 27 intended missing-command
+failures; two early alias-test assertions were corrected to the existing generic
+usage contract and are not claimed behavioral evidence. The first integrated
+29-case run passed 27 and exposed a missing-filter token being consumed as text
+and an unstructured workspace host-initialization crash. Both were reproduced
+and fixed. Its mutable log was later overwritten by a script; terminal evidence
+and `cli/parse-probe.log` remain, so that overwritten file is not claimed as the
+original failure receipt. Later ordinal checkpoint receipts are immutable.
+
+`cli/cli-green-02-run.log` passes 29/29 after actual CLI rebuilding. An isolated
+existing-DLL probe then reproduces a pending-journal dry-run incorrectly returning
+applicable preview. `cli/pending-cli-red.log` and the associated JSON receipt
+preserve that failure, followed by explicit shared rollback. The final adapter
+surfaces pending recovery, uncertain directories and preserved directories through
+safe JSON and human outcomes. `cli/cli-green-03-run.log` passes all 31 subprocess
+BDD cases after rebuilding the actual CLI against final shared sources. Every
+operation report validates against the checked-in schema using a fresh registry.
+
+The cases include current/supplied bounded roots, repeated include/exclude,
+root/virtual/existing workspaces, no adoption/no-op, loss blockers, raw nested
+secret redaction, depth 120, parse/initialization failures, source preservation,
+no config migrate alias, durable pending recovery and a real process interrupted
+after mkdir. Explicit recovery resolves every real CLI fixture. The actual CLI
+build retains two existing package warnings; tooling retains three existing
+package/generated warnings. `cli/format-03.log` passes own C# formatter verification.
+`cli/final-receipt.json` and `cli/final-source-sha256.json` record exact commands,
+counts and source identity. Task 4.1 was checked at its refreshed returned location.
