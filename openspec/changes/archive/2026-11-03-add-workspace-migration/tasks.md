@@ -22,7 +22,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 ## 4. Workspace CLI and integration
 
 - [x] 4.1 Add red-then-green workspace migrate subprocess scenarios for bounded directory/current roots, repeated include/exclude controls, --dry-run/--json, blocked/no-op results, and absence of config migrate; verify thin command registration and the workspace reference.
-- [ ] 4.2 Run format/build/analyzers, shared/project/workspace/tooling suites, aggregate fault/concurrent-process and contract/coverage checks, and a non-CLI batch preview; verify repeat runs preserve bytes/timestamps and sources, then record results.
+- [x] 4.2 Run format/build/analyzers, shared/project/workspace/tooling suites, aggregate fault/concurrent-process and contract/coverage checks, and a non-CLI batch preview; verify repeat runs preserve bytes/timestamps and sources, then record results.
 
 ## Workflow follow-up
 

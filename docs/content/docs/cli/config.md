@@ -240,7 +240,7 @@ Native filesystem access keeps the existing no-follow policy. On macOS, the conv
 
 ## Project migration
 
-Use [project migrate]({{< relref "/docs/cli/project-migrate" >}}) to adopt one classic project through loss-checked shared planning and guarded application. Workspace migration remains planned. Editing does not remove classic manifests, perform migration equivalence checks or adopt workspace membership automatically.
+Use [project migrate]({{< relref "/docs/cli/project-migrate" >}}) to adopt one classic project, or [workspace migrate]({{< relref "/docs/cli/workspace-migrate" >}}) for a bounded repository. Both use loss-checked shared planning and guarded application. Editing does not remove classic manifests, perform migration equivalence checks or adopt workspace membership automatically.
 
 ## Related documentation
 

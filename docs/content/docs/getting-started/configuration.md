@@ -7,7 +7,7 @@ description: "Workspace discovery, inspection, safe TOML editing and .NET consum
 
 # Configure a workspace
 
-The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. `config set/unset` plan and apply one TOML edit. `project migrate` adopts one classic project through loss-checked shared services. Workspace migration remains planned. See the [editing delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) for local validation and parent delivery gates.
+The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. `config set/unset` plan and apply one TOML edit. `project migrate` adopts one classic project through loss-checked shared services. `workspace migrate` adopts a bounded repository through aggregate verification and recoverable application. See the [workspace delivery journal]({{< relref "/docs/contributing/design/prds/workspace-migration-delivery" >}}) for local validation and parent delivery gates.
 
 ## Declare the workspace
 

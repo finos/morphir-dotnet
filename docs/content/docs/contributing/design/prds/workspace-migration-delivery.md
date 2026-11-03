@@ -212,3 +212,161 @@ retain evidence and durable overlap guards. Inspection exposes unresolved paths
 after process-local result loss. Deliberately unresolved fault fixtures remain
 under the owned external artifact root for parent inspection; they are not
 silently cleaned or represented as successful recovery.
+
+## Final runtime qualification
+
+Runtime checkpoint: `de44fa5` (`fix: verify aggregate context and artifact ownership`),
+based on exact main `e3b9a053120a49e94c70c30cd4f62ef783672c64`.
+`qualified-source-checkpoint.json` records hashes of every changed file. Subsequent
+delivery edits are documentation/specification only. All following commands run
+from the owned checkout, one heavy operation at a time, with
+`DOTNET_PROCESSOR_COUNT=2`, `BuildInParallel=false`, `RestoreDisableParallel=true`
+and `TMPDIR`, `TEMP`, `TMP` set to `/private/tmp/morphir-workspace-migration/tmp`.
+
+- Locked solution restore: `dotnet restore Morphir.slnx --locked-mode -m:1 -p:BuildInParallel=false -p:RestoreDisableParallel=true`.
+- Final build/analyzers: `dotnet build Morphir.slnx --no-restore -m:1 -p:BuildInParallel=false`; zero errors, ten existing package/generated warnings. Actual CLI rebuilt before subprocess qualification.
+- Changed C# formatter: `dotnet format Morphir.slnx --no-restore --include <all changed C# paths> --verbosity quiet`; exact expanded argv is in `qualification-first-summary.json`. Full formatter verification uses `dotnet format Morphir.slnx --no-restore --verify-no-changes --verbosity quiet`.
+- F# formatting: `dotnet fantomas --check src/Morphir.Configuration/Migration.fs src/Morphir.Configuration/ProjectDiscovery.fs`.
+- Managed host: `dotnet tests/Morphir.Configuration.IO.Smoke/bin/Debug/net10.0/Morphir.Configuration.IO.Smoke.dll --fixtures tests/Fixtures/Configuration`.
+
+The final configured executable sweep passes all 17 runners, 3,887 tests and
+smoke checks. Each invocation is `dotnet tests/<project>/bin/Debug/net10.0/<project>.dll`
+with the flag below. The process-local PATH adds campaign `bin/dotnet` for serial
+nested builds and existing PowerShell 7.5.3 for F# SDK package tests;
+`DOTNET_HOST_PATH` points to that campaign wrapper. Global tools/caches are untouched.
+
+| Project | Runner flags | Passed |
+|---|---|---:|
+| Morphir.CodeGeneration.FSharp.Tests | `--sequenced` | 333 |
+| Morphir.Configuration.IO.Tests | `--maximum-parallel-tests 1` | 429 |
+| Morphir.Configuration.Inspection.Smoke | none | 71 |
+| Morphir.Configuration.Microsoft.Tests | `--maximum-parallel-tests 1` | 22 |
+| Morphir.Configuration.Tests | `--sequenced` | 177 |
+| Morphir.Core.Tests | `--maximum-parallel-tests 1` | 237 |
+| Morphir.IR.Pipeline.Plugins.Tests | `--sequenced` | 141 |
+| Morphir.IR.Pipeline.Tests | `--sequenced` | 299 |
+| Morphir.Internal.CodeGeneration.Tests | `--sequenced` | 25 |
+| Morphir.Ion.Tests | `--sequenced` | 463 |
+| Morphir.Models.Tests | `--sequenced` | 791 |
+| Morphir.Myriad.Integration.Tests | `--maximum-parallel-tests 1` | 12 |
+| Morphir.Myriad.Tests | `--sequenced` | 4 |
+| Morphir.SDK.CSharp.Tests | `--maximum-parallel-tests 1` | 20 |
+| Morphir.SDK.Conformance.Tests | `--maximum-parallel-tests 1` | 27 |
+| Morphir.SDK.Tests | `--sequenced` | 403 |
+| Morphir.Tooling.Tests | `--maximum-parallel-tests 1` | 433 |
+
+`validation/final-receipt.json` preserves expanded commands, durations and counts;
+individual logs preserve actual runner discovery. IO includes shared/project/
+workspace BDD, full aggregate fault/recovery/ownership and separate-process
+interruption/overlap tests. Tooling includes 31 real workspace subprocess BDD
+scenarios and fresh-registry JSON-schema validation. Models/SDK runners retain
+codec/roundtrip contracts. Plain `dotnet test` is not substituted for these runners.
+
+Coverage commands:
+
+```sh
+dotnet tests/Morphir.Configuration.IO.Tests/bin/Debug/net10.0/Morphir.Configuration.IO.Tests.dll \
+  --maximum-parallel-tests 1 --coverage --coverage-output-format cobertura \
+  --coverage-output /private/tmp/morphir-workspace-migration/io.cobertura.xml
+dotnet test tests/Morphir.Configuration.Tests/Morphir.Configuration.Tests.fsproj \
+  --no-build --no-restore -m:1 -p:BuildInParallel=false \
+  --collect:"XPlat Code Coverage" \
+  --results-directory /private/tmp/morphir-workspace-migration/core-coverage
+/usr/bin/python3 scripts/configuration/summarize-coverage.py \
+  /private/tmp/morphir-workspace-migration/core-coverage/*/coverage.cobertura.xml \
+  /private/tmp/morphir-workspace-migration/io.cobertura.xml
+```
+
+Final source coverage: core 4,188/4,345 (96.39%); IO 2,495/2,561 (97.42%).
+Both exceed prerequisite source checkpoints. The core collector is supplementary;
+177 sequenced Expecto tests establish actual test execution. No source exclusions
+or warning suppressions were added to meet qualification.
+
+Managed, trimmed and native non-CLI batch hosts each pass 38 workspace checks,
+32 project migration checks, 44 editing checks (9 editor, 22 shared, 13 transaction),
+228 official JSON5 syntax cases and 26 pinned Morphir documents. They exercise
+read-only/native preview, aggregate application, no-op bytes/timestamps, source
+and generated-output retention, drift, redacted generated serialization, explicit
+journal recovery and uncertain-directory preservation. Native output is a Mach-O
+64-bit arm64 executable. Exact publish argv and exits are in `publish/summary.json`:
+
+```sh
+dotnet publish tests/Morphir.Configuration.IO.Smoke/Morphir.Configuration.IO.Smoke.csproj \
+  -c Release -r osx-arm64 -m:1 -p:BuildInParallel=false \
+  -p:RestoreDisableParallel=true -p:PublishTrimmed=<false|true|true> \
+  -p:PublishAot=<false|false|true> -p:ILLinkTreatWarningsAsErrors=false \
+  -p:TrimmerSingleWarn=false -p:JsonSerializerIsReflectionEnabledByDefault=false \
+  -o /private/tmp/morphir-workspace-migration/publish/<managed|trimmed|native>
+/private/tmp/morphir-workspace-migration/publish/<mode>/Morphir.Configuration.IO.Smoke \
+  --fixtures /Users/damian/.t3/worktrees/morphir-dotnet/t3-f370bf10/tests/Fixtures/Configuration
+```
+
+The three modes run sequentially with the corresponding values above. Managed
+publish has zero warning lines; trimmed retains 44 and native retains 47 pinned
+CsToml/FSharp.Core analysis-warning lines. These remain visible upstream
+limitations, not a strict warning-free trimming claim. No suppression or package
+update was introduced. `publish-locks/restored.json` proves all 45 lockfiles were
+restored byte-for-byte after publishing. Reports and stderr are retained separately.
+
+## Specification sync and handoff gates
+
+Full formatter verification and final locked restore pass. OpenSpec apply returned
+`all_done`, 9/9, before archive. The current specs-rule snapshot was read before
+writing the new main spec. Only `add-workspace-migration` was synchronized and
+archived at `openspec/changes/archive/2026-11-03-add-workspace-migration/`.
+`openspec/specs/workspace-migration/spec.md` preserves the approved Purpose and
+all 11 requirement bodies/14 scenarios byte-for-byte under canonical main-spec
+headings. `archive-verification.json` verifies exact content, nine checked tasks,
+retained `.openspec.yaml`, balanced HTML and valid local design/proposal links.
+The archive's prerequisite and PRD links are adjusted for archive depth.
+
+`MISE_TRUSTED_CONFIG_PATHS="$PWD" mise run openspec:verify` passes before and
+after archive: managed html-design snapshot/schema, all 22 current change/spec
+items, and both extension tests. `openspec validate --specs --strict --json`
+passes 18/18 and `openspec validate --archived --strict --json` passes 11/11.
+No archived path is passed as a direct CLI item name. Independent active plans
+are unchanged against the required baseline. NOTICE and contribution policy
+remain satisfied; no AI coauthor trailers or local `docs/superpowers/` artifacts
+are staged.
+
+The implementation is locally qualified and archived, but this sixth campaign
+is incomplete. Parent owns independent final review, current-head CI watching,
+authorized landing and verified owned checkout/local-branch/remote-branch/artifact
+cleanup. This worker opens one focused PR with issue #479 and exact head/base,
+then hands back without watching, merging, deleting sources/branches/checkouts,
+releasing or deploying. PR head and forge state belong in the PR/issue handoff
+receipt; this committed runtime checkpoint is not a claimed review/CI approval.
+
+### Owned external artifact and recovery inventory
+
+All external artifacts remain beneath `/private/tmp/morphir-workspace-migration/`.
+`artifact-inventory.json` lists every owned file and `artifact-inventory-summary.json`
+lists retained recovery paths without configuration values. At final qualification
+the inventory contains 2,739 files (320,872,941 bytes), excluding the inventory's
+own output files; final PR/receipt files added afterward are also owned beneath
+that same root. Major groups are:
+
+- `tmp/`: physical test/subprocess temporary roots and deliberately retained fault
+  fixtures, including injected user-change and ownership evidence.
+- `transactions/`, `cli/`, `discovery-verification/`: immutable red/green/probe,
+  interruption and explicit-recovery receipts. Two deliberately malformed parser
+  samples have no real destination operation.
+- `validation/`: final 17-runner logs/expanded commands/counts;
+  `validation-initial/` is explicitly an earlier checkpoint.
+- `publish/`: three published hosts, build logs, separate JSON results/stderr;
+  `publish-locks/`: 45 original lockfiles and byte-identical restoration proof.
+- Coverage XMLs/summary, format/build/restore/OpenSpec receipts, source hashes and
+  campaign-local orchestration scripts/wrapper. Checkout `bin/obj/TestResults`
+  are reproducible local build artifacts, not new external cleanup roots.
+
+There are 114 retained `.morphir-edit-*` evidence files across 37 containing
+directories: 112 from generated fault fixtures and two synthetic malformed parser
+samples. These are intentionally unresolved/altered test evidence, not production
+operations. The exact paths and transaction IDs are in the inventory. Earlier
+helper receipts reporting no unresolved journals describe their earlier checkpoint;
+the later ownership/cleanup regressions intentionally retain new evidence.
+No file was removed or manufactured to improve the cleanup claim. Preserve these
+journals/backups and their surrounding user-change fixtures until explicitly
+inspected/recovered or dispositioned by the parent. Owned cleanup therefore
+remains an explicit parent obligation. Global caches/tools and unrelated
+campaign artifacts are excluded from ownership.

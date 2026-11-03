@@ -323,4 +323,4 @@ Campaign 6 tracks [#479](https://github.com/finos/morphir-dotnet/issues/479).
 The [delivery journal](workspace-migration-delivery.md) records ownership,
 prerequisite ancestry, task progress and qualification. PR #477 landed at
 `e3b9a053120a49e94c70c30cd4f62ef783672c64`; its receipt confirms campaign 5
-cleanup. Parent owns campaign 6 review, CI watch, landing and cleanup.
+cleanup. Implementation is locally qualified (all nine tasks), with the OpenSpec change synchronized and archived at `openspec/changes/archive/2026-11-03-add-workspace-migration/`. Parent owns campaign 6 review, CI watch, landing and cleanup; the campaign remains incomplete.

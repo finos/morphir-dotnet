@@ -7,7 +7,7 @@ description: "Morphir configuration formats, discovery, precedence, and shared h
 
 # Configuration
 
-Morphir configuration describes projects, workspace membership, and tooling settings. Shared libraries provide typed documents, source resolution, and project discovery to native and embedded hosts. Shared queries, CLI inspection and an opt-in Microsoft configuration adapter are available. Shared TOML editing and classic project migration are available; workspace migration remains planned.
+Morphir configuration describes projects, workspace membership, and tooling settings. Shared libraries provide typed documents, source resolution, and project discovery to native and embedded hosts. Shared queries, CLI inspection and an opt-in Microsoft configuration adapter are available. Shared TOML editing and classic project migration are available; [bounded workspace migration]({{< relref "/docs/cli/workspace-migrate" >}}) is available.
 
 ## Implementation status
 
@@ -18,7 +18,7 @@ Campaign 3 landed [shared queries]({{< relref "/docs/configuration/inspection" >
 `morphir config get/list/show/path/explain` and the
 [Microsoft adapter]({{< relref "/docs/configuration/microsoft" >}}).
 See the [inspection journal]({{< relref "/docs/contributing/design/prds/config-inspection-delivery" >}}) for its verified validation and landing/cleanup receipt.
-Campaign 4 adds [shared editing]({{< relref "/docs/configuration/editing" >}}) and `morphir config set/unset`, including dry-run, typed inputs, effective explanations, optimistic conflicts and recovery. Its [delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) records local qualification and parent delivery gates. [Classic project migration]({{< relref "/docs/cli/project-migrate" >}}) is available; workspace migration remains planned.
+Campaign 4 adds [shared editing]({{< relref "/docs/configuration/editing" >}}) and `morphir config set/unset`, including dry-run, typed inputs, effective explanations, optimistic conflicts and recovery. Its [delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) records local qualification and parent delivery gates. [Classic project migration]({{< relref "/docs/cli/project-migrate" >}}) is available; [bounded workspace migration]({{< relref "/docs/cli/workspace-migrate" >}}) is available.
 
 Existing cache-only tooling retains Git-first discovery and its separate CI overlay. It does not opt into the new policy automatically. Follow the [layered configuration PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}), the [walkthrough]({{< relref "/docs/getting-started/configuration" >}}), and the [CLI reference]({{< relref "/docs/cli/config" >}}) for their respective status.
 
@@ -318,4 +318,4 @@ only to project files, and isolation omits all machine reads.
 
 ## Classic project adoption
 
-Use [project migrate]({{< relref "/docs/cli/project-migrate" >}}) for one classic manifest. The [shared migration APIs]({{< relref "/docs/configuration/project-migration" >}}) support read-only hosts and guarded application without the CLI. Workspace migration remains planned.
+Use [project migrate]({{< relref "/docs/cli/project-migrate" >}}) for one classic manifest. The [shared migration APIs]({{< relref "/docs/configuration/project-migration" >}}) support read-only hosts and guarded application without the CLI. The [workspace API]({{< relref "/docs/configuration/workspace-migration" >}}) composes the same conversion checks with bounded inventory, aggregate verification and explicit recovery.

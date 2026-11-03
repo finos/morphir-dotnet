@@ -155,7 +155,7 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
 
 ## Configuration
 
-The shared libraries and `morphir config get/list/show/path/explain` provide multi-format resolution, bounded discovery and inspection. Configuration editing uses shared plan/apply services; classic project migration is available and workspace migration remains planned. Existing artifact/cache tooling retains TOML cache settings and Git-first discovery. See the [guide]({{< relref "/guides/configuration" >}}) for the library APIs and the [command reference]({{< relref "/docs/cli/config" >}}) for read/write options and recovery semantics.
+The shared libraries and `morphir config get/list/show/path/explain` provide multi-format resolution, bounded discovery and inspection. Configuration editing, classic project migration and bounded workspace migration use shared plan/apply services. Existing artifact/cache tooling retains TOML cache settings and Git-first discovery. See the [guide]({{< relref "/guides/configuration" >}}) for the library APIs and the [command reference]({{< relref "/docs/cli/config" >}}) for read/write options and recovery semantics.
 
 ### Wrong workspace or missing project
 

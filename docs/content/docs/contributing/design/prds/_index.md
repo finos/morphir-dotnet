@@ -15,7 +15,7 @@ Product Requirements Documents (PRDs) track feature requirements, design decisio
 | [IR JSON Schema Verification BDD](ir-json-schema-verification-bdd) | 🚧 In Progress | BDD scenarios for schema verification |
 | [Deployment Architecture Refactor](deployment-architecture-refactor) | 📋 Draft | Build and deployment improvements |
 | [F# backend / Myriad delivery](https://github.com/finos/morphir-dotnet/blob/main/docs/design/PRD-fsharp-backend.md) | In Progress | Classic v1-v3 to F#, per-module Myriad generation and car rental tutorial |
-| [Layered Configuration](layered-configuration) | In Progress | Campaigns 1 through 5 landed and cleaned; workspace migration in progress under #479 |
+| [Layered Configuration](layered-configuration) | In Progress | Campaigns 1 through 5 landed and cleaned; workspace migration locally qualified and archived under #479; parent review/CI/landing/cleanup pending |
 | [Product Manager Skill](product-manager-skill) | 📋 Draft | AI skill for product management |
 
 ## Status Legend
