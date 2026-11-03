@@ -9,15 +9,15 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 2. Inventory and aggregate planning
 
-- [ ] 2.1 Write failing BDD/API cases for roots with no workspace, include/exclude patterns, default skipped directories, nested workspace boundaries, discovered links, existing migrated members, virtual/root projects, and stable ordering; confirm red before inventory implementation.
-- [ ] 2.2 Implement bounded shared inventory and aggregate plans by composing the project migrator, preserving existing membership/defaults/settings and using explicit member paths; verify the inventory/planning suite and document the adoption command's scan rules.
+- [x] 2.1 Write failing BDD/API cases for roots with no workspace, include/exclude patterns, default skipped directories, nested workspace boundaries, discovered links, existing migrated members, virtual/root projects, and stable ordering; confirm red before inventory implementation.
+- [x] 2.2 Implement bounded shared inventory and aggregate plans by composing the project migrator, preserving existing membership/defaults/settings and using explicit member paths; verify the inventory/planning suite and document the adoption command's scan rules.
 - [ ] 2.3 Add failing then passing verification of project conversion in a common proposed workspace context, with separately reported ownership/membership/selection/output-root effects; verify source paths/non-adoption settings stay equivalent and document that generated files are not moved.
 
 ## 3. Coordinated application
 
-- [ ] 3.1 Write failing cases for a blocked member, target/source changes, conflicting overlapping writers, staging failure, partial replacement failure, rollback failure, and interrupted journals; verify no destination is replaced before complete preflight/staging.
-- [ ] 3.2 Implement aggregate application using ordered writer coordination, input preconditions, a durable recovery journal, and rollback attempts; verify full rollback or explicit recovery-required outcomes, never claimed cross-file crash atomicity.
-- [ ] 3.3 Implement explicit journal inspection/recovery through the shared transaction API and guard overlapping writes while recovery is pending; verify success/complete rollback removes owned transaction artifacts and incomplete recovery preserves evidence, with recovery docs in this group.
+- [x] 3.1 Write failing cases for a blocked member, target/source changes, conflicting overlapping writers, staging failure, partial replacement failure, rollback failure, and interrupted journals; verify no destination is replaced before complete preflight/staging.
+- [x] 3.2 Implement aggregate application using ordered writer coordination, input preconditions, a durable recovery journal, and rollback attempts; verify full rollback or explicit recovery-required outcomes, never claimed cross-file crash atomicity.
+- [x] 3.3 Implement explicit journal inspection/recovery through the shared transaction API and guard overlapping writes while recovery is pending; verify success/complete rollback removes owned transaction artifacts and incomplete recovery preserves evidence, with recovery docs in this group.
 
 ## 4. Workspace CLI and integration
 

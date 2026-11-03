@@ -20,3 +20,63 @@ All owned external artifacts are under `/private/tmp/morphir-workspace-migration
 ## Checkpoints
 
 Setup completed before runtime changes. Proposal now links actual issue #479. Task 1.1 was updated at returned line 8 and apply progress rechecked.
+
+### Inventory and planning checkpoints
+
+- `inventory-red-build.log` proves the aggregate API was absent before production.
+  Initial BDD and API cases preceded implementation. `inventory-io-full-01.log`
+  passes 323/323 IO/TUnit/Reqnroll cases, including three workspace BDD cases.
+- `planning-red-run.log` passes 10 and fails four of 14 focused cases, reproducing
+  repeated-inventory classification, non-adoption setting drift, glob reopening
+  skipped/nested directories and filtered-root identity. `planning-green-run.log`
+  passes all 14 after fixing those behaviors through shared discovery and mapping.
+- `boundaries-red-run.log` passes four and fails four boundary cases. These expose
+  retained classic root context, configured output skipping, invalid defaults and
+  paths containing glob syntax. `recovery-preview-red-run.log` separately fails
+  pending-journal preview before read-only recovery inspection is added.
+  `boundaries-green-run.log` passes all 23 focused planner/application cases with
+  clean compilation, including source/target/listing/topology drift and repeat
+  source-byte/target-byte/timestamp checks. No generated output is moved.
+- Early inventory build attempts while recovery production was incomplete and a
+  zero-test filter run are retained as unsuccessful attempts, not qualification.
+  A lightweight FSI probe had an FSharp.Core load mismatch; configured executables
+  provide correctness evidence instead.
+- Tasks 2.1 and 2.2 were checked at fresh CLI-returned locations and progress
+  confirmed after each update. Aggregate equivalence/adoption qualification and
+  application/recovery qualification remain active.
+
+### Coordinated application and recovery
+
+- `transactions/batch-red-run.log` fails both first-stage ordering cases before
+  production; later staging and recovery runs prove every candidate and backup
+  exists before the first replacement. Complete preflight blocks a bad member,
+  stale source/target/listing/alternate primary and overlapping writers.
+- `transactions/recovery-red-build.log` and `inventory-build-01.log` prove missing
+  explicit inspection/recovery APIs. `transactions/boundary-red-run.log` reproduces
+  read-only unrelated-directory staging and lost common-ancestor cleanup guards.
+- `transactions/capability-red-run.log` proves a legacy custom host could write
+  without durable enumeration. Application now returns a typed capability failure
+  before artifacts unless a host explicitly supplies durable support.
+- `transactions/evidence-red-run.log` reproduces null/overflow journal parser
+  exceptions. Recovery now reports invalid metadata without changing it. Stable
+  artifact names are tied to target, role and owner. A mounted serialized-state
+  host proves recovery is not process-memory-only; tampered backups/user changes
+  preserve evidence and block automatic restoration.
+- `transactions/final-precondition-red-run-02.log` reproduces source drift after
+  the last install. Final rechecking now detects it and attempts rollback.
+  `transactions/parent-creation-red-run.log` reproduces a process exit after mkdir
+  but before the host returned its ownership receipt. A durable initial journal
+  now precedes mkdir; uncertain directories remain explicit and require reviewed
+  retention, never inferred cleanup ownership.
+- `transactions/last-windows-green-run-02.log` passes 87 focused cases. Seven actual
+  process-interruption windows and separate-process pending-write refusal pass.
+  `planner-final-build-02.log` is clean, and `planner-final-io-02.log` passes the
+  complete current-source IO runner, 371/371, after the lead's later fixes.
+- Success and proven rollback clean owned artifacts. Explicit recovery resolves
+  test-owned native faults. Retained malformed parser samples are synthetic;
+  a pre-fix mkdir-crash fixture retains generated empty directories and child
+  logs as review evidence, without a recoverable target or journal. Those samples
+  are preserved for parent cleanup. No real unresolved native journal/backup was
+  found in the helper's final inventory.
+- Native coordination is machine-local, and file replacement is per-file atomic.
+  No cross-file crash-atomicity or distributed-lock guarantee is claimed.

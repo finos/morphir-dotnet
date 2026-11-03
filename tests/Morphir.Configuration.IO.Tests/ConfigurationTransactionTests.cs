@@ -210,13 +210,15 @@ public sealed class ConfigurationTransactionTests
         File.ReadAllText(target).Should().Be("value = 2\n");
         var backup = result.Artifacts.Single(a => a.Kind == ConfigurationArtifactKind.Backup);
         File.ReadAllText(backup.Path).Should().Be("value = 1\n");
-        var journal = result.Artifacts.Single(a => a.Kind == ConfigurationArtifactKind.Journal);
+        var journal = result.Artifacts.First(a => a.Kind == ConfigurationArtifactKind.Journal);
         journal.TransactionId.Should().Be(backup.TransactionId);
-        using var metadata = System.Text.Json.JsonDocument.Parse(File.ReadAllText(journal.Path));
-        metadata.RootElement.GetProperty("transactionId").GetString().Should().Be(journal.TransactionId);
-        metadata.RootElement.GetProperty("target").GetString().Should().Be(target);
-        metadata.RootElement.GetProperty("backup").GetString().Should().Be(backup.Path);
-        metadata.RootElement.GetProperty("originalIdentity").GetString().Should().Be(observed.Identity);
+        var inspection = new ConfigurationTransaction().InspectRecovery(journal.Path);
+        inspection.Valid.Should().BeTrue();
+        inspection.TransactionId.Should().Be(backup.TransactionId);
+        inspection.Targets.Should().Equal(target);
+        inspection.Artifacts.Should().Contain(backup);
+        new ConfigurationTransaction().Recover(journal.Path).Status.Should().Be(ConfigurationTransactionStatus.RolledBack);
+        File.ReadAllText(target).Should().Be("value = 1\n");
     }
 
     [Test]
@@ -471,10 +473,14 @@ public sealed class ConfigurationTransactionTests
         File.Exists(target).Should().BeFalse();
         if (blockCleanup)
         {
-            var artifact = result.Artifacts.Single();
+            var artifact = result.Artifacts.Single(a => a.Kind == ConfigurationArtifactKind.Directory);
+            result.Artifacts.Should().Contain(a => a.Kind == ConfigurationArtifactKind.Journal);
             artifact.Kind.Should().Be(ConfigurationArtifactKind.Directory);
             artifact.Path.Should().Be(parent);
             artifact.TransactionId.Should().Be(host.Owner);
+            var journal = result.Artifacts.First(a => a.Kind == ConfigurationArtifactKind.Journal).Path;
+            new ConfigurationTransaction().Recover(journal, [parent]).Status.Should().Be(ConfigurationTransactionStatus.RolledBack);
+            Directory.Exists(parent).Should().BeTrue("explicitly reviewed retention never deletes the directory");
         }
         else Directory.Exists(parent).Should().BeFalse();
     }
@@ -482,6 +488,9 @@ public sealed class ConfigurationTransactionTests
     private sealed class ParentFaultHost(bool blockCleanup) : IConfigurationTransactionHost
     {
         private readonly NativeConfigurationTransactionHost native = new();
+        public bool SupportsDurableRecovery => native.SupportsDurableRecovery;
+        public IReadOnlyList<string> FindRecoveryJournals(IReadOnlyList<string> paths) => native.FindRecoveryJournals(paths);
+        public IReadOnlyList<string>? EnumerateTransactionArtifacts(string directory, string transactionId) => native.EnumerateTransactionArtifacts(directory, transactionId);
         public string? Owner { get; private set; }
         public ConfigurationObservation Observe(string path, IReadOnlyCollection<string>? excludedPaths = null) => native.Observe(path, excludedPaths);
         public byte[] ReadFile(string path) => native.ReadFile(path);
@@ -574,11 +583,36 @@ public sealed class ConfigurationTransactionTests
         result.Artifacts.Should().BeEmpty();
     }
 
+    [Test]
+    public void MountedHostRecoversFromSerializedEvidenceInANewTransactionInstance()
+    {
+        var host = new MemoryHost();
+        const string target = "/memory/morphir.toml";
+        host.Files[target] = Encoding.UTF8.GetBytes("original=true\n");
+        var plan = new ConfigurationTransactionPlan([host.Observe("/memory")],
+            [new ConfigurationFileChange(target, host.Observe(target), Encoding.UTF8.GetBytes("candidate=true\n"))]);
+        var interrupted = () => new ConfigurationTransaction(host, (phase, _) =>
+        {
+            if (phase == ConfigurationTransactionPhase.AfterInstall) throw new InvalidOperationException("simulated host interruption");
+        }).Apply(plan);
+        interrupted.Should().Throw<InvalidOperationException>();
+        var restarted = new ConfigurationTransaction(host);
+        var pending = restarted.InspectPending(["/memory"]);
+        pending.Should().NotBeEmpty();
+        pending.Should().OnlyContain(p => p.Valid);
+        restarted.Apply(plan).Status.Should().Be(ConfigurationTransactionStatus.RecoveryRequired);
+        restarted.Recover(pending[0].JournalPath).Status.Should().Be(ConfigurationTransactionStatus.RolledBack);
+        Encoding.UTF8.GetString(host.Files[target]).Should().Be("original=true\n");
+        host.Files.Keys.Should().Equal(target);
+    }
+
     private sealed class MemoryHost : IConfigurationTransactionHost
     {
         public Dictionary<string, byte[]> Files { get; } = new(StringComparer.Ordinal);
+        public bool SupportsDurableRecovery => true;
+        public IReadOnlyList<string> FindRecoveryJournals(IReadOnlyList<string> paths) => Files.Keys.Where(p => Path.GetFileName(p).Contains("-journal", StringComparison.Ordinal)).ToArray();
+        public IReadOnlyList<string>? EnumerateTransactionArtifacts(string directory, string transactionId) => Files.Keys.Where(p => ProjectPath.parent(p) == directory && Path.GetFileName(p).StartsWith(".morphir-edit-" + transactionId + "-", StringComparison.Ordinal)).ToArray();
         private readonly object coordination = new();
-        private int sequence;
         private static string Hash(byte[] value) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(value));
         public ConfigurationObservation Observe(string path, IReadOnlyCollection<string>? excludedPaths = null)
         {
@@ -596,7 +630,7 @@ public sealed class ConfigurationTransactionTests
         public IReadOnlyList<string> CreateParentDirectories(string destination) => [];
         public string Stage(string destination, ReadOnlyMemory<byte> content, string transactionId, string role)
         {
-            var path = "/memory/.stage-" + transactionId + "-" + role + "-" + sequence++;
+            var path = ConfigurationTransaction.GetArtifactPath(destination, transactionId, role);
             Files[path] = content.ToArray();
             return path;
         }
@@ -614,6 +648,9 @@ public sealed class ConfigurationTransactionTests
     private sealed class PartialStageHost(bool blockCleanup, bool foreignOwner = false) : IConfigurationTransactionHost
     {
         private readonly NativeConfigurationTransactionHost native = new();
+        public bool SupportsDurableRecovery => native.SupportsDurableRecovery;
+        public IReadOnlyList<string> FindRecoveryJournals(IReadOnlyList<string> paths) => native.FindRecoveryJournals(paths);
+        public IReadOnlyList<string>? EnumerateTransactionArtifacts(string directory, string transactionId) => native.EnumerateTransactionArtifacts(directory, transactionId);
         public string? Owner { get; private set; }
         public ConfigurationObservation Observe(string path, IReadOnlyCollection<string>? excludedPaths = null) => native.Observe(path, excludedPaths);
         public byte[] ReadFile(string path) => native.ReadFile(path);
