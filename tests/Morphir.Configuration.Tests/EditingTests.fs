@@ -505,4 +505,18 @@ let tests =
                 (Ok(ConfigValue.Array [ text "one"; obj [ "label", text "two" ] ]))
                 "nested string inputs"
         }
+        test "explicit number input accepts large finite literals without changing integer rules" {
+            Expect.equal
+                (Editing.parseValue EditValueType.Number "100000000000000000000")
+                (Ok(ConfigValue.Number 1e20))
+                "explicit float choice"
+
+            Expect.isError
+                (Editing.parseValue EditValueType.Integer "100000000000000000000")
+                "integer range retained"
+
+            Expect.isError
+                (Editing.parseValue EditValueType.Number "1e400")
+                "nonfinite input rejected"
+        }
     ]

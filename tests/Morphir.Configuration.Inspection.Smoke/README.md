@@ -1,6 +1,6 @@
-# Inspection serializer runtime qualification
+# Configuration serializer runtime qualification
 
-This small non-CLI host compiles the actual `ConfigurationReport.cs` source used
+This small non-CLI host compiles the actual `ConfigurationReport.cs` and `ConfigurationEditReport.cs` sources used
 by the CLI and its generated System.Text.Json context. Reflection serialization
 is disabled. It exercises NaN, positive and negative infinity, finite numeric
 types, temporal text/kind, JSON Pointer escaping, nested arrays/null, ordinary
@@ -19,7 +19,7 @@ canonical kind in `encoding`. Finite values use normal JSON types.
 
 ```sh
 export DOTNET_PROCESSOR_COUNT=2
-export TMPDIR=/private/tmp/morphir-config-inspection
+export TMPDIR=/private/tmp/morphir-config-editing/serializer
 export TEMP="$TMPDIR" TMP="$TMPDIR"
 dotnet build tests/Morphir.Configuration.Inspection.Smoke -m:1 -p:BuildInParallel=false
 dotnet tests/Morphir.Configuration.Inspection.Smoke/bin/Debug/net10.0/Morphir.Configuration.Inspection.Smoke.dll
@@ -27,14 +27,14 @@ dotnet publish tests/Morphir.Configuration.Inspection.Smoke \
   -c Release -r osx-arm64 -m:1 -p:BuildInParallel=false \
   -p:PublishTrimmed=true -p:PublishAot=false -p:TrimmerSingleWarn=false \
   -p:ILLinkTreatWarningsAsErrors=false \
-  -o /private/tmp/morphir-config-inspection/serializer-trimmed
-/private/tmp/morphir-config-inspection/serializer-trimmed/Morphir.Configuration.Inspection.Smoke
+  -o /private/tmp/morphir-config-editing/serializer/serializer-trimmed
+/private/tmp/morphir-config-editing/serializer/serializer-trimmed/Morphir.Configuration.Inspection.Smoke
 dotnet publish tests/Morphir.Configuration.Inspection.Smoke \
   -c Release -r osx-arm64 -m:1 -p:BuildInParallel=false \
   -p:PublishTrimmed=true -p:PublishAot=true -p:TrimmerSingleWarn=false \
   -p:ILLinkTreatWarningsAsErrors=false \
-  -o /private/tmp/morphir-config-inspection/serializer-native
-/private/tmp/morphir-config-inspection/serializer-native/Morphir.Configuration.Inspection.Smoke
+  -o /private/tmp/morphir-config-editing/serializer/serializer-native
+/private/tmp/morphir-config-editing/serializer/serializer-native/Morphir.Configuration.Inspection.Smoke
 ```
 
 The project retains a strict linker-as-errors default. Runtime qualification
@@ -43,3 +43,5 @@ keeps pinned FSharp.Core dependency warnings visible by explicitly selecting
 claim is made. Unlike the Microsoft adapter host, this serializer host does not
 load CsToml or any CLI services. Restore incidental RID/ILCompiler lockfile churn
 after publishing. The delivery journal records actual commands and results.
+
+Editing checks cover target and before/after metadata, no-write preview serialization, effective environment winners, raw-reference redaction, typed recovery ownership, missing-unset exit codes and deeply nested before values. Both generated contexts run with reflection serialization disabled.

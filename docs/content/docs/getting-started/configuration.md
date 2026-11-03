@@ -2,12 +2,12 @@
 title: "Configure a workspace"
 linkTitle: "Configuration"
 weight: 40
-description: "Workspace discovery, inspection and .NET consumption, with planned editing and migration"
+description: "Workspace discovery, inspection, safe TOML editing and .NET consumption"
 ---
 
 # Configure a workspace
 
-The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. Editing and project/workspace migration remain planned. See the [inspection delivery journal]({{< relref "/docs/contributing/design/prds/config-inspection-delivery" >}}) for validation and parent landing/cleanup status.
+The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. `config set/unset` plan and apply one TOML edit. Project/workspace migration remain planned. See the [editing delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) for local validation and parent delivery gates.
 
 ## Declare the workspace
 
@@ -101,18 +101,28 @@ merely because inspection can show them.
 
 ## Add and remove a personal override
 
-These planned commands run from the same directory:
+Preview and apply a personal override from the same directory:
 
 ```bash
+morphir config set ui.theme dark --user --dry-run --json
 morphir config set ui.theme dark --user
 morphir config get ui.theme --show-origin
 morphir config unset ui.theme --user
 morphir config get ui.theme --show-origin
 ```
 
-The edit targets root-adjacent `morphir.user.toml`. Without a higher override, the first query returns `dark` from that file. After `unset`, it returns `light` from the workspace primary. Removal reveals the inherited value rather than deleting the setting from every source.
+The workspace declares `packages/orders` as its default member, so `--user` targets `packages/orders/morphir.user.toml`. Without a selected member, a virtual workspace root uses root-adjacent `morphir.user.toml`. Without a higher override, the first query returns `dark` from that file. After `unset`, it returns inherited `light` from the workspace primary. Removal reveals the inherited value rather than deleting the setting from every source.
 
 Add `morphir.user.*`, applicable member override paths, and `.morphir/out/` to your ignore policy. The configuration system does not change ignore files automatically.
+
+Preview reports the target, redacted before/after values and the effective winner without writing. If an environment variable or profile still wins, a successful file edit still exits 0. For example:
+
+```bash
+MORPHIR_UI__THEME=light morphir config set ui.theme dark --user --json
+morphir config set ui.color false --type bool --workspace --dry-run
+```
+
+Repeat an identical set to receive `unchanged` without rewriting the file. A missing unset exits 1. Validation, access failures and conflicts exit 2. After a conflict, inspect the new source contents and replan. If a report names recovery artifacts, preserve its journal/backups and reconcile the target before retrying. The [shared editing API]({{< relref "/docs/configuration/editing" >}}) provides the same preview/apply boundary without the CLI.
 
 ## Retain an existing JSON project
 

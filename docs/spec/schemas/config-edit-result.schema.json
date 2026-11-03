@@ -1,0 +1,440 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Morphir configuration editing result",
+  "description": "Shared edit preview/application envelope; before and after are redacted, effective uses the inspection contract. Changed describes the proposed target change. Recovery artifacts carry explicit transaction ownership.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operation",
+    "outcome",
+    "target",
+    "key",
+    "before",
+    "after",
+    "changed",
+    "dryRun",
+    "effective",
+    "diagnostics",
+    "recoveryArtifacts",
+    "exitCode",
+    "valueTypes"
+  ],
+  "properties": {
+    "operation": {
+      "enum": [
+        "set",
+        "unset"
+      ]
+    },
+    "outcome": {
+      "enum": [
+        "preview",
+        "written",
+        "unchanged",
+        "conflict",
+        "rolled-back",
+        "recovery-required",
+        "io-failure",
+        "failed"
+      ]
+    },
+    "target": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/source"
+        }
+      ]
+    },
+    "key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "before": {},
+    "after": {},
+    "changed": {
+      "type": "boolean"
+    },
+    "dryRun": {
+      "type": "boolean"
+    },
+    "effective": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/inspection"
+        }
+      ]
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "recoveryArtifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "exitCode": {
+      "enum": [
+        0,
+        1,
+        2
+      ]
+    },
+    "valueTypes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/valueType"
+      }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "format",
+        "role",
+        "order",
+        "profile"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "",
+            "json",
+            "yaml",
+            "toml",
+            "memory"
+          ]
+        },
+        "role": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "source",
+        "line",
+        "column"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "column": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "value",
+        "origins"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {},
+        "origins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/origin"
+          }
+        }
+      }
+    },
+    "sourceReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "status",
+        "contributed",
+        "detail"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "status": {
+          "enum": [
+            "loaded",
+            "missing",
+            "skipped",
+            "failed"
+          ]
+        },
+        "contributed": {
+          "type": "boolean"
+        },
+        "detail": {
+          "type": "string"
+        }
+      }
+    },
+    "contribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "value",
+        "winner",
+        "origins"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "value": {},
+        "winner": {
+          "type": "boolean"
+        },
+        "origins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/origin"
+          }
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "severity",
+        "message",
+        "path",
+        "key",
+        "line",
+        "column"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "warning",
+            "error"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "column": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "valueType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pointer",
+        "kind",
+        "encoding"
+      ],
+      "properties": {
+        "pointer": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "number",
+            "temporal"
+          ]
+        },
+        "encoding": {
+          "type": "string"
+        }
+      }
+    },
+    "inspection": {
+      "title": "Morphir configuration inspection result",
+      "description": "The source-generated ConfigurationReport envelope. Canonical JSON values are typed; sensitive values are redacted before serialization.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "scope",
+        "key",
+        "found",
+        "value",
+        "entries",
+        "sources",
+        "contributions",
+        "diagnostics",
+        "valueTypes",
+        "exitCode"
+      ],
+      "properties": {
+        "operation": {
+          "enum": [
+            "config",
+            "get",
+            "list",
+            "show",
+            "path",
+            "explain"
+          ]
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "enum": [
+                "effective",
+                "workspace",
+                "project",
+                "user",
+                "global",
+                "system"
+              ]
+            },
+            {
+              "type": "string",
+              "pattern": "^file:"
+            }
+          ]
+        },
+        "key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "found": {
+          "type": "boolean"
+        },
+        "value": {},
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/entry"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sourceReport"
+          }
+        },
+        "contributions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/contribution"
+          }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        },
+        "exitCode": {
+          "enum": [
+            0,
+            1,
+            2
+          ]
+        },
+        "valueTypes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/valueType"
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "kind",
+        "transactionId"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "Stage",
+            "Backup",
+            "Journal",
+            "Directory"
+          ]
+        },
+        "transactionId": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

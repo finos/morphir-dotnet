@@ -353,7 +353,19 @@ module Editing =
                             )
                     | _ -> None
 
-                match read document.RootElement, kind with
+                let parsed =
+                    if
+                        kind = EditValueType.Number
+                        && document.RootElement.ValueKind = System.Text.Json.JsonValueKind.Number
+                    then
+                        match document.RootElement.TryGetDouble() with
+                        | true, value when System.Double.IsFinite value ->
+                            Some(ConfigValue.Number value)
+                        | _ -> None
+                    else
+                        read document.RootElement
+
+                match parsed, kind with
                 | Some(ConfigValue.Boolean _ as value), EditValueType.Boolean
                 | Some(ConfigValue.Integer _ as value), EditValueType.Integer -> Ok value
                 | Some(ConfigValue.Number _), EditValueType.Number

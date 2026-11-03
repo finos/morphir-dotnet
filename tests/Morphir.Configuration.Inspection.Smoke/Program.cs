@@ -87,4 +87,52 @@ foreach (var depth in new[] { 65, 127 })
             t.GetProperty("pointer").GetString()!.EndsWith("/x", StringComparison.Ordinal)), "deep type metadata retained");
     }
 }
+var editSource = new SourceIdentity("/repo/morphir.toml", DocumentFormat.Toml, SourceRole.RootPrimary, 0, null);
+var editRaw = Obj(("custom", Obj(("value", ConfigValue.NewString("before")),
+    ("reference", Obj(("env", ConfigValue.NewString("NEVER_PRINT_REFERENCE")))))));
+var editDocument = Normalization.normalize(editSource, editRaw, MapModule.Empty<FSharpList<string>, SourcePosition>());
+var editInput = new ResolutionInput(ListModule.OfSeq(new[] { new SourceInput(editSource, SourceContent.NewAvailable(editDocument), true) }),
+    MapModule.OfSeq(new[] { Tuple.Create("MORPHIR_CUSTOM__VALUE", "environment") }), defaults.Explicit, defaults.Profiles,
+    defaults.Scope, defaults.OwningWorkspace, defaults.SuppressWarnings);
+var edited = Editing.plan(editSource, new EditRequest(EditOperation.NewSet("written", EditValueType.String), "custom.value"), editInput, FSharpList<EditObservation>.Empty);
+Check(edited.IsOk, "shared edit plan");
+var editPlan = edited.ResultValue;
+using var editJson = JsonDocument.Parse(ConfigurationEditReport.From(editPlan, "preview", true).ToJson());
+Check(editJson.RootElement.GetProperty("operation").GetString() == "set", "edit operation");
+Check(editJson.RootElement.GetProperty("target").GetProperty("path").GetString() == editSource.Path, "edit target metadata");
+Check(editJson.RootElement.GetProperty("before").GetString() == "before", "edit before");
+Check(editJson.RootElement.GetProperty("after").GetString() == "written", "edit after");
+Check(editJson.RootElement.GetProperty("dryRun").GetBoolean(), "edit preview");
+Check(editJson.RootElement.GetProperty("effective").GetProperty("value").GetString() == "environment", "overridden edit effective value");
+Check(editJson.RootElement.GetProperty("effective").GetProperty("contributions").EnumerateArray().Any(c => c.GetProperty("winner").GetBoolean() && c.GetProperty("source").GetProperty("role").GetString() == "Environment"), "edit winning origin");
+var reference = Editing.plan(editSource, new EditRequest(EditOperation.NewSet("{\"env\":\"NEVER_PRINT_REFERENCE\"}", EditValueType.Object), "custom.reference"), editInput, FSharpList<EditObservation>.Empty).ResultValue;
+var referenceJson = ConfigurationEditReport.From(reference, "preview", true).ToJson();
+using var referenceReport = JsonDocument.Parse(referenceJson);
+Check(referenceReport.RootElement.GetProperty("before").GetString() == "[REDACTED]", "raw reference before redaction");
+Check(referenceReport.RootElement.GetProperty("after").GetString() == "[REDACTED]", "raw reference after redaction");
+Check(!referenceJson.Contains("NEVER_PRINT_REFERENCE", StringComparison.Ordinal), "no raw reference output");
+using var recovery = JsonDocument.Parse(ConfigurationEditReport.From(editPlan, "recovery-required", false, 2, "config.edit_recovery_required",
+    [new ConfigurationEditArtifactDto("/recovery/backup", "Backup", "owner")]).ToJson());
+Check(recovery.RootElement.GetProperty("exitCode").GetInt32() == 2, "recovery failure category");
+Check(recovery.RootElement.GetProperty("recoveryArtifacts")[0].GetProperty("transactionId").GetString() == "owner", "typed artifact ownership");
+using var missingEdit = JsonDocument.Parse(ConfigurationEditReport.Failure("unset", "config.edit_not_found", 1).ToJson());
+Check(missingEdit.RootElement.GetProperty("exitCode").GetInt32() == 1, "missing unset category");
+Check(missingEdit.RootElement.GetProperty("target").ValueKind == JsonValueKind.Null, "preflight failure has no selected target");
+foreach (var depth in new[] { 65, 127 })
+{
+    ConfigValue nested = Obj(("x", ConfigValue.NewNumber(double.PositiveInfinity)), ("password", ConfigValue.NewString("NEVER_PRINT_EDIT_SECRET")));
+    for (var level = 0; level < depth; level++) nested = Obj(("a", nested));
+    var document = Normalization.normalize(editSource, nested, MapModule.Empty<FSharpList<string>, SourcePosition>());
+    var input = new ResolutionInput(ListModule.OfSeq(new[] { new SourceInput(editSource, SourceContent.NewAvailable(document), true) }),
+        defaults.Environment, defaults.Explicit, defaults.Profiles, defaults.Scope, defaults.OwningWorkspace, defaults.SuppressWarnings);
+    var plan = Editing.plan(editSource, new EditRequest(EditOperation.NewSet("{\"replacement\":true}", EditValueType.Object), "a"), input, FSharpList<EditObservation>.Empty).ResultValue;
+    var json = ConfigurationEditReport.From(plan, "preview", true).ToJson();
+    using var report = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 256 });
+    var leaf = report.RootElement.GetProperty("before");
+    for (var level = 1; level < depth; level++) leaf = leaf.GetProperty("a");
+    Check(leaf.GetProperty("x").GetProperty("$number").GetString() == "Infinity", "deep edit before value");
+    Check(leaf.GetProperty("password").GetString() == "[REDACTED]" && !json.Contains("NEVER_PRINT_EDIT_SECRET", StringComparison.Ordinal), "deep edit redaction");
+    Check(report.RootElement.GetProperty("valueTypes").EnumerateArray().Any(t => t.GetProperty("pointer").GetString()!.StartsWith("/before/", StringComparison.Ordinal)), "deep edit before metadata");
+    Check(report.RootElement.GetProperty("after").GetProperty("replacement").GetBoolean(), "complete edit replacement");
+}
 Console.WriteLine($"{{\"success\":true,\"checks\":{checks},\"generatedSerialization\":true}}");

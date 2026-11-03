@@ -177,10 +177,10 @@ Follow red-green-refactor for implementation. Start with BDD scenarios and focus
 | Shared discovery and project selection | Implemented and landed | Campaign 2, PR #467 at `23d274d4c87b367fdc79bd21843a9fdf5d74b13d`; parent landing and cleanup receipt recorded |
 | Shared resolution, profiles, validation, provenance | Implemented and landed | Campaign 1 additive APIs; prior baseline core 95 and reader/BDD 66; campaign 2 requalification tracked separately |
 | Microsoft configuration integration | Implemented; qualification complete | Campaign 3, opt-in resolved provider, generated/explicit binding and 43-check managed/trimmed/native hosts; parent PR gates remain |
-| Shared query and edit services | Inspection landed; editing in progress | Campaign 3 is landed. Campaign 4 shared plans are implemented and pass 147 core tests; writer and CLI qualification are in progress |
+| Shared query and edit services | Inspection landed; editing in progress | Campaign 3 is landed. Campaign 4 shared plans, TOML editor and transactions are implemented; local qualification and parent delivery gates are tracked in the editing journal |
 | Classic project migration | Planned | Shared planner/apply API, project migrate command, loss checks, and independent-equivalence verification |
 | Workspace migration | Planned | Bounded inventory, coordinated project plans, membership, and recovery |
-| Config CLI commands | Read commands landed; editing in progress | Campaign 3 get/list/show/path/explain are landed. Campaign 4 set/unset pass 23 focused subprocess scenarios; broader qualification is pending |
+| Config CLI commands | Read commands landed; editing in progress | Campaign 3 get/list/show/path/explain are landed. Campaign 4 set/unset use shared services; all 360 tooling tests pass, including 33 editing subprocess scenarios. Final published-host and parent gates remain |
 | Documentation foundation | Updated for inspection | Shared API and Microsoft consumer examples, read CLI schema/options, walkthrough and troubleshooting; editing/migration examples remain explicitly planned |
 | Compatibility and end-to-end verification | In Progress | Campaign 1 landed baseline tooling 245, reader 66, core 95 and warning-qualified runtime evidence; current campaign results recorded separately |
 

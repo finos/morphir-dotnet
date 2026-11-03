@@ -20,7 +20,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 4. CLI editing and integration
 
-- [ ] 4.1 Add red-then-green subprocess scenarios and thin config set/unset adapters for --type, --dry-run, scoped targets, JSON, inherited values, overridden writes, and exit codes; verify stdout is parseable and update CLI/walkthrough examples in this group.
+- [x] 4.1 Add red-then-green subprocess scenarios and thin config set/unset adapters for --type, --dry-run, scoped targets, JSON, inherited values, overridden writes, and exit codes; verify stdout is parseable and update CLI/walkthrough examples in this group.
 - [ ] 4.2 Run format/build/analyzers, configuration/editor and tooling suites, contract/coverage checks, and concurrent-writer tests; verify no generated-output publication requirements were weakened or repurposed and record results.
 
 ## Workflow follow-up
