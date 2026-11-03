@@ -44,4 +44,9 @@ let tests =
             let result = Profiles.plan sources env DocumentDefaults.profileOptions
             Expect.equal result.Active [ "postgres"; "metrics" ] "trimmed comma-separated environment names win"
         }
+        test "root active controls replace root defaults" {
+            let sources = [ root [ "active", names [ "active" ]; "default", names [ "default" ] ] ]
+            let result = Profiles.plan sources Map.empty DocumentDefaults.profileOptions
+            Expect.equal result.Active [ "active" ] "base active is preferred to the fallback selector"
+        }
     ]
