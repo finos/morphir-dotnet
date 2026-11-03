@@ -21,6 +21,8 @@
         <Compile Include="Schema.fs" />
         <Compile Include="Validation.fs" />
         <Compile Include="Resolver.fs" />
+        <Compile Include="ProjectTypes.fs" />
+        <Compile Include="ProjectDiscovery.fs" />
     </ItemGroup>
 
 </Project>
