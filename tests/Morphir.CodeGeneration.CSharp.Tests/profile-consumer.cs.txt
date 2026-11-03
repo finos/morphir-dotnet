@@ -1,6 +1,6 @@
 using System;
 
 if (Construction.Observation.Run() != 17 || Equality.Observation.Run() != 1
-    || Aliases.Observation.Run() != 15 || Nested.Observation.Run() != 1)
+    || Aliases.Observation.Run() != 15 || Nested.Observation.Run() != 1 || Functions.Observation.Run() != 1)
     throw new Exception("Generated type behavior changed.");
 Console.WriteLine("generated-consumer:types-passed");

@@ -409,16 +409,16 @@ public static class Observation
 {
     public static int Run()
     {
-        var person = new Example.Data.Person(7, "Ada");
-        var view = new Example.Data.PublicView(9);
+        var person = new Example.DataModule.Person(7, "Ada");
+        var view = new Example.DataModule.PublicView(9);
         if (view.Rating != 9) throw new System.Exception("Public alias of private structural record");
-        var reply = new Example.Data.Reply<int>(Morphir.SDK.CSharp.Result<string,int>.Err("bad"),Morphir.SDK.CSharp.Maybe<int>.Just(7));
+        var reply = new Example.DataModule.Reply<int>(Morphir.SDK.CSharp.Result<string,int>.Err("bad"),Morphir.SDK.CSharp.Maybe<int>.Just(7));
         if (reply.Result.Match(error => error.Length, value => value) != 3 || reply.Maybe.Match(value => value, () => 0) != 7) throw new System.Exception("Result error/value meaning or Maybe mapping");
-        var keyed = new Example.Data.Keyed<string>(Morphir.SDK.CSharp.Dict<string,int>.Singleton("k",9,Morphir.SDK.CSharp.MorphirComparers.String));
+        var keyed = new Example.DataModule.Keyed<string>(Morphir.SDK.CSharp.Dict<string,int>.Singleton("k",9,Morphir.SDK.CSharp.MorphirComparers.String));
         if (keyed.Values.Get("k").Match(value => value, () => 0) != 9) throw new System.Exception("Immutable generic dictionary");
-        var box = new Example.Data.Box<int>(Morphir.SDK.CSharp.List<int>.Singleton(5), (2, "two"));
-        Example.Data.Choice<int> choice = new Example.Data.Choice<int>.Value(3);
-        return person.Age + box.Items[0] + box.Pair.Item1 + ((Example.Data.Choice<int>.Value)choice).Item;
+        var box = new Example.DataModule.Box<int>(Morphir.SDK.CSharp.List<int>.Singleton(5), (2, "two"));
+        Example.DataModule.Choice<int> choice = new Example.DataModule.Choice<int>.Value(3);
+        return person.Age + box.Items[0] + box.Pair.Item1 + ((Example.DataModule.Choice<int>.Value)choice).Item;
     }
 }
 """
@@ -429,20 +429,20 @@ public static class Observation
 {
     public static int Run()
     {
-        var a = new Example.Data.Box<double>(Morphir.SDK.CSharp.List<double>.Singleton(double.NaN), (2, "two"));
-        var b = new Example.Data.Box<double>(Morphir.SDK.CSharp.List<double>.Singleton(double.NaN), (2, "two"));
+        var a = new Example.DataModule.Box<double>(Morphir.SDK.CSharp.List<double>.Singleton(double.NaN), (2, "two"));
+        var b = new Example.DataModule.Box<double>(Morphir.SDK.CSharp.List<double>.Singleton(double.NaN), (2, "two"));
         if (a.Equals(b) || Morphir.SDK.CSharp.Basics.Equal((object)a, (object)b)) throw new System.Exception("NaN acquired CLR equality");
-        var x = new Example.Data.Box<double>(Morphir.SDK.CSharp.List<double>.Singleton(-0.0), (2, "two"));
-        var y = new Example.Data.Box<double>(Morphir.SDK.CSharp.List<double>.Singleton(+0.0), (2, "two"));
+        var x = new Example.DataModule.Box<double>(Morphir.SDK.CSharp.List<double>.Singleton(-0.0), (2, "two"));
+        var y = new Example.DataModule.Box<double>(Morphir.SDK.CSharp.List<double>.Singleton(+0.0), (2, "two"));
         if (!x.Equals(y) || x.GetHashCode() != y.GetHashCode()) throw new System.Exception("Structural zero equality/hash");
-        object c = new Example.Data.Choice<Example.Data.Box<double>>.Value(x);
-        object d = new Example.Data.Choice<Example.Data.Box<double>>.Value(y);
-        Example.Data.Choice<int> firstCase = new Example.Data.Choice<int>.Value(3);
-        Example.Data.Choice<int> secondCase = new Example.Data.Choice<int>.Value(3);
+        object c = new Example.DataModule.Choice<Example.DataModule.Box<double>>.Value(x);
+        object d = new Example.DataModule.Choice<Example.DataModule.Box<double>>.Value(y);
+        Example.DataModule.Choice<int> firstCase = new Example.DataModule.Choice<int>.Value(3);
+        Example.DataModule.Choice<int> secondCase = new Example.DataModule.Choice<int>.Value(3);
         if (firstCase != secondCase || !firstCase.Equals(secondCase)) throw new System.Exception("Base-typed case equality");
         if (!Morphir.SDK.CSharp.Basics.Equal(c,d) || c.GetHashCode() != d.GetHashCode()) throw new System.Exception("Boxed nested case equality/hash");
-        var m = new Example.Data.Box<decimal>(Morphir.SDK.CSharp.List<decimal>.Singleton(1.00m), (2,"two"));
-        var n = new Example.Data.Box<decimal>(Morphir.SDK.CSharp.List<decimal>.Singleton(1.0m), (2,"two"));
+        var m = new Example.DataModule.Box<decimal>(Morphir.SDK.CSharp.List<decimal>.Singleton(1.00m), (2,"two"));
+        var n = new Example.DataModule.Box<decimal>(Morphir.SDK.CSharp.List<decimal>.Singleton(1.0m), (2,"two"));
         if (!m.Equals(n) || m.GetHashCode() != n.GetHashCode()) throw new System.Exception("Decimal scale equality/hash");
         return 1;
     }
@@ -455,8 +455,8 @@ public static class Observation
 {
     public static int Run()
     {
-        var pair = new Example.Data.People(new Example.Data.Person(7,"Ada"),new Example.Data.Person(8,"Grace"));
-        var holder = new Example.Data.BoxHolder(new Example.Data.Box<int>(Morphir.SDK.CSharp.List<int>.Singleton(1),(2,"two")));
+        var pair = new Example.DataModule.People(new Example.DataModule.Person(7,"Ada"),new Example.DataModule.Person(8,"Grace"));
+        var holder = new Example.DataModule.BoxHolder(new Example.DataModule.Box<int>(Morphir.SDK.CSharp.List<int>.Singleton(1),(2,"two")));
         if (holder.Box.Items[0] != 1) throw new System.Exception("Generic record alias transparency");
         return pair.First.Age + pair.Second.Age;
     }
@@ -469,7 +469,7 @@ public static class Observation
 {
     public static int Run()
     {
-        var type = typeof(Example.Data.Wrapped);
+        var type = typeof(Example.DataModule.Wrapped);
         var meta = type.GetProperty("Meta");
         if (meta.CanWrite || meta.PropertyType.GetProperty("Count").CanWrite) throw new System.Exception("Mutable record property");
         if (meta.PropertyType.GetProperty("Count").PropertyType != typeof(int)) throw new System.Exception("Nested field type");

@@ -30,16 +30,59 @@ module internal TypeEmission =
         Location: string
     }
 
-    let title (Name words) =
-        words
-        |> List.map (fun word ->
-            if word = "" then
-                ""
-            else
-                word.Substring(0, 1).ToUpperInvariant()
-                + word.Substring(1)
+    let validateName location (Name words as name) =
+        if
+            List.isEmpty words
+            || words
+               |> List.exists (fun word ->
+                   String.IsNullOrEmpty word
+                   || word
+                      |> Seq.exists (fun c -> not (Char.IsAsciiLetterOrDigit c))
+               )
+        then
+            Admission.fail
+                "invalid-name"
+                location
+                ("Invalid Morphir name "
+                 + sprintf "%A" name)
+
+    let uniqueNames location names =
+        names
+        |> List.iter (fun (name, _) -> validateName location name)
+
+        names
+        |> List.groupBy snd
+        |> List.iter (fun (target, owners) ->
+            if owners.Length > 1 then
+                Admission.fail
+                    "name-collision"
+                    location
+                    (target
+                     + " is shared by "
+                     + (owners
+                        |> List.map (fun (name, _) -> sprintf "%A" name)
+                        |> String.concat " and "))
         )
-        |> String.concat ""
+
+    let title (Name words) =
+        let text =
+            words
+            |> List.map (fun word ->
+                if word = "" then
+                    ""
+                else
+                    word.Substring(0, 1).ToUpperInvariant()
+                    + word.Substring(1)
+            )
+            |> String.concat ""
+
+        if
+            text.Length > 0
+            && Char.IsAsciiDigit text[0]
+        then
+            "_" + text
+        else
+            text
 
     let identifier name =
         "@"
@@ -59,6 +102,71 @@ module internal TypeEmission =
         + (names
            |> List.map title
            |> String.concat "_")
+        + "Module"
+
+    let sourcePath pkg path =
+        "p_"
+        + (packageName pkg).Replace("@", "")
+        + "/m_"
+        + (moduleName path).TrimStart('@')
+        + ".g.cs"
+
+    let validateModules pkg modules =
+        let (PackageName(Path package)) = pkg
+
+        if List.isEmpty package then
+            Admission.fail "invalid-name" "$package" "The package path is empty."
+
+        package
+        |> List.iter (validateName "$package")
+
+        let paths =
+            Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+
+        for path, values in modules do
+            let (ModulePath(Path parts)) = path
+
+            let loc =
+                "$modules/"
+                + sprintf "%A" path
+
+            if List.isEmpty parts then
+                Admission.fail "invalid-name" loc "The module path is empty."
+
+            parts
+            |> List.iter (validateName loc)
+
+            uniqueNames
+                loc
+                (values
+                 |> List.map (fun name -> name, identifier name))
+
+            for name in values do
+                if identifier name = moduleName path then
+                    Admission.fail
+                        "name-collision"
+                        loc
+                        (title name
+                         + " shares the generated module class identity.")
+
+            let relative = sourcePath pkg path
+
+            if
+                relative.Split('/')
+                |> Array.exists (fun part -> part.Length > 255)
+            then
+                Admission.fail "path-length" loc "A portable path component exceeds 255 characters."
+
+            match paths.TryGetValue relative with
+            | true, previous ->
+                Admission.fail
+                    "path-collision"
+                    loc
+                    (previous
+                     + " and "
+                     + relative
+                     + " share a portable path identity.")
+            | _ -> paths.Add(relative, relative)
 
     let qualified name =
         "global::"
@@ -799,6 +907,72 @@ module internal TypeEmission =
     let prepare model ct =
         let raw = declarations model ct
 
+        let checkFields location className fields =
+            uniqueNames
+                location
+                (fields
+                 |> List.map (fun (name, _) -> name, identifier name))
+
+            for name, _ in fields do
+                if
+                    List.contains (title name) [
+                        className
+                        "MorphirEquals"
+                        "MorphirHashCode"
+                        "Equals"
+                        "GetHashCode"
+                        "GetType"
+                        "ToString"
+                    ]
+                then
+                    Admission.fail
+                        "name-collision"
+                        location
+                        (title name
+                         + " collides with the generated "
+                         + className
+                         + " protocol or constructor.")
+
+        for declaration in raw do
+            validateName declaration.Location declaration.Name.LocalName
+
+            uniqueNames
+                declaration.Location
+                (declaration.Parameters
+                 |> List.map (fun name -> name, generic name))
+
+            match declaration.Definition with
+            | Alias(Fields fields) ->
+                checkFields declaration.Location (title declaration.Name.LocalName) fields
+            | Alias _ -> ()
+            | Cases(_, cases) ->
+                uniqueNames
+                    declaration.Location
+                    (cases
+                     |> List.map (fun (name, _) -> name, identifier name))
+
+                for name, fields in cases do
+                    if
+                        List.contains
+                            (title name)
+                            ([
+                                title declaration.Name.LocalName
+                                "MorphirEquals"
+                                "MorphirHashCode"
+                                "Equals"
+                                "GetHashCode"
+                                "GetType"
+                                "ToString"
+                             ]
+                             @ (List.map generic declaration.Parameters))
+                    then
+                        Admission.fail
+                            "name-collision"
+                            declaration.Location
+                            "A case shares a generated protocol, generic parameter or enclosing type identity."
+
+                    checkFields declaration.Location (title name) fields
+
         let rawCatalog =
             raw
             |> List.map (fun declaration -> declaration.Name, declaration)
@@ -851,6 +1025,49 @@ module internal TypeEmission =
             |> Map.ofList
 
         for declaration in declarations do
+            let emitted =
+                match declaration.Definition with
+                | Cases _ -> true
+                | Alias(Fields _ as body) ->
+                    let owner, _ = recordTarget catalog declaration.Location body in
+                    owner.Name = declaration.Name
+                | _ -> false
+
+            let genericNames =
+                declaration.Parameters
+                |> List.map generic
+
+            if
+                emitted
+                && (identifier declaration.Name.LocalName = moduleName declaration.Name.ModulePath
+                    || List.contains (title declaration.Name.LocalName) genericNames)
+            then
+                Admission.fail
+                    "name-collision"
+                    declaration.Location
+                    "A generated type shares its module or generic parameter identity."
+
+            let genericFieldNames fields =
+                for name, _ in fields do
+                    if List.contains (title name) genericNames then
+                        Admission.fail
+                            "name-collision"
+                            declaration.Location
+                            (title name
+                             + " shares a generic parameter and payload identity.")
+
+            match declaration.Definition with
+            | Alias(Fields fields) ->
+                genericFieldNames fields
+                checkFields declaration.Location (title declaration.Name.LocalName) fields
+            | Cases(_, cases) ->
+                cases
+                |> List.iter (fun (name, fields) ->
+                    genericFieldNames fields
+                    checkFields declaration.Location (title name) fields
+                )
+            | _ -> ()
+
             if declaration.Public then
                 match declaration.Definition with
                 | Alias body -> validatePublicType catalog declaration.Location body
@@ -865,87 +1082,92 @@ module internal TypeEmission =
                     )
                 | Cases(false, _) -> ()
 
-        declarations
-        |> List.groupBy (fun d -> d.Name.ModulePath)
-        |> List.map (fun (path, items) ->
-            let text =
-                items
-                |> List.map (fun declaration ->
-                    ct.ThrowIfCancellationRequested()
-                    let access = if declaration.Public then "public" else "internal"
-                    let name = identifier declaration.Name.LocalName
+        let modules =
+            declarations
+            |> List.groupBy (fun d -> d.Name.ModulePath)
+            |> List.map (fun (path, items) ->
+                let text =
+                    items
+                    |> List.map (fun declaration ->
+                        ct.ThrowIfCancellationRequested()
+                        let access = if declaration.Public then "public" else "internal"
+                        let name = identifier declaration.Name.LocalName
 
-                    match declaration.Definition with
-                    | Alias(Fields fields) ->
-                        let owner, _ = recordTarget catalog declaration.Location (Fields fields)
+                        match declaration.Definition with
+                        | Alias(Fields fields) ->
+                            let owner, _ =
+                                recordTarget catalog declaration.Location (Fields fields)
 
-                        if owner.Name = declaration.Name then
-                            valueClass catalog ct declaration name "" access fields
-                        else
+                            if owner.Name = declaration.Name then
+                                valueClass catalog ct declaration name "" access fields
+                            else
+                                ""
+                        | Alias body ->
+                            render
+                                catalog
+                                ct
+                                declaration.Location
+                                declaration.Parameters
+                                Set.empty
+                                body
+                            |> ignore
+
                             ""
-                    | Alias body ->
-                        render
-                            catalog
-                            ct
-                            declaration.Location
-                            declaration.Parameters
-                            Set.empty
-                            body
-                        |> ignore
+                        | Cases(publicCases, cases) ->
+                            let fullName =
+                                name
+                                + parameters declaration.Parameters
 
-                        ""
-                    | Cases(publicCases, cases) ->
-                        let fullName =
-                            name
-                            + parameters declaration.Parameters
+                            let caseAccess = if publicCases then "public" else "internal"
 
-                        let caseAccess = if publicCases then "public" else "internal"
+                            access
+                            + " abstract class "
+                            + fullName
+                            + " : global::Morphir.SDK.CSharp.IMorphirValue"
+                            + ", global::System.IEquatable<"
+                            + fullName
+                            + ">"
+                            + constraints declaration.Parameters
+                            + "\n{\nprivate "
+                            + name
+                            + "() {}\n"
+                            + "public abstract bool MorphirEquals(global::Morphir.SDK.CSharp.IMorphirValue other);\npublic abstract int MorphirHashCode();\n"
+                            + "public bool Equals("
+                            + fullName
+                            + "? other) => other is not null && MorphirEquals(other);\n"
+                            + "public override bool Equals(object? other) => other is "
+                            + fullName
+                            + " otherValue && MorphirEquals(otherValue);\n"
+                            + "public override int GetHashCode() => MorphirHashCode();\n"
+                            + "public static bool operator ==("
+                            + fullName
+                            + "? left, "
+                            + fullName
+                            + "? right) => left is null ? right is null : right is not null && left.MorphirEquals(right);\n"
+                            + "public static bool operator !=("
+                            + fullName
+                            + "? left, "
+                            + fullName
+                            + "? right) => !(left == right);\n"
+                            + (cases
+                               |> List.map (fun (caseName, fields) ->
+                                   valueClass
+                                       catalog
+                                       ct
+                                       declaration
+                                       (identifier caseName)
+                                       fullName
+                                       caseAccess
+                                       fields
+                               )
+                               |> String.concat "")
+                            + "}\n"
+                    )
+                    |> String.concat ""
 
-                        access
-                        + " abstract class "
-                        + fullName
-                        + " : global::Morphir.SDK.CSharp.IMorphirValue"
-                        + ", global::System.IEquatable<"
-                        + fullName
-                        + ">"
-                        + constraints declaration.Parameters
-                        + "\n{\nprivate "
-                        + name
-                        + "() {}\n"
-                        + "public abstract bool MorphirEquals(global::Morphir.SDK.CSharp.IMorphirValue other);\npublic abstract int MorphirHashCode();\n"
-                        + "public bool Equals("
-                        + fullName
-                        + "? other) => other is not null && MorphirEquals(other);\n"
-                        + "public override bool Equals(object? other) => other is "
-                        + fullName
-                        + " otherValue && MorphirEquals(otherValue);\n"
-                        + "public override int GetHashCode() => MorphirHashCode();\n"
-                        + "public static bool operator ==("
-                        + fullName
-                        + "? left, "
-                        + fullName
-                        + "? right) => left is null ? right is null : right is not null && left.MorphirEquals(right);\n"
-                        + "public static bool operator !=("
-                        + fullName
-                        + "? left, "
-                        + fullName
-                        + "? right) => !(left == right);\n"
-                        + (cases
-                           |> List.map (fun (caseName, fields) ->
-                               valueClass
-                                   catalog
-                                   ct
-                                   declaration
-                                   (identifier caseName)
-                                   fullName
-                                   caseAccess
-                                   fields
-                           )
-                           |> String.concat "")
-                        + "}\n"
-                )
-                |> String.concat ""
+                path, text
+            )
+            |> Map.ofList
 
-            path, text
-        )
-        |> Map.ofList
+
+        catalog, modules

@@ -12,8 +12,10 @@ Numeric C# 15 uses the same public representation and runtime contract.
 
 Both typed paths now lower transparent aliases, generic closed records, tuples,
 function and unit payloads, and closed custom cases. Generated payload properties
-are get-only. Classic integer constants are the current executable expression
-slice. The remaining expression scope is tracked in the active OpenSpec tasks.
+are get-only. Both typed paths now emit literals, variables and references,
+application, returned functions, lambdas and nonrecursive value/function lets.
+The current SDK operation slice is `Basics.add`. The remaining expression and
+SDK scope is tracked in the active OpenSpec tasks.
 It is not yet a complete backend. Decoding, configuration, source publication
 and compiler execution belong to callers. CLI registration and a production
 Roslyn adapter are separate initiatives.
@@ -76,3 +78,33 @@ route through that protocol. Consumers verify nested collections, NaN, signed
 zero and decimal scale against the SDK contract. No CLR `IEquatable` fallback or
 reflection establishes Morphir equality. The protocol does not establish the
 physical immutability of arbitrary caller-supplied generic payloads.
+
+## Names, literals and functions
+
+Package paths become escaped namespaces. A module named `Example.Functions`
+uses the static class `Example.FunctionsModule`; records and cases are nested
+under that class. Source paths use safe prefixes, such as
+`p_Example/m_FunctionsModule.g.cs`, including on Windows. Portable comparisons
+ignore case. A collision diagnostic identifies both owners. Generated local
+identities are fresh within each function and do not depend on source spelling.
+
+Top-level definitions emit typed static methods. Function values and partial
+applications use nested `Func` values that call those methods. Local bindings
+evaluate before their name enters scope, and local functions capture their
+original outer bindings. Delegate invocation uses `.Invoke`, and arguments
+evaluate once in source order. The shared compiled consumer observes those
+properties through a caller-supplied callback, generic identity, a captured let,
+shadowing, a three-argument partial application and a returned lambda.
+
+Literals use culture-independent numeric text and explicit UTF-16 escapes.
+Supplementary strings are admitted. Char requires one non-surrogate BMP scalar.
+Int literals must fit checked Int32. A v4 decimal lexeme must hold exactly in
+Decimal96; rounded or out-of-range values fail with `representation-loss`.
+Signed-zero Float bits are preserved, and classic nonfinite Float literals map
+to the corresponding double constants. Invalid UTF-16 strings fail explicitly.
+
+Type checking runs before a successful source set is returned. Unknown variables
+and references, inconsistent applications, infinite types and unsupported numeric
+constraints produce located diagnostics. Local recursive groups remain outside
+the admitted slice. Ordered patterns, record operations, self recursion and the
+broader SDK mapping are still being implemented.

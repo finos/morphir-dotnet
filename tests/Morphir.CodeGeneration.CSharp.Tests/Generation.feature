@@ -17,6 +17,12 @@ Feature: Reusable typed C# library generation
     When the in-memory generator runs
     Then it returns cancellation with no sources
 
+  Scenario: Function values preserve lexical scope and evaluation order
+    Given a generic identity, curried top-level functions and captured local lets
+    When a compiled consumer supplies an observable callback and shadowed locals
+    Then arguments execute once in order and closures retain their original binding
+    And partial application and returned nested functions retain their concrete types
+
   Scenario Outline: The shared behavior corpus
     Given an admitted <family> library
     When it is generated for numeric C# <language>

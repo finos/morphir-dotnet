@@ -223,3 +223,62 @@ and ordered application flattening. This emitter will use fresh lexical target
 identities and typed nested Func values for the required capture/partial-apply
 behavior. These references inform implementation choices; they are not test
 oracles or evidence of C# conformance.
+
+## Naming, literals and function checkpoint
+
+Separate typed value walkers now feed private target expressions, whole-function
+type checking and deterministic text emission. The initial function BDD consumer
+failed for both families before implementation. Real compilation then exposed
+C# interpreting `(f)(x)` as a cast in identifier-only cases. Emitting `.Invoke`
+corrected it. The authored shared consumer observes generic identity, captured
+local functions, nonrecursive shadowing, three-argument partial application,
+returned nested functions and caller callback order. No object erasure, dynamic
+dispatch or runtime implementation stubs are emitted.
+
+Nineteen original literal cases failed before implementation. Signed zero,
+classic nonfinite values, exact Decimal96, BMP chars and supplementary strings
+now execute with independent expectations. Invalid UTF-16 string fixtures must
+be constructed from a surrogate char at runtime because the F# compiler replaces
+the corresponding string-literal metadata; both the mistaken fixture result and
+corrected test are retained. Large integers, unsupported chars, invalid UTF-16
+and rounded decimals fail with `representation-loss`, without sources.
+
+Additional RED cases found portable case-insensitive paths, malformed names,
+reserved protocol payloads, nested-record payloads, generic/case identifiers and
+type/value/module collisions. Safe path prefixes avoid Windows device names.
+Module static classes now have a `Module` suffix, and lexical targets are fresh.
+The shared type/function corpus in `functions-matrix-01` compiled and executed
+in all four real family/profile combinations. The source hashes, shared across
+all four runs, are:
+
+- `p_Example/m_DataModule.g.cs`:
+  `5ac1939afbf1bc9e41626381666e62ee7ec818ab8995505f3ee8f9f8ac057456`.
+- `p_Example/m_FunctionsModule.g.cs`:
+  `b135ca235afbad84cfdaab62b95d32755cb0ea1bf44384a249d52336ab27ad26`.
+
+The fresh packaged modern host ran 73 tests in `functions-host-01`, all passing.
+Supplemental admission/naming tests brought the local Release suite to 90/90.
+The matching static production report measured 1,447/1,601 lines,
+90.38101186758276%. Its earlier 73-test report was 1,402/1,576, 88.95939086294417%,
+and is retained. Two further case-name RED tests were then added and corrected.
+The checkpoint's final full run and refreshed coverage are recorded below.
+This evidence does not cover pending patterns, record operations,
+the broader SDK inventory, traversal cancellation, business fixtures or trimming.
+
+Native `build.ps1 --target Test --configuration Release` passed in 7m15.
+`functions-suite-totals.json` records 3,493 suite tests, zero failed/skipped/ignored,
+including the explicit sequential generator suite's 92/92, plus 15 cold package
+checks and 48 separate configuration inspection smoke checks. Fresh PackAll
+passed in 48s, TestBuild passed 40/40, and both new packages passed metadata and
+compiled exact-version lookup checks without publishing. Native Precommit passed
+in 30s with inherited unsupported-F# diagnostics. All ten owned F# files pass
+Fantomas, changelog validation passes, and strict OpenSpec validation passes all
+22 items plus snapshot check and two tests. `git diff --check` passes.
+
+The final 92-test production-only static report `functions-final.cobertura.xml`
+measures 1,464/1,614 lines, 90.70631970260223%. All authored generator code remains
+in the denominator. The fresh package host rerun `functions-host-02` also passes
+92/92. Production dependency closure is unchanged. Task 3.1 is checked; task 2.2
+remains unchecked pending remaining allocation edge cases and final determinism
+verification. The source/compiler proof above predates only additional refusal
+guards, which do not change these valid corpus sources. No shared file changed.

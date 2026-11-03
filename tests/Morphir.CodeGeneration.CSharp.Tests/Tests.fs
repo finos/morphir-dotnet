@@ -155,7 +155,7 @@ let hostSmoke model =
     let emitted = output.Emit(stream)
     Expect.isTrue emitted.Success (String.Join("\n", emitted.Diagnostics))
     let assembly = Reflection.Assembly.Load(stream.ToArray())
-    let generated = assembly.GetType("Example.Sample", true)
+    let generated = assembly.GetType("Example.SampleModule", true)
     Expect.equal (generated.GetMethod("Answer").Invoke(null, [||]) :?> int) 42 "executed constant"
 
 let executeConsumer model language consumer =
@@ -244,6 +244,374 @@ let externalDiagnostics model (consumer: string) =
 [<Tests>]
 let tests =
     testList "C# generation" [
+        for caseName in [ "morphirEquals"; "tA" ] do
+            testCase (
+                "Case identities cannot hide protocols or generic parameters "
+                + caseName
+            )
+            <| fun _ ->
+                let model =
+                    TypeCases.classic ()
+                    |> mapClassicModules (
+                        Map.map (fun _ modul ->
+                            let choice =
+                                Type.CustomTypeDefinition(
+                                    [ Name.fromString "a" ],
+                                    AccessControlled.public' (
+                                        Map.ofList[Name.fromString caseName, []]
+                                    )
+                                )
+
+                            { modul with
+                                Value =
+                                    { modul.Value with
+                                        Types =
+                                            Map.ofList[Name.fromString "choice",
+                                                       AccessControlled.public' (
+                                                           Documented.WithoutDocumentation choice
+                                                       )]
+                                    }
+                            }
+                        )
+                    )
+
+                let result =
+                    CSharpGenerator.Generate(
+                        model,
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal result.Status GenerationStatus.Failure "case target collision"
+                Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+        testCase "A type cannot share its module class identity"
+        <| fun _ ->
+            let model =
+                RefusalCases.classic [] (Type.Record(LiteralCases.a, []))
+                |> mapClassicModules (
+                    Map.map (fun _ modul ->
+                        let declaration =
+                            modul.Value.Types
+                            |> Map.toList
+                            |> List.head
+                            |> snd
+
+                        { modul with
+                            Value =
+                                { modul.Value with
+                                    Types = Map.ofList[Name.fromString "badModule", declaration]
+                                }
+                        }
+                    )
+                )
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Failure "class type collision"
+            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+        testCase "Record generic parameters cannot share payload member identities"
+        <| fun _ ->
+            let model =
+                RefusalCases.classic
+                    [ Name.fromString "a" ]
+                    (Type.Record(
+                        LiteralCases.a,
+                        [
+                            {
+                                Name = Name.fromString "tA"
+                                Type = Type.Variable(LiteralCases.a, Name.fromString "a")
+                            }
+                        ]
+                    ))
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Failure "generic payload collision"
+            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+        testCase "Portable source allocation supports Windows device names"
+        <| fun _ ->
+            let model = constantModel ()
+
+            let model =
+                match model.Distribution with
+                | DistributionModel.Classic(Distribution.Library(_, deps, definition)) ->
+                    { model with
+                        Distribution =
+                            DistributionModel.Classic(
+                                Distribution.Library(
+                                    PackageName.packageNameFromString "con",
+                                    deps,
+                                    definition
+                                )
+                            )
+                    }
+                | _ -> failwith "classic fixture"
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal
+                result.Sources.Head.RelativePath
+                "p_Con/m_SampleModule.g.cs"
+                "safe prefixed components"
+
+            Expect.equal
+                (executeConsumer
+                    model
+                    14
+                    "public static class Observation { public static int Run() => Con.SampleModule.Answer(); }")
+                42
+                "device-named namespace compiles"
+        for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
+            for index, (rule, definition) in
+                FunctionCases.refusals
+                |> List.indexed do
+                testCase ($"Function admission {family} {index}")
+                <| fun _ ->
+                    let result =
+                        CSharpGenerator.Generate(
+                            make [ definition ],
+                            GenerationOptions.Default,
+                            CancellationToken.None
+                        )
+
+                    Expect.equal result.Status GenerationStatus.Failure "semantic refusal"
+                    Expect.isEmpty result.Sources "whole model"
+                    Expect.equal result.Diagnostics.Head.Rule rule "stable category"
+        for label, model in [ "classic", FunctionCases.classic; "v4", FunctionCases.v4 ] do
+            testCase (
+                "Compiled lexical function behavior "
+                + label
+            )
+            <| fun _ ->
+                Expect.equal
+                    (executeConsumer (model ()) 14 FunctionCases.consumer)
+                    1
+                    "capture, shadowing, partial application, generics and evaluation order"
+        testCase "Nested record fields cannot hide their generated protocol"
+        <| fun _ ->
+            let inner =
+                Type.Record(
+                    LiteralCases.a,
+                    [
+                        {
+                            Name = Name.fromString "morphirEquals"
+                            Type = Type.Reference(LiteralCases.a, TypeCases.sdk "basics" "int", [])
+                        }
+                    ]
+                )
+
+            let model =
+                RefusalCases.classic
+                    []
+                    (Type.Record(
+                        LiteralCases.a,
+                        [
+                            {
+                                Name = Name.fromString "inner"
+                                Type = inner
+                            }
+                        ]
+                    ))
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Failure "nested collision"
+            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+        testCase "A value cannot share its module class identity"
+        <| fun _ ->
+            let model =
+                constantModel ()
+                |> mapClassicModules (
+                    Map.map (fun _ modul ->
+                        { modul with
+                            Value =
+                                { modul.Value with
+                                    Values =
+                                        Map.ofList[Name.fromString "sampleModule",
+                                                   modul.Value.Values
+                                                   |> Map.toList
+                                                   |> List.head
+                                                   |> snd]
+                                }
+                        }
+                    )
+                )
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Failure "method class collision"
+            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+        testCase "A value cannot share an emitted record identity"
+        <| fun _ ->
+            let model =
+                constantModel ()
+                |> mapClassicModules (
+                    Map.map (fun _ modul ->
+                        let alias =
+                            Type.TypeAliasDefinition(
+                                [],
+                                Type.Record(
+                                    LiteralCases.a,
+                                    [
+                                        {
+                                            Name = Name.fromString "x"
+                                            Type =
+                                                Type.Reference(
+                                                    LiteralCases.a,
+                                                    TypeCases.sdk "basics" "int",
+                                                    []
+                                                )
+                                        }
+                                    ]
+                                )
+                            )
+
+                        { modul with
+                            Value =
+                                { modul.Value with
+                                    Types =
+                                        Map.ofList[Name.fromString "answer",
+                                                   AccessControlled.public' (
+                                                       Documented.WithoutDocumentation alias
+                                                   )]
+                                }
+                        }
+                    )
+                )
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Failure "method type collision"
+            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+        testCase "Portable module paths detect case-insensitive collisions"
+        <| fun _ ->
+            let model =
+                constantModel ()
+                |> mapClassicModules (fun modules ->
+                    let modul =
+                        modules
+                        |> Map.toList
+                        |> List.head
+                        |> snd
+
+                    Map.ofList[ModulePath(Path[Name["ab"]]), modul
+                               ModulePath(Path[Name["aB"]]), modul]
+                )
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Failure "portable path collision"
+            Expect.equal result.Diagnostics.Head.Rule "path-collision" "stable category"
+            Expect.stringContains result.Diagnostics.Head.Message "AbModule" "first owner"
+            Expect.stringContains result.Diagnostics.Head.Message "ABModule" "second owner"
+        testCase "Generated payload members cannot collide with the structural protocol"
+        <| fun _ ->
+            let model =
+                RefusalCases.classic
+                    []
+                    (Type.Record(
+                        LiteralCases.a,
+                        [
+                            {
+                                Name = Name.fromString "morphirEquals"
+                                Type =
+                                    Type.Reference(LiteralCases.a, TypeCases.sdk "basics" "int", [])
+                            }
+                        ]
+                    ))
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Failure "member collision"
+            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+        testCase "Malformed typed names fail before source success"
+        <| fun _ ->
+            let model =
+                constantModel ()
+                |> mapClassicModules (fun modules ->
+                    let modul =
+                        modules
+                        |> Map.toList
+                        |> List.head
+                        |> snd
+
+                    Map.ofList[ModulePath(Path[Name["../escape"]]), modul]
+                )
+
+            let result =
+                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+
+            Expect.equal result.Status GenerationStatus.Failure "invalid typed name"
+            Expect.equal result.Diagnostics.Head.Rule "invalid-name" "stable category"
+        testCase "Module and type can retain the same Morphir name"
+        <| fun _ ->
+            let model =
+                TypeCases.classic ()
+                |> mapClassicModules (
+                    Map.map (fun _ modul ->
+                        let controlled = Map.find (Name.fromString "person") modul.Value.Types
+
+                        { modul with
+                            Value =
+                                { modul.Value with
+                                    Types =
+                                        Map.ofList[Name.fromString "data", controlled
+
+                                                   Name.fromString "age",
+                                                   Map.find
+                                                       (Name.fromString "age")
+                                                       modul.Value.Types]
+                                }
+                        }
+                    )
+                )
+
+            Expect.equal
+                (executeConsumer
+                    model
+                    14
+                    "public static class Observation { public static int Run() => new Example.DataModule.Data(2,\"x\").Age; }")
+                2
+                "separate module class identity"
+        for label, model, body in LiteralCases.admitted do
+            testCase (
+                "Literal fidelity "
+                + label
+            )
+            <| fun _ ->
+                Expect.equal
+                    (executeConsumer
+                        model
+                        14
+                        ("public static class Observation { public static int Run() { "
+                         + body
+                         + " } }"))
+                    1
+                    "independent literal observation"
+        for label, rule, model in LiteralCases.refused do
+            testCase (
+                "Located literal refusal "
+                + label
+            )
+            <| fun _ ->
+                let result =
+                    CSharpGenerator.Generate(
+                        model,
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal result.Status GenerationStatus.Failure "refused"
+                Expect.isEmpty result.Sources "atomic failure"
+                Expect.equal result.Diagnostics.Head.Rule rule "semantic category"
         for label, rule, model in
             RefusalCases.classicCases
             @ RefusalCases.v4Cases do
@@ -273,7 +641,7 @@ let tests =
                     externalDiagnostics
                         (model ()
                          |> TypeCases.hideConstructors)
-                        "public class External { public static object Run() => new Example.Data.Choice<int>.Value(3); }"
+                        "public class External { public static object Run() => new Example.DataModule.Choice<int>.Value(3); }"
 
                 Expect.isTrue
                     (diagnostics
@@ -699,9 +1067,51 @@ let main args =
 
         let model =
             if args[2] = "classic" then
-                TypeCases.classic ()
+                match
+                    (TypeCases.classic ()).Distribution, (FunctionCases.classic ()).Distribution
+                with
+                | DistributionModel.Classic(Distribution.Library(pkg, deps, types)),
+                  DistributionModel.Classic(Distribution.Library(_, _, functions)) ->
+                    { TypeCases.classic () with
+                        Distribution =
+                            DistributionModel.Classic(
+                                Distribution.Library(
+                                    pkg,
+                                    deps,
+                                    {
+                                        Modules =
+                                            Map.fold
+                                                (fun modules name value ->
+                                                    Map.add name value modules
+                                                )
+                                                types.Modules
+                                                functions.Modules
+                                    }
+                                )
+                            )
+                    }
+                | _ -> failwith "Classic typed corpus required."
             else
-                TypeCases.v4 ()
+                match (TypeCases.v4 ()).Distribution, (FunctionCases.v4 ()).Distribution with
+                | DistributionModel.V4(Morphir.IR.V4.Library(pkg, deps, types)),
+                  DistributionModel.V4(Morphir.IR.V4.Library(_, _, functions)) ->
+                    { TypeCases.v4 () with
+                        Distribution =
+                            DistributionModel.V4(
+                                Morphir.IR.V4.Library(
+                                    pkg,
+                                    deps,
+                                    {
+                                        Modules =
+                                            TypeCases.ordered (
+                                                Morphir.IR.V4.OrderedMap.toList types.Modules
+                                                @ Morphir.IR.V4.OrderedMap.toList functions.Modules
+                                            )
+                                    }
+                                )
+                            )
+                    }
+                | _ -> failwith "V4 typed corpus required."
 
         let result = CSharpGenerator.Generate(model, options, CancellationToken.None)
 
@@ -725,6 +1135,7 @@ let main args =
                 "Equality", TypeCases.equalityConsumer
                 "Aliases", TypeCases.aliasConsumer
                 "Nested", TypeCases.nestedConsumer
+                "Functions", FunctionCases.consumer
             ]
             |> List.map (fun (name, body) ->
                 "namespace "

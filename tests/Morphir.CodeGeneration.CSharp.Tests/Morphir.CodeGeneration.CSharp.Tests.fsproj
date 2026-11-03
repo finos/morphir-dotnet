@@ -19,6 +19,8 @@
   <ItemGroup>
     <Compile Include="TypeCases.fs" />
     <Compile Include="RefusalCases.fs" />
+    <Compile Include="LiteralCases.fs" />
+    <Compile Include="FunctionCases.fs" />
     <Compile Include="Tests.fs" />
     <None Include="Generation.feature" />
   </ItemGroup>

@@ -17,6 +17,7 @@ defines acceptance. PR readiness precedes coordinator-owned landing and archival
 | Numeric C# 14 and 15 profiles | Implemented | Actual matching compilers compile and execute identical constant-source bytes; broad corpus pending |
 | Classic and v4 typed lowering | In Progress | Independent typed type walkers; expressions pending; no serialization or migration bridge |
 | Immutable aliases, records, cases and structural equality | Implemented | Shared type corpus compiled/executed in all four family/profile combinations |
+| Typed function values, application, lambdas and nonrecursive lets | Implemented | Shared compiled capture/shadowing/partial-application/callback-order observations across both families/profiles |
 | Expressions, lexical scope, ordered patterns and SDK calls | Planned | Shared behavior corpus |
 | Determinism, located refusals and traversal cancellation | Planned | Positive and negative behavior tests |
 | Package, trimming, full tests and coverage | Planned | Exact commands and denominators required |

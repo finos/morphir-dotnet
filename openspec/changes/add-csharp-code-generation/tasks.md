@@ -16,7 +16,7 @@ Read [design](design.html), [spec](specs/morphir-csharp-transpilation/spec.md) a
 
 ## 3. Executable logic and refusals
 
-- [ ] 3.1 Implement application, nested function values/partial application, lambdas and nonrecursive lets from failing behavior cases; verify evaluation order, closure capture and shadowing in compiled execution.
+- [x] 3.1 Implement application, nested function values/partial application, lambdas and nonrecursive lets from failing behavior cases; verify evaluation order, closure capture and shadowing in compiled execution.
 - [ ] 3.2 Implement admitted patterns, conditionals, record operations and top-level self recursion incrementally; verify first-match semantics and input persistence, while local recursive groups fail explicitly.
 - [ ] 3.3 Map the admitted SDK operations and required semantics, adding located failures for unresolved references, unsupported distributions/bodies/open records/document literals and representation loss; verify no object-erasure or runtime stubs are emitted.
 - [ ] 3.4 Add cancellation checks during traversal/emission and a whole-model result boundary; verify a cancelled or invalid later module returns no successful partial artifact set and document diagnostics.
