@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using Morphir.Build.Helpers;
 using Nuke.Common;
 using Nuke.Common.IO;
 using Nuke.Common.Tools.DotNet;
@@ -15,7 +16,7 @@ partial class Build
 
     /// <summary>
     /// Publish library NuGet packages to NuGet.org
-    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir
+    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir, Morphir.SDK.CSharp
     /// Requires: --api-key parameter
     /// Parameters: --nuget-source (default: https://api.nuget.org/v3/index.json)
     /// </summary>
@@ -78,6 +79,19 @@ partial class Build
             {
                 throw new Exception($"Morphir package not found in {OutputDir}");
             }
+
+            var sdkPackage = PathHelper.GetLibraryPackagePath("Morphir.SDK.CSharp", Version.ToString(), OutputDir);
+            if (!File.Exists(sdkPackage))
+            {
+                throw new Exception($"Morphir.SDK.CSharp package not found: {sdkPackage}");
+            }
+
+            Serilog.Log.Information($"Publishing Morphir.SDK.CSharp: {sdkPackage}");
+            DotNetNuGetPush(s => s
+                .SetTargetPath(sdkPackage)
+                .SetSource(NuGetSource)
+                .SetApiKey(ApiKey)
+                .SetSkipDuplicate(true));
         });
 
     /// <summary>
@@ -131,7 +145,7 @@ partial class Build
 
     /// <summary>
     /// Publish library NuGet packages to local feed for testing
-    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir
+    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir, Morphir.SDK.CSharp
     /// Output: artifacts/local-feed/
     /// Parameters: --local-source (default: artifacts/local-feed)
     /// </summary>
@@ -186,6 +200,18 @@ partial class Build
                     .SetSource(LocalSource)
                     .SetSkipDuplicate(true));
             }
+
+            var sdkPackage = PathHelper.GetLibraryPackagePath("Morphir.SDK.CSharp", Version.ToString(), OutputDir);
+            if (!File.Exists(sdkPackage))
+            {
+                throw new Exception($"Morphir.SDK.CSharp package not found: {sdkPackage}");
+            }
+
+            Serilog.Log.Information("Publishing Morphir.SDK.CSharp to local feed...");
+            DotNetNuGetPush(s => s
+                .SetTargetPath(sdkPackage)
+                .SetSource(LocalSource)
+                .SetSkipDuplicate(true));
 
             Serilog.Log.Information($"Libraries published to local feed: {LocalSource}");
         });

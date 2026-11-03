@@ -1,7 +1,8 @@
-# Runtime checkpoint validation
+# C# SDK validation
 
-This is an implementation checkpoint, not package-profile/AOT certification or
-initiative completion. Issue [#464](https://github.com/finos/morphir-dotnet/issues/464).
+The runtime checkpoint below is followed by actual packaged profile/publication
+proof. PR readiness is not initiative completion. Issue
+[#464](https://github.com/finos/morphir-dotnet/issues/464).
 
 ## Identity and environment
 
@@ -118,7 +119,7 @@ items and both checker tests. No dotnet, MSBuild, VBCSCompiler, testhost or Nuke
 process remained after validation. Checkpoint durability is recorded in Git and
 reported to the coordinator after the normal backup push.
 
-## Downstream API and pending acceptance
+## Downstream API
 
 The runtime is net10.0, one C# API with no project references or authored runtime
 package dependencies, and uses System.Collections.Immutable from the framework.
@@ -137,10 +138,128 @@ No generic CLR equatable, reflection or serialization fallback exists. The
 protocol cannot enforce physical immutability or correct user implementations.
 The API guide and reusable public-consumer source contain exact examples.
 
-Two pinned ordinary local-feed compiler profiles, trimmed and NativeAOT
-consumers, final integrated packaging, PR readiness, landing/archive and cleanup
-remain pending. Tasks 1.2 and 3.1/3.2/3.3 remain unchecked. The source-generator
-adapter is deferred.
+The exact API and generated record/variant implementation requirements are in
+[api-handoff.md](api-handoff.md). The source-generator adapter remains deferred.
+
+## Isolated packaged consumers and publications
+
+Runtime source is unchanged from the pushed checkpoint
+`0b01ff037f0496071e8ba4689c785376658a8f30`. Its full tests, coverage and package
+checks above remain the evidence for that exact source. This follow-up adds only
+the reusable PowerShell verification harness, task progress and documentation.
+No repeated broad runtime tests are claimed or needed for those changes.
+
+Microsoft's [RC2 release](https://github.com/dotnet/core/blob/main/release-notes/11.0/preview/rc2/11.0.0-rc.2.md)
+and [official release metadata](https://builds.dotnet.microsoft.com/dotnet/release-metadata/11.0/releases.json)
+pin SDK 11.0.100-rc.2.26504.105, Windows arm64 ZIP. It was downloaded only into
+the owned evidence directory's toolchains folder. SHA-512 matched exactly:
+
+```text
+a74c1ab374a5167ada496dfe0d22367e9b5f2d89eb6d232122beb0e71b30db4bf868e3a06aa5df5aeea8be9fc3194218d2134e1c9de067419e18eed3b34c6e33
+```
+
+The SDK's net10.0 targeting references are 10.0.13. Matching installed SDK
+reference packs were copied only into the isolated RC directory: Core 348,
+ASP.NET 438, Desktop 277 files. Every one of the 1,063 copied files matched its
+source SHA-256. They are compiler inputs, not consumer dependencies. Root
+global.json and user/machine/repository dependency settings remain unchanged.
+
+The final successful invocation was:
+
+```powershell
+& tests/Morphir.SDK.CSharp.Tests/verify-package-consumers.ps1 `
+  -EvidenceDirectory C:/Temp/morphir-csharp-sdk-5a5ac278-20261103/package-proof-03 `
+  -StableDotnet C:/Users/damre/AppData/Local/dotnetup/dotnet/dotnet.exe `
+  -RcDotnet C:/Temp/morphir-csharp-sdk-5a5ac278-20261103/toolchains/rc-11.0.100-rc.2.26504.105/dotnet.exe `
+  -Mode All
+```
+
+This packed local-only version `0.0.0-sdkproof.0b01ff0`, SHA-256
+`8997d674e06ea871ad7feafde1c6bad45c6609c515318243f822a532c18370a0`.
+The nuspec records the runtime source checkpoint and has no runtime dependencies.
+Each ordinary consumer had a fresh project and private empty NuGet cache,
+local-only source mapping, no fallback feed and no project/source reference.
+Each project.assets.json contains exactly Morphir.SDK.CSharp at that version.
+
+| Profile | Numeric language | Selected SDK | Exact compiler/version revision | Result |
+| --- | --- | --- | --- | --- |
+| Stable | 14.0 | 10.0.403 | 5.9.0-1.26523.112 / 5a2162bea6845eabc1fc721624a43568c65db3b1 | Restore/build/run passed, zero warnings/errors |
+| RC2 | 15.0 | 11.0.100-rc.2.26504.105 | 5.12.0-1.26504.105 / 820230c386db5b0106c5430b3e5aee92a7826bf5 | Restore/build/run passed, zero warnings/errors; SDK prerelease informational message only |
+
+Both compile the identical public consumer source, SHA-256
+`6bfdc7168e13bf14954040104df7a581db768da169d19c7c63f345a9da27dc9f`.
+It covers Maybe/Result payload meanings and bypassed callbacks, Unit/Order,
+immutable nested List/Dict/Set values, explicit compound/ordinal comparers,
+generated record protocol after boxing/tuples, recursive NaN inequality,
+signed-zero equality/hash and replacement, checked overflow, nonfinite errors
+and exact Decimal behavior. Both target net10.0 and run with 10.0.14.
+The same source was published and executed for win-arm64 as trimmed and NativeAOT
+under the stable SDK, with all assertions and output `sdk-consumer:passed`
+matching both ordinary builds. Publish flags include `-warnaserror`,
+`-p:SelfContained=true`, exact runtime 10.0.14, and bounded MSBuild/ILC parallelism.
+Trimming uses PublishTrimmed=true/TrimMode=link/ILLinkTreatWarningsAsErrors=true;
+NativeAOT uses PublishAot=true. No trim/AOT warning was suppressed or accepted.
+
+Native prerequisites were existing VS Build Tools 17.14.37614.0, MSVC
+14.44.35207 with Hostarm64/arm64 linker, and Windows SDK 10.0.26100.0. No native
+toolchain was installed or changed. The successful NativeAOT publish logged
+Generating native code; the executed Consumer.exe is 1,831,424 bytes, SHA-256
+`52f842bd0bd9f6612481501c6f80aa01dc5006bda2f2df612210519e173354a5`.
+Independent artifact audit confirms ARM64 PE machine 0xAA64, CLR header RVA 0,
+and no Consumer.dll/coreclr.dll in the publication. The trimmed executable is
+139,776 bytes, SHA-256
+`35ad0ed871421d4827b9cf7670da6059d0af0919265a822d763b1ebe6ac53ac0`;
+that figure describes its apphost only, not the self-contained directory size.
+
+Each child has its own DOTNET_ROOT/PATH/TEMP/TMP and exact SDK global.json with
+rollForward=disable. Host runtime roll-forward is process-local LatestPatch,
+so SDK tools requesting a servicing build can use the installed stable patch.
+The existing VS Installer directory is added only to child PATH for vswhere.
+No parent environment mutation occurs. All jobs are serialized, captured and
+hidden, with whole-owned-tree timeout termination and absence verification.
+
+Earlier evidence is retained honestly: proof-01 passed stable but RC restore
+needed the missing ASP.NET/Desktop targeting packs; proof-02 first exposed
+restore's unsupported --self-contained option, then overstrict host runtime
+roll-forward, then missing vswhere on child PATH during native linking. These
+were verification/tooling setup issues. Final fresh proof-03 reran all four
+checks with the corrected harness and passed. No runtime production source,
+frozen expectation, inventory ID, exclusion or profile changed to obtain passes.
+
+Limits are explicit: net10.0 API and these two exact compiler profiles; native
+publication is a representative Windows arm64 consumer, not all OS/RID/generic
+combinations. No native C# union or full source-generator support is claimed.
+Landing, spec sync/archive and final cleanup remain coordinator-owned.
+
+## Final publishing registration
+
+The coordinator added only the C# package's exact versioned PathHelper lookup,
+existence check and push registration to PublishLibs and PublishLocalLibs.
+`dotnet build build/_build.csproj --no-restore -m:1
+-p:UseSharedCompilation=false -nodeReuse:false --nologo` passed with zero
+warnings/errors. The compiled helper resolves the existing package
+`artifacts/packages/Morphir.SDK.CSharp.0.3.0-rc.2.nupkg`, SHA-256
+`8c0317228749ac45c85afa62d6f2c632a8dd5c6b387694936bcc9e39a0f12a27`.
+Both targets depend on PackLibs, which depends on Compile then Restore.
+Captured Nuke help listed that graph, then exited with "The handle is invalid"
+from console handling; Restore/Compile were NotRun. This is graph inspection,
+not a passing publishing run. No publishing target was executed, no remote
+package was pushed, and machine NuGet source configuration was not changed.
+The initial PowerShell reflection probe rejected a wrapped path argument;
+the explicit string/object-array probe then successfully called the compiled
+PathHelper. Logs and `final-publishing-path.json` retain these observations.
+
+Final Nuke Precommit formatting verification passed in 23s with the existing
+unsupported-F# project diagnostics. The configured changelog validator passed.
+Husky again failed Git/path discovery; neither hook nor check was bypassed, and
+both configured checks were executed directly. Runtime and frozen files remain
+unchanged from the source checkpoint, so full runtime tests/coverage were not
+repeated for documentation, the proof harness and publishing registration.
+Final `mise run openspec:verify` passed all 14 strict items and both checker
+tests; apply instructions report 9/9 complete and state all_done. Relative
+documentation links, PowerShell parsing and git diff --check passed.
+All nine implementation tasks are now verified. PR delivery, newer-main
+integration, review, landing, archive and cleanup remain separate workflow steps.
 
 ## Ownership
 

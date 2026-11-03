@@ -18,13 +18,13 @@ value semantics. No FSharp.Core, compiler, model, CLI or Roslyn dependency.
 | Feature | Status | Evidence |
 | --- | --- | --- |
 | Contribution and predecessor gates | Implemented | Issue #464 and PRD before production; exact #462/#463 landing; own project has no package or project references |
-| Maybe, Result, Unit and Order | In Progress | Public unit/BDD checks pass; two package compiler profiles pending |
+| Maybe, Result, Unit and Order | Implemented | Public unit/BDD and both exact ordinary package compiler profiles pass |
 | Checked scalar and decimal behavior | Implemented | Frozen scalar observations and callback errors pass; decimal authored-scale and canonical-result checks pass |
 | Persistent List, Dict and Set | Implemented | Retained operands, structural equality/hash, homogeneous comparers and signed-zero replacement regression pass |
 | Public runtime conformance adapter | Implemented | After review fixes, 207/207 required IDs executed/passed; eight exclusions separate; API examples written |
-| Isolated package consumers | Planned | Numeric C#14 stable and C#15 RC with exact compiler SDK pins |
-| Trimmed and NativeAOT consumers | Planned | Representative public variants and nested collections |
-| Integrated validation and handoff | Planned | Full suite, meaningful runtime coverage, formatting, OpenSpec, PR |
+| Isolated package consumers | Implemented | Same source; numeric C#14.0/SDK10.0.403 and C#15.0/SDK11 RC2 restore/build/run with one local package dependency |
+| Trimmed and NativeAOT consumers | Implemented | Both win-arm64 publications execute the same public assertions/output, warnings treated as errors |
+| Integrated validation and handoff | Implemented | Full suite, production coverage, package registration and downstream API handoff; PR landing/archive/cleanup remain coordinator-owned |
 
 ## Acceptance
 
@@ -156,7 +156,33 @@ backup push. Five of nine OpenSpec tasks are complete; variant compiler-profile
 proof and all three packaged/integrated handoff tasks remain unchecked. No PR,
 package-profile/AOT certification, landing or cleanup completion is claimed.
 
+### Final package and downstream checkpoint
+
+The runtime checkpoint was committed and normally backed up at
+`0b01ff037f0496071e8ba4689c785376658a8f30`. Its production source remains unchanged.
+The final fresh `verify-package-consumers.ps1 -Mode All` run restored, compiled
+and executed the same public consumer against an isolated local package under
+numeric C#14.0 / SDK10.0.403 and numeric C#15.0 / SDK11.0.100-rc.2.26504.105.
+Both ordinary dependency graphs contain exactly one runtime package and no
+repository project references. Representative trimmed and NativeAOT win-arm64
+publications also executed with the same asserted output. Compiler revisions,
+official RC archive hash, artifact hashes, prerequisites and earlier failed
+setup attempts are recorded in [validation](../../../../../openspec/changes/add-immutable-csharp-sdk/validation.md).
+
+The [downstream API handoff](../../../../../openspec/changes/add-immutable-csharp-sdk/api-handoff.md)
+defines the single reusable API, generated-record IMorphirValue equality/hash
+requirements, callback errors and comparator limits. Native C# unions and the
+source-generator adapter remain deferred. Native publication evidence is
+representative Windows arm64 evidence, not certification of every target.
+
+The coordinator registered the exact versioned C# package in both PublishLibs
+and PublishLocalLibs. The Nuke assembly compiles and the packed path exists;
+neither publishing target was executed and machine NuGet configuration was not
+changed. Final formatting and OpenSpec evidence supplements the runtime
+checkpoint's full-suite, coverage, PackAll and TestBuild results.
+
 ## Open questions
 
-No contract exceptions are accepted. Toolchain versions and package/publication
-evidence remain unverified until their checks run under the coordinator's lease.
+No contract exceptions are accepted. Implementation acceptance is verified;
+PR review, newer-main integration, landing, spec sync/archive and worktree
+cleanup remain coordinator-owned delivery steps.

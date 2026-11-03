@@ -5,7 +5,7 @@ Read [design](design.html), [spec](specs/csharp-sdk-runtime/spec.md) and [handof
 ## 1. Package and immutable scalar values
 
 - [x] 1.1 Confirm the predecessor PR is merged into main and read its frozen signatures/profiles; create the SDK PRD before production edits and verify the package has no compiler, CLI or F# dependency.
-- [ ] 1.2 Write failing public consumer/BDD cases for Maybe, Result, Unit and Order, then implement the minimal immutable types and admitted combinators; verify error/success payload meanings and both language-profile consumer builds.
+- [x] 1.2 Write failing public consumer/BDD cases for Maybe, Result, Unit and Order, then implement the minimal immutable types and admitted combinators; verify error/success payload meanings and both language-profile consumer builds.
 - [x] 1.3 Implement scalar operations incrementally from failing admitted boundary cases, documenting exact errors and representation limits with the code; verify the shared scalar observations through public APIs.
 
 ## 2. Persistent collection semantics
@@ -16,9 +16,9 @@ Read [design](design.html), [spec](specs/csharp-sdk-runtime/spec.md) and [handof
 
 ## 3. Packaged runtime evidence
 
-- [ ] 3.1 Pack and restore fresh ordinary C# consumers from an isolated local feed; verify the documented API and dependency closure under pinned stable and RC compiler profiles.
-- [ ] 3.2 Publish and run representative trimmed and Native AOT runtime consumers; verify variants, nested collections and SDK calls match ordinary-build behavior and document supported runtime targets.
-- [ ] 3.3 Coordinate solution/package/index updates, run strict OpenSpec validation and repository-required formatting/full tests/coverage, and produce the downstream API handoff; verify there is one runtime API usable by both generator profiles.
+- [x] 3.1 Pack and restore fresh ordinary C# consumers from an isolated local feed; verify the documented API and dependency closure under pinned stable and RC compiler profiles.
+- [x] 3.2 Publish and run representative trimmed and Native AOT runtime consumers; verify variants, nested collections and SDK calls match ordinary-build behavior and document supported runtime targets.
+- [x] 3.3 Coordinate solution/package/index updates, run strict OpenSpec validation and repository-required formatting/full tests/coverage, and produce the downstream API handoff; verify there is one runtime API usable by both generator profiles.
 
 ## Workflow follow-up
 
