@@ -11,7 +11,7 @@ owned worktrees. The coordinator retains the shared bootstrap checkout.
 
 | Initiative | Status | Implementation owner | Predecessor on main | Contract |
 | --- | --- | --- | --- | --- |
-| [establish-dotnet-sdk-conformance](../../../../../openspec/changes/establish-dotnet-sdk-conformance/proposal.md) | PR-ready, landing pending | Conformance lead, `t3/dotnet-sdk-conformance` | Planning PR #459, landed `890aacb61df601f2876112a2cdd4d9d6f5757ca6` | Inventory, profiles, schema and evidence |
+| [establish-dotnet-sdk-conformance](../../../../../openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance/proposal.md) | Implementation landed, archive PR/cleanup pending | Conformance lead, `t3/dotnet-sdk-conformance` | Planning PR #459, landed `890aacb61df601f2876112a2cdd4d9d6f5757ca6` | Inventory, profiles, schema and evidence |
 | [add-immutable-csharp-sdk](../../../../../openspec/changes/add-immutable-csharp-sdk/proposal.md) | Planned | C# SDK lead, dispatched by coordinator | Conformance initiative | Immutable public SDK API |
 | [introduce-fsharp-sdk-package](../../../../../openspec/changes/introduce-fsharp-sdk-package/proposal.md) | Planned | F# SDK lead, dispatched by coordinator | Conformance initiative | Package compatibility and covered corrections |
 | [add-csharp-code-generation](../../../../../openspec/changes/add-csharp-code-generation/proposal.md) | Planned | C# generation lead, dispatched by coordinator | C# SDK initiative | Typed generation/options/diagnostics |
@@ -28,11 +28,11 @@ define ownership, dispatch, dependencies, squash-aware verification and cleanup.
 Successors start from main containing their verified predecessor's landed SHA.
 No successor may guess a missing contract or use an unmerged sibling checkout.
 
-All leads use Codex `gpt-6.1-sol` with `reasoningEffort: high`. There is one
-delivery-wide expensive-command slot. The conformance lead holds it exclusively
-until handoff. At most three auxiliaries are available to this sole active lead;
-start with one and assess resource headroom before expansion. Auxiliaries cannot
-delegate. The lead is the sole Git writer in any shared checkout.
+The static plan specifies Codex `gpt-6.1-sol` with `reasoningEffort: high` and
+one delivery-wide expensive-command slot. Actual resource leases are supplied
+by the coordinator. This bounded archive follow-up holds that slot and has no
+authorized auxiliaries. The implementation lead released its slots and stopped
+its helpers at handoff.
 
 ## Implementation notes
 
@@ -52,8 +52,14 @@ It names 67 operations, 207 required cases, eight representation exclusions and
 four required F# gaps. Local Nuke Test passed 2,752 suite tests and 15 package
 lifecycle checks; PackAll and all 40 TestBuild checks passed. The offline
 conformance suite passes 27 tests with 93.42% measured validator line coverage.
-The other four initiatives remain gated on verified predecessor merges on main.
+The C# and F# runtime leads can use the verified conformance landing after
+checking the frozen contract on refreshed main. Generation and CLI work remain
+gated on their own predecessor merges. All 207 required IDs must execute and
+pass in each runtime, including the four named F# gaps.
 
-The coordinator records PR URLs, final submitted heads, distinct landed SHAs,
-archive paths and cleanup evidence after each milestone. The conformance PRD
-records local validation. No initiative is merged, archived or cleaned yet.
+The [conformance delivery record](../../../../../docs/design/dotnet-csharp-generation/conformance-delivery.md)
+records #462, submitted and landed SHAs, the explicit admin-bypass authorization,
+missing developer approval and cleanup evidence. Conformance implementation
+is on main; spec synchronization/archive is prepared in this follow-up. Its PR
+must land and all owned worktree/artifact cleanup must finish before conformance
+is complete. The other four initiatives remain planned.

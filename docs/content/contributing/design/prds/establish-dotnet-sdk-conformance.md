@@ -1,9 +1,9 @@
 # Establish .NET SDK conformance
 
-Status: In Progress
+Status: In Progress, implementation landed; archive PR and cleanup pending
 
 Tracking: [issue #460](https://github.com/finos/morphir-dotnet/issues/460),
-[OpenSpec change](../../../../../openspec/changes/establish-dotnet-sdk-conformance/proposal.md),
+[OpenSpec change](../../../../../openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance/proposal.md),
 [umbrella PRD](dotnet-code-generation.md).
 
 ## Goal
@@ -27,7 +27,7 @@ generation and CLI integration belong to successor initiatives.
 
 ## Acceptance
 
-The [capability spec](../../../../../openspec/changes/establish-dotnet-sdk-conformance/specs/dotnet-sdk-conformance/spec.md)
+The [capability spec](../../../../../openspec/specs/dotnet-sdk-conformance/spec.md)
 defines acceptance. Unknown operations, malformed values, unresolved provenance
 and unclassified coverage must fail with located diagnostics. Known gaps retain
 their expected observations and do not grant runtime passes. Validation needs no
@@ -200,22 +200,24 @@ checks/reviews.
 
 ## Delivery state
 
-Implementation is PR-ready. The [readiness manifest](../../../../../tests/Fixtures/MorphirSDK/readiness.json)
-pins contract artifact commit `737e85b3a202ba733b153be637e33cf953342705`, all
-67 operation IDs, 207 required case IDs, eight explicit exclusions, four F# gap
-owners, 12 contract-file hashes and the exact Codex `gpt-6.1-sol`/high dispatch
-configuration. `python C:/Temp/morphir-sdk-conformance-b255f4d7/audit-readiness.py`
-verified those counts, hashes, identities, disjoint classifications and merge
-gate conditions. The hashes use Git blob bytes, with CRLF normalization only
-when comparing non-evidence text checkout files.
+[PR #462](https://github.com/finos/morphir-dotnet/pull/462) landed on main by
+squash at `793f378b8559bd667baa49bc0ba2cdf156d088c8`. Submitted head
+`3566994148259bf042cc11d864cf11703b4181e7` and frozen artifact commit
+`737e85b3a202ba733b153be637e33cf953342705` remain distinct. All eight host
+checks passed on the submitted head. No other-developer approval was submitted;
+the user explicitly authorized the coordinator's admin-bypass merge of #462.
+That exception does not authorize merging the archive follow-up.
 
-Both runtime initiatives remain in `awaiting-verified-main-merge`. The
-coordinator must verify this PR's actual landed SHA on refreshed main before
-dispatch. A squash need not preserve the submitted artifact commit's ancestry.
-The coordinator records the PR/landed SHA and advances the readiness/delivery
-state during landing/archive follow-up. No fixture exclusion, known gap, skip or
-expected failure can satisfy a required runtime case.
+The [delivery record](../../../../../docs/design/dotnet-csharp-generation/conformance-delivery.md)
+records landing verification, the synchronized main spec and archive, runtime
+gates and cleanup ownership. The [readiness manifest](../../../../../tests/Fixtures/MorphirSDK/readiness.json)
+records the verified merge and retains all 12 frozen hashes, 67 operation IDs,
+207 required IDs, eight exclusions and four unresolved F# gaps. Both runtime
+leads must verify those hashes and identities from refreshed main containing
+the landed SHA before dispatch. No runtime conformance is claimed.
 
-PR landing, the required other-developer sign-off, spec synchronization/archive
-and owned worktree cleanup remain the root coordinator's responsibility. This
-initiative is not complete at the PR-ready milestone.
+The implementation worktree and its Git registration have been removed by the
+coordinator. The archive follow-up still must land on main, its own worktree
+must be cleaned, and retained artifacts need coordinator disposition before
+this initiative can be marked complete. The other four initiatives remain
+independent successor work.

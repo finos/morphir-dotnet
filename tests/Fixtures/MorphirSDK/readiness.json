@@ -433,7 +433,7 @@
     }
   },
   "runtimeReadiness": {
-    "state": "awaiting-verified-main-merge",
+    "state": "verified-main-merge",
     "baseBranch": "main",
     "requiresMergedInitiativePullRequest": true,
     "requiresLandedShaReachableFromRefreshedMain": true,
@@ -441,6 +441,23 @@
     "requiresOriginalWorkerHeadAncestry": false,
     "requiredChecksAndOtherDeveloperSignoffRequired": true,
     "landingArchiveAndCleanupOwner": "root coordinator"
+  },
+  "landingEvidence": {
+    "pullRequestUrl": "https://github.com/finos/morphir-dotnet/pull/462",
+    "submittedHeadSha": "3566994148259bf042cc11d864cf11703b4181e7",
+    "mergeMethod": "squash",
+    "landedSha": "793f378b8559bd667baa49bc0ba2cdf156d088c8",
+    "mergedAt": "2026-11-03T07:38:16Z",
+    "baseBranch": "main",
+    "mergedPullRequestVerified": true,
+    "landedShaReachableFromRefreshedMain": true,
+    "submittedHeadHostChecksPassed": 8,
+    "otherDeveloperApprovalSubmitted": false,
+    "mergeAuthorization": "User explicitly authorized admin bypass for already merged PR #462; no authorization to merge the archive follow-up.",
+    "deliveryState": "archive-pr-and-cleanup-pending",
+    "archivePath": "openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance",
+    "archiveFollowUpLanded": false,
+    "deliveryRecordPath": "docs/design/dotnet-csharp-generation/conformance-delivery.md"
   },
   "runtimeAcceptance": {
     "requiredIdsMustAllExecuteAndPass": true,

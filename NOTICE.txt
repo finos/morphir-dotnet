@@ -44,3 +44,10 @@ tests/Fixtures/MorphirSDK/PROVENANCE.md
 tests/Fixtures/MorphirSDK/provenance.json
 
 The repository's existing NOTICE remains applicable and is preserved verbatim.
+
+Post-merge conformance archive submission
+
+This follow-up moves the completed OpenSpec change, synchronizes its capability
+specification, repairs documentation paths and records verified delivery metadata.
+It adds no third-party source, license or restriction. All source evidence,
+licenses, attribution and existing notices above remain unchanged.
