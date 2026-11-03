@@ -5,7 +5,7 @@ Read [the design](design.html) and change-local specs before starting. Existing 
 
 ## 1. Campaign setup
 
-- [ ] 1.1 Prepare a campaign-owned worktree/branch from current main, record its baseline and ownership, and link the real tracking issue; verify clean status and the absence of unmet implementation prerequisites.
+- [x] 1.1 Prepare a campaign-owned worktree/branch from current main, record its baseline and ownership, and link the real tracking issue; verify clean status and the absence of unmet implementation prerequisites.
 - [ ] 1.2 Pin the relevant finos/morphir and morphir-moonbit schema/corpus revisions in fixture provenance, including profile, YAML, null/shape, and manifest behavior; verify fixture hashes and record deliberate policy differences without changing IR fixtures.
 
 ## 2. Typed documents and format readers

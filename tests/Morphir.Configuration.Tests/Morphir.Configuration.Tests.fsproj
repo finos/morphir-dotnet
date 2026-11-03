@@ -28,6 +28,7 @@
     <ItemGroup>
         <Compile Include="MergeTests.fs" />
         <Compile Include="CiDetectionTests.fs" />
+        <Compile Include="DocumentMergeTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
