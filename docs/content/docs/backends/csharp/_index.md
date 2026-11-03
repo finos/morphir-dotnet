@@ -13,7 +13,10 @@ Numeric C# 15 uses the same public representation and runtime contract.
 Both typed paths now lower transparent aliases, generic closed records, tuples,
 function and unit payloads, and closed custom cases. Generated payload properties
 are get-only. Both typed paths now emit literals, variables and references,
-application, returned functions, lambdas and nonrecursive value/function lets.
+application, returned functions, lambdas, nonrecursive value/function lets,
+conditionals, top-level self recursion, constructors, tuples, lists and closed
+record operations. Ordered patterns include wildcard, alias, literal, tuple,
+constructor, empty-list, head/tail and unit patterns.
 The current SDK operation slice is `Basics.add`. The remaining expression and
 SDK scope is tracked in the active OpenSpec tasks.
 It is not yet a complete backend. Decoding, configuration, source publication
@@ -110,5 +113,18 @@ to the corresponding double constants. Invalid UTF-16 strings fail explicitly.
 Type checking runs before a successful source set is returned. Unknown variables
 and references, inconsistent applications, infinite types and unsupported numeric
 constraints produce located diagnostics. Local recursive groups remain outside
-the admitted slice. Ordered patterns, record operations, self recursion and the
-broader SDK mapping are still being implemented.
+the admitted slice. Broader SDK mapping and traversal cancellation acceptance
+are still being implemented.
+
+Matches evaluate their subject once and select the first matching branch.
+Destructuring and pattern lambdas bind fresh lexical identities after their
+pattern succeeds. An unmatched non-exhaustive match or destructuring raises a
+pattern failure. This is the source operation's failure, with all branches
+checked during generation. Unsupported source operations fail generation.
+
+Record expressions evaluate fields in source order. Updates evaluate the target
+once, then update values in source order, and construct a new immutable record.
+Constructor argument order follows the selected structural record declaration.
+The classic model's record map has key order; v4 retains its authored field order.
+Field functions require a known closed record type. Missing fields, incompatible
+updates, duplicate binders and inconsistent branch types produce located failures.

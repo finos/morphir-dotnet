@@ -244,6 +244,93 @@ let externalDiagnostics model (consumer: string) =
 [<Tests>]
 let tests =
     testList "C# generation" [
+        for memberName in [ "referenceEquals"; "memberwiseClone"; "finalize" ] do
+            testCase (
+                "Record payload cannot hide inherited "
+                + memberName
+            )
+            <| fun _ ->
+                let shape = FunctionCases.RecordTy [ memberName, FunctionCases.Int ]
+
+                let model =
+                    FunctionCases.classicWith [
+                        {
+                            Name = "identity"
+                            Inputs = [ "x", shape ]
+                            Output = shape
+                            Body = FunctionCases.Variable "x"
+                        }
+                    ]
+
+                let result =
+                    CSharpGenerator.Generate(
+                        model,
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal result.Status GenerationStatus.Failure "inherited protocol collision"
+        for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
+            testCase (
+                "Method cannot hide its own generic parameter "
+                + family
+            )
+            <| fun _ ->
+                let definition: FunctionCases.Definition = {
+                    Name = "tA"
+                    Inputs = [ "x", FunctionCases.Generic "a" ]
+                    Output = FunctionCases.Generic "a"
+                    Body = FunctionCases.Variable "x"
+                }
+
+                let result =
+                    CSharpGenerator.Generate(
+                        make [ definition ],
+                        GenerationOptions.Default,
+                        CancellationToken.None
+                    )
+
+                Expect.equal
+                    result.Status
+                    GenerationStatus.Failure
+                    "generic method identity collision"
+        testCase "V4 record values preserve source field evaluation order"
+        <| fun _ ->
+            let consumer =
+                PatternCases.consumer
+                    .Replace("trace[0]!=1 || trace[1]!=2", "trace[0]!=2 || trace[1]!=1")
+                    .Replace("trace[1]!=4 || trace[2]!=3", "trace[1]!=3 || trace[2]!=4")
+
+            Expect.equal
+                (executeConsumer (PatternCases.v4Reversed ()) 14 consumer)
+                1
+                "v4 ordered fields"
+        for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
+            for index, (rule, definition) in
+                PatternCases.refusals
+                |> List.indexed do
+                testCase ($"Pattern and record refusal {family} {index}")
+                <| fun _ ->
+                    let result =
+                        CSharpGenerator.Generate(
+                            make [ definition ],
+                            GenerationOptions.Default,
+                            CancellationToken.None
+                        )
+
+                    Expect.equal result.Status GenerationStatus.Failure "semantic refusal"
+                    Expect.isEmpty result.Sources "no partial artifacts"
+                    Expect.equal result.Diagnostics.Head.Rule rule "located category"
+        for family, make in [ "classic", PatternCases.classic; "v4", PatternCases.v4 ] do
+            testCase (
+                "Compiled ordered patterns and persistent records "
+                + family
+            )
+            <| fun _ ->
+                Expect.equal
+                    (executeConsumer (make ()) 14 PatternCases.consumer)
+                    1
+                    "first match, aliases, recursion, record persistence and evaluation order"
         for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
             testCase (
                 "Function generic parameter collisions are located "
@@ -1230,51 +1317,9 @@ let main args =
 
         let model =
             if args[2] = "classic" then
-                match
-                    (TypeCases.classic ()).Distribution, (FunctionCases.classic ()).Distribution
-                with
-                | DistributionModel.Classic(Distribution.Library(pkg, deps, types)),
-                  DistributionModel.Classic(Distribution.Library(_, _, functions)) ->
-                    { TypeCases.classic () with
-                        Distribution =
-                            DistributionModel.Classic(
-                                Distribution.Library(
-                                    pkg,
-                                    deps,
-                                    {
-                                        Modules =
-                                            Map.fold
-                                                (fun modules name value ->
-                                                    Map.add name value modules
-                                                )
-                                                types.Modules
-                                                functions.Modules
-                                    }
-                                )
-                            )
-                    }
-                | _ -> failwith "Classic typed corpus required."
+                PatternCases.classic ()
             else
-                match (TypeCases.v4 ()).Distribution, (FunctionCases.v4 ()).Distribution with
-                | DistributionModel.V4(Morphir.IR.V4.Library(pkg, deps, types)),
-                  DistributionModel.V4(Morphir.IR.V4.Library(_, _, functions)) ->
-                    { TypeCases.v4 () with
-                        Distribution =
-                            DistributionModel.V4(
-                                Morphir.IR.V4.Library(
-                                    pkg,
-                                    deps,
-                                    {
-                                        Modules =
-                                            TypeCases.ordered (
-                                                Morphir.IR.V4.OrderedMap.toList types.Modules
-                                                @ Morphir.IR.V4.OrderedMap.toList functions.Modules
-                                            )
-                                    }
-                                )
-                            )
-                    }
-                | _ -> failwith "V4 typed corpus required."
+                PatternCases.v4 ()
 
         let result = CSharpGenerator.Generate(model, options, CancellationToken.None)
 
@@ -1299,6 +1344,7 @@ let main args =
                 "Aliases", TypeCases.aliasConsumer
                 "Nested", TypeCases.nestedConsumer
                 "Functions", FunctionCases.consumer
+                "Patterns", PatternCases.consumer
             ]
             |> List.map (fun (name, body) ->
                 "namespace "

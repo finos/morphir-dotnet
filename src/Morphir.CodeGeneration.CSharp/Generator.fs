@@ -32,11 +32,15 @@ module internal Foundation =
         | Documented.WithoutDocumentation x -> x
 
     let sources (model: VersionedModel) (ct: CancellationToken) =
-        let catalog, types = TypeEmission.prepare model ct
+        let initialCatalog, _ = TypeEmission.prepare model ct
 
-        let values =
+        let checkedValues =
             ValueLowering.declarations model ct
-            |> ValueLowering.emit catalog ct
+            |> ValueLowering.check initialCatalog ct
+
+        let records = ValueLowering.recordDeclarations model ct checkedValues
+        let catalog, types = TypeEmission.prepareWith records model ct
+        let values = ValueEmission.emit catalog ct checkedValues
 
         let sources pkg modules =
             if not (List.isEmpty modules) then

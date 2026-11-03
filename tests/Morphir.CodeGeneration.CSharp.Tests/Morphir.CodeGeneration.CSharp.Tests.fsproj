@@ -21,6 +21,7 @@
     <Compile Include="RefusalCases.fs" />
     <Compile Include="LiteralCases.fs" />
     <Compile Include="FunctionCases.fs" />
+    <Compile Include="PatternCases.fs" />
     <Compile Include="Tests.fs" />
     <None Include="Generation.feature" />
   </ItemGroup>

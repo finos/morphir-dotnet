@@ -496,8 +496,19 @@ module internal TypeEmission =
             | Parameter a, Parameter b when a = b -> Some bindings
             | Named(a, left), Named(b, right) when a = b -> many bindings left right
             | Product left, Product right -> many bindings left right
-            | Fields left, Fields right when List.map fst left = List.map fst right ->
-                many bindings (List.map snd left) (List.map snd right)
+            | Fields left, Fields right when
+                (List.map fst left
+                 |> List.sort) = (List.map fst right
+                                  |> List.sort)
+                ->
+                many
+                    bindings
+                    (left
+                     |> List.sortBy fst
+                     |> List.map snd)
+                    (right
+                     |> List.sortBy fst
+                     |> List.map snd)
             | Arrow(a, b), Arrow(c, d) ->
                 matched bindings a c
                 |> Option.bind (fun bindings -> matched bindings b d)
@@ -919,8 +930,10 @@ module internal TypeEmission =
             args
             |> List.iter (validatePublicType catalog location)
 
-    let prepare model ct =
-        let raw = declarations model ct
+    let prepareWith additions model ct =
+        let raw =
+            declarations model ct
+            @ additions
 
         let checkFields location className fields =
             uniqueNames
@@ -930,15 +943,10 @@ module internal TypeEmission =
 
             for name, _ in fields do
                 if
-                    List.contains (title name) [
-                        className
-                        "MorphirEquals"
-                        "MorphirHashCode"
-                        "Equals"
-                        "GetHashCode"
-                        "GetType"
-                        "ToString"
-                    ]
+                    List.contains
+                        (title name)
+                        (className
+                         :: protocolNames)
                 then
                     Admission.fail
                         "name-collision"
@@ -949,7 +957,8 @@ module internal TypeEmission =
                          + " protocol or constructor.")
 
         for declaration in raw do
-            validateName declaration.Location declaration.Name.LocalName
+            if not declaration.Synthetic then
+                validateName declaration.Location declaration.Name.LocalName
 
             uniqueNames
                 declaration.Location
@@ -978,6 +987,9 @@ module internal TypeEmission =
                                 "GetHashCode"
                                 "GetType"
                                 "ToString"
+                                "ReferenceEquals"
+                                "MemberwiseClone"
+                                "Finalize"
                              ]
                              @ (List.map generic declaration.Parameters))
                     then
@@ -1189,3 +1201,5 @@ module internal TypeEmission =
 
 
         catalog, modules
+
+    let prepare model ct = prepareWith [] model ct

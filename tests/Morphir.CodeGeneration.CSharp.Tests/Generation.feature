@@ -23,6 +23,13 @@ Feature: Reusable typed C# library generation
     Then arguments execute once in order and closures retain their original binding
     And partial application and returned nested functions retain their concrete types
 
+  Scenario: Ordered patterns and persistent records
+    Given constructor, tuple, list, wildcard, literal and alias patterns
+    When the compiled consumer evaluates ordered branches and recursive list sum
+    Then the first matching branch executes with correctly typed bindings
+    And record construction and updates evaluate each input once in source order
+    And the original record remains unchanged
+
   Scenario Outline: The shared behavior corpus
     Given an admitted <family> library
     When it is generated for numeric C# <language>

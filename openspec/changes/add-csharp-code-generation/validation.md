@@ -329,3 +329,70 @@ checker and its two tests are checked before commit. Leased Markdown relative
 links resolve. No publishing target, blocked directory, other shared path or
 auxiliary is involved. Temporary pattern test drafts remain unregistered and are
 explicitly not passing acceptance evidence.
+
+## Ordered patterns and persistent record operations
+
+The registered pattern drafts first produced two actual RED failures in
+`patterns-red.log`, one per family. Separate typed classic/v4 walkers now check
+patterns and expressions before target emission. The shared compiled consumer
+observes first-match order, custom constructors and constructor function values,
+tuple aliases, pattern lambdas, destructuring, recursive list sum, list literals,
+record construction/fields/updates, field functions, conditionals and unit.
+Further cases check nine-element tuples, Boolean/string/unit patterns, selected
+conditional branches, duplicate binders, branch types, unknown fields, update
+types and explicit local-recursion refusal. A separate v4 execution reverses
+record/update field order and verifies the callback trace independently.
+
+Five additional RED failures in `patterns-name-red.log` exposed inherited CLR
+record-field collisions and function/type-parameter identity collisions. Located
+name refusals correct both. The focused Release suite passes 126/126. Static
+production-only coverage is 2,506/2,687 lines, 93.26386304428731%, in
+`patterns-01.cobertura.xml`, with all authored generator code in the denominator.
+
+`patterns-matrix-01/profiles.json` records four actual compiler executions of the
+same type/function/pattern/record corpus. Both families compile and run with
+numeric 14.0 on SDK 10.0.403/csc 5.9.0 and numeric 15.0 on SDK
+11.0.100-rc.2.26504.105/csc 5.12.0, using the pinned revisions recorded above.
+All four source sets are identical. The Data module SHA-256 remains
+`5ac1939afbf1bc9e41626381666e62ee7ec818ab8995505f3ee8f9f8ac057456`;
+the expanded Functions module is
+`fc16928b47a13acf59cb28d90e51a4bd8e6732fb40b494fc5737a373cf6612e9`.
+
+The first native full Test run reused compiled outputs and failed in 52 existing
+Tooling CLI tests because CLI processes could not load Morphir.Configuration or
+Morphir.IR.Pipeline. The generator's 126 tests and all other executed suites
+passed; cold checks did not run after the Test failure. The complete failed run
+is retained in `patterns-full-test.log`. With no active compiler/test processes,
+the normal native Test target was restarted with Restore and Compile included
+to reconstruct the CLI dependency closure. Its result is recorded below.
+
+All twelve frozen contract digests still match, owned Markdown relative links
+resolve, and strict OpenSpec validation passes all 22 items. Task 3.2 is checked
+from the compiled behavior evidence; SDK mapping, traversal cancellation,
+business fixtures and final package/trimming acceptance remain pending.
+
+The rebuilt native full Test passed in 7m09, including Restore 2s, Compile 1m23
+and Test 5m42. `patterns-suite-totals.json` captures 3,527 suite tests, including
+generator 126/126, plus 15 cold package-consumer checks and 48 configuration
+inspection smoke checks. Failures, skips and ignored tests are zero. PackAll
+passed in 48s. Fresh Models/generator packages pass metadata validation and the
+compiled exact-version package lookup in `patterns-package-metadata.json`.
+No publishing target was executed. All six frozen JSON files match their exact
+raw SHA-256 hashes; the remaining text hashes use the manifest's LF normalization.
+All 44 original evidence files match their raw byte hashes.
+
+TestBuild passes 40/40. The fresh packaged host passes 126/126 in
+`patterns-host-01`, with the unchanged production closure and bounded tested
+host described above. Native Precommit passes in 32s with the inherited
+unsupported-F# diagnostics; changelog validation and strict OpenSpec's snapshot,
+schema, 22 items and two tests pass.
+
+The first Fantomas check incorrectly supplied directories as file arguments and
+failed with UnauthorizedAccessException. The corrected explicit file check found
+five formatting differences. After formatting, a fresh Release build and all
+126 tests pass. The refreshed all-authored-production report is 2,514/2,695 lines,
+93.28385899814471%, in `patterns-final.cobertura.xml`. A new PackAll passes in 46s;
+both fresh packages pass metadata/exact lookup checks, and `patterns-host-02`
+passes 126/126. These final changes are formatting only; the full native result
+above covers the unchanged behavior. The final source export is compared with
+the exact four compiler-tested source sets before committing.
