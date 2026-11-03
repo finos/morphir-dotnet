@@ -2,6 +2,18 @@
 Feature: Inspect configuration without mutating the project
   Inspection shares canonical resolution with embedded hosts and keeps stdout scriptable.
 
+  Scenario Outline: Reports preserve supported configuration depth
+    Given an inspection workspace with a member and a personal override
+    And the member contains a TOML table with <depth> path segments
+    When I inspect with "show --isolated"
+    Then inspection exits with 0 and one JSON result
+    And the nested table at <depth> path segments retains its values
+
+    Examples:
+      | depth |
+      | 65    |
+      | 127   |
+
   Scenario: Host initialization failures preserve structured inspection output
     Given an inspection workspace with a member and a personal override
     And the invocation directory contains malformed host appsettings

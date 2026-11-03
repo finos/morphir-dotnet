@@ -19,6 +19,9 @@ public sealed record ConfigurationReport(
     ConfigurationEntryDto[] Entries, ConfigurationSourceReportDto[] Sources,
     ConfigurationContributionDto[] Contributions, ConfigurationDiagnosticDto[] Diagnostics, int ExitCode, ConfigurationValueTypeDto[] ValueTypes)
 {
+    // Readers accept 128 levels; retain room for typed tags and report envelopes.
+    internal const int MaxJsonDepth = 256;
+
     public string ToJson() => JsonSerializer.Serialize(this, ConfigurationJsonContext.Default.ConfigurationReport);
 
     internal static ConfigurationReport From(InspectionResult result, bool origin, bool scope)
@@ -67,8 +70,8 @@ public sealed record ConfigurationReport(
     internal static JsonElement JsonValue(ConfigValue value, string pointer, List<ConfigurationValueTypeDto> valueTypes)
     {
         using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream)) WriteValue(writer, value, pointer, valueTypes);
-        using var document = JsonDocument.Parse(stream.ToArray());
+        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { MaxDepth = MaxJsonDepth })) WriteValue(writer, value, pointer, valueTypes);
+        using var document = JsonDocument.Parse(stream.ToArray(), new JsonDocumentOptions { MaxDepth = MaxJsonDepth });
         return document.RootElement.Clone();
     }
 
@@ -114,6 +117,6 @@ public sealed record ConfigurationReport(
     }
 }
 
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true, MaxDepth = global::Morphir.Tooling.Features.Configuration.ConfigurationReport.MaxJsonDepth)]
 [JsonSerializable(typeof(ConfigurationReport))]
 internal partial class ConfigurationJsonContext : JsonSerializerContext;

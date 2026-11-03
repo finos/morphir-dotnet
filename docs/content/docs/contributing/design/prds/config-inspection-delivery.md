@@ -197,3 +197,24 @@ failure log is retained under `parent-review/ci-windows-45196ca.log`.
 The affected explanation and origin subprocess cases each pass after this
 test-only correction, and the tooling test build, changed-file formatter and
 whitespace checks pass. Native Windows confirmation remains CI-owned.
+
+
+### Parent query review fix
+
+The independent query review found that supported deep values failed inspection
+presentation at `45196ca`: readers accept 128 levels, while both the intermediate
+JsonDocument and generated report serializer retained System.Text.Json's default
+64-level limit. A linked-source smoke regression first failed with a reader-depth
+exception, `depth-red.log`. Raising only the value writer/parser limit then
+failed at the report envelope's generated serializer, `depth-envelope-red.log`.
+The common 256-level limit now covers the writer, JsonDocument and generated
+context, allowing the reader limit plus report nesting and typed numeric tags.
+
+The smoke host adds 24 checks across 65- and 127-segment nested objects through
+show, subtree get and explain. It checks successful JSON, deepest-leaf numeric
+tags/type metadata and redaction before encoding. Managed execution passes all
+48 checks. Two additional CLI BDD cases load real TOML at those same depths and
+validate the published JSON schema, leaf values, exit code and redaction. Both
+pass. The CLI reference documents an appropriate depth limit for consumers.
+The disposable review probe directory is
+`/private/tmp/morphir-config-inspection-review-queries`.

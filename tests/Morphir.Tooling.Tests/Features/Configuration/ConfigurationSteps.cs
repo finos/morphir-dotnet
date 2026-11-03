@@ -51,6 +51,20 @@ public sealed class ConfigurationSteps : IDisposable
     [Given("environment profiles contain an empty name")]
     public void InvalidEnvironmentProfile() => _variables["MORPHIR_PROFILES"] = "ci,,metrics";
 
+    [Given("the member contains a TOML table with {int} path segments")]
+    public void DeepTable(int depth) => File.WriteAllText(Path.Combine(_root, "app", "morphir.toml"),
+        "[project]\nname='App'\n[" + string.Join('.', Enumerable.Repeat("a", depth)) + "]\nx=1\npassword='never-print-deep-secret'\n");
+
+    [Then("the nested table at {int} path segments retains its values")]
+    public void DeepTableResult(int depth)
+    {
+        var leaf = _json!.RootElement.GetProperty("value");
+        for (var level = 0; level < depth; level++) leaf = leaf.GetProperty("a");
+        leaf.GetProperty("x").GetInt64().Should().Be(1);
+        leaf.GetProperty("password").GetString().Should().Be("[REDACTED]");
+        (_stdout + _stderr).Should().NotContain("never-print-deep-secret");
+    }
+
     [Given("the member contains nonfinite and temporal values")]
     public void SpecialNumbers() => File.WriteAllText(Path.Combine(_root, "app", "morphir.toml"), """
         [project]
@@ -123,7 +137,7 @@ public sealed class ConfigurationSteps : IDisposable
     public void Result(int expected)
     {
         _exit.Should().Be(expected, _stdout + _stderr);
-        _json = JsonDocument.Parse(_stdout);
+        _json = JsonDocument.Parse(_stdout, new JsonDocumentOptions { MaxDepth = 256 });
         _json.RootElement.ValueKind.Should().Be(JsonValueKind.Object);
         var schema = JsonSchema.FromText(File.ReadAllText(Path.Combine(RepositoryRoot().FullName, "docs", "spec", "schemas", "config-inspection-result.schema.json")));
         schema.Evaluate(_json.RootElement).IsValid.Should().BeTrue("the command report must match its published JSON schema");

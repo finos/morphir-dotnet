@@ -118,6 +118,10 @@ For example, querying a present empty array returns a successful report containi
 }
 ```
 
+Reports preserve the readers' supported 128 levels of configuration nesting.
+Consumers using System.Text.Json should set `MaxDepth = 256` when parsing deeply
+nested reports, allowing room for the report envelope and typed value tags.
+
 The `sources` array above is abbreviated to emphasize the value contract. `path` and other result source inventories retain their actual consulted-source reports. Finite numbers and integers stay JSON numbers, including integers outside Int64. Nonfinite numbers use a tagged value such as `{"$number":"NaN"}`, `{"$number":"Infinity"}` or `{"$number":"-Infinity"}`. The envelope's separate `valueTypes` entry identifies the canonical node with `kind: "number"`, `encoding: "nonfinite"` and a JSON Pointer such as `/value/custom/nan`. An ordinary user object containing `$number` has no numeric metadata at that pointer and remains an object. This avoids reserving user keys.
 
 For example these two value fragments have different canonical types:

@@ -64,4 +64,27 @@ using var fileGet = JsonDocument.Parse(ConfigurationReport.From(Inspection.get(Q
 Check(fileGet.RootElement.GetProperty("exitCode").GetInt32() == 1 && !fileGet.RootElement.GetProperty("found").GetBoolean(), "file query does not fill a synthetic default");
 using var fileExplain = JsonDocument.Parse(ConfigurationReport.From(Inspection.explain(QueryScope.NewFile("morphir.json"), backend, classicDetails), true, true).ToJson());
 Check(fileExplain.RootElement.GetProperty("contributions").GetArrayLength() == 0, "file explanation omits synthetic layers");
+foreach (var depth in new[] { 65, 127 })
+{
+    ConfigValue nested = Obj(("x", ConfigValue.NewNumber(double.PositiveInfinity)),
+        ("password", ConfigValue.NewString("NEVER_PRINT_DEEP_SECRET")));
+    for (var level = 0; level < depth; level++) nested = Obj(("a", nested));
+    var nestedDetails = Resolver.resolveDetailed(new(defaults.Sources, defaults.Environment, nested,
+        defaults.Profiles, defaults.Scope, defaults.OwningWorkspace, defaults.SuppressWarnings));
+    var subtree = ListModule.OfSeq(new[] { "a" });
+    foreach (var inspection in new[] { Inspection.show(QueryScope.Effective, nestedDetails),
+                 Inspection.get(QueryScope.Effective, subtree, nestedDetails),
+                 Inspection.explain(QueryScope.Effective, subtree, nestedDetails) })
+    {
+        var json = ConfigurationReport.From(inspection, true, true).ToJson();
+        using var deepReport = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 256 });
+        Check(deepReport.RootElement.GetProperty("exitCode").GetInt32() == 0, "supported depth succeeds: " + depth);
+        var leaf = deepReport.RootElement.GetProperty("value");
+        for (var level = inspection.Operation == "show" ? 0 : 1; level < depth; level++) leaf = leaf.GetProperty("a");
+        Check(leaf.GetProperty("x").GetProperty("$number").GetString() == "Infinity", "deep numeric value retained");
+        Check(leaf.GetProperty("password").GetString() == "[REDACTED]" && !json.Contains("NEVER_PRINT_DEEP_SECRET", StringComparison.Ordinal), "deep value redacted");
+        Check(deepReport.RootElement.GetProperty("valueTypes").EnumerateArray().Any(t =>
+            t.GetProperty("pointer").GetString()!.EndsWith("/x", StringComparison.Ordinal)), "deep type metadata retained");
+    }
+}
 Console.WriteLine($"{{\"success\":true,\"checks\":{checks},\"generatedSerialization\":true}}");

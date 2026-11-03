@@ -7,6 +7,8 @@ types, temporal text/kind, JSON Pointer escaping, nested arrays/null, ordinary
 tag-shaped objects, redaction before encoding, and entry/contribution metadata.
 It also checks that classic compatibility defaults remain effective while file
 queries and explanations report their absence from the authored document.
+Nested trees at 65 and 127 path segments verify show/subtree-get/explain output,
+including redaction and nonfinite metadata at the deepest supported leaf.
 
 Nonfinite values appear as `{"$number":"NaN"}`,
 `{"$number":"Infinity"}` or `{"$number":"-Infinity"}`. The report's
