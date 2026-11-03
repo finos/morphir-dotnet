@@ -129,3 +129,28 @@ Local qualification does not claim current-head CI, independent review, landing 
 Native writes coordinate cooperating processes on one machine; shared stores needing distributed coordination must supply it through their host. Per-file atomic installation does not provide multi-file group/crash atomicity. Native no-follow policy can reject the conventional macOS `/etc` alias; an authorized physical TOML target avoids that alias. Windows paths and separate drive/UNC hosts are covered by the shared host fixtures; the local native publication target is `osx-arm64`.
 
 All owned external build/test/publish evidence is under `/private/tmp/morphir-config-editing/`, including `tmp`, `editor`, `transaction`, `smoke`, `publish`, `publish-locks`, `validation`, `validation-initial`, coverage files and instruction/archive receipts. Generated `bin`, `obj` and test outputs inside the retained owned checkout also belong to this campaign. Shared tool/package caches are not campaign cleanup targets. No unresolved native recovery artifact was found after the successful qualification runs. Preserve any recovery data discovered during later review instead of deleting it to manufacture a clean result.
+
+
+### Parent Windows CI fixture correction
+
+Windows run `41671846502` on `9b683b9` passed all 360 tooling tests but failed
+21 IO transaction cases. The native observations returned canonical '/' paths,
+while the test helper supplied native backslash paths as change destinations.
+The existing plan-ownership guard correctly rejected that mismatch before any
+write, producing typed I/O outcomes and preventing fault/staging callbacks.
+
+Transaction fixtures now construct canonical paths with `ProjectPath.join`,
+and normalize directory-enumeration results before path assertions. The public
+example uses `observed.Path` for the corresponding change, making its ownership
+contract explicit on Windows. No production guard or native locking behavior
+was weakened. The unchanged native CLI execution had already passed Windows CI.
+The corrected full IO runner passes 266/266 locally; test compilation, formatter
+verification and whitespace checks pass. Evidence is owned under
+`/private/tmp/morphir-config-editing/parent-review/`, including the downloaded
+Windows failure log and `windows-path-io-full.log`. Ubuntu and macOS were
+cancelled by matrix fail-fast after Windows failed; fresh CI remains required.
+
+The independent TOML/transaction review completed without actionable findings.
+Its existing-DLL probes passed 1,438 editor operations, 10,000 sampled finite
+double roundtrips and 8 native transaction cases. Its disposable evidence is
+`/private/tmp/morphir-config-editing-review-writes`; no recovery data was retained.

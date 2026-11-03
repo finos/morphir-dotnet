@@ -18,7 +18,7 @@ public sealed class ConfigurationTransactionTests
         var result = new ConfigurationTransaction().Apply(plan);
         result.Status.Should().Be(ConfigurationTransactionStatus.Written);
         File.ReadAllText(target).Should().Be("value = 2\n");
-        Directory.GetFileSystemEntries(directory.Path).Should().Equal(target);
+        Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
         result.Artifacts.Should().BeEmpty();
     }
 
@@ -36,7 +36,7 @@ public sealed class ConfigurationTransactionTests
         }).Apply(plan);
         result.Status.Should().Be(ConfigurationTransactionStatus.RolledBack);
         File.ReadAllText(target).Should().Be("value = 1\n");
-        Directory.GetFileSystemEntries(directory.Path).Should().Equal(target);
+        Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
         result.Artifacts.Should().BeEmpty();
     }
 
@@ -72,10 +72,10 @@ public sealed class ConfigurationTransactionTests
         using var directory = new TestDirectory();
         var physical = directory.PathFor("physical");
         Directory.CreateDirectory(physical);
-        File.WriteAllText(System.IO.Path.Combine(physical, "morphir.toml"), "value = 1\n");
+        File.WriteAllText(ProjectPath.join(physical, "morphir.toml"), "value = 1\n");
         var alias = directory.PathFor("alias");
         Directory.CreateSymbolicLink(alias, physical);
-        ConfigurationTransaction.Observe(System.IO.Path.Combine(alias, "morphir.toml")).Kind.Should().Be(ConfigurationObservationKind.Link);
+        ConfigurationTransaction.Observe(ProjectPath.join(alias, "morphir.toml")).Kind.Should().Be(ConfigurationObservationKind.Link);
     }
 
     [Test]
@@ -83,14 +83,14 @@ public sealed class ConfigurationTransactionTests
     {
         using var directory = new TestDirectory();
         var parent = directory.PathFor("new-settings");
-        var target = System.IO.Path.Combine(parent, "morphir.toml");
+        var target = ProjectPath.join(parent, "morphir.toml");
         var observed = ConfigurationTransaction.Observe(target);
         var plan = new ConfigurationTransactionPlan([ConfigurationTransaction.Observe(directory.Path), ConfigurationTransaction.Observe(parent), observed],
             [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes("value = 2\n"))]);
         var result = new ConfigurationTransaction().Apply(plan);
         result.Status.Should().Be(ConfigurationTransactionStatus.Written);
         File.ReadAllText(target).Should().Be("value = 2\n");
-        Directory.GetFileSystemEntries(parent).Should().Equal(target);
+        Directory.GetFileSystemEntries(parent).Select(ProjectPath.normalize).Should().Equal(target);
     }
 
     [Test]
@@ -246,7 +246,7 @@ public sealed class ConfigurationTransactionTests
         Directory.CreateDirectory(physical);
         var alias = directory.PathFor("alias");
         Directory.CreateSymbolicLink(alias, physical);
-        var target = System.IO.Path.Combine(alias, "morphir.toml");
+        var target = ProjectPath.join(alias, "morphir.toml");
         var observed = ConfigurationTransaction.Observe(target);
         var plan = new ConfigurationTransactionPlan([observed], [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes("value = 2\n"))]);
         var result = new ConfigurationTransaction().Apply(plan);
@@ -299,7 +299,7 @@ public sealed class ConfigurationTransactionTests
         else
         {
             result.Artifacts.Should().BeEmpty();
-            Directory.GetFileSystemEntries(directory.Path).Should().Equal(target);
+            Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
         }
     }
 
@@ -323,7 +323,7 @@ public sealed class ConfigurationTransactionTests
         result.Status.Should().Be(expected);
         File.ReadAllText(target).Should().Be("value = 1\n");
         result.Artifacts.Should().BeEmpty();
-        Directory.GetFileSystemEntries(directory.Path).Should().Equal(target);
+        Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
     }
 
     [Test]
@@ -371,7 +371,7 @@ public sealed class ConfigurationTransactionTests
         result.Status.Should().Be(ConfigurationTransactionStatus.Unchanged);
         File.GetLastWriteTimeUtc(target).Should().Be(before);
         faults.Should().Be(0);
-        Directory.GetFileSystemEntries(directory.Path).Should().Equal(target);
+        Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
     }
 
     [Test]
@@ -438,7 +438,7 @@ public sealed class ConfigurationTransactionTests
         result.Status.Should().Be(ConfigurationTransactionStatus.Conflict);
         File.ReadAllText(target).Should().Be("value = 1\n");
         result.Artifacts.Should().BeEmpty();
-        Directory.GetFileSystemEntries(directory.Path).Should().Equal(target);
+        Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
     }
 
     [Test]
@@ -462,7 +462,7 @@ public sealed class ConfigurationTransactionTests
     {
         using var directory = new TestDirectory();
         var parent = directory.PathFor("new-settings");
-        var target = System.IO.Path.Combine(parent, "morphir.toml");
+        var target = ProjectPath.join(parent, "morphir.toml");
         var expected = ConfigurationTransaction.Observe(target);
         var host = new ParentFaultHost(blockCleanup);
         var result = new ConfigurationTransaction(host).Apply(new ConfigurationTransactionPlan([expected],
@@ -514,7 +514,7 @@ public sealed class ConfigurationTransactionTests
         var source = directory.PathFor("morphir.yaml");
         File.WriteAllText(source, "value: lower\n");
         var parent = directory.PathFor("new-settings");
-        var target = System.IO.Path.Combine(parent, "morphir.toml");
+        var target = ProjectPath.join(parent, "morphir.toml");
         var expected = ConfigurationTransaction.Observe(target);
         var plan = new ConfigurationTransactionPlan([expected, ConfigurationTransaction.Observe(parent), ConfigurationTransaction.Observe(source)],
             [new ConfigurationFileChange(target, expected, Encoding.UTF8.GetBytes("value = 2\n"))]);
@@ -565,7 +565,7 @@ public sealed class ConfigurationTransactionTests
         using var directory = new TestDirectory();
         var parent = directory.PathFor("settings");
         File.WriteAllText(parent, "retain original file");
-        var target = System.IO.Path.Combine(parent, "morphir.toml");
+        var target = ProjectPath.join(parent, "morphir.toml");
         var observed = ConfigurationTransaction.Observe(target);
         var result = new ConfigurationTransaction().Apply(new ConfigurationTransactionPlan([observed],
             [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes("value=2\n"))]));
@@ -636,9 +636,10 @@ public sealed class ConfigurationTransactionTests
 
     private sealed class TestDirectory : IDisposable
     {
-        public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "morphir-transaction-" + Guid.NewGuid().ToString("N"));
+        // The shared transaction boundary requires canonical absolute paths on every platform.
+        public string Path { get; } = ProjectPath.join(System.IO.Path.GetTempPath(), "morphir-transaction-" + Guid.NewGuid().ToString("N"));
         public TestDirectory() => Directory.CreateDirectory(Path);
-        public string PathFor(string name) => System.IO.Path.Combine(Path, name);
+        public string PathFor(string name) => ProjectPath.join(Path, name);
         public void Dispose() => Directory.Delete(Path, true);
     }
 }

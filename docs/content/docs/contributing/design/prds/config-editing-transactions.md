@@ -6,9 +6,11 @@
 var observed = ConfigurationTransaction.Observe(target);
 var plan = new ConfigurationTransactionPlan(
     observations: new[] { observed },
-    changes: new[] { new ConfigurationFileChange(target, observed, candidateBytes) });
+    changes: new[] { new ConfigurationFileChange(observed.Path, observed, candidateBytes) });
 var result = new ConfigurationTransaction().Apply(plan);
 ```
+
+Native observations return canonical `/` paths on every platform. When starting with a native path, use the returned observation path for the corresponding change, as above.
 
 The editing service supplies the complete observation set. Constructing a transaction directly makes the caller responsible for including its source and target-selection evidence. The target's expected observation is automatically included even if the caller omits it from the general observation list.
 
