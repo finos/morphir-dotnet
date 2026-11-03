@@ -62,7 +62,7 @@ module Profiles =
                 | _ -> [])
         | _ -> Map.empty
 
-    let private graphErrors sources value =
+    let private graphErrors sources value (options: ProfileOptions) =
         let groups = groupGraph value
         let mutable heights = Map.empty
         let rec visit stack name =
@@ -83,9 +83,12 @@ module Profiles =
                             | Error error -> Error error
                             | Ok childHeight -> childrenHeight rest (max height (1 + childHeight))
                     childrenHeight members 1
-                    |> Result.map (fun height ->
-                        heights <- Map.add name height heights
-                        height)
+                    |> Result.bind (fun height ->
+                        if height > min 32 options.MaxDepth then
+                            Error (diagnostic sources [ "profiles"; "groups"; name ] "config.profiles.depth" "Profile group graph exceeds the depth bound.")
+                        else
+                            heights <- Map.add name height heights
+                            Ok height)
         groups
         |> Map.toList
         |> List.tryPick (fun (name, _) -> match visit [] name with Error error -> Some error | Ok _ -> None)
@@ -123,7 +126,7 @@ module Profiles =
             let includes = value |> readNames "include" |> Option.defaultValue []
             { Enabled = true
               Active = expand value (includes @ names)
-              Diagnostics = controlErrors sources value @ graphErrors sources value }
+              Diagnostics = controlErrors sources value @ graphErrors sources value options }
         | ProfileSelection.Automatic ->
             let environmentNames =
                 environment
@@ -146,7 +149,7 @@ module Profiles =
                     includes @ (selected |> Option.defaultValue baseNames)
             { Enabled = not names.IsEmpty
               Active = expand baseValue names
-              Diagnostics = controlErrors sources baseValue @ graphErrors sources baseValue }
+              Diagnostics = controlErrors sources baseValue @ graphErrors sources baseValue options }
         | ProfileSelection.Disabled ->
             { Enabled = false
               Active = []

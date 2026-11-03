@@ -94,4 +94,14 @@ let tests =
                     && diagnostic.Message.Contains("a -> b -> a")))
                 "an inactive cycle cannot be hidden by selection"
         }
+        test "inactive group depth is bounded" {
+            let groups =
+                [ for index in 1 .. 33 ->
+                    "g" + string index,
+                    names (if index = 33 then [] else [ "g" + string (index + 1) ]) ]
+                |> Map.ofList
+                |> ConfigValue.Object
+            let result = Profiles.plan [ root [ "groups", groups ] ] Map.empty DocumentDefaults.profileOptions
+            Expect.isTrue (result.Diagnostics |> List.exists (fun diagnostic -> diagnostic.Code = "config.profiles.depth")) "33 group levels exceed the qualified bound"
+        }
     ]
