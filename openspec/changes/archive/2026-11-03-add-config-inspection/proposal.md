@@ -25,15 +25,15 @@ None. Existing publication and virtual-file requirements remain unchanged.
 
 ## Tracking
 
-- [Layered configuration PRD](../../../docs/content/docs/contributing/design/prds/layered-configuration.md).
-- Implementation prerequisites: [`add-shared-configuration`](../archive/2026-11-02-add-shared-configuration/proposal.md), [`add-project-workspace-discovery`](../archive/2026-11-03-add-project-workspace-discovery/proposal.md).
-- GitHub tracking issue: not yet assigned; link the actual issue before opening an implementation PR. No external issue is created by this planning work.
+- [Layered configuration PRD](../../../../docs/content/docs/contributing/design/prds/layered-configuration.md).
+- Implementation prerequisites: [`add-shared-configuration`](../2026-11-02-add-shared-configuration/proposal.md), [`add-project-workspace-discovery`](../2026-11-03-add-project-workspace-discovery/proposal.md).
+- GitHub tracking issue: [#468](https://github.com/finos/morphir-dotnet/issues/468). See the [delivery journal](../../../../docs/content/docs/contributing/design/prds/config-inspection-delivery.md).
 
 ## Impact
 
 Add shared query services, a Microsoft.Extensions.Configuration adapter, CLI scenario/DTO serialization, and focused API/CLI tests. Register through MorphirCliBuilder/ICommandProvider. Use explicit/source-generated binding and serialization for Native AOT.
 
-Planning only. No runtime behavior or existing public API changes in this proposal commit.
+Implementation, tests and consumer documentation are delivered in this campaign. Existing APIs remain compatible; parent review, landing and cleanup remain campaign-completion gates.
 
 ## Campaign completion
 

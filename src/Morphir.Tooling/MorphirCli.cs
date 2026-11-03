@@ -45,6 +45,7 @@ public static class MorphirCli
 public sealed class MorphirCliBuilder
 {
     private readonly HostApplicationBuilder _hostBuilder;
+    private readonly System.Runtime.ExceptionServices.ExceptionDispatchInfo? _initializationFailure;
     private readonly RootCommand _rootCommand;
     private readonly List<Action<IServiceCollection>> _serviceConfigurations = new();
     private readonly List<Action<RootCommand>> _commandConfigurations = new();
@@ -60,7 +61,21 @@ public sealed class MorphirCliBuilder
 
         Args = args;
         _rootCommand = new RootCommand(description);
-        _hostBuilder = Host.CreateApplicationBuilder();
+        // Help must not load appsettings or perform configuration discovery.
+        // Ordinary command execution retains the existing host defaults.
+        var help = args.Any(arg => arg is "--help" or "-h" or "-?" or "/?");
+        try
+        {
+            _hostBuilder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = help });
+        }
+        catch (Exception error) when (args.FirstOrDefault() == "config"
+            && error is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or FormatException)
+        {
+            // Retain the failure for the configuration command's structured renderer.
+            // A minimal host allows argument validation and help to keep their own contracts.
+            _initializationFailure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error);
+            _hostBuilder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
+        }
 
         // Apply default configuration
         ConfigureDefaultLogging();
@@ -165,6 +180,13 @@ public sealed class MorphirCliBuilder
     /// <returns>A configured MorphirCliApp ready to run</returns>
     public MorphirCliApp Build()
     {
+        if (_initializationFailure is not null)
+        {
+            var handlers = _commandProviders.OfType<IMorphirHostInitializationErrorHandler>().ToArray();
+            if (handlers.Length == 0) _initializationFailure.Throw();
+            foreach (var handler in handlers) handler.HandleHostInitializationFailure();
+        }
+
         // Apply all service configurations
         foreach (var configure in _serviceConfigurations)
         {

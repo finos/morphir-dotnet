@@ -153,13 +153,13 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
    - Incorrect array structure
    - Type mismatches
 
-## Configuration (planned)
+## Configuration
 
-The shared libraries provide multi-format resolution and bounded discovery. `morphir config`, editing, and migration commands remain planned. Existing artifact/cache tooling retains TOML cache settings and Git-first discovery. See the [guide]({{< relref "/guides/configuration" >}}) for the library APIs and the [command reference]({{< relref "/docs/cli/config" >}}) for proposed options.
+The shared libraries and `morphir config get/list/show/path/explain` provide multi-format resolution, bounded discovery and inspection. Editing and migration commands remain planned. Existing artifact/cache tooling retains TOML cache settings and Git-first discovery. See the [guide]({{< relref "/guides/configuration" >}}) for the library APIs and the [command reference]({{< relref "/docs/cli/config" >}}) for implemented read options and planned editing.
 
 ### Wrong workspace or missing project
 
-For a library host, inspect `ProjectDiscoveryResult.Discovery`, `Selection`, source reports, and diagnostics. Check the discovery boundary, the nearest declared `workspace`, member globs/exclusions, and the selected project. The planned `morphir config path` command will expose this evidence. A project file does not hide a parent workspace. A Git root or an empty `.morphir` directory does not declare a workspace through the new API. If artifact-management commands use a different root, check their legacy Git-first policy before changing the declaration.
+For a library host, inspect `ProjectDiscoveryResult.Discovery`, `Selection`, source reports, and diagnostics. Check the discovery boundary, the nearest declared `workspace`, member globs/exclusions, and the selected project. Use `morphir config path --json` to inspect this evidence. A project file does not hide a parent workspace. A Git root or an empty `.morphir` directory does not declare a workspace through the new API. If artifact-management commands use a different root, check their legacy Git-first policy before changing the declaration.
 
 ### Ambiguous configuration files
 
@@ -183,7 +183,7 @@ Global candidates include the platform configuration directory and the alternate
 
 ### A setting still has its old value after an edit
 
-For current hosts, inspect the resolved origins and source reports. The planned `morphir config explain <key>` command will identify the winning source. A successful scoped write can remain overridden by a member, profile, personal file, environment variable, or explicit CLI value. Check the target reported by the edit and distinguish scoped inspection from effective inspection.
+For current hosts, inspect the resolved origins and source reports. Use `morphir config explain <key>` to identify contributing layers and the winning source. A successful scoped write can remain overridden by a member, profile, personal file, environment variable, or explicit CLI value. Check the target reported by the edit and distinguish scoped inspection from effective inspection.
 
 ### A value reappears after unset
 
@@ -191,7 +191,17 @@ For current hosts, inspect the resolved origins and source reports. The planned 
 
 ### A profile did not load
 
-Check the supplied `ProfileSelection`, `MORPHIR_PROFILES`, and base profile controls. The proposed CLI equivalents are `--profiles` and `--no-profiles`. An empty profile environment selector disables profiles, and inactive files are not read. Named profiles are not activated by CI detection alone. Profile stems must be adjacent to an eligible primary layout; a dot-config primary uses `config.profile.<name>.<ext>`. Isolation retains active profiles while omitting machine and personal sources. For the existing loader's separate CI behavior, inspect `CiProfileMode` and `.morphir/morphir.ci.toml`.
+Check the supplied `ProfileSelection`, `MORPHIR_PROFILES`, and base profile controls. The CLI equivalents are `--profiles` and `--no-profiles`. An empty profile environment selector disables profiles, and inactive files are not read. Named profiles are not activated by CI detection alone. Profile stems must be adjacent to an eligible primary layout; a dot-config primary uses `config.profile.<name>.<ext>`. Isolation retains active profiles while omitting machine and personal sources. For the existing loader's separate CI behavior, inspect `CiProfileMode` and `.morphir/morphir.ci.toml`.
+
+### A scoped key is missing or a value is redacted
+
+A scope reads only that source group. A workspace-scoped miss does not inherit a global value. Compare `get <key> --workspace` with `get <key> --show-origin`. Empty strings and arrays are present and exit 0; an absent queried key exits 1. Quote a segment containing a literal dot, for example `'codegen."custom.generator".enabled'`.
+
+`[REDACTED]` is safe presentation for sensitive names and opaque secret references. Inspection never executes a secret command. Parser diagnostic messages are sanitized because they can contain values; use diagnostic codes, positions and source paths to locate the problem. `--json` returns structured diagnostics while stderr retains safe human diagnostic text.
+
+### Microsoft configuration projection is rejected
+
+The optional adapter rejects case-distinct paths, literal `:` separators and empty segments that cannot retain their canonical identity in .NET's hierarchical view. Use the typed canonical result to inspect these names; registration must not silently overwrite them. See the [adapter reference]({{< relref "/docs/configuration/microsoft" >}}) for projection diagnostics, generated array binding and published host qualification. Pinned dependency linker warnings remain visible; successful smoke execution is not a warning-free claim.
 
 ### A configuration write fails
 

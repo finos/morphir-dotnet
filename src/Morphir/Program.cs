@@ -38,6 +38,7 @@ public static class Program
             .AddScenario<IrToolingScenario>()
             .AddScenario<GenerationScenario>()
             .AddScenario<ManagementScenario>()
+            .AddScenario<ConfigurationScenario>()
             .AddCommand(CreateInfoCommand())
             .Build();
 

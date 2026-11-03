@@ -131,6 +131,26 @@ try
     var profileResult = ConfigurationLoader.LoadAndResolve(Input([], ProfileSelection.NewNames(List(["postgres", "metrics"]))),
         [new ConfigurationCandidate(postgres.Source, () => postgres), new ConfigurationCandidate(metrics.Source, () => metrics)]);
     Check(At(profileResult.Effective, "custom", "winner").Equals(ConfigValue.NewString("workspace metrics")), "Profile name precedence failed");
+    foreach (var roaming in new[] { "C:/Users/user/AppData/Roaming", "//server/profiles/user" })
+    {
+        var locations = new MachineLocationInput(MachinePlatform.Windows, "C:/Users/user",
+            FSharpOption<string>.Some(roaming), null, MapModule.Empty<string, string>());
+        var machineFiles = new Dictionary<string, string>
+        {
+            ["C:/ProgramData/morphir/morphir.toml"] = "[custom]\nsystem=true",
+            [roaming + "/morphir/morphir.yaml"] = "custom: {roaming: true}",
+            ["C:/Users/user/.morphir/morphir.json"] = "{custom:{home:true}}"
+        };
+        var machineTrees = ProjectSystem.MachineBoundaries(locations, "D:/repo")
+            .Select(root => (IProjectTree)new InMemoryProjectTree(root,
+                machineFiles.Where(p => ProjectPath.contains(root, p.Key)).ToDictionary())).ToArray();
+        var projectTree = new InMemoryProjectTree("D:/repo", new Dictionary<string, string> { ["D:/repo/morphir.toml"] = "[project]\nname='App'" });
+        var loaded = ProjectSystem.Load(projectTree, ProjectSystem.Discover(projectTree, "D:/repo").Discovery,
+            options: new ProjectLoadOptions { Machine = locations, MachineTrees = machineTrees });
+        Check(!loaded.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error), "Machine root routing failed");
+        foreach (var key in new[] { "system", "roaming", "home" })
+            Check(At(loaded.Effective, "custom", key).Equals(ConfigValue.NewBoolean(true)), "Machine value lost: " + key);
+    }
     var discoveryRoot = ProjectPath.normalize(Path.Combine(Path.GetTempPath(), "morphir-discovery-smoke-" + Guid.NewGuid().ToString("N")));
     var discoveryFiles = new Dictionary<string, string>
     {
@@ -193,7 +213,7 @@ try
         Check(hiddenNative.Discovery.Equals(hiddenMemory.Discovery) && !hiddenNative.Discovery.Projects.Any(), "Reserved glob seed created a hidden member");
     }
     finally { if (Directory.Exists(discoveryRoot)) Directory.Delete(discoveryRoot, true); }
-    Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"discovery\":true,\"selection\":true,\"bounded_loading\":true,\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
+    Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"discovery\":true,\"selection\":true,\"bounded_loading\":true,\"machine_roots\":true,\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
     return 0;
 }
 catch (Exception error)

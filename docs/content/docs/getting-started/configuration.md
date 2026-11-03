@@ -2,12 +2,12 @@
 title: "Configure a workspace"
 linkTitle: "Configuration"
 weight: 40
-description: "Workspace discovery through shared libraries, with planned inspection and migration commands"
+description: "Workspace discovery, inspection and .NET consumption, with planned editing and migration"
 ---
 
 # Configure a workspace
 
-The shared libraries read these files and expose bounded workspace/member discovery and source loading. Campaign 2 is implemented and locally qualified, with parent review/landing/cleanup pending. The `morphir config`, editing, and project/workspace migration commands shown later remain planned. Use the [PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}) and [delivery journal]({{< relref "/docs/contributing/design/prds/project-workspace-discovery-delivery" >}}) to check implementation and validation status.
+The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. Editing and project/workspace migration remain planned. See the [inspection delivery journal]({{< relref "/docs/contributing/design/prds/config-inspection-delivery" >}}) for validation and parent landing/cleanup status.
 
 ## Declare the workspace
 
@@ -73,7 +73,7 @@ Existing artifact-management commands still use their legacy Git-first `Workspac
 
 ## Inspect the effective values
 
-From the repository root, these planned commands inspect settings and discovery:
+From the repository root, these commands inspect settings and discovery:
 
 ```bash
 morphir config get ir.format_version --show-origin
@@ -82,6 +82,22 @@ morphir config explain ui.theme
 ```
 
 The format version comes from the root TOML file. `path` reports consulted sources and their status; `explain` identifies every contributing layer for the theme and the winner.
+
+For a member-only value, select its canonical workspace path:
+
+```bash
+morphir config get project.name --project packages/orders --json
+morphir config get ui.theme --workspace --show-origin --show-scope
+morphir config list --isolated --json
+```
+
+A scoped query does not fill absent settings from other scopes. `--file path`
+inspects only that file; `--config path` adds a selected-file layer during effective
+resolution. Empty strings and arrays succeed; a missing key exits 1. Usage or
+load failures exit 2. See the [query API]({{< relref "/docs/configuration/inspection" >}})
+and [Microsoft host example]({{< relref "/docs/configuration/microsoft" >}}) to use
+these results without the CLI. Existing IR commands do not adopt all settings
+merely because inspection can show them.
 
 ## Add and remove a personal override
 
@@ -173,7 +189,7 @@ Create `morphir.profile.ci.toml` beside the root primary:
 color = false
 ```
 
-The shared loader accepts explicitly selected profiles. The planned command will select the profile and capture JSON output:
+The shared loader accepts explicitly selected profiles. This command selects the profile and captures JSON output:
 
 ```bash
 morphir config show --isolated --discovery-boundary . --profiles ci --json > effective-config.json
@@ -181,4 +197,4 @@ morphir config show --isolated --discovery-boundary . --profiles ci --json > eff
 
 This excludes machine configuration and personal overrides while retaining the selected profile. Environment values still participate. Stdout contains JSON; diagnostics go to stderr. Merely setting `CI=true` does not activate a named profile through the shared loader. Legacy cache callers retain their separate `CiProfileMode` behavior.
 
-Read the [configuration guide]({{< relref "/guides/configuration" >}}) for all layouts and precedence rules, the [command reference]({{< relref "/docs/cli/config" >}}) for options, and [troubleshooting]({{< relref "/docs/cli/troubleshooting#configuration-planned" >}}) for unexpected results.
+Read the [configuration guide]({{< relref "/guides/configuration" >}}) for all layouts and precedence rules, the [command reference]({{< relref "/docs/cli/config" >}}) for options, and [troubleshooting]({{< relref "/docs/cli/troubleshooting#configuration" >}}) for unexpected results.

@@ -59,7 +59,13 @@ bounded project/workspace discovery through native and in-memory trees. See the
 `ProjectSystem.Discover`, per-root/member `ProjectSystem.Load`, membership/selection,
 host boundaries and explicitly authorized machine sources.
 Existing Git-first artifact discovery, cache-only tooling and CI overlays keep
-their compatibility behavior. CLI inspection, editing and migration remain planned. See the
+their compatibility behavior. Shared [inspection APIs](docs/content/docs/configuration/inspection.md)
+and `morphir config get/list/show/path/explain` expose typed values, source reports,
+scoped queries and redacted explanations. The optional
+[Microsoft adapter](docs/content/docs/configuration/microsoft.md) projects one
+resolved document with explicit/source-generated Options binding. See the
+[CLI reference](docs/content/docs/cli/config.md) for read controls, JSON schema
+and exit codes. Editing and migration remain planned. See the
 [reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.
 
 ## SDK libraries

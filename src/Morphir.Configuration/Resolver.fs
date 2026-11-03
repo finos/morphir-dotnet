@@ -136,7 +136,12 @@ module Resolver =
             rank input.Source, first, second, input.Source.Path
         )
 
-    let private scopeDocument input rootPaths memberPaths (document: ConfigurationDocument) =
+    let private scopeDocument
+        (input: ResolutionInput)
+        rootPaths
+        memberPaths
+        (document: ConfigurationDocument)
+        =
         let source = document.Source
 
         let inherited =
@@ -413,7 +418,9 @@ module Resolver =
         @ unknown
         @ warnings
 
-    let resolve (input: ResolutionInput) : DocumentResolution =
+    let resolveDetailed (input: ResolutionInput) : ResolutionDetails =
+        let mutable layers = []
+
         let explicitSource =
             available
                 { identity "<explicit>" SourceRole.Explicit with
@@ -541,12 +548,23 @@ module Resolver =
                     else
                         match source.Content with
                         | SourceContent.Available document ->
+                            let original = { document with Source = source.Source }
+
                             let document, scopedDiagnostics =
                                 scopeDocument
                                     input
                                     rootPaths
                                     memberPaths
                                     { document with Source = source.Source }
+
+                            layers <-
+                                layers
+                                @ [
+                                    {
+                                        Document = original
+                                        Applied = document.Values
+                                    }
+                                ]
 
                             let value, winners =
                                 mergeAt [] effective document.Values origins document
@@ -624,7 +642,7 @@ module Resolver =
 
         let effective = ConfigTree.clean effective
 
-        {
+        let resolution = {
             Effective = effective
             Origins = origins
             Sources = reports
@@ -637,3 +655,18 @@ module Resolver =
                  @ mixedFormatDiagnostics input)
                 |> List.distinct
         }
+
+        {
+            Resolution = resolution
+            Layers = layers
+            Scope = input.Scope
+        }
+
+    let resolve input = (resolveDetailed input).Resolution
+
+    let internal mergeDocuments (documents: ConfigurationDocument list) =
+        documents
+        |> List.fold
+            (fun (value, origins) document -> mergeAt [] value document.Values origins document)
+            (DocumentDefaults.emptyValue, Map.empty)
+        |> fun (value, origins) -> ConfigTree.clean value, origins

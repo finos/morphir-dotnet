@@ -69,6 +69,8 @@
     <PackageVersion Include="Dotnet.ProjInfo.Workspace.FCS" Version="0.39" />
     <PackageVersion Include="FSharp.Compiler.Service" Version="34.1.1" />
     <PackageVersion Include="LanguageExt.Core" Version="$(LanguageExtVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />

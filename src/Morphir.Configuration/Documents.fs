@@ -242,3 +242,16 @@ module ValueMerge =
                 left
             |> ConfigValue.Object
         | _ -> higher
+
+/// One canonical loaded layer and the values permitted by resolution ownership rules.
+type ResolvedLayer = {
+    Document: ConfigurationDocument
+    Applied: ConfigValue
+}
+
+/// Additive inspection context. Existing DocumentResolution remains source-compatible.
+type ResolutionDetails = {
+    Resolution: DocumentResolution
+    Layers: ResolvedLayer list
+    Scope: ProjectScope
+}

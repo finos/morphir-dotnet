@@ -9,6 +9,8 @@ shared workspace output ownership. With `--fixtures`, it verifies hashes and run
 checks and 26 pinned Morphir documents through the published executable.
 Explicitly selected workspace/member personal files are checked with isolation
 on and off; host parity includes the retained ownership restrictions and diagnostics.
+Portable Windows inputs also exercise machine sources on another drive and a
+redirected UNC share through separate authorized hosts.
 
 On macOS use a physical temporary directory for the filesystem boundary checks:
 

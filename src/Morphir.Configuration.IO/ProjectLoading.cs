@@ -11,6 +11,8 @@ public sealed record ProjectLoadOptions
     public string? SelectedPath { get; init; }
     public MachineLocationInput? Machine { get; init; }
     public IProjectTree? MachineTree { get; init; }
+    /// <summary>Additional explicitly authorized machine roots, including other drives and UNC shares.</summary>
+    public IReadOnlyList<IProjectTree> MachineTrees { get; init; } = [];
 }
 
 public static partial class ProjectSystem
@@ -18,13 +20,18 @@ public static partial class ProjectSystem
     /// <summary>Resolve one root or member with the owning topology kept separately from inherited settings.</summary>
     public static DocumentResolution Load(IProjectTree tree, ProjectDiscovery discovery, ProjectInfo? project = null,
         ProjectLoadOptions? options = null)
+        => LoadDetailed(tree, discovery, project, options).Resolution;
+
+    /// <summary>Resolve once while retaining canonical layers for pure inspection.</summary>
+    public static ResolutionDetails LoadDetailed(IProjectTree tree, ProjectDiscovery discovery, ProjectInfo? project = null,
+        ProjectLoadOptions? options = null)
     {
         options ??= new();
         var member = project is not null && project.Path != discovery.Location;
         var sources = options.Input.Sources.Where(s => !options.Isolated || s.Source.Role is not (SourceRole.System or SourceRole.Global or SourceRole.UserOverride or SourceRole.WorkspaceUserOverride)).ToList();
         var skipped = new Dictionary<string, SourceReport>(StringComparer.Ordinal);
         var diagnostics = discovery.Diagnostics.ToList();
-        if (project is not null && (!project.IsValid || !discovery.Projects.Contains(project)))
+        if (project is not null && (!project.IsValid || !discovery.Projects.Any(candidate => ReferenceEquals(candidate, project) || candidate.Equals(project))))
             diagnostics.Add(ReaderValues.Diagnostic(new SourceIdentity(project.Path, DocumentFormat.Memory, SourceRole.MemberPrimary, 0, null),
                 "discovery.invalid_selection", "Project must be a valid member of this discovery result"));
 
@@ -51,15 +58,20 @@ public static partial class ProjectSystem
 
         if (options.Machine is { } machine && !options.Isolated)
         {
-            var environment = machine.Environment;
-            if (environment.TryGetValue("MORPHIR_HOME", out var home) && !string.IsNullOrEmpty(home) && !ProjectPath.isAbsolute(home))
-                environment = environment.Add("MORPHIR_HOME", ProjectPath.join(discovery.StartDirectory, home));
-            machine = new(machine.Platform, machine.HomeDirectory, machine.RoamingAppData, machine.ProgramData, environment);
-            if (options.MachineTree is null)
+            machine = ResolveMachineLocations(machine, discovery.StartDirectory);
+            var hosts = options.MachineTree is { } single
+                ? options.MachineTrees.Prepend(single).ToArray() : options.MachineTrees.ToArray();
+            if (hosts.Length == 0)
                 diagnostics.Add(ReaderValues.Diagnostic(new SourceIdentity("<machine-host>", DocumentFormat.Memory, SourceRole.System, 0, null),
                     "discovery.machine_host_required", "Machine locations require an explicitly authorized machine tree"));
             else
-                sources.AddRange(ProjectSources.machineCandidates(machine, false).Select(s => Read(options.MachineTree, s)));
+                foreach (var source in ProjectSources.machineCandidates(machine, false))
+                {
+                    var host = hosts.Where(h => ProjectPath.contains(h.Boundary, source.Path))
+                        .OrderByDescending(h => h.Boundary.Length).FirstOrDefault();
+                    // Read's boundary check reports unauthorized candidates without observing any host.
+                    sources.Add(Read(host ?? hosts[0], source));
+                }
         }
 
         var roots = discovery.Root.Sources;
@@ -125,9 +137,11 @@ public static partial class ProjectSystem
         }
         var input = new ResolutionInput(ReaderValues.List(sources), options.Input.Environment, options.Input.Explicit,
             options.Input.Profiles, member ? ProjectScope.Member : ProjectScope.Root, owner, options.Input.SuppressWarnings);
-        var result = Resolver.resolve(input);
-        return new(result.Effective, result.Origins, ReaderValues.List(result.Sources.Select(s => skipped.GetValueOrDefault(s.Source.Path, s))),
+        var detailed = Resolver.resolveDetailed(input);
+        var result = detailed.Resolution;
+        var resolution = new DocumentResolution(result.Effective, result.Origins, ReaderValues.List(result.Sources.Select(s => skipped.GetValueOrDefault(s.Source.Path, s))),
             result.ActiveProfiles, result.OwningWorkspace, ReaderValues.List(result.Diagnostics.Concat(diagnostics).Distinct()));
+        return new(resolution, detailed.Layers, detailed.Scope);
     }
 
     private static SourceInput Rebind(SourceInput input, SourceRole role) => new(

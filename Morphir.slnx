@@ -26,6 +26,7 @@
     <Project Path="src/Morphir/Morphir.csproj" />
     <Project Path="src/Morphir.Configuration/Morphir.Configuration.fsproj" />
     <Project Path="src/Morphir.Configuration.IO/Morphir.Configuration.IO.csproj" />
+    <Project Path="src/Morphir.Configuration.Microsoft/Morphir.Configuration.Microsoft.csproj" />
     <Project Path="src/Morphir.IR.Pipeline/Morphir.IR.Pipeline.fsproj" />
     <Project Path="src/Morphir.IR.Pipeline.Plugins/Morphir.IR.Pipeline.Plugins.fsproj" />
     <Project Path="src/Morphir.Tool/Morphir.Tool.csproj" />
@@ -47,6 +48,9 @@
     <Project Path="tests/Morphir.Configuration.Tests/Morphir.Configuration.Tests.fsproj" />
     <Project Path="tests/Morphir.Configuration.IO.Tests/Morphir.Configuration.IO.Tests.csproj" />
     <Project Path="tests/Morphir.Configuration.IO.Smoke/Morphir.Configuration.IO.Smoke.csproj" />
+    <Project Path="tests/Morphir.Configuration.Microsoft.Tests/Morphir.Configuration.Microsoft.Tests.csproj" />
+    <Project Path="tests/Morphir.Configuration.Microsoft.Smoke/Morphir.Configuration.Microsoft.Smoke.csproj" />
+    <Project Path="tests/Morphir.Configuration.Inspection.Smoke/Morphir.Configuration.Inspection.Smoke.csproj" />
     <Project Path="tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj" />
     <Project Path="tests/Morphir.Internal.CodeGeneration.Tests/Morphir.Internal.CodeGeneration.Tests.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Tests/Morphir.IR.Pipeline.Tests.fsproj" />

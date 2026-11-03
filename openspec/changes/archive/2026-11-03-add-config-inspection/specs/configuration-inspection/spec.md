@@ -41,6 +41,14 @@ Configuration read commands SHALL support structured JSON with typed values and 
 - **WHEN** config show --json succeeds with a mixed-format warning
 - **THEN** stdout is valid JSON containing structured diagnostics and human diagnostic text is confined to stderr
 
+#### Scenario: Nonfinite values retain types in JSON
+- **WHEN** inspection presents NaN, positive infinity, negative infinity and an ordinary object containing a `$number` key
+- **THEN** the nonfinite values have explicit tags and external JSON Pointer type metadata, the ordinary object remains distinguishable, finite values keep normal JSON types and shared redaction precedes encoding
+
+#### Scenario: Published inspection serialization
+- **WHEN** the inspection serializer runs under trimming or Native AOT with reflection serialization disabled
+- **THEN** all nonfinite cases, tag-shaped user objects, nested values and contribution metadata retain the managed JSON representation
+
 ### Requirement: Inspection controls do not trigger hidden reads
 The CLI SHALL expose selected-file, boundary, profile, isolation, and supported warning-suppression controls using the shared resolver. Help SHALL perform no configuration I/O. Invalid profile arguments SHALL fail before discovery.
 

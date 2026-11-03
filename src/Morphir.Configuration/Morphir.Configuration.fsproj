@@ -24,6 +24,7 @@
         <Compile Include="ProjectTypes.fs" />
         <Compile Include="ProjectDiscovery.fs" />
         <Compile Include="ProjectSources.fs" />
+        <Compile Include="Inspection.fs" />
     </ItemGroup>
 
 </Project>
