@@ -51,6 +51,12 @@ svg { max-width: 100%; height: auto; }
 <h2 id="risks">Risks and trade-offs</h2><table><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody><tr><td>Tests prove only a fake backend</td><td>Exercise the real registered provider with nonempty typed libraries and execute its output.</td></tr><tr><td>A semantic failure becomes an operational exit</td><td>Map the library's typed failures to the established 1/2/130 categories and test each.</td></tr><tr><td>Unsafe output damages user data</td><td>Reuse the existing publisher and its overlap/path/ownership failure tests for the C# target.</td></tr></tbody></table>
 <h2 id="migration">Migration plan</h2><p>Add one provider registration, a project reference and additive docs. Keep existing F# invocations and JSON schema behavior. Rollback removes the C# registration and dependency; do not remove generated user files or change ownership-manifest semantics.</p>
 
+<section aria-labelledby="cscli-5">
+<h2 id="cscli-5">CSCLI-5. Add source-compatible namespace naming</h2>
+<p>The integration lease preserves GenerationOptions and the three-argument Generate API. NamespaceOverride has private construction, an immutable Value, and TryCreate returning a typed diagnostic. A four-argument overload and the existing overload call one implementation. The naming context is immutable and local to the request. It replaces the input Library package's emitted namespace across declarations, record/alias/generic type rendering, constructors and top-level value references. Original typed models, source paths, SDK/System names and the equality protocol remain unchanged.</p>
+<p>The literal-name boundary admits dotted BMP identifiers in Unicode Normalization Form C, with escaped reserved words and Unicode identifier categories. It refuses source escape syntax and surrogate characters rather than interpreting them. Null parsing and an explicit null override return invalid-namespace at $options/namespace; caller cancellation retains precedence. Compiled edge cases and concurrent requests verify admission and isolation.</p>
+<p>Reporting retains the generic command contract. JSON stdout contains one report including structured diagnostics and no plain-text logs. Human diagnostics and emitted log text use stderr; JSON failures need not duplicate report diagnostics as stderr text.</p>
+</section>
 </main>
 </body>
 </html>

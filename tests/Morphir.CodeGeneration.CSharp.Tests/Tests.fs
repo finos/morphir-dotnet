@@ -244,6 +244,7 @@ let externalDiagnostics model (consumer: string) =
 [<Tests>]
 let tests =
     testList "C# generation" [
+        NamespaceCases.tests
         testCase "Business matrix retains all seven required inputs"
         <| fun _ ->
             Expect.equal

@@ -4,8 +4,8 @@ Read [design](design.html), [spec](specs/cli-csharp-generation/spec.md) and [han
 
 ## 1. Provider registration and options
 
-- [ ] 1.1 Confirm the backend PR is merged into main and read its frozen request/result contract; create the CLI integration PRD and add failing real-provider registration/option cases.
-- [ ] 1.2 Implement the C# provider and static registration using the existing resolver; verify exact capabilities, unknown/ambiguous targets and unsupported required semantics without special-casing C# in the resolver.
+- [x] 1.1 Confirm the backend PR is merged into main and read its frozen request/result contract; create the CLI integration PRD and add failing real-provider registration/option cases.
+- [x] 1.2 Implement the C# provider and static registration using the existing resolver; verify exact capabilities, unknown/ambiguous targets and unsupported required semantics without special-casing C# in the resolver.
 - [ ] 1.3 Implement language-version=14 or 15 and optional namespace validation by reusing the core, with docs/examples in the same group; verify defaults, repeated options, wrong JSON kinds, injection-like names and unsupported aliases.
 
 ## 2. Model/artifact and publication parity

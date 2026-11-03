@@ -342,6 +342,13 @@
           "System.CommandLine": "[2.0.14, )"
         }
       },
+      "morphir.codegeneration.csharp": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.codegeneration.fsharp": {
         "type": "Project",
         "dependencies": {
@@ -415,6 +422,7 @@
           "Json.More.Net": "[2.2.0, )",
           "JsonSchema.Net": "[8.0.5, )",
           "Microsoft.Extensions.Hosting": "[10.0.14, )",
+          "Morphir.CodeGeneration.CSharp": "[1.0.0, )",
           "Morphir.CodeGeneration.FSharp": "[1.0.0, )",
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Configuration.IO": "[1.0.0, )",

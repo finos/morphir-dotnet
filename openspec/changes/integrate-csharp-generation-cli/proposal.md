@@ -19,17 +19,29 @@ The C# generation library needs a thin adapter into the existing morphir generat
 
 ### Modified Capabilities
 
-None. Existing backend, model and publication contracts are preserved.
+- `morphir-csharp-transpilation`: Add a validated request-local namespace override
+  and source-compatible overload to deterministic core naming. Preserve existing
+  options, default output, typed models, source paths and runtime protocol.
 
 ## Tracking
 
 - Requires an integrated, verified commit of [add-csharp-code-generation](../archive/2026-11-03-add-csharp-code-generation/proposal.md).
 - Delivery plan, merged-to-main completion and cleanup gates: [orchestration](../../../docs/design/dotnet-csharp-generation/orchestration.md).
-- Worker brief: [handoff](handoff.md). No GitHub issue exists for this new change yet; the coordinator must create or link one before contribution, without inventing an ID.
+- Contribution issue: [#481](https://github.com/finos/morphir-dotnet/issues/481).
+- Worker brief: [handoff](handoff.md). The feature PRD is
+  [CLI integration](../../../docs/content/contributing/design/prds/integrate-csharp-generation-cli.md).
 - Establish the feature PRD and index entry during implementation before production code, as specified in tasks. Implementation is not authorized by creating this proposal.
 
 ## Impact
 
 Own CSharpGenerationBackend.cs, its Tooling tests, GenerationScenario.cs registration and additive C# CLI documentation. The existing cli-model-generation capability is defined by the completed add-generate-command change but is not yet in main specs here; this additive capability does not rewrite that change.
+
+The coordinator approved a narrow integration lease for the core Types,
+TypeEmission, ValueEmission and Generator files, namespace tests and the public
+API/diagnostic guide. A privately constructed immutable `NamespaceOverride` and
+four-argument `Generate` overload retain the existing `GenerationOptions` record
+and three-argument entry point. Core naming applies the namespace to the input
+Library package's declarations and qualified references. It preserves package
+source paths and never rewrites generated source text or migrates the input IR.
 
 Production implementation, release publication, new Codex thread launch and source-generator delivery are outside this planning action.

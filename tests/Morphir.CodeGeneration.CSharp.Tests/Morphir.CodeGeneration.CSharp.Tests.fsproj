@@ -26,6 +26,7 @@
     <Compile Include="FrozenSdkCases.fs" />
     <Compile Include="CancellationCases.fs" />
     <Compile Include="BusinessCases.fs" />
+    <Compile Include="NamespaceCases.fs" />
     <Compile Include="Tests.fs" />
     <None Include="Generation.feature" />
   </ItemGroup>

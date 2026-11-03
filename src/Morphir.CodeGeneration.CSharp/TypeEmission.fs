@@ -116,6 +116,16 @@ module internal TypeEmission =
         |> List.map identifier
         |> String.concat "."
 
+    type Naming = {
+        Package: PackageName option
+        Namespace: string option
+    }
+
+    let namespaceName naming pkg =
+        match naming.Package, naming.Namespace with
+        | Some own, Some value when own = pkg -> value
+        | _ -> packageName pkg
+
     let moduleName (ModulePath(Path names)) =
         "@"
         + (names
@@ -197,6 +207,14 @@ module internal TypeEmission =
     let qualified name =
         "global::"
         + packageName name.PackagePath
+        + "."
+        + moduleName name.ModulePath
+        + "."
+        + identifier name.LocalName
+
+    let qualifiedWith naming name =
+        "global::"
+        + namespaceName naming name.PackagePath
         + "."
         + moduleName name.ModulePath
         + "."
@@ -587,6 +605,7 @@ module internal TypeEmission =
         )
 
     let rec render
+        naming
         (catalog: Map<FQName, Declaration>)
         (ct: CancellationToken)
         location
@@ -595,7 +614,7 @@ module internal TypeEmission =
         shape
         =
         ct.ThrowIfCancellationRequested()
-        let next = render catalog ct location bound visiting
+        let next = render naming catalog ct location bound visiting
         let runtime = "global::Morphir.SDK.CSharp."
 
         match shape with
@@ -629,7 +648,7 @@ module internal TypeEmission =
         | Fields _ ->
             let owner, args = recordTarget ct catalog location shape
 
-            qualified owner.Name
+            qualifiedWith naming owner.Name
             + arguments next args
         | Named(name, args) ->
             match sdk name with
@@ -715,10 +734,10 @@ module internal TypeEmission =
 
                         let owner, args = recordTarget ct catalog location concrete
 
-                        qualified owner.Name
+                        qualifiedWith naming owner.Name
                         + arguments next args
                     | Cases _ ->
-                        qualified name
+                        qualifiedWith naming name
                         + arguments next args
                     | Alias body ->
                         if Set.contains name visiting then
@@ -735,7 +754,7 @@ module internal TypeEmission =
                                  |> Map.ofList)
                                 body
 
-                        render catalog ct location bound (Set.add name visiting) body
+                        render naming catalog ct location bound (Set.add name visiting) body
 
     let private protocol (ct: CancellationToken) name fields isOverride =
         ct.ThrowIfCancellationRequested()
@@ -793,8 +812,9 @@ module internal TypeEmission =
         + name
         + "? right) => !(left == right);\n"
 
-    let private valueClass catalog ct declaration name baseType access fields =
-        let typ = render catalog ct declaration.Location declaration.Parameters Set.empty
+    let private valueClass naming catalog ct declaration name baseType access fields =
+        let typ =
+            render naming catalog ct declaration.Location declaration.Parameters Set.empty
 
         let fieldsText =
             fields
@@ -977,7 +997,7 @@ module internal TypeEmission =
             args
             |> List.iter (validatePublicType ct catalog location)
 
-    let prepareWith additions model ct =
+    let prepareWith naming additions model ct =
         let raw =
             declarations model ct
             @ additions
@@ -1185,11 +1205,12 @@ module internal TypeEmission =
                                 recordTarget ct catalog declaration.Location (Fields fields)
 
                             if owner.Name = declaration.Name then
-                                valueClass catalog ct declaration name "" access fields
+                                valueClass naming catalog ct declaration name "" access fields
                             else
                                 ""
                         | Alias body ->
                             render
+                                naming
                                 catalog
                                 ct
                                 declaration.Location
@@ -1238,6 +1259,7 @@ module internal TypeEmission =
                             + (cases
                                |> List.map (fun (caseName, fields) ->
                                    valueClass
+                                       naming
                                        catalog
                                        ct
                                        declaration
@@ -1258,4 +1280,4 @@ module internal TypeEmission =
 
         catalog, modules
 
-    let prepare model ct = prepareWith [] model ct
+    let prepare naming model ct = prepareWith naming [] model ct

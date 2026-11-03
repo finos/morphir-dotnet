@@ -7,6 +7,42 @@ description: "Solutions to common issues with Morphir .NET CLI"
 
 # Troubleshooting Guide
 
+## C# generation
+
+Use exact target `csharp`, numeric `language-version=14` or `15`, and an optional
+literal C# namespace. These invocations fail with exit 2 before publication:
+
+```powershell
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=preview --json
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option namespace=true --json
+```
+
+The first requires a numeric profile. The second supplies a JSON Boolean where
+a namespace string is required. Use `--option language-version=14` and
+`--option namespace=Pricing.Generated`. Source syntax, empty segments and
+unescaped reserved words are refused with a located namespace diagnostic.
+Use `@` for reserved words, for example `namespace=@class.Models`.
+
+In JSON mode, parse the single stdout report and inspect `failureKind` and
+`diagnostics`. Structured diagnostics are report data; JSON failures need not
+duplicate their text on stderr. Without `--json`, human diagnostics use stderr.
+Exit 1 identifies unsupported or invalid model semantics; exit 2 identifies
+invocation or operational failures; cancellation before publication returns 130.
+No successful partial sources are published for these failures.
+
+An unsupported expression, SDK operation, distribution or required semantic has
+a stable rule and available model location. Read the
+[C# API/diagnostic guide](../backends/csharp/diagnostics/), then correct the input
+or restrict it to the admitted model contract. Do not edit emitted sources to
+hide a refusal. For a compiler error, verify the separately selected compiler's
+numeric language version and the `Morphir.SDK.CSharp` package reference using
+the [fresh-consumer walkthrough](../getting-started/morphir-to-csharp/).
+
+Keep input and output separate and retain `.morphir-generated.json`. A failed
+generation or rejected overlap preserves earlier owned sources and unowned
+files. Shared publication does not promise rollback after a filesystem failure
+during final commit; inspect the report and rerun after fixing that failure.
+
 This guide covers common issues you may encounter when using the Morphir .NET CLI and how to resolve them.
 
 ## Installation Issues

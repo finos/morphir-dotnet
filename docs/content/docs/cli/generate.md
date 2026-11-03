@@ -5,13 +5,13 @@ description: Generate target artifacts from a Morphir model
 
 # Generate
 
-Generate target files from a decoded Morphir library. The delivered target is
-`fsharp`, including classic and v4 models. Input, target and output are explicit.
+Generate target files from a decoded Morphir library. Targets `fsharp` and
+`csharp` support classic and v4 models. Input, target and output are explicit.
 
 ## Synopsis
 
 ```text
-morphir generate --input <file-or-directory> --target fsharp --output <directory>
+morphir generate --input <file-or-directory> --target <fsharp|csharp> --output <directory>
   [--input-format auto|json|ion] [--option KEY=VALUE ...] [--json]
 ```
 
@@ -20,16 +20,31 @@ morphir generate --input <file-or-directory> --target fsharp --output <directory
 | Option | Meaning |
 | --- | --- |
 | `--input` | Required JSON/Ion model file or Ion tree directory |
-| `--target` | Required exact registered target ID, currently `fsharp` |
+| `--target` | Required exact registered target ID, `fsharp` or `csharp` |
 | `--output` | Required output directory with owned generated files |
 | `--input-format` | `auto` by default; `json` or `ion` constrains the reader |
-| `--option` | Repeatable backend option; F# accepts Boolean `optimize`, default `true` |
+| `--option` | Repeatable backend option, described below |
 | `--json` | Write one structured report to stdout |
 
 Paths resolve against the invocation directory. No project configuration is
 required or discovered. Repeated option keys use the last value. Values parse
 as JSON first, so `optimize=false` is Boolean while `optimize='"false"'` is a
 string and is refused by this backend.
+
+F# accepts Boolean `optimize`, default `true`. C# accepts numeric JSON
+`language-version=14` or `language-version=15`, default `14`, and optional string
+`namespace=Pricing.Generated`. Plain namespace text becomes a JSON string through
+the shared option parser. Numeric strings, `preview`, `latest`, unsupported
+numbers, unknown keys and wrong JSON kinds are invocation errors.
+
+C# namespaces are dotted literal identifiers in Unicode Normalization Form C.
+An identifier can start with a letter or `_` and continue with letters, decimal
+digits, connector punctuation, combining marks or formatting characters.
+Reserved keywords require `@`, for example `@class.Models`. Literal BMP Unicode
+is supported, such as `Café.模型`; source `\u`/`\U` escapes and surrogate
+characters are refused. The core validates this same vocabulary for direct callers.
+An override changes the input package's emitted namespace and its qualified
+references. Relative source paths retain the original package identity.
 
 ## Inputs and target profile
 
@@ -51,6 +66,14 @@ YAML model files, JSON/YAML trees and MEP envelopes are unsupported. Future
 Generation produces source files and their ownership manifest. It does not
 create an F# project or compile and execute the output.
 
+The C# target declares the same exact Library versions. It uses the immutable
+`Morphir.SDK.CSharp` runtime and the admitted
+[C# generation contract](../backends/csharp/diagnostics/). Its own semantics and
+located refusals remain those of the reusable C# library. Generation needs no
+compiler installation. A separate consumer chooses the matching numeric compiler
+profile and references the runtime package. The production Roslyn adapter remains
+deferred.
+
 ## Examples
 
 Run these from a repository checkout, using its shared fixtures:
@@ -61,6 +84,20 @@ morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target fs
 morphir generate --input tests/Fixtures/MorphirIon/pairs/v3-daily-rate.ion --target fsharp --output artifacts/generated-fsharp --input-format ion --json
 morphir generate --input tests/Fixtures/MorphirIon/trees/v3-daily-rate --target fsharp --output artifacts/generated-fsharp --json
 ```
+
+For C#:
+
+```powershell
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v3.json --target csharp --output artifacts/generated-csharp --json
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=14 --option namespace=Pricing.Generated --json
+morphir generate --input tests/Fixtures/MorphirIon/pairs/v3-daily-rate.ion --target csharp --output artifacts/generated-csharp --input-format ion --json
+morphir generate --input tests/Fixtures/MorphirIon/trees/v3-daily-rate --target csharp --output artifacts/generated-csharp --json
+```
+
+`--option language-version=15 --option language-version=14` selects `14`.
+Selecting `15` explicitly generates the C# 15 profile independently of the SDK
+installed on the generation machine. Compile it separately using the matching
+.NET 11 compiler. See [the executable C# walkthrough](../getting-started/morphir-to-csharp/).
 
 For CI, retain the JSON report and propagate a failure:
 
@@ -79,6 +116,10 @@ input/output, source version/family/kind/representation, ordered `artifacts`,
 Failed reports contain no successful artifact list. Parsed JSON-mode invocation
 errors also produce a report.
 
+Structured diagnostics remain fields in that JSON report. JSON failures need
+not duplicate them as human-readable stderr text. Human-mode diagnostics and
+any emitted log text use stderr. C# reports identify backend `morphir.csharp`.
+
 | Exit | Meaning |
 | --- | --- |
 | 0 | Generation and publication succeeded |
@@ -88,6 +129,9 @@ errors also produce a report.
 
 For a single-module fixture, `artifacts` contains `["Inventory.fs"]`. Its order
 is the F# compilation order, including on repeat runs when files are unchanged.
+For the C# daily-rate fixture it contains
+`["p_Car.Rental/m_InventoryModule.g.cs"]`. Both direct generation and the CLI
+use those same package-derived paths and source bytes.
 
 ## Publication and ownership
 

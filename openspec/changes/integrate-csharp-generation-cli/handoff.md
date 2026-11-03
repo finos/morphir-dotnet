@@ -18,6 +18,26 @@ Read the stable archived [C# runtime API handoff](../archive/2026-11-03-add-immu
 
 ## Scope and owned files
 
+### Approved integration lease, 2026-11-03
+
+Issue [#481](https://github.com/finos/morphir-dotnet/issues/481) tracks this
+implementation. The coordinator approved additive core namespace work in
+`src/Morphir.CodeGeneration.CSharp/{Types,TypeEmission,ValueEmission,Generator}.fs`,
+new namespace cases and their test registration, the public diagnostics guide
+and the active deterministic-naming delta. Preserve the existing options and
+three-argument API. A validated immutable `NamespaceOverride` and overload use
+one generation implementation with request-local naming. No runtime, historical
+archive or direct main-spec edits are leased.
+
+The lead also holds exact additive leases for the Tooling project reference,
+static GenerationScenario registration, own PRD-index row, README CLI example,
+NOTICE attribution and one Unreleased changelog bullet. Other shared paths
+remain coordinator-owned. The lead is the sole Git/source writer.
+
+Preserve generic reporting. JSON stdout is one report including structured
+diagnostics; it has no plain-text logs. Human diagnostics and emitted log text
+use stderr. JSON failures do not need duplicate stderr diagnostic text.
+
 - Register exact target csharp through IGenerationBackend with immutable validated options and explicit model capabilities.
 - Expose language-version=14 or 15 and optional namespace through existing repeated --option settings; default to 14.
 - Reuse existing model loading, publication, JSON reports and exit codes without a second orchestration path.

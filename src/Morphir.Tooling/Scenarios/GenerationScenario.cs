@@ -15,6 +15,7 @@ public sealed class GenerationScenario : IMorphirCliScenario
             services.TryAddSingleton<BoundedModelCapture>();
             services.TryAddSingleton<IModelLoader, GenerationModelLoader>();
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IGenerationBackend, FSharpGenerationBackend>());
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IGenerationBackend, CSharpGenerationBackend>());
             services.TryAddSingleton<IGenerationBackendResolver, RegisteredBackendResolver>();
             services.TryAddSingleton<IGenerationPublisher, GenerationPublisher>();
         });
