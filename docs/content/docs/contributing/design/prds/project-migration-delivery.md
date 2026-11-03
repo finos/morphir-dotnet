@@ -231,3 +231,32 @@ Published stderr is empty. The trimmed/native dependency warning counts remain
 introduced. Publish-only lockfiles were restored byte-for-byte. Exact commands
 and exit codes are in `parent-qualification-summary.json`, `publish/summary.json`
 and `publish-locks/restored.json` under the owned artifact root.
+
+### Directory ownership and explicit primary anchors
+
+Independent IO/CLI review found that inventory selection could migrate an
+unrelated sole sibling when a directory input named an unlisted project.
+`ownership-red.log` reproduces five failing API cases, including a containing
+root project. `ownership-cli-red.log` passes 34 existing CLI cases and fails all
+four new unlisted apply/preview/current/nested subprocess cases before the fix.
+Migration now requires a selected project to own the requested directory and
+rejects any nearer inspected primary that belongs to an undeclared project.
+Workspace-root unambiguous selection and declared-member subdirectories remain
+supported. Initial green runs pass 314 IO cases and all 38 migration CLI cases.
+
+A related parent probe found that explicit `.morphir/morphir.json` input used
+`.morphir` as its project anchor. `layout-anchor-red.log` passes the adjacent and
+dot-config layouts and fails the hidden layout's project-location assertion.
+Explicit primary inputs now use shared candidate policy to identify the owning
+project directory before discovery. This preserves source-relative meaning and
+workspace member identity for every supported primary layout. Native smoke
+coverage includes unlisted selection and all explicit primary anchors.
+
+After both ownership corrections, the rebuilt solution passes with nine existing
+warnings and zero errors. All 17 configured runners pass again from those
+outputs: core 177, IO 314, tooling 401 and Microsoft 22; all other runner counts
+remain unchanged. The complete CLI run includes the four actual subprocess
+refusal cases. `ownership-io-final.log`, `ownership-final-build.log` and the
+refreshed `validation/summary.json` retain this evidence. These fixes keep the
+shared discovery API unchanged and enforce migration's narrower ownership
+contract in the reusable IO service.

@@ -13,6 +13,11 @@ on System.CommandLine or the CLI host. The
 [command reference]({{< relref "/docs/cli/project-migrate" >}}) covers options,
 before/after files and exit codes.
 
+A directory input must belong to the selected project. An unlisted project inside
+a workspace is refused rather than falling back to a sibling or a containing
+root project. Invoking from the workspace root may still select its unambiguous
+member; invoking within a declared member selects that member.
+
 ## Read-only planning
 
 ```csharp

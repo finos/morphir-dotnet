@@ -118,3 +118,18 @@ Feature: Migrate one classic project without losing its configuration
       | --unknown             |
       | --output              |
       | first second          |
+
+  Scenario Outline: Unlisted project directories cannot migrate a sibling
+    Given a classic migration project
+    And an unlisted migration project invoked from "<working>"
+    When I migrate the project with "<command>"
+    Then migration exits 2 with outcome "blocked"
+    And migration reports blocking diagnostics on stderr
+    And the unlisted migration leaves every project unchanged
+
+    Examples:
+      | working | command       |
+      | root    | app           |
+      | root    | app --dry-run |
+      | app     |               |
+      | app/src |               |

@@ -41,6 +41,43 @@ public sealed class ProjectMigrationTests
     }
 
     [Test]
+    [Arguments("app", false)]
+    [Arguments(null, false)]
+    [Arguments("app/src", false)]
+    [Arguments("app", true)]
+    [Arguments(null, true)]
+    public void UnlistedDirectoryCannotSelectAnotherProject(string? input, bool rootProject)
+    {
+        var files = new Dictionary<string, string>
+        {
+            ["/repo/morphir.toml"] = "[workspace]\nmembers=['other']\n",
+            ["/repo/app/morphir.json"] = Classic,
+            ["/repo/other/morphir.json"] = "{name:'Other',exposedModules:[]}"
+        };
+        if (rootProject) files["/repo/morphir.json"] = "{name:'Root',exposedModules:[]}";
+        var tree = new InMemoryProjectTree("/repo", files, ["/repo/app/src"]);
+        var preview = new ProjectMigrationService(tree).Plan(input is null ? "/repo/app" : "/repo", input);
+        preview.CanApply.Should().BeFalse("an unlisted project must not fall back to a sibling or root project");
+        preview.Diagnostics.Should().Contain(d => d.Code == "migration.selection");
+        files.Keys.Should().NotContain("/repo/other/morphir.toml");
+    }
+
+    [Test]
+    [Arguments("/repo")]
+    [Arguments("/repo/other/src")]
+    public void WorkspaceRootAndDeclaredMemberSubdirectoriesStillSelectTheMember(string start)
+    {
+        var tree = new InMemoryProjectTree("/repo", new Dictionary<string, string>
+        {
+            ["/repo/morphir.toml"] = "[workspace]\nmembers=['other']\n",
+            ["/repo/other/morphir.json"] = Classic
+        }, ["/repo/other/src"]);
+        var preview = new ProjectMigrationService(tree).Plan(start);
+        preview.CanApply.Should().BeTrue();
+        preview.ProjectPath.Should().Be("/repo/other");
+    }
+
+    [Test]
     public void MemberPreviewKeepsBaseWorkspaceAndIgnoresPersonalProfileAndSiblings()
     {
         var tree = new InMemoryProjectTree("/repo", new Dictionary<string, string>
@@ -73,6 +110,7 @@ public sealed class ProjectMigrationApplicationTests
         var preview = fixture.Service.Plan(fixture.Root, source);
         preview.CanApply.Should().BeTrue(string.Join(",", preview.Diagnostics.Select(d => d.Code)));
         preview.TargetPath.Should().Be(ProjectPath.join(fixture.Root, targetName));
+        preview.ProjectPath.Should().Be(fixture.Root, "explicit primary files retain their project location anchor");
         fixture.Service.Apply(preview).Status.Should().Be(ConfigurationTransactionStatus.Written);
         File.ReadAllBytes(source).Should().Equal(bytes);
         var target = preview.TargetPath!;

@@ -18,8 +18,10 @@ byte-identical for older consumers.
 
 `path` accepts one project directory or classic `morphir.json`. With no path,
 shared discovery selects the current unambiguous project. Invoking from a
-workspace member selects that member. A virtual workspace with no unambiguous
-project requires a member directory or manifest path.
+workspace member selects that member. An unlisted project directory is refused;
+migration never substitutes a sibling or a containing root project for it. A
+virtual workspace with no unambiguous project requires a member directory or
+manifest path.
 
 ## Options
 

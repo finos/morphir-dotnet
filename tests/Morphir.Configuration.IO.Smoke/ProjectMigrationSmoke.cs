@@ -42,6 +42,25 @@ internal static class ProjectMigrationSmoke
             "{name:'Orders',exposedModules:[],custom:{'\\ud800':{nested:'okay'}}}");
         Check(ProjectMigration.plan(invalidKey, controlledTarget, DocumentDefaults.emptyValue).Blocked,
             "invalid ancestor key escaped loss accounting");
+        foreach (var includeRootProject in new[] { false, true })
+        {
+            var files = new Dictionary<string, string>
+            {
+                ["/repo/morphir.toml"] = "[workspace]\nmembers=['other']\n",
+                ["/repo/app/morphir.json"] = classic,
+                ["/repo/other/morphir.json"] = "{name:'Other',exposedModules:[]}"
+            };
+            if (includeRootProject) files["/repo/morphir.json"] = "{name:'Root',exposedModules:[]}";
+            var unlisted = new ProjectMigrationService(new InMemoryProjectTree("/repo", files)).Plan("/repo", "app");
+            Check(!unlisted.CanApply && unlisted.Diagnostics.Any(d => d.Code == "migration.selection"),
+                "unlisted input selected another project");
+        }
+        foreach (var layout in new[] { "morphir.json", ".morphir/morphir.json", ".config/morphir/config.json" })
+        {
+            var files = new Dictionary<string, string> { ["/repo/" + layout] = classic };
+            var explicitPreview = new ProjectMigrationService(new InMemoryProjectTree("/repo", files)).Plan("/repo", layout);
+            Check(explicitPreview.CanApply && explicitPreview.ProjectPath == "/repo", "explicit primary changed the project anchor");
+        }
         var root = ProjectPath.normalize(Path.Combine(Path.GetTempPath(), "migration-smoke-" + Guid.NewGuid().ToString("N")));
         Directory.CreateDirectory(root);
         var recovery = false;

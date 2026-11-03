@@ -64,12 +64,33 @@ public sealed class ProjectMigrationService(IProjectTree tree, IConfigurationTra
             if (entry is not ProjectEntry.Directory && entry is not ProjectEntry.File)
                 return Fail("migration.input", "Expected an existing project directory or classic project configuration.");
             var explicitFile = entry is ProjectEntry.File;
-            var found = ProjectSystem.Discover(observed, input);
+            var discoveryInput = input;
+            if (explicitFile)
+                // A hidden primary is owned by the project above its layout directory.
+                // Ask the shared candidate policy instead of treating the file's parent as a project.
+                for (var directory = ProjectPath.parent(input); ProjectPath.contains(tree.Boundary, directory); directory = ProjectPath.parent(directory))
+                {
+                    if (DiscoveryPolicy.candidates(directory).Contains(input)) discoveryInput = directory;
+                    if (directory == tree.Boundary) break;
+                }
+            var found = ProjectSystem.Discover(observed, discoveryInput);
             diagnostics.AddRange(found.Discovery.Diagnostics);
             diagnostics.AddRange(found.Selection.Diagnostics);
             if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error) || found.Selection.Projects.Count() != 1)
                 return Fail("migration.selection", "Select one unambiguous valid project.");
             var project = found.Selection.Projects.Head;
+            if (!explicitFile && input != found.Discovery.Location)
+            {
+                if (!ProjectPath.contains(project.Path, input))
+                    return Fail("migration.selection", "The requested directory does not belong to the selected project.");
+                // Inventory selection can fall back to a containing root project even when
+                // a nearer, undeclared primary was inspected on the upward discovery walk.
+                var inspected = found.Discovery.Sources.Where(s => s.Status == SourceStatus.Loaded)
+                    .Select(s => s.Source.Path).ToHashSet(StringComparer.Ordinal);
+                for (var directory = input; directory != project.Path; directory = ProjectPath.parent(directory))
+                    if (DiscoveryPolicy.candidates(directory).Any(inspected.Contains))
+                        return Fail("migration.selection", "The requested directory has a nearer configuration outside the selected project.");
+            }
             projectPath = project.Path;
             var role = project.Path == found.Discovery.Location ? SourceRole.RootPrimary : SourceRole.MemberPrimary;
             // Only declared base primary documents participate. No loader call can read personal,

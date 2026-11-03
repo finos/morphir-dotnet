@@ -84,6 +84,31 @@ public sealed class ProjectMigrationSteps : IDisposable
         _working = Path.Combine(_root, "member", "elm-src");
     }
 
+    [Given("an unlisted migration project invoked from {string}")]
+    public void Unlisted(string working)
+    {
+        File.Delete(Source);
+        foreach (var member in new[] { "app", "other" })
+        {
+            Directory.CreateDirectory(Path.Combine(_root, member, "src"));
+            File.WriteAllText(Path.Combine(_root, member, "morphir.json"), _source);
+        }
+        File.WriteAllText(Target, "[workspace]\nmembers=['other']\n");
+        _targetBytes = File.ReadAllBytes(Target);
+        _working = working == "root" ? _root : Path.Combine(_root, working);
+    }
+
+    [Then("the unlisted migration leaves every project unchanged")]
+    public void UnlistedUnchanged()
+    {
+        File.ReadAllBytes(Target).Should().Equal(_targetBytes!);
+        foreach (var member in new[] { "app", "other" })
+        {
+            File.Exists(Path.Combine(_root, member, "morphir.toml")).Should().BeFalse();
+            File.ReadAllText(Path.Combine(_root, member, "morphir.json")).Should().Be(_source);
+        }
+    }
+
     [When("I migrate the project with {string}")]
     public Task Migrate(string command) => Run(command.Split(' ', StringSplitOptions.RemoveEmptyEntries), true);
 
