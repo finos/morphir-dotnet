@@ -306,3 +306,12 @@ output directory from permitted workspace overlays, including active profiles
 and workspace personal files. Root and member loads therefore share the same
 output context. Member profiles and personal files cannot relocate it. Invalid
 workspace output overlays remain diagnostics even when loading a member.
+
+
+Machine discovery uses separate authorized filesystem hosts. The native CLI
+plans one host per machine drive or UNC share, so a project on `D:` can read
+system settings from `C:/ProgramData` and redirected roaming settings. Embedded
+hosts can provide `ProjectLoadOptions.MachineTrees` for multiple mounted roots,
+or retain `MachineTree` for one root. `ProjectSystem.MachineBoundaries` plans
+those roots without reading files. The project discovery boundary still applies
+only to project files, and isolation omits all machine reads.

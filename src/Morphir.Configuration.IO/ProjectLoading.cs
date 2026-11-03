@@ -11,6 +11,8 @@ public sealed record ProjectLoadOptions
     public string? SelectedPath { get; init; }
     public MachineLocationInput? Machine { get; init; }
     public IProjectTree? MachineTree { get; init; }
+    /// <summary>Additional explicitly authorized machine roots, including other drives and UNC shares.</summary>
+    public IReadOnlyList<IProjectTree> MachineTrees { get; init; } = [];
 }
 
 public static partial class ProjectSystem
@@ -56,15 +58,20 @@ public static partial class ProjectSystem
 
         if (options.Machine is { } machine && !options.Isolated)
         {
-            var environment = machine.Environment;
-            if (environment.TryGetValue("MORPHIR_HOME", out var home) && !string.IsNullOrEmpty(home) && !ProjectPath.isAbsolute(home))
-                environment = environment.Add("MORPHIR_HOME", ProjectPath.join(discovery.StartDirectory, home));
-            machine = new(machine.Platform, machine.HomeDirectory, machine.RoamingAppData, machine.ProgramData, environment);
-            if (options.MachineTree is null)
+            machine = ResolveMachineLocations(machine, discovery.StartDirectory);
+            var hosts = options.MachineTree is { } single
+                ? options.MachineTrees.Prepend(single).ToArray() : options.MachineTrees.ToArray();
+            if (hosts.Length == 0)
                 diagnostics.Add(ReaderValues.Diagnostic(new SourceIdentity("<machine-host>", DocumentFormat.Memory, SourceRole.System, 0, null),
                     "discovery.machine_host_required", "Machine locations require an explicitly authorized machine tree"));
             else
-                sources.AddRange(ProjectSources.machineCandidates(machine, false).Select(s => Read(options.MachineTree, s)));
+                foreach (var source in ProjectSources.machineCandidates(machine, false))
+                {
+                    var host = hosts.Where(h => ProjectPath.contains(h.Boundary, source.Path))
+                        .OrderByDescending(h => h.Boundary.Length).FirstOrDefault();
+                    // Read's boundary check reports unauthorized candidates without observing any host.
+                    sources.Add(Read(host ?? hosts[0], source));
+                }
         }
 
         var roots = discovery.Root.Sources;

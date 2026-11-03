@@ -29,13 +29,15 @@ public sealed class NativeConfigurationInspectionHost : IConfigurationInspection
         var environment = MapModule.OfSeq(invocation.Environment.Select(p => Tuple.Create(p.Key, p.Value)));
         var input = new ResolutionInput(FSharpList<SourceInput>.Empty, environment, DocumentDefaults.emptyValue,
             invocation.Profiles, ProjectScope.Root, null, ListModule.OfSeq(invocation.SuppressWarnings));
+        var machine = invocation.Isolated ? null : ProjectSystem.CaptureMachineLocations(invocation.Environment);
         var options = new ProjectLoadOptions
         {
             Input = input,
             Isolated = invocation.Isolated,
             SelectedPath = invocation.SelectedFile,
-            Machine = invocation.Isolated ? null : ProjectSystem.CaptureMachineLocations(invocation.Environment),
-            MachineTree = invocation.Isolated ? null : new FileSystemProjectTree(Path.GetPathRoot(start)!)
+            Machine = machine,
+            MachineTrees = machine is null ? [] : ProjectSystem.MachineBoundaries(machine, start)
+                .Select(root => (IProjectTree)new FileSystemProjectTree(root)).ToArray()
         };
         var detailed = ProjectSystem.LoadDetailed(tree, discovered.Discovery, project, options);
         var usesProjectSelection = invocation.Scope.IsEffective || invocation.Scope.IsProject || invocation.Scope.IsUser;
