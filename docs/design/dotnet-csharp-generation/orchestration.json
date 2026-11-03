@@ -1,0 +1,404 @@
+{
+  "schemaVersion": 1,
+  "kind": "coordination-plan",
+  "executionStarted": false,
+  "observedSourceBaseline": "1c8aa75f63d7ede19cb2ad75b73a6ee8690e4f6f",
+  "purpose": "Five independently landed initiatives for immutable C# generation and language-specific SDK packages.",
+  "dispatch": {
+    "tool": "delegate_task",
+    "isolation": "worktree",
+    "mode": "async",
+    "role": "implementation",
+    "target": {
+      "providerInstanceId": "codex",
+      "driverKind": "codex",
+      "model": "gpt-6.1-sol",
+      "options": {
+        "reasoningEffort": "high"
+      }
+    }
+  },
+  "initialConcurrency": 1,
+  "maxConcurrentInitiatives": 2,
+  "agentPolicy": {
+    "perLeadAuxiliaryLimit": 3,
+    "globalAuxiliaryLimit": 3,
+    "initialAuxiliaryLimitPerLead": 1,
+    "maxAuxiliaryFanoutDepth": 1,
+    "fanoutDepthMeaning": "One auxiliary layer below an initiative lead; auxiliaries cannot delegate",
+    "slotOwner": "root-coordinator",
+    "globalLimitIncreaseRequires": [
+      "explicit-resource-assessment",
+      "recorded-root-coordinator-decision-consistent-with-user-resource-constraint"
+    ],
+    "delegationTool": "delegate_task",
+    "targetSource": "dispatch.target",
+    "capabilitiesBeforeFirstDelegationPerThread": true,
+    "expansionRequires": "CPU, memory and resource headroom assessment",
+    "writingIsolation": "Explicit disjoint file ownership or orchestrator-created isolated worktrees; serial lead integration",
+    "recursiveDelegationAllowed": false,
+    "unusedTaskCancellationTool": "task_cancel",
+    "completionMode": "Follow delegate next instructions and event-driven completion; no polling or sleep loops",
+    "leadResponsibility": "Integrate auxiliaries, run integrated required checks, own one initiative PR, report all child tasks/worktrees/helpers",
+    "prWatchOwner": "root-coordinator",
+    "delegatedChildrenMayWatchPrs": false
+  },
+  "resourcePolicy": {
+    "expensiveCommandConcurrency": 1,
+    "slotOwner": "root-coordinator",
+    "expensiveCommands": [
+      "restore",
+      "build",
+      "test",
+      "coverage",
+      "pack",
+      "publish",
+      "Native AOT"
+    ],
+    "internalParallelism": "Bound with supported command options",
+    "pressureResponse": "Back off or serialize under sustained CPU or memory pressure",
+    "lightweightReadingAndReviewRequireSlot": false
+  },
+  "checkpointPolicy": {
+    "commitBoundary": "Meaningful task or task-group boundary after scoped work and required checks are complete",
+    "commitStyle": "Conventional Commits",
+    "include": [
+      "matching-tests",
+      "necessary-docs",
+      "accurate-OpenSpec-and-PRD-progress"
+    ],
+    "commitDoesNotProveAcceptance": true,
+    "requirePrecommitValidationAndHooks": true,
+    "allowCheckBypass": false,
+    "unavailableChecks": "Preserve work and report the concrete blocker; do not mark incomplete work complete",
+    "staging": "Explicit owned paths only; exclude unrelated work, secrets and transient artifacts",
+    "pushCompletedBoundariesPromptly": true,
+    "waitForPrReadinessBeforeBackup": false,
+    "pushDestination": "Initiative feature branch",
+    "forcePushAllowed": false,
+    "afterPushToExistingPr": "Call link_pull_request with the full PR URL as the next tool call",
+    "keepFinalCheckedHeadCurrent": true,
+    "beforeTransitions": [
+      "handoff",
+      "rebase",
+      "merge",
+      "context-transition",
+      "cleanup"
+    ],
+    "transitionRequirement": "Completed work committed and pushed; unfinished/uncommitted work explicitly identified and preserved",
+    "sharedCheckoutGitWriters": 1,
+    "auxiliaryWriterOwnership": "Disjoint owned paths or orchestrator-created isolated worktrees",
+    "isolatedAuxiliaryResultsCommittedBeforeIntegration": true,
+    "integratedAuxiliaryResultsPushedBeforeCleanup": true,
+    "retainBoundaryCommitsOnFeatureBranchDuringDelivery": true,
+    "squashLanding": "Record the separate hosting-service landed SHA on main; preserve the final submitted head SHA"
+  },
+  "prerequisites": [
+    "Planning artifacts and this plan are committed and available on main.",
+    "The coordinator's selected dispatch HEAD equals a verified main commit; delegate_task worktrees start from the parent commit, not uncommitted files.",
+    "All predecessor PRs are merged into main and their published API/fixture contracts are verified."
+  ],
+  "sharedPaths": [
+    "Morphir.slnx",
+    "Directory.Build.props",
+    "Directory.Packages.props",
+    "global.json",
+    "build/**",
+    ".github/workflows/**",
+    "docs/content/contributing/design/prds/_index.md",
+    "docs/content/contributing/design/prds/dotnet-code-generation.md"
+  ],
+  "sharedEditPolicy": "Coordinator integrates shared edits serially. Workers report exact proposed root edits and do not overwrite unrelated root configuration. Project-local lockfiles follow their project owner.",
+  "mergePolicy": {
+    "preferredMethod": "squash",
+    "supportedMethods": ["squash", "merge", "rebase"],
+    "actualMethodMustBeRecorded": true,
+    "headShaMeaning": "Final submitted PR head with required check and review evidence",
+    "mergeShaMeaning": "Hosting service recorded landed commit, including the squash commit",
+    "verification": [
+      "Exact initiative PR is merged into main",
+      "Hosting service recorded landed SHA is reachable from refreshed main",
+      "Successors use refreshed main containing that landed SHA"
+    ],
+    "requiresOriginalHeadAncestry": false,
+    "cleanupRequiresLastSubmittedHeadMatch": true
+  },
+  "lifecycle": [
+    "planned",
+    "ready",
+    "implementing",
+    "pr-open",
+    "waiting-checks-or-review",
+    "ready-to-land",
+    "merged",
+    "archived",
+    "cleanup-pending",
+    "complete"
+  ],
+  "completionRequires": [
+    "required-checks-and-reviews-satisfied",
+    "initiative-pr-merged-to-main",
+    "hosting-service-recorded-landed-commit-confirmed-on-main",
+    "specs-synced-and-change-archived-on-main",
+    "worker-and-owned-helpers-stopped",
+    "all-auxiliary-results-integrated-and-tasks-stopped",
+    "all-owned-auxiliary-worktrees-and-helpers-cleaned",
+    "auxiliary-and-expensive-command-slots-released",
+    "worker-worktree-clean",
+    "owned-worker-worktree-directory-removed",
+    "owned-worker-git-worktree-registration-removed",
+    "delivery-evidence-recorded",
+    "pr-watches-released"
+  ],
+  "initiatives": [
+    {
+      "changeId": "establish-dotnet-sdk-conformance",
+      "capability": "dotnet-sdk-conformance",
+      "title": "Establish .NET SDK conformance",
+      "status": "planned",
+      "dependsOn": [],
+      "activeChangePath": "openspec/changes/establish-dotnet-sdk-conformance",
+      "handoffPath": "openspec/changes/establish-dotnet-sdk-conformance/handoff.md",
+      "ownedPaths": [
+        "tests/Fixtures/MorphirSDK/**",
+        "tests/Morphir.SDK.Conformance.Tests/**",
+        "docs/design/dotnet-sdk-contract.md",
+        "openspec/changes/establish-dotnet-sdk-conformance/**",
+        "docs/content/contributing/design/prds/establish-dotnet-sdk-conformance.md"
+      ],
+      "prerequisiteEvidence": [],
+      "landing": {
+        "baseBranch": "main",
+        "pullRequestUrl": null,
+        "headSha": null,
+        "mergeMethod": null,
+        "mergeSha": null,
+        "archivePath": null,
+        "archivePullRequestUrl": null
+      },
+      "worker": {
+        "taskId": null,
+        "threadLink": null,
+        "baseSha": null,
+        "worktreePath": null
+      },
+      "cleanup": {
+        "owner": "coordinator",
+        "status": "not-started",
+        "cleanVerified": false,
+        "worktreeDirectoryRemoved": false,
+        "worktreeRegistrationRemoved": false,
+        "branchDeletionAuthorized": false
+      }
+    },
+    {
+      "changeId": "add-immutable-csharp-sdk",
+      "capability": "csharp-sdk-runtime",
+      "title": "Add immutable C# SDK",
+      "status": "planned",
+      "dependsOn": [
+        "establish-dotnet-sdk-conformance"
+      ],
+      "activeChangePath": "openspec/changes/add-immutable-csharp-sdk",
+      "handoffPath": "openspec/changes/add-immutable-csharp-sdk/handoff.md",
+      "ownedPaths": [
+        "src/Morphir.SDK.CSharp/**",
+        "tests/Morphir.SDK.CSharp.Tests/**",
+        "docs/content/docs/sdk/csharp/**",
+        "openspec/changes/add-immutable-csharp-sdk/**",
+        "docs/content/contributing/design/prds/add-immutable-csharp-sdk.md"
+      ],
+      "prerequisiteEvidence": [
+        {
+          "changeId": "establish-dotnet-sdk-conformance",
+          "requiredState": "merged",
+          "requiredContract": "Pinned SDK inventory, case schema and scalar profiles"
+        }
+      ],
+      "landing": {
+        "baseBranch": "main",
+        "pullRequestUrl": null,
+        "headSha": null,
+        "mergeMethod": null,
+        "mergeSha": null,
+        "archivePath": null,
+        "archivePullRequestUrl": null
+      },
+      "worker": {
+        "taskId": null,
+        "threadLink": null,
+        "baseSha": null,
+        "worktreePath": null
+      },
+      "cleanup": {
+        "owner": "coordinator",
+        "status": "not-started",
+        "cleanVerified": false,
+        "worktreeDirectoryRemoved": false,
+        "worktreeRegistrationRemoved": false,
+        "branchDeletionAuthorized": false
+      }
+    },
+    {
+      "changeId": "introduce-fsharp-sdk-package",
+      "capability": "fsharp-sdk-packaging",
+      "title": "Introduce F# SDK package",
+      "status": "planned",
+      "dependsOn": [
+        "establish-dotnet-sdk-conformance"
+      ],
+      "activeChangePath": "openspec/changes/introduce-fsharp-sdk-package",
+      "handoffPath": "openspec/changes/introduce-fsharp-sdk-package/handoff.md",
+      "ownedPaths": [
+        "src/Morphir.SDK/**",
+        "src/Morphir.SDK.FSharp/**",
+        "tests/Morphir.SDK.Tests/**",
+        "src/Morphir.CodeGeneration.FSharp/** (runtime integration only)",
+        "tests/Morphir.CodeGeneration.FSharp.Tests/** (runtime integration only)",
+        "examples/** (F# runtime references only)",
+        "openspec/changes/introduce-fsharp-sdk-package/**",
+        "docs/content/contributing/design/prds/introduce-fsharp-sdk-package.md"
+      ],
+      "prerequisiteEvidence": [
+        {
+          "changeId": "establish-dotnet-sdk-conformance",
+          "requiredState": "merged",
+          "requiredContract": "Pinned SDK inventory, case schema and scalar profiles"
+        }
+      ],
+      "landing": {
+        "baseBranch": "main",
+        "pullRequestUrl": null,
+        "headSha": null,
+        "mergeMethod": null,
+        "mergeSha": null,
+        "archivePath": null,
+        "archivePullRequestUrl": null
+      },
+      "worker": {
+        "taskId": null,
+        "threadLink": null,
+        "baseSha": null,
+        "worktreePath": null
+      },
+      "cleanup": {
+        "owner": "coordinator",
+        "status": "not-started",
+        "cleanVerified": false,
+        "worktreeDirectoryRemoved": false,
+        "worktreeRegistrationRemoved": false,
+        "branchDeletionAuthorized": false
+      }
+    },
+    {
+      "changeId": "add-csharp-code-generation",
+      "capability": "morphir-csharp-transpilation",
+      "title": "Add C# code generation",
+      "status": "planned",
+      "dependsOn": [
+        "add-immutable-csharp-sdk"
+      ],
+      "activeChangePath": "openspec/changes/add-csharp-code-generation",
+      "handoffPath": "openspec/changes/add-csharp-code-generation/handoff.md",
+      "ownedPaths": [
+        "src/Morphir.CodeGeneration.CSharp/**",
+        "tests/Morphir.CodeGeneration.CSharp.Tests/**",
+        "docs/content/docs/backends/csharp/**",
+        "openspec/changes/add-csharp-code-generation/**",
+        "docs/content/contributing/design/prds/add-csharp-code-generation.md"
+      ],
+      "prerequisiteEvidence": [
+        {
+          "changeId": "add-immutable-csharp-sdk",
+          "requiredState": "merged",
+          "requiredContract": "Public C# SDK API and conformance inventory"
+        }
+      ],
+      "landing": {
+        "baseBranch": "main",
+        "pullRequestUrl": null,
+        "headSha": null,
+        "mergeMethod": null,
+        "mergeSha": null,
+        "archivePath": null,
+        "archivePullRequestUrl": null
+      },
+      "worker": {
+        "taskId": null,
+        "threadLink": null,
+        "baseSha": null,
+        "worktreePath": null
+      },
+      "cleanup": {
+        "owner": "coordinator",
+        "status": "not-started",
+        "cleanVerified": false,
+        "worktreeDirectoryRemoved": false,
+        "worktreeRegistrationRemoved": false,
+        "branchDeletionAuthorized": false
+      }
+    },
+    {
+      "changeId": "integrate-csharp-generation-cli",
+      "capability": "cli-csharp-generation",
+      "title": "Integrate C# generation into the CLI",
+      "status": "planned",
+      "dependsOn": [
+        "add-csharp-code-generation"
+      ],
+      "activeChangePath": "openspec/changes/integrate-csharp-generation-cli",
+      "handoffPath": "openspec/changes/integrate-csharp-generation-cli/handoff.md",
+      "ownedPaths": [
+        "src/Morphir.Tooling/Features/Generate/CSharpGenerationBackend.cs",
+        "src/Morphir.Tooling/Scenarios/GenerationScenario.cs",
+        "src/Morphir.Tooling/Morphir.Tooling.csproj (new backend reference)",
+        "tests/Morphir.Tooling.Tests/Features/Generate/** (C# scenarios)",
+        "docs/content/docs/cli/generate.md",
+        "docs/content/docs/cli/troubleshooting.md",
+        "docs/content/docs/getting-started/** (C# examples)",
+        "openspec/changes/integrate-csharp-generation-cli/**",
+        "docs/content/contributing/design/prds/integrate-csharp-generation-cli.md"
+      ],
+      "prerequisiteEvidence": [
+        {
+          "changeId": "add-csharp-code-generation",
+          "requiredState": "merged",
+          "requiredContract": "Typed C# generation/options/diagnostic contract"
+        }
+      ],
+      "landing": {
+        "baseBranch": "main",
+        "pullRequestUrl": null,
+        "headSha": null,
+        "mergeMethod": null,
+        "mergeSha": null,
+        "archivePath": null,
+        "archivePullRequestUrl": null
+      },
+      "worker": {
+        "taskId": null,
+        "threadLink": null,
+        "baseSha": null,
+        "worktreePath": null
+      },
+      "cleanup": {
+        "owner": "coordinator",
+        "status": "not-started",
+        "cleanVerified": false,
+        "worktreeDirectoryRemoved": false,
+        "worktreeRegistrationRemoved": false,
+        "branchDeletionAuthorized": false
+      }
+    }
+  ],
+  "deferred": [
+    {
+      "changeId": "add-morphir-csharp-source-generator",
+      "status": "deferred-not-scaffolded",
+      "dependsOn": [
+        "add-csharp-code-generation"
+      ],
+      "scope": "Actual Roslyn AdditionalFiles/config/parse-options adapter, incremental invalidation, diagnostics, packaging and IDE-host matrix. Only the minimal modern-host smoke is in the core initiative."
+    }
+  ]
+}
