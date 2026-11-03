@@ -68,10 +68,11 @@ public sealed class MorphirCliBuilder
         {
             _hostBuilder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = help });
         }
-        catch (Exception error) when (args.FirstOrDefault() == "config"
+        catch (Exception error) when ((args.FirstOrDefault() == "config"
+            || args.Length >= 2 && args[0] == "project" && args[1] == "migrate")
             && error is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or FormatException)
         {
-            // Retain the failure for the configuration command's structured renderer.
+            // Retain the failure for an opted-in command's structured renderer.
             // A minimal host allows argument validation and help to keep their own contracts.
             _initializationFailure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error);
             _hostBuilder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });

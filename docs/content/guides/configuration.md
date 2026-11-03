@@ -7,7 +7,7 @@ description: "Morphir configuration formats, discovery, precedence, and shared h
 
 # Configuration
 
-Morphir configuration describes projects, workspace membership, and tooling settings. Shared libraries provide typed documents, source resolution, and project discovery to native and embedded hosts. Shared queries, CLI inspection and an opt-in Microsoft configuration adapter are available. Shared TOML editing is available; project/workspace migration remain later delivery campaigns.
+Morphir configuration describes projects, workspace membership, and tooling settings. Shared libraries provide typed documents, source resolution, and project discovery to native and embedded hosts. Shared queries, CLI inspection and an opt-in Microsoft configuration adapter are available. Shared TOML editing and classic project migration are available; workspace migration remains planned.
 
 ## Implementation status
 
@@ -18,7 +18,7 @@ Campaign 3 landed [shared queries]({{< relref "/docs/configuration/inspection" >
 `morphir config get/list/show/path/explain` and the
 [Microsoft adapter]({{< relref "/docs/configuration/microsoft" >}}).
 See the [inspection journal]({{< relref "/docs/contributing/design/prds/config-inspection-delivery" >}}) for its verified validation and landing/cleanup receipt.
-Campaign 4 adds [shared editing]({{< relref "/docs/configuration/editing" >}}) and `morphir config set/unset`, including dry-run, typed inputs, effective explanations, optimistic conflicts and recovery. Its [delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) records local qualification and parent delivery gates. Project/workspace migration examples remain planned.
+Campaign 4 adds [shared editing]({{< relref "/docs/configuration/editing" >}}) and `morphir config set/unset`, including dry-run, typed inputs, effective explanations, optimistic conflicts and recovery. Its [delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) records local qualification and parent delivery gates. [Classic project migration]({{< relref "/docs/cli/project-migrate" >}}) is available; workspace migration remains planned.
 
 Existing cache-only tooling retains Git-first discovery and its separate CI overlay. It does not opt into the new policy automatically. Follow the [layered configuration PRD]({{< relref "/docs/contributing/design/prds/layered-configuration" >}}), the [walkthrough]({{< relref "/docs/getting-started/configuration" >}}), and the [CLI reference]({{< relref "/docs/cli/config" >}}) for their respective status.
 
@@ -200,7 +200,7 @@ Legacy morphir-elm JSON fields map to canonical keys: `name` to `project.name`, 
 
 ## Migrating a classic project
 
-Compatibility loading and migration are separate features. The planned [project migration command]({{< relref "/docs/cli/project" >}}) adopts one classic project by converting `morphir.json` into canonical TOML through shared library services. Its path can identify a project directory or its manifest. It migrates the project system, not Morphir IR or its version.
+Compatibility loading and migration are separate features. The [project migration command]({{< relref "/docs/cli/project" >}}) adopts one classic project by converting `morphir.json` into canonical TOML through shared library services. Its path can identify a project directory or its manifest. It migrates the project system, not Morphir IR or its version.
 
 ```bash
 morphir project migrate morphir.json --dry-run
@@ -233,8 +233,8 @@ Validate edits before writing, install changes atomically, and reject concurrent
 
 The architecture separates these responsibilities:
 
-- `Morphir.Configuration` contains immutable models and pure rules for typed documents, merging, validation, profiles, membership, selection, and provenance. Pure inspection and edit planning are available; migration planning and equivalence services remain planned.
-- `Morphir.Configuration.IO` parses documents and supplies discovery/loading adapters. Native hosts use filesystem access; other hosts supply mounted or in-memory trees. Reusable TOML editing and preconditioned transaction services are available.
+- `Morphir.Configuration` contains immutable models and pure rules for typed documents, merging, validation, profiles, membership, selection, and provenance. Pure inspection, edit planning, migration planning and independent equivalence services are available.
+- `Morphir.Configuration.IO` parses documents and supplies discovery/loading adapters. Native hosts use filesystem access; other hosts supply mounted or in-memory trees. Reusable TOML editing, project migration coordination and preconditioned transaction services are available.
 - `Morphir.Configuration.Microsoft` exposes one resolved result through opt-in `AddMorphirConfiguration(...)`. Its [consumer example]({{< relref "/docs/configuration/microsoft" >}}) uses generated or explicit binding without a CLI dependency.
 
 The CLI translates arguments into requests and formats results and exit codes. Other hosts use the same library services without referencing the CLI or constructing a command-line application. Editing is an explicit library operation, not a write through `IConfiguration`.
@@ -315,3 +315,7 @@ hosts can provide `ProjectLoadOptions.MachineTrees` for multiple mounted roots,
 or retain `MachineTree` for one root. `ProjectSystem.MachineBoundaries` plans
 those roots without reading files. The project discovery boundary still applies
 only to project files, and isolation omits all machine reads.
+
+## Classic project adoption
+
+Use [project migrate]({{< relref "/docs/cli/project-migrate" >}}) for one classic manifest. The [shared migration APIs]({{< relref "/docs/configuration/project-migration" >}}) support read-only hosts and guarded application without the CLI. Workspace migration remains planned.

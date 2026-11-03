@@ -155,7 +155,7 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
 
 ## Configuration
 
-The shared libraries and `morphir config get/list/show/path/explain` provide multi-format resolution, bounded discovery and inspection. Configuration editing uses shared plan/apply services; migration commands remain planned. Existing artifact/cache tooling retains TOML cache settings and Git-first discovery. See the [guide]({{< relref "/guides/configuration" >}}) for the library APIs and the [command reference]({{< relref "/docs/cli/config" >}}) for read/write options and recovery semantics.
+The shared libraries and `morphir config get/list/show/path/explain` provide multi-format resolution, bounded discovery and inspection. Configuration editing uses shared plan/apply services; classic project migration is available and workspace migration remains planned. Existing artifact/cache tooling retains TOML cache settings and Git-first discovery. See the [guide]({{< relref "/guides/configuration" >}}) for the library APIs and the [command reference]({{< relref "/docs/cli/config" >}}) for read/write options and recovery semantics.
 
 ### Wrong workspace or missing project
 
@@ -220,7 +220,7 @@ Native trees do not follow links. On macOS `/etc` is a conventional symlink, so 
 
 ### A classic project migration is blocked
 
-Use the planned `morphir project migrate morphir.json --dry-run` to inspect mappings, target conflicts, and verification results. Resolve conflicting TOML values deliberately. Nonempty legacy dependency or decoration structures need supported mappings; migration must not discard them merely because compatibility loading ignores them. An equivalence failure can also indicate a missing legacy default or changed relative-path meaning.
+Use `morphir project migrate morphir.json --dry-run` to inspect mappings, target conflicts, and verification results. Resolve conflicting TOML values deliberately. Nonempty legacy dependency or decoration structures need supported mappings; migration must not discard them merely because compatibility loading ignores them. An equivalence failure can also indicate a missing legacy default or changed relative-path meaning.
 
 Validation and stale-plan failures leave both files unchanged. Verification excludes the classic source and ambient machine, personal, environment, CLI, and activated-profile overlays, so success demonstrates that the new file stands on its own in the declared base workspace context. Keeping `morphir.json` afterward is intentional for older consumers; it is not a failed migration. See the [project command reference]({{< relref "/docs/cli/project" >}}).
 
@@ -567,3 +567,18 @@ See [morphir generate](../generate/) for the complete command contract.
 - [Management Commands](./management/) - Dist, tool, and extension management
 - [morphir ir verify](./ir-verify/) - Detailed verification command reference
 - [Schema Specifications](/docs/spec/schemas/) - IR schema documentation
+
+## Project migration blocks or cannot write
+
+Run `morphir project migrate --dry-run --json` and inspect `ledger`, `conflicts`,
+`verification` and `diagnostics`. Unsupported nonempty classic shapes and values
+TOML cannot represent must be reconciled explicitly. A conflicting target is
+never overwritten, even when an ambient override makes normal loading look equal.
+Use a supported same-project primary layout and retain one TOML primary.
+
+A stale plan requires a fresh preview. Source, target, alternate-primary and base
+workspace evidence must still match before installation. Exit 2 also covers
+write failures. A `rolled-back` outcome restored the original target; a
+`recovery-required` outcome names owned journal, stage and backup artifacts.
+Preserve them and later user edits until manual recovery is resolved. Migration
+retains the original classic source and never edits workspace membership.

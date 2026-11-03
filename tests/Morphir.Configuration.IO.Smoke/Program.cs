@@ -373,7 +373,8 @@ try
     }
     finally { if (Directory.Exists(discoveryRoot)) Directory.Delete(discoveryRoot, true); }
     var editingChecks = EditingRuntimeSmoke();
-    Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"discovery\":true,\"selection\":true,\"bounded_loading\":true,\"machine_roots\":true,\"editing\":true,\"editor_checks\":{editingChecks.Editor},\"shared_editing_checks\":{editingChecks.Shared},\"transaction_checks\":{editingChecks.Transaction},\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
+    var migrationChecks = ProjectMigrationSmoke.Run();
+    Console.WriteLine($"{{\"success\":true,\"formats\":3,\"json5\":true,\"normalization\":true,\"profile_loading\":true,\"host_parity\":true,\"discovery\":true,\"selection\":true,\"bounded_loading\":true,\"machine_roots\":true,\"migration_checks\":{migrationChecks},\"editing\":true,\"editor_checks\":{editingChecks.Editor},\"shared_editing_checks\":{editingChecks.Shared},\"transaction_checks\":{editingChecks.Transaction},\"syntax_cases\":{syntaxCases},\"morphir_cases\":{morphirCases}}}");
     return 0;
 }
 catch (Exception error)
