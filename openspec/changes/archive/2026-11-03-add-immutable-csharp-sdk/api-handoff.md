@@ -15,7 +15,7 @@ ILLink.Tasks is private build-time analysis, not part of consumer closure.
 
 One API serves numeric C#14.0 and C#15.0 consumers. Verified exact SDK/compiler
 builds and commands are in [validation](validation.md) and the
-[compatibility guide](../../../docs/content/docs/sdk/csharp/compatibility.md).
+[compatibility guide](../../../../docs/content/docs/sdk/csharp/compatibility.md).
 Neither native C# union syntax nor a source-generator adapter is required or
 delivered. The runtime need not be loaded into a future Roslyn host.
 
@@ -23,7 +23,7 @@ delivered. The runtime need not be loaded into a future Roslyn host.
 
 Use C# PascalCase names and instance combinators for the logical Morphir names.
 The complete admitted operation mapping and examples are in the
-[API guide](../../../docs/content/docs/sdk/csharp/api.md).
+[API guide](../../../../docs/content/docs/sdk/csharp/api.md).
 
 | Runtime type | Construction and observations |
 | --- | --- |

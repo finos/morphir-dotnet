@@ -11,9 +11,9 @@ owned worktrees. The coordinator retains the shared bootstrap checkout.
 
 | Initiative | Status | Implementation owner | Predecessor on main | Contract |
 | --- | --- | --- | --- | --- |
-| [establish-dotnet-sdk-conformance](../../../../../openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance/proposal.md) | Implementation landed, archive PR/cleanup pending | Conformance lead, `t3/dotnet-sdk-conformance` | Planning PR #459, landed `890aacb61df601f2876112a2cdd4d9d6f5757ca6` | Inventory, profiles, schema and evidence |
-| [add-immutable-csharp-sdk](../../../../../openspec/changes/add-immutable-csharp-sdk/proposal.md) | Planned | C# SDK lead, dispatched by coordinator | Conformance initiative | Immutable public SDK API |
-| [introduce-fsharp-sdk-package](../../../../../openspec/changes/introduce-fsharp-sdk-package/proposal.md) | Planned | F# SDK lead, dispatched by coordinator | Conformance initiative | Package compatibility and covered corrections |
+| [establish-dotnet-sdk-conformance](../../../../../openspec/changes/archive/2026-11-03-establish-dotnet-sdk-conformance/proposal.md) | Implementation and archive #463 landed; cleanup pending | Conformance lead, `t3/dotnet-sdk-conformance` | Planning PR #459, landed `890aacb61df601f2876112a2cdd4d9d6f5757ca6` | Inventory, profiles, schema and evidence |
+| [add-immutable-csharp-sdk](../../../../../openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/proposal.md) | Implementation landed; archive follow-up/cleanup pending | C# SDK lead, dispatched by coordinator | Conformance initiative | Immutable public SDK API |
+| [introduce-fsharp-sdk-package](../../../../../openspec/changes/archive/2026-11-03-introduce-fsharp-sdk-package/proposal.md) | Implementation landed; archive follow-up/cleanup pending | F# SDK lead, dispatched by coordinator | Conformance initiative | Package compatibility and covered corrections |
 | [add-csharp-code-generation](../../../../../openspec/changes/add-csharp-code-generation/proposal.md) | Planned | C# generation lead, dispatched by coordinator | C# SDK initiative | Typed generation/options/diagnostics |
 | [integrate-csharp-generation-cli](../../../../../openspec/changes/integrate-csharp-generation-cli/proposal.md) | Planned | CLI lead, dispatched by coordinator | C# generation initiative | Existing CLI publication contract |
 
@@ -59,7 +59,12 @@ pass in each runtime, including the four named F# gaps.
 
 The [conformance delivery record](../../../../../docs/design/dotnet-csharp-generation/conformance-delivery.md)
 records #462, submitted and landed SHAs, the explicit admin-bypass authorization,
-missing developer approval and cleanup evidence. Conformance implementation
-is on main; spec synchronization/archive is prepared in this follow-up. Its PR
-must land and all owned worktree/artifact cleanup must finish before conformance
-is complete. The other four initiatives remain planned.
+missing developer approval and cleanup evidence. Conformance implementation and
+its archive follow-up #463 are on main. Coordinator cleanup remains pending,
+including the policy-blocked empty-directory removal; this worker does not retry it.
+
+Both SDK runtime PRs are now landed. Their
+[delivery record](../../../../design/dotnet-csharp-generation/sdk-runtime-delivery.md)
+separates runtime acceptance from the original conformance validation. This
+follow-up prepares their specs/archive; landing and coordinator cleanup remain
+pending. Generator and CLI work remain undispatched.

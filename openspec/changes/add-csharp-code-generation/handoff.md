@@ -8,6 +8,8 @@ Implement only add-csharp-code-generation through the openspec-apply-change work
 
 ## Start gate
 
+Read the stable archived [C# runtime API handoff](../archive/2026-11-03-add-immutable-csharp-sdk/api-handoff.md#generated-record-and-variant-protocol). Generated records and variants must use the single public `IMorphirValue` / `MorphirValue.Hash` equality protocol, including boxing and nested SDK values. Do not invent a replacement interface. Runtime #470 landed at `55f73bdaa93b7bc55a48b184bab8e46a5636fd9e`; verify main inclusion when dispatched. This archival update does not dispatch generator or CLI implementation.
+
 - Verify add-immutable-csharp-sdk's PR is merged into main and its merge SHA is in this checkout; read its frozen contracts. An open predecessor PR or completed artifact status is insufficient.
 - Verify the coordinator-supplied base SHA, worktree ownership and clean status.
 - Verify predecessor landing through the exact merged PR and its recorded landed SHA on refreshed main. Squash merging is preferred; original worker head ancestry is not required. Keep the submitted head and landed SHA distinct.
