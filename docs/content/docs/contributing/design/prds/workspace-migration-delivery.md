@@ -508,3 +508,17 @@ was rechecked after parent validation: all 149 recorded artifact/adjacent-file
 hashes still match, recorded in `parent-review/original-evidence-hash-check.json`.
 Both independent review scopes are complete; their six findings are addressed.
 Final coverage, published hosts and current-head CI remain qualification gates.
+
+Final receipt/recovery qualification after `ff495a7` passes full formatter,
+OpenSpec/extension, fresh IO coverage and every published host mode. Core source
+coverage is 4188/4345, 96.39%; IO is 2537/2606, 97.35%, still above the merged
+prerequisite's 97.15%. No exclusions were added. Managed, trimmed and native
+hosts each pass 59 workspace/recovery checks, 32 project migration checks,
+44 editing checks, 228 JSON5 cases and 26 Morphir fixtures. Published stderr is
+empty. Managed has no warnings; trimmed/native retain the same 44/47 dependency
+warnings under explicit normal-warning qualification. Lockfiles are restored
+byte-for-byte. Exact commands and outcomes are in
+`parent-review/receipt-qualification-summary.json`, its coverage summary and the
+publish summary. Both independent reviews are complete; all six findings plus
+the independently reproduced ancestor-enumeration race are addressed and tested.
+Current-head CI, landing and audited owned cleanup remain campaign gates.
