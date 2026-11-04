@@ -420,3 +420,18 @@ three new real CLI regressions; all other runner counts remain as above.
 commands, duration and exits for this current-source checkpoint. The full
 solution build passes with nine existing warnings and zero errors, and changed
 C# files passed formatter processing before that build.
+
+Final policy qualification after `19504a8` passes full formatter verification,
+OpenSpec/extension verification, fresh IO coverage and all three published host
+modes. The unchanged F# source maps reuse their core collector with the fresh IO
+report: core 4188/4345, 96.39%; IO 2493/2559, 97.42%, recorded in
+`parent-review/policy-coverage-summary.json`. Managed, trimmed and native hosts
+each pass 42 workspace checks, 32 project migration checks, 44 editing checks,
+228 JSON5 cases and 26 Morphir fixtures. Published stderr is empty; trimmed and
+native dependency warning counts remain 44/47 with the documented explicit
+warning-severity qualification. Lockfiles are restored byte-for-byte. Exact
+commands and exits are in `parent-review/policy-qualification-summary.json` and
+the refreshed publish summary. Original retained recovery evidence is untouched;
+new parent validation fault-fixture evidence also remains for final disposition.
+Independent transaction/recovery review, current-head CI, landing and audited
+cleanup remain outstanding campaign gates.
