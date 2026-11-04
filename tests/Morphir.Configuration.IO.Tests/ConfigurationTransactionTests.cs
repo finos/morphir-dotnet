@@ -437,7 +437,7 @@ public sealed class ConfigurationTransactionTests
         var result = new ConfigurationTransaction(fault: (phase, _) =>
         {
             if (phase != ConfigurationTransactionPhase.BeforeInstall) return;
-            artifactPath = Directory.GetFiles(directory.Path, ".morphir-edit-*-" + tampered).Single();
+            artifactPath = ProjectPath.normalize(Directory.GetFiles(directory.Path, ".morphir-edit-*-" + tampered).Single());
             original = File.ReadAllBytes(artifactPath);
             File.WriteAllText(artifactPath, "tampered = true\n");
         }).Apply(plan);

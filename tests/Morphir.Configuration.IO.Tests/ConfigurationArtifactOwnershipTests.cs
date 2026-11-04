@@ -102,7 +102,7 @@ public sealed class ConfigurationArtifactOwnershipTests
             var result = new ConfigurationTransaction(fault: (phase, _) =>
             {
                 if (phase != ConfigurationTransactionPhase.BeforeCleanup) return;
-                changed = Directory.GetFiles(root, ".morphir-edit-*-" + role).Single();
+                changed = ProjectPath.normalize(Directory.GetFiles(root, ".morphir-edit-*-" + role).Single());
                 original = File.ReadAllBytes(changed);
                 // A valid JSON journal with added whitespace still has different user-owned bytes.
                 if (role == "backup") File.WriteAllText(changed, changedText);

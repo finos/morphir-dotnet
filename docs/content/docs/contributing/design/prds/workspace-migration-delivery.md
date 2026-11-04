@@ -522,3 +522,26 @@ byte-for-byte. Exact commands and outcomes are in
 publish summary. Both independent reviews are complete; all six findings plus
 the independently reproduced ancestor-enumeration race are addressed and tested.
 Current-head CI, landing and audited owned cleanup remain campaign gates.
+
+### Windows fixture path correction
+
+Development run `41747846560` on `9590b60` reports five Windows-only fixture
+failures. The hidden-layout scenario moved the source successfully but failed
+to remove its old dictionary entry because the original relative path contained
+forward slashes and the removal used native separators. Four transaction tests
+correctly retained tampered artifacts, then compared native enumerated paths
+against the public API's normalized paths. The captured failing log is
+`parent-review/ci-9590b60.clean.log`.
+
+The fixtures now normalize source dictionary keys and enumerated artifact paths
+before comparing identities. Production behavior is unchanged. The full solution
+rebuild passes with eleven existing warnings and zero errors. All 17 local
+runners pass again with 3,903 tests/checks, including IO 442 and tooling 436.
+Production source and published-host evidence remain unchanged; current-head
+Windows CI remains the platform qualification gate.
+Formatting and OpenSpec/extension verification also pass, recorded in
+`parent-review/windows-fixture-postchecks.json`. The expanded read-only fixture
+audit accounts for 326 retained recovery files after repeated validation, with
+no references outside their individual fixtures, symlinks or unknown adjacent
+file contents. The original 114-file audit remains intact. Explicit fixture
+disposition and removal remain deferred until verified landing.

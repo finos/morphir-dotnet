@@ -50,7 +50,7 @@ public sealed class WorkspaceMigrationSteps : IDisposable
         var path = Path.Combine(_root, relative, "morphir.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, text);
-        _sources[path] = File.ReadAllBytes(path);
+        _sources[ProjectPath.normalize(path)] = File.ReadAllBytes(path);
     }
 
     private void Write(string relative, string text)
@@ -108,8 +108,8 @@ public sealed class WorkspaceMigrationSteps : IDisposable
         var hidden = Path.Combine(_root, "apps", "a", ".config", "morphir", "config.json");
         Directory.CreateDirectory(Path.GetDirectoryName(hidden)!);
         File.Move(original, hidden);
-        _sources.Remove(original);
-        _sources[hidden] = File.ReadAllBytes(hidden);
+        _sources.Remove(ProjectPath.normalize(original));
+        _sources[ProjectPath.normalize(hidden)] = File.ReadAllBytes(hidden);
     }
 
     [Given("a declared empty migration workspace")]
