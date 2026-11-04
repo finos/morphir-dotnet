@@ -483,12 +483,30 @@ public sealed class NativeConfigurationTransactionHost : IConfigurationTransacti
         return new(path, ConfigurationObservationKind.Missing, "");
     }
 
+    // Recovery enumeration needs directory kind, not a fingerprint of unrelated
+    // ancestor entries. Keep the same no-follow checks as native observations.
+    private static bool IsDirectoryWithoutLinks(string path)
+    {
+        var nativeRoot = Path.GetPathRoot(path)!;
+        var current = ProjectPath.normalize(nativeRoot);
+        var attributes = FileAttributes.Directory;
+        foreach (var component in path[nativeRoot.Length..].Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = ProjectPath.join(current, component);
+            try { attributes = File.GetAttributes(current); }
+            catch (FileNotFoundException) { return false; }
+            catch (DirectoryNotFoundException) { return false; }
+            if ((attributes & FileAttributes.ReparsePoint) != 0) return false;
+        }
+        return (attributes & FileAttributes.Directory) != 0 && Directory.Exists(path);
+    }
+
     public IReadOnlyList<string> FindRecoveryJournals(IReadOnlyList<string> paths)
     {
         var directories = new HashSet<string>(StringComparer.Ordinal);
         foreach (var path in paths)
         {
-            var current = Observe(path).Kind == ConfigurationObservationKind.Directory ? Canonical(path) : ProjectPath.parent(Canonical(path));
+            var current = IsDirectoryWithoutLinks(Canonical(path)) ? Canonical(path) : ProjectPath.parent(Canonical(path));
             while (true)
             {
                 directories.Add(current);
@@ -500,7 +518,7 @@ public sealed class NativeConfigurationTransactionHost : IConfigurationTransacti
         var result = new List<string>();
         foreach (var directory in directories.Order(StringComparer.Ordinal))
         {
-            if (Observe(directory).Kind != ConfigurationObservationKind.Directory) continue;
+            if (!IsDirectoryWithoutLinks(directory)) continue;
             result.AddRange(Directory.EnumerateFileSystemEntries(directory, ".morphir-edit-*")
                 .Select(Canonical).Where(RecoveryDocument.IsJournal));
         }

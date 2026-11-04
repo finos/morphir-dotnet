@@ -435,3 +435,28 @@ the refreshed publish summary. Original retained recovery evidence is untouched;
 new parent validation fault-fixture evidence also remains for final disposition.
 Independent transaction/recovery review, current-head CI, landing and audited
 cleanup remain outstanding campaign gates.
+
+### Ancestor recovery discovery race
+
+Linux CI on `ff5347f` fails the valid empty-workspace no-op CLI scenario with
+`config.edit_io`. Its generic renderer does not expose the original exception,
+so the retained CI log alone cannot identify the exact failing filesystem call.
+A focused concurrent probe then reproduces a relevant native recovery race:
+`FindRecoveryJournals` fingerprints every ancestor directory through `Observe`,
+and an unrelated sibling disappearing during that fingerprint throws
+`FileNotFoundException`. `parent-review/recovery-race-red.log` records this
+failure before production changes.
+
+Journal discovery now checks directory kind and refuses linked ancestors without
+fingerprinting unrelated contents. Source/target/listing observation and stale
+plan guards retain their original strict behavior. The focused regression scans
+while unrelated files churn; a companion test preserves linked-ancestor refusal.
+Both pass in `parent-review/recovery-race-green.log`. The full refreshed IO runner
+passes 436 cases. Current-head Linux CI still qualifies the original CI symptom.
+
+All 17 runners pass again after the recovery scan correction: IO 436, tooling
+436, core configuration 177 and Microsoft 22; the other counts are unchanged.
+The full solution build and changed-file formatter pass. The refreshed full
+runner logs and summary retain current-source execution evidence. This is a
+verified native discovery race fix; current-head CI remains required before
+claiming the Linux no-op failure resolved on the runner.
