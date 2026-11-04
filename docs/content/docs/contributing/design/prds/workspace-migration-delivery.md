@@ -460,3 +460,14 @@ The full solution build and changed-file formatter pass. The refreshed full
 runner logs and summary retain current-source execution evidence. This is a
 verified native discovery race fix; current-head CI remains required before
 claiming the Linux no-op failure resolved on the runner.
+
+Final qualification after `56eb44a` passes full formatter, OpenSpec/extension,
+fresh IO coverage and all managed/trimmed/native runtime hosts. Core coverage
+remains 4188/4345, 96.39%; IO is 2506/2573, 97.4%.
+Each published mode passes 42 workspace, 32 project migration, 44 editing, 228
+JSON5 and 26 Morphir checks with empty stderr. Dependency warning counts remain
+44/47 for trimmed/native and zero for managed; lockfiles are restored exactly.
+The latest full rebuild reports eleven existing warnings and zero errors.
+`parent-review/recovery-race-qualification-summary.json`, coverage summary and
+publish summary retain exact commands and results. Current-head Linux CI and
+independent transaction/recovery review remain open gates.
