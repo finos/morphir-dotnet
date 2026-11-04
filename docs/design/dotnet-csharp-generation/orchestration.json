@@ -57,6 +57,75 @@
       "cleanupOwner": "root coordinator; retain checkout and all evidence"
     }
   },
+  "cliDelivery": {
+    "observedOn": "2026-11-03",
+    "state": "implementation-landed-specifications-archived-follow-up-landing-and-cleanup-pending",
+    "implementationTasks": {
+      "completed": 9,
+      "total": 9
+    },
+    "pullRequestUrl": "https://github.com/finos/morphir-dotnet/pull/482",
+    "submittedHeadSha": "0e1e86d5e850adb70ec8027e324ba2234a22bdce",
+    "mergeMethod": "squash",
+    "landedSha": "0542145a4bcc0edf9c9dd2fb3122df36c73e80d0",
+    "submittedAndLandedTree": "284eb3240006ec9a8a34ba539caceeb65be0844f",
+    "exactMergedPrAndRefreshedMainReachabilityVerified": true,
+    "finalHeadHostedChecks": "all eight passed, including all three OS jobs",
+    "review": "automated review completed without findings; no unresolved threads; no developer approval claimed; root used standing user admin-bypass authorization",
+    "mainSpecs": [
+      {
+        "path": "openspec/specs/cli-csharp-generation/spec.md",
+        "requirements": 6,
+        "scenarios": 12
+      },
+      {
+        "path": "openspec/specs/morphir-csharp-transpilation/spec.md",
+        "requirements": 8,
+        "scenarios": 22,
+        "originalScenariosPreserved": 19
+      }
+    ],
+    "archivePath": "openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli",
+    "archiveFollowUpLanded": false,
+    "coordinatorCleanupComplete": false,
+    "sourceEvidence": {
+      "latestFullNativeTest": "3961 framework total, 3960 passed, unchanged config.edit_rolled_back failure on set custom.value 12 --type int; cold/inspection not reached",
+      "earlierPassingCheckpoint": "3912 framework + 15 cold + 71 inspection; separate run",
+      "sourceBoundGenerator": "216/216; 3130/3340 lines = 93.7126%; formatter 64/64; NamespaceCases 59/59",
+      "providerLines": "47/48, source-bound",
+      "freshPinnedConsumers": 24,
+      "packageTests": "40 passed",
+      "publishedExecution": "representative Windows ARM64 actual trimmed/NativeAOT no-compiler generation; separate consumers 15000; native document/type refusals exit 1, no artifacts",
+      "callerCancellation": "CLI host token exit 130 with prior files/timestamps preserved; not OS signal proof",
+      "warnings": "publish-only TreatWarningsAsErrors=false/TrimmerSingleWarn=false; visible trimmed 78 occurrences/75 distinct, native 92/89; zero changed-CSharp origins; generation path only",
+      "limitations": "No aggregate/all-source coverage or all-OS published execution claim; retained 2.86s overlap and unverified VBCSCompiler 5656 parent 7888 cleanup ownership; no no-unrelated-process-impact claim; wrong raw-name core-location assertion and contracts02 packaging mismatch retained"
+    },
+    "archiveWorkerValidation": {
+      "fullNativeTest": "PASS, normal native build.ps1 --target Test --configuration Release, 525.21s including Restore/Compile; 3971/3971 framework, 15 cold package and 71 inspection; CSharp 216/216, Tooling 487/487; no failures/skips/filters",
+      "packAll": "PASS, 54.29s, Release --skip Restore Compile reusing completed full build; output directory initially absent",
+      "testBuild": "PASS, 40/40, zero skips, 6.24s, same Release/skip arguments",
+      "strictOpenSpec": "PASS, mise run openspec:verify; 22 items and 2 checker tests",
+      "precommit": "Exit 0, 42.83s, native Precommit; inherited unsupported-F# formatter messages retained; no F# edits or claim of global F# formatting support",
+      "changelog": "PASS, direct dotnet fsi scripts/validate-changelog.fsx",
+      "husky": "Actual dotnet husky run exit 1: failed to execute command git / Could not find Husky path; both configured checks passed directly; no bypass/check disabling",
+      "archiveFrozenAndLinks": "8 original archive files, 9/9 tasks; CLI 6 requirements/12 scenarios; generator 8 requirements/22 scenarios with all 19 original scenarios preserved; 103 local links/anchors; 12 canonical contract hashes and 44 original evidence hashes; 207 IDs/67 operations/8 exclusions/4 historical gaps unchanged",
+      "scope": "Documentation/specifications only; no production/runtime/test/project/lock/build/CI/root-configuration changes; no pinned/trimmed/native implementation acceptance matrices or new coverage measurement",
+      "lockfileDrift": "Two native restore smoke lockfile RID-only changes captured outside repo and restored",
+      "retainedInvocationError": "Initial captured PowerShell argument-array invocation exit 64 before running build; corrected wrapper invocation ran full Test once. All logs retained."
+    },
+    "sourceWorktree": "C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-79f2b566",
+    "sourceEvidenceRoot": "C:/Temp/morphir-csharp-cli-79f2b566-20261103",
+    "archiveWorker": {
+      "taskId": "csharp-cli-archive-20261103-01",
+      "threadId": "thread:delegated-task:command%3Amcp%3A5dc840b4-bb89-420d-8aaa-407f9470c193%3Adelegate-task%3Acsharp-cli-archive-20261103-01",
+      "baseSha": "0542145a4bcc0edf9c9dd2fb3122df36c73e80d0",
+      "worktree": "C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-dfccc214",
+      "branch": "t3/archive-csharp-cli-generation",
+      "evidenceRoot": "C:/Temp/morphir-csharp-cli-archive-dfccc214-20261103",
+      "auxiliaries": [],
+      "cleanupOwner": "root coordinator; retain checkout, outputs and evidence"
+    }
+  },
   "dispatch": {
     "tool": "delegate_task",
     "isolation": "worktree",
@@ -399,8 +468,8 @@
       "dependsOn": [
         "add-csharp-code-generation"
       ],
-      "activeChangePath": "openspec/changes/integrate-csharp-generation-cli",
-      "handoffPath": "openspec/changes/integrate-csharp-generation-cli/handoff.md",
+      "activeChangePath": "openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli",
+      "handoffPath": "openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli/handoff.md",
       "ownedPaths": [
         "src/Morphir.Tooling/Features/Generate/CSharpGenerationBackend.cs",
         "src/Morphir.Tooling/Scenarios/GenerationScenario.cs",
@@ -409,7 +478,7 @@
         "docs/content/docs/cli/generate.md",
         "docs/content/docs/cli/troubleshooting.md",
         "docs/content/docs/getting-started/** (C# examples)",
-        "openspec/changes/integrate-csharp-generation-cli/**",
+        "openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli/**",
         "docs/content/contributing/design/prds/integrate-csharp-generation-cli.md"
       ],
       "prerequisiteEvidence": [

@@ -26,11 +26,11 @@ The C# generation library needs a thin adapter into the existing morphir generat
 
 ## Tracking
 
-- Requires an integrated, verified commit of [add-csharp-code-generation](../archive/2026-11-03-add-csharp-code-generation/proposal.md).
-- Delivery plan, merged-to-main completion and cleanup gates: [orchestration](../../../docs/design/dotnet-csharp-generation/orchestration.md).
+- Requires an integrated, verified commit of [add-csharp-code-generation](../2026-11-03-add-csharp-code-generation/proposal.md).
+- Delivery plan, merged-to-main completion and cleanup gates: [orchestration](../../../../docs/design/dotnet-csharp-generation/orchestration.md).
 - Contribution issue: [#481](https://github.com/finos/morphir-dotnet/issues/481).
 - Worker brief: [handoff](handoff.md). The feature PRD is
-  [CLI integration](../../../docs/content/contributing/design/prds/integrate-csharp-generation-cli.md).
+  [CLI integration](../../../../docs/content/contributing/design/prds/integrate-csharp-generation-cli.md).
 - Establish the feature PRD and index entry during implementation before production code, as specified in tasks. Implementation is not authorized by creating this proposal.
 
 ## Impact

@@ -105,6 +105,46 @@ Generation SHALL return relative C# source paths and stable bytes independent of
 - **WHEN** a declaration is a C# keyword or two public names map to one target identity
 - **THEN** the keyword is escaped and an unresolvable collision produces a diagnostic naming both owners
 
+#### Scenario: Namespace and qualified references
+
+- **WHEN** equivalent classic and v4 libraries with cross-module records, generic aliases, constructors and value calls use a validated namespace override
+- **THEN** emitted sources compile and execute under both numeric profiles using that namespace, retaining the SDK equality protocol and original source paths
+
+Generation SHALL additionally accept an immutable validated namespace override
+through a source-compatible overload. Existing options constructors and the
+three-argument generation entry point SHALL remain available with byte-identical
+default output. An override SHALL change the namespace of only the input Library
+package and every qualified reference to that package, preserving module, type,
+value and constructor identities, package-derived source paths and the original
+typed model. SDK and System qualifications SHALL remain unchanged. Naming state
+SHALL be local to each request.
+
+The immutable namespace value SHALL be exposed as `NamespaceOverride` and
+accepted by `Generate(model, options, namespaceOverride, cancellationToken)`.
+The original `GenerationOptions` constructor and
+`Generate(model, options, cancellationToken)` overload SHALL remain available
+with byte-identical default output.
+
+#### Scenario: Request isolation and default compatibility
+
+- **WHEN** callers generate the same model with two distinct namespace overrides and the default entry point, including concurrent requests
+- **THEN** each result uses only its own namespace and default sources remain byte-identical to generation before the override calls
+
+#### Scenario: Invalid namespace boundary
+
+- **WHEN** namespace parsing receives null, malformed identifiers or source syntax, or an explicit null override reaches generation
+- **THEN** it returns the located typed namespace refusal with no successful sources, except that an already cancelled caller receives cancellation
+
+Namespace validation SHALL accept dotted literal BMP C# identifiers with optional
+`@` prefixes, reserved words only when escaped, and admitted Unicode identifier
+characters in Normalization Form C. The bounded literal-name admission SHALL
+reject source Unicode escape syntax and surrogate code units rather than
+interpreting source text.
+Null, empty, malformed and injection-like names SHALL produce a typed
+`invalid-namespace` diagnostic at `$options/namespace`. An explicit null namespace
+value at the generation overload SHALL fail without sources; caller cancellation
+SHALL retain precedence.
+
 ### Requirement: In-memory failure and cancellation
 
 Generation SHALL return sources and structured diagnostics without host configuration, publication or compiler processes. Unsupported input, type inconsistencies and cancellation SHALL return no successful partial artifact set. Diagnostics SHALL identify a stable rule and available model location.

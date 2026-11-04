@@ -1,8 +1,8 @@
 # C# generation coordination plan
 
-This is a static planning snapshot from before worker dispatch. Its planned statuses, executionStarted flag, settings and empty landing fields describe that snapshot, not live execution. The machine-readable [orchestration.json](orchestration.json) retains the same DAG and delivery gates, with current generator evidence in its separate generatorDelivery field. Legacy activeChangePath fields resolve to dated archives after synchronization. Earlier landing and cleanup evidence remains in the [conformance delivery record](conformance-delivery.md) and [SDK runtime delivery record](sdk-runtime-delivery.md). Current generator evidence is below.
+This is a static planning snapshot from before worker dispatch. Its planned statuses, executionStarted flag, settings and empty landing fields describe that snapshot, not live execution. The machine-readable [orchestration.json](orchestration.json) retains the same DAG and delivery gates, with generator checkpoint evidence in generatorDelivery and current CLI evidence in cliDelivery. Legacy activeChangePath fields resolve to dated archives after synchronization. Earlier landing and cleanup evidence remains in the [conformance delivery record](conformance-delivery.md) and [SDK runtime delivery record](sdk-runtime-delivery.md). The generator section is a historical archive-worker checkpoint. Current CLI landing and archive evidence follows it.
 
-## Generator landing and archive follow-up, 2026-11-03
+## Generator landing and archive follow-up checkpoint, 2026-11-03
 
 [PR #478](https://github.com/finos/morphir-dotnet/pull/478) is MERGED to main,
 submitted head `3db576da36a41abab960d59da130df4262486a38`, actual squash landing
@@ -67,6 +67,108 @@ contract digests, 44 original evidence digests and seven raw business-fixture
 digests. No production file or frozen evidence changed. Coverage was not rerun
 for this documentation-only follow-up; the source-bound measurements above
 retain their original scope.
+
+## CLI landing and specification archive, 2026-11-03
+
+[PR #482](https://github.com/finos/morphir-dotnet/pull/482) is MERGED into main.
+Its submitted head is `0e1e86d5e850adb70ec8027e324ba2234a22bdce`; actual squash
+landing is `0542145a4bcc0edf9c9dd2fb3122df36c73e80d0`. Both complete trees equal
+`284eb3240006ec9a8a34ba539caceeb65be0844f`. The archive worker independently
+queried that PR, refreshed main and confirmed landing ancestry from its exact
+clean dispatch base. All eight final-head hosted checks passed, including three
+OS jobs. Root verified automated review completed without findings and no
+unresolved threads. No developer approval is claimed; root used standing user
+admin-bypass authorization. A temporary premerge merge SHA is not landing proof.
+
+Both deltas are synchronized. The new [CLI spec](../../../openspec/specs/cli-csharp-generation/spec.md)
+contains six requirements and 12 scenarios. The [generator spec](../../../openspec/specs/morphir-csharp-transpilation/spec.md)
+retains its title, Purpose, eight requirements and all 19 original scenarios,
+adding three namespace scenarios. The original GenerationOptions constructor,
+three-argument API and default bytes remain; NamespaceOverride and the explicit
+four-argument overload provide request-local deterministic naming. Namespace
+clauses retain their full wording under the relevant scenarios, keeping the
+original requirement description unchanged and within strict length limits.
+All nine checked tasks and the implementation record are in the
+[dated archive](../../../openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli/proposal.md).
+
+The [archived validation](../../../openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli/validation.md)
+keeps the latest local full native result, 3960/3961 with unchanged
+config.edit_rolled_back on `set custom.value 12 --type int`. Its cold/inspection
+stages were not reached. Earlier 3912 framework + 15 cold + 71 inspection passed
+in a separate checkpoint. Source-bound follow-ons passed generator 216/216,
+3130/3340 lines, 93.7126%, formatter 64/64 and NamespaceCases 59/59; provider
+coverage is 47/48. Twenty-four distinct fresh C14/RC2 C15 consumers passed.
+Actual trimmed/ARM64 NativeAOT generation required no compiler, with separate
+business consumers returning 15000 and native document/type refusals returning
+exit 1 without artifacts. Caller-token CLI cancellation returned 130 preserving
+prior files/timestamps; this is not OS-signal proof. Package checks passed 40/40.
+
+Publish-only TreatWarningsAsErrors=false/TrimmerSingleWarn=false left visible
+78 trimmed warning occurrences/75 distinct and 92 native/89 distinct, all known
+existing/dependency origins and zero changed-CSharp origins. No suppression was
+added. Only the executed generation path is proven, on representative win-arm64,
+with no all-OS published execution or aggregate/all-source coverage claim.
+Native valid-input reflection failure was fixed at five diagnostic sites by
+explicit cancellable name/path/shape formatting in TypeEmission/ValueLowering.
+Diagnostic messages and module-validation location spellings intentionally
+changed as [documented](../../content/docs/backends/csharp/diagnostics.md);
+stable rules, APIs, refusals and default generated bytes remain unchanged.
+
+The initial 2.86-second heavy-job overlap and VBCSCompiler PID 5656, parent 7888,
+ownership-unverified global cleanup remain recorded. Later absence does not
+prove ownership, and no no-unrelated-process-impact claim is made. The optional
+raw-name native probe was refused in the shared codec before the provider; its
+wrong core-location assertion failed and does not establish core coverage.
+The contracts02 post-pack Models mismatch was corrected only by normal
+Restore/Compile, followed by the affected cancellation helper passing. Root
+retains these failures and the user's decision to keep the C# PR focused.
+
+Root retains source checkout `C:/Users/damre/.t3/worktrees/morphir-dotnet/t3-79f2b566`
+read-only at the submitted head, and its evidence root
+`C:/Temp/morphir-csharp-cli-79f2b566-20261103`. Its final-handoff.md,
+final-ownership.json, absolute/checkout inventories, 58-command inventory,
+shared-not-owned.json and empty final process inventory were durably copied to
+the parent Git worktree administration directory's csharp-cli-closeout folder.
+Initial ignored-output absence was not verified. All 58 wrapper roots were
+absent at source handoff, and the source lead was retired with task_cancel.
+
+The archive worker uses `t3-dfccc214`, branch `t3/archive-csharp-cli-generation`,
+task `csharp-cli-archive-20261103-01`, exact Codex/gpt-6.1-sol/high, with no
+auxiliaries or extra worktree. Its retained proof root is
+`C:/Temp/morphir-csharp-cli-archive-dfccc214-20261103`. Final handoff and absolute
+cleanup inventories live there. No source checkout, cache, older empty archive
+directory or policy-blocked worktree was deleted or retried. Root owns archive
+PR monitoring/landing and all eventual cleanup. This archive must land and root
+must verify all cleanup gates before initiative completion.
+
+Archive-worker validation on the unchanged production tree passed native
+`build.ps1 --target Test --configuration Release` in 525.21s, including normal
+Restore/Compile, 3971/3971 framework cases, CSharp 216/216, Tooling 487/487,
+15 cold package checks and 71 inspection checks. No failures, skips or filters.
+This is a separate archive-worker run; it does not replace the implementation's
+3960/3961 failure or earlier 3912 + 15 + 71 checkpoint. `PackAll` passed in
+54.29s and `TestBuild` passed 40/40 with zero skips in 6.24s. Both used Release
+and `--skip Restore Compile` to reuse the completed full rebuild. The package
+output directory was absent before PackAll.
+
+Strict `mise run openspec:verify` passed 22 items and two checker tests.
+Native `Precommit` exited 0 in 42.83s; inherited unsupported-F# formatter
+messages remain visible. No F# file changed and no global F# formatting support
+is claimed. The direct changelog check passed. Actual `dotnet husky run` exited
+1 with native Git/path discovery failure despite native Git in PATH. Both
+configured checks ran directly; no hook/check was bypassed or disabled.
+The two native restore smoke lockfile RID changes were captured and restored.
+
+The final archive audit verifies eight original files, 9/9 tasks, both spec
+counts above, 103 local links/anchors, 12 canonical contract hashes, 44 original
+evidence hashes and all 207 IDs/67 operations/eight exclusions/four historical
+gaps. SDK/generator archives and frozen evidence are unchanged. No production,
+runtime, test, project/lock, build, CI or root configuration change is retained.
+No pinned/trimmed/native acceptance matrix or new coverage measurement was run.
+The initial captured PowerShell argument-array invocation exited 64 before any
+build; its logs remain. The corrected invocation ran full Test once. Final
+handoff records the submitted head and process/cleanup inventories externally
+to avoid self-referential commit SHAs.
 
 ## Outcome and completion rule
 

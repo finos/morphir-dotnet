@@ -87,8 +87,8 @@ are verified under [#474](https://github.com/finos/morphir-dotnet/issues/474).
 Implementation [#478](https://github.com/finos/morphir-dotnet/pull/478) landed.
 The [main specification](openspec/specs/morphir-csharp-transpilation/spec.md) and
 [archived acceptance evidence](openspec/changes/archive/2026-11-03-add-csharp-code-generation/validation.md)
-are prepared in the archive follow-up; its landing and coordinator cleanup remain
-pending.
+landed in archive follow-up [#480](https://github.com/finos/morphir-dotnet/pull/480).
+Coordinator cleanup remains pending.
 
 Generate C# through the existing CLI, with numeric profiles and a validated
 optional namespace:
@@ -99,6 +99,10 @@ morphir generate --input model.json --target csharp --output generated --option 
 
 The [C# walkthrough](docs/content/docs/getting-started/morphir-to-csharp.md)
 builds and runs a fresh consumer against the immutable runtime.
+CLI implementation [#482](https://github.com/finos/morphir-dotnet/pull/482) landed;
+its [main specification](openspec/specs/cli-csharp-generation/spec.md) and
+[archived evidence](openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli/validation.md) are synchronized
+in this follow-up. Archive PR landing and root-verified cleanup remain pending.
 
 ## Getting Started
 

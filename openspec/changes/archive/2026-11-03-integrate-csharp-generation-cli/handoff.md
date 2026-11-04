@@ -8,9 +8,9 @@ Implement only integrate-csharp-generation-cli through the openspec-apply-change
 
 ## Start gate
 
-Read the stable archived [C# runtime API handoff](../archive/2026-11-03-add-immutable-csharp-sdk/api-handoff.md#generated-record-and-variant-protocol). Generated records and variants must use the single public `IMorphirValue` / `MorphirValue.Hash` equality protocol, including boxing and nested SDK values. Do not invent a replacement interface. Runtime #470 landed at `55f73bdaa93b7bc55a48b184bab8e46a5636fd9e`; verify main inclusion when dispatched. This archival update does not dispatch generator or CLI implementation.
+Read the stable archived [C# runtime API handoff](../2026-11-03-add-immutable-csharp-sdk/api-handoff.md#generated-record-and-variant-protocol). Generated records and variants must use the single public `IMorphirValue` / `MorphirValue.Hash` equality protocol, including boxing and nested SDK values. Do not invent a replacement interface. Runtime #470 landed at `55f73bdaa93b7bc55a48b184bab8e46a5636fd9e`; verify main inclusion when dispatched. This archival update does not dispatch generator or CLI implementation.
 
-- Generator [PR #478](https://github.com/finos/morphir-dotnet/pull/478) squash landed at `a8ae8e456ac95875db1ee53ff4a21362315b467a`, submitted head `3db576da36a41abab960d59da130df4262486a38`. Reverify that exact merged PR and landed SHA on refreshed main at dispatch. Read the [archived generator handoff](../archive/2026-11-03-add-csharp-code-generation/handoff.md), [main contract](../../specs/morphir-csharp-transpilation/spec.md) and stable [public API/diagnostic guide](../../../docs/content/docs/backends/csharp/diagnostics.md). Original-head ancestry is not squash landing proof. Archive landing and cleanup remain coordinator-owned; this update does not dispatch CLI work.
+- Generator [PR #478](https://github.com/finos/morphir-dotnet/pull/478) squash landed at `a8ae8e456ac95875db1ee53ff4a21362315b467a`, submitted head `3db576da36a41abab960d59da130df4262486a38`. Reverify that exact merged PR and landed SHA on refreshed main at dispatch. Read the [archived generator handoff](../2026-11-03-add-csharp-code-generation/handoff.md), [main contract](../../../specs/morphir-csharp-transpilation/spec.md) and stable [public API/diagnostic guide](../../../../docs/content/docs/backends/csharp/diagnostics.md). Original-head ancestry is not squash landing proof. Archive landing and cleanup remain coordinator-owned; this update does not dispatch CLI work.
 - Verify the coordinator-supplied base SHA, worktree ownership and clean status.
 - Verify predecessor landing through the exact merged PR and its recorded landed SHA on refreshed main. Squash merging is preferred; original worker head ancestry is not required. Keep the submitted head and landed SHA distinct.
 - Create/link the repository contribution issue and the feature PRD before production work; do not invent issue IDs. Coordinate the shared PRD index.
@@ -154,3 +154,22 @@ VBCSCompiler 5656/7888 ownership at Nuke's global stop, empty initial coverage
 profiler result, wrong union filter, configuration failures, warning-as-error
 publish refusal, genuine native reflection failure and post-pack output mismatch.
 No clean-resource or all-green claim erases those limitations.
+
+## Landed implementation and archived specification, 2026-11-03
+
+The implementation checkpoint above is historical. [PR #482](https://github.com/finos/morphir-dotnet/pull/482)
+subsequently squash landed on main at `0542145a4bcc0edf9c9dd2fb3122df36c73e80d0`,
+distinct from submitted head `0e1e86d5e850adb70ec8027e324ba2234a22bdce`.
+Both trees are `284eb3240006ec9a8a34ba539caceeb65be0844f`.
+All eight final-head hosted checks passed, including three OS jobs. Automated
+review completed without findings, with no unresolved threads. No developer
+approval is claimed. Root used standing user authorization for admin bypass.
+
+All nine tasks are checked. Both deltas are synchronized into the main
+[CLI specification](../../../specs/cli-csharp-generation/spec.md) and
+[generator specification](../../../specs/morphir-csharp-transpilation/spec.md).
+This dated archive preserves the implementation validation and historical lease
+records. Current landing, archive-worker validation and cleanup gates are in the
+[delivery record](../../../../docs/design/dotnet-csharp-generation/orchestration.md#cli-landing-and-specification-archive-2026-11-03).
+The archive follow-up must land and root must verify cleanup before initiative
+completion. Source checkout, evidence, caches and older worktrees remain root-owned.
