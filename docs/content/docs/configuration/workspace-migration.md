@@ -118,3 +118,14 @@ or backups to bypass a guard. Preserve user changes and unresolved evidence.
 CLI reports use the same plans and outcomes. See the
 [workspace command reference](../cli/workspace-migrate.md), walkthrough and
 troubleshooting for exit codes, previews and scriptable JSON.
+
+Supplied exclusions also control root-project conversion. For example, excluding
+`.` leaves the classic root project in place while child adoption can still add
+a workspace declaration. Root-project identity and existing ownership are
+preserved. Excluding `**` selects no conversions, including at the root.
+
+Every newly adopted project is checked against its original non-adoption values,
+including additions to an existing workspace. A root backend or other inherited
+setting cannot silently change the new member. Retained members keep their prior
+workspace context; new members report their original standalone ownership and
+local output root before adoption.

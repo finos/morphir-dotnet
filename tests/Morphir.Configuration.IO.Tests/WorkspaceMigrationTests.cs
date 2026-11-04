@@ -43,9 +43,9 @@ public sealed class WorkspaceMigrationInventoryTests
 
 public sealed class WorkspaceMigrationPlanningTests
 {
-    private const string Classic = "{name:'A',sourceDirectory:'../source',exposedModules:[],profiles:{default:['dev']}}";
+    private const string Classic = "{name:'A',sourceDirectory:'../source',exposedModules:[],pipeline:{backend:'shared'}}";
     [Test]
-    public void ExistingWorkspaceSettingsDefaultsAndMigratedMembersRemainEffective()
+    public void MatchingNewProjectPreservesExistingWorkspaceSettingsDefaultsAndMigratedMembers()
     {
         var tree = new InMemoryProjectTree("/repo", new Dictionary<string, string>
         {

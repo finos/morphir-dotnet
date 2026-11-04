@@ -74,6 +74,33 @@ public sealed class WorkspaceMigrationSteps : IDisposable
         Write("existing/morphir.toml", ExistingMember);
     }
 
+    [Given("workspace migration adoption fixture {string}")]
+    public void AdoptionFixture(string mode)
+    {
+        Write("morphir.toml", "[workspace]\nmembers=['old']\nout_dir='shared'\n" +
+            (mode == "incompatible" ? "[pipeline]\nbackend='root-specific'\n" : ""));
+        Write("old/morphir.toml", "[project]\nname='Old'\n");
+        Write("app/morphir.toml", "[project]\nname='App'\n");
+    }
+
+    [Then("workspace migration excludes root conversion")]
+    public void ExcludedRootConversion()
+    {
+        var root = ProjectPath.normalize(_root);
+        _report!.RootElement.GetProperty("projects").EnumerateArray()
+            .Should().NotContain(p => p.GetProperty("projectPath").GetString() == root);
+    }
+
+    [Then("workspace migration reports the new member original context")]
+    public void OriginalAdoptionContext()
+    {
+        var root = ProjectPath.normalize(_root);
+        var effects = _report!.RootElement.GetProperty("adoptionEffects").EnumerateArray()
+            .Where(e => e.GetProperty("projectPath").GetString() == root + "/app").ToArray();
+        effects.Single(e => e.GetProperty("kind").GetString() == "ownership").GetProperty("before").GetString().Should().Be(root + "/app");
+        effects.Single(e => e.GetProperty("kind").GetString() == "shared-output-root").GetProperty("before").GetString().Should().Be(root + "/app/.morphir/out");
+    }
+
     [Given("a hidden workspace migration member primary")]
     public void HiddenMember()
     {

@@ -176,3 +176,30 @@ Feature: Adopt classic projects through one bounded workspace migration
     Given a workspace migration repository
     When I request the configuration migration alias
     Then configuration migration remains unavailable
+
+  @ParentPolicyReview
+  Scenario: Existing workspace adoption cannot change unrelated new member values
+    Given an empty workspace migration repository
+    And workspace migration adoption fixture "incompatible"
+    When I migrate the workspace with ""
+    Then workspace migration exits 2 with outcome "blocked"
+    And workspace migration reports diagnostics on stderr
+    And workspace migration writes no destinations
+
+  @ParentPolicyReview
+  Scenario: A root exclusion retains root identity without conversion
+    Given a workspace migration repository
+    And a workspace migration root project
+    When I migrate the workspace with "--exclude . --dry-run"
+    Then workspace migration exits 0 with outcome "preview"
+    And workspace migration reports excluded "."
+    And workspace migration retains root project identity
+    And workspace migration excludes root conversion
+
+  @ParentPolicyReview
+  Scenario: A new canonical member reports its standalone original context
+    Given an empty workspace migration repository
+    And workspace migration adoption fixture "compatible"
+    When I migrate the workspace with "--dry-run"
+    Then workspace migration exits 0 with outcome "preview"
+    And workspace migration reports the new member original context

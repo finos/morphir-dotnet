@@ -387,3 +387,36 @@ checkpoint). This is merge compatibility evidence, not execution of a merged
 checkout. The 17-runner/runtime receipts qualify this branch at its required
 baseline; parent-owned current-base PR CI remains necessary for the new backend
 and additional independent suites. The PR records the actual newer base separately.
+
+## Parent policy review follow-up
+
+Independent review of `ff5347f` identified three concrete defects: existing
+workspaces bypassed original-value checks for newly adopted projects, supplied
+exclusions did not prevent root conversion, and new members were reported with
+existing workspace ownership/output roots before adoption. All five new public
+API cases fail in `parent-review/policy-red-02.log`. An earlier malformed filter
+selected zero tests and is not red evidence. All three actual CLI regressions
+fail against the original executable in `parent-review/policy-cli-red.log`.
+
+The shared coordinator now checks each newly adopted project against its original
+non-adoption settings in both new and existing workspaces. Root exclusions apply
+to conversion selection while root identity and necessary workspace composition
+remain. Adoption effects use actual prior membership to distinguish retained and
+standalone contexts. The native smoke includes these paths.
+
+The first full IO run passed 433 of 434 cases and exposed an older success
+fixture relying on the newly rejected silent backend change. Its new project
+now explicitly authors the matching backend, retaining a valid successful
+preservation case. Its member-local profile activation declaration was also
+removed so that fixture does not rely on control metadata changing authority
+through adoption. The rebuilt CLI passes the three new cases. The refreshed
+full IO runner passes 434 cases. Final full-suite, coverage, runtime, CI and
+independent transaction-review results remain delivery gates.
+
+All 17 configured executable runners pass again after the parent policy fixes.
+The full IO runner now passes 434 cases and tooling passes 436, including all
+three new real CLI regressions; all other runner counts remain as above.
+`validation/summary.json` and the refreshed individual runner logs retain exact
+commands, duration and exits for this current-source checkpoint. The full
+solution build passes with nine existing warnings and zero errors, and changed
+C# files passed formatter processing before that build.

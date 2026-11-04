@@ -27,6 +27,26 @@ internal static class WorkspaceMigrationSmoke
         Check(!json.Contains("private-literal", StringComparison.Ordinal) && !json.Contains("PRIVATE_REFERENCE", StringComparison.Ordinal), "raw secret escaped redaction");
         using (var parsed = JsonDocument.Parse(json)) Check(parsed.RootElement.GetProperty("verified").GetBoolean(), "generated report verification lost");
         Check(readOnly.Apply(preview).Status == ConfigurationTransactionStatus.IoFailure, "read-only apply allowed");
+        var inherited = new WorkspaceMigrationService(new InMemoryProjectTree("/repo", new Dictionary<string, string>
+        {
+            ["/repo/morphir.toml"] = "[workspace]\nmembers=[]\n[pipeline]\nbackend='root-specific'\n",
+            ["/repo/app/morphir.toml"] = "[project]\nname='App'\n"
+        })).Plan("/repo");
+        Check(!inherited.CanApply && inherited.Diagnostics.Any(d => d.Code == "workspace.migrate_adoption_value"), "existing workspace masked a new member value change");
+        var adopted = new WorkspaceMigrationService(new InMemoryProjectTree("/repo", new Dictionary<string, string>
+        {
+            ["/repo/morphir.toml"] = "[workspace]\nmembers=[]\nout_dir='shared'\n",
+            ["/repo/app/morphir.toml"] = "[project]\nname='App'\n"
+        })).Plan("/repo");
+        Check(adopted.CanApply && adopted.AdoptionEffects.Any(e => e.Kind == "ownership" && e.Before == "/repo/app"), "original member ownership lost");
+        Check(adopted.AdoptionEffects.Any(e => e.Kind == "shared-output-root" && e.Before == "/repo/app/.morphir/out"), "original member output lost");
+        var excludedRoot = new WorkspaceMigrationService(new InMemoryProjectTree("/repo", new Dictionary<string, string>
+        {
+            ["/repo/morphir.json"] = "{name:'Root',exposedModules:[]}",
+            ["/repo/app/morphir.json"] = "{name:'App',exposedModules:[]}"
+        })).Plan("/repo", excludes: ["."]);
+        Check(excludedRoot.CanApply && excludedRoot.RootIsProject && excludedRoot.Inventory.Any(i => i.RelativePath == "." && i.Kind == WorkspaceInventoryKind.Excluded)
+            && excludedRoot.Projects.All(p => p.ProjectPath != "/repo"), "root exclusion did not preserve conversion boundary");
         var root = ProjectPath.join(Path.GetTempPath(), "workspace-smoke-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         try

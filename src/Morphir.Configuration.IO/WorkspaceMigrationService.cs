@@ -117,8 +117,8 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
                 diagnostics.AddRange(path == root ? [] : location.Diagnostics);
                 if (Has(location.Values, "project"))
                 {
-                    if (include.Length > 0 && !include.Any(p => Glob(p, relative)))
-                        inventory.Add(new(path, relative, WorkspaceInventoryKind.Excluded, "Project does not match include filters.", Name(location)));
+                    if (Excluded(relative, exclude) || include.Length > 0 && !include.Any(p => Glob(p, relative)))
+                        inventory.Add(new(path, relative, WorkspaceInventoryKind.Excluded, "Project excluded by supplied include/exclude filters.", Name(location)));
                     else
                     {
                         var classics = Classics(location).ToArray();
@@ -251,20 +251,18 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
             if (projects.Any(p => !p.CanApply) || diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error)) return Result();
             if (projects.Count > 1 && projects.Any(p => !Equals(p.Verification!.BaseWorkspace, projects[0].Verification!.BaseWorkspace)))
             { Error(root, "workspace.migrate_context", "Conversions do not share the same proposed base workspace context."); return Result(); }
-            if (!declared)
+            // Every newly adopted project keeps its original non-adoption settings,
+            // whether the workspace is new or already declared.
+            foreach (var (path, location) in locations.Where(p => !declared || !existingPaths.Contains(p.Key)))
             {
-                // Adoption may change topology/output roots, but never unrelated values.
-                foreach (var (path, location) in locations)
-                {
-                    var original = BaseResolution(location.Sources, ProjectScope.Root, null);
-                    var adoptedSources = path == root ? common.RootSources.Concat(location.Sources.Where(s => Classics(location).Any(c => c.Source.Path == s.Source.Path)))
-                        : common.RootSources.Concat(location.Sources.Select(s => Rebind(s, SourceRole.MemberPrimary)));
-                    var adopted = BaseResolution(adoptedSources, path == root ? ProjectScope.Root : ProjectScope.Member, common.Workspace);
-                    var beforeValues = ComparableValues(original, location.Sources);
-                    var afterValues = ComparableValues(adopted, adoptedSources);
-                    if (!ProjectMigration.same(beforeValues, afterValues))
-                        Error(path, "workspace.migrate_adoption_value", "Adoption changes a non-adoption setting; review the project and proposed shared base settings.");
-                }
+                var original = BaseResolution(location.Sources, ProjectScope.Root, null);
+                var adoptedSources = path == root ? common.RootSources.Concat(location.Sources.Where(s => Classics(location).Any(c => c.Source.Path == s.Source.Path)))
+                    : common.RootSources.Concat(location.Sources.Select(s => Rebind(s, SourceRole.MemberPrimary)));
+                var adopted = BaseResolution(adoptedSources, path == root ? ProjectScope.Root : ProjectScope.Member, common.Workspace);
+                var beforeValues = ComparableValues(original, location.Sources);
+                var afterValues = ComparableValues(adopted, adoptedSources);
+                if (!ProjectMigration.same(beforeValues, afterValues))
+                    Error(path, "workspace.migrate_adoption_value", "Adoption changes a non-adoption setting; review the project and proposed shared base settings.");
             }
             // Check the actual retained-source view as well as independent conversion discovery.
             var retained = ProjectSystem.Discover(overlay, root).Discovery;
@@ -305,8 +303,9 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
             var output = candidate.Workspace?.Value.OutputDirectory?.Value;
             foreach (var path in locations.Keys)
             {
-                var oldOutput = declared ? existingDiscovery!.Workspace?.Value.OutputDirectory?.Value : ProjectPath.join(path, ".morphir/out");
-                effects.Add(new(path, "ownership", declared ? existingDiscovery!.Workspace?.Value.Root : path, candidate.Workspace?.Value.Root));
+                var previouslyOwned = declared && (existingPaths.Contains(path) || path == root);
+                var oldOutput = previouslyOwned ? existingDiscovery!.Workspace?.Value.OutputDirectory?.Value : ProjectPath.join(path, ".morphir/out");
+                effects.Add(new(path, "ownership", previouslyOwned ? existingDiscovery!.Workspace?.Value.Root : path, candidate.Workspace?.Value.Root));
                 effects.Add(new(path, "membership", existingPaths.Contains(path) || path == root && declared ? "retained" : "standalone", path == root ? "root-project" : ProjectPath.relative(workspaceBase, path)));
                 effects.Add(new(path, "shared-output-root", oldOutput, output));
             }
