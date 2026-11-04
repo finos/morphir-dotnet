@@ -471,3 +471,40 @@ The latest full rebuild reports eleven existing warnings and zero errors.
 `parent-review/recovery-race-qualification-summary.json`, coverage summary and
 publish summary retain exact commands and results. Current-head Linux CI and
 independent transaction/recovery review remain open gates.
+
+### Independent transaction review follow-up
+
+Independent review of `ff5347f` reports three P2 failures with retained probes:
+a durably created committed witness could be followed by rollback, a rejected
+persisted journal could remain after a false complete-recovery result, and a
+host observation failure inside error handling could escape without a typed
+outcome. `parent-review/receipt-red.log` reproduces all six new cases before
+production changes, including missing/persisted commit witnesses, rejected
+journal/stage receipts and disconnection after stage/commit persistence.
+
+Application now validates a possibly persisted committed witness before choosing
+rollback. A valid witness keeps candidate bytes and backups for explicit
+completion; an absent witness permits rollback. Explicit recovery preserves
+rejected transaction-shaped artifacts and reports recovery required while they
+remain. The failure-handler fallback returns known or possible evidence and
+unresolved targets without further storage observations or blind rollback.
+All six regressions pass in `parent-review/receipt-green.log`; the full IO suite
+passes 442 cases. Published smoke coverage adds these commit/receipt cases.
+
+The independent read-only audit classified the original 114 retained files
+across 37 directories as generated test evidence: 28 target-drift, 28 backup-drift,
+35 committed-cleanup, 14 partial-journal ownership, seven partial-journal cleanup
+and two malformed-parser samples. No external/non-fixture references, links or
+unique user data were found. The disposition inventory records paths, hashes,
+provenance and inspection results. Original files remain untouched; parent-owned
+fixture cleanup is authorized after the final review/landing gates. Additional
+parent regression fixtures are retained separately under the same owned root.
+
+All 17 configured runners pass after the receipt/recovery corrections: IO 442,
+tooling 436, core 177 and Microsoft 22; other counts are unchanged. The rebuilt
+solution passes with eleven existing warnings and zero errors. Changed source
+files passed formatting before the rebuild. The original disposition inventory
+was rechecked after parent validation: all 149 recorded artifact/adjacent-file
+hashes still match, recorded in `parent-review/original-evidence-hash-check.json`.
+Both independent review scopes are complete; their six findings are addressed.
+Final coverage, published hosts and current-head CI remain qualification gates.

@@ -181,6 +181,15 @@ public sealed partial class ConfigurationTransaction
             if (!SameOperation(initial, document)) return Required("config.recovery_changed");
             if (document.Guards.Any(g => host.EnumerateTransactionArtifacts(g, document.TransactionId) is null))
                 return Required("config.recovery_host_capability");
+            // Rejected artifact receipts are not cleanup authority. Keep durable
+            // metadata while any rejected transaction-shaped evidence still exists.
+            var rejected = document.UnverifiedPaths.Where(path => ProjectPath.isAbsolute(path)
+                && document.Guards.Contains(ProjectPath.parent(path), StringComparer.Ordinal)
+                && Path.GetFileName(path).StartsWith(".morphir-edit-" + document.TransactionId + "-", StringComparison.Ordinal)
+                && host.Observe(path).Kind != ConfigurationObservationKind.Missing).ToArray();
+            if (rejected.Length > 0)
+                return Required("config.recovery_unverified_artifact") with
+                { UnresolvedPaths = inspection.UnresolvedPaths.Concat(rejected).Distinct(StringComparer.Ordinal).ToImmutableArray() };
             var restored = new List<string>();
             var unresolved = new List<string>();
             foreach (var entry in document.Entries.Reverse())

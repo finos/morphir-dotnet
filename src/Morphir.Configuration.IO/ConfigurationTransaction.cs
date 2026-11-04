@@ -331,50 +331,84 @@ public sealed partial class ConfigurationTransaction
         }
         catch (Exception error) when (IsIo(error))
         {
-            if (error is ConfigurationArtifactFailureException artifactFailure) ReportArtifacts(artifactFailure);
-            foreach (var path in stageAttempts.Keys.Where(p => !artifacts.Any(a => a.Path == p)))
-                if (host.Observe(path).Kind != ConfigurationObservationKind.Missing) Unverified(path);
-            if (document is not null)
-                foreach (var directory in document.PendingDirectories)
-                    if (!artifacts.Any(a => a.Kind == ConfigurationArtifactKind.Directory && a.Path == directory)
-                        && host.Observe(directory).Kind != ConfigurationObservationKind.Missing) unresolved.Add(directory);
-            foreach (var (change, backup) in attempted.AsEnumerable().Reverse())
+            try
             {
-                try
+                if (error is ConfigurationArtifactFailureException artifactFailure) ReportArtifacts(artifactFailure);
+                foreach (var path in stageAttempts.Keys.Where(p => !artifacts.Any(a => a.Path == p)))
+                    if (host.Observe(path).Kind != ConfigurationObservationKind.Missing) Unverified(path);
+                if (document is not null)
+                    foreach (var directory in document.PendingDirectories)
+                        if (!artifacts.Any(a => a.Kind == ConfigurationArtifactKind.Directory && a.Path == directory)
+                            && host.Observe(directory).Kind != ConfigurationObservationKind.Missing) unresolved.Add(directory);
+                if (document is { Committed: true })
                 {
-                    var current = host.Observe(change.Path);
-                    if (current == change.Expected) { restored.Add(change.Path); continue; }
-                    var candidate = CandidateObservation(change);
-                    if (current != candidate) { unresolved.Add(change.Path); continue; }
-                    fault?.Invoke(ConfigurationTransactionPhase.BeforeRollback, change.Path);
-                    if (host.Observe(change.Path) != candidate || backup is not null && host.Observe(backup) !=
-                        new ConfigurationObservation(backup, ConfigurationObservationKind.File, change.Expected.Identity))
-                    { unresolved.Add(change.Path); continue; }
-                    if (backup is null) host.DeleteFile(change.Path);
-                    else host.Install(backup, change.Path, true);
-                    fault?.Invoke(ConfigurationTransactionPhase.AfterRollback, change.Path);
-                    if (host.Observe(change.Path) == change.Expected) restored.Add(change.Path);
-                    else unresolved.Add(change.Path);
+                    var witnessPath = RecoveryDocument.ArtifactPath(document.MetadataDestination, transactionId, "journal-committed");
+                    if (host.Observe(witnessPath).Kind != ConfigurationObservationKind.Missing)
+                    {
+                        var witness = ReadRecovery(witnessPath);
+                        if (!witness.Committed || !SameOperation(document, witness)
+                            || !witness.Encode().AsSpan().SequenceEqual(document.Encode()))
+                            throw new InvalidDataException("Commit witness does not match the attempted transaction");
+                        if (!artifacts.Any(a => a.Path == witnessPath))
+                            artifacts.Add(new(witnessPath, ConfigurationArtifactKind.Journal, transactionId));
+                        // Durable commit is authoritative even when its acknowledgement failed.
+                        // Preserve candidate bytes and backups for explicit cleanup/recovery.
+                        return new(ConfigurationTransactionStatus.RecoveryRequired, "config.edit_cleanup_required", targets, Retained(artifacts))
+                        { UnresolvedPaths = targets };
+                    }
+                    document = document with { Committed = false };
                 }
-                catch (Exception recoveryError) when (IsIo(recoveryError))
+                foreach (var (change, backup) in attempted.AsEnumerable().Reverse())
                 {
-                    try { if (host.Observe(change.Path) == change.Expected) restored.Add(change.Path); else unresolved.Add(change.Path); }
-                    catch (Exception observationError) when (IsIo(observationError)) { unresolved.Add(change.Path); }
+                    try
+                    {
+                        var current = host.Observe(change.Path);
+                        if (current == change.Expected) { restored.Add(change.Path); continue; }
+                        var candidate = CandidateObservation(change);
+                        if (current != candidate) { unresolved.Add(change.Path); continue; }
+                        fault?.Invoke(ConfigurationTransactionPhase.BeforeRollback, change.Path);
+                        if (host.Observe(change.Path) != candidate || backup is not null && host.Observe(backup) !=
+                            new ConfigurationObservation(backup, ConfigurationObservationKind.File, change.Expected.Identity))
+                        { unresolved.Add(change.Path); continue; }
+                        if (backup is null) host.DeleteFile(change.Path);
+                        else host.Install(backup, change.Path, true);
+                        fault?.Invoke(ConfigurationTransactionPhase.AfterRollback, change.Path);
+                        if (host.Observe(change.Path) == change.Expected) restored.Add(change.Path);
+                        else unresolved.Add(change.Path);
+                    }
+                    catch (Exception recoveryError) when (IsIo(recoveryError))
+                    {
+                        try { if (host.Observe(change.Path) == change.Expected) restored.Add(change.Path); else unresolved.Add(change.Path); }
+                        catch (Exception observationError) when (IsIo(observationError)) { unresolved.Add(change.Path); }
+                    }
                 }
+                if (unverified.Count > 0) RecordRecoveryEvidence();
+                if (unresolved.Count > 0)
+                    return new(ConfigurationTransactionStatus.RecoveryRequired, "config.edit_recovery_required", targets,
+                        Retained(artifacts))
+                    { RestoredPaths = restored.ToImmutableArray(), UnresolvedPaths = unresolved.Distinct().ToImmutableArray() };
+                if (!TryCleanup(artifacts, false, document, artifactEvidence, partialArtifacts))
+                    return new(ConfigurationTransactionStatus.RecoveryRequired, "config.edit_cleanup_required", targets, Retained(artifacts))
+                    { RestoredPaths = restored.ToImmutableArray(), UnresolvedPaths = targets };
+                return new(error is ConflictException ? ConfigurationTransactionStatus.Conflict
+                    : attempted.Count > 0 ? ConfigurationTransactionStatus.RolledBack : ConfigurationTransactionStatus.IoFailure,
+                    error is ConflictException ? "config.edit_conflict"
+                    : attempted.Count > 0 ? "config.edit_rolled_back" : "config.edit_io", targets, [])
+                { RestoredPaths = restored.ToImmutableArray() };
             }
-            if (unverified.Count > 0) RecordRecoveryEvidence();
-            if (unresolved.Count > 0)
-                return new(ConfigurationTransactionStatus.RecoveryRequired, "config.edit_recovery_required", targets,
-                    Retained(artifacts))
-                { RestoredPaths = restored.ToImmutableArray(), UnresolvedPaths = unresolved.Distinct().ToImmutableArray() };
-            if (!TryCleanup(artifacts, false, document, artifactEvidence, partialArtifacts))
-                return new(ConfigurationTransactionStatus.RecoveryRequired, "config.edit_cleanup_required", targets, Retained(artifacts))
-                { RestoredPaths = restored.ToImmutableArray(), UnresolvedPaths = targets };
-            return new(error is ConflictException ? ConfigurationTransactionStatus.Conflict
-                : attempted.Count > 0 ? ConfigurationTransactionStatus.RolledBack : ConfigurationTransactionStatus.IoFailure,
-                error is ConflictException ? "config.edit_conflict"
-                : attempted.Count > 0 ? "config.edit_rolled_back" : "config.edit_io", targets, [])
-            { RestoredPaths = restored.ToImmutableArray() };
+            catch (Exception observationError) when (IsRecoveryError(observationError))
+            {
+                // The host may be disconnected after a durable write. Report possible
+                // owned locations without querying it again or attempting blind rollback.
+                var possible = artifacts.Concat(stageAttempts.Select(p => new ConfigurationArtifact(p.Key, p.Value, transactionId)))
+                    .Distinct().ToImmutableArray();
+                return new(ConfigurationTransactionStatus.RecoveryRequired, "config.edit_recovery_io", targets, possible)
+                {
+                    RestoredPaths = restored.ToImmutableArray(),
+                    UnresolvedPaths = targets.Concat(unresolved).Concat(unverified).Concat(plannedDirectories)
+                        .Distinct(StringComparer.Ordinal).ToImmutableArray()
+                };
+            }
         }
         finally { coordination?.Dispose(); }
     }

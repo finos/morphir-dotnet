@@ -154,3 +154,20 @@ registry is not a substitute.
 Recovery metadata uses version 2. Automatic recovery refuses unknown versions and
 invalid ownership. Preserve earlier journals for explicit review with their
 original host/version. Do not rewrite or silently delete them during an upgrade.
+
+A lost host acknowledgement does not prove a commit failed. If the committed
+witness is present and validates against the attempted operation, application
+preserves the candidate files and backups and returns recovery required for
+explicit completion. If the witness is absent, rollback can proceed.
+
+Rejected transaction-shaped artifacts remain recovery blockers while present.
+Recovery preserves the journals and reports their unresolved paths rather than
+claiming complete rollback with metadata left behind. Any manual disposition
+must first establish the artifact's origin and preserve user changes. Unrelated
+foreign files are never cleanup authority.
+
+If the storage host disconnects while a failure is being handled, application
+returns a typed recovery-required result with known or possible evidence
+locations and unresolved targets. Its fallback does not perform further storage observations
+or blind rollback. Reconnect storage and inspect the retained journal
+before explicitly recovering.

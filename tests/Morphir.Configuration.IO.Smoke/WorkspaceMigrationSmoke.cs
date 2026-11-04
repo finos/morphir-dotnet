@@ -123,7 +123,7 @@ internal static class WorkspaceMigrationSmoke
             if (Directory.EnumerateFileSystemEntries(root, ".morphir-edit-*", SearchOption.AllDirectories).Any()) Console.Error.WriteLine("Retained workspace smoke recovery: " + root);
             else Directory.Delete(root, true);
         }
-        return checks;
+        return checks + RecoveryReceiptSmoke.Run();
     }
 
     private sealed class InterruptedParentHost : IConfigurationTransactionHost
