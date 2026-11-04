@@ -7,7 +7,7 @@ description: "Workspace discovery, inspection, safe TOML editing and .NET consum
 
 # Configure a workspace
 
-The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. `config set/unset` plan and apply one TOML edit. `project migrate` adopts one classic project through loss-checked shared services. Workspace migration remains planned. See the [editing delivery journal]({{< relref "/docs/contributing/design/prds/config-editing-delivery" >}}) for local validation and parent delivery gates.
+The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. `config set/unset` plan and apply one TOML edit. `project migrate` adopts one classic project through loss-checked shared services. `workspace migrate` adopts a bounded repository through aggregate verification and recoverable application. See the [workspace delivery journal]({{< relref "/docs/contributing/design/prds/workspace-migration-delivery" >}}) for local validation and parent delivery gates.
 
 ## Declare the workspace
 
@@ -176,8 +176,6 @@ See the [migration command reference]({{< relref "/docs/cli/project-migrate" >}}
 
 ## Adopt a repository of classic projects
 
-This command remains planned.
-
 If the repository has several classic projects and no new workspace yet, preview the bounded workspace migration from its root:
 
 ```bash
@@ -188,6 +186,35 @@ morphir workspace migrate . --include 'packages/*' --exclude 'packages/experimen
 The plan lists projects, exclusions, nested workspace boundaries, already migrated members, TOML edits, proposed membership, and intended member/default-selection and shared-output-root changes. It checks each classic-to-TOML conversion in the same proposed workspace context and verifies the resulting workspace before applying the batch. One blocked selected project blocks the whole plan. Existing membership/settings and every classic manifest are preserved; an equivalent repeat makes no changes.
 
 Adopting a shared workspace can change standalone output defaults to `<workspace>/.morphir/out`. The preview reports that change separately from serialization equivalence; it does not move previously generated files.
+
+For two eligible projects under `packages/orders` and `packages/payments`, a new
+virtual workspace contains explicit member paths:
+
+```toml
+[workspace]
+members = ["packages/orders", "packages/payments"]
+```
+
+Each converted member receives its own TOML primary with the same loss checks as
+single-project migration. If the repository root itself has a project, migration
+keeps it as the root project rather than adding `"."` to the member list. Existing
+membership patterns, exclusions, valid default selection, comments, and settings
+remain in place. Preview the operation from the directory you intend to adopt;
+invoking from a child deliberately limits the operation to that child.
+
+Use JSON in automation and retain the result when application fails:
+
+```bash
+morphir workspace migrate . --dry-run --json > workspace-preview.json
+morphir workspace migrate . --json > workspace-result.json
+morphir workspace migrate . --json # unchanged repeat
+```
+
+Exit 2 means blocked, invalid, failed, or recovery required. A recovery-required
+result identifies the transaction artifacts and unresolved paths. Stop overlapping
+writes and use the shared explicit inspection/recovery APIs described in the
+[recovery guide]({{< relref "/docs/configuration/workspace-migration" >}}).
+Do not delete journals or backups to make a rerun pass.
 
 Read the [workspace migration reference]({{< relref "/docs/cli/workspace" >}}) for batch recovery and supported controls.
 

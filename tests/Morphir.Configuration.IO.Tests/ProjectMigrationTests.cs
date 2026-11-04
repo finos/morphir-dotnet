@@ -276,6 +276,9 @@ public sealed class ProjectMigrationFailureTests
     private sealed class FaultHost(bool refuseRollback) : IConfigurationTransactionHost
     {
         private readonly NativeConfigurationTransactionHost inner = new();
+        public bool SupportsDurableRecovery => inner.SupportsDurableRecovery;
+        public IReadOnlyList<string> FindRecoveryJournals(IReadOnlyList<string> paths) => inner.FindRecoveryJournals(paths);
+        public IReadOnlyList<string>? EnumerateTransactionArtifacts(string directory, string transactionId) => inner.EnumerateTransactionArtifacts(directory, transactionId);
         private int installs;
         public ConfigurationObservation Observe(string path, IReadOnlyCollection<string>? excludedPaths = null) => inner.Observe(path, excludedPaths);
         public byte[] ReadFile(string path) => inner.ReadFile(path);
@@ -376,6 +379,9 @@ public sealed class ProjectMigrationHostBoundaryTests
     private sealed class EvidenceHost(bool unstable) : IConfigurationTransactionHost
     {
         private readonly NativeConfigurationTransactionHost inner = new();
+        public bool SupportsDurableRecovery => inner.SupportsDurableRecovery;
+        public IReadOnlyList<string> FindRecoveryJournals(IReadOnlyList<string> paths) => inner.FindRecoveryJournals(paths);
+        public IReadOnlyList<string>? EnumerateTransactionArtifacts(string directory, string transactionId) => inner.EnumerateTransactionArtifacts(directory, transactionId);
         private int observations;
         public ConfigurationObservation Observe(string path, IReadOnlyCollection<string>? excludedPaths = null)
         {

@@ -312,6 +312,9 @@ public sealed class ConfigurationEditingTests
 
     private sealed class FaultingSnapshotHost(IConfigurationTransactionHost inner, string mode) : IConfigurationTransactionHost
     {
+        public bool SupportsDurableRecovery => inner.SupportsDurableRecovery;
+        public IReadOnlyList<string> FindRecoveryJournals(IReadOnlyList<string> paths) => inner.FindRecoveryJournals(paths);
+        public IReadOnlyList<string>? EnumerateTransactionArtifacts(string directory, string transactionId) => inner.EnumerateTransactionArtifacts(directory, transactionId);
         private int targetObservations;
         public ConfigurationObservation Observe(string path, IReadOnlyCollection<string>? excludedPaths = null)
         {

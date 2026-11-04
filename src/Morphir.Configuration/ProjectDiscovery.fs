@@ -190,6 +190,11 @@ module DiscoveryPolicy =
                 )
         }
 
+    /// Inspect only one supplied location using the shared primary/format policy.
+    /// No upward search or membership expansion is performed.
+    let inspectLocation path snapshot =
+        location SourceRole.RootPrimary path snapshot
+
     let private reports role path (snapshot: ProjectSnapshot) =
         candidates path
         |> List.choose (fun candidate ->

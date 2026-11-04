@@ -24,15 +24,15 @@ None. Existing publication and virtual-file requirements remain unchanged.
 
 ## Tracking
 
-- [Layered configuration PRD](../../../docs/content/docs/contributing/design/prds/layered-configuration.md).
-- Implementation prerequisites: [`add-classic-project-migration`](../archive/2026-11-03-add-classic-project-migration/proposal.md).
-- GitHub tracking issue: not yet assigned; link the actual issue before opening an implementation PR. No external issue is created by this planning work.
+- [Layered configuration PRD](../../../../docs/content/docs/contributing/design/prds/layered-configuration.md).
+- Implementation prerequisites: [`add-classic-project-migration`](../2026-11-03-add-classic-project-migration/proposal.md).
+- GitHub tracking issue: [#479](https://github.com/finos/morphir-dotnet/issues/479).
 
 ## Impact
 
 Add shared inventory/aggregate planner and workspace CLI commands; extend the transaction adapter to coordinate a bounded batch with journaled recovery. Cover filesystem and in-memory hosts; do not alter the generated-output publication capability.
 
-Planning only. No runtime behavior or existing public API changes in this proposal commit.
+Implementation locally qualified; parent review, CI, landing and cleanup remain pending. See the [delivery journal](../../../../docs/content/docs/contributing/design/prds/workspace-migration-delivery.md).
 
 ## Campaign completion
 

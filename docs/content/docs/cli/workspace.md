@@ -2,12 +2,12 @@
 title: "Workspace migration"
 linkTitle: "Workspace"
 weight: 50
-description: "Planned bounded adoption of classic projects into a Morphir workspace"
+description: "Bounded adoption of classic projects into a Morphir workspace"
 ---
 
 # Workspace migration
 
-Status: planned. `morphir workspace migrate` is not yet implemented in .NET. It will coordinate the shared [project migrator]({{< relref "/docs/cli/project" >}}) and workspace membership planning. Other hosts will use the same library services.
+`morphir workspace migrate` coordinates the shared [project migrator]({{< relref "/docs/cli/project" >}}), bounded inventory, aggregate verification, and recoverable application. Other hosts use the same library services. The [complete command reference]({{< relref "/docs/cli/workspace-migrate" >}}) describes the JSON contract and recovery outcomes.
 
 Use it when a repository contains several classic projects, including when the repository does not yet declare a Morphir workspace. For one project without workspace membership changes, use `morphir project migrate`.
 
@@ -53,7 +53,9 @@ Check the resulting workspace as a whole against those declared effects. Do not 
 
 Validate and stage the entire plan before replacing any destination. Recheck relevant source and target preconditions, coordinate overlapping writers, and journal replacements so a commit failure can attempt rollback.
 
-Multiple file replacements are not crash-atomic. Report restored and unresolved paths explicitly if rollback fails. Retain recovery data and block overlapping writes until recovery is resolved. Successful application and complete rollback clean their temporary artifacts. Every classic `morphir.json` remains unchanged.
+Multiple file replacements are not crash-atomic. Report restored and unresolved paths explicitly if rollback fails. Retain recovery data and block overlapping writes until recovery is resolved.
+A preview encountering pending recovery reports `recovery-required` with exit 2
+and the retained metadata without modifying it. Successful application and complete rollback clean their temporary artifacts. Every classic `morphir.json` remains unchanged.
 
 An equivalent repeat reports unchanged files without rewriting them. A valid existing workspace needing no further conversion is a successful no-op. An undeclared root with no eligible projects reports that no adoption can be planned.
 
