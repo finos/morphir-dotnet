@@ -1,0 +1,11 @@
+<Project>
+    <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+    <!--
+      Every shipped project takes its version from CHANGELOG.md, so all Morphir
+      assemblies in a release carry the same version and reference each other at it.
+    -->
+    <ItemGroup>
+        <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
+    </ItemGroup>
+</Project>

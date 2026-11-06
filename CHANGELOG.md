@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Every Morphir assembly now takes its version from CHANGELOG.md, and the build compiles with the release version, so assemblies no longer reference each other as `1.0.0.0`. Previously the packed `dotnet-morphir` tool failed `generate` with `Could not load file or assembly 'Morphir.Models, Version=1.0.0.0'`
 - F# `Decimal.fromString` roundtrips invariant SDK output under comma-decimal cultures while retaining unambiguous localized input; package migration checks also exercise a later release version ([#465](https://github.com/finos/morphir-dotnet/issues/465)).
 - F# SDK arithmetic detects covered Int32 overflow; minimum-Int remainder/modulus by -1 return zero, direct string comparison uses ordinal UTF-16 order, dictionary union keeps the first value, and Decimal text is invariant without trailing fractional zeros. Added checked Float-to-Int rounding and optional `Decimal.div` while retaining existing public entry points ([#465](https://github.com/finos/morphir-dotnet/issues/465)).
 - `VFileTree.writeToDisk` no longer writes outside the output directory. It returns `TreeWriteError.InvalidTree` and writes nothing for rooted or `..` paths, files with no path, and duplicate locations, and it no longer adds the root tree path to output paths (#376)

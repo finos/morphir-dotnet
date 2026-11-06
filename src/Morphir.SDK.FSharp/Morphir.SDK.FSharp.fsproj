@@ -23,7 +23,6 @@
 
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
-        <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
     </ItemGroup>
 
     <ItemGroup>

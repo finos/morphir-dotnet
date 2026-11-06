@@ -27,9 +27,6 @@
     </ItemGroup>
 
     
-    <ItemGroup>
-        <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
-    </ItemGroup>
 
     <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Core.Tests" />

@@ -167,10 +167,14 @@ partial class Build : NukeBuild
 
             // Build using .slnx solution file
             // Bound build resources for concurrent delivery work.
+            // Build with the release version so later pack/publish steps reuse assemblies
+            // whose cross-references carry that same version (F# reference assemblies are
+            // not refreshed when only the version changes, leaving stale references).
             DotNetBuild(s => s
                 .SetProjectFile(SolutionFile)
                 .SetConfiguration(Configuration)
                 .SetNoRestore(true)
+                .SetProperty("Version", Version.ToString())
                 .AddProcessAdditionalArguments("-m:1", "-p:UseSharedCompilation=false", "-nodeReuse:false"));
         });
 
