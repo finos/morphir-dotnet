@@ -7,6 +7,8 @@ using Json.Schema;
 using FluentAssertions;
 using Morphir.Configuration;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Configuration;
 
 [Binding]
@@ -220,15 +222,10 @@ public sealed class ConfigurationSteps : IDisposable
         info.Environment["PROGRAMDATA"] = _root;
         info.Environment["XDG_CONFIG_HOME"] = _root;
         foreach (var variable in _variables) info.Environment[variable.Key] = variable.Value;
-        using var process = Process.Start(info)!;
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try { await process.WaitForExitAsync(timeout.Token); }
-        catch (OperationCanceledException) { process.Kill(true); throw; }
-        _exit = process.ExitCode;
-        _stdout = await stdout;
-        _stderr = await stderr;
+        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(60));
+        _exit = result.ExitCode;
+        _stdout = result.StandardOutput;
+        _stderr = result.StandardError;
     }
 
     [Then("inspection exits with {int} and one JSON result")]
@@ -356,7 +353,7 @@ public sealed class ConfigurationSteps : IDisposable
     public void Dispose()
     {
         _json?.Dispose();
-        if (Directory.Exists(_root)) Directory.Delete(_root, true);
-        if (Directory.Exists(Outside)) Directory.Delete(Outside, true);
+        TolerantDirectory.TryDelete(_root);
+        TolerantDirectory.TryDelete(Outside);
     }
 }

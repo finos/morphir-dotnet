@@ -8,6 +8,8 @@ using Json.Schema;
 using Morphir.Configuration;
 using Morphir.Configuration.IO;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Configuration;
 
 [Binding]
@@ -152,13 +154,8 @@ public sealed class ConfigurationEditingSteps : IDisposable
         foreach (var key in info.Environment.Keys.Where(k => k.StartsWith("MORPHIR_", StringComparison.Ordinal)).ToArray()) info.Environment.Remove(key);
         foreach (var key in new[] { "HOME", "USERPROFILE", "APPDATA", "PROGRAMDATA", "XDG_CONFIG_HOME" }) info.Environment[key] = Path.Combine(_root, "home");
         foreach (var pair in _environment) info.Environment[pair.Key] = pair.Value;
-        using var process = Process.Start(info)!;
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try { await process.WaitForExitAsync(timeout.Token); }
-        catch (OperationCanceledException) { process.Kill(true); throw; }
-        _exit = process.ExitCode; _stdout = await stdout; _stderr = await stderr;
+        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(60));
+        _exit = result.ExitCode; _stdout = result.StandardOutput; _stderr = result.StandardError;
     }
 
     [When("I set a complete typed object")]
@@ -235,5 +232,5 @@ public sealed class ConfigurationEditingSteps : IDisposable
     [Then("the editing effective value is {string}")]
     public void Effective(string value) => _report!.RootElement.GetProperty("effective").GetProperty("value").GetString().Should().Be(value);
 
-    public void Dispose() { _report?.Dispose(); if (Directory.Exists(_root)) Directory.Delete(_root, true); }
+    public void Dispose() { _report?.Dispose(); TolerantDirectory.TryDelete(_root); }
 }

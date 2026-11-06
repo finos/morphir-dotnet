@@ -4,10 +4,14 @@ using Microsoft.FSharp.Core;
 using Morphir.IR.Pipeline;
 using Morphir.Tooling.Features.Generate;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
-public sealed class CSharpGenerationPublicationTests
+public sealed class CSharpGenerationPublicationTests : IDisposable
 {
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), "morphir-csharp-publication-" + Guid.NewGuid().ToString("N"));
     private string Output => Path.Combine(_root, "output");
     private string Input => Path.Combine(_root, "model.json");

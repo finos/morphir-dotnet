@@ -7,6 +7,8 @@ using Morphir.IR.Pipeline;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Scenarios;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 public sealed class CSharpGenerationBackendTests
@@ -162,16 +164,23 @@ public sealed class CSharpGenerationBackendTests
     public async Task LocatedCoreRefusalsRemainSemanticAndContainNoArtifacts()
     {
         var root = Path.Combine(Path.GetTempPath(), "morphir-csharp-refusal-" + Guid.NewGuid().ToString("N"));
-        var input = GenerationInputFixtures.DailyRate(root, "4", "json");
-        File.WriteAllText(input, File.ReadAllText(input).Replace("\"WholeNumberLiteral\": 5000", "\"DocumentLiteral\": {\"unsupported\":true}"));
-        var loaded = ((Outcome<LoadedModel>.Success)await new GenerationModelLoader(new BoundedModelCapture()).LoadAsync(new(input), ModelReadLimits.Default, default)).Value;
-        var backend = new CSharpGenerationBackend();
-        var result = await backend.GenerateAsync(new(loaded, new("csharp"), Validated(backend, BackendOptions.Empty)), default);
-        var error = ((Outcome<GenerationArtifacts>.Failure)result).Error;
-        error.Kind.Should().Be(GenerationFailureKind.Semantic);
-        error.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("document-literal");
-        error.Diagnostics[0].Path.Should().Be(input);
-        error.Diagnostics[0].Location.Should().NotBeNullOrEmpty();
+        try
+        {
+            var input = GenerationInputFixtures.DailyRate(root, "4", "json");
+            File.WriteAllText(input, File.ReadAllText(input).Replace("\"WholeNumberLiteral\": 5000", "\"DocumentLiteral\": {\"unsupported\":true}"));
+            var loaded = ((Outcome<LoadedModel>.Success)await new GenerationModelLoader(new BoundedModelCapture()).LoadAsync(new(input), ModelReadLimits.Default, default)).Value;
+            var backend = new CSharpGenerationBackend();
+            var result = await backend.GenerateAsync(new(loaded, new("csharp"), Validated(backend, BackendOptions.Empty)), default);
+            var error = ((Outcome<GenerationArtifacts>.Failure)result).Error;
+            error.Kind.Should().Be(GenerationFailureKind.Semantic);
+            error.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("document-literal");
+            error.Diagnostics[0].Path.Should().Be(input);
+            error.Diagnostics[0].Location.Should().NotBeNullOrEmpty();
+        }
+        finally
+        {
+            TolerantDirectory.TryDelete(root);
+        }
     }
 
     internal static BackendOptions ParseOptions(string key, string json)
@@ -186,8 +195,16 @@ public sealed class CSharpGenerationBackendTests
     internal static async Task<LoadedModel> Load(string version, string format)
     {
         var root = Path.Combine(Path.GetTempPath(), "morphir-csharp-provider-" + Guid.NewGuid().ToString("N"));
-        var input = GenerationInputFixtures.DailyRate(root, version, format);
-        var result = await new GenerationModelLoader(new BoundedModelCapture()).LoadAsync(new(input), ModelReadLimits.Default, default);
-        return ((Outcome<LoadedModel>.Success)result).Value;
+        try
+        {
+            var input = GenerationInputFixtures.DailyRate(root, version, format);
+            var result = await new GenerationModelLoader(new BoundedModelCapture()).LoadAsync(new(input), ModelReadLimits.Default, default);
+            return ((Outcome<LoadedModel>.Success)result).Value;
+        }
+        finally
+        {
+            // The loader captures the model's bytes, so the fixture can go once loading returns.
+            TolerantDirectory.TryDelete(root);
+        }
     }
 }

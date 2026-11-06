@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using Morphir.TestSupport;
 
 namespace Morphir.Tooling.Tests.Integration.CLI;
 
@@ -42,7 +43,10 @@ public class CliTestHelper
     /// <summary>
     /// Execute a CLI command and return the result
     /// </summary>
-    public async Task<CliExecutionResult> ExecuteCommandAsync(string arguments, CancellationToken ct = default)
+    /// <summary>Applied when a caller gives no timeout. It starts once a process slot is held.</summary>
+    public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(120);
+
+    public async Task<CliExecutionResult> ExecuteCommandAsync(string arguments, CancellationToken ct = default, TimeSpan? timeout = null)
     {
         // Replace <test-data> placeholder with actual path
         arguments = arguments.Replace("<test-data>", _testDataDirectory);
@@ -59,48 +63,18 @@ public class CliTestHelper
             CreateNoWindow = true
         };
 
-        using var process = new Process { StartInfo = startInfo };
+        // Inherited MORPHIR_* settings from the developer's shell must not change test results.
+        foreach (var key in startInfo.Environment.Keys.Where(k => k.StartsWith("MORPHIR_", StringComparison.OrdinalIgnoreCase)).ToArray())
+            startInfo.Environment.Remove(key);
 
-        var stdoutBuilder = new StringBuilder();
-        var stderrBuilder = new StringBuilder();
-
-        process.OutputDataReceived += (sender, e) =>
-        {
-            if (e.Data != null)
-                stdoutBuilder.AppendLine(e.Data);
-        };
-
-        process.ErrorDataReceived += (sender, e) =>
-        {
-            if (e.Data != null)
-            {
-                stderrBuilder.AppendLine(e.Data);
-            }
-        };
-
-        process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-
-        try
-        {
-            await process.WaitForExitAsync(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            if (!process.HasExited) process.Kill(entireProcessTree: true);
-            if (!process.WaitForExit(5000))
-                throw new InvalidOperationException("CLI process tree did not terminate after cancellation");
-            throw;
-        }
-
+        // The shared runner gates concurrency, reads both streams, and kills and awaits the tree on timeout.
+        var result = await ChildProcess.RunAsync(startInfo, timeout ?? DefaultTimeout, ct);
         return new CliExecutionResult(
-            ExitCode: process.ExitCode,
-            StandardOutput: stdoutBuilder.ToString().Trim(),
-            StandardError: stderrBuilder.ToString().Trim()
+            ExitCode: result.ExitCode,
+            StandardOutput: result.StandardOutput.Trim(),
+            StandardError: result.StandardError.Trim()
         );
     }
-
     /// <summary>
     /// Find repository root by looking for a .git directory or worktree file
     /// </summary>

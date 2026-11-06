@@ -6,6 +6,8 @@ using Morphir.Tooling.Scenarios;
 using Morphir.Testing;
 using Morphir.IR.Pipeline;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 public sealed class GenerationHandlerTests : IDisposable
@@ -50,5 +52,5 @@ public sealed class GenerationHandlerTests : IDisposable
         File.ReadAllText(Path.Combine(output, "prior.fs")).Should().Be("prior");
         Directory.GetFiles(output).Should().HaveCount(1);
     }
-    public void Dispose() => Directory.Delete(_root, true);
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
 }

@@ -9,6 +9,8 @@ using Morphir.Configuration;
 using Morphir.Configuration.IO;
 using Microsoft.FSharp.Collections;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.ProjectMigration;
 
 [Binding]
@@ -169,13 +171,8 @@ public sealed class ProjectMigrationSteps : IDisposable
         foreach (var arg in new[] { "project", "migrate" }.Concat(arguments).Concat(json ? ["--json"] : []).Concat(boundaryFlag ? ["--discovery-boundary", _root] : [])) info.ArgumentList.Add(arg);
         foreach (var key in info.Environment.Keys.Where(k => k.StartsWith("MORPHIR_", StringComparison.Ordinal)).ToArray()) info.Environment.Remove(key);
         foreach (var pair in _environment) info.Environment[pair.Key] = pair.Value;
-        using var process = Process.Start(info)!;
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try { await process.WaitForExitAsync(timeout.Token); }
-        catch (OperationCanceledException) { process.Kill(true); throw; }
-        _exit = process.ExitCode; _stdout = await stdout; _stderr = await stderr;
+        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(60));
+        _exit = result.ExitCode; _stdout = result.StandardOutput; _stderr = result.StandardError;
     }
 
     [Then("migration exits {int} with outcome {string}")]
@@ -266,7 +263,7 @@ public sealed class ProjectMigrationSteps : IDisposable
     public void Dispose()
     {
         _report?.Dispose();
-        if (Directory.Exists(_root)) Directory.Delete(_root, true);
-        if (Directory.Exists(Outside)) Directory.Delete(Outside, true);
+        TolerantDirectory.TryDelete(_root);
+        TolerantDirectory.TryDelete(Outside);
     }
 }
