@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Xml.Linq;
 using FluentAssertions;
+using Morphir.TestSupport;
 using TUnit.Core;
 
 namespace Morphir.Build.Tests;
@@ -51,7 +52,7 @@ public class LocalInstallationTests
         }
         finally
         {
-            await DeleteTempDirectoryAsync(tempDir);
+            await TolerantDirectory.TryDeleteAsync(tempDir);
         }
     }
 
@@ -99,7 +100,7 @@ public class LocalInstallationTests
         }
         finally
         {
-            await DeleteTempDirectoryAsync(tempDir);
+            await TolerantDirectory.TryDeleteAsync(tempDir);
         }
     }
 
@@ -148,37 +149,11 @@ public class LocalInstallationTests
         }
         finally
         {
-            await DeleteTempDirectoryAsync(tempDir);
+            await TolerantDirectory.TryDeleteAsync(tempDir);
         }
     }
 
     // Helper methods
-
-    /// <summary>
-    /// Best-effort cleanup of a test's temp directory. On Windows a file the tool install just
-    /// extracted can stay locked briefly (for example while antivirus scans it), so retry and
-    /// never let cleanup fail a test whose assertions passed.
-    /// </summary>
-    private static async Task DeleteTempDirectoryAsync(string path)
-    {
-        for (var attempt = 1; Directory.Exists(path); attempt++)
-        {
-            try
-            {
-                Directory.Delete(path, recursive: true);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                if (attempt == 5)
-                {
-                    Console.Error.WriteLine($"Could not delete temp directory {path}: {ex.Message}");
-                    return;
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt));
-            }
-        }
-    }
 
     private static string CreateLocalFeedConfig(string localSource)
     {

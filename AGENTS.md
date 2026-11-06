@@ -503,6 +503,16 @@ tests/Morphir.Tooling.Tests/
     └── invalid-*.json
 ```
 
+### Test Isolation
+
+Tests run in parallel and must stay hermetic. Use `tests/Morphir.TestSupport` (see [Test Isolation](docs/content/docs/contributing/qa/test-isolation.md)):
+
+- Run every child process with `ChildProcess.RunAsync`: it reads output concurrently, waits for a shared concurrency gate (`MORPHIR_TEST_MAX_PROCESSES`), and kills and awaits the process tree on timeout.
+- Confine Morphir children with `TestSandbox.Apply`: fake home and machine folders, `MORPHIR_DISCOVERY_BOUNDARY` and `MORPHIR_ISOLATED=1`. Never read or write the real `~/.morphir`, `%APPDATA%\Morphir` or XDG directories.
+- Clean up with `TolerantDirectory.TryDelete`/`TryDeleteAsync`; never let cleanup fail a passing test.
+- Never call `Environment.SetEnvironmentVariable` or `Directory.SetCurrentDirectory` in tests.
+- Process-heavy test projects add the `MachineTripwire` assembly hook, which fails the run if a test escaped its sandbox.
+
 ### TDD Anti-Patterns to Avoid
 
 ❌ **Don't write tests after the code**

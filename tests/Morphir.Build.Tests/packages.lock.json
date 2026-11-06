@@ -554,6 +554,9 @@
           "TUnit.Core": "1.48.0"
         }
       },
+      "morphir.testsupport": {
+        "type": "Project"
+      },
       "_build": {
         "type": "Project",
         "dependencies": {

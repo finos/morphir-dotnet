@@ -13,15 +13,15 @@ Add BDD scenarios before implementing new user-visible CLI behavior. Group numbe
 
 Follow TEST-1 to TEST-4 and TEST-6. Later groups' tests run inside this sandbox.
 
-- [ ] 1.1 Add the non-packable `tests/Morphir.TestSupport` project and a `tests/Morphir.TestSupport.Tests` project to `Morphir.slnx`. Verify `./build.ps1 --target Compile` succeeds, and that `Morphir.TestSupport` is absent from `LibraryPackages` and from `artifacts/packages` after `PackAll`.
-- [ ] 1.2 Add `TolerantDirectory.Delete` (retry with backoff, then log, never throw) and move the `LocalInstallationTests` helper onto it. Verify with a test that holds a file open in the directory, releases it during the retries, and confirms the delete succeeds without throwing; and a test where the lock never releases, which logs instead of throwing.
-- [ ] 1.3 Add `ChildProcess`: concurrent stdout and stderr capture; a timeout that starts after the concurrency gate is acquired; and, on timeout or cancellation, `Kill(entireProcessTree: true)` followed by a bounded wait for exit and both readers before throwing with the captured output. Verify with tests:
+- [x] 1.1 Add the non-packable `tests/Morphir.TestSupport` project and a `tests/Morphir.TestSupport.Tests` project to `Morphir.slnx`. Verify `./build.ps1 --target Compile` succeeds, and that `Morphir.TestSupport` is absent from `LibraryPackages` and from `artifacts/packages` after `PackAll`.
+- [x] 1.2 Add `TolerantDirectory.Delete` (retry with backoff, then log, never throw) and move the `LocalInstallationTests` helper onto it. Verify with a test that holds a file open in the directory, releases it during the retries, and confirms the delete succeeds without throwing; and a test where the lock never releases, which logs instead of throwing.
+- [x] 1.3 Add `ChildProcess`: concurrent stdout and stderr capture; a timeout that starts after the concurrency gate is acquired; and, on timeout or cancellation, `Kill(entireProcessTree: true)` followed by a bounded wait for exit and both readers before throwing with the captured output. Verify with tests:
   - A child that outlives the timeout has exited by the time the call returns, and its working directory can then be deleted.
   - A child writing more than 1 MB to both streams does not deadlock.
   - With `MORPHIR_TEST_MAX_PROCESSES=1`, two concurrent children run one after the other.
-- [ ] 1.4 Add `TestSandbox`: it creates the TEST-4 directories, applies the environment to a `ProcessStartInfo`, and deletes itself tolerantly. Verify with a test that a `dotnet` child sees the sandbox `HOME`, `USERPROFILE`, `APPDATA`, `XDG_CONFIG_HOME`, `MORPHIR_HOME`, `MORPHIR_DISCOVERY_BOUNDARY` and `MORPHIR_ISOLATED`, sees no inherited `MORPHIR_*` variable, and keeps the real `NUGET_PACKAGES`. Verify the opt-out leaves `MORPHIR_ISOLATED` unset.
-- [ ] 1.5 Add the machine-location tripwire (TEST-6) as an assembly hook. Verify with a test that writing a file under a fake snapshot root during the run fails the check and names that path, and that an unchanged root passes.
-- [ ] 1.6 Document the sandbox, the concurrency gate, `MORPHIR_TEST_MAX_PROCESSES` and the tripwire in `docs/content/docs/contributing/` (testing guidance) and AGENTS.md's testing section. Verify that the documented usage snippet compiles in `Morphir.TestSupport.Tests`.
+- [x] 1.4 Add `TestSandbox`: it creates the TEST-4 directories, applies the environment to a `ProcessStartInfo`, and deletes itself tolerantly. Verify with a test that a `dotnet` child sees the sandbox `HOME`, `USERPROFILE`, `APPDATA`, `XDG_CONFIG_HOME`, `MORPHIR_HOME`, `MORPHIR_DISCOVERY_BOUNDARY` and `MORPHIR_ISOLATED`, sees no inherited `MORPHIR_*` variable, and keeps the real `NUGET_PACKAGES`. Verify the opt-out leaves `MORPHIR_ISOLATED` unset.
+- [x] 1.5 Add the machine-location tripwire (TEST-6) as an assembly hook. Verify with a test that writing a file under a fake snapshot root during the run fails the check and names that path, and that an unchanged root passes.
+- [x] 1.6 Document the sandbox, the concurrency gate, `MORPHIR_TEST_MAX_PROCESSES` and the tripwire in `docs/content/docs/contributing/` (testing guidance) and AGENTS.md's testing section. Verify that the documented usage snippet compiles in `Morphir.TestSupport.Tests`.
 
 ## 2. Containment controls for configuration commands
 
