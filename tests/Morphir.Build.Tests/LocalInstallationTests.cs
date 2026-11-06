@@ -174,31 +174,16 @@ public class LocalInstallationTests
 
     private async Task<CommandResult> RunCommand(string fileName, string arguments)
     {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = fileName,
-            Arguments = arguments,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+        var startInfo = new ProcessStartInfo { FileName = fileName, Arguments = arguments };
 
-        using var process = new Process { StartInfo = startInfo };
-        process.Start();
-
-        var output = await process.StandardOutput.ReadToEndAsync();
-        var error = await process.StandardError.ReadToEndAsync();
-
-        await process.WaitForExitAsync();
-
+        // Concurrent capture, a timeout, and a killed-and-awaited process tree, so a hung install fails fast.
+        var result = await ChildProcess.RunAsync(startInfo, TimeSpan.FromMinutes(5));
         return new CommandResult
         {
-            ExitCode = process.ExitCode,
-            Output = string.IsNullOrEmpty(error) ? output : $"{output}\n{error}"
+            ExitCode = result.ExitCode,
+            Output = string.IsNullOrEmpty(result.StandardError) ? result.StandardOutput : $"{result.StandardOutput}\n{result.StandardError}"
         };
     }
-
     private record CommandResult
     {
         public int ExitCode { get; init; }
