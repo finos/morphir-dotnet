@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Morphir.Tooling` and `Morphir` can now be installed from NuGet: releases also publish their dependencies `Morphir.Configuration`, `Morphir.Configuration.IO`, `Morphir.IR.Pipeline`, `Morphir.IR.Pipeline.Plugins`, `Morphir.Ion` and `Morphir.CodeGeneration.FSharp`. A build test now fails if a packed package depends on a Morphir package that is not packed
 - GitHub releases now include the `morphir-{rid}-v{version}.tar.gz` archives that the proto plugin downloads, so `proto install morphir` works again
 - The deployment workflow now requires the release version to be the latest release in CHANGELOG.md, which is the version the build stamps. The ignored `--version` arguments and the `--version-override` build parameter, which had no effect, are removed
+- `morphir ir verify --json` no longer crashes in the standalone executables with `Reflection-based serialization has been disabled`; it now uses source-generated JSON serialization
+- The deployment workflow's end-to-end tests run again. Their test filter was malformed and selected no tests, which hid an invalid step definition, a duplicate step definition and the `ir verify --json` crash
 - `PublishLocalTool` installs from the local package directory again; it no longer fails on the repository's package source mapping
 - The documentation site builds again: Docsy is pinned to v0.13.0 and Hugo to 0.169.0, after Docsy v0.18 moved its theme out of the module root
 - F# `Decimal.fromString` roundtrips invariant SDK output under comma-decimal cultures while retaining unambiguous localized input; package migration checks also exercise a later release version ([#465](https://github.com/finos/morphir-dotnet/issues/465)).

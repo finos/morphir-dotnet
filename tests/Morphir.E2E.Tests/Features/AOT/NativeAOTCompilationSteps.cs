@@ -356,7 +356,10 @@ public class NativeAOTCompilationSteps
         result.CombinedOutput.Should().NotBeNullOrWhiteSpace("Verification output should not be empty");
     }
 
+    // Scoped to @aot scenarios: ExecutableIRVerificationSteps defines the same step for the
+    // other features, and unscoped duplicates make every use of the step ambiguous.
     [Then("the output should be valid JSON")]
+    [Scope(Tag = "aot")]
     public void ThenTheOutputShouldBeValidJson()
     {
         if (_scenarioContext.ContainsKey("SkipVerification"))
@@ -546,7 +549,8 @@ public class NativeAOTCompilationSteps
         var current = new DirectoryInfo(startPath);
         while (current != null)
         {
-            if (Directory.Exists(Path.Combine(current.FullName, ".git")))
+            // .git is a directory in a clone and a file in a worktree
+            if (Path.Exists(Path.Combine(current.FullName, ".git")))
                 return current.FullName;
             current = current.Parent;
         }

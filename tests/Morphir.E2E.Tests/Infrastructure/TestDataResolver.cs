@@ -57,7 +57,8 @@ public class TestDataResolver
         var current = new DirectoryInfo(startPath);
         while (current != null)
         {
-            if (Directory.Exists(Path.Combine(current.FullName, ".git")))
+            // .git is a directory in a clone and a file in a worktree
+            if (Path.Exists(Path.Combine(current.FullName, ".git")))
                 return current.FullName;
 
             current = current.Parent;
