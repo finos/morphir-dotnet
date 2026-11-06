@@ -9,7 +9,7 @@ public class TestDataResolver
 
     public TestDataResolver()
     {
-        var repositoryRoot = FindRepositoryRoot(Directory.GetCurrentDirectory());
+        var repositoryRoot = FindRepositoryRoot(AppContext.BaseDirectory);
         // Reference shared test data from Morphir.Tooling.Tests
         _testDataDirectory = Path.Combine(repositoryRoot, "tests", "Morphir.Tooling.Tests", "TestData");
 

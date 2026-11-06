@@ -64,7 +64,7 @@ Depends on group 1, and on group 5 for the Tooling configuration tests. Follow T
 
 - [x] 6.1 Move the `Morphir.Tooling.Tests` child-process steps onto `TestSandbox` and `ChildProcess`: `ConfigurationSteps`, `ConfigurationEditingSteps`, `ProjectMigrationSteps`, `WorkspaceMigrationSteps` (including its child test host with `--results-directory` in the sandbox), `CliTestHelper`/`CliVerifyIRIntegrationSteps` (timeouts added) and `GenerateCommandTests`. Verify that `dotnet run --project tests/Morphir.Tooling.Tests -c Release` passes three times in a row on Windows with no `being used by another process` error and no 30-second timeouts.
 - [x] 6.2 Fix the in-process isolation in `Morphir.Tooling.Tests`: give `ArtifactPathResolverTests` an isolated global root; clean up `CSharpGenerationSteps`, `CSharpCliGenerationTests`, `CSharpGenerationPublicationTests` and the `CSharpGenerationBackendTests` loaders; make the unconditional deletes in the generation tests tolerant. Verify that the tripwire passes for the assembly and that no `morphir-*` temp directory from the run remains afterwards.
-- [ ] 6.3 Fix `Morphir.E2E.Tests`:
+- [x] 6.3 Fix `Morphir.E2E.Tests`:
   - `SharedSteps` stores its result in `ScenarioContext`.
   - `ExecutableRunner` kills the process tree and awaits it.
   - Repo-root lookup uses `AppContext.BaseDirectory`.

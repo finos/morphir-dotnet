@@ -6,7 +6,7 @@ using Reqnroll;
 namespace Morphir.E2E.Tests.Features;
 
 [Binding]
-public class ExecutableIRVerificationSteps
+public class ExecutableIRVerificationSteps(ScenarioContext scenarioContext)
 {
     [Given("test data files are available")]
     public void GivenTestDataFilesAreAvailable()
@@ -19,9 +19,9 @@ public class ExecutableIRVerificationSteps
     [Then("the output should be valid JSON")]
     public void ThenTheOutputShouldBeValidJson()
     {
-        SharedSteps.ExecutionResult.Should().NotBeNull("command should have been executed");
+        SharedSteps.Last(scenarioContext).Should().NotBeNull("command should have been executed");
         // Use StandardOutput only - stderr contains logging which would break JSON parsing
-        var output = SharedSteps.ExecutionResult!.StandardOutput.Trim();
+        var output = SharedSteps.Last(scenarioContext)!.StandardOutput.Trim();
 
         Action parseJson = () => JsonDocument.Parse(output);
         parseJson.Should().NotThrow($"output should be valid JSON. Actual output: {output}");
@@ -30,9 +30,9 @@ public class ExecutableIRVerificationSteps
     [Then("the JSON output should have field \"(.*)\" with value \"(.*)\"")]
     public void ThenTheJsonOutputShouldHaveFieldWithValue(string fieldPath, string expectedValue)
     {
-        SharedSteps.ExecutionResult.Should().NotBeNull("command should have been executed");
+        SharedSteps.Last(scenarioContext).Should().NotBeNull("command should have been executed");
         // Use StandardOutput only - stderr contains logging which would break JSON parsing
-        var output = SharedSteps.ExecutionResult!.StandardOutput.Trim();
+        var output = SharedSteps.Last(scenarioContext)!.StandardOutput.Trim();
 
         using var doc = JsonDocument.Parse(output);
         var current = doc.RootElement;
@@ -60,9 +60,9 @@ public class ExecutableIRVerificationSteps
     [Then("the JSON output should have field \"(.*)\" that is not empty")]
     public void ThenTheJsonOutputShouldHaveFieldThatIsNotEmpty(string fieldPath)
     {
-        SharedSteps.ExecutionResult.Should().NotBeNull("command should have been executed");
+        SharedSteps.Last(scenarioContext).Should().NotBeNull("command should have been executed");
         // Use StandardOutput only - stderr contains logging which would break JSON parsing
-        var output = SharedSteps.ExecutionResult!.StandardOutput.Trim();
+        var output = SharedSteps.Last(scenarioContext)!.StandardOutput.Trim();
 
         using var doc = JsonDocument.Parse(output);
         var current = doc.RootElement;
@@ -89,9 +89,9 @@ public class ExecutableIRVerificationSteps
     [Then("the output should be empty")]
     public void ThenTheOutputShouldBeEmpty()
     {
-        SharedSteps.ExecutionResult.Should().NotBeNull("command should have been executed");
+        SharedSteps.Last(scenarioContext).Should().NotBeNull("command should have been executed");
         // Use StandardOutput only for empty check - stderr may contain logging
-        SharedSteps.ExecutionResult!.StandardOutput.Should().BeEmpty(
+        SharedSteps.Last(scenarioContext)!.StandardOutput.Should().BeEmpty(
             "stdout should be empty in quiet mode (logging goes to stderr)");
     }
 }
