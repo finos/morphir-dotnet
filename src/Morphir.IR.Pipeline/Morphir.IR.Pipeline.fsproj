@@ -4,6 +4,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <RootNamespace>Morphir.IR.Pipeline</RootNamespace>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <Description>File abstractions and the typed processor pipeline shared by morphir-dotnet frontends and backends: VFile, VFileTree and MorphirProcessor.</Description>
     </PropertyGroup>
 
     <ItemGroup>

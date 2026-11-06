@@ -30,9 +30,6 @@ partial class Build : NukeBuild
     [Parameter("Configuration to build - Default is 'Release'")]
     readonly string Configuration = "Release";
 
-    [Parameter("Version string for packages and executables (overrides CHANGELOG.md)")]
-    readonly string? VersionOverride;
-
     [Parameter("Output directory for packages")]
     readonly AbsolutePath OutputDir = RootDirectory / "artifacts" / "packages";
 
@@ -73,11 +70,11 @@ partial class Build : NukeBuild
     AbsolutePath ChangelogFile => RootDirectory / "CHANGELOG.md";
 
     /// <summary>
-    /// Gets the version from CHANGELOG.md (or uses VersionOverride if provided)
+    /// Gets the release version: the latest released version in CHANGELOG.md.
+    /// CHANGELOG.md is the only source of the version. Ionide.KeepAChangelog.Tasks stamps the
+    /// same version on every project and overrides any Version passed on the command line.
     /// </summary>
-    SemanticVersion Version => VersionOverride != null
-        ? SemanticVersion.Parse(VersionOverride)
-        : new FileInfo(ChangelogFile).GetVersionFromChangelog();
+    SemanticVersion Version => new FileInfo(ChangelogFile).GetVersionFromChangelog();
 
     /// <summary>
     /// Gets the release notes for the latest release from CHANGELOG.md
@@ -94,6 +91,30 @@ partial class Build : NukeBuild
     AbsolutePath MorphirSDKCSharpProject => SourceDirectory / "Morphir.SDK.CSharp" / "Morphir.SDK.CSharp.csproj";
     AbsolutePath MorphirModelsProject => SourceDirectory / "Morphir.Models" / "Morphir.Models.fsproj";
     AbsolutePath MorphirCodeGenerationCSharpProject => SourceDirectory / "Morphir.CodeGeneration.CSharp" / "Morphir.CodeGeneration.CSharp.fsproj";
+
+    /// <summary>
+    /// Library packages in publish order: each package follows the Morphir packages it depends on,
+    /// so every dependency of a published package is itself published.
+    /// HasLibrary is false for a dependency-only package with no assemblies of its own.
+    /// </summary>
+    (string PackageId, AbsolutePath Project, bool HasLibrary)[] LibraryPackages => new[]
+    {
+        ("Morphir.Core", MorphirCoreProject, true),
+        ("Morphir.Configuration", SourceDirectory / "Morphir.Configuration" / "Morphir.Configuration.fsproj", true),
+        ("Morphir.Configuration.IO", SourceDirectory / "Morphir.Configuration.IO" / "Morphir.Configuration.IO.csproj", true),
+        ("Morphir.Models", MorphirModelsProject, true),
+        ("Morphir.IR.Pipeline", SourceDirectory / "Morphir.IR.Pipeline" / "Morphir.IR.Pipeline.fsproj", true),
+        ("Morphir.IR.Pipeline.Plugins", SourceDirectory / "Morphir.IR.Pipeline.Plugins" / "Morphir.IR.Pipeline.Plugins.fsproj", true),
+        ("Morphir.Ion", SourceDirectory / "Morphir.Ion" / "Morphir.Ion.fsproj", true),
+        ("Morphir.CodeGeneration.FSharp", SourceDirectory / "Morphir.CodeGeneration.FSharp" / "Morphir.CodeGeneration.FSharp.fsproj", true),
+        ("Morphir.CodeGeneration.CSharp", MorphirCodeGenerationCSharpProject, true),
+        ("Morphir.Tooling", MorphirToolingProject, true),
+        ("Morphir", MorphirProject, true),
+        ("Morphir.SDK.FSharp", MorphirSDKFSharpProject, true),
+        ("Morphir.SDK", MorphirSDKProject, false),
+        ("Morphir.SDK.CSharp", MorphirSDKCSharpProject, true),
+    };
+
     AbsolutePath MorphirCoreTestsProject => TestsDirectory / "Morphir.Core.Tests" / "Morphir.Core.Tests.csproj";
     AbsolutePath MorphirToolingTestsProject => TestsDirectory / "Morphir.Tooling.Tests" / "Morphir.Tooling.Tests.csproj";
     AbsolutePath MorphirModelsTestsProject => TestsDirectory / "Morphir.Models.Tests" / "Morphir.Models.Tests.fsproj";

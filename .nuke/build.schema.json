@@ -192,10 +192,6 @@
         "ToolDllDir": {
           "type": "string",
           "description": "Output directory for tool DLLs"
-        },
-        "VersionOverride": {
-          "type": "string",
-          "description": "Version string for packages and executables (overrides CHANGELOG.md)"
         }
       }
     },

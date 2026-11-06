@@ -11,11 +11,6 @@ on:
                 options:
                     - Release
                     - Debug
-            test-version:
-                description: "Test version for executables"
-                required: true
-                default: "0.0.0-test"
-                type: string
             platform:
                 description: "Platform to test"
                 required: true
@@ -39,7 +34,6 @@ on:
 
 env:
     CONFIGURATION: ${{ github.event.inputs.configuration }}
-    TEST_VERSION: ${{ github.event.inputs.test-version }}
 
 jobs:
     aot-tests:
@@ -75,17 +69,17 @@ jobs:
             - name: Build trimmed single-file executable
               if: github.event.inputs.test-suite == 'both' || github.event.inputs.test-suite == 'trimming'
               shell: bash
-              run: ./build.sh --target PublishSingleFile --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }} --version ${{ env.TEST_VERSION }}
+              run: ./build.sh --target PublishSingleFile --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }}
 
             - name: Build untrimmed single-file executable (for baseline comparison)
               if: github.event.inputs.test-suite == 'both' || github.event.inputs.test-suite == 'trimming'
               shell: bash
-              run: ./build.sh --target PublishSingleFileUntrimmed --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }} --version ${{ env.TEST_VERSION }}
+              run: ./build.sh --target PublishSingleFileUntrimmed --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }}
 
             - name: Build AOT executable
               if: github.event.inputs.test-suite == 'both' || github.event.inputs.test-suite == 'aot-compilation'
               shell: bash
-              run: ./build.sh --target PublishExecutable --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }} --version ${{ env.TEST_VERSION }}
+              run: ./build.sh --target PublishExecutable --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }}
 
             - name: Run Assembly Trimming Tests
               if: github.event.inputs.test-suite == 'both' || github.event.inputs.test-suite == 'trimming'

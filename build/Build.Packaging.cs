@@ -16,7 +16,7 @@ partial class Build
     /// <summary>
     /// Pack library projects and the Morphir.SDK compatibility package as NuGet packages
     /// Output: artifacts/packages/
-    /// Parameters: --version-override (optional, overrides CHANGELOG.md version)
+    /// Version: the latest released version in CHANGELOG.md
     /// </summary>
     Target PackLibs => _ => _
         .DependsOn(Compile)
@@ -28,50 +28,9 @@ partial class Build
             var versionString = Version.ToString();
             Serilog.Log.Information($"Packing with version: {versionString}");
 
-            Serilog.Log.Information("Packing Morphir.Core...");
-            DotNetPack(s => s
-                .SetProject(MorphirCoreProject)
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(OutputDir)
-                .SetProperty("Version", versionString));
-
-            Serilog.Log.Information("Packing Morphir.Tooling...");
-            DotNetPack(s => s
-                .SetProject(MorphirToolingProject)
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(OutputDir)
-                .SetProperty("Version", versionString));
-
-            Serilog.Log.Information("Packing Morphir...");
-            DotNetPack(s => s
-                .SetProject(MorphirProject)
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(OutputDir)
-                .SetProperty("Version", versionString));
-
-            Serilog.Log.Information("Packing Morphir.SDK.FSharp...");
-            DotNetPack(s => s
-                .SetProject(MorphirSDKFSharpProject)
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(OutputDir)
-                .SetProperty("Version", versionString));
-
-            Serilog.Log.Information("Packing Morphir.SDK compatibility package...");
-            DotNetPack(s => s
-                .SetProject(MorphirSDKProject)
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(OutputDir)
-                .SetProperty("Version", versionString));
-
-            Serilog.Log.Information("Packing Morphir.SDK.CSharp...");
-            DotNetPack(s => s
-                .SetProject(MorphirSDKCSharpProject)
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(OutputDir)
-                .SetProperty("Version", versionString));
-
-            foreach (var project in new[] { MorphirModelsProject, MorphirCodeGenerationCSharpProject })
+            foreach (var (packageId, project, _) in LibraryPackages)
             {
+                Serilog.Log.Information($"Packing {packageId}...");
                 DotNetPack(s => s
                     .SetProject(project)
                     .SetConfiguration(Configuration)
@@ -79,26 +38,31 @@ partial class Build
                     .SetProperty("Version", versionString));
             }
 
-            // Validate library packages
             Serilog.Log.Information("Validating library packages...");
-            var libraryProjects = new[] { "Morphir.Core", "Morphir.Tooling", "Morphir", "Morphir.SDK.FSharp", "Morphir.SDK.CSharp", "Morphir.Models", "Morphir.CodeGeneration.CSharp" };
-            foreach (var project in libraryProjects)
+            foreach (var (packageId, _, hasLibrary) in LibraryPackages)
             {
-                var packagePath = PathHelper.GetLibraryPackagePath(project, versionString, OutputDir);
-                if (File.Exists(packagePath))
+                var packagePath = PathHelper.GetLibraryPackagePath(packageId, versionString, OutputDir);
+                if (!File.Exists(packagePath))
                 {
-                    var validation = PackageValidator.ValidateLibraryPackage(packagePath);
-                    if (!validation.IsValid)
-                    {
-                        Serilog.Log.Error($"{project} package validation failed:");
-                        foreach (var error in validation.Errors)
-                        {
-                            Serilog.Log.Error($"  - {error}");
-                        }
-                        throw new Exception($"{project} package validation failed. See errors above.");
-                    }
-                    Serilog.Log.Information($"✓ {project} package validated successfully");
+                    throw new Exception($"{packageId} package not found: {packagePath}");
                 }
+
+                if (!hasLibrary)
+                {
+                    continue;
+                }
+
+                var validation = PackageValidator.ValidateLibraryPackage(packagePath);
+                if (!validation.IsValid)
+                {
+                    Serilog.Log.Error($"{packageId} package validation failed:");
+                    foreach (var error in validation.Errors)
+                    {
+                        Serilog.Log.Error($"  - {error}");
+                    }
+                    throw new Exception($"{packageId} package validation failed. See errors above.");
+                }
+                Serilog.Log.Information($"✓ {packageId} package validated successfully");
             }
         });
 
@@ -106,7 +70,7 @@ partial class Build
     /// Pack the Morphir CLI as a dotnet tool (standard managed tool)
     /// Output: artifacts/packages/Morphir.Tool.{version}.nupkg
     /// Tool command name: dotnet-morphir
-    /// Parameters: --version-override (optional, overrides CHANGELOG.md version)
+    /// Version: the latest released version in CHANGELOG.md
     /// </summary>
     Target PackTool => _ => _
         .DependsOn(Compile)
@@ -172,8 +136,8 @@ partial class Build
     /// <summary>
     /// Create platform-specific tarballs from single-file executables
     /// Input: artifacts/single-file/{rid}/morphir[.exe]
-    /// Output: artifacts/morphir-{rid}-v{version}.tar.gz
-    /// Used by deployment workflow to create GitHub release assets
+    /// Output: artifacts/morphir-{rid}-v{version}.tar.gz containing {rid}/morphir[.exe]
+    /// Matches the GitHub release assets the deployment workflow creates for the proto plugin
     /// </summary>
     Target PackPlatformTarballs => _ => _
         .Description("Create platform-specific tarballs for GitHub releases")
@@ -209,13 +173,14 @@ partial class Build
 
                 Serilog.Log.Information($"Creating tarball for {rid}...");
 
-                // Create tarball using cross-platform tar
+                // Archive the RID directory itself: the proto plugin strips a {rid}/ prefix
+                // (archive_prefix) and expects the executable directly beneath it.
                 var tarExitCode = RunCommand(
                     "tar",
                     "-czf",
                     tarballPath,
-                    "-C", ridDir,
-                    "."
+                    "-C", singleFileDir,
+                    rid
                 );
 
                 if (tarExitCode != 0)

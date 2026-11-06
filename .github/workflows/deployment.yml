@@ -71,15 +71,23 @@ jobs:
                   fi
                   echo "✓ Version format is valid: $VERSION"
 
-            - name: Validate version exists in CHANGELOG.md
+            - name: Validate version is the latest release in CHANGELOG.md
               run: |
                   VERSION=${{ steps.extract-version.outputs.version }}
-                  if ! grep -q "\[$VERSION\]" CHANGELOG.md; then
-                    echo "Error: Version [$VERSION] not found in CHANGELOG.md"
-                    echo "Please update CHANGELOG.md with release notes for version $VERSION"
+                  # The build stamps every package and assembly with the latest released
+                  # version in CHANGELOG.md, so the requested version must be that one.
+                  LATEST=$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+[^]]*\]' CHANGELOG.md | sed -E 's/^## \[(.*)\]$/\1/' || true)
+                  if [ -z "$LATEST" ]; then
+                    echo "Error: no released version found in CHANGELOG.md"
+                    echo "Run: ./build.sh --target PrepareRelease --release-version $VERSION"
                     exit 1
                   fi
-                  echo "✓ Version [$VERSION] found in CHANGELOG.md"
+                  if [ "$LATEST" != "$VERSION" ]; then
+                    echo "Error: requested version $VERSION is not the latest release in CHANGELOG.md ($LATEST)"
+                    echo "Run: ./build.sh --target PrepareRelease --release-version $VERSION and merge it first"
+                    exit 1
+                  fi
+                  echo "✓ Version $VERSION is the latest release in CHANGELOG.md"
 
     build-executables:
         needs: [validate-version]
@@ -122,7 +130,7 @@ jobs:
 
             - name: Build single-file executable for ${{ matrix.rid }}
               shell: bash
-              run: ./build.sh --target PublishSingleFile --rid ${{ matrix.rid }} --configuration ${{ env.CONFIGURATION }} --version ${{ needs.validate-version.outputs.version }} --single-file-dir ./artifacts/single-file
+              run: ./build.sh --target PublishSingleFile --rid ${{ matrix.rid }} --configuration ${{ env.CONFIGURATION }} --single-file-dir ./artifacts/single-file
 
             - name: Run E2E tests for ${{ matrix.rid }}
               shell: bash
@@ -187,10 +195,10 @@ jobs:
                   merge-multiple: true
 
             - name: Pack library packages
-              run: ./build.sh --target PackLibs --configuration ${{ env.CONFIGURATION }} --version ${{ needs.validate-version.outputs.version }}
+              run: ./build.sh --target PackLibs --configuration ${{ env.CONFIGURATION }}
 
             - name: Pack tool package
-              run: ./build.sh --target PackTool --configuration ${{ env.CONFIGURATION }} --version ${{ needs.validate-version.outputs.version }}
+              run: ./build.sh --target PackTool --configuration ${{ env.CONFIGURATION }}
 
             - name: Run all tests (includes build tests)
               run: ./build.sh --target TestAll --configuration ${{ env.CONFIGURATION }}
@@ -225,27 +233,33 @@ jobs:
 
             - name: Prepare executables for release
               run: |
-                  mkdir -p ./artifacts/release-assets
+                  set -euo pipefail
+                  VERSION=${{ needs.validate-version.outputs.version }}
+                  mkdir -p ./artifacts/release-assets ./artifacts/tarball-staging
 
-                  # Copy and rename executables for each platform
+                  # For each platform publish the bare executable and a proto tarball.
+                  # The proto plugin downloads morphir-{rid}-v{version}.tar.gz and strips
+                  # the {rid}/ prefix (archive_prefix), so the executable must sit under it.
                   for rid in linux-x64 linux-arm64 win-x64 osx-arm64; do
                     artifact_dir="./artifacts/executables/morphir-$rid"
-                    if [ -d "$artifact_dir" ]; then
-                      echo "Processing $rid..."
-
-                      # Find the executable (morphir or morphir.exe)
-                      if [ -f "$artifact_dir/morphir" ]; then
-                        cp "$artifact_dir/morphir" "./artifacts/release-assets/morphir-$rid"
-                        echo "✓ Copied morphir-$rid"
-                      elif [ -f "$artifact_dir/morphir.exe" ]; then
-                        cp "$artifact_dir/morphir.exe" "./artifacts/release-assets/morphir-$rid.exe"
-                        echo "✓ Copied morphir-$rid.exe"
-                      else
-                        echo "⚠ Warning: No executable found in $artifact_dir"
-                      fi
+                    if [ -f "$artifact_dir/morphir" ]; then
+                      exe=morphir; suffix=""
+                    elif [ -f "$artifact_dir/morphir.exe" ]; then
+                      exe=morphir.exe; suffix=".exe"
                     else
-                      echo "⚠ Warning: Artifact directory not found: $artifact_dir"
+                      echo "Error: no executable found for $rid in $artifact_dir"
+                      exit 1
                     fi
+
+                    # upload-artifact does not keep file permissions
+                    chmod +x "$artifact_dir/$exe"
+                    cp "$artifact_dir/$exe" "./artifacts/release-assets/morphir-$rid$suffix"
+
+                    mkdir -p "./artifacts/tarball-staging/$rid"
+                    cp "$artifact_dir/$exe" "./artifacts/tarball-staging/$rid/$exe"
+                    tar -czf "./artifacts/release-assets/morphir-$rid-v$VERSION.tar.gz" \
+                      -C ./artifacts/tarball-staging "$rid"
+                    echo "✓ $rid: morphir-$rid$suffix and morphir-$rid-v$VERSION.tar.gz"
                   done
 
                   echo ""

@@ -11,11 +11,6 @@ on:
                 options:
                     - Release
                     - Debug
-            test-version:
-                description: "Test version for executables"
-                required: true
-                default: "0.0.0-test"
-                type: string
             platforms:
                 description: "Platforms to test (comma-separated: linux-x64,linux-arm64,osx-arm64,osx-x64,win-x64)"
                 required: true
@@ -24,7 +19,6 @@ on:
 
 env:
     CONFIGURATION: ${{ github.event.inputs.configuration }}
-    TEST_VERSION: ${{ github.event.inputs.test-version }}
 
 jobs:
     setup:
@@ -114,7 +108,7 @@ jobs:
 
             - name: Build single-file executable for ${{ matrix.rid }}
               shell: bash
-              run: ./build.sh --target PublishSingleFile --rid ${{ matrix.rid }} --configuration ${{ env.CONFIGURATION }} --version ${{ env.TEST_VERSION }} --single-file-dir ./artifacts/single-file
+              run: ./build.sh --target PublishSingleFile --rid ${{ matrix.rid }} --configuration ${{ env.CONFIGURATION }} --single-file-dir ./artifacts/single-file
 
             - name: Run E2E tests for ${{ matrix.rid }}
               shell: bash
