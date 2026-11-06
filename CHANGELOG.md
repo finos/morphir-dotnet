@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- Every Morphir assembly now takes its version from CHANGELOG.md, and the build compiles with the release version, so assemblies no longer reference each other as `1.0.0.0`. Previously the packed `dotnet-morphir` tool failed `generate` with `Could not load file or assembly 'Morphir.Models, Version=1.0.0.0'`
+- Every Morphir assembly now takes its version from CHANGELOG.md, so assemblies no longer reference each other as `1.0.0.0`. An explicit `-p:Version` or `-p:PackageVersion` still wins, for local and test packages. Previously the packed `dotnet-morphir` tool failed `generate` with `Could not load file or assembly 'Morphir.Models, Version=1.0.0.0'`
 - `Morphir.Tooling` and `Morphir` can now be installed from NuGet: releases also publish their dependencies `Morphir.Configuration`, `Morphir.Configuration.IO`, `Morphir.IR.Pipeline`, `Morphir.IR.Pipeline.Plugins`, `Morphir.Ion` and `Morphir.CodeGeneration.FSharp`. A build test now fails if a packed package depends on a Morphir package that is not packed
 - GitHub releases now include the `morphir-{rid}-v{version}.tar.gz` archives that the proto plugin downloads, so `proto install morphir` works again
 - The deployment workflow now requires the release version to be the latest release in CHANGELOG.md, which is the version the build stamps. The ignored `--version` arguments and the `--version-override` build parameter, which had no effect, are removed

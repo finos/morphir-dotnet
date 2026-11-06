@@ -71,8 +71,8 @@ partial class Build : NukeBuild
 
     /// <summary>
     /// Gets the release version: the latest released version in CHANGELOG.md.
-    /// CHANGELOG.md is the only source of the version. Ionide.KeepAChangelog.Tasks stamps the
-    /// same version on every project and overrides any Version passed on the command line.
+    /// Ionide.KeepAChangelog.Tasks stamps it on every src project, so build and pack targets
+    /// pass no Version; an explicit Version would win over the changelog (see src/Directory.Build.props).
     /// </summary>
     SemanticVersion Version => new FileInfo(ChangelogFile).GetVersionFromChangelog();
 
@@ -188,14 +188,12 @@ partial class Build : NukeBuild
 
             // Build using .slnx solution file
             // Bound build resources for concurrent delivery work.
-            // Build with the release version so later pack/publish steps reuse assemblies
-            // whose cross-references carry that same version (F# reference assemblies are
-            // not refreshed when only the version changes, leaving stale references).
+            // Pass no Version: every src project takes it from CHANGELOG.md, and a Version
+            // here would win over the changelog and also rebuild the running build project.
             DotNetBuild(s => s
                 .SetProjectFile(SolutionFile)
                 .SetConfiguration(Configuration)
                 .SetNoRestore(true)
-                .SetProperty("Version", Version.ToString())
                 .AddProcessAdditionalArguments("-m:1", "-p:UseSharedCompilation=false", "-nodeReuse:false"));
         });
 

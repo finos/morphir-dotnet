@@ -34,8 +34,7 @@ partial class Build
                 DotNetPack(s => s
                     .SetProject(project)
                     .SetConfiguration(Configuration)
-                    .SetOutputDirectory(OutputDir)
-                    .SetProperty("Version", versionString));
+                    .SetOutputDirectory(OutputDir));
             }
 
             Serilog.Log.Information("Validating library packages...");
@@ -95,7 +94,6 @@ partial class Build
                 .SetProperty("PackAsTool", "true")
                 .SetProperty("ToolCommandName", "dotnet-morphir")
                 .SetProperty("IsPackable", "true")
-                .SetProperty("Version", versionString)
                 .SetProperty("DebugType", "none")  // Don't include PDB files in tool package
                 .SetProperty("IncludeSymbols", "false"));
 
