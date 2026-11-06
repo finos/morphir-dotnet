@@ -36,7 +36,8 @@ jobs:
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
         with:
-          hugo-version: 'latest'
+          # Pinned: an unpinned Hugo or Docsy upgrade can break the site build.
+          hugo-version: '0.169.0'
           extended: true
 
       - name: Setup Go
@@ -51,13 +52,8 @@ jobs:
           cache: 'npm'
           cache-dependency-path: docs/package.json
 
-      - name: Install Hugo theme dependencies
-        working-directory: docs
-        run: |
-          hugo mod init github.com/finos/morphir-dotnet/docs || true
-          hugo mod get -u github.com/google/docsy@latest
-          hugo mod tidy
-
+      # Hugo downloads the Docsy module at the version pinned in hugo.toml and go.mod.
+      # Do not run `hugo mod get -u`: Docsy v0.18 moved the theme out of the module root.
       - name: Install npm dependencies
         working-directory: docs
         run: |
