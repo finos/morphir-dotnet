@@ -1,0 +1,182 @@
+# Tasks
+
+Every behavior task follows red/green/refactor. Each group lands its own tests and documentation. Groups 1–6 deliver the dotnet-tool path without MEP and make the F# frontend solid. Groups 7–9 deliver the MEP `0.2.0-draft.1` steel thread on top of that frontend. MCK-1 in design.html applies throughout: the F# corpus is the first Morphir Compatibility Kit suite. Extend that one suite and the one `Morphir.Conformance` runner. Do not create separate harnesses per version, adapter or input kind, and never take expected results from an implementation. No contract, setting or registry key holds a format version as an integer (VER-1).
+
+## 1. Tracking, baseline and acceptance contract
+
+- [ ] 1.1 Open an F# frontend / `morphir compile` epic that links #363 and #368. Add a feature PRD and index entry under `docs/content/contributing/design/prds/`. Verify that the PRD status table separates the tool path, the MEP path and the deferred work, and that `proposal.md` links the new issue.
+- [ ] 1.2 Add pinned upstream fixtures from `finos/morphir@cde7722eb`, each with a `PROVENANCE.md`:
+  - `tests/Fixtures/Mep/`: `mep.ir.json`, the Smithy transcripts, and `model-transport.cases.json`;
+  - `tests/Fixtures/MorphirOut/`: the record examples and `out-directory.md`.
+
+  Verify with a test that checks each file's SHA-256 against its provenance entry.
+- [ ] 1.3 Create the first MCK suite (MCK-1) in Gherkin. It has these parts:
+  - the suite directory `conformance/suites/frontend-fsharp/` with one seed feature;
+  - the seed step vocabulary `conformance/steps/steps-1.md` and its linter;
+  - `conformance/deviations.md`;
+  - the `Morphir.Conformance` runner (AOT-compatible), which parses features with an official Gherkin parser, and its `library` adapter, applicability through `Examples` and `@excluded` blocks with reasons, and deterministic verdict reports.
+
+  Verify:
+  - the linter rejects a step outside the vocabulary and an `@excluded` row with no reason;
+  - the matrix-completeness check fails on a deliberately missing row and passes once the row has a stated reason;
+  - two runs give byte-identical reports that hold the case-set SHA-256 and the implementation identity;
+  - no feature names an adapter.
+- [ ] 1.4 Add the compile BDD feature files under `tests/Morphir.Tooling.Tests/Features/Compile/`, reusing the generate step definitions. Cover:
+  - success per IR version, including a pre-release refusal;
+  - project-file input;
+  - unsupported constructs in JSON mode;
+  - the frontend-unavailable error;
+  - compile-then-generate through the record;
+  - `--target` parity;
+  - record tombstones.
+
+  Verify that every scenario runs and fails red.
+
+## 2. Format versions, native IR builders and IR writers (ir-model-writing)
+
+- [ ] 2.1 Create `src/Morphir.Compilation` (F#, AOT-compatible, no FCS reference) with these parts:
+  - `IrTarget` over `Versioning.FormatVersion`;
+  - `FormatVersion.sameVersion`;
+  - `Diagnostic` (the MEP shape with UTF-16 ranges);
+  - `Checked<'T>` and its `checked { }` computation expression (DIAG-1);
+  - the `IIrBuilder` interface (MID-1), `FamilyModel`, and the builder, writer and project-file provider registry records from ARCH-1.
+
+  Verify with property tests:
+  - `Classic n` equals `n.0.0`, a pre-release matches only itself, and build metadata has no effect;
+  - `Checked` invariants: `Passed` never holds an error, `Failed` always holds one;
+  - `let!` keeps diagnostics in emission order and stops at the first failure;
+  - `and!` and `traverse` collect every diagnostic from all branches;
+  - a failure keeps the warnings gathered before it. Also verify that a trimmed and AOT publish of a test console app gives no new warnings.
+- [ ] 2.2 Implement the classic writer with v1, v2 and v3 `ClassicWireProfile` values that declare `Classic 1`, `Classic 2` and `Classic 3`. Verify:
+  - every classic fixture round-trips through `ClassicJson.readDistribution`;
+  - every written document validates against the bundled schemas;
+  - the version-spelling scenario passes.
+- [ ] 2.3 Implement the v4 JSON writer declaring `Classic 4`, with exact number lexemes and canonical `formatVersion` spelling. Verify:
+  - every v4 fixture round-trips through `V4Json.readDistribution`;
+  - the exactness and canonical-spelling scenarios pass;
+  - a test-only writer declared for `4.1.0-draft.1` is selected only for that exact version.
+- [ ] 2.4 Check both writers against independent upstream IR: for each pinned upstream JSON IR example in `tests/Fixtures/MorphirIon` (with its provenance), read it, write it in its own version, and compare the result structurally with the original. Verify that the comparison is structurally equal and that the bytes are deterministic across runs.
+- [ ] 2.5 Implement the native `ClassicBuilder` and `V4Builder` (MID-1), each refusing what its family cannot hold with `morphir.unrepresentable`. Verify:
+  - a unit test for every builder member in each family, with classic nodes typed and v4 nodes carrying source spans;
+  - a unit test for every classic refusal (integer outside int64, non-BMP `Char`);
+  - a test that no code path converts a model from one family to another, including the `generate` loader.
+- [ ] 2.6 Document the versioning rule, the builder interface (and how to add a family), the writer API and the profile table. Verify that the documentation sample compiles as a consumer test. Open a follow-up issue for the v1/v2 bugs in the legacy `TypeCodec`/`LiteralCodec`.
+
+## 3. F# frontend core (fsharp-source-frontend)
+
+- [ ] 3.1 Spike, time-boxed to one session: validate the FSF-2 range join. For every core pattern, find the syntax `match` for each typed `DecisionTree`, and the typed target for each clause body. Record the result in design.html FSF-2. Verify with one spike test per pattern that the clause order equals the source and that each clause has exactly one target.
+- [ ] 3.2 Create `src/Morphir.Frontend.FSharp` with the hermetic FCS edge from FSF-5. Verify:
+  - F# compiler errors become `fsharp.compiler` diagnostics with zero-based UTF-16 ranges;
+  - the emoji-line test passes;
+  - runs in different working directories give byte-identical diagnostics;
+  - F# warnings (for example FS0025) are kept as `fsharp.compiler` warnings beside a successful model, and are kept when a later error fails the run.
+- [ ] 3.3 Implement the admission rule catalog (FSF-3) for every refused construct family, including `#if` and `.fsi`. Verify the refused-families, several-problems, conditional-compilation and catalog-completeness scenarios.
+- [ ] 3.4 Implement planning (FSF-1): naming (words to segments, package-prefix removal, `fsharp.module_outside_package`, `fsharp.name_collision`), access, exposed modules and declaration order, giving the family-neutral `PackagePlan`. Verify the naming and access scenarios.
+- [ ] 3.5 Lower type definitions once, generic over `IIrBuilder`. Verify the type scenarios through both builders: against expected v4 IR written by hand, and against classic version 3 read back through its reader.
+- [ ] 3.6 Lower values and patterns once, generic over `IIrBuilder`, including `match` through the range join, with an inferred type on every node and source spans in v4. Verify:
+  - the value and pattern scenarios through both builders;
+  - that a deliberately unjoinable shape gives `fsharp.unsupported_match_shape`;
+  - that an out-of-range integer gives `morphir.unrepresentable` with classic and succeeds with v4.
+- [ ] 3.7 Implement the SDK mapping table and structural lowering of pipes and composition (FSF-4). Verify the inventory and generator round-trip property tests, the pipe scenario, and `fsharp.unsupported_reference`.
+- [ ] 3.8 Expose `FSharpFrontend.registration`. Run the whole corpus through the library-API entry for IR versions `1` to `4`. Verify the structural, diagnostic and behavioral kit verdicts from MCK-1.
+- [ ] 3.9 Add the IR → F# → IR round-trip check (a morphir-dotnet check, not a kit verdict): the existing Fantomas-based F# backend generates F# from each applicable corpus IR, and the frontend recompiles it. Verify that the recompiled IR equals the original IR. Any backend output outside the subset fails with a named catalog code.
+- [ ] 3.10 Generate `docs/content/docs/frontends/fsharp/coverage.md` from the catalog. Add an F# frontend overview page that names Fable and Fantomas as prior art (FSF-6). Verify with a test that the generated page matches the catalog.
+
+## 4. Sources and `morphir compile` in the dotnet tool (project-file-sources, cli-model-compilation)
+
+- [ ] 4.1 Refactor `Morphir.Program` to `CreateApp(args, extend)`, and give `Morphir.Tool` its own composition with `FSharpFrontendScenario`. Verify that the existing CLI tests pass for both hosts, and that the assembly-closure check shows no FCS in `morphir`.
+- [ ] 4.2 Make these schema changes:
+  - add `project_file` and `extension` once, as members of every `[frontend.<language>]` table;
+  - widen `ir.format_version` to an integer or a SemVer string.
+
+  Then implement `ProjectCompileSettingsResolver`, which records setting origins and parses versions with `SourceFormatVersion.parse`. Verify:
+  - the precedence and outside-project scenarios;
+  - the pre-release and release-equivalence scenarios;
+  - the configured-key and other-language-table scenarios;
+  - that existing configuration tests still pass with the integer default 4.
+- [ ] 4.3 Implement the `--project-file` option and neutral source selection (`--project-file`, `--input` files, directory in lexical order, configured project file), and the project-file provider registry. Verify the explicit-order, directory-order, CLI-overrides-configured-project-file, project-file-with-explicit-inputs, project-file-passed-as-input, unknown-project-file, not-named and language-unknown scenarios with an in-memory fake provider.
+- [ ] 4.4 Implement the MSBuild project-file provider, using evaluation only, no shell, no node reuse and a deadline. Verify:
+  - the F# project-order and C#-project scenarios with real `.fsproj`/`.csproj` fixtures;
+  - no `obj/`/`bin/` output and no leftover MSBuild process;
+  - `sources.outside_root` for a linked file;
+  - the `ProjectReference` refusal and `PackageReference` warning;
+  - `msbuild.unavailable` when the SDK is missing.
+- [ ] 4.5 Extract the bounded capture core from `BoundedModelCapture` into a shared helper, and use it for source capture. Verify that the existing generate capture tests pass unchanged, and that the linked-source, linked-project-item and invalid-UTF-8 scenarios pass.
+- [ ] 4.6 Implement `FrontendResolver` (FE-2), the compile runner as `IAsyncEnumerable<CompileEvent>` (STRM-1), and `CompileHandler` (CLI-1) as the fold of that stream. Verify the fold property: for every corpus case, folding the events gives the same outcome and the same diagnostics as the batch path. Also verify that cancellation during the stream gives exit code 130 before publication. Then verify the not-served-version, frontend-unavailable and tool-path scenarios with fakes and with the real in-process frontend.
+- [ ] 4.7 Add `CompileCommand`, the source-generated `CompileReport`/`CompileJsonContext` (including the `sources` object), the exit-code mapping, and the additive `Range` on `GenerationDiagnostic`. Verify:
+  - JSON stdout purity;
+  - the warnings-from-every-stage scenario (success, exit code 0, all warnings in stage and position order);
+  - the streaming scenarios: a project-file warning is on stderr before a slow fake frontend completes, and JSON mode writes no streamed lines;
+  - the `--json-lines` writer (STRM-2): every line parses; records are written and flushed as events occur (checked with a slow fake frontend); there is exactly one last `completed` record that equals the `--json` report; the diagnostics records together equal the report's diagnostics; `--json` with `--json-lines` gives exit code 2; cancellation ends with a `completed` record and exit code 130;
+  - exit codes 0, 1, 2 and 130;
+  - existing generate report snapshots are unchanged except for the optional member.
+- [ ] 4.8 Write `docs/content/docs/cli/compile.md` (including the `--json-lines` record format, and how it differs from the current Rust CLI) and a project-file sources reference (the shared key, the MSBuild provider, its requirements and refusals). Add troubleshooting entries. Verify that every documented example runs against the corpus fixtures, and that MEP use is marked as second-delivery until group 9 lands.
+
+## 5. Task records and generate from a prior compile (compile-task-records)
+
+- [ ] 5.1 Implement `CompileTaskStore`: out-root resolution, member paths, `.dest` clearing, schema-1 records with unknown members preserved, project-file `inputs`, and tombstones. Verify against the pinned upstream record examples and the workspace-member and failure-after-success scenarios.
+- [ ] 5.2 Implement the exclusive and shared `compile.lock` handling with a single stderr waiting line. Verify with a concurrency test that `generate` waits for a running compile and then reads the completed IR.
+- [ ] 5.3 Implement `-o` installation through the `installed` ledger. Verify the reinstall scenario, and verify that a conflict with foreign content leaves the directory unchanged.
+- [ ] 5.4 Add `RecordGenerationSettingsResolver` in front of the CLI resolver, so that the lock is held through model loading. Verify the compile-then-generate and no-prior-compile scenarios, and verify that an explicit `--input` never reads a record.
+- [ ] 5.5 Update `docs/content/docs/cli/generate.md` to describe input from a prior compile. Verify that the documented two-step example runs.
+
+## 6. Compile-then-generate in memory and tool-path release check
+
+- [ ] 6.1 Extract the shared tail of `GenerateHandler` into `GenerationStages.runFrom`, without changing behavior. Verify that all existing generate tests and snapshots pass unchanged.
+- [ ] 6.2 Implement `--target`/`--generate-output`/`--option` on compile, with a `LoadedModel` built from the written bytes (CLI-2). Verify the equivalence scenario (byte-identical trees for F# and C#), the incompatible-backend scenario, and the refusal of a repeated `--target` or a missing `--generate-output`.
+- [ ] 6.3 Add the MCK `cli` adapter. It drives any `morphir` executable through `compile --json-lines`, the compile record and the written IR. Verify it against `dotnet-morphir`, and with a scripted fake executable that checks that the adapter depends only on documented CLI behavior.
+- [ ] 6.4 Run the complete suite through the `library` and `cli` adapters (`dotnet-morphir compile` and `compile --target`) for IR versions `1` to `4` and every input kind. Verify that every kit verdict and every morphir-dotnet check passes, except MEP parity, which is still to come. Store the verdict report as viability evidence in the PRD, and mark the tool-path milestone complete there.
+
+## 7. MEP 0.2.0-draft.1 codec, envelope and session core (mep-frontend-sessions)
+
+- [ ] 7.1 Create `src/Morphir.Mep` (AOT-compatible) with the `0.2.0-draft.1` DTOs, the source-generated JSON context and the upstream absent-versus-empty rules. Verify a round-trip test of every message shape in the pinned `mep.ir.json`, transcripts and `model-transport.cases.json`, and an AOT publish of a test app with no new warnings.
+- [ ] 7.2 Implement Content-Length framing and JSON-RPC envelopes, with request ids (u64 or string) echoed exactly. Verify the framing tests: frame limits, partial reads, Unicode and empty-string ids, and malformed headers.
+- [ ] 7.3 Implement `MorphirModel` admission and creation (MEP-2), plus the context-digest construction. Verify against the pinned model-transport cases:
+  - each bound separately;
+  - non-canonical base64;
+  - length and digest mismatch;
+  - envelope and IR version mismatch;
+  - unknown critical paths;
+  - deterministic `revision`.
+- [ ] 7.4 Implement tuple negotiation (host order, bilateral minimum limits, empty agreement giving `extension.tuple_unavailable`) and the pure session state machine. Verify with replay of the model-transport, `lifecycle-violations.md` and `protocol-errors.md` transcripts, and the Ion-only-offer and legacy-only-host scenarios.
+
+## 8. F# frontend MEP guest
+
+- [ ] 8.1 Create the `morphir-fsharp-frontend` guest from `Morphir.Mep` plus `FSharpFrontend.registration`, with `Console.Out` redirected before FCS starts. Verify that its claim set matches the spec (`0.2.0-draft.1` only, JSON compile tuples for `3.0.0` and `4.0.0`), and the claimed-versions scenario.
+- [ ] 8.2 Map compile outcomes to `CompileModelResult`: a model only on success, and `success: false` with no `model` member on failure. Verify the warnings-with-a-successful-model, unsupported-construct-through-MEP and digest-mismatch scenarios.
+- [ ] 8.3 Run the contract conformance suite against the guest as a separate process: replay the pinned `0.2.0-draft.1` transcripts, and the frontend cases of `model-transport.cases.json`, with F# sources. Verify every response against the pinned `mep.ir.json` shapes, and verify that the guest offers nothing it does not implement.
+- [ ] 8.4 Package the guest as a framework-dependent dotnet tool. Verify that `dotnet pack` produces an installable package, and that the installed guest answers `morphir.extension.describe` with its claim set.
+
+## 9. MEP host client in the AOT executable
+
+- [ ] 9.1 Implement the MEP frontend adapter (no shell, deadlines, stderr pump, process-tree cleanup, envelope admission) and register it through `CompilationScenario` for `--extension`/`[frontend.<language>].extension`. Verify the unadmitted-version and guest-writes-to-stdout scenarios against fake guests scripted from the transcripts.
+- [ ] 9.2 Implement the classic-version path for MEP: compile at `3.0.0`, decode the typed classic model, and write it with the requested wire profile (MEP-3). Verify the classic-version-2-through-MEP and unadmitted-version scenarios.
+- [ ] 9.3 Add the MCK `mep-guest` adapter, which works with any stdio guest that speaks `0.2.0-draft.1`. Run the suite through it for IR versions `1` to `4`. Verify the kit verdicts for every case, and that the IR bytes and diagnostics equal the in-process results (parity).
+- [ ] 9.4 Publish the trimmed, Native AOT `morphir` executable and run the suite through the `cli` adapter against it, using the installed guest, including project-file input. Verify that the IR equals the `dotnet-morphir` output, that the JSON reports parse, and that no new trim or AOT warnings appear in the affected code.
+- [ ] 9.5 Document MEP frontend use in `compile.md` and the F# frontend overview: guest installation, `--extension`, configuration, the claimed tuples, and the upstream qualification status. Verify that the documented commands run against the published executable.
+
+## 10. Integration and readiness
+
+- [ ] 10.1 Run the repository's complete test command, formatting, and coverage collection. Verify that affected-project coverage meets the repository threshold and that overall coverage stays at or above 80%, or record an unrelated baseline gap in the PRD for maintainer review.
+- [ ] 10.2 Collect the viability evidence for the default-CLI PRD: the MCK verdict reports for every adapter, the Native AOT single-file size and cold-start time of `morphir compile` on each published RID, and the documented differences from the Rust CLI (`--json-lines`, the guest kit's mandatory legacy stage) in `conformance/deviations.md`. Verify that the PRD links each report and measurement, and that each number can be reproduced with a documented command.
+- [ ] 10.3 Check every spec scenario, documentation example and capability claim against the implementation. Verify that `openspec validate add-fsharp-compile --strict` passes, and update the PRD status and implementation notes.
+
+## Workflow follow-up
+
+- Upstream requests in `finos/morphir`:
+  - update the MEP guest kit (`generic-json-library-v1`) to the current contract. It should qualify frontend-only guests and guests that speak only the model tier, without a mandatory legacy `0.1` stage. The F# guest seeks kit qualification only after that, and its design does not change to fit the current kit.
+  - the shared `[frontend.<language>].project_file` key convention.
+- After upstream updates the kit, run `morphir mck mep guest-run` against the guest. A `generateModel` backend for F# is a separate product decision. It is not added in order to pass a kit.
+- Follow-up changes:
+  - `ProjectReference` as Morphir package dependencies;
+  - defines for `#if`;
+  - `typesOnly`;
+  - P1 language features (guards, OR patterns, nested modules);
+  - the Ion `morphir-model` profile and evidence;
+  - document-tree output;
+  - `morphir build` multi-target runs.
+- Open an upstream issue in `finos/morphir`: the Rust CLI's `--json-lines` writes one compact report line, which seems to be an incorrect implementation of the flag. Propose the STRM-2 record format as the shared meaning, and align with any refinement upstream agrees. Also raise a MEP diagnostics notification, and expose the STRM-1 stream through it when it exists. Later, add `--json-lines` to `morphir generate` with the same record format.
+- `establish-morphir-compatibility-kit` generalizes the MCK-1 seed: the case-format versioning, more suites, the `morphir mck` command and qualification of other implementations. This change does not wait for it.
+- Propose a separate change for backend family views: a read-only view interface implemented by classic and v4 models, so each backend is written once while classic input still reaches it directly (MID-1 follow-up).
+- After `add-generate-command` is archived, fold the prior-compile input requirement from `compile-task-records` into `cli-model-generation`.
+- Get the required review and explicit merge approval. This proposal does not authorize implementation, publication or merge. Archive only after implementation and review requirements are met.

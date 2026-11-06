@@ -10,5 +10,6 @@
 | [Introduce F# SDK package](introduce-fsharp-sdk-package.md) | Implementation and archive landed | Cleanup pending | #469 and archive #472 landed; implementation worktree/artifacts removed; empty archive directory cleanup pending |
 | [CLI model generation](cli-model-generation.md) | Completed | Delivered | Repository review |
 | [Morphir application architect skill](morphir-application-architect-skill.md) | Draft | Design | Skill proposal |
+| [morphir-dotnet as the default Morphir CLI](morphir-dotnet-default-cli.md) | Draft | Proof criteria | ADR 0001 proposed; first proof point is add-fsharp-compile |
 
 The documentation site's existing [PRD index](../../../docs/contributing/design/prds/_index.md) includes the wider historical feature inventory.
