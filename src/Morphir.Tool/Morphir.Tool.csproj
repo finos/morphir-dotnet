@@ -36,9 +36,6 @@
         <PackageReference Include="Serilog.Sinks.Console" />
     </ItemGroup>
 
-    <ItemGroup>
-        <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
-    </ItemGroup>
 
     <!-- Generate version constant file at build time (same as Morphir project) -->
     <Target Name="GenerateVersionFile" BeforeTargets="CoreCompile">

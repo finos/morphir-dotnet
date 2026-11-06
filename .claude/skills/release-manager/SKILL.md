@@ -193,7 +193,7 @@ gh run view {run-id} --job {job-id}
 
 **Post-release verification:**
 1. **Package validation**
-   - [ ] All 4 packages on NuGet.org
+   - [ ] All 15 packages on NuGet.org (14 libraries in `LibraryPackages` in build/Build.cs, plus Morphir.Tool)
    - [ ] Correct version number
    - [ ] Package metadata correct
    - [ ] LICENSE file included

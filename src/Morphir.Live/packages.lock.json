@@ -55,6 +55,12 @@
           "MudBlazor": "8.15.0"
         }
       },
+      "Ionide.KeepAChangelog.Tasks": {
+        "type": "Direct",
+        "requested": "[0.3.3, )",
+        "resolved": "0.3.3",
+        "contentHash": "ADFNczSi+DBaO/UpvkkFAX8wLrm0Mk1AsXzOhrPFWA87M2iJDZwFjpQWKaQDAGVFbOCqlfL4q2QHYtz0ivQb1Q=="
+      },
       "Microsoft.AspNetCore.Components.WebAssembly": {
         "type": "Direct",
         "requested": "[10.0.14, )",

@@ -530,7 +530,7 @@ Smoke Tests:
 ✅ Build succeeds
 ✅ Tests pass
 ✅ Packaging succeeds
-✅ Package count correct (4 packages)
+✅ Package count correct (15 packages: the 14 `LibraryPackages` in build/Build.cs plus Morphir.Tool)
 
 Verification Summary:
 ✅ All checks passed (16/16)

@@ -16,7 +16,7 @@ partial class Build
 
     /// <summary>
     /// Publish library NuGet packages to NuGet.org
-    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir, Morphir.SDK.FSharp, Morphir.SDK, Morphir.SDK.CSharp
+    /// Publishes every package in LibraryPackages, dependencies first
     /// Requires: --api-key parameter
     /// Parameters: --nuget-source (default: https://api.nuget.org/v3/index.json)
     /// </summary>
@@ -30,68 +30,17 @@ partial class Build
                 throw new Exception("API_KEY is required for publishing. Use --api-key parameter.");
             }
 
-            var corePackage = OutputDir.GlobFiles("Morphir.Core.*.nupkg").FirstOrDefault();
-            if (corePackage != null)
+            foreach (var (packageId, _, _) in LibraryPackages)
             {
-                Serilog.Log.Information($"Publishing Morphir.Core: {corePackage}");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(corePackage)
-                    .SetSource(NuGetSource)
-                    .SetApiKey(ApiKey)
-                    .SetSkipDuplicate(true));
-            }
-            else
-            {
-                throw new Exception($"Morphir.Core package not found in {OutputDir}");
-            }
-
-            var toolingPackage = OutputDir.GlobFiles("Morphir.Tooling.*.nupkg").FirstOrDefault();
-            if (toolingPackage != null)
-            {
-                Serilog.Log.Information($"Publishing Morphir.Tooling: {toolingPackage}");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(toolingPackage)
-                    .SetSource(NuGetSource)
-                    .SetApiKey(ApiKey)
-                    .SetSkipDuplicate(true));
-            }
-            else
-            {
-                throw new Exception($"Morphir.Tooling package not found in {OutputDir}");
-            }
-
-            // Publish Morphir executable package (not the Tool package)
-            var morphirPackage = OutputDir.GlobFiles("Morphir.0.*.nupkg")
-                .Where(p => !p.ToString().Contains("Morphir.Core") &&
-                           !p.ToString().Contains("Morphir.Tooling") &&
-                           !p.ToString().Contains("Morphir.Tool"))
-                .FirstOrDefault();
-            if (morphirPackage != null)
-            {
-                Serilog.Log.Information($"Publishing Morphir: {morphirPackage}");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(morphirPackage)
-                    .SetSource(NuGetSource)
-                    .SetApiKey(ApiKey)
-                    .SetSkipDuplicate(true));
-            }
-            else
-            {
-                throw new Exception($"Morphir package not found in {OutputDir}");
-            }
-
-            // Publish the runtime before its dependency-only compatibility package.
-            foreach (var packageId in new[] { "Morphir.SDK.FSharp", "Morphir.SDK", "Morphir.SDK.CSharp", "Morphir.Models", "Morphir.CodeGeneration.CSharp" })
-            {
-                var sdkPackage = PathHelper.GetLibraryPackagePath(packageId, Version.ToString(), OutputDir);
-                if (!File.Exists(sdkPackage))
+                var package = PathHelper.GetLibraryPackagePath(packageId, Version.ToString(), OutputDir);
+                if (!File.Exists(package))
                 {
-                    throw new Exception($"{packageId} package not found: {sdkPackage}");
+                    throw new Exception($"{packageId} package not found: {package}");
                 }
 
-                Serilog.Log.Information($"Publishing {packageId}: {sdkPackage}");
+                Serilog.Log.Information($"Publishing {packageId}: {package}");
                 DotNetNuGetPush(s => s
-                    .SetTargetPath(sdkPackage)
+                    .SetTargetPath(package)
                     .SetSource(NuGetSource)
                     .SetApiKey(ApiKey)
                     .SetSkipDuplicate(true));
@@ -149,7 +98,7 @@ partial class Build
 
     /// <summary>
     /// Publish library NuGet packages to local feed for testing
-    /// Publishes: Morphir.Core, Morphir.Tooling, Morphir, Morphir.SDK.FSharp, Morphir.SDK, Morphir.SDK.CSharp
+    /// Publishes every package in LibraryPackages, dependencies first
     /// Output: artifacts/local-feed/
     /// Parameters: --local-source (default: artifacts/local-feed)
     /// </summary>
@@ -171,51 +120,17 @@ partial class Build
                 DotNet($"nuget add source {LocalSource} --name local-feed");
             }
 
-            var corePackage = OutputDir.GlobFiles("Morphir.Core.*.nupkg").FirstOrDefault();
-            if (corePackage != null)
+            foreach (var (packageId, _, _) in LibraryPackages)
             {
-                Serilog.Log.Information("Publishing Morphir.Core to local feed...");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(corePackage)
-                    .SetSource(LocalSource)
-                    .SetSkipDuplicate(true));
-            }
-
-            var toolingPackage = OutputDir.GlobFiles("Morphir.Tooling.*.nupkg").FirstOrDefault();
-            if (toolingPackage != null)
-            {
-                Serilog.Log.Information("Publishing Morphir.Tooling to local feed...");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(toolingPackage)
-                    .SetSource(LocalSource)
-                    .SetSkipDuplicate(true));
-            }
-
-            var morphirPackage = OutputDir.GlobFiles("Morphir.0.*.nupkg")
-                .Where(p => !p.ToString().Contains("Morphir.Core") &&
-                           !p.ToString().Contains("Morphir.Tooling") &&
-                           !p.ToString().Contains("Morphir.Tool"))
-                .FirstOrDefault();
-            if (morphirPackage != null)
-            {
-                Serilog.Log.Information("Publishing Morphir to local feed...");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(morphirPackage)
-                    .SetSource(LocalSource)
-                    .SetSkipDuplicate(true));
-            }
-
-            foreach (var packageId in new[] { "Morphir.SDK.FSharp", "Morphir.SDK", "Morphir.SDK.CSharp", "Morphir.Models", "Morphir.CodeGeneration.CSharp" })
-            {
-                var sdkPackage = PathHelper.GetLibraryPackagePath(packageId, Version.ToString(), OutputDir);
-                if (!File.Exists(sdkPackage))
+                var package = PathHelper.GetLibraryPackagePath(packageId, Version.ToString(), OutputDir);
+                if (!File.Exists(package))
                 {
-                    throw new Exception($"{packageId} package not found: {sdkPackage}");
+                    throw new Exception($"{packageId} package not found: {package}");
                 }
 
                 Serilog.Log.Information($"Publishing {packageId} to local feed...");
                 DotNetNuGetPush(s => s
-                    .SetTargetPath(sdkPackage)
+                    .SetTargetPath(package)
                     .SetSource(LocalSource)
                     .SetSkipDuplicate(true));
             }
@@ -242,23 +157,28 @@ partial class Build
                 throw new Exception($"Morphir.Tool package not found in {OutputDir}. Please run PackTool first.");
             }
 
-            var installCommand = Global
-                ? "dotnet tool install --global --add-source"
-                : "dotnet tool install --add-source";
+            // The repository NuGet.config uses package source mapping, which rejects --add-source.
+            // Install from a config that lists only the package directory; the tool has no
+            // package dependencies.
+            var configFile = OutputDir / "NuGet.local-tool.config";
+            File.WriteAllText(configFile,
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
+                "<configuration><packageSources><clear />" +
+                $"<add key=\"morphir-local\" value=\"{System.Security.SecurityElement.Escape(OutputDir.ToString())}\" />" +
+                "</packageSources></configuration>\n");
 
-            var updateCommand = Global
-                ? "dotnet tool update --global --add-source"
-                : "dotnet tool update --add-source";
+            var scope = Global ? "--global" : "";
+            var version = Version.ToString();
 
             try
             {
                 Serilog.Log.Information($"Installing Morphir CLI tool {(Global ? "globally" : "locally")} from: {toolPackage}");
-                DotNet($"tool install {(Global ? "--global" : "")} --add-source {OutputDir} Morphir.Tool");
+                DotNet($"tool install {scope} Morphir.Tool --version {version} --configfile \"{configFile}\"");
             }
             catch
             {
                 Serilog.Log.Information("Tool already installed, updating...");
-                DotNet($"tool update {(Global ? "--global" : "")} --add-source {OutputDir} Morphir.Tool");
+                DotNet($"tool update {scope} Morphir.Tool --version {version} --configfile \"{configFile}\"");
             }
 
             Serilog.Log.Information("Morphir CLI tool installed successfully");

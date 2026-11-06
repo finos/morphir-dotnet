@@ -61,9 +61,6 @@
     <ProjectReference Include="..\Morphir.Ion\Morphir.Ion.fsproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
-  </ItemGroup>
 
 
 </Project>

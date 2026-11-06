@@ -27,6 +27,12 @@
         "resolved": "11.0.100",
         "contentHash": "ijfOz8ihqkFNdKUY57l8YTrbJNfQW/6tFYAUU57ByZzmTxxf1o12cQaCqDOjNqAz4h86AKS7IwQkNhYcrjLeCQ=="
       },
+      "Ionide.KeepAChangelog.Tasks": {
+        "type": "Direct",
+        "requested": "[0.3.3, )",
+        "resolved": "0.3.3",
+        "contentHash": "ADFNczSi+DBaO/UpvkkFAX8wLrm0Mk1AsXzOhrPFWA87M2iJDZwFjpQWKaQDAGVFbOCqlfL4q2QHYtz0ivQb1Q=="
+      },
       "Fantomas.FCS": {
         "type": "Transitive",
         "resolved": "7.0.5",

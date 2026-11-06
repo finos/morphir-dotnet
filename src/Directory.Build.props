@@ -1,0 +1,21 @@
+<Project>
+    <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+    <!--
+      Every shipped project takes its version from CHANGELOG.md, so all Morphir
+      assemblies in a release carry the same version and reference each other at it.
+    -->
+    <ItemGroup>
+        <PackageReference Include="Ionide.KeepAChangelog.Tasks" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!--
+      An explicit -p:Version or -p:PackageVersion wins over CHANGELOG.md, so local and
+      test builds can pack a throwaway version into an isolated feed. The changelog task
+      would otherwise overwrite it. Release builds pass neither.
+    -->
+    <PropertyGroup Condition="'$(Version)' != '' or '$(PackageVersion)' != ''">
+        <ChangelogFile></ChangelogFile>
+        <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);CNG0001</MSBuildWarningsAsMessages>
+    </PropertyGroup>
+</Project>
