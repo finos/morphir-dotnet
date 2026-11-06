@@ -7,6 +7,7 @@ open System.IO
 open Expecto
 open Myriad.Core
 open Morphir.Myriad
+open Morphir.TestSupport
 
 module Program =
     let model = Morphir.Testing.ModelResources.read "daily-rate-v3.json"
@@ -27,7 +28,8 @@ module Program =
             File.WriteAllText(path, model)
             action directory path
         finally
-            Directory.Delete(directory, true)
+            TolerantDirectory.TryDelete directory
+            |> ignore
 
     let context path selector =
         let parameters = Dictionary<string, string>()
@@ -126,9 +128,6 @@ module Program =
                         |> Option.defaultValue "dotnet"
 
                     let start = ProcessStartInfo(dotnet)
-                    start.UseShellExecute <- false
-                    start.RedirectStandardOutput <- true
-                    start.RedirectStandardError <- true
 
                     for arg in
                         [
@@ -148,19 +147,18 @@ module Program =
                         ] do
                         start.ArgumentList.Add arg
 
-                    use child = Process.Start start
-                    let stdout = child.StandardOutput.ReadToEndAsync()
-                    let stderr = child.StandardError.ReadToEndAsync()
-
-                    if not (child.WaitForExit 120000) then
-                        child.Kill true
-                        failtest "Myriad host exceeded its timeout"
+                    // Gated, captured concurrently, and the tree is killed and awaited on timeout.
+                    let result =
+                        ChildProcess
+                            .RunAsync(start, TimeSpan.FromSeconds 120.0)
+                            .GetAwaiter()
+                            .GetResult()
 
                     let diagnostics =
-                        stdout.Result
-                        + stderr.Result
+                        result.StandardOutput
+                        + result.StandardError
 
-                    Expect.equal child.ExitCode 0 diagnostics
+                    Expect.equal result.ExitCode 0 diagnostics
 
                     Expect.stringContains
                         (File.ReadAllText output)

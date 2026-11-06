@@ -7,6 +7,28 @@ open System.IO
 
 /// One compiler/process runner for generated F# across IR versions and physical formats.
 module GenerationCompiler =
+    /// Removes a compile directory, retrying while a just-exited compiler's files stay locked (Windows).
+    /// Cleanup never fails a test whose assertions passed.
+    let private deleteTolerantly (directory: string) =
+        let rec attempt remaining =
+            try
+                if Directory.Exists directory then
+                    Directory.Delete(directory, true)
+            with
+            | :? IOException
+            | :? UnauthorizedAccessException when remaining > 1 ->
+                Threading.Thread.Sleep 250
+
+                attempt (
+                    remaining
+                    - 1
+                )
+            | :? IOException
+            | :? UnauthorizedAccessException as error ->
+                eprintfn "Could not delete compile directory %s: %s" directory error.Message
+
+        attempt 5
+
     let executeWithReferences
         (references: string list)
         (modules: (string * string) list)
@@ -103,6 +125,6 @@ module GenerationCompiler =
 
             output.Result.Trim()
         finally
-            Directory.Delete(directory, true)
+            deleteTolerantly directory
 
     let execute modules code = executeWithReferences [] modules code

@@ -4,6 +4,7 @@ open System
 open System.Diagnostics
 open System.IO
 open Expecto
+open Morphir.TestSupport
 
 let private checkPackages packageVersion =
     let evidence =
@@ -51,6 +52,10 @@ let private checkPackages packageVersion =
         childProcess.ExitCode
         0
         (sprintf "Package-consumer checks; evidence: %s\n%s" evidence output)
+
+    // Evidence (whole package caches) is kept when a check fails, for diagnosis, and removed once it passes.
+    TolerantDirectory.TryDelete evidence
+    |> ignore
 
 [<Tests>]
 let tests =

@@ -156,22 +156,36 @@ public sealed class ConfigurationTransactionTests
         using var process = new Process { StartInfo = start };
         Task<string> output;
         Task<string> errors;
-        using (new NativeConfigurationTransactionHost().Acquire([target]))
+        var started = false;
+        try
         {
-            process.Start().Should().BeTrue();
-            output = process.StandardOutput.ReadToEndAsync();
-            errors = process.StandardError.ReadToEndAsync();
-            SpinWait.SpinUntil(() => File.Exists(ready) || process.HasExited, TimeSpan.FromSeconds(30)).Should().BeTrue();
-            File.Exists(ready).Should().BeTrue("the child must reach the writer boundary");
-            Thread.Sleep(200);
-            File.Exists(entered).Should().BeFalse("the child must wait outside staging while this process owns the lease");
-            var plan = new ConfigurationTransactionPlan([observed], [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes("value = 2\n"))]);
-            new ConfigurationTransaction().Apply(plan).Status.Should().Be(ConfigurationTransactionStatus.Written);
+            using (new NativeConfigurationTransactionHost().Acquire([target]))
+            {
+                started = process.Start();
+                started.Should().BeTrue();
+                output = process.StandardOutput.ReadToEndAsync();
+                errors = process.StandardError.ReadToEndAsync();
+                SpinWait.SpinUntil(() => File.Exists(ready) || process.HasExited, TimeSpan.FromSeconds(30)).Should().BeTrue();
+                File.Exists(ready).Should().BeTrue("the child must reach the writer boundary");
+                Thread.Sleep(200);
+                File.Exists(entered).Should().BeFalse("the child must wait outside staging while this process owns the lease");
+                var plan = new ConfigurationTransactionPlan([observed], [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes("value = 2\n"))]);
+                new ConfigurationTransaction().Apply(plan).Status.Should().Be(ConfigurationTransactionStatus.Written);
+            }
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            await process.WaitForExitAsync(timeout.Token);
+            process.ExitCode.Should().Be(0, (await output) + (await errors));
         }
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try { await process.WaitForExitAsync(timeout.Token); }
-        catch { process.Kill(true); throw; }
-        process.ExitCode.Should().Be(0, (await output) + (await errors));
+        finally
+        {
+            // On every failure path (a missed SpinUntil, a timeout) the child must not outlive the test
+            // holding the lease or the directory.
+            if (started && !process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit(10_000);
+            }
+        }
         File.Exists(entered).Should().BeFalse("the stale child must conflict before staging");
         File.ReadAllText(target).Should().Be("value = 2\n");
     }
