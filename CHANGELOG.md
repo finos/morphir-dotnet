@@ -74,6 +74,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CLA compliance guidance** in AGENTS.md with remediation steps for accidental Claude co-author inclusion
 - **GitHub issue #270** for F# script to automatically remove Claude co-author from commit history
 
+### Removed
+- **BREAKING** (Morphir.Tooling API): `Morphir.Tooling.Configuration.ConfigResolver`, `WorkspaceDiscovery` and `TomlParser` are removed. They walked to the filesystem root and treated any `.git` or `.morphir` directory as a workspace, including the global Morphir home, and could not be contained. No restorable package release ever exposed them. Use `ProjectSystem.Discover` / `ProjectSystem.LoadDetailed` and the shared resolver; replace the legacy CI mode with a named profile selected by `--profiles` or `MORPHIR_PROFILES` ([#494](https://github.com/finos/morphir-dotnet/issues/494))
+
 ### Changed
 - The `dist`, `tool` and `extension` sub-commands now fail with "not implemented yet", exit code 1 and a link to their tracking issue ([#490](https://github.com/finos/morphir-dotnet/issues/490), [#491](https://github.com/finos/morphir-dotnet/issues/491), [#492](https://github.com/finos/morphir-dotnet/issues/492)). Previously they printed a message and exited 0 without doing anything
 - **BREAKING**: The classic `Distribution` has a `Specs` case for IR 3.1.0, and `Distribution.packageDefinition` returns an option because a `Specs` distribution has no definitions

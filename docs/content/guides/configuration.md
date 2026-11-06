@@ -299,9 +299,9 @@ Never follow a discovered symbolic link to read configuration or enumerate membe
 
 Source reports distinguish loaded, missing, skipped, and failed inputs. Optional missing candidates remain visible without becoming required-file errors. Invalid documents and inaccessible candidates retain their paths and diagnostics. Inactive profiles and isolated machine/personal inputs are not read. Equivalent native and mounted evidence must produce the same roots, member selection, source ordering, and diagnostics.
 
-### Legacy cache API
+### Removed legacy cache API
 
-`Morphir.Tooling.Configuration.ConfigResolver.ResolveConfigAsync` continues to load the cache-only `MorphirConfig`. `ConfigResolution` exposes `Effective`, `Layers`, `WorkspaceRoot`, and `CiProfileApplied`; `Merge.mergeConfigs` merges cache paths. `WorkspaceDiscovery`, `ManagementScenario`, and existing artifact callers retain Git-first root selection. New consumers opt into `ProjectSystem` explicitly.
+The cache-only `Morphir.Tooling.Configuration.ConfigResolver` and its Git-first `WorkspaceDiscovery` were removed in 0.4.0-alpha.1. They walked to the filesystem root and treated any `.git` or `.morphir` directory as a workspace, including the global Morphir home. Use `ProjectSystem.Discover` and `ProjectSystem.LoadDetailed` with the shared resolver instead, and replace the legacy CI mode with a named profile selected by `--profiles` or `MORPHIR_PROFILES`. The F# cache types (`MorphirConfig`, `Merge.mergeConfigs`) remain in `Morphir.Configuration`.
 
 See [troubleshooting]({{< relref "/docs/cli/troubleshooting#configuration" >}}) for wrong roots, ambiguous files, and settings that remain overridden.
 

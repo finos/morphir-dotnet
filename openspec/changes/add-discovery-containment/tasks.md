@@ -55,8 +55,8 @@ Depends on group 1, and can run in parallel with groups 2 and 3. Follow DISC-1 a
 
 Depends on groups 2 to 4, so the containment behavior is covered by the new paths first. Follow LEG-1.
 
-- [ ] 5.1 Delete `src/Morphir.Tooling/Configuration/WorkspaceDiscovery.cs`, `ConfigResolver.cs` and `TomlParser.cs`, their tests (`WorkspaceDiscoveryTests`, `ConfigResolverTests`, `TomlParserTests`), and the `WorkspaceDiscovery` registration in `ManagementScenario`. Verify that the solution builds, `git grep` finds no remaining reference, and `OsPaths`/`ArtifactPathResolver` and their tests still pass.
-- [ ] 5.2 Add a CHANGELOG `Removed` entry marked **BREAKING** for the `Morphir.Tooling` API, naming the replacement entry points from the spec's Migration note. Update any docs that mention the legacy resolver. Verify with `git grep -i "ConfigResolver\|WorkspaceDiscovery" docs src` that nothing stale remains.
+- [x] 5.1 Delete `src/Morphir.Tooling/Configuration/WorkspaceDiscovery.cs`, `ConfigResolver.cs` and `TomlParser.cs`, their tests (`WorkspaceDiscoveryTests`, `ConfigResolverTests`, `TomlParserTests`), and the `WorkspaceDiscovery` registration in `ManagementScenario`. Verify that the solution builds, `git grep` finds no remaining reference, and `OsPaths`/`ArtifactPathResolver` and their tests still pass.
+- [x] 5.2 Add a CHANGELOG `Removed` entry marked **BREAKING** for the `Morphir.Tooling` API, naming the replacement entry points from the spec's Migration note. Update any docs that mention the legacy resolver. Verify with `git grep -i "ConfigResolver\|WorkspaceDiscovery" docs src` that nothing stale remains.
 
 ## 6. Make the test suites hermetic
 
