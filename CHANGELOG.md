@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-rc.1] - 2026-11-06
+
 ### Fixed
 - Every Morphir assembly now takes its version from CHANGELOG.md, so assemblies no longer reference each other as `1.0.0.0`. An explicit `-p:Version` or `-p:PackageVersion` still wins, for local and test packages. Previously the packed `dotnet-morphir` tool failed `generate` with `Could not load file or assembly 'Morphir.Models, Version=1.0.0.0'`
 - `Morphir.Tooling` and `Morphir` can now be installed from NuGet: releases also publish their dependencies `Morphir.Configuration`, `Morphir.Configuration.IO`, `Morphir.IR.Pipeline`, `Morphir.IR.Pipeline.Plugins`, `Morphir.Ion` and `Morphir.CodeGeneration.FSharp`. A build test now fails if a packed package depends on a Morphir package that is not packed
@@ -217,7 +219,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.2...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-rc.1...HEAD
+[0.4.0-rc.1]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.2...v0.4.0-rc.1
 [0.3.0-rc.2]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.1...v0.3.0-rc.2
 [0.3.0-rc.1]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-010...v0.3.0-rc.1
 [0.2.0-alpha-010]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-009...v0.2.0-alpha-010
