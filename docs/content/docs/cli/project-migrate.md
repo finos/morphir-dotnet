@@ -8,7 +8,7 @@ description: "Preview and apply a loss-checked migration from classic morphir.js
 # project migrate
 
 ```sh
-morphir project migrate [path] [--output path] [--dry-run] [--json]
+morphir project migrate [path] [--output path] [--dry-run] [--json] [--discovery-boundary directory]
 ```
 
 Migrate one classic project configuration to TOML. The command maps classic
@@ -30,7 +30,9 @@ manifest path.
 | `--output path` | Choose a supported TOML primary layout at the same project location |
 | `--dry-run` | Return the complete plan without creating or changing files |
 | `--json` | Emit one structured JSON result on stdout |
-| `--discovery-boundary directory` | Bound discovery to an explicitly selected directory tree |
+| `--discovery-boundary directory` | Bound discovery to this directory tree. Default: `MORPHIR_DISCOVERY_BOUNDARY`, else the filesystem root. The current directory and `path` must lie inside it; otherwise the command fails with exit code 2 and a `discovery.boundary` diagnostic before reading anything |
+
+Migration always excludes machine and personal configuration, so `MORPHIR_ISOLATED` does not apply. See [containment from the environment]({{< relref "config.md#containment-from-the-environment" >}}).
 
 The default output is the corresponding TOML primary adjacent to the selected
 classic manifest: `morphir.json` becomes `morphir.toml`; a dot-config

@@ -78,6 +78,12 @@ public sealed record Containment(string Boundary, ContainmentSource BoundarySour
         return new ContainmentResolution(new Containment(boundary, boundarySource, isolated, isolationSource), null);
     }
 
+    /// <summary>The process environment as an explicit snapshot, for passing to <see cref="Resolve"/>.</summary>
+    public static IReadOnlyDictionary<string, string> CurrentEnvironment() =>
+        System.Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
+            .Where(pair => pair.Key is string && pair.Value is string)
+            .ToDictionary(pair => (string)pair.Key, pair => (string)pair.Value!, StringComparer.Ordinal);
+
     /// <summary>The boundary in native form, for filesystem hosts.</summary>
     public string NativeBoundary => Path.GetFullPath(Boundary);
 

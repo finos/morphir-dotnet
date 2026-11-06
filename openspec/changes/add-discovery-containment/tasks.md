@@ -38,9 +38,9 @@ Depends on group 1. Follow CTL-1 to CTL-4.
 
 Depends on group 2.
 
-- [ ] 3.1 Add BDD scenarios for "Workspace directory outside the environment boundary", "Project migration stays inside the environment boundary" and "Migration ignores isolation off" under `tests/Morphir.Tooling.Tests/Features/ProjectMigration` and `WorkspaceMigration`. Run them and record that they fail.
-- [ ] 3.2 Route `project migrate` and its host through the resolver's boundary. Add `--discovery-boundary` to `workspace migrate`, and require its directory to lie inside the effective boundary before planning. Verify that the 3.1 scenarios pass, that dry runs write nothing, and that existing migration scenarios are unchanged.
-- [ ] 3.3 Update the migration command docs and help text for the boundary control. Verify that `workspace migrate --help` lists `--discovery-boundary` and that `--help` performs no configuration I/O.
+- [x] 3.1 Add BDD scenarios for "Workspace directory outside the environment boundary", "Project migration stays inside the environment boundary" and "Migration ignores isolation off" under `tests/Morphir.Tooling.Tests/Features/ProjectMigration` and `WorkspaceMigration`. Run them and record that they fail.
+- [x] 3.2 Route `project migrate` and its host through the resolver's boundary. Add `--discovery-boundary` to `workspace migrate`, and require its directory to lie inside the effective boundary before planning. Verify that the 3.1 scenarios pass, that dry runs write nothing, and that existing migration scenarios are unchanged.
+- [x] 3.3 Update the migration command docs and help text for the boundary control. Verify that `workspace migrate --help` lists `--discovery-boundary` and that `--help` performs no configuration I/O.
 
 ## 4. Discovery fixes for the Morphir home
 

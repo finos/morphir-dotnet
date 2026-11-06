@@ -189,6 +189,32 @@ public sealed class WorkspaceMigrationSteps : IDisposable
     [Given("malformed workspace migration appsettings")]
     public void InvalidHost() => Write("appsettings.json", "{never-print-host-value");
 
+    // Containment scenarios. Paths use <root> and <outside> placeholders.
+    private readonly Dictionary<string, string> _environment = [];
+    private string Outside => _root + "-outside";
+
+    private string Placeholder(string value) => value
+        .Replace("<root>", _root, StringComparison.Ordinal)
+        .Replace("<outside>", Outside, StringComparison.Ordinal);
+
+    [Given("workspace migration environment variable {word} is {string}")]
+    public void WorkspaceEnvironmentVariable(string name, string value)
+    {
+        if (value.Contains("<outside>", StringComparison.Ordinal)) Directory.CreateDirectory(Outside);
+        _environment[name] = Placeholder(value);
+    }
+
+    [When("I migrate the workspace with boundary {string} and {string}")]
+    public Task MigrateWithBoundary(string boundary, string arguments) =>
+        Run(["workspace", "migrate", .. arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--discovery-boundary", Placeholder(boundary), "--json"]);
+
+    [Then("workspace migration diagnostics include {string}")]
+    public void WorkspaceDiagnostic(string code) => _report!.RootElement.GetProperty("diagnostics").EnumerateArray()
+        .Select(d => d.GetProperty("code").GetString()).Should().Contain(code);
+
+    [Then("workspace migration diagnostics name {string}")]
+    public void WorkspaceDiagnosticNames(string text) => _report!.RootElement.GetProperty("diagnostics").EnumerateArray()
+        .Select(d => d.GetProperty("message").GetString()).Should().Contain(message => message!.Contains(text, StringComparison.Ordinal));
     [When("I migrate the workspace with {string}")]
     public Task Migrate(string arguments) => Run(["workspace", "migrate", .. arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--json"]);
 
@@ -217,6 +243,7 @@ public sealed class WorkspaceMigrationSteps : IDisposable
         if (dll) info.ArgumentList.Add(cli);
         foreach (var argument in arguments) info.ArgumentList.Add(argument);
         foreach (var key in info.Environment.Keys.Where(key => key.StartsWith("MORPHIR_", StringComparison.Ordinal)).ToArray()) info.Environment.Remove(key);
+        foreach (var pair in _environment) info.Environment[pair.Key] = pair.Value;
         using var process = Process.Start(info)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
@@ -387,6 +414,7 @@ public sealed class WorkspaceMigrationSteps : IDisposable
     public void Dispose()
     {
         _report?.Dispose();
+        if (Directory.Exists(Outside)) Directory.Delete(Outside, true);
         if (!Directory.Exists(_root)) return;
         if (Directory.EnumerateFiles(_root, ".morphir-edit-*", SearchOption.AllDirectories).Any())
         {

@@ -112,10 +112,46 @@ public sealed class ProjectMigrationSteps : IDisposable
     [When("I migrate the project with {string}")]
     public Task Migrate(string command) => Run(command.Split(' ', StringSplitOptions.RemoveEmptyEntries), true);
 
+    // Containment scenarios. Paths use <root>, <member> and <outside> placeholders.
+    private string Outside => _root + "-outside";
+
+    private string Placeholder(string value) => value
+        .Replace("<root>", _root, StringComparison.Ordinal)
+        .Replace("<member>", Path.Combine(_root, "member"), StringComparison.Ordinal)
+        .Replace("<outside>", Outside, StringComparison.Ordinal);
+
+    [Given("migration environment variable {word} is {string}")]
+    public void MigrationEnvironmentVariable(string name, string value)
+    {
+        if (value.Contains("<outside>", StringComparison.Ordinal)) Directory.CreateDirectory(Outside);
+        _environment[name] = Placeholder(value);
+    }
+
+    [Given("a personal override masks the migration source directory")]
+    public void PersonalMask() => File.WriteAllText(Path.Combine(_root, "morphir.user.toml"), "[project]\nsource_directory='masked'\n");
+
+    [When("I migrate the project without a boundary flag with {string}")]
+    public Task MigrateWithoutBoundary(string command) => Run(command.Split(' ', StringSplitOptions.RemoveEmptyEntries), true, boundaryFlag: false);
+
+    [Then("the migration plan reads no workspace")]
+    public void NoWorkspace() =>
+        _report!.RootElement.GetProperty("verification").GetProperty("baseWorkspace").ValueKind.Should().Be(JsonValueKind.Null,
+            "the workspace above the boundary must not be read");
+
+    [Then("migration verification keeps the classic source directory")]
+    public void ClassicSourceDirectory()
+    {
+        var verification = _report!.RootElement.GetProperty("verification");
+        verification.GetProperty("verified").GetBoolean().Should().BeTrue();
+        verification.GetProperty("after").GetProperty("project").GetProperty("source_directory").GetString()
+            .Should().Be("elm-src", "personal overrides never take part in migration verification");
+        _stdout.Should().NotContain("masked");
+    }
+
     [When("I migrate the project with human output")]
     public Task Human() => Run(["--dry-run"], false);
 
-    private async Task Run(string[] arguments, bool json)
+    private async Task Run(string[] arguments, bool json, bool boundaryFlag = true)
     {
         if (File.Exists(Target)) _targetTimestamp = File.GetLastWriteTimeUtc(Target);
         var repo = new DirectoryInfo(AppContext.BaseDirectory);
@@ -130,7 +166,7 @@ public sealed class ProjectMigrationSteps : IDisposable
             UseShellExecute = false
         };
         if (cli.EndsWith(".dll", StringComparison.Ordinal)) info.ArgumentList.Add(cli);
-        foreach (var arg in new[] { "project", "migrate" }.Concat(arguments).Concat(json ? ["--json"] : []).Concat(["--discovery-boundary", _root])) info.ArgumentList.Add(arg);
+        foreach (var arg in new[] { "project", "migrate" }.Concat(arguments).Concat(json ? ["--json"] : []).Concat(boundaryFlag ? ["--discovery-boundary", _root] : [])) info.ArgumentList.Add(arg);
         foreach (var key in info.Environment.Keys.Where(k => k.StartsWith("MORPHIR_", StringComparison.Ordinal)).ToArray()) info.Environment.Remove(key);
         foreach (var pair in _environment) info.Environment[pair.Key] = pair.Value;
         using var process = Process.Start(info)!;
@@ -227,5 +263,10 @@ public sealed class ProjectMigrationSteps : IDisposable
         File.Exists(Target).Should().BeFalse();
     }
 
-    public void Dispose() { _report?.Dispose(); if (Directory.Exists(_root)) Directory.Delete(_root, true); }
+    public void Dispose()
+    {
+        _report?.Dispose();
+        if (Directory.Exists(_root)) Directory.Delete(_root, true);
+        if (Directory.Exists(Outside)) Directory.Delete(Outside, true);
+    }
 }
