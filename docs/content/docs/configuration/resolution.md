@@ -100,7 +100,9 @@ beyond Int64 use `ConfigValue.BigInteger`. Other values remain strings. A
 conflicting shorter path wins regardless of environment enumeration order.
 Origins identify the winning variable. The reserved controls are `MORPHIR_HOME`,
 `MORPHIR_PROFILES`, `MORPHIR_DIAGNOSTICS__SUPPRESS`, `MORPHIR_CONFIG`,
-`MORPHIR_CONFIG_FILE`, `MORPHIR_PROJECT`, and `MORPHIR_WORKSPACE`.
+`MORPHIR_CONFIG_FILE`, `MORPHIR_PROJECT`, `MORPHIR_WORKSPACE`, and the
+containment controls `MORPHIR_DISCOVERY_BOUNDARY` and `MORPHIR_ISOLATED`, which
+hosts read and never map into configuration.
 
 Validation uses the pinned canonical schema, including nested task/workflow and
 toolchain shapes. Unknown permitted properties remain in the typed document.

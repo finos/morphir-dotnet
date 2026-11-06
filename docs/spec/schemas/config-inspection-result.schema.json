@@ -92,9 +92,44 @@
       "items": {
         "$ref": "#/$defs/valueType"
       }
+    },
+    "containment": {
+      "$ref": "#/$defs/containment"
     }
   },
   "$defs": {
+    "containment": {
+      "description": "Effective discovery boundary and isolation, reported by config path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boundary",
+        "boundarySource",
+        "isolated",
+        "isolationSource"
+      ],
+      "properties": {
+        "boundary": {
+          "type": "string"
+        },
+        "boundarySource": {
+          "$ref": "#/$defs/containmentSource"
+        },
+        "isolated": {
+          "type": "boolean"
+        },
+        "isolationSource": {
+          "$ref": "#/$defs/containmentSource"
+        }
+      }
+    },
+    "containmentSource": {
+      "enum": [
+        "flag",
+        "environment",
+        "default"
+      ]
+    },
     "source": {
       "type": "object",
       "additionalProperties": false,

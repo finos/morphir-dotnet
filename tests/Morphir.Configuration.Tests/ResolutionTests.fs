@@ -217,6 +217,23 @@ let tests =
                  ))
                 "relocation diagnosed"
         }
+        test "containment controls are not configuration" {
+            let result =
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Environment =
+                            Map.ofList [
+                                "MORPHIR_DISCOVERY_BOUNDARY", "/repo"
+                                "MORPHIR_ISOLATED", "true"
+                            ]
+                    }
+
+            Expect.isNone
+                (ConfigTree.tryFind [ "discovery_boundary" ] result.Effective)
+                "boundary control is not a key"
+
+            Expect.isNone (ConfigTree.tryFind [ "isolated" ] result.Effective) "isolation control is not a key"
+        }
         test "environment nesting preserves underscores and shorter paths win deterministically" {
             let environment =
                 Map.ofList [

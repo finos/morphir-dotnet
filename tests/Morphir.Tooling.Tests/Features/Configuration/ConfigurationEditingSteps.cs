@@ -86,7 +86,55 @@ public sealed class ConfigurationEditingSteps : IDisposable
     [When("I edit configuration with {string}")]
     public Task Edit(string command) => Run(command.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
-    private async Task Run(string[] arguments)
+    // Containment scenarios. Paths use <root> and <inner> placeholders.
+    private string? _workingDirectory;
+    private string Inner => Path.Combine(_root, "inner");
+    private string Placeholder(string value) => value.Replace("<root>", _root, StringComparison.Ordinal).Replace("<inner>", Inner, StringComparison.Ordinal);
+
+    [Given("the editing project is a member below an outer workspace")]
+    public void BelowOuterWorkspace()
+    {
+        File.WriteAllText(Target, "[workspace]\nmembers=['inner/app']\n[custom]\nouter='workspace'\n");
+        var app = Path.Combine(Inner, "app");
+        Directory.CreateDirectory(app);
+        File.WriteAllText(Path.Combine(app, "morphir.toml"), "[project]\nname='App'\n[custom]\nvalue='before'\n");
+        _workingDirectory = app;
+    }
+
+    [Given("the editing home has a global configuration")]
+    public void GlobalConfiguration()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "home", "morphir"));
+        File.WriteAllText(Path.Combine(_root, "home", "morphir", "morphir.toml"), "[custom]\nglobal='machine'\n");
+    }
+
+    [Given("editing environment variable {word} is {string}")]
+    public void EditingEnvironmentVariable(string name, string value) => _environment[name] = Placeholder(value);
+
+    [When("I edit configuration without a boundary flag with {string}")]
+    public Task EditWithoutBoundary(string command) => Run(command.Split(' ', StringSplitOptions.RemoveEmptyEntries), boundaryFlag: false);
+
+    private static readonly string[] MachineAndPersonalRoles = ["System", "Global", "UserOverride"];
+
+    private IEnumerable<JsonElement> PlanSources() =>
+        _report!.RootElement.GetProperty("effective").GetProperty("sources").EnumerateArray().Select(s => s.GetProperty("source"));
+
+    [Then("the editing plan consults no project source outside {string}")]
+    public void PlanStaysInside(string boundary)
+    {
+        var root = ProjectPath.normalize(Placeholder(boundary));
+        PlanSources()
+            .Where(s => s.GetProperty("format").GetString() != "memory" && !MachineAndPersonalRoles.Contains(s.GetProperty("role").GetString()))
+            .Select(s => s.GetProperty("path").GetString()!)
+            .Should().OnlyContain(path => ProjectPath.contains(root, path), $"discovery must stay inside {root}");
+        _report!.RootElement.GetProperty("target").GetProperty("path").GetString().Should().StartWith(root);
+    }
+
+    [Then("the editing plan consults no machine or personal sources")]
+    public void PlanIsolated() =>
+        PlanSources().Select(s => s.GetProperty("role").GetString()).Should().NotContain(MachineAndPersonalRoles);
+
+    private async Task Run(string[] arguments, bool boundaryFlag = true)
     {
         var repo = new DirectoryInfo(AppContext.BaseDirectory);
         while (repo is not null && !File.Exists(Path.Combine(repo.FullName, "Morphir.slnx"))) repo = repo.Parent;
@@ -94,13 +142,13 @@ public sealed class ConfigurationEditingSteps : IDisposable
         var cli = Environment.GetEnvironmentVariable("MORPHIR_CONFIGURATION_CLI") ?? Path.Combine(repo!.FullName, "src", "Morphir", "bin", configuration, "net10.0", "morphir.dll");
         var info = new ProcessStartInfo(cli.EndsWith(".dll", StringComparison.Ordinal) ? "dotnet" : cli)
         {
-            WorkingDirectory = _root,
+            WorkingDirectory = _workingDirectory ?? _root,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false
         };
         if (cli.EndsWith(".dll", StringComparison.Ordinal)) info.ArgumentList.Add(cli);
-        foreach (var arg in new[] { "config" }.Concat(arguments).Concat(["--json", "--discovery-boundary", _root])) info.ArgumentList.Add(arg);
+        foreach (var arg in new[] { "config" }.Concat(arguments).Concat(boundaryFlag ? ["--json", "--discovery-boundary", _root] : ["--json"])) info.ArgumentList.Add(arg);
         foreach (var key in info.Environment.Keys.Where(k => k.StartsWith("MORPHIR_", StringComparison.Ordinal)).ToArray()) info.Environment.Remove(key);
         foreach (var key in new[] { "HOME", "USERPROFILE", "APPDATA", "PROGRAMDATA", "XDG_CONFIG_HOME" }) info.Environment[key] = Path.Combine(_root, "home");
         foreach (var pair in _environment) info.Environment[pair.Key] = pair.Value;

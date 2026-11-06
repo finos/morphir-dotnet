@@ -81,6 +81,73 @@ public sealed class ConfigurationSteps : IDisposable
         "a/b~c" = nan
         """);
 
+    // Containment scenarios. Paths use <workspace>, <member> and <outside> placeholders.
+    private string Outside => _root + "-outside";
+
+    private string Placeholder(string value) => value
+        .Replace("<workspace>", _root, StringComparison.Ordinal)
+        .Replace("<member>", Path.Combine(_root, "app"), StringComparison.Ordinal)
+        .Replace("<outside>", Outside, StringComparison.Ordinal);
+
+    [Given("environment variable {word} is {string}")]
+    public void EnvironmentVariable(string name, string value)
+    {
+        if (value.Contains("<outside>", StringComparison.Ordinal)) Directory.CreateDirectory(Outside);
+        _variables[name] = Placeholder(value);
+    }
+
+    [When("I inspect without a boundary flag with {string}")]
+    public Task InspectWithoutBoundary(string command) => Run(["config", .. command.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--json"]);
+
+    private static readonly string[] MachineAndPersonalRoles = ["System", "Global", "UserOverride"];
+
+    private IEnumerable<JsonElement> Sources() => _json!.RootElement.GetProperty("sources").EnumerateArray().Select(s => s.GetProperty("source"));
+
+    [Then("inspection consults no project source outside {string}")]
+    public void NoProjectSourceOutside(string boundary)
+    {
+        var root = ProjectPath.normalize(Placeholder(boundary));
+        Sources()
+            .Where(s => s.GetProperty("format").GetString() != "memory" && !MachineAndPersonalRoles.Contains(s.GetProperty("role").GetString()))
+            .Select(s => s.GetProperty("path").GetString()!)
+            .Should().OnlyContain(path => ProjectPath.contains(root, path), $"discovery must stay inside {root}");
+    }
+
+    [Then("inspection consults the workspace primary")]
+    public void ConsultsWorkspacePrimary() =>
+        Sources().Select(s => s.GetProperty("path").GetString()).Should().Contain(ProjectPath.join(_root, "morphir.toml"));
+
+    [Then("inspection consults no sources")]
+    public void NoSources() => _json!.RootElement.GetProperty("sources").GetArrayLength().Should().Be(0);
+
+    [Then("machine and personal sources are not consulted")]
+    public void MachineNotConsulted() =>
+        Sources().Select(s => s.GetProperty("role").GetString()).Should().NotContain(MachineAndPersonalRoles);
+
+    [Then("machine and personal sources are consulted")]
+    public void MachineConsulted() =>
+        Sources().Select(s => s.GetProperty("role").GetString()).Should().Contain(MachineAndPersonalRoles);
+
+    [Then("the reported boundary is {string} from {string}")]
+    public void ReportedBoundary(string boundary, string source)
+    {
+        var containment = _json!.RootElement.GetProperty("containment");
+        containment.GetProperty("boundary").GetString().Should().Be(ProjectPath.normalize(Placeholder(boundary)));
+        containment.GetProperty("boundarySource").GetString().Should().Be(source);
+    }
+
+    [Then("the reported isolation is {word} from {string}")]
+    public void ReportedIsolation(string isolated, string source)
+    {
+        var containment = _json!.RootElement.GetProperty("containment");
+        containment.GetProperty("isolated").GetBoolean().Should().Be(bool.Parse(isolated));
+        containment.GetProperty("isolationSource").GetString().Should().Be(source);
+    }
+
+    [Then("the inspection diagnostic names {string}")]
+    public void DiagnosticNames(string text) => _json!.RootElement.GetProperty("diagnostics").EnumerateArray()
+        .Select(d => d.GetProperty("message").GetString()).Should().Contain(message => message!.Contains(text, StringComparison.Ordinal));
+
     [When("I inspect with {string}")]
     public Task Inspect(string command) => Run(["config", .. command.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--json", "--discovery-boundary", _root]);
 
@@ -259,5 +326,6 @@ public sealed class ConfigurationSteps : IDisposable
     {
         _json?.Dispose();
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
+        if (Directory.Exists(Outside)) Directory.Delete(Outside, true);
     }
 }
