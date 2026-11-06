@@ -59,7 +59,7 @@ public class AssemblyTrimmingSteps
         _trimMode = "link";
     }
 
-    [Given("types marked with \\[DynamicDependency] attributes")]
+    [Given("types marked with [DynamicDependency] attributes")]
     public void GivenTypesMarkedWithDynamicDependencyAttributes()
     {
         // The project already has types marked with [DynamicDependency]
@@ -528,7 +528,8 @@ public class AssemblyTrimmingSteps
         var current = new DirectoryInfo(startPath);
         while (current != null)
         {
-            if (Directory.Exists(Path.Combine(current.FullName, ".git")))
+            // .git is a directory in a clone and a file in a worktree
+            if (Path.Exists(Path.Combine(current.FullName, ".git")))
                 return current.FullName;
             current = current.Parent;
         }

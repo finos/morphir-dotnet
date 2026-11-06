@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using FluentValidation;
 
 namespace Morphir.Tooling.Features.VerifyIR;
@@ -28,6 +29,13 @@ public record ValidationError(
     int? Line = null,
     int? Column = null
 );
+
+// Source-generated serialization: the trimmed executable disables reflection-based JSON.
+// Expected and Found are typed object; string, their only runtime type, is registered too.
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(VerifyIRResult))]
+[JsonSerializable(typeof(string))]
+internal partial class VerifyIRJsonContext : JsonSerializerContext;
 
 // Handler (pure function)
 public static class VerifyIRHandler

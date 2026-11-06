@@ -88,7 +88,7 @@ public static class ExtensionHandlers
             };
 
             var manifestPath = resolver.GetManifestPath(ArtifactType.Extension, platform, command.Version, command.Name, command.Local);
-            var manifestJson = JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
+            var manifestJson = JsonSerializer.Serialize(manifest, ManifestJsonContext.Default.Manifest);
             await File.WriteAllTextAsync(manifestPath, manifestJson, ct);
 
             return new ExtensionInstallResult(

@@ -126,10 +126,8 @@ public class IrToolingScenario : IMorphirCliScenario
 
         if (jsonOutput)
         {
-            // JSON output - need to use source-generated serializer for AOT compatibility
-            // Note: This will need to reference the MorphirJsonContext from Morphir project
-            // For now, we'll use the standard serializer
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            // Source-generated: the trimmed executable disables reflection-based serialization.
+            var json = JsonSerializer.Serialize(result, Features.VerifyIR.VerifyIRJsonContext.Default.VerifyIRResult);
             Infrastructure.ConsoleOutputHelper.WriteLineToStdout(json);
         }
         else
