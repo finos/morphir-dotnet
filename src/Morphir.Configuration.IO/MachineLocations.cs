@@ -27,13 +27,14 @@ public static partial class ProjectSystem
     internal static MachineLocationInput ResolveMachineLocations(MachineLocationInput machine, string startDirectory)
     {
         var environment = machine.Environment;
-        // Normalize before testing: a native Windows path such as C:\Users\me\.morphir or \\server\share is absolute.
+        // Convert separators before testing: a native Windows path such as C:\Users\me\.morphir or \\server\share
+        // is absolute. A relative value is joined before dot segments collapse, so ../global keeps its traversal.
         if (environment.TryGetValue("MORPHIR_HOME", out var home) && !string.IsNullOrEmpty(home))
         {
-            var normalized = ProjectPath.normalize(home);
-            environment = environment.Add("MORPHIR_HOME", ProjectPath.isAbsolute(normalized) || normalized.StartsWith("//", StringComparison.Ordinal)
-                ? normalized
-                : ProjectPath.join(startDirectory, normalized));
+            var slashed = home.Replace('\\', '/');
+            environment = environment.Add("MORPHIR_HOME", ProjectPath.isAbsolute(slashed) || slashed.StartsWith("//", StringComparison.Ordinal)
+                ? ProjectPath.normalize(slashed)
+                : ProjectPath.join(startDirectory, slashed));
         }
         return new(machine.Platform, machine.HomeDirectory, machine.RoamingAppData, machine.ProgramData, environment);
     }

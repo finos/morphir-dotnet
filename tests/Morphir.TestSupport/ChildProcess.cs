@@ -1,6 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace Morphir.TestSupport;
 
@@ -85,9 +86,24 @@ public sealed class ProcessGate
 /// and a child that times out or is cancelled has its whole process tree killed and awaited before the call
 /// returns, so its working directory can be cleaned up.
 /// </summary>
+/// <remarks>
+/// A descendant can outlive the direct child while keeping its pipes. Windows still reaches it through its
+/// recorded parent. On Linux the child starts under <c>setsid</c>, so its whole process group is killed,
+/// orphans included. macOS has no <c>setsid</c>: there an orphan cannot be reached, and
+/// <see cref="ChildProcessTimeoutException.ProcessExited"/> reports false while it still holds the pipes.
+/// </remarks>
 public static class ChildProcess
 {
     private static readonly TimeSpan KillWait = TimeSpan.FromSeconds(10);
+
+    private static readonly string? Setsid = OperatingSystem.IsLinux()
+        ? new[] { "/usr/bin/setsid", "/bin/setsid" }.FirstOrDefault(File.Exists)
+        : null;
+
+    private const int SigKill = 9;
+
+    [DllImport("libc", EntryPoint = "kill", SetLastError = true)]
+    private static extern int SendSignal(int pid, int signal);
 
     /// <summary>A start info with an argument list and no shell, window or inherited console.</summary>
     public static ProcessStartInfo StartInfo(string fileName, params string[] arguments)
@@ -109,6 +125,8 @@ public static class ChildProcess
         startInfo.RedirectStandardOutput = true;
         startInfo.RedirectStandardError = true;
         startInfo.RedirectStandardInput = standardInput is not null;
+        var command = Describe(startInfo);
+        var ownGroup = StartInNewSession(startInfo);
 
         using var slot = await (gate ?? ProcessGate.Shared).EnterAsync(cancellationToken).ConfigureAwait(false);
         using var process = new Process { StartInfo = startInfo };
@@ -135,16 +153,32 @@ public static class ChildProcess
         }
         catch (OperationCanceledException) when (deadline.IsCancellationRequested)
         {
-            var exited = await KillTreeAsync(process).ConfigureAwait(false);
-            var output = await Completed(stdout).ConfigureAwait(false);
-            var error = await Completed(stderr).ConfigureAwait(false);
+            var parentExited = await KillTreeAsync(process, ownGroup).ConfigureAwait(false);
+            var (output, outputClosed) = await Completed(stdout).ConfigureAwait(false);
+            var (error, errorClosed) = await Completed(stderr).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            throw new ChildProcessTimeoutException(Describe(startInfo), timeout, exited, output, error);
+            // Open pipes mean a descendant is still running, even when the direct child has exited.
+            throw new ChildProcessTimeoutException(command, timeout, parentExited && outputClosed && errorClosed, output, error);
         }
     }
 
-    private static async Task<bool> KillTreeAsync(Process process)
+    /// <summary>On Linux, runs the command through setsid so it leads its own process group, with the same PID.</summary>
+    private static bool StartInNewSession(ProcessStartInfo info)
     {
+        if (Setsid is null) return false;
+        if (info.FileName == Setsid) return true; // Already wrapped: the same start info was run before.
+        var command = info.FileName;
+        info.FileName = Setsid;
+        if (info.ArgumentList.Count > 0) info.ArgumentList.Insert(0, command);
+        else info.Arguments = "\"" + command + "\"" + (string.IsNullOrEmpty(info.Arguments) ? "" : " " + info.Arguments);
+        return true;
+    }
+
+    private static async Task<bool> KillTreeAsync(Process process, bool ownGroup)
+    {
+        // The group outlives an exited leader, so this also reaches orphaned descendants.
+        if (ownGroup) SendSignal(-process.Id, SigKill);
+
         try
         {
             process.Kill(entireProcessTree: true);
@@ -167,15 +201,20 @@ public static class ChildProcess
         return process.HasExited;
     }
 
-    private static async Task<string> Completed(Task<string> reader)
+    /// <summary>The captured text, and whether the pipe closed (no process still holds it).</summary>
+    private static async Task<(string Text, bool Closed)> Completed(Task<string> reader)
     {
         try
         {
-            return await reader.WaitAsync(KillWait).ConfigureAwait(false);
+            return (await reader.WaitAsync(KillWait).ConfigureAwait(false), true);
         }
-        catch (Exception ex) when (ex is TimeoutException or IOException or ObjectDisposedException)
+        catch (TimeoutException)
         {
-            return string.Empty;
+            return (string.Empty, false);
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
+            return (string.Empty, true);
         }
     }
 

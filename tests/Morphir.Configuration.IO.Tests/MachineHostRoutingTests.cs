@@ -113,6 +113,32 @@ public sealed class MachineHostRoutingTests
         ProjectLoadingTests.Value(result, "custom", "home").Should().Be(ConfigValue.NewBoolean(true));
     }
 
+    // A leading parent traversal must resolve against the start directory, not be collapsed away first.
+    [Test]
+    [Arguments("../global", "/work/global")]
+    [Arguments(@"..\global", "/work/global")]
+    [Arguments("../../shared/global", "/shared/global")]
+    public void RelativeMorphirHomeKeepsParentTraversal(string morphirHome, string expectedHome)
+    {
+        var locations = new MachineLocationInput(MachinePlatform.Linux, "/home/user", null, null,
+            MapModule.OfSeq(new[] { Tuple.Create("MORPHIR_HOME", morphirHome) }));
+
+        ProjectSystem.MorphirHomeDirectory(locations, "/work/app").Should().Be(expectedHome);
+
+        var project = new InMemoryProjectTree("/work/app", new Dictionary<string, string>
+        {
+            ["/work/app/morphir.toml"] = "[project]\nname='App'"
+        });
+        var machine = new InMemoryProjectTree("/", new Dictionary<string, string>
+        {
+            [expectedHome + "/morphir.toml"] = "[custom]\nhome=true"
+        });
+        var result = ProjectSystem.Load(project, ProjectSystem.Discover(project, "/work/app").Discovery,
+            options: new ProjectLoadOptions { Machine = locations, MachineTrees = [machine] });
+
+        ProjectLoadingTests.Value(result, "custom", "home").Should().Be(ConfigValue.NewBoolean(true));
+    }
+
     [Test]
     [Arguments(false)]
     [Arguments(true)]

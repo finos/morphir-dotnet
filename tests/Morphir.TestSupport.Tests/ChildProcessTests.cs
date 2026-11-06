@@ -38,6 +38,28 @@ public class ChildProcessTests
         strictDelete.Should().NotThrow();
     }
 
+    // The direct child exits at once; a background grandchild keeps its pipes and would write a marker later.
+    // Killing the exited parent's tree cannot reach it, so the runner must own a group/job that outlives the parent.
+    [Test]
+    public async Task Timeout_KillsAGrandchildThatOutlivedItsParent()
+    {
+        if (OperatingSystem.IsMacOS()) return; // No owned process group on macOS: see ChildProcess.
+
+        var directory = Directory.CreateTempSubdirectory("morphir-orphan-").FullName;
+        var marker = Path.Combine(directory, "grandchild-finished");
+        var info = OperatingSystem.IsWindows()
+            ? new ProcessStartInfo("cmd.exe") { Arguments = $"/c start \"\" /b cmd /c \"ping -n 4 127.0.0.1 >nul & type nul > {marker}\"" }
+            : ChildProcess.StartInfo("/bin/sh", "-c", $"(sleep 3; touch '{marker}') & exit 0");
+
+        var run = () => ChildProcess.RunAsync(info, TimeSpan.FromSeconds(1), gate: new ProcessGate(4));
+
+        var failure = await run.Should().ThrowAsync<ChildProcessTimeoutException>();
+        failure.Which.ProcessExited.Should().BeTrue("the whole tree, grandchild included, is gone");
+        await Task.Delay(TimeSpan.FromSeconds(5));
+        File.Exists(marker).Should().BeFalse("the orphaned grandchild was killed with its group");
+        TolerantDirectory.TryDelete(directory);
+    }
+
     [Test]
     public async Task LargeOutputOnBothStreams_DoesNotDeadlock()
     {

@@ -63,9 +63,11 @@ public class CliTestHelper
             CreateNoWindow = true
         };
 
-        // Inherited MORPHIR_* settings from the developer's shell must not change test results.
-        foreach (var key in startInfo.Environment.Keys.Where(k => k.StartsWith("MORPHIR_", StringComparison.OrdinalIgnoreCase)).ToArray())
-            startInfo.Environment.Remove(key);
+        // Each invocation runs contained: a fake home and machine locations, inherited MORPHIR_* replaced by the
+        // sandbox's MORPHIR_HOME, discovery boundary and isolation, and the sandbox work area as its directory.
+        await using var sandbox = TestSandbox.Create("morphir-cli-");
+        startInfo.WorkingDirectory = sandbox.Work;
+        sandbox.Apply(startInfo);
 
         // The shared runner gates concurrency, reads both streams, and kills and awaits the tree on timeout.
         var result = await ChildProcess.RunAsync(startInfo, timeout ?? DefaultTimeout, ct);
