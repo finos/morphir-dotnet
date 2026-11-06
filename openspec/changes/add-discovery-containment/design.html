@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-discovery-containment: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-discovery-containment: design</h1>
+<p class="meta">OpenSpec change | 2026-11-06 | proposed | tracking #494</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the motivation and <a href="specs/discovery-containment/spec.md">specs/discovery-containment</a>, <a href="specs/morphir-project-system/spec.md">specs/morphir-project-system</a> and <a href="specs/configuration-resolution/spec.md">specs/configuration-resolution</a> for the required behavior.</p>
+<p>Current state that shapes the approach:</p>
+<ul>
+<li><strong>Each native host computes its own boundary:</strong> <code>invocation.Boundary ?? Path.GetPathRoot(start)</code>. This is repeated in <code>ConfigurationInspectionHost</code>, <code>ConfigurationEditingHost</code> and <code>ProjectMigrationHost</code>. <code>NativeWorkspaceMigrationHost</code> uses its directory as the boundary and has no outer bound.</li>
+<li><strong>Environment snapshot:</strong> the <code>config</code> commands capture it once (<code>Environment.GetEnvironmentVariables</code>) and pass it explicitly. Shared discovery and resolution never read process state, and the specs require that.</li>
+<li><strong>Isolation:</strong> <code>--isolated</code> is a plain <code>Option&lt;bool&gt;</code> on the two <code>config</code> commands. The migration services already exclude machine and personal sources by construction.</li>
+<li><strong>The global home is discovered as a project:</strong> <code>DiscoveryRequest</code> carries only <code>StartPath</code> and <code>Boundary</code>, so the upward walk can't tell that <code>&lt;home&gt;/.morphir/morphir.toml</code> is the global file. Verified in a sandbox: that file loads as both <code>Global</code> and <code>RootPrimary</code>.</li>
+<li><strong>Native Windows <code>MORPHIR_HOME</code>:</strong> <code>MachineLocations</code> tests <code>ProjectPath.isAbsolute</code> on the raw value before normalizing it, so <code>C:\…</code> is joined onto the start directory.</li>
+<li><strong>Legacy discovery:</strong> the legacy <code>WorkspaceDiscovery</code>, <code>ConfigResolver</code> and <code>TomlParser</code> in <code>Morphir.Tooling/Configuration</code> are used only by their own tests and by a DI registration in <code>ManagementScenario</code>, whose commands are not implemented.</li>
+<li><strong>Test runner parallelism:</strong> TUnit and Expecto run tests in parallel and nothing throttles child processes. Many step classes start <code>dotnet</code> children with a 30-second timeout. On timeout they kill without waiting and then delete the child's working directory.</li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong></p>
+<ul>
+<li>One implementation of the containment rules, shared by every discovering command.</li>
+<li>Containment that a parent process can impose on any Morphir child through the environment alone.</li>
+<li>Test suites that read and write nothing outside their own sandbox, and that fail loudly if they do.</li>
+</ul>
+<p><strong>Non-goals:</strong></p>
+<ul>
+<li>Wiring the <code>dist</code>, <code>tool</code> and <code>extension</code> commands (#490, #491, #492).</li>
+<li>Relocating the artifact root of <code>ArtifactPathResolver</code>, which still uses <code>OsPaths</code>.</li>
+<li>Removing the F# configuration types in <code>Morphir.Configuration</code> (<code>Types.fs</code>, <code>Merge.fs</code>, <code>CiDetection.fs</code>). They ship in a different package and are not the removed entry point.</li>
+<li>Changing the in-process console redirection in <code>MorphirCli.CreateBuilder</code>.</li>
+</ul>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="ctl-1">CTL-1. One containment resolver in the CLI layer</h3>
+<p>Add a pure <code>Containment.Resolve(flagBoundary, flagIsolated, environment, currentDirectory)</code> in <code>Morphir.Tooling</code>. It returns either the effective boundary and isolation together with their sources (<code>flag</code>, <code>MORPHIR_DISCOVERY_BOUNDARY</code>/<code>MORPHIR_ISOLATED</code>, or <code>default</code>), or a typed usage failure. Every host takes its values from it instead of computing <code>?? GetPathRoot</code> itself.</p>
+<ul>
+<li>A relative value resolves against the current directory.</li>
+<li>Values go through <code>Path.GetFullPath</code> and then <code>ProjectPath.normalize</code>, so native separators, drive paths and UNC paths all work.</li>
+<li>An empty variable counts as unset.</li>
+</ul>
+<p><em>Alternatives considered:</em></p>
+<ul>
+<li>Interpreting the variables in each command: rejected, because it duplicates the rules four times.</li>
+<li>Putting the resolver in <code>Morphir.Configuration</code>: rejected, because the shared libraries must not read ambient process state, and choosing which variable names apply is CLI host policy. Library hosts already pass boundaries explicitly.</li>
+</ul>
+
+<h3 id="ctl-2">CTL-2. <code>--isolated</code> takes an optional value, and an absent flag defers to the environment</h3>
+<p>The option keeps its name and stays boolean, with arity zero-or-one, so both <code>--isolated</code> and <code>--isolated false</code> parse. Whether the flag was given comes from the parse result (<code>GetResult(option) is null</code>), not from its value. That is what lets an absent flag fall back to <code>MORPHIR_ISOLATED</code>. <code>MORPHIR_ISOLATED</code> accepts <code>true</code>/<code>false</code>/<code>1</code>/<code>0</code>, ignoring case. Any other value is a usage failure (exit 2) that names the variable and the accepted values.</p>
+<p><em>Alternative considered:</em> a separate <code>--no-isolated</code> flag. Rejected, because the CLI has no other negated-flag pairs, and an optional value is the System.CommandLine idiom.</p>
+
+<h3 id="ctl-3">CTL-3. Validate containment in the command action, before any host I/O</h3>
+<p>Resolution and the start-path check (the directory, for <code>workspace migrate</code>) run at the top of each command action. A failure returns the command's normal report with a <code>discovery.boundary</code> or usage diagnostic and exit code 2, and no host is constructed. The help action never reaches the command action, so help does no I/O and ignores invalid variables. The diagnostic names the boundary's source, so a user can see that an inherited <code>MORPHIR_DISCOVERY_BOUNDARY</code> is the cause.</p>
+<p><code>workspace migrate</code> gains <code>--discovery-boundary</code> as an outer bound. Its directory is still the authorization root for the inventory.</p>
+
+<h3 id="ctl-4">CTL-4. Reserved names</h3>
+<p>Add <code>MORPHIR_DISCOVERY_BOUNDARY</code> and <code>MORPHIR_ISOLATED</code> to <code>EnvironmentMapping.reserved</code>. Without this, the existing mapping would turn them into the configuration keys <code>discovery_boundary</code> and <code>isolated</code>.</p>
+
+<h3 id="disc-1">DISC-1. Discovery receives the Morphir home explicitly and skips primaries located in it</h3>
+<p>Extend the discovery request with an optional Morphir home directory, so discovery still reads no ambient state. While walking upward, discovery skips any primary candidate whose file sits directly in that directory:</p>
+<ul>
+<li>For the default home, that is <code>&lt;home&gt;/.morphir/morphir.&lt;ext&gt;</code>, reached through the <code>.morphir/</code> layout.</li>
+<li>For a relocated <code>MORPHIR_HOME=/opt/h</code>, that is <code>/opt/h/morphir.&lt;ext&gt;</code>.</li>
+</ul>
+<p>Native hosts compute the home from the same environment snapshot (nonempty <code>MORPHIR_HOME</code>, otherwise <code>HOME</code>/<code>USERPROFILE</code> plus <code>.morphir</code>), even when isolated. Isolation removes global sources but must not turn the global file back into a project. In-memory and library callers that pass no home keep today's behavior.</p>
+<p><em>Alternatives considered:</em></p>
+<ul>
+<li>Skipping every <code>.morphir</code> directory directly under any home directory: rejected, because it is over-broad and needs platform knowledge inside discovery.</li>
+<li>Renaming the global file: rejected, because it breaks existing global configuration.</li>
+</ul>
+
+<h3 id="disc-2">DISC-2. Normalize <code>MORPHIR_HOME</code> before testing whether it is absolute</h3>
+<p>In <code>MachineLocations</code>, normalize the value, mapping separators the way <code>ProjectPath.normalize</code> does, before calling <code>ProjectPath.isAbsolute</code>. Relative values keep resolving against the start directory, which the spec now states explicitly. The same normalized home feeds <a href="#disc-1">DISC-1</a>.</p>
+
+<h3 id="leg-1">LEG-1. Delete the legacy discovery and resolver</h3>
+<p>Remove the following from <code>Morphir.Tooling/Configuration</code>:</p>
+<ul>
+<li><code>WorkspaceDiscovery.cs</code>, <code>ConfigResolver.cs</code> and <code>TomlParser.cs</code>.</li>
+<li>Their tests: <code>WorkspaceDiscoveryTests</code>, <code>ConfigResolverTests</code> and <code>TomlParserTests</code>.</li>
+<li>The <code>services.AddSingleton&lt;WorkspaceDiscovery&gt;()</code> registration in <code>ManagementScenario</code>.</li>
+</ul>
+<p><code>OsPaths</code> and its tests stay, because <code>ArtifactPathResolver</code> uses them. The spec delta removes the compatibility requirement, and the CHANGELOG records the API removal as BREAKING.</p>
+
+<h3 id="test-1">TEST-1. A shared C# test-support project</h3>
+<p>Add a non-packable <code>tests/Morphir.TestSupport</code> project. The C# test projects reference it (Tooling, E2E, Build, Myriad.Integration), and so can the F# test projects that start processes. It provides:</p>
+<ul>
+<li><code>TestSandbox</code>: a disposable temp root created with <code>Directory.CreateTempSubdirectory("morphir-test-")</code>, containing <code>home/</code>, <code>appdata/</code>, <code>localappdata/</code>, <code>programdata/</code>, <code>xdg-config/</code>, <code>xdg-cache/</code> and <code>work/</code>.</li>
+<li><code>ChildProcess</code>: a runner (<a href="#test-2">TEST-2</a>, <a href="#test-3">TEST-3</a>).</li>
+<li><code>TolerantDirectory.Delete</code>, generalized from the helper already in <code>LocalInstallationTests</code>.</li>
+</ul>
+<p><em>Alternative considered:</em> extending the F# <code>src/Morphir.Testing</code>. Rejected, because it is a generation-conformance library under <code>src/</code>, and the E2E and Build test projects can't take product references.</p>
+
+<h3 id="test-2">TEST-2. A process-wide concurrency gate for child processes</h3>
+<p>In each test process, <code>ChildProcess</code> acquires a static semaphore before it starts a child. The default limit is <code>max(2, ProcessorCount / 2)</code>, which <code>MORPHIR_TEST_MAX_PROCESSES</code> overrides. The timeout starts only once the gate is held, so queueing no longer eats a test's 30-second budget. This tackles the root cause of the timeouts rather than raising them.</p>
+<p><em>Alternatives considered:</em></p>
+<ul>
+<li>TUnit <code>[ParallelLimiter]</code> on classes: rejected, because it doesn't reach Reqnroll-generated feature classes cleanly, and it can't limit helpers shared across classes.</li>
+<li><code>[NotInParallel]</code> everywhere: rejected, because it makes the suite too slow.</li>
+</ul>
+
+<h3 id="test-3">TEST-3. Child processes are always awaited before cleanup</h3>
+<p><code>ChildProcess</code> reads stdout and stderr concurrently and applies the timeout. On timeout or cancellation it calls <code>Kill(entireProcessTree: true)</code>, then waits for exit (bounded) and for both reader tasks, before it throws a timeout error that includes the captured output. Process objects are disposed.</p>
+<p>Fixture cleanup uses <code>TolerantDirectory.Delete</code>: retries with backoff, then logs and never throws. Fixtures that deliberately keep recovery evidence (<code>.morphir-edit-*</code> journals) keep that behavior. <code>dotnet build</code>/<code>run</code> children pass <code>-nodeReuse:false</code> and set <code>MSBUILDDISABLENODEREUSE=1</code>, so no MSBuild node outlives the test holding its directory.</p>
+
+<h3 id="test-4">TEST-4. The sandbox environment contains Morphir, not the SDK</h3>
+<p><code>TestSandbox.Apply(ProcessStartInfo)</code> configures the child environment:</p>
+<ul>
+<li>Points <code>HOME</code>, <code>USERPROFILE</code>, <code>APPDATA</code>, <code>LOCALAPPDATA</code>, <code>PROGRAMDATA</code>, <code>XDG_CONFIG_HOME</code> and <code>XDG_CACHE_HOME</code> into the sandbox.</li>
+<li>Sets <code>MORPHIR_HOME</code> to <code>home/.morphir</code> and removes every other inherited <code>MORPHIR_*</code> variable.</li>
+<li>Sets <code>MORPHIR_DISCOVERY_BOUNDARY</code> to the sandbox root and, by default, <code>MORPHIR_ISOLATED=1</code>. Tests that exercise machine sources opt out and write their machine files inside the sandbox instead.</li>
+<li>Pins <code>NUGET_PACKAGES</code> to the real global packages folder, resolved before the override, so <code>dotnet run</code>/<code>build</code> keep using the warm cache.</li>
+<li>Gives <code>DOTNET_CLI_HOME</code> a sandbox directory, with <code>DOTNET_NOLOGO=1</code> and <code>DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1</code>.</li>
+</ul>
+<pre><code class="language-console">MORPHIR_HOME=&lt;sandbox&gt;/home/.morphir
+MORPHIR_DISCOVERY_BOUNDARY=&lt;sandbox&gt;
+MORPHIR_ISOLATED=1
+NUGET_PACKAGES=&lt;real global packages folder&gt;</code></pre>
+
+<h3 id="test-5">TEST-5. No shared mutable state between scenarios</h3>
+<ul>
+<li><code>Morphir.E2E.Tests</code> <code>SharedSteps</code> stores its execution result in <code>ScenarioContext</code> instead of a <code>[ThreadStatic]</code> field.</li>
+<li><code>ArtifactPathResolverTests</code> uses the isolating constructor, with its global root in the sandbox.</li>
+<li>Repo-relative discovery in test helpers uses <code>AppContext.BaseDirectory</code> instead of the current directory.</li>
+<li>Manual AOT publishes go to a sandbox directory, not <code>artifacts/test-builds</code>, and run <code>[NotInParallel]</code> with a timeout.</li>
+</ul>
+
+<h3 id="test-6">TEST-6. A tripwire for leaks onto the machine</h3>
+<p>Each process-heavy test assembly takes a snapshot of the real machine's Morphir locations (<code>~/.morphir</code>, <code>%APPDATA%\Morphir</code>, <code>%APPDATA%\morphir</code>, <code>$XDG_CONFIG_HOME/morphir</code>) before the run and compares it after. The snapshot records whether each exists and the newest write time of its entries. The assembly fails if the run created or modified any of them, so a future test that escapes its sandbox is caught in CI, where those directories normally don't exist.</p>
+<p><em>Alternative considered:</em> pointing the whole CI test job at a fake <code>HOME</code>. Rejected, because it would also relocate the NuGet and SDK state the build needs, and it would not catch leaks on developer machines.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>An inherited <code>MORPHIR_DISCOVERY_BOUNDARY</code> or <code>MORPHIR_ISOLATED</code> silently changes a user's results.</td><td>Diagnostics name the source of a boundary failure, and <code>config path --json</code> reports the effective controls and their sources (<a href="#ctl-3">CTL-3</a>). Both variables are documented with the other <code>MORPHIR_*</code> variables.</td></tr>
+<tr><td>Removing <code>ConfigResolver</code>/<code>WorkspaceDiscovery</code> breaks an unknown caller.</td><td>No restorable release ever shipped them. The CHANGELOG marks the removal BREAKING and names the replacement entry points.</td></tr>
+<tr><td>Skipping primaries in the Morphir home hides a deliberate project rooted at the home directory.</td><td>Only files located directly in the Morphir home directory are skipped. A <code>morphir.toml</code> placed directly in the user's home directory still works.</td></tr>
+<tr><td>The concurrency gate lengthens the test run.</td><td>The default is half the cores and can be tuned with <code>MORPHIR_TEST_MAX_PROCESSES</code>. Fewer timeouts and reruns offset the cost.</td></tr>
+<tr><td>Redirecting <code>HOME</code> breaks <code>dotnet</code> children (NuGet, workloads, first run).</td><td><code>NUGET_PACKAGES</code> is pinned to the warm cache and <code>DOTNET_CLI_HOME</code> gets its own sandbox directory (<a href="#test-4">TEST-4</a>). Children that need the real SDK state opt out of the home redirect, but keep the boundary and isolation.</td></tr>
+<tr><td>The tripwire flags a write made by a tool outside the test run, during the run.</td><td>It only checks Morphir-owned directories and reports exactly which paths changed.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<ol>
+<li>Land as one PR before tagging <code>v0.4.0-alpha.1</code>, after #489 merges.</li>
+<li>Update the CHANGELOG:
+  <ul>
+  <li><strong>Added:</strong> the two environment variables and the optional <code>--isolated</code> value.</li>
+  <li><strong>Fixed:</strong> the global home is no longer discovered as a project, and native Windows <code>MORPHIR_HOME</code> works.</li>
+  <li><strong>Removed (BREAKING):</strong> the legacy <code>Morphir.Tooling</code> resolver and discovery.</li>
+  </ul></li>
+<li>Rollback is a revert of the PR. No on-disk formats or configuration files change.</li>
+</ol>
+
+</main>
+</body>
+</html>
