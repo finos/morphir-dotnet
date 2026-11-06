@@ -169,6 +169,9 @@
           "TUnit.Core": "1.48.0"
         }
       },
+      "morphir.testsupport": {
+        "type": "Project"
+      },
       "Microsoft.Testing.Extensions.CodeCoverage": {
         "type": "CentralTransitive",
         "requested": "[18.7.0, )",

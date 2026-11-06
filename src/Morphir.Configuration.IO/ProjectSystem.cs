@@ -8,6 +8,9 @@ public interface IProjectTree
 {
     string Boundary { get; }
     ProjectEntry Observe(string path);
+
+    /// <summary>The global Morphir home, when known. Primary-named files directly in it are not project locations.</summary>
+    string? MorphirHome => null;
 }
 
 /// <summary>A mounted tree with explicit file contents and optional empty directories.</summary>
@@ -16,6 +19,7 @@ public sealed class InMemoryProjectTree : IProjectTree
     private readonly Dictionary<string, string> _files;
     private readonly HashSet<string> _directories;
     public string Boundary { get; }
+    public string? MorphirHome { get; init; }
     public List<string> ObservedPaths { get; } = [];
     public InMemoryProjectTree(string boundary, IReadOnlyDictionary<string, string> files, IEnumerable<string>? directories = null)
     {
@@ -45,9 +49,12 @@ public sealed record ProjectDiscoveryResult(ProjectDiscovery Discovery, ProjectS
 /// <summary>Fulfills the shared pure policy's requests without CLI construction.</summary>
 public static partial class ProjectSystem
 {
-    public static ProjectDiscoveryResult Discover(IProjectTree tree, string startPath, string? selector = null)
+    /// <param name="morphirHome">The global Morphir home; primary-named files directly in it are not project locations.</param>
+    public static ProjectDiscoveryResult Discover(IProjectTree tree, string startPath, string? selector = null, string? morphirHome = null)
     {
-        var request = new DiscoveryRequest(ProjectPath.normalize(startPath), tree.Boundary);
+        morphirHome ??= tree.MorphirHome;
+        var request = new DiscoveryRequest(ProjectPath.normalize(startPath), tree.Boundary,
+            string.IsNullOrEmpty(morphirHome) ? null : FSharpOption<string>.Some(ProjectPath.normalize(morphirHome)));
         var entries = MapModule.Empty<string, ProjectEntry>();
         while (true)
         {

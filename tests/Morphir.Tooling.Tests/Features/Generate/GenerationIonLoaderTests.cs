@@ -2,6 +2,8 @@ using FluentAssertions;
 using Morphir.IR.Model;
 using Morphir.Tooling.Features.Generate;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 public sealed class GenerationIonLoaderTests : IDisposable
@@ -88,5 +90,5 @@ public sealed class GenerationIonLoaderTests : IDisposable
         var failure = ((Outcome<LoadedModel>.Failure)await Load(path, new(MaxNodes: 1))).Error;
         failure.Diagnostics[0].Code.Should().Contain("limit");
     }
-    public void Dispose() => Directory.Delete(_root, true);
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
 }

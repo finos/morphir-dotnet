@@ -6,10 +6,14 @@ using Morphir.CodeGeneration.CSharp;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Tests.Integration.CLI;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
-public sealed class CSharpCliGenerationTests
+public sealed class CSharpCliGenerationTests : IDisposable
 {
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), "morphir-csharp-cli-" + Guid.NewGuid().ToString("N"));
     private string Output => Path.Combine(_root, "output");
 

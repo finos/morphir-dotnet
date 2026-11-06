@@ -17,4 +17,8 @@
     <EmbeddedResource Include="../Fixtures/MorphirIR/*" LogicalName="Morphir.Tests.Fixtures.%(Filename)%(Extension)" />
     <EmbeddedResource Include="../../examples/car-rental/models/*.json" LogicalName="Morphir.Tests.Fixtures.%(Filename)%(Extension)" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+  </ItemGroup>
+
 </Project>

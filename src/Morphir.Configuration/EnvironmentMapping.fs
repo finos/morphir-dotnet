@@ -16,6 +16,9 @@ module EnvironmentMapping =
             "MORPHIR_CONFIG_FILE"
             "MORPHIR_PROJECT"
             "MORPHIR_WORKSPACE"
+            // Containment controls are read by hosts, never mapped into configuration.
+            "MORPHIR_DISCOVERY_BOUNDARY"
+            "MORPHIR_ISOLATED"
         ]
 
     let private number (text: string) =

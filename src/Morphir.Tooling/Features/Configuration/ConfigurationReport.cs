@@ -14,6 +14,8 @@ public sealed record ConfigurationSourceReportDto(ConfigurationSourceDto Source,
 public sealed record ConfigurationContributionDto(ConfigurationSourceDto Source, JsonElement? Value, bool Winner, ConfigurationOriginDto[] Origins);
 public sealed record ConfigurationDiagnosticDto(string Code, string Severity, string Message, string? Path, string? Key, int? Line, int? Column);
 public sealed record ConfigurationValueTypeDto(string Pointer, string Kind, string Encoding);
+/// <summary>The effective discovery boundary and isolation, and where each came from (flag, environment or default).</summary>
+public sealed record ConfigurationContainmentDto(string Boundary, string BoundarySource, bool Isolated, string IsolationSource);
 public sealed record ConfigurationReport(
     string Operation, string Scope, string? Key, bool Found, JsonElement? Value,
     ConfigurationEntryDto[] Entries, ConfigurationSourceReportDto[] Sources,
@@ -21,6 +23,10 @@ public sealed record ConfigurationReport(
 {
     // Readers accept 128 levels; retain room for typed tags and report envelopes.
     internal const int MaxJsonDepth = 256;
+
+    /// <summary>Reported by <c>config path</c>; omitted from other operations.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ConfigurationContainmentDto? Containment { get; init; }
 
     public string ToJson() => JsonSerializer.Serialize(this, ConfigurationJsonContext.Default.ConfigurationReport);
 

@@ -10,6 +10,8 @@ using static Morphir.Testing.GenerationConformance;
 using Sources = Microsoft.FSharp.Collections.FSharpList<System.Tuple<string, string>>;
 using Generated = Microsoft.FSharp.Core.FSharpResult<Microsoft.FSharp.Collections.FSharpList<System.Tuple<string, string>>, Microsoft.FSharp.Collections.FSharpList<string>>;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 public sealed class GenerationWireConformanceTests : IDisposable
@@ -101,5 +103,5 @@ public sealed class GenerationWireConformanceTests : IDisposable
         await RunMatrix(template, ["3.0.0", "3.1.0", "4.0.0"],
             (directory, version, format) => GenerationInputFixtures.Scalar(directory, version, format, scalar), scalar.Refusal?.Value);
     }
-    public void Dispose() => Directory.Delete(_root, true);
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
 }

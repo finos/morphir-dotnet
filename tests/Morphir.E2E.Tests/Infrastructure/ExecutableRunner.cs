@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Text;
+using Morphir.TestSupport;
 
 namespace Morphir.E2E.Tests.Infrastructure;
 
@@ -40,57 +40,18 @@ public class ExecutableRunner
             CreateNoWindow = true
         };
 
-        using var process = new Process { StartInfo = startInfo };
-
-        var stdoutBuilder = new StringBuilder();
-        var stderrBuilder = new StringBuilder();
-
-        process.OutputDataReceived += (sender, e) =>
-        {
-            if (e.Data != null && !IsInfrastructureLogMessage(e.Data))
-                stdoutBuilder.AppendLine(e.Data);
-        };
-
-        process.ErrorDataReceived += (sender, e) =>
-        {
-            if (e.Data != null && !IsInfrastructureLogMessage(e.Data))
-            {
-                stderrBuilder.AppendLine(e.Data);
-            }
-        };
-
-        process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-
-        var actualTimeout = timeout ?? _defaultTimeout;
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(actualTimeout);
-
-        try
-        {
-            await process.WaitForExitAsync(timeoutCts.Token);
-        }
-        catch (OperationCanceledException) when (timeoutCts.Token.IsCancellationRequested && !ct.IsCancellationRequested)
-        {
-            try
-            {
-                process.Kill();
-            }
-            catch
-            {
-                // Ignore errors when killing process
-            }
-            throw new TimeoutException($"Command execution timed out after {actualTimeout.TotalSeconds} seconds");
-        }
-
+        // The shared runner gates concurrency, reads both streams and kills and awaits the process tree on
+        // timeout. ChildProcessTimeoutException is a TimeoutException.
+        var result = await ChildProcess.RunAsync(startInfo, timeout ?? _defaultTimeout, ct);
         return new ExecutableExecutionResult(
-            ExitCode: process.ExitCode,
-            StandardOutput: stdoutBuilder.ToString().Trim(),
-            StandardError: stderrBuilder.ToString().Trim()
+            ExitCode: result.ExitCode,
+            StandardOutput: WithoutInfrastructureLogs(result.StandardOutput),
+            StandardError: WithoutInfrastructureLogs(result.StandardError)
         );
     }
 
+    private static string WithoutInfrastructureLogs(string text) =>
+        string.Join(Environment.NewLine, text.Split('\n').Select(line => line.TrimEnd('\r')).Where(line => !IsInfrastructureLogMessage(line))).Trim();
     /// <summary>
     /// Check if a line is an infrastructure log message that should be filtered
     /// </summary>

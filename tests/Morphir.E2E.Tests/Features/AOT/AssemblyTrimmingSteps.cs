@@ -3,6 +3,8 @@ using System.Runtime.InteropServices;
 using FluentAssertions;
 using Reqnroll;
 
+using Morphir.TestSupport;
+
 namespace Morphir.E2E.Tests.Features.AOT;
 
 /// <summary>
@@ -14,6 +16,15 @@ public class AssemblyTrimmingSteps
     private readonly ScenarioContext _scenarioContext;
     private string? _projectPath;
     private string? _outputPath;
+    private string? _publishRoot;
+    private static readonly ProcessGate PublishGate = new(1);
+    private static readonly TimeSpan PublishTimeout = TimeSpan.FromMinutes(20);
+
+    [AfterScenario("aot")]
+    public void RemovePublishOutput()
+    {
+        if (_publishRoot is not null) TolerantDirectory.TryDelete(_publishRoot);
+    }
     private string? _rid;
     private bool _publishTrimmed;
     private string? _trimMode;
@@ -29,7 +40,7 @@ public class AssemblyTrimmingSteps
     [Given("a morphir-dotnet CLI project")]
     public void GivenAMorphirDotnetCliProject()
     {
-        var repoRoot = FindRepositoryRoot(Directory.GetCurrentDirectory());
+        var repoRoot = FindRepositoryRoot(AppContext.BaseDirectory);
         _projectPath = Path.Combine(repoRoot, "src", "Morphir", "Morphir.csproj");
         File.Exists(_projectPath).Should().BeTrue($"Morphir project should exist at {_projectPath}");
     }
@@ -143,7 +154,7 @@ public class AssemblyTrimmingSteps
     [Given("a TrimmerRootDescriptor.xml file exists")]
     public void GivenATrimmerRootDescriptorXmlFileExists()
     {
-        var repoRoot = FindRepositoryRoot(Directory.GetCurrentDirectory());
+        var repoRoot = FindRepositoryRoot(AppContext.BaseDirectory);
         var descriptorPath = Path.Combine(repoRoot, "src", "Morphir", "ILLink.Descriptors.xml");
         File.Exists(descriptorPath).Should().BeTrue($"TrimmerRootDescriptor should exist at {descriptorPath}");
     }
@@ -430,8 +441,10 @@ public class AssemblyTrimmingSteps
     {
         _projectPath.Should().NotBeNullOrEmpty("Project path should be set");
 
-        var repoRoot = FindRepositoryRoot(Directory.GetCurrentDirectory());
-        var tempDir = Path.Combine(repoRoot, "artifacts", "test-builds", Guid.NewGuid().ToString());
+        var repoRoot = FindRepositoryRoot(AppContext.BaseDirectory);
+        // Publish outside the repository, one at a time: parallel publishes of src/Morphir collide in obj/.
+        var tempDir = Path.Combine(Path.GetTempPath(), "morphir-aot-" + Guid.NewGuid().ToString("N"));
+        _publishRoot = tempDir;
         _outputPath = Path.Combine(tempDir, _rid!);
         Directory.CreateDirectory(_outputPath);
 
@@ -478,33 +491,13 @@ public class AssemblyTrimmingSteps
         // Don't treat warnings as errors for testing
         args.Add("-p:TreatWarningsAsErrors=false");
 
-        var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "dotnet",
-                Arguments = string.Join(" ", args),
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            }
-        };
+        var result = await ChildProcess.RunAsync(ChildProcess.StartInfo("dotnet", args.ToArray()), PublishTimeout, gate: PublishGate);
+        var output = new System.Text.StringBuilder(result.StandardOutput).AppendLine().Append(result.StandardError);
 
-        var output = new System.Text.StringBuilder();
-        process.OutputDataReceived += (s, e) => { if (e.Data != null) output.AppendLine(e.Data); };
-        process.ErrorDataReceived += (s, e) => { if (e.Data != null) output.AppendLine(e.Data); };
-
-        process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-
-        await process.WaitForExitAsync();
-
-        _scenarioContext["BuildExitCode"] = process.ExitCode;
+        _scenarioContext["BuildExitCode"] = result.ExitCode;
         _scenarioContext["BuildOutput"] = output.ToString();
 
-        process.ExitCode.Should().Be(0, $"dotnet publish should succeed. Output:\n{output}");
+        result.ExitCode.Should().Be(0, $"dotnet publish should succeed. Output:\n{output}");
 
         // Find the executable
         var exeName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "morphir.exe" : "morphir";

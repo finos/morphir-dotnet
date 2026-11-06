@@ -40,6 +40,10 @@ All development in morphir-dotnet follows TDD:
 | Property Tests | FsCheck | Property-based verification |
 | Integration Tests | TUnit | Cross-component integration |
 
+### Test Isolation
+
+Tests run in parallel and must not touch the developer's machine. Run child processes through `TestSandbox` and `ChildProcess`, clean up with `TolerantDirectory`, and add the machine tripwire to process-heavy test projects. See [Test Isolation](test-isolation).
+
 ### Coverage Requirements
 
 - **Minimum Coverage**: 80% for all new code

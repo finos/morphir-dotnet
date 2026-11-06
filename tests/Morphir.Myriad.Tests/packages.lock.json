@@ -184,6 +184,9 @@
           "Myriad.Core": "[0.85.0, )"
         }
       },
+      "morphir.testsupport": {
+        "type": "Project"
+      },
       "Fabulous.AST": {
         "type": "CentralTransitive",
         "requested": "[1.10.0, )",

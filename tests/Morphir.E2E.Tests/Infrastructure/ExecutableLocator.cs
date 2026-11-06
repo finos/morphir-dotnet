@@ -12,7 +12,7 @@ public class ExecutableLocator
 
     public ExecutableLocator()
     {
-        _repositoryRoot = FindRepositoryRoot(Directory.GetCurrentDirectory());
+        _repositoryRoot = FindRepositoryRoot(AppContext.BaseDirectory);
         _currentRid = GetCurrentRid();
     }
 

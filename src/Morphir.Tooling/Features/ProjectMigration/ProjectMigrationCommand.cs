@@ -31,7 +31,7 @@ public sealed class ProjectMigrationCommand : Command, IMorphirParseErrorHandler
     private readonly bool _initializationFailed;
     private readonly Argument<string?> _path = new("path") { Arity = ArgumentArity.ZeroOrOne, Description = "One project directory or classic morphir.json" };
     private readonly Option<string?> _output = new("--output") { Description = "Same-project TOML primary output" };
-    private readonly Option<string?> _boundary = new("--discovery-boundary") { Description = "Bound discovery to this directory" };
+    private readonly Option<string?> _boundary = new("--discovery-boundary") { Description = "Bound discovery to this directory (default: MORPHIR_DISCOVERY_BOUNDARY, else the filesystem root)" };
     private readonly Option<bool> _dryRun = new("--dry-run") { Description = "Preview without writing" };
     private readonly Option<bool> _json = new("--json") { Description = "Emit one redacted structured JSON result" };
 
@@ -55,7 +55,13 @@ public sealed class ProjectMigrationCommand : Command, IMorphirParseErrorHandler
             return Render(ProjectMigrationReport.Failure("project.migrate_usage", "Path, output and discovery boundary must be nonempty.", dryRun), json);
         if (_initializationFailed)
             return Render(ProjectMigrationReport.Failure("project.migrate_initialization", "Host configuration initialization failed. Check appsettings and access permissions.", dryRun), json);
-        try { return Render(_host.Execute(new(parsed.GetValue(_path), parsed.GetValue(_output), parsed.GetValue(_boundary), dryRun)), json); }
+        // Migration never reads machine or personal sources, so only the boundary applies; MORPHIR_ISOLATED is not consulted.
+        var containment = Containment.Resolve(parsed.GetValue(_boundary), flagIsolated: true, Containment.CurrentEnvironment(),
+            System.Environment.CurrentDirectory).Value!;
+        var outside = containment.RequireInside(System.Environment.CurrentDirectory)
+            ?? (parsed.GetValue(_path) is { } path ? containment.RequireInside(Path.GetFullPath(path)) : null);
+        if (outside is not null) return Render(ProjectMigrationReport.Failure(outside.Code, outside.Message, dryRun), json);
+        try { return Render(_host.Execute(new(parsed.GetValue(_path), parsed.GetValue(_output), containment.NativeBoundary, dryRun)), json); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         { return Render(ProjectMigrationReport.Failure("project.migrate_io", "Migration could not read or write the selected project. Check paths and permissions.", dryRun), json); }
     }

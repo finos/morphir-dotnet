@@ -269,6 +269,7 @@ public sealed class ProjectMigrationService(IProjectTree tree, IConfigurationTra
         Dictionary<string, ConfigurationObservation> evidence) : IProjectTree
     {
         public string Boundary => inner.Boundary;
+        public string? MorphirHome => inner.MorphirHome;
         public ProjectEntry Observe(string path)
         {
             if (!ProjectPath.contains(Boundary, path)) return ProjectEntry.NewFailure("Outside authorized project tree");

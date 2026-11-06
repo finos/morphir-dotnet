@@ -7,6 +7,8 @@ using Json.Schema;
 using FluentAssertions;
 using Morphir.Configuration;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Configuration;
 
 [Binding]
@@ -81,6 +83,104 @@ public sealed class ConfigurationSteps : IDisposable
         "a/b~c" = nan
         """);
 
+    // Containment scenarios. Paths use <workspace>, <member> and <outside> placeholders.
+    private string Outside => _root + "-outside";
+
+    private string Placeholder(string value) => value
+        .Replace("<workspace>", _root, StringComparison.Ordinal)
+        .Replace("<member>", Path.Combine(_root, "app"), StringComparison.Ordinal)
+        .Replace("<outside>", Outside, StringComparison.Ordinal);
+
+    [Given("environment variable {word} is {string}")]
+    public void EnvironmentVariable(string name, string value)
+    {
+        if (value.Contains("<outside>", StringComparison.Ordinal)) Directory.CreateDirectory(Outside);
+        _variables[name] = Placeholder(value);
+    }
+
+    [When("I inspect without a boundary flag with {string}")]
+    public Task InspectWithoutBoundary(string command) => Run(["config", .. command.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--json"]);
+
+    private static readonly string[] MachineAndPersonalRoles = ["System", "Global", "UserOverride"];
+
+    private IEnumerable<JsonElement> Sources() => _json!.RootElement.GetProperty("sources").EnumerateArray().Select(s => s.GetProperty("source"));
+
+    [Then("inspection consults no project source outside {string}")]
+    public void NoProjectSourceOutside(string boundary)
+    {
+        var root = ProjectPath.normalize(Placeholder(boundary));
+        Sources()
+            .Where(s => s.GetProperty("format").GetString() != "memory" && !MachineAndPersonalRoles.Contains(s.GetProperty("role").GetString()))
+            .Select(s => s.GetProperty("path").GetString()!)
+            .Should().OnlyContain(path => ProjectPath.contains(root, path), $"discovery must stay inside {root}");
+    }
+
+    [Then("inspection consults the workspace primary")]
+    public void ConsultsWorkspacePrimary() =>
+        Sources().Select(s => s.GetProperty("path").GetString()).Should().Contain(ProjectPath.join(_root, "morphir.toml"));
+
+    [Then("inspection consults no sources")]
+    public void NoSources() => _json!.RootElement.GetProperty("sources").GetArrayLength().Should().Be(0);
+
+    [Then("machine and personal sources are not consulted")]
+    public void MachineNotConsulted() =>
+        Sources().Select(s => s.GetProperty("role").GetString()).Should().NotContain(MachineAndPersonalRoles);
+
+    [Then("machine and personal sources are consulted")]
+    public void MachineConsulted() =>
+        Sources().Select(s => s.GetProperty("role").GetString()).Should().Contain(MachineAndPersonalRoles);
+
+    [Then("the reported boundary is {string} from {string}")]
+    public void ReportedBoundary(string boundary, string source)
+    {
+        var containment = _json!.RootElement.GetProperty("containment");
+        containment.GetProperty("boundary").GetString().Should().Be(ProjectPath.normalize(Placeholder(boundary)));
+        containment.GetProperty("boundarySource").GetString().Should().Be(source);
+    }
+
+    [Then("the reported isolation is {word} from {string}")]
+    public void ReportedIsolation(string isolated, string source)
+    {
+        var containment = _json!.RootElement.GetProperty("containment");
+        containment.GetProperty("isolated").GetBoolean().Should().Be(bool.Parse(isolated));
+        containment.GetProperty("isolationSource").GetString().Should().Be(source);
+    }
+
+    [Then("the inspection diagnostic names {string}")]
+    public void DiagnosticNames(string text) => _json!.RootElement.GetProperty("diagnostics").EnumerateArray()
+        .Select(d => d.GetProperty("message").GetString()).Should().Contain(message => message!.Contains(text, StringComparison.Ordinal));
+
+    // Morphir home scenarios: HOME is the root, the global file is <root>/.morphir/morphir.toml.
+    private string? _workingDirectory;
+    private string GlobalHome => Path.Combine(_root, ".morphir");
+    private string BareProject => Path.Combine(_root, "work", "proj");
+
+    [Given("a home directory with a global Morphir file and a bare project below it")]
+    public void HomeWithGlobalFile()
+    {
+        Directory.CreateDirectory(GlobalHome);
+        File.WriteAllText(Path.Combine(GlobalHome, "morphir.toml"), "[custom]\nglobal='home'\n");
+        Directory.CreateDirectory(BareProject);
+        _workingDirectory = BareProject;
+    }
+
+    [Given("MORPHIR_HOME is the native path of the global Morphir home")]
+    public void NativeMorphirHome() => _variables["MORPHIR_HOME"] = GlobalHome;
+
+    [When("I inspect the bare project with {string}")]
+    public Task InspectBareProject(string command) =>
+        Run(["config", .. command.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--json", "--discovery-boundary", _root]);
+
+    [Then("the global Morphir file is consulted only as a global source")]
+    public void GlobalFileOnlyGlobal()
+    {
+        var path = ProjectPath.normalize(Path.Combine(GlobalHome, "morphir.toml"));
+        var roles = _json!.RootElement.GetProperty("sources").EnumerateArray()
+            .Where(s => s.GetProperty("source").GetProperty("path").GetString() == path && s.GetProperty("status").GetString() == "loaded")
+            .Select(s => s.GetProperty("source").GetProperty("role").GetString()).ToArray();
+        roles.Should().Equal(["Global"], "the global file loads once, as a global source, and never as a project primary");
+    }
+
     [When("I inspect with {string}")]
     public Task Inspect(string command) => Run(["config", .. command.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--json", "--discovery-boundary", _root]);
 
@@ -108,7 +208,7 @@ public sealed class ConfigurationSteps : IDisposable
         var cli = Environment.GetEnvironmentVariable("MORPHIR_CONFIGURATION_CLI") ?? Path.Combine(repo!.FullName, "src", "Morphir", "bin", configuration, "net10.0", "morphir.dll");
         var info = new ProcessStartInfo(cli.EndsWith(".dll", StringComparison.Ordinal) ? "dotnet" : cli)
         {
-            WorkingDirectory = Path.Combine(_root, "app", "src"),
+            WorkingDirectory = _workingDirectory ?? Path.Combine(_root, "app", "src"),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false
@@ -122,15 +222,10 @@ public sealed class ConfigurationSteps : IDisposable
         info.Environment["PROGRAMDATA"] = _root;
         info.Environment["XDG_CONFIG_HOME"] = _root;
         foreach (var variable in _variables) info.Environment[variable.Key] = variable.Value;
-        using var process = Process.Start(info)!;
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try { await process.WaitForExitAsync(timeout.Token); }
-        catch (OperationCanceledException) { process.Kill(true); throw; }
-        _exit = process.ExitCode;
-        _stdout = await stdout;
-        _stderr = await stderr;
+        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(60));
+        _exit = result.ExitCode;
+        _stdout = result.StandardOutput;
+        _stderr = result.StandardError;
     }
 
     [Then("inspection exits with {int} and one JSON result")]
@@ -258,6 +353,7 @@ public sealed class ConfigurationSteps : IDisposable
     public void Dispose()
     {
         _json?.Dispose();
-        if (Directory.Exists(_root)) Directory.Delete(_root, true);
+        TolerantDirectory.TryDelete(_root);
+        TolerantDirectory.TryDelete(Outside);
     }
 }

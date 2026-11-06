@@ -1,6 +1,6 @@
 using FluentAssertions;
 using Morphir.Tooling.Features.Management;
-using Morphir.Tooling.Configuration;
+using Morphir.TestSupport;
 
 namespace Morphir.Tooling.Tests.Features.Management;
 
@@ -14,16 +14,13 @@ public class ArtifactPathResolverTests : IDisposable
         // Create a temp workspace for testing
         _tempWorkspace = Path.Combine(Path.GetTempPath(), $"morphir-test-{Guid.NewGuid()}");
         Directory.CreateDirectory(_tempWorkspace);
-        _resolver = new ArtifactPathResolver(_tempWorkspace);
+        // An isolated global root: tests must never write the real %APPDATA%\Morphir or ~/.config/morphir.
+        _resolver = new ArtifactPathResolver(Path.Combine(_tempWorkspace, "global-root"), _tempWorkspace);
     }
 
     public void Dispose()
     {
-        // Cleanup temp workspace
-        if (Directory.Exists(_tempWorkspace))
-        {
-            Directory.Delete(_tempWorkspace, recursive: true);
-        }
+        TolerantDirectory.TryDelete(_tempWorkspace);
     }
 
     [Test]

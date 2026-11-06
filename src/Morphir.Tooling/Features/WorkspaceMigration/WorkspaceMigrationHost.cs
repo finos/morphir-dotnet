@@ -19,7 +19,8 @@ public sealed class NativeWorkspaceMigrationHost : IWorkspaceMigrationHost
     public WorkspaceMigrationReport Execute(WorkspaceMigrationInvocation invocation)
     {
         var root = ProjectPath.normalize(Path.GetFullPath(invocation.Directory ?? Environment.CurrentDirectory));
-        var service = new WorkspaceMigrationService(new FileSystemProjectTree(root), new NativeConfigurationTransactionHost());
+        var home = ProjectSystem.MorphirHomeDirectory(ProjectSystem.CaptureMachineLocations(), root);
+        var service = new WorkspaceMigrationService(new FileSystemProjectTree(root, home), new NativeConfigurationTransactionHost());
         var preview = service.Plan(root, invocation.Includes, invocation.Excludes);
         if (preview.PendingRecovery.Length > 0)
             return WorkspaceMigrationReport.From(preview, "recovery-required", invocation.DryRun, 2,

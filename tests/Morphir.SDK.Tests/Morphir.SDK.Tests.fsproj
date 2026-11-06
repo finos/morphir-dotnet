@@ -24,6 +24,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.SDK.FSharp\Morphir.SDK.FSharp.fsproj" />
+    <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
     </ItemGroup>
 
     <ItemGroup>

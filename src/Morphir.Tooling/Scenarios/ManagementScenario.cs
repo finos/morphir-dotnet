@@ -1,7 +1,4 @@
 using System.CommandLine;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Morphir.Tooling.Configuration;
 
 namespace Morphir.Tooling.Scenarios;
 
@@ -13,12 +10,6 @@ public class ManagementScenario : IMorphirCliScenario
 {
     public void Configure(MorphirCliBuilder builder)
     {
-        // Register services
-        builder.ConfigureServices(services =>
-        {
-            services.AddSingleton<WorkspaceDiscovery>();
-        });
-
         builder.AddCommand(rootCommand =>
         {
             // Create top-level dist, tool, and extension commands

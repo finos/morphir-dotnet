@@ -4,6 +4,8 @@ using Microsoft.FSharp.Collections;
 using Morphir.IR.Pipeline;
 using Morphir.Tooling.Features.Generate;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 public sealed class GenerationPublisherTests : IDisposable
@@ -115,5 +117,5 @@ public sealed class GenerationPublisherTests : IDisposable
         ((Outcome<GenerationPublication>.Failure)await Publish(Artifacts(("A.fs", "module A")), cancellation.Token)).Error.Kind.Should().Be(GenerationFailureKind.Cancelled);
         Directory.Exists(Output).Should().BeFalse();
     }
-    public void Dispose() => Directory.Delete(_root, true);
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
 }

@@ -16,7 +16,7 @@ The same operation is available to embedded hosts without invoking this command.
 ```text
 morphir workspace migrate [<directory>]
     [--include <pattern>]... [--exclude <pattern>]...
-    [--dry-run] [--json]
+    [--dry-run] [--json] [--discovery-boundary <directory>]
 ```
 
 `<directory>` defaults to the current directory. It must name an existing directory.
@@ -24,6 +24,10 @@ That directory bounds inventory, discovery, and all proposed destinations, inclu
 when it contains no workspace declaration. Migration does not search ancestors for
 projects to adopt. Select the intended repository root explicitly when invoking
 from a member or source directory.
+
+Workspace migration never reads machine or personal configuration, so
+`MORPHIR_ISOLATED` and `--isolated` do not apply to it. See
+[containment from the environment]({{< relref "config.md#containment-from-the-environment" >}}).
 
 ## Arguments and options
 
@@ -34,6 +38,7 @@ from a member or source directory.
 | `--exclude <pattern>` | Exclude candidate project directories; repeatable |
 | `--dry-run` | Return the complete verified plan and write nothing |
 | `--json` | Write one redacted JSON result to stdout; diagnostics remain on stderr |
+| `--discovery-boundary <directory>` | Outer limit the directory must lie within. Default: `MORPHIR_DISCOVERY_BOUNDARY`, else the filesystem root. A directory outside it fails with exit code 2 and a `discovery.boundary` diagnostic, and nothing is written |
 | `--help` | Show usage without discovery or migration |
 
 Patterns are relative to the selected root. `*` and `?` match within a path
