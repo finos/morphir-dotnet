@@ -78,7 +78,7 @@ Depends on group 1, and on group 5 for the Tooling configuration tests. Follow T
 ## 7. Integration verification
 
 - [ ] 7.1 Run `./build.ps1 --target TestAll` locally on Windows with `~/.morphir` present, and in CI on all three platforms. Verify that it is green, that the tripwire passes in every process-heavy assembly, and that `WorkspaceDiscoveryTests`/`ConfigResolverTests` no longer exist.
-- [ ] 7.2 Reproduce both #494 bugs in the original sandbox commands and confirm that they are fixed: no `RootPrimary` for the global home, and backslash `MORPHIR_HOME` exits 0. Run `openspec validate add-discovery-containment --strict` and verify that it passes.
+- [x] 7.2 Reproduce both #494 bugs in the original sandbox commands and confirm that they are fixed: no `RootPrimary` for the global home, and backslash `MORPHIR_HOME` exits 0. Run `openspec validate add-discovery-containment --strict` and verify that it passes.
 
 ## Workflow follow-up
 
