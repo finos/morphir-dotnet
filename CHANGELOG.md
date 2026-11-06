@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.0-rc.1] - 2026-11-06
+## [0.4.0-alpha.1] - 2026-11-06
 
 ### Fixed
 - Every Morphir assembly now takes its version from CHANGELOG.md, so assemblies no longer reference each other as `1.0.0.0`. An explicit `-p:Version` or `-p:PackageVersion` still wins, for local and test packages. Previously the packed `dotnet-morphir` tool failed `generate` with `Could not load file or assembly 'Morphir.Models, Version=1.0.0.0'`
@@ -71,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub issue #270** for F# script to automatically remove Claude co-author from commit history
 
 ### Changed
+- The `dist`, `tool` and `extension` sub-commands now fail with "not implemented yet", exit code 1 and a link to their tracking issue ([#490](https://github.com/finos/morphir-dotnet/issues/490), [#491](https://github.com/finos/morphir-dotnet/issues/491), [#492](https://github.com/finos/morphir-dotnet/issues/492)). Previously they printed a message and exited 0 without doing anything
 - **BREAKING**: The classic `Distribution` has a `Specs` case for IR 3.1.0, and `Distribution.packageDefinition` returns an option because a `Specs` distribution has no definitions
 - The classic JSON decoder moved from `Morphir.CodeGeneration.FSharp` to `Morphir.Models`. F# generation keeps its acceptance rules and diagnostics
 - Ignore Reqnroll-generated `*.feature.cs` files per Reqnroll best practices
@@ -221,8 +222,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-rc.1...HEAD
-[0.4.0-rc.1]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.2...v0.4.0-rc.1
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.1...HEAD
+[0.4.0-alpha.1]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.2...v0.4.0-alpha.1
 [0.3.0-rc.2]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.1...v0.3.0-rc.2
 [0.3.0-rc.1]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-010...v0.3.0-rc.1
 [0.2.0-alpha-010]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-009...v0.2.0-alpha-010
