@@ -20,7 +20,8 @@ public sealed class NativeProjectMigrationHost : IProjectMigrationHost
     {
         var start = ProjectPath.normalize(Environment.CurrentDirectory);
         var boundary = ProjectPath.normalize(System.IO.Path.GetFullPath(invocation.Boundary ?? System.IO.Path.GetPathRoot(start)!));
-        var service = new ProjectMigrationService(new FileSystemProjectTree(boundary), new NativeConfigurationTransactionHost());
+        var home = ProjectSystem.MorphirHomeDirectory(ProjectSystem.CaptureMachineLocations(), start);
+        var service = new ProjectMigrationService(new FileSystemProjectTree(boundary, home), new NativeConfigurationTransactionHost());
         var preview = service.Plan(start, invocation.Path, invocation.Output);
         if (!preview.CanApply) return ProjectMigrationReport.From(preview, "blocked", invocation.DryRun, 2);
         if (invocation.DryRun) return ProjectMigrationReport.From(preview, "preview", true);

@@ -23,7 +23,9 @@ public sealed class NativeConfigurationInspectionHost : IConfigurationInspection
     {
         var start = ProjectPath.normalize(System.Environment.CurrentDirectory);
         var boundary = ProjectPath.normalize(Path.GetFullPath(invocation.Boundary ?? Path.GetPathRoot(start)!));
-        var tree = new FileSystemProjectTree(boundary);
+        // The Morphir home is excluded from discovery even when isolated.
+        var tree = new FileSystemProjectTree(boundary,
+            ProjectSystem.MorphirHomeDirectory(ProjectSystem.CaptureMachineLocations(invocation.Environment), start));
         var discovered = ProjectSystem.Discover(tree, start, invocation.Project);
         var project = invocation.Scope.IsWorkspace ? null : discovered.Selection.Projects.Count() == 1 ? discovered.Selection.Projects.Head : null;
         var environment = MapModule.OfSeq(invocation.Environment.Select(p => Tuple.Create(p.Key, p.Value)));

@@ -148,6 +148,37 @@ public sealed class ConfigurationSteps : IDisposable
     public void DiagnosticNames(string text) => _json!.RootElement.GetProperty("diagnostics").EnumerateArray()
         .Select(d => d.GetProperty("message").GetString()).Should().Contain(message => message!.Contains(text, StringComparison.Ordinal));
 
+    // Morphir home scenarios: HOME is the root, the global file is <root>/.morphir/morphir.toml.
+    private string? _workingDirectory;
+    private string GlobalHome => Path.Combine(_root, ".morphir");
+    private string BareProject => Path.Combine(_root, "work", "proj");
+
+    [Given("a home directory with a global Morphir file and a bare project below it")]
+    public void HomeWithGlobalFile()
+    {
+        Directory.CreateDirectory(GlobalHome);
+        File.WriteAllText(Path.Combine(GlobalHome, "morphir.toml"), "[custom]\nglobal='home'\n");
+        Directory.CreateDirectory(BareProject);
+        _workingDirectory = BareProject;
+    }
+
+    [Given("MORPHIR_HOME is the native path of the global Morphir home")]
+    public void NativeMorphirHome() => _variables["MORPHIR_HOME"] = GlobalHome;
+
+    [When("I inspect the bare project with {string}")]
+    public Task InspectBareProject(string command) =>
+        Run(["config", .. command.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--json", "--discovery-boundary", _root]);
+
+    [Then("the global Morphir file is consulted only as a global source")]
+    public void GlobalFileOnlyGlobal()
+    {
+        var path = ProjectPath.normalize(Path.Combine(GlobalHome, "morphir.toml"));
+        var roles = _json!.RootElement.GetProperty("sources").EnumerateArray()
+            .Where(s => s.GetProperty("source").GetProperty("path").GetString() == path && s.GetProperty("status").GetString() == "loaded")
+            .Select(s => s.GetProperty("source").GetProperty("role").GetString()).ToArray();
+        roles.Should().Equal(["Global"], "the global file loads once, as a global source, and never as a project primary");
+    }
+
     [When("I inspect with {string}")]
     public Task Inspect(string command) => Run(["config", .. command.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--json", "--discovery-boundary", _root]);
 
@@ -175,7 +206,7 @@ public sealed class ConfigurationSteps : IDisposable
         var cli = Environment.GetEnvironmentVariable("MORPHIR_CONFIGURATION_CLI") ?? Path.Combine(repo!.FullName, "src", "Morphir", "bin", configuration, "net10.0", "morphir.dll");
         var info = new ProcessStartInfo(cli.EndsWith(".dll", StringComparison.Ordinal) ? "dotnet" : cli)
         {
-            WorkingDirectory = Path.Combine(_root, "app", "src"),
+            WorkingDirectory = _workingDirectory ?? Path.Combine(_root, "app", "src"),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false

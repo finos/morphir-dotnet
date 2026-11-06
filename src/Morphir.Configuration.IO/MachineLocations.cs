@@ -27,9 +27,28 @@ public static partial class ProjectSystem
     internal static MachineLocationInput ResolveMachineLocations(MachineLocationInput machine, string startDirectory)
     {
         var environment = machine.Environment;
-        if (environment.TryGetValue("MORPHIR_HOME", out var home) && !string.IsNullOrEmpty(home) && !ProjectPath.isAbsolute(home))
-            environment = environment.Add("MORPHIR_HOME", ProjectPath.join(startDirectory, home));
+        // Normalize before testing: a native Windows path such as C:\Users\me\.morphir or \\server\share is absolute.
+        if (environment.TryGetValue("MORPHIR_HOME", out var home) && !string.IsNullOrEmpty(home))
+        {
+            var normalized = ProjectPath.normalize(home);
+            environment = environment.Add("MORPHIR_HOME", ProjectPath.isAbsolute(normalized) || normalized.StartsWith("//", StringComparison.Ordinal)
+                ? normalized
+                : ProjectPath.join(startDirectory, normalized));
+        }
         return new(machine.Platform, machine.HomeDirectory, machine.RoamingAppData, machine.ProgramData, environment);
+    }
+
+    /// <summary>
+    /// The global Morphir home: nonempty MORPHIR_HOME (relative values resolve against the start directory),
+    /// otherwise the home directory's .morphir. Hosts pass it to discovery even when isolated, so the global
+    /// file is never mistaken for a project primary.
+    /// </summary>
+    public static string MorphirHomeDirectory(MachineLocationInput machine, string startDirectory)
+    {
+        var resolved = ResolveMachineLocations(machine, startDirectory);
+        return resolved.Environment.TryGetValue("MORPHIR_HOME", out var home) && !string.IsNullOrEmpty(home)
+            ? home
+            : ProjectPath.join(machine.HomeDirectory, ".morphir");
     }
 
     /// <summary>Capture native directory conventions at the edge. Passing an environment replaces ambient values.</summary>

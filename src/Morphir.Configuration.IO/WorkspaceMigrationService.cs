@@ -425,6 +425,7 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
     private sealed class ObservedTree(IProjectTree inner, string root, IConfigurationTransactionHost? storage) : IProjectTree
     {
         public string Boundary => root;
+        public string? MorphirHome => inner.MorphirHome;
         public IConfigurationTransactionHost? Storage => storage;
         public Dictionary<string, ConfigurationObservation> Evidence { get; } = new(StringComparer.Ordinal);
         private readonly Dictionary<string, ProjectEntry> entries = new(StringComparer.Ordinal);
@@ -460,6 +461,7 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
     private sealed class MembershipTree(IProjectTree inner, string root, HashSet<string> inventoried, string? outputDirectory) : IProjectTree
     {
         public string Boundary => root;
+        public string? MorphirHome => inner.MorphirHome;
         private readonly HashSet<string> checkedDirectories = new(inventoried, StringComparer.Ordinal);
         public ProjectEntry Observe(string path)
         {
@@ -498,6 +500,7 @@ public sealed class WorkspaceMigrationService(IProjectTree tree, IConfigurationT
     private sealed class CandidateTree(IProjectTree inner, string root) : IProjectTree
     {
         public string Boundary => root;
+        public string? MorphirHome => inner.MorphirHome;
         public Dictionary<string, string> Texts { get; } = new(StringComparer.Ordinal);
         private readonly HashSet<string> hidden = new(StringComparer.Ordinal);
         public void Set(string path, string text) => Texts[path] = text;

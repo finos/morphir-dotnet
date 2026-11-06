@@ -232,7 +232,9 @@ let tests =
                 (ConfigTree.tryFind [ "discovery_boundary" ] result.Effective)
                 "boundary control is not a key"
 
-            Expect.isNone (ConfigTree.tryFind [ "isolated" ] result.Effective) "isolation control is not a key"
+            Expect.isNone
+                (ConfigTree.tryFind [ "isolated" ] result.Effective)
+                "isolation control is not a key"
         }
         test "environment nesting preserves underscores and shorter paths win deterministically" {
             let environment =

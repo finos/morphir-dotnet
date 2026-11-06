@@ -13,8 +13,8 @@ Discovery SHALL NOT treat the global Morphir home (nonempty MORPHIR_HOME, otherw
 
 #### Scenario: Relocated Morphir home
 
-- **WHEN** MORPHIR_HOME is `/opt/morphir-home`, `/opt/morphir-home/morphir.toml` exists, and discovery starts in `/opt/work/app`
-- **THEN** `/opt/morphir-home/morphir.toml` is consulted only as a global source
+- **WHEN** MORPHIR_HOME is `/opt/morphir-home`, `/opt/morphir-home/morphir.toml` exists, and discovery starts in `/opt/morphir-home/extensions/tool`, which has no primary
+- **THEN** `/opt/morphir-home` is not reported as a project or workspace and `/opt/morphir-home/morphir.toml` is consulted only as a global source
 
 #### Scenario: Real project .morphir layout still works
 

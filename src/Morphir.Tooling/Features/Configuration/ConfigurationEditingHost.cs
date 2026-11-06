@@ -40,7 +40,9 @@ public sealed class NativeConfigurationEditingHost : IConfigurationEditingHost
             _ when invocation.Scope.IsSystem => [EditScope.System],
             _ => []
         };
-        var service = new ConfigurationEditService(new FileSystemProjectTree(boundary), new NativeConfigurationTransactionHost());
+        // The Morphir home is excluded from discovery even when isolated.
+        var service = new ConfigurationEditService(new FileSystemProjectTree(boundary, ProjectSystem.MorphirHomeDirectory(machine, start)),
+            new NativeConfigurationTransactionHost());
         var preview = service.Plan(start, request, selectors, invocation.Project, options);
         var operation = request.Operation.IsUnset ? "unset" : "set";
         if (preview.Failure is { } failure) return ConfigurationEditReport.Failure(operation, failure.Code, failure.ExitCode, failure.Diagnostics);

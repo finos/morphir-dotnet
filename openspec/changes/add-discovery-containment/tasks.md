@@ -46,10 +46,10 @@ Depends on group 2.
 
 Depends on group 1, and can run in parallel with groups 2 and 3. Follow DISC-1 and DISC-2.
 
-- [ ] 4.1 Write failing `Morphir.Configuration.IO.Tests` cases for "Windows native Morphir home" and "Relative Morphir home". Normalize `MORPHIR_HOME` before the absolute-path test in `MachineLocations`. Verify that both pass and that the existing XDG and split-global scenarios still pass.
-- [ ] 4.2 Write failing in-memory discovery tests for "Project below the home directory", "Relocated Morphir home" and "Real project .morphir layout still works". Extend the discovery request with the optional Morphir home and skip primaries located directly in it. Verify that all three pass and that callers passing no home behave as before.
-- [ ] 4.3 Pass the Morphir home, computed from the environment snapshot even when isolated, from every native host. Verify with a sandbox CLI scenario that reproduces #494 problem 1: `config path --json` from `<sandbox>/home/work/proj` lists `home/.morphir/morphir.toml` only as `Global` and never as `RootPrimary`. Verify with another that a backslash `MORPHIR_HOME` exits 0 on Windows.
-- [ ] 4.4 Add CHANGELOG `Fixed` entries for both discovery bugs. Document how the Morphir home relates to project discovery in the configuration docs. Verify that the docs example matches the 4.3 scenario's output.
+- [x] 4.1 Write failing `Morphir.Configuration.IO.Tests` cases for "Windows native Morphir home" and "Relative Morphir home". Normalize `MORPHIR_HOME` before the absolute-path test in `MachineLocations`. Verify that both pass and that the existing XDG and split-global scenarios still pass.
+- [x] 4.2 Write failing in-memory discovery tests for "Project below the home directory", "Relocated Morphir home" and "Real project .morphir layout still works". Extend the discovery request with the optional Morphir home and skip primaries located directly in it. Verify that all three pass and that callers passing no home behave as before.
+- [x] 4.3 Pass the Morphir home, computed from the environment snapshot even when isolated, from every native host. Verify with a sandbox CLI scenario that reproduces #494 problem 1: `config path --json` from `<sandbox>/home/work/proj` lists `home/.morphir/morphir.toml` only as `Global` and never as `RootPrimary`. Verify with another that a backslash `MORPHIR_HOME` exits 0 on Windows.
+- [x] 4.4 Add CHANGELOG `Fixed` entries for both discovery bugs. Document how the Morphir home relates to project discovery in the configuration docs. Verify that the docs example matches the 4.3 scenario's output.
 
 ## 5. Remove the legacy discovery and resolver
 

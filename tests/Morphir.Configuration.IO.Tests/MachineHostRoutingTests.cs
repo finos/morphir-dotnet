@@ -64,6 +64,55 @@ public sealed class MachineHostRoutingTests
         ProjectSystem.MachineBoundaries(locations, "D:/repo").Should().BeEquivalentTo("C:/", "D:/");
     }
 
+    // Spec: morphir-project-system, "Windows native Morphir home".
+    [Test]
+    [Arguments(@"E:\morphir-home", "E:/", "E:/morphir-home")]
+    [Arguments(@"\\server\share\morphir-home", "//server/share", "//server/share/morphir-home")]
+    [Arguments("E:/morphir-home", "E:/", "E:/morphir-home")]
+    public void NativeAbsoluteMorphirHomeIsUsedAsGiven(string morphirHome, string expectedRoot, string expectedHome)
+    {
+        var project = new InMemoryProjectTree("D:/repo", new Dictionary<string, string>
+        {
+            ["D:/repo/morphir.toml"] = "[project]\nname='App'"
+        });
+        var locations = new MachineLocationInput(MachinePlatform.Windows, "C:/Users/user", null, null,
+            MapModule.OfSeq(new[] { Tuple.Create("MORPHIR_HOME", morphirHome) }));
+        var files = new Dictionary<string, string> { [expectedHome + "/morphir.toml"] = "[custom]\nhome=true" };
+
+        var roots = ProjectSystem.MachineBoundaries(locations, "D:/repo");
+        roots.Should().Contain(expectedRoot).And.NotContain("D:/", "an absolute home is never joined onto the start directory");
+
+        var hosts = roots.Select(root => new InMemoryProjectTree(root,
+            files.Where(p => ProjectPath.contains(root, p.Key)).ToDictionary())).ToArray();
+        var result = ProjectSystem.Load(project, ProjectSystem.Discover(project, "D:/repo").Discovery,
+            options: new ProjectLoadOptions { Machine = locations, MachineTrees = hosts });
+
+        result.Diagnostics.ToArray().Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        ProjectLoadingTests.Value(result, "custom", "home").Should().Be(ConfigValue.NewBoolean(true));
+    }
+
+    // Spec: morphir-project-system, "Relative Morphir home".
+    [Test]
+    public void RelativeMorphirHomeResolvesAgainstTheStartDirectory()
+    {
+        var project = new InMemoryProjectTree("/repo", new Dictionary<string, string>
+        {
+            ["/repo/app/morphir.toml"] = "[project]\nname='App'"
+        });
+        var locations = new MachineLocationInput(MachinePlatform.Linux, "/home/user", null, null,
+            MapModule.OfSeq(new[] { Tuple.Create("MORPHIR_HOME", ".morphir-home") }));
+        var machine = new InMemoryProjectTree("/", new Dictionary<string, string>
+        {
+            ["/repo/app/.morphir-home/morphir.toml"] = "[custom]\nhome=true"
+        });
+
+        var result = ProjectSystem.Load(project, ProjectSystem.Discover(project, "/repo/app").Discovery,
+            options: new ProjectLoadOptions { Machine = locations, MachineTrees = [machine] });
+
+        result.Diagnostics.ToArray().Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        ProjectLoadingTests.Value(result, "custom", "home").Should().Be(ConfigValue.NewBoolean(true));
+    }
+
     [Test]
     [Arguments(false)]
     [Arguments(true)]
