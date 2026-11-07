@@ -98,6 +98,12 @@ partial class Build
         {
             throw new Exception("Myriad package-consumer checks failed");
         }
+
+        var jsonScript = TestsDirectory / "Morphir.Myriad.SystemTextJson.Tests" / "package-tests.fsx";
+        if (RunCommand("dotnet", "fsi", jsonScript) != 0)
+        {
+            throw new Exception("Morphir.Myriad.SystemTextJson package-consumer checks failed");
+        }
     }
 
     /// <summary>
