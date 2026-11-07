@@ -383,6 +383,13 @@
           "Vogen": "[8.0.7, )"
         }
       },
+      "morphir.extensions": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.ion": {
         "type": "Project",
         "dependencies": {
@@ -416,7 +423,6 @@
       "morphir.tooling": {
         "type": "Project",
         "dependencies": {
-          "CsToml": "[1.8.6, )",
           "FluentValidation": "[11.12.0, )",
           "Foundatio.Mediator": "[1.2.1, )",
           "Json.More.Net": "[2.2.0, )",
@@ -427,12 +433,14 @@
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Configuration.IO": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
+          "Morphir.Extensions": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Ion": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )",
           "Serilog": "[4.3.1, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
+          "Spectre.Console": "[0.53.0, )",
           "System.CommandLine": "[2.0.14, )"
         }
       },
@@ -600,6 +608,12 @@
           "Microsoft.Extensions.Logging.Abstractions": "10.0.14",
           "Microsoft.Extensions.Options": "10.0.14"
         }
+      },
+      "Spectre.Console": {
+        "type": "CentralTransitive",
+        "requested": "[0.53.0, )",
+        "resolved": "0.53.0",
+        "contentHash": "m2iv8Egfywp7FaNLKCmCFHbSf36D4ctzZKvlAK9NXMyGLh6L+CnrZWK8o+LOYsoAS1jtoHn0W1BT0W8vuq/FUw=="
       },
       "Vogen": {
         "type": "CentralTransitive",

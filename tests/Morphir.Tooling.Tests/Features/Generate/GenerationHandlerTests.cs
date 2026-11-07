@@ -52,5 +52,34 @@ public sealed class GenerationHandlerTests : IDisposable
         File.ReadAllText(Path.Combine(output, "prior.fs")).Should().Be("prior");
         Directory.GetFiles(output).Should().HaveCount(1);
     }
+    /// <summary>
+    /// A target that is not a valid target id (for example <c>C#</c>) names no registered target. It must fail exactly
+    /// like a well-formed unknown target, with the same code, message pattern and list of available targets.
+    /// </summary>
+    [Test]
+    [Arguments("C#")]
+    [Arguments("CSharp")]
+    [Arguments("a..b")]
+    public async Task MalformedTargetFailsLikeAnUnknownTarget(string malformed)
+    {
+        var input = GenerationInputFixtures.DailyRate(_root, "4.0.0", "text");
+        using var app = MorphirCli.CreateBuilder([]).AddScenario<GenerationScenario>().Build();
+        var mediator = app.Services.GetRequiredService<IMediator>();
+        async Task<GenerationDiagnostic> FailureFor(string target)
+        {
+            var result = await mediator.InvokeAsync<Outcome<GenerationSuccess>>(new GenerateRequest(new(input, target, Path.Combine(_root, "output")), new(_root)));
+            var failure = ((Outcome<GenerationSuccess>.Failure)result).Error;
+            failure.Kind.Should().Be(GenerationFailureKind.Invocation, string.Join("; ", failure.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
+            return failure.Diagnostics.Single();
+        }
+
+        var unknown = await FailureFor("cobol");
+        var refused = await FailureFor(malformed);
+        refused.Code.Should().Be("unknown-target").And.Be(unknown.Code);
+        refused.Message.Should().Be(unknown.Message.Replace("'cobol'", $"'{malformed}'"));
+        refused.Message.Should().EndWith("Available targets: csharp, fsharp.");
+        Directory.Exists(Path.Combine(_root, "output")).Should().BeFalse();
+    }
+
     public void Dispose() => TolerantDirectory.TryDelete(_root);
 }

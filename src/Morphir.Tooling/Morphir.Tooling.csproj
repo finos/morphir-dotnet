@@ -20,6 +20,9 @@
     <!-- Command-line parsing -->
     <PackageReference Include="System.CommandLine" />
 
+    <!-- TUI-styled tables for list commands (Spectre.Console core only; not Spectre.Console.Cli) -->
+    <PackageReference Include="Spectre.Console" />
+
     <!-- JSON Schema validation -->
     <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="Json.More.Net" />
@@ -54,6 +57,7 @@
     <ProjectReference Include="..\Morphir.Configuration\Morphir.Configuration.fsproj" />
     <ProjectReference Include="..\Morphir.Configuration.IO\Morphir.Configuration.IO.csproj" />
     <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
+    <ProjectReference Include="..\Morphir.Extensions\Morphir.Extensions.fsproj" />
     <ProjectReference Include="..\Morphir.IR.Pipeline\Morphir.IR.Pipeline.fsproj" />
     <ProjectReference Include="..\Morphir.CodeGeneration.FSharp\Morphir.CodeGeneration.FSharp.fsproj" />
     <ProjectReference Include="..\Morphir.CodeGeneration.CSharp\Morphir.CodeGeneration.CSharp.fsproj" />

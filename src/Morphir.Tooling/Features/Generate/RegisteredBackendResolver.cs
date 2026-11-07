@@ -7,13 +7,16 @@ public sealed class RegisteredBackendResolver(IEnumerable<IGenerationBackend> ba
 {
     private readonly ImmutableArray<IGenerationBackend> _backends = backends.ToImmutableArray();
 
-    public Outcome<IGenerationBackend> Resolve(TargetId target, ModelDescriptor model)
+    public Outcome<IGenerationBackend> Resolve(RequestedTarget target, ModelDescriptor model)
     {
-        var candidates = _backends.Where(backend => backend.Descriptor.Target == target).ToArray();
+        // A malformed target names no registered target, so it fails exactly as an unknown target does.
+        var candidates = target is RequestedTarget.Valid valid
+            ? _backends.Where(backend => backend.Descriptor.Target.Equals(valid.Id)).ToArray()
+            : [];
         if (candidates.Length == 0)
         {
             var available = string.Join(", ", _backends.Select(backend => backend.Descriptor.Target.Value).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
-            return Fail(GenerationFailureKind.Invocation, "unknown-target", $"Unknown target '{target.Value}'. Available targets: {available}.");
+            return Fail(GenerationFailureKind.Invocation, "unknown-target", $"Unknown target '{target.Text}'. Available targets: {available}.");
         }
 
         var compatible = candidates.Where(backend => backend.Descriptor.Capabilities.Any(capability => capability.Supports(model))).ToArray();
@@ -25,9 +28,9 @@ public sealed class RegisteredBackendResolver(IEnumerable<IGenerationBackend> ba
         }
         return compatible.Length switch
         {
-            0 => Fail(GenerationFailureKind.Semantic, "incompatible-model", $"Target '{target.Value}' does not support {ModelLabels.Family(model.Family)} {model.Version.Text} {ModelLabels.Kind(model.Kind)}."),
+            0 => Fail(GenerationFailureKind.Semantic, "incompatible-model", $"Target '{target.Text}' does not support {ModelLabels.Family(model.Family)} {model.Version.Text} {ModelLabels.Kind(model.Kind)}."),
             1 => new Outcome<IGenerationBackend>.Success(compatible[0]),
-            _ => Fail(GenerationFailureKind.Invocation, "ambiguous-backend", $"Multiple compatible providers for '{target.Value}': {string.Join(", ", compatible.Select(backend => backend.Descriptor.Identity).Order(StringComparer.Ordinal))}.")
+            _ => Fail(GenerationFailureKind.Invocation, "ambiguous-backend", $"Multiple compatible providers for '{target.Text}': {string.Join(", ", compatible.Select(backend => backend.Descriptor.Id.Value).Order(StringComparer.Ordinal))}.")
         };
     }
 

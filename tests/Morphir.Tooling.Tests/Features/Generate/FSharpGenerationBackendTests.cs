@@ -5,6 +5,7 @@ using Morphir.IR.Model;
 using Morphir.IR.Pipeline;
 using Morphir.Testing;
 using Morphir.Tooling.Features.Generate;
+using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
@@ -29,7 +30,7 @@ public class FSharpGenerationBackendTests
         var options = boundary == "options" ? new OtherOptions() : ((Outcome<ValidatedBackendOptions>.Success)backend.ValidateOptions(BackendOptions.Empty)).Value;
         using var cancellation = new CancellationTokenSource();
         if (boundary == "cancelled") cancellation.Cancel();
-        var result = await backend.GenerateAsync(new(loaded, new(boundary == "target" ? "other" : "fsharp"), options), cancellation.Token);
+        var result = await backend.GenerateAsync(new(loaded, TargetId.Create(boundary == "target" ? "other" : "fsharp"), options), cancellation.Token);
         var error = ((Outcome<GenerationArtifacts>.Failure)result).Error;
         error.Kind.Should().Be(boundary switch { "cancelled" => GenerationFailureKind.Cancelled, "requirements" => GenerationFailureKind.Semantic, _ => GenerationFailureKind.Invocation });
     }
@@ -45,9 +46,9 @@ public class FSharpGenerationBackendTests
         var original = new RetainedInput.File("kept/model.json", new RetainedEntry("model.json", "unused"u8));
         var loaded = new LoadedModel(model, ModelDescriptor.From(model), ModelRepresentation.Json, original);
         var provider = new FSharpGenerationBackend();
-        var resolved = ((Outcome<IGenerationBackend>.Success)new RegisteredBackendResolver([provider]).Resolve(new("fsharp"), loaded.Descriptor)).Value;
+        var resolved = ((Outcome<IGenerationBackend>.Success)new RegisteredBackendResolver([provider]).Resolve(RequestedTarget.Parse("fsharp"), loaded.Descriptor)).Value;
         var options = ((Outcome<ValidatedBackendOptions>.Success)resolved.ValidateOptions(BackendOptions.Empty)).Value;
-        var result = (Outcome<GenerationArtifacts>.Success)await resolved.GenerateAsync(new(loaded, new("fsharp"), options), default);
+        var result = (Outcome<GenerationArtifacts>.Success)await resolved.GenerateAsync(new(loaded, TargetId.Create("fsharp"), options), default);
         var files = VFileTreeModule.allFiles(result.Value.Tree).Select(file => Tuple.Create(file.Path.Value, VFileModule.readText(file).ResultValue));
         GenerationCases.checkDailyRate("4", "typed", "memory", files);
         VFileTreeModule.tryGet(Morphir.CodeGeneration.FSharp.Transpiler.manifest, result.Value.Tree).Value.Length.Should().Be(1);

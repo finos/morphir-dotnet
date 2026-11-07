@@ -2,26 +2,6 @@ using FluentValidation;
 
 namespace Morphir.Tooling.Features.Management;
 
-// ===== Extension List Command =====
-
-public record ExtensionList(
-    string? Platform = null,
-    bool Local = false
-);
-
-public record ExtensionListResult(
-    List<ExtensionInfo> Extensions,
-    string Platform,
-    bool IsLocal
-);
-
-public record ExtensionInfo(
-    string Name,
-    List<string> InstalledVersions,
-    string? ActiveVersion,
-    string Platform
-);
-
 // ===== Extension Install Command =====
 
 public record ExtensionInstall(

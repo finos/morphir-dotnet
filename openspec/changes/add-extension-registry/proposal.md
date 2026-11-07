@@ -34,7 +34,7 @@ None. No existing spec covers `morphir extension`.
 - Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/prds/morphir-extension-model.md), step 0.
 - Issue: [#492](https://github.com/finos/morphir-dotnet/issues/492) tracks the `morphir extension` commands. This change implements `extension list` for built-ins; `install`, `use`, `remove` and `which` stay open under #492 until PRD step 3.
 - Related: PR [#495](https://github.com/finos/morphir-dotnet/pull/495) (`add-fsharp-compile`) plans `Morphir.Program.CreateApp(args, extend)` and `Morphir.Mep`. This change must fit both (design decisions HOST-1 and REG-1).
-- Upstream: at closeout, propose dotted extension ids to `finos/morphir` (the extension identity rules) and `finos/morphir-rust` (`crates/morphir-distribution/src/domain/identity.rs`), as design decision ID-1 records.
+- Upstream: dotted extension ids are proposed in [finos/morphir#1137](https://github.com/finos/morphir/issues/1137), with the implementation in [finos/morphir-rust#329](https://github.com/finos/morphir-rust/issues/329), as design decision ID-1 records.
 
 ## Impact
 
@@ -44,5 +44,5 @@ None. No existing spec covers `morphir extension`.
 - Removed: the unused `ExtensionList`, `ExtensionListResult` and `ExtensionInfo` records and `ExtensionHandlers.HandleList` in `src/Morphir.Tooling/Features/Management/`, which have no callers. The other management records stay.
 - Documentation: `docs/content/docs/cli/management.md` (`extension list` output).
 - Tests: parser property tests and unit tests in `tests/Morphir.Tooling.Tests`, the unchanged generate tests and contract scripts, and an executable test that runs `extension list --json` against the AOT `morphir` binary and against `dotnet-morphir`.
-- No new package dependency. The AOT closure gains one assembly, `Morphir.Extensions`, with no new trim or AOT warnings.
+- New package dependency in `Morphir.Tooling`: Spectre.Console (core only, already pinned in `Directory.Packages.props` for repository scripts) for TUI-styled tables. The AOT closure gains `Morphir.Extensions` and `Spectre.Console`; task 7.6 measures the effect.
 - Contributor tooling: the work uses the project skill `fsharp-csharp-interop` and the agent `fsharp-csharp-interop-reviewer`, which are added to the repository with this proposal.

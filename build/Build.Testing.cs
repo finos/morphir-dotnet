@@ -196,6 +196,8 @@ partial class Build
             "Morphir.SDK.Conformance.Tests",
             "Morphir.SDK.CSharp.Tests",
             "Morphir.IR.Pipeline.Plugins.Tests",
+            "Morphir.Extensions.Tests",
+            "Morphir.Tests",
             "Morphir.CodeGeneration.FSharp.Tests",
             "Morphir.CodeGeneration.CSharp.Tests",
             "Morphir.Ion.Tests",

@@ -11,6 +11,10 @@ It resolves relative paths against `InvocationContext.WorkingDirectory`; it does
 not open project files or discover configuration. Repeated `KEY=VALUE` options
 parse JSON first, fall back to strings and use the last occurrence of a key.
 `BackendOptions` clones the values so they outlive their parse documents.
+The target becomes a `RequestedTarget`: `Valid` with a parsed `TargetId` (from
+Morphir.Extensions), or `Malformed` with the invocation text. A malformed target
+names no registered target, so `RegisteredBackendResolver` reports it exactly as
+an unknown target, and only a valid target reaches a backend.
 
 ```csharp
 IGenerationSettingsResolver resolver = new CliGenerationSettingsResolver();
@@ -24,7 +28,7 @@ The equivalent F# construction is covered by the consumer test:
 
 ```fsharp
 open Morphir.Tooling.Features.Generate
-let target = TargetId("fsharp")
+let target = RequestedTarget.Parse "fsharp"
 let context = InvocationContext(System.IO.Directory.GetCurrentDirectory())
 let input = ModelInput(System.IO.Path.Combine(context.WorkingDirectory, "model.ion"), InputFormat.Ion)
 let settings = GenerationSettings(input, target, BackendOptions.Empty, PublicationPolicy("generated"), ModelReadLimits.Default)
@@ -43,7 +47,20 @@ Loaders must enforce `ModelReadLimits` before constructing these snapshots.
 
 `RegisteredBackendResolver` takes statically registered `IGenerationBackend`
 instances. Resolution matches the exact `TargetId`, family, source version and
-distribution kind. Unknown targets and ambiguous compatible providers are
+distribution kind. A `BackendDescriptor` holds parsed values only: an
+`ExtensionId` (also the `backend` value in reports), an `ExtensionName`, an
+optional `ExtensionDescription`, a `TargetId`, and at least one
+`BackendCapability`, whose IR versions are a non-empty set of
+`SourceFormatVersion` values in their declared spelling. Backends declare them
+from literals:
+
+```csharp
+new BackendDescriptor(ExtensionId.Create("morphir.csharp"), ExtensionName.Create("C# generator"), TargetId.Create("csharp"),
+    [new(ModelFamily.V4, SourceFormatVersions.Create("4", "4.0.0"), DistributionKind.Library)]);
+```
+
+Compare targets with `Equals`, not `==`: the F# types do not define C# equality
+operators, so `==` compares references. Unknown targets and ambiguous compatible providers are
 invocation failures. An incompatible model is a semantic failure. Resolution
 does not invoke any provider. Each provider validates its own options and
 returns `GenerationArtifacts`; `BackendGenerationRequest` has no output path.
@@ -55,8 +72,9 @@ callers or future admission adapters. Providers advertise
 invocation. Bare IR loaders leave requirements empty and retain opaque extension
 data. No IR extension key is reserved or interpreted as a required marker.
 
-The C# provider example and F# settings example compile and run in
-`GenerationContractsTests`. Resolver tests include a second target that needs
+The C# provider example compiles and runs in `GenerationContractsTests`. The F#
+settings example type-checks there; the test runs a `Malformed` target, because
+`dotnet fsi` holds the SDK's FSharp.Core and cannot load Morphir.Extensions. Resolver tests include a second target that needs
 only registration, without changes to the command.
 
 `Outcome<T>` distinguishes success from a typed `GenerationFailure` with

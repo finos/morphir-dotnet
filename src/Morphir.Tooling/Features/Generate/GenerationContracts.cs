@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Text.Json;
+using Morphir.Extensions;
 using Morphir.IR;
 using Morphir.IR.Model;
 using Morphir.IR.Pipeline;
@@ -25,7 +27,32 @@ public abstract record Outcome<T>
     public sealed record Failure(GenerationFailure Error) : Outcome<T>;
 }
 
-public readonly record struct TargetId(string Value);
+/// <summary>
+/// The target that an invocation asks for. Text that is not a valid target id names no registered target, so the
+/// backend resolver reports it exactly as an unknown target. Only a <see cref="Valid"/> target reaches a backend.
+/// </summary>
+public abstract record RequestedTarget
+{
+    private RequestedTarget() { }
+
+    /// <summary>A parsed target id.</summary>
+    public sealed record Valid(TargetId Id) : RequestedTarget;
+
+    /// <summary>Invocation text that is not a valid target id. It is kept only for the diagnostic.</summary>
+    public sealed record Malformed(string Input) : RequestedTarget;
+
+    /// <summary>Parses invocation text.</summary>
+    public static RequestedTarget Parse(string text) =>
+        TargetId.TryParse(text, out var id, out _) ? new Valid(id) : new Malformed(text);
+
+    /// <summary>The text that the user gave, for diagnostics.</summary>
+    public string Text => this switch
+    {
+        Valid valid => valid.Id.Value,
+        Malformed malformed => malformed.Input,
+        _ => throw new UnreachableException()
+    };
+}
 public sealed record InvocationContext(string WorkingDirectory);
 public sealed record GenerateOverrides(string? Input = null, string? Target = null, string? Output = null,
     string? InputFormat = null, IReadOnlyList<string>? Options = null);
@@ -43,7 +70,7 @@ public static class GenerationDefaults
 }
 
 public sealed record PublicationPolicy(string OutputDirectory, string ManifestName = GenerationDefaults.OwnershipManifest);
-public sealed record GenerationSettings(ModelInput Input, TargetId Target, BackendOptions Options,
+public sealed record GenerationSettings(ModelInput Input, RequestedTarget Target, BackendOptions Options,
     PublicationPolicy Publication, ModelReadLimits Limits);
 
 /// <summary>Owns JSON values independently of their source document and the caller's dictionary.</summary>
@@ -95,31 +122,38 @@ public sealed record ModelDescriptor(SourceFormatVersion Version, ModelFamily Fa
 
 public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descriptor, ModelRepresentation Representation, RetainedInput Original);
 
-public sealed record BackendCapability
+public sealed record BackendCapability(ModelFamily Family, NonEmptySet<SourceFormatVersion> Versions, DistributionKind Kind)
 {
-    public ModelFamily Family { get; }
-    public ImmutableHashSet<string> Versions { get; }
-    public DistributionKind Kind { get; }
-    public BackendCapability(ModelFamily family, IEnumerable<string> versions, DistributionKind kind)
-    {
-        Family = family;
-        Versions = versions.ToImmutableHashSet(StringComparer.Ordinal);
-        Kind = kind;
-    }
-    public bool Supports(ModelDescriptor model) => Family.Equals(model.Family) && Kind.Equals(model.Kind) && Versions.Contains(model.Version.Text);
+    /// <summary>True when the backend declares the model's family, kind and exact declared version.</summary>
+    public bool Supports(ModelDescriptor model) => Family.Equals(model.Family) && Kind.Equals(model.Kind) && Versions.Contains(model.Version);
 }
 
 public sealed record BackendDescriptor
 {
     public ImmutableHashSet<string> SupportedSemantics { get; init; } = ImmutableHashSet<string>.Empty.WithComparer(StringComparer.Ordinal);
-    public string Identity { get; }
+
+    /// <summary>The backend's extension id; also the <c>backend</c> value in generation reports.</summary>
+    public ExtensionId Id { get; }
+
+    /// <summary>The display name that <c>morphir extension list</c> shows.</summary>
+    public ExtensionName Name { get; }
+
+    /// <summary>An optional description for <c>morphir extension list</c>.</summary>
+    public ExtensionDescription? Description { get; init; }
+
     public TargetId Target { get; }
+
+    /// <summary>At least one capability. A backend that supports no model cannot be registered.</summary>
     public ImmutableArray<BackendCapability> Capabilities { get; }
-    public BackendDescriptor(string identity, TargetId target, IEnumerable<BackendCapability> capabilities)
+
+    public BackendDescriptor(ExtensionId id, ExtensionName name, TargetId target, IEnumerable<BackendCapability> capabilities)
     {
-        Identity = identity;
+        Id = id;
+        Name = name;
         Target = target;
         Capabilities = capabilities.ToImmutableArray();
+        if (Capabilities.IsEmpty)
+            throw new ArgumentException("A backend descriptor needs at least one capability.", nameof(capabilities));
     }
 }
 
@@ -168,5 +202,5 @@ public interface IGenerationBackend
 
 public interface IGenerationBackendResolver
 {
-    Outcome<IGenerationBackend> Resolve(TargetId target, ModelDescriptor model);
+    Outcome<IGenerationBackend> Resolve(RequestedTarget target, ModelDescriptor model);
 }

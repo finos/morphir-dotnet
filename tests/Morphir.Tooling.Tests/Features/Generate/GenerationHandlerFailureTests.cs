@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Morphir.IR.Model;
 using Morphir.Tooling.Features.Generate;
+using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
@@ -35,8 +36,8 @@ public sealed class GenerationHandlerFailureTests
     private sealed record Options : ValidatedBackendOptions;
     private sealed class BrokenBackend : IGenerationBackend
     {
-        public BackendDescriptor Descriptor { get; } = new("test.failing", new("failing"),
-            [new(ModelFamily.Classic, ["3"], DistributionKind.Library), new(ModelFamily.V4, ["4"], DistributionKind.Library)]);
+        public BackendDescriptor Descriptor { get; } = new(ExtensionId.Create("test.failing"), ExtensionName.Create("Failing test backend"), TargetId.Create("failing"),
+            [new(ModelFamily.Classic, SourceFormatVersions.Create("3"), DistributionKind.Library), new(ModelFamily.V4, SourceFormatVersions.Create("4"), DistributionKind.Library)]);
         public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options) => new Outcome<ValidatedBackendOptions>.Success(new Options());
         public ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct) => throw new IOException("Simulated backend failure");
     }

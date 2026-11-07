@@ -1,3 +1,4 @@
+using Morphir.Extensions;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Microsoft.FSharp.Collections;
@@ -12,11 +13,14 @@ public sealed class FSharpGenerationBackend : IGenerationBackend
 {
     private sealed record Options(bool Optimize) : ValidatedBackendOptions;
 
-    public BackendDescriptor Descriptor { get; } = new("morphir.fsharp", new("fsharp"),
+    public BackendDescriptor Descriptor { get; } = new(ExtensionId.Create("morphir.fsharp"), ExtensionName.Create("F# generator"), TargetId.Create("fsharp"),
     [
-        new(ModelFamily.Classic, ["1", "2", "3", "3.0.0", "3.1.0"], DistributionKind.Library),
-        new(ModelFamily.V4, ["4", "4.0.0"], DistributionKind.Library)
-    ]);
+        new(ModelFamily.Classic, SourceFormatVersions.Create("1", "2", "3", "3.0.0", "3.1.0"), DistributionKind.Library),
+        new(ModelFamily.V4, SourceFormatVersions.Create("4", "4.0.0"), DistributionKind.Library)
+    ])
+    {
+        Description = ExtensionDescription.Create("Generates F# source from a Morphir library model.")
+    };
 
     public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options)
     {
@@ -37,7 +41,7 @@ public sealed class FSharpGenerationBackend : IGenerationBackend
             new Outcome<GenerationArtifacts>.Failure(GenerationFailure.One(kind, code, message, request.Model.Original.SourcePath));
         if (ct.IsCancellationRequested)
             return ValueTask.FromResult(Fail(GenerationFailureKind.Cancelled, "cancelled", "Generation was cancelled."));
-        if (request.Target != Descriptor.Target || request.Options is not Options options)
+        if (!request.Target.Equals(Descriptor.Target) || request.Options is not Options options)
             return ValueTask.FromResult(Fail(GenerationFailureKind.Invocation, "invalid-backend-request", "The request does not contain validated F# options and target."));
 
         var context = VFileModule.fromPath(request.Model.Original.SourcePath);

@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.Extensions</RootNamespace>
+        <Description>Morphir extension registry domain: parsed extension identities, capability claims and the extension catalog</Description>
+        <PackageReleaseNotes>### Added
+Parsed extension identities, capability claims and the extension catalog for morphir-dotnet hosts.</PackageReleaseNotes>
+        <PackageTags>$(PackageTags);morphir;fsharp;extensions</PackageTags>
+        <!-- C# callers read the nullable metadata that F# nullness writes. Without it, C# sees F# types as oblivious. -->
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="AssemblyInfo.fs" />
+        <Compile Include="ParseFailure.fs" />
+        <Compile Include="NonEmptySet.fs" />
+        <Compile Include="Text.fs" />
+        <Compile Include="Identifiers.fs" />
+        <Compile Include="TextValues.fs" />
+        <Compile Include="FormatVersions.fs" />
+        <Compile Include="Registry.fs" />
+    </ItemGroup>
+
+</Project>

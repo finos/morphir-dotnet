@@ -183,4 +183,16 @@ public class ExecutableRunnerTests
         ExecutableRunner.IsInfrastructureLogMessage(indentedLog).Should().BeFalse(
             $"'{indentedLog}' should NOT be filtered (regex uses ^ anchor which doesn't match indented lines)");
     }
+
+    /// <summary>The <c>tool</c> type runs the built dotnet tool, which reports the same version as the CLI.</summary>
+    [Test]
+    public async Task ToolTypeRunsTheBuiltDotnetMorphir()
+    {
+        var tool = new ExecutableLocator().GetExecutablePath("tool");
+        tool.Should().NotBeNull("build src/Morphir.Tool first");
+        Path.GetFileNameWithoutExtension(tool).Should().Be("dotnet-morphir");
+        var result = await new ExecutableRunner(tool!).ExecuteCommandAsync("--version");
+        result.ExitCode.Should().Be(0, result.CombinedOutput);
+        result.StandardOutput.Should().MatchRegex(@"^\d+\.\d+\.\d+");
+    }
 }
