@@ -30,7 +30,8 @@ public sealed class ExtensionListCommandTests
         var stdout = new List<string>();
         var stderr = new StringWriter();
         var exit = ExtensionListCommand.Execute(registry, json, stdout.Add, stderr, TerminalProfile.Plain);
-        return (exit, stdout, stderr.ToString());
+        // The table keeps the platform's line breaks (CRLF on Windows); the assertions compare LF text.
+        return (exit, stdout.Select(text => text.Replace("\r\n", "\n")).ToList(), stderr.ToString());
     }
 
     [Test]

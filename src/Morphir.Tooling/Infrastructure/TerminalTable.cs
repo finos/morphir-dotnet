@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
@@ -27,7 +28,7 @@ public sealed record TerminalProfile(bool Ansi, int Width)
 /// Renders tabular CLI output as a TUI-styled table. List commands use it for their text output; <c>--json</c> is the
 /// stable format for scripts.
 /// </summary>
-public static class TerminalTable
+public static partial class TerminalTable
 {
     /// <summary>The table as text, without a trailing line break.</summary>
     public static string Render(IReadOnlyList<string> headers, IEnumerable<IReadOnlyList<string>> rows, TerminalProfile profile)
@@ -42,14 +43,23 @@ public static class TerminalTable
         });
         console.Profile.Width = profile.Width;
 
-        var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey);
+        // Plain output carries no style at all: Spectre.Console still emits some styles (bold headers) on Windows
+        // with AnsiSupport.No, so plain mode must not ask for any.
+        var table = new Table().Border(TableBorder.Rounded);
+        if (profile.Ansi)
+            table.BorderColor(Color.Grey);
         foreach (var header in headers)
-            table.AddColumn(new TableColumn(new Text(header, new Style(decoration: Decoration.Bold))));
+            table.AddColumn(new TableColumn(profile.Ansi ? new Text(header, new Style(decoration: Decoration.Bold)) : new Text(header)));
         // Text, not Markup: cell values are data and must never be read as markup.
         foreach (var row in rows)
             table.AddRow(row.Select(cell => (IRenderable)new Text(cell)).ToArray());
 
         console.Write(table);
-        return writer.ToString().TrimEnd('\r', '\n');
+        var text = writer.ToString().TrimEnd('\r', '\n');
+        // The guarantee for redirected output and NO_COLOR: no escape sequence, whatever the platform.
+        return profile.Ansi ? text : EscapeSequence().Replace(text, "");
     }
+
+    [GeneratedRegex(@"\x1B\[[0-9;?]*[A-Za-z]")]
+    private static partial Regex EscapeSequence();
 }
