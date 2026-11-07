@@ -42,7 +42,7 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | --- | --- | --- | --- |
 | Shared foundation | Tracking epic and feature PRD | Implemented | #499 and this document |
 | Shared foundation | Pinned upstream fixtures and SHA-256 provenance | Implemented | Task 1.2; provenance tests observed red, then 2/2 green |
-| Shared foundation | Gherkin MCK seed, vocabulary, linter and deterministic runner | Implemented | Task 1.3; 28 focused tests, 94.39% sequence coverage, native osx-arm64 smoke |
+| Shared foundation | Gherkin MCK seed, vocabulary, linter and deterministic runner | Implemented | Task 1.3; 29 focused tests, 94.44% sequence coverage, native osx-arm64 smoke |
 | Tool path, first delivery | Compile BDD acceptance contract | Planned | Task 1.4 |
 | Tool path, first delivery | Exact versions, checked diagnostics, native builders and writers | Planned | Tasks 2.1–2.6 |
 | Tool path, first delivery | Syntax-led match reconstruction and checked type-evidence proof | Implemented | Revised task 3.1; 34/34 standalone tests, including all eleven original probes |
@@ -138,8 +138,8 @@ that either product milestone is complete.
   stay in the runner. Reports retain exact model text, diagnostic keys, requests,
   exclusions and operational failures, including partial observations and earlier
   warnings. An operational failure does not truncate later cases.
-- Evidence: the focused test project passes 28 tests, including the three fixture
-  provenance tests. AltCover measured 94.39% sequence coverage and 73.13% branch
+- Evidence: the focused test project passes 29 tests, including the three fixture
+  provenance tests. AltCover measured 94.44% sequence coverage and 73.13% branch
   coverage for `Morphir.Conformance`, without excluding handwritten code.
 - The native osx-arm64 smoke parses the shipped seed and rejects the deliberately
   incorrect adapter for all twelve variants. Expanded analysis warnings introduce
@@ -176,6 +176,20 @@ dotnet publish src/Morphir/Morphir.csproj -c Release -r osx-arm64 -p:PublishAot=
   package checks, passed in 5m27s; lint and explicit Fantomas checks also passed.
   The cancelled Linux/macOS jobs were matrix fail-fast cancellations after the
   Windows provenance failure.
+
+### Declared scenario matrices, 2026-11-07
+
+- Review identified that a header-only Examples block generated no variants, so
+  matrix validation could omit its scenario while accepting another complete one.
+- The regression reproduced acceptance of a complete scenario beside an empty
+  scenario. Matrix validation now starts from declared scenario IDs and locations,
+  reporting every missing combination even when a scenario has no generated rows.
+- All 29 focused tests pass. AltCover reports 94.44% sequence and 73.13% branch
+  coverage for `Morphir.Conformance`, with no handwritten code excluded.
+- The full Release test target, including package checks, passed in 3m26s. The
+  native osx-arm64 smoke accepts the shipped seed and rejects the empty scenario
+  with all twelve missing combinations and no qualification report. Expanded
+  AOT/trim warnings add nothing beyond the existing CLI baseline.
 
 ## Open questions
 

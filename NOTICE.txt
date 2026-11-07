@@ -168,3 +168,6 @@ modified. Existing notices and the pinned fixture provenance remain applicable.
 The Windows checkout follow-up preserves pinned fixture bytes and portable
 case-set newlines, with a CRLF manifest regression test. No upstream payload
 or recorded provenance hash is modified.
+
+The conformance matrix follow-up checks every declared scenario, including
+header-only Examples blocks, and adds a regression for omitted scenario variants.

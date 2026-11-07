@@ -145,6 +145,49 @@ let tests =
                     "The reason survives parsing"
             )
         testCase
+            "An empty Examples matrix cannot disappear beside a complete scenario"
+            (fun () ->
+                let start = feature.IndexOf("  Scenario Outline:", System.StringComparison.Ordinal)
+
+                let length =
+                    feature.IndexOf("    Examples:", System.StringComparison.Ordinal)
+                    - start
+
+                let emptyScenario =
+                    feature
+                        .Substring(start, length)
+                        .Replace("frontend-fsharp-0001", "frontend-fsharp-0002")
+                    + "    Examples:\n      | input | version |\n"
+
+                let corpus =
+                    feature
+                    + emptyScenario
+
+                match read corpus with
+                | Ok _ -> failtest "Every declared scenario must cover or exclude its matrix"
+                | Error issues ->
+                    let missing =
+                        issues
+                        |> List.filter (fun issue -> issue.Code = "mck.missing_combination")
+
+                    Expect.equal
+                        missing.Length
+                        12
+                        "The empty scenario is missing every combination"
+
+                    Expect.all
+                        missing
+                        (fun issue ->
+                            issue.Path = "suites/frontend-fsharp/mutable.feature"
+                            && issue.Line > 1
+                            && issue.Message.StartsWith(
+                                "frontend-fsharp-0002",
+                                System.StringComparison.Ordinal
+                            )
+                        )
+                        "Every issue identifies the omitted scenario and its declaration"
+            )
+        testCase
             "Features cannot select an adapter"
             (fun () ->
                 match

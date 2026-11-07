@@ -385,6 +385,8 @@ module Corpus =
         let seenIds =
             System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal)
 
+        let scenarios = ResizeArray<string * string * int>()
+
         let cases = [
             for artifact in
                 artifacts
@@ -417,6 +419,7 @@ module Corpus =
                                 match child with
                                 | :? Scenario as scenario ->
                                     let id = scenario.Name.Split(' ')[0]
+                                    scenarios.Add(id, artifact.Path, scenario.Location.Line)
 
                                     if not (seenIds.Add id) then
                                         issues.Add
@@ -598,10 +601,16 @@ module Corpus =
                                 | _ -> ()
         ]
 
-        for _, variants in
+        let variantsById =
             cases
-            |> List.groupBy (fun case -> case.Id) do
-            let first = variants.Head
+            |> List.groupBy (fun case -> case.Id)
+            |> Map.ofList
+
+        for id, path, line in scenarios do
+            let variants =
+                variantsById
+                |> Map.tryFind id
+                |> Option.defaultValue []
 
             for (input, version), matching in
                 variants
@@ -613,10 +622,10 @@ module Corpus =
                     issues.Add
                         {
                             Code = "mck.duplicate_combination"
-                            Path = first.File
-                            Line = first.Line
+                            Path = path
+                            Line = line
                             Message =
-                                first.Id
+                                id
                                 + " repeats "
                                 + input
                                 + "/"
@@ -637,10 +646,10 @@ module Corpus =
                         issues.Add
                             {
                                 Code = "mck.missing_combination"
-                                Path = first.File
-                                Line = first.Line
+                                Path = path
+                                Line = line
                                 Message =
-                                    first.Id
+                                    id
                                     + " does not list or exclude "
                                     + input
                                     + "/"
