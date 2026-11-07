@@ -33,14 +33,11 @@
   
   <!-- Custom Build-Time Code Generation Targets -->
   
-  <!-- Target: Generate JSON Codecs -->
-  <Target Name="GenerateJsonCodecs" BeforeTargets="CoreCompile">
-    <Message Text="Generating JSON codecs..." Importance="high" />
-    
-    <!-- Run code generation script -->
-    <Exec Command="dotnet fsi $(MSBuildThisFileDirectory)/../scripts/codegen-helpers.fsx json-codec IR/Type.fs"
-          WorkingDirectory="$(MSBuildProjectDirectory)" />
-  </Target>
+  <!--
+    JSON: reference the Morphir.Myriad.SystemTextJson and Morphir.Myriad.SystemTextJson.Annotations packages and
+    declare a context for the input file. The build generates trim-safe System.Text.Json converters:
+      <FSharpJsonContext Include="IR/Type.fs" Name="TypeJson" Namespace="MyProject.Json" UnionEncoding="ThothLike" />
+  -->
   
   <!-- Target: Generate Visitors -->
   <Target Name="GenerateVisitors" BeforeTargets="CoreCompile" Condition="'$(GenerateVisitors)' == 'true'">

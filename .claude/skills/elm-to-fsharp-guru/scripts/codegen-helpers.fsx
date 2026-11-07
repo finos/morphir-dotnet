@@ -3,18 +3,19 @@
 (*
 codegen-helpers.fsx
 
-Purpose: Build-time code generation utilities for JSON codecs, visitors, and lenses.
+Purpose: Build-time code generation utilities for visitors and lenses.
+For JSON, use the Morphir.Myriad.SystemTextJson plugin (src/Morphir.Myriad.SystemTextJson), which generates
+System.Text.Json converters and contexts at build time.
 
 Usage:
     dotnet fsi codegen-helpers.fsx <command> [args]
 
 Commands:
-    json-codec <type-file>  - Generate JSON codec for types in file
     visitor <type-file>     - Generate visitor pattern for recursive types
     lenses <type-file>      - Generate lenses for record types
 
 Example:
-    dotnet fsi codegen-helpers.fsx json-codec src/Morphir.Core/IR/Type.fs
+    dotnet fsi codegen-helpers.fsx visitor src/Morphir.Core/IR/Type.fs
 
 Output:
     - Generated F# code
@@ -28,7 +29,6 @@ open System.IO
 open Spectre.Console
 
 type Command =
-    | JsonCodec of typeFile: string
     | Visitor of typeFile: string
     | Lenses of typeFile: string
     | Unknown of cmd: string
@@ -38,23 +38,9 @@ let parseCommand (args: string[]) : Command =
         Unknown ""
     else
         match args.[0].ToLower() with
-        | "json-codec" when args.Length >= 2 -> JsonCodec args.[1]
         | "visitor" when args.Length >= 2 -> Visitor args.[1]
         | "lenses" when args.Length >= 2 -> Lenses args.[1]
         | cmd -> Unknown cmd
-
-let generateJsonCodec (typeFile: string) =
-    AnsiConsole.MarkupLine($"[bold]Generating JSON codec for:[/] {typeFile}")
-    AnsiConsole.WriteLine()
-    AnsiConsole.MarkupLine("[yellow]Note:[/] This is a placeholder. Full implementation requires:")
-    AnsiConsole.MarkupLine("  • F# AST parsing")
-    AnsiConsole.MarkupLine("  • Type analysis")
-    AnsiConsole.MarkupLine("  • Code generation")
-    AnsiConsole.WriteLine()
-    AnsiConsole.MarkupLine("[bold]Recommended approach:[/]")
-    AnsiConsole.MarkupLine("  1. Use System.Text.Json source generators for C# interop")
-    AnsiConsole.MarkupLine("  2. Use custom Myriad plugin for pure F#")
-    AnsiConsole.MarkupLine("  3. Write manual codecs for simple types")
 
 let generateVisitor (typeFile: string) =
     AnsiConsole.MarkupLine($"[bold]Generating visitor for:[/] {typeFile}")
@@ -85,15 +71,15 @@ let showUsage () =
     AnsiConsole.MarkupLine("  dotnet fsi codegen-helpers.fsx <command> [args]")
     AnsiConsole.WriteLine()
     AnsiConsole.MarkupLine("[bold]Commands:[/]")
-    AnsiConsole.MarkupLine("  json-codec <type-file>  - Generate JSON codec")
     AnsiConsole.MarkupLine("  visitor <type-file>     - Generate visitor pattern")
     AnsiConsole.MarkupLine("  lenses <type-file>      - Generate lenses")
+    AnsiConsole.WriteLine()
+    AnsiConsole.MarkupLine("For JSON, add an FSharpJsonContext item with the Morphir.Myriad.SystemTextJson package.")
 
 // Main
 let args = fsi.CommandLineArgs |> Array.skip 1
 
 match parseCommand args with
-| JsonCodec typeFile -> generateJsonCodec typeFile
 | Visitor typeFile -> generateVisitor typeFile
 | Lenses typeFile -> generateLenses typeFile
 | Unknown _ ->

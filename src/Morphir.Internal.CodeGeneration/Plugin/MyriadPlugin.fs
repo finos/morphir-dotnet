@@ -8,7 +8,6 @@ module Plugin =
     
     /// All available generators
     let generators: IMyriadGenerator list = [
-        JsonCodecGenerator() :> IMyriadGenerator
         VisitorGenerator() :> IMyriadGenerator
         LensGenerator() :> IMyriadGenerator
         ActivePatternGenerator() :> IMyriadGenerator

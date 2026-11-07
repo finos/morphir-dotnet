@@ -3,13 +3,6 @@ namespace Morphir.Internal.CodeGeneration
 /// Configuration attributes for code generators
 module ConfigurationAttributes =
     
-    /// Configuration options for JSON codec generation
-    type JsonCodecConfig = {
-        Namespace: string option
-        PropertyNamingPolicy: string
-        IncludeNullValues: bool
-    }
-    
     /// Configuration options for visitor generation
     type VisitorConfig = {
         Namespace: string option
@@ -34,13 +27,6 @@ module ConfigurationAttributes =
         Namespace: string option
         BuilderName: string option
         FluentStyle: bool
-    }
-    
-    /// Create default JSON codec configuration
-    let defaultJsonCodecConfig = {
-        Namespace = None
-        PropertyNamingPolicy = "camelCase"
-        IncludeNullValues = false
     }
     
     /// Create default visitor configuration

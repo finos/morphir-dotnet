@@ -26,30 +26,10 @@ Add the package to your F# project:
 
 ## Usage
 
-### JSON Codec Generation
+### JSON
 
-Mark your types with the `[<GenerateJsonCodec>]` attribute:
-
-```fsharp
-open Morphir.Internal.CodeGeneration
-
-[<GenerateJsonCodec>]
-type User = {
-    Id: int
-    Name: string
-    Email: string
-}
-```
-
-This generates a module `User.JsonCodec` with `encode` and `decode` functions:
-
-```fsharp
-open User.JsonCodec
-
-let user = { Id = 1; Name = "John"; Email = "john@example.com" }
-let json = encode user
-let result = decode jsonElement
-```
+For JSON, use the public `Morphir.Myriad.SystemTextJson` plugin. It generates trim-safe System.Text.Json
+converters and a `JsonSerializerContext` for F# types; see `src/Morphir.Myriad.SystemTextJson/README.md`.
 
 ### Visitor Pattern
 
@@ -84,8 +64,10 @@ This generates lenses in the `Config.Lenses` module for each field.
 Generators support configuration through attribute properties:
 
 ```fsharp
-[<GenerateJsonCodec(PropertyNamingPolicy = "camelCase", Namespace = "MyApp.Generated")>]
-type MyType = { Field: string }
+[<GenerateVisitor>]
+type Expr =
+    | Literal of int
+    | Add of Expr * Expr
 ```
 
 ## AOT Compatibility

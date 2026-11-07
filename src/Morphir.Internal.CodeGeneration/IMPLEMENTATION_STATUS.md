@@ -35,7 +35,6 @@ The foundation for the Myriad code generation plugin has been successfully imple
 ### Generator Stubs ✅
 All generators are implemented as stubs that return `Output.Ast []`:
 
-- ✅ JsonCodecGenerator (json-codec)
 - ✅ VisitorGenerator (visitor)
 - ✅ LensGenerator (lenses)
 - ✅ ActivePatternGenerator (active-patterns)
@@ -51,14 +50,9 @@ All generators are implemented as stubs that return `Output.Ast []`:
 
 ## Next Steps (Future Phases)
 
-### Phase 2: JSON Codec Generator (Not Started)
-Implement full JSON codec generation:
-- [ ] Parse type definitions from input files
-- [ ] Generate reflection-free encoders
-- [ ] Generate reflection-free decoders
-- [ ] Support records, discriminated unions, tuples
-- [ ] Property naming policy support
-- [ ] Unit tests
+### Phase 2: JSON Codec Generator (Moved)
+JSON codec generation is the public `Morphir.Myriad.SystemTextJson` plugin (`src/Morphir.Myriad.SystemTextJson`),
+which generates System.Text.Json converters and contexts. The stub JSON codec generator of this project was removed.
 
 ### Phase 3: Visitor Generator (Not Started)
 - [ ] Generate visitor record types

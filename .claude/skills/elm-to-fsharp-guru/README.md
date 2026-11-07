@@ -265,11 +265,10 @@ Located in `.claude/skills/elm-to-fsharp-guru/scripts/`:
 
 6. **codegen-helpers.fsx** - Build-time code generation
    ```bash
-   dotnet fsi codegen-helpers.fsx json-codec <type-file>
    dotnet fsi codegen-helpers.fsx visitor <type-file>
    dotnet fsi codegen-helpers.fsx lenses <type-file>
    ```
-   - Generate JSON codecs
+   - For JSON codecs, use the Morphir.Myriad.SystemTextJson plugin (FSharpJsonContext item)
    - Generate visitors
    - Generate lenses
 
