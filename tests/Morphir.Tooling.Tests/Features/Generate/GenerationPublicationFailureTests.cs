@@ -4,6 +4,8 @@ using Microsoft.FSharp.Core;
 using Morphir.IR.Pipeline;
 using Morphir.Tooling.Features.Generate;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 public sealed class GenerationPublicationFailureTests : IDisposable
@@ -50,5 +52,5 @@ public sealed class GenerationPublicationFailureTests : IDisposable
         File.ReadAllText(Path.Combine(Output, "A.fs")).Should().Be("next", "the first move completed before the blocked destination failed");
         File.ReadAllText(Path.Combine(Output, "B.fs")).Should().Be("prior B");
     }
-    public void Dispose() => Directory.Delete(_root, true);
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
 }

@@ -193,6 +193,9 @@
           "YamlDotNet": "[16.3.0, )"
         }
       },
+      "morphir.testsupport": {
+        "type": "Project"
+      },
       "CsToml": {
         "type": "CentralTransitive",
         "requested": "[1.8.6, )",

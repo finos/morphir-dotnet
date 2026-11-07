@@ -2,11 +2,15 @@ using System.Text.Json;
 using FluentAssertions;
 using Morphir.Tooling.Tests.Integration.CLI;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 [Binding]
-public sealed class CSharpGenerationSteps
+public sealed class CSharpGenerationSteps : IDisposable
 {
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), "morphir-csharp-bdd-" + Guid.NewGuid().ToString("N"));
     private string _input = "";
     private CliExecutionResult? _result;

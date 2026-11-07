@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using Morphir.TestSupport;
 using Reqnroll;
 
 namespace Morphir.Myriad.Integration.Tests;
@@ -170,20 +170,18 @@ public sealed class CarRentalSteps
     }
 
     [AfterScenario]
-    public void Cleanup()
-    {
-        if (Directory.Exists(workspace))
-        {
-            Directory.Delete(workspace, true);
-        }
-    }
+    public void Cleanup() => TolerantDirectory.TryDelete(workspace);
 
     [AfterTestRun]
     public static void CleanupPackage()
     {
-        if (Directory.Exists(packageWorkspace))
+        TolerantDirectory.TryDelete(packageWorkspace);
+
+        // Each run packs a unique 0.1.0-test.<guid> version that restore extracts into the global cache.
+        if (package.IsValueCreated && package.Value.IsCompletedSuccessfully)
         {
-            Directory.Delete(packageWorkspace, true);
+            TolerantDirectory.TryDelete(Path.Combine(TestSandbox.RealNuGetPackagesFolder, "morphir.myriad",
+                package.Value.Result.Version.ToLowerInvariant()));
         }
     }
 
@@ -210,39 +208,18 @@ public sealed class CarRentalSteps
 
     private static async Task<string> Run(string directory, params string[] arguments)
     {
-        var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
-        {
-            WorkingDirectory = directory,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-        foreach (var argument in arguments)
-        {
-            start.ArgumentList.Add(argument);
-        }
+        var start = ChildProcess.StartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet", arguments);
+        start.WorkingDirectory = directory;
+        // No MSBuild node may outlive the build and keep the scenario's directory locked.
+        start.Environment["MSBUILDDISABLENODEREUSE"] = "1";
 
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start dotnet.");
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-        try
+        // ChildProcessTimeoutException is a TimeoutException; the process tree is killed and awaited first.
+        var completed = await ChildProcess.RunAsync(start, TimeSpan.FromMinutes(3));
+        var result = completed.StandardOutput;
+        if (completed.ExitCode != 0)
         {
-            await process.WaitForExitAsync(timeout.Token);
+            throw new DotnetFailureException($"dotnet {string.Join(' ', arguments)} failed with {completed.ExitCode}:\n{result}\n{completed.StandardError}");
         }
-        catch (OperationCanceledException)
-        {
-            process.Kill(true);
-            throw new TimeoutException("dotnet exceeded the consumer-build timeout.");
-        }
-
-        var result = await stdout;
-        var diagnostics = await stderr;
-        if (process.ExitCode != 0)
-        {
-            throw new DotnetFailureException($"dotnet {string.Join(' ', arguments)} failed with {process.ExitCode}:\n{result}\n{diagnostics}");
-        }
-
         return result;
     }
 }

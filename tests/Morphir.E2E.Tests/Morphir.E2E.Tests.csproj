@@ -38,5 +38,9 @@
     <None Update="**/.gitkeep" Visible="false" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+  </ItemGroup>
+
 </Project>
 

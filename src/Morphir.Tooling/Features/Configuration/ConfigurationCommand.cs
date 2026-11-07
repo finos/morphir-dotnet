@@ -45,10 +45,10 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
     private readonly Option<bool> _system = new("--system") { Description = "Inspect system sources only" };
     private readonly Option<string?> _file = new("--file") { Description = "Inspect one explicit file only" };
     private readonly Option<string?> _config = new("--config") { Description = "Overlay an explicitly selected configuration file" };
-    private readonly Option<string?> _boundary = new("--discovery-boundary") { Description = "Bound discovery to this directory and its descendants" };
+    private readonly Option<string?> _boundary = new("--discovery-boundary") { Description = "Bound discovery to this directory and its descendants (default: MORPHIR_DISCOVERY_BOUNDARY, else the filesystem root)" };
     private readonly Option<string[]> _profiles = new("--profiles") { Description = "Comma-separated profile names; repeatable in order", Arity = ArgumentArity.OneOrMore, AllowMultipleArgumentsPerToken = false };
     private readonly Option<bool> _noProfiles = new("--no-profiles") { Description = "Disable profile loading" };
-    private readonly Option<bool> _isolated = new("--isolated") { Description = "Exclude machine and personal files" };
+    private readonly Option<bool> _isolated = new("--isolated") { Description = "Exclude machine and personal files; accepts true or false (default: MORPHIR_ISOLATED, else false)" };
     private readonly Option<string[]> _warnings = new("--suppress-warning") { Description = "Suppress a supported warning code; repeatable", Arity = ArgumentArity.OneOrMore, AllowMultipleArgumentsPerToken = false };
 
     public ConfigurationCommand(string operation, IConfigurationInspectionHost host) : this(operation, host, false) { }
@@ -94,6 +94,13 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
         }
         var environment = System.Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
             .Where(p => p.Key is string && p.Value is string).ToDictionary(p => (string)p.Key, p => (string)p.Value!, StringComparer.Ordinal);
+        // Containment comes from the flags, then the environment; it is checked before any configuration I/O.
+        var resolution = Containment.Resolve(parsed.GetValue(_boundary), parsed.GetResult(_isolated) is { Implicit: false } ? parsed.GetValue(_isolated) : null,
+            environment, System.Environment.CurrentDirectory);
+        if (resolution.Failure is { } invalid) return Render(ConfigurationReport.Failure(Name, invalid.Code, invalid.Message), json);
+        var containment = resolution.Value!;
+        if (containment.RequireInside(System.Environment.CurrentDirectory) is { } outside)
+            return Render(ConfigurationReport.Failure(Name, outside.Code, outside.Message) with { Containment = ConfigurationContainment.Report(containment) }, json);
         var requested = parsed.GetValue(_profiles) ?? [];
         var disabled = parsed.GetValue(_noProfiles);
         if (disabled && requested.Length > 0) return Render(Failure("--profiles conflicts with --no-profiles."), json);
@@ -111,7 +118,7 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
             parsed.GetValue(_user) ? QueryScope.User : parsed.GetValue(_global) ? QueryScope.Global : parsed.GetValue(_system) ? QueryScope.System :
             parsed.GetValue(_file) is { } file ? QueryScope.NewFile(ProjectPath.join(System.Environment.CurrentDirectory, file)) : QueryScope.Effective;
         var invocation = new ConfigurationInvocation(scope, parsed.GetValue(_project), parsed.GetValue(_file) ?? parsed.GetValue(_config),
-            parsed.GetValue(_boundary), profileOptions, parsed.GetValue(_isolated), parsed.GetValue(_warnings) ?? [], environment);
+            containment.NativeBoundary, profileOptions, containment.Isolated, parsed.GetValue(_warnings) ?? [], environment);
         try
         {
             var detailed = _host.Load(invocation);
@@ -124,7 +131,8 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
                 "explain" => Inspection.explain(scope, key, detailed),
                 _ => throw new InvalidOperationException("Unknown configuration read command")
             };
-            return Render(ConfigurationReport.From(result, parsed.GetValue(_origin), parsed.GetValue(_scope)), json);
+            var report = ConfigurationReport.From(result, parsed.GetValue(_origin), parsed.GetValue(_scope));
+            return Render(Name == "path" ? report with { Containment = ConfigurationContainment.Report(containment) } : report, json);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
         {

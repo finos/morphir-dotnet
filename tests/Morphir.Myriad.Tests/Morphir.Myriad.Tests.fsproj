@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.Myriad/Morphir.Myriad.fsproj" />
+    <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Fixtures/ResourceLoader.fs" Link="ResourceLoader.fs" />

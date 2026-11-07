@@ -144,6 +144,10 @@ Global user configuration uses the `morphir` stem under:
 
 Apply format layering at these sources as well. Multiple alternatives within one format group are ambiguous, including global candidates split across the platform and Morphir home locations. A TOML file in the platform directory and a YAML file in Morphir home layer normally. An empty `MORPHIR_HOME` retains the default home alternative. Relative `XDG_CONFIG_HOME` is ignored. The host supplies `MachineLocationInput` and its platform directories/environment explicitly. A relative nonempty `MORPHIR_HOME` resolves from the invocation directory. Machine loading also requires a separately authorized `MachineTree`; neither discovery nor loading implicitly reads the process environment or ambient filesystem. Embedded hosts supply only the mounts they permit.
 
+An absolute `MORPHIR_HOME` is used as given, including a native Windows drive or UNC path written with backslashes, such as `C:\Users\me\.morphir`.
+
+The Morphir home holds global configuration only. Discovery never treats a primary-named file located directly in it as a project or workspace. For example, `~/.morphir/morphir.toml` is reached through the `.morphir/` layout when discovery walks up from a directory under your home folder, but it still loads only as a global source. A directory with no other primary leaves discovery at its start location. A real project's own `.morphir/morphir.toml` is unaffected. Hosts supply the home to discovery through `ProjectSystem.Discover(..., morphirHome:)` or the tree's `MorphirHome`, and native hosts do so even when isolated.
+
 ### Environment values
 
 Double underscores separate key segments; single underscores stay in the field name. For example, `MORPHIR_IR__FORMAT_VERSION=4` sets `ir.format_version`, while `MORPHIR_IR_FORMAT_VERSION` identifies a different, single-segment key.
@@ -295,9 +299,9 @@ Never follow a discovered symbolic link to read configuration or enumerate membe
 
 Source reports distinguish loaded, missing, skipped, and failed inputs. Optional missing candidates remain visible without becoming required-file errors. Invalid documents and inaccessible candidates retain their paths and diagnostics. Inactive profiles and isolated machine/personal inputs are not read. Equivalent native and mounted evidence must produce the same roots, member selection, source ordering, and diagnostics.
 
-### Legacy cache API
+### Removed legacy cache API
 
-`Morphir.Tooling.Configuration.ConfigResolver.ResolveConfigAsync` continues to load the cache-only `MorphirConfig`. `ConfigResolution` exposes `Effective`, `Layers`, `WorkspaceRoot`, and `CiProfileApplied`; `Merge.mergeConfigs` merges cache paths. `WorkspaceDiscovery`, `ManagementScenario`, and existing artifact callers retain Git-first root selection. New consumers opt into `ProjectSystem` explicitly.
+The cache-only `Morphir.Tooling.Configuration.ConfigResolver` and its Git-first `WorkspaceDiscovery` were removed in 0.4.0-alpha.1. They walked to the filesystem root and treated any `.git` or `.morphir` directory as a workspace, including the global Morphir home. Use `ProjectSystem.Discover` and `ProjectSystem.LoadDetailed` with the shared resolver instead, and replace the legacy CI mode with a named profile selected by `--profiles` or `MORPHIR_PROFILES`. The F# cache types (`MorphirConfig`, `Merge.mergeConfigs`) remain in `Morphir.Configuration`.
 
 See [troubleshooting]({{< relref "/docs/cli/troubleshooting#configuration" >}}) for wrong roots, ambiguous files, and settings that remain overridden.
 

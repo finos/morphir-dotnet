@@ -8,6 +8,8 @@ using Json.Schema;
 using Morphir.Configuration;
 using Morphir.Configuration.IO;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.WorkspaceMigration;
 
 [Binding]
@@ -169,16 +171,12 @@ public sealed class WorkspaceMigrationSteps : IDisposable
             UseShellExecute = false
         };
         info.ArgumentList.Add(GetType().Assembly.Location);
-        foreach (var argument in new[] { "--maximum-parallel-tests", "1", "--treenode-filter", "/*/*/*/*[Category=WorkspaceMigrationRecoveryWorker]" })
+        foreach (var argument in new[] { "--maximum-parallel-tests", "1", "--treenode-filter", "/*/*/*/*[Category=WorkspaceMigrationRecoveryWorker]", "--results-directory", ChildResults })
             info.ArgumentList.Add(argument);
         info.Environment["MORPHIR_WORKSPACE_RECOVERY_CHILD_ROOT"] = _root;
-        using var process = Process.Start(info)!;
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try { await process.WaitForExitAsync(timeout.Token); }
-        catch (OperationCanceledException) { process.Kill(true); throw; }
-        process.ExitCode.Should().Be(79, await output + await error);
+        // A full child test host: allow it more time than a CLI call.
+        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(120));
+        result.ExitCode.Should().Be(79, result.StandardOutput + result.StandardError);
         _uncertainDirectory = ProjectPath.normalize(Path.Combine(_root, "new"));
         var pending = new ConfigurationTransaction().InspectPending([ProjectPath.normalize(_root)]);
         pending.Should().NotBeEmpty();
@@ -189,6 +187,33 @@ public sealed class WorkspaceMigrationSteps : IDisposable
     [Given("malformed workspace migration appsettings")]
     public void InvalidHost() => Write("appsettings.json", "{never-print-host-value");
 
+    // Containment scenarios. Paths use <root> and <outside> placeholders.
+    private readonly Dictionary<string, string> _environment = [];
+    private string Outside => _root + "-outside";
+    private string ChildResults => _root + "-child-results";
+
+    private string Placeholder(string value) => value
+        .Replace("<root>", _root, StringComparison.Ordinal)
+        .Replace("<outside>", Outside, StringComparison.Ordinal);
+
+    [Given("workspace migration environment variable {word} is {string}")]
+    public void WorkspaceEnvironmentVariable(string name, string value)
+    {
+        if (value.Contains("<outside>", StringComparison.Ordinal)) Directory.CreateDirectory(Outside);
+        _environment[name] = Placeholder(value);
+    }
+
+    [When("I migrate the workspace with boundary {string} and {string}")]
+    public Task MigrateWithBoundary(string boundary, string arguments) =>
+        Run(["workspace", "migrate", .. arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--discovery-boundary", Placeholder(boundary), "--json"]);
+
+    [Then("workspace migration diagnostics include {string}")]
+    public void WorkspaceDiagnostic(string code) => _report!.RootElement.GetProperty("diagnostics").EnumerateArray()
+        .Select(d => d.GetProperty("code").GetString()).Should().Contain(code);
+
+    [Then("workspace migration diagnostics name {string}")]
+    public void WorkspaceDiagnosticNames(string text) => _report!.RootElement.GetProperty("diagnostics").EnumerateArray()
+        .Select(d => d.GetProperty("message").GetString()).Should().Contain(message => message!.Contains(text, StringComparison.Ordinal));
     [When("I migrate the workspace with {string}")]
     public Task Migrate(string arguments) => Run(["workspace", "migrate", .. arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--json"]);
 
@@ -217,15 +242,11 @@ public sealed class WorkspaceMigrationSteps : IDisposable
         if (dll) info.ArgumentList.Add(cli);
         foreach (var argument in arguments) info.ArgumentList.Add(argument);
         foreach (var key in info.Environment.Keys.Where(key => key.StartsWith("MORPHIR_", StringComparison.Ordinal)).ToArray()) info.Environment.Remove(key);
-        using var process = Process.Start(info)!;
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try { await process.WaitForExitAsync(timeout.Token); }
-        catch (OperationCanceledException) { process.Kill(true); throw; }
-        _exit = process.ExitCode;
-        _stdout = await stdout;
-        _stderr = await stderr;
+        foreach (var pair in _environment) info.Environment[pair.Key] = pair.Value;
+        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(60));
+        _exit = result.ExitCode;
+        _stdout = result.StandardOutput;
+        _stderr = result.StandardError;
     }
 
     [Then("workspace migration exits {int} with outcome {string}")]
@@ -387,12 +408,14 @@ public sealed class WorkspaceMigrationSteps : IDisposable
     public void Dispose()
     {
         _report?.Dispose();
+        TolerantDirectory.TryDelete(Outside);
+        TolerantDirectory.TryDelete(ChildResults);
         if (!Directory.Exists(_root)) return;
         if (Directory.EnumerateFiles(_root, ".morphir-edit-*", SearchOption.AllDirectories).Any())
         {
             Console.Error.WriteLine("Retained workspace migration CLI recovery evidence: " + _root);
             return;
         }
-        Directory.Delete(_root, true);
+        TolerantDirectory.TryDelete(_root);
     }
 }

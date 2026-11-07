@@ -3,6 +3,8 @@ using FluentAssertions;
 using Morphir.Tooling.Tests.Integration.CLI;
 using Morphir.Testing;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 public sealed class GenerateCommandTests : IDisposable
@@ -21,9 +23,8 @@ public sealed class GenerateCommandTests : IDisposable
     {
         var input = GenerationInputFixtures.DailyRate(_root, "4", "json");
         var output = Path.Combine(_root, "output");
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         var target = argument.StartsWith("--target ", StringComparison.Ordinal) ? "" : "--target fsharp";
-        var result = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI")).ExecuteCommandAsync($"generate --input \"{input}\" {target} --output \"{output}\" --json {argument}", timeout.Token);
+        var result = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI")).ExecuteCommandAsync($"generate --input \"{input}\" {target} --output \"{output}\" --json {argument}", timeout: TimeSpan.FromSeconds(60));
         result.ExitCode.Should().Be(2, result.CombinedOutput);
         using var json = JsonDocument.Parse(result.StandardOutput);
         json.RootElement.GetProperty("success").GetBoolean().Should().BeFalse();
@@ -39,9 +40,8 @@ public sealed class GenerateCommandTests : IDisposable
     {
         var input = GenerationInputFixtures.DailyRate(_root, "4", "json");
         var output = Path.Combine(_root, "output");
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var response = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI")).ExecuteCommandAsync(
-            $"generate --input \"{input}\" --target {(valid ? "fsharp" : "unknown")} --output \"{output}\"", timeout.Token);
+            $"generate --input \"{input}\" --target {(valid ? "fsharp" : "unknown")} --output \"{output}\"", timeout: TimeSpan.FromSeconds(30));
         response.ExitCode.Should().Be(valid ? 0 : 2, response.CombinedOutput);
         if (valid)
         {
@@ -61,11 +61,10 @@ public sealed class GenerateCommandTests : IDisposable
     {
         var input = GenerationInputFixtures.DailyRate(_root, "4.0.0", "binary");
         var output = Path.Combine(_root, "output");
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        var result = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI")).ExecuteCommandAsync($"generate --input \"{input}\" --target fsharp --output \"{output}\" --input-format ion --option optimize=true --option optimize=false --json", timeout.Token);
+        var result = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI")).ExecuteCommandAsync($"generate --input \"{input}\" --target fsharp --output \"{output}\" --input-format ion --option optimize=true --option optimize=false --json", timeout: TimeSpan.FromSeconds(60));
         result.ExitCode.Should().Be(0, result.CombinedOutput);
         using var json = JsonDocument.Parse(result.StandardOutput);
         json.RootElement.GetProperty("artifacts").GetArrayLength().Should().BeGreaterThan(0);
     }
-    public void Dispose() => Directory.Delete(_root, true);
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
 }

@@ -64,18 +64,24 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
 
 ## 3. F# frontend core (fsharp-source-frontend)
 
-- [ ] 3.1 Spike, time-boxed to one session: validate the FSF-2 range join. For every core pattern, find the syntax `match` for each typed `DecisionTree`, and the typed target for each clause body. Record the result in design.html FSF-2. Verify with one spike test per pattern that the clause order equals the source and that each clause has exactly one target.
-- [ ] 3.2 Create `src/Morphir.Frontend.FSharp` with the hermetic FCS edge from FSF-5. Verify:
+- [x] 3.1 Validate and record the replacement for the disproved exact range join in FSF-2. Reconstruct every core match pattern from original syntax using FCS-checked type witnesses, preserving source order and full original clause-body spans. Replay all eleven original probes; verify reduced-away and computed subjects, match-lambdas, nesting, shadowing, generic fields, multi-field versus tuple-field constructors, polymorphic generalization, fresh identifiers, CRLF and UTF-16 coordinates. Reject missing/ambiguous evidence and changed signatures. Evidence: `spikes/syntax-led-reconstruction.md`, 34/34 standalone tests; production lowering remains task 3.6.
+- [ ] 3.2 Create `src/Morphir.Frontend.FSharp` with the hermetic FCS edge from FSF-5 and the checked-evidence edge from FSF-2. Select and validate a compatible exact FCS/Core package pair without suppressing dependency conflicts. Verify:
   - F# compiler errors become `fsharp.compiler` diagnostics with zero-based UTF-16 ranges;
-  - the emoji-line test passes;
+  - original and analysis-copy checks share options and document order but have separate project identities;
+  - evidence preserves original signatures, generic constraints and source-symbol resolution, with explicit refusal for changed/missing/ambiguous evidence;
+  - generated bindings are fresh across documents, cancellation and growth limits apply, and generated paths/warnings never escape;
+  - the emoji-line test and CRLF/nested insertion-map tests pass;
   - runs in different working directories give byte-identical diagnostics;
   - F# warnings (for example FS0025) are kept as `fsharp.compiler` warnings beside a successful model, and are kept when a later error fails the run.
 - [ ] 3.3 Implement the admission rule catalog (FSF-3) for every refused construct family, including `#if` and `.fsi`. Verify the refused-families, several-problems, conditional-compilation and catalog-completeness scenarios.
 - [ ] 3.4 Implement planning (FSF-1): naming (words to segments, package-prefix removal, `fsharp.module_outside_package`, `fsharp.name_collision`), access, exposed modules and declaration order, giving the family-neutral `PackagePlan`. Verify the naming and access scenarios.
 - [ ] 3.5 Lower type definitions once, generic over `IIrBuilder`. Verify the type scenarios through both builders: against expected v4 IR written by hand, and against classic version 3 read back through its reader.
-- [ ] 3.6 Lower values and patterns once, generic over `IIrBuilder`, including `match` through the range join, with an inferred type on every node and source spans in v4. Verify:
+- [ ] 3.6 Lower values and patterns once, generic over `IIrBuilder`, including syntax-led `match` with checked type evidence, with an inferred type on every node and source spans in v4. Verify:
   - the value and pattern scenarios through both builders;
-  - that a deliberately unjoinable shape gives `fsharp.unsupported_match_shape`;
+  - that missing, ambiguous or signature-changing evidence gives `fsharp.unsupported_match_shape` at the original match, with no model;
+  - that reduced-away/computed subjects, nested matches, generalization and constructor field arity retain their original structure and source order, and no generated evidence binding reaches either builder;
+  - that every supported expression has compiler-supplied type evidence, including nodes erased by FCS reductions, and the subject is emitted once;
+  - that function/let parameter patterns retain the same supported set and compiler-supplied types;
   - that an out-of-range integer gives `morphir.unrepresentable` with classic and succeeds with v4.
 - [ ] 3.7 Implement the SDK mapping table and structural lowering of pipes and composition (FSF-4). Verify the inventory and generator round-trip property tests, the pipe scenario, and `fsharp.unsupported_reference`.
 - [ ] 3.8 Expose `FSharpFrontend.registration`. Run the whole corpus through the library-API entry for IR versions `1` to `4`. Verify the structural, diagnostic and behavioral kit verdicts from MCK-1.

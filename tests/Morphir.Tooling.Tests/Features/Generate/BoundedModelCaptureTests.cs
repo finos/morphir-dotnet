@@ -2,6 +2,8 @@ using FluentAssertions;
 using Morphir.Tooling.Features.Generate;
 using System.Runtime.InteropServices;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 public sealed class BoundedModelCaptureTests : IDisposable
@@ -124,5 +126,5 @@ public sealed class BoundedModelCaptureTests : IDisposable
         Directory.Delete(directoryLink);
     }
 
-    public void Dispose() => Directory.Delete(_root, true);
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
 }

@@ -385,6 +385,27 @@ module DiscoveryPolicy =
         List.contains name [ ".morphir"; ".config" ]
 
     let evaluate (request: DiscoveryRequest) (snapshot: ProjectSnapshot) =
+        // The global Morphir home holds machine configuration. Primary-named files directly in it never
+        // declare a project or workspace, so discovery treats them as absent and never requests them.
+        let snapshot =
+            match request.MorphirHome with
+            | None -> snapshot
+            | Some home ->
+                let home = ProjectPath.normalize home
+
+                let hidden =
+                    [ home; ProjectPath.parent home; ProjectPath.parent (ProjectPath.parent home) ]
+                    |> List.collect candidates
+                    |> List.filter (fun path -> ProjectPath.parent path = home)
+
+                { snapshot with
+                    Entries =
+                        hidden
+                        |> List.fold
+                            (fun entries path -> Map.add path ProjectEntry.Missing entries)
+                            snapshot.Entries
+                }
+
         let missing paths =
             paths
             |> List.distinct

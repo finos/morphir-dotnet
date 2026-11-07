@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Morphir.Tooling.Features.Generate;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 public sealed class GenerationProfileTests : IDisposable
@@ -52,5 +54,5 @@ public sealed class GenerationProfileTests : IDisposable
         error.Diagnostics[0].Code.Should().Be("unsupported-profile");
         error.Diagnostics[0].Message.Should().Contain("admission");
     }
-    public void Dispose() => Directory.Delete(_root, true);
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
 }

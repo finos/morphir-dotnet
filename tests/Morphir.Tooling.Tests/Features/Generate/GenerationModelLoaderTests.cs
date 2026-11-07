@@ -4,6 +4,8 @@ using Morphir.IR.Model;
 using Morphir.Testing;
 using Morphir.Tooling.Features.Generate;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 public sealed class GenerationModelLoaderTests : IDisposable
@@ -81,5 +83,5 @@ public sealed class GenerationModelLoaderTests : IDisposable
         var result = await Load(GenerateSteps.V4Model, limits: limits);
         ((Outcome<LoadedModel>.Failure)result).Error.Diagnostics[0].Code.Should().Be("input-limit");
     }
-    public void Dispose() => Directory.Delete(_root, true);
+    public void Dispose() => TolerantDirectory.TryDelete(_root);
 }
