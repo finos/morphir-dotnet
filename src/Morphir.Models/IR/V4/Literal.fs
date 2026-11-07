@@ -127,14 +127,11 @@ module DecimalLexeme =
             && exponentEnd = text.Length
 
     /// <summary>Builds a lexeme, refusing text outside the v4 decimal grammar.</summary>
-    let create (lexeme: string) : Result<DecimalLexeme, string> =
-        if
-            isNull lexeme
-            || not (isLexeme lexeme)
-        then
-            Error $"'{lexeme}' is not a decimal lexeme."
-        else
-            Ok(DecimalLexeme lexeme)
+    let create (lexeme: string | null) : Result<DecimalLexeme, string> =
+        match lexeme with
+        | null -> Error "'' is not a decimal lexeme."
+        | lexeme when not (isLexeme lexeme) -> Error $"'{lexeme}' is not a decimal lexeme."
+        | lexeme -> Ok(DecimalLexeme lexeme)
 
     /// <summary>The lexeme as written.</summary>
     let value (DecimalLexeme lexeme) : string = lexeme

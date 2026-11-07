@@ -86,7 +86,7 @@ module internal V4JsonDecoding =
         then
             fail rule location "Expected a string."
 
-        decodedText rule location (fun () -> element.GetString())
+        decodedText rule location (fun () -> nonNull (element.GetString()))
 
     /// Reads a member's name. The location is the object's, since the name itself may not be printable.
     let private memberName location (property: JsonProperty) =
