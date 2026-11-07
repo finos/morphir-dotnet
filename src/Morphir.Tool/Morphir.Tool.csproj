@@ -61,4 +61,8 @@
         </ItemGroup>
     </Target>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Morphir.Tests" />
+  </ItemGroup>
+
 </Project>

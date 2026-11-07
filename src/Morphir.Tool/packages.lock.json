@@ -383,6 +383,13 @@
           "Vogen": "[8.0.7, )"
         }
       },
+      "morphir.extensions": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.ion": {
         "type": "Project",
         "dependencies": {
@@ -416,7 +423,6 @@
       "morphir.tooling": {
         "type": "Project",
         "dependencies": {
-          "CsToml": "[1.8.6, )",
           "FluentValidation": "[11.12.0, )",
           "Foundatio.Mediator": "[1.2.1, )",
           "Json.More.Net": "[2.2.0, )",
@@ -427,6 +433,7 @@
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Configuration.IO": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
+          "Morphir.Extensions": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Ion": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )",

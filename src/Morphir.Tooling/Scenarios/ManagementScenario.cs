@@ -1,4 +1,8 @@
 using System.CommandLine;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Morphir.Extensions;
+using Morphir.Tooling.Features.Extensions;
 
 namespace Morphir.Tooling.Scenarios;
 
@@ -10,6 +14,13 @@ public class ManagementScenario : IMorphirCliScenario
 {
     public void Configure(MorphirCliBuilder builder)
     {
+        // Static registration only: each source is a known type, and the host identity comes from the entry point.
+        builder.ConfigureServices(services =>
+        {
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IExtensionSource, BackendExtensionSource>());
+            services.TryAddSingleton<ExtensionRegistry>();
+        });
+
         builder.AddCommand(rootCommand =>
         {
             // Create top-level dist, tool, and extension commands

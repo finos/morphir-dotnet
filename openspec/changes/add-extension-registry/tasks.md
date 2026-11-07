@@ -53,9 +53,12 @@ Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/
 
 ## 6. Host identity (HOST-1)
 
-- [ ] 6.1 Add `HostIdentity` to the shared composition through the HOST-1 path recorded in 1.2: `morphir` passes `MorphirHost.Native` and `dotnet-morphir` passes `MorphirHost.DotnetTool`, each with `ReleaseVersion.Create(VersionInfo.Version)`; verify a unit test resolves `HostIdentity` from the container of each composition.
-- [ ] 6.2 Add a build test that runs `--version` on each host and parses the output with `ReleaseVersion.TryParse`; verify it passes for a versioned build and for `0.0.0-dev`.
-- [ ] 6.3 Register `BackendExtensionSource` and `ExtensionRegistry` with `TryAddEnumerable` and `TryAddSingleton`; verify `--version` and `--help` output are unchanged in both hosts.
+- [x] 6.1 Add `HostIdentity` to the shared composition through the HOST-1 path recorded in 1.2: `morphir` passes `MorphirHost.Native` and `dotnet-morphir` passes `MorphirHost.DotnetTool`, each with `ReleaseVersion.Create(VersionInfo.Version)`; verify a unit test resolves `HostIdentity` from the container of each composition.
+  - `Morphir.Program` has `Host`, `Run(args, host)` and `CreateApp(args, host)`; `Morphir.Tool.Program.Host` states `DotnetTool`. The host is a singleton in the shared composition. Tests in `tests/Morphir.Tests/Hosts/` (that project had no tests; it is now in the Nuke unit test list and references both entry points).
+- [x] 6.2 Add a build test that runs `--version` on each host and parses the output with `ReleaseVersion.TryParse`; verify it passes for a versioned build and for `0.0.0-dev`.
+  - `HostVersionTests` runs `--version` on the built `morphir.dll` and `dotnet-morphir.dll` and parses the output, which has build metadata (`0.4.0-alpha.1+<sha>`); `0.0.0-dev` is parsed directly, because changing the build version inside a unit test is not practical.
+- [x] 6.3 Register `BackendExtensionSource` and `ExtensionRegistry` with `TryAddEnumerable` and `TryAddSingleton`; verify `--version` and `--help` output are unchanged in both hosts.
+  - Registered in `ManagementScenario`. `HostRegistryTests` reads both generators for each host. `--version` and `--help` of both built hosts match the baseline taken before the change.
 
 ## 7. `extension list` command (CLI-1, CLN-1)
 

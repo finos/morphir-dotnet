@@ -31,6 +31,7 @@
   <ItemGroup>
     <!-- Project under test -->
     <ProjectReference Include="..\..\src\Morphir\Morphir.csproj" />
+    <ProjectReference Include="..\..\src\Morphir.Tool\Morphir.Tool.csproj" />
   </ItemGroup>
 
   <ItemGroup>
