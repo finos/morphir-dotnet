@@ -107,12 +107,10 @@ jobs:
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
             - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-            # The mise postinstall hook completes the MoonBit SDK (core and moonx).
-            - name: Initialize the MoonBit package registry
-              run: mise exec -- moon update
-
-            - name: Verify shared OpenSpec workflow
-              run: mise run openspec:verify
+            - name: Check the shared OpenSpec bundle
+              run: mise exec -- mission-control-tools openspec check --bundle
+            - name: Validate the OpenSpec schema and changes
+              run: mise run openspec:validate
 
     ci:
         runs-on: ubuntu-latest
