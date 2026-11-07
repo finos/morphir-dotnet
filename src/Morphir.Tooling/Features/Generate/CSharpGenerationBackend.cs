@@ -1,3 +1,4 @@
+using Morphir.Extensions;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Microsoft.FSharp.Collections;
@@ -12,11 +13,14 @@ public sealed class CSharpGenerationBackend : IGenerationBackend
 {
     private sealed record Options(int LanguageVersion, NamespaceOverride? Namespace) : ValidatedBackendOptions;
 
-    public BackendDescriptor Descriptor { get; } = new("morphir.csharp", new("csharp"),
+    public BackendDescriptor Descriptor { get; } = new(ExtensionId.Create("morphir.csharp"), ExtensionName.Create("C# generator"), TargetId.Create("csharp"),
     [
-        new(ModelFamily.Classic, ["1", "2", "3", "3.0.0", "3.1.0"], DistributionKind.Library),
-        new(ModelFamily.V4, ["4", "4.0.0"], DistributionKind.Library)
-    ]);
+        new(ModelFamily.Classic, SourceFormatVersions.Create("1", "2", "3", "3.0.0", "3.1.0"), DistributionKind.Library),
+        new(ModelFamily.V4, SourceFormatVersions.Create("4", "4.0.0"), DistributionKind.Library)
+    ])
+    {
+        Description = ExtensionDescription.Create("Generates C# source from a Morphir library model.")
+    };
 
     public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options)
     {
@@ -47,7 +51,7 @@ public sealed class CSharpGenerationBackend : IGenerationBackend
                 GenerationFailure.One(kind, code, message, request.Model.Original.SourcePath)));
         if (ct.IsCancellationRequested)
             return Fail(GenerationFailureKind.Cancelled, "cancelled", "Generation was cancelled.");
-        if (request.Target != Descriptor.Target || request.Options is not Options options)
+        if (!request.Target.Equals(Descriptor.Target) || request.Options is not Options options)
             return Fail(GenerationFailureKind.Invocation, "invalid-backend-request", "The request requires validated C# options and target.");
         if (!Descriptor.SupportedSemantics.IsSupersetOf(request.Model.Descriptor.RequiredSemantics))
             return Fail(GenerationFailureKind.Semantic, "unsupported-required-semantics", "C# does not support the required model semantics.");

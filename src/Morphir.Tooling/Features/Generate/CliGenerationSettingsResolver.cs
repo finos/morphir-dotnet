@@ -53,7 +53,7 @@ public sealed class CliGenerationSettingsResolver : IGenerationSettingsResolver
             var input = Path.GetFullPath(overrides.Input!, context.WorkingDirectory);
             var output = Path.GetFullPath(overrides.Output!, context.WorkingDirectory);
             return ValueTask.FromResult<Outcome<GenerationSettings>>(new Outcome<GenerationSettings>.Success(
-                new(new(input, format.Value), new(overrides.Target!), new(options), new(output), ModelReadLimits.Default)));
+                new(new(input, format.Value), RequestedTarget.Parse(overrides.Target!), new(options), new(output), ModelReadLimits.Default)));
         }
         catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException)
         {

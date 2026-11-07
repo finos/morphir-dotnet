@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using Morphir.IR;
 using Morphir.IR.Model;
 using Morphir.Tooling.Features.Generate;
+using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
@@ -15,7 +16,7 @@ public class GenerationBackendResolverTests
     {
         var model = Model with { RequiredSemantics = ["example.numeric-profile"] };
         var provider = new FakeBackend("plain", "fsharp");
-        var result = new RegisteredBackendResolver([provider]).Resolve(new("fsharp"), model);
+        var result = new RegisteredBackendResolver([provider]).Resolve(RequestedTarget.Parse("fsharp"), model);
         ((Outcome<IGenerationBackend>.Failure)result).Error.Diagnostics[0].Code.Should().Be("unsupported-required-semantics");
         provider.Invocations.Should().Be(0);
     }
@@ -25,7 +26,7 @@ public class GenerationBackendResolverTests
     {
         var model = Model with { RequiredSemantics = ["example.numeric-profile"] };
         var provider = new FakeBackend("capable", "fsharp", "example.numeric-profile");
-        var result = new RegisteredBackendResolver([provider]).Resolve(new("fsharp"), model);
+        var result = new RegisteredBackendResolver([provider]).Resolve(RequestedTarget.Parse("fsharp"), model);
         ((Outcome<IGenerationBackend>.Success)result).Value.Should().BeSameAs(provider);
     }
 
@@ -35,7 +36,7 @@ public class GenerationBackendResolverTests
         var first = new FakeBackend("fsharp-provider", "fsharp");
         var second = new FakeBackend("another-provider", "another");
         var resolver = new RegisteredBackendResolver([first, second]);
-        ((Outcome<IGenerationBackend>.Success)resolver.Resolve(new("another"), Model)).Value.Should().BeSameAs(second);
+        ((Outcome<IGenerationBackend>.Success)resolver.Resolve(RequestedTarget.Parse("another"), Model)).Value.Should().BeSameAs(second);
         first.Invocations.Should().Be(0);
         second.Invocations.Should().Be(0);
     }
@@ -44,7 +45,7 @@ public class GenerationBackendResolverTests
     public void UnknownTargetsListAvailableExactIds()
     {
         var provider = new FakeBackend("fsharp-provider", "fsharp");
-        var failure = (Outcome<IGenerationBackend>.Failure)new RegisteredBackendResolver([provider]).Resolve(new("FSharp"), Model);
+        var failure = (Outcome<IGenerationBackend>.Failure)new RegisteredBackendResolver([provider]).Resolve(RequestedTarget.Parse("FSharp"), Model);
         failure.Error.Kind.Should().Be(GenerationFailureKind.Invocation);
         failure.Error.Diagnostics[0].Code.Should().Be("unknown-target");
         failure.Error.Diagnostics[0].Message.Should().Contain("fsharp");
@@ -64,7 +65,7 @@ public class GenerationBackendResolverTests
             _ => Model with { Family = ModelFamily.Classic }
         };
         var provider = new FakeBackend("fsharp-provider", "fsharp");
-        var failure = (Outcome<IGenerationBackend>.Failure)new RegisteredBackendResolver([provider]).Resolve(new("fsharp"), model);
+        var failure = (Outcome<IGenerationBackend>.Failure)new RegisteredBackendResolver([provider]).Resolve(RequestedTarget.Parse("fsharp"), model);
         failure.Error.Kind.Should().Be(GenerationFailureKind.Semantic);
         failure.Error.Diagnostics[0].Code.Should().Be("incompatible-model");
         provider.Invocations.Should().Be(0);
@@ -75,7 +76,7 @@ public class GenerationBackendResolverTests
     {
         var first = new FakeBackend("first", "fsharp");
         var second = new FakeBackend("second", "fsharp");
-        var failure = (Outcome<IGenerationBackend>.Failure)new RegisteredBackendResolver([second, first]).Resolve(new("fsharp"), Model);
+        var failure = (Outcome<IGenerationBackend>.Failure)new RegisteredBackendResolver([second, first]).Resolve(RequestedTarget.Parse("fsharp"), Model);
         failure.Error.Diagnostics[0].Code.Should().Be("ambiguous-backend");
         failure.Error.Diagnostics[0].Message.Should().Contain("first").And.Contain("second");
         first.Invocations.Should().Be(0);
@@ -85,7 +86,7 @@ public class GenerationBackendResolverTests
     private sealed class FakeBackend(string identity, string target, string? semantic = null) : IGenerationBackend
     {
         public int Invocations { get; private set; }
-        public BackendDescriptor Descriptor { get; } = new(identity, new(target), [new(ModelFamily.V4, ["4.0.0"], DistributionKind.Library)])
+        public BackendDescriptor Descriptor { get; } = new(ExtensionId.Create(identity), ExtensionName.Create(identity), TargetId.Create(target), [new(ModelFamily.V4, SourceFormatVersions.Create("4.0.0"), DistributionKind.Library)])
         { SupportedSemantics = semantic is null ? ImmutableHashSet<string>.Empty : ImmutableHashSet.Create(StringComparer.Ordinal, semantic) };
         public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options) { Invocations++; throw new InvalidOperationException("Resolver must not invoke the provider"); }
         public ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct) { Invocations++; throw new InvalidOperationException("Resolver must not invoke the provider"); }

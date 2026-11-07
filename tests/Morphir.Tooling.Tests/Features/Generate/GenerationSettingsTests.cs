@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Morphir.Tooling.Features.Generate;
+using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
@@ -29,7 +30,7 @@ public class GenerationSettingsTests
         result.Input.Path.Should().Be(Path.GetFullPath(Valid.Input!, Context.WorkingDirectory));
         result.Publication.OutputDirectory.Should().Be(Path.GetFullPath("generated", Context.WorkingDirectory));
         result.Input.Format.Should().Be(InputFormat.Auto);
-        result.Target.Value.Should().Be("fsharp");
+        result.Target.Should().Be(new RequestedTarget.Valid(TargetId.Create("fsharp")));
     }
 
     [Test]

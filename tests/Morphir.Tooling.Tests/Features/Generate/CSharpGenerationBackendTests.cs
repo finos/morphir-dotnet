@@ -8,6 +8,7 @@ using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Scenarios;
 
 using Morphir.TestSupport;
+using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
@@ -57,13 +58,28 @@ public sealed class CSharpGenerationBackendTests
     public void DescriptorDeclaresExactlyTheAdmittedLibraryVersions()
     {
         var descriptor = new CSharpGenerationBackend().Descriptor;
-        descriptor.Identity.Should().Be("morphir.csharp");
+        descriptor.Id.Value.Should().Be("morphir.csharp");
         descriptor.Target.Value.Should().Be("csharp");
         descriptor.SupportedSemantics.Should().BeEmpty();
         descriptor.Capabilities.Should().HaveCount(2);
-        descriptor.Capabilities.Single(x => x.Family.IsClassic).Versions.Should().BeEquivalentTo("1", "2", "3", "3.0.0", "3.1.0");
-        descriptor.Capabilities.Single(x => x.Family.IsV4).Versions.Should().BeEquivalentTo("4", "4.0.0");
+        descriptor.Capabilities.Single(x => x.Family.IsClassic).Versions.Select(version => version.Text).Should().BeEquivalentTo("1", "2", "3", "3.0.0", "3.1.0");
+        descriptor.Capabilities.Single(x => x.Family.IsV4).Versions.Select(version => version.Text).Should().BeEquivalentTo("4", "4.0.0");
         descriptor.Capabilities.Should().OnlyContain(x => x.Kind.IsLibrary);
+    }
+
+    [Test]
+    public void BothBackendDescriptorsBuildFromValidLiterals()
+    {
+        var csharp = new CSharpGenerationBackend().Descriptor;
+        var fsharp = new FSharpGenerationBackend().Descriptor;
+        (csharp.Id.Value, csharp.Name.Value, csharp.Target.Value).Should().Be(("morphir.csharp", "C# generator", "csharp"));
+        (fsharp.Id.Value, fsharp.Name.Value, fsharp.Target.Value).Should().Be(("morphir.fsharp", "F# generator", "fsharp"));
+        csharp.Description!.Value.Should().Be("Generates C# source from a Morphir library model.");
+        fsharp.Description!.Value.Should().Be("Generates F# source from a Morphir library model.");
+        fsharp.Capabilities.SelectMany(capability => capability.Versions).Select(version => version.Text)
+            .Should().Equal("1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0");
+        var refused = () => SourceFormatVersions.Create("4", "four");
+        refused.Should().Throw<ArgumentException>().WithMessage("*four*");
     }
 
     [Test]
@@ -73,7 +89,7 @@ public sealed class CSharpGenerationBackendTests
     public void UsesTheGenericExactResolver(string target, string code)
     {
         var descriptor = new ModelDescriptor(SourceFormatVersionModule.parse("4").ResultValue, ModelFamily.V4, DistributionKind.Library);
-        var result = new RegisteredBackendResolver([new CSharpGenerationBackend(), new CSharpGenerationBackend()]).Resolve(new(target), descriptor);
+        var result = new RegisteredBackendResolver([new CSharpGenerationBackend(), new CSharpGenerationBackend()]).Resolve(RequestedTarget.Parse(target), descriptor);
         ((Outcome<IGenerationBackend>.Failure)result).Error.Diagnostics[0].Code.Should().Be(code);
     }
 
@@ -90,7 +106,7 @@ public sealed class CSharpGenerationBackendTests
             "kind" => model with { Kind = DistributionKind.Specs },
             _ => model with { RequiredSemantics = ["example.required"] }
         };
-        var result = new RegisteredBackendResolver([new CSharpGenerationBackend()]).Resolve(new("csharp"), model);
+        var result = new RegisteredBackendResolver([new CSharpGenerationBackend()]).Resolve(RequestedTarget.Parse("csharp"), model);
         ((Outcome<IGenerationBackend>.Failure)result).Error.Diagnostics[0].Code.Should()
             .Be(boundary == "requirements" ? "unsupported-required-semantics" : "incompatible-model");
     }
@@ -108,7 +124,7 @@ public sealed class CSharpGenerationBackendTests
         var options = boundary == "options" ? new OtherOptions() : Validated(backend, BackendOptions.Empty);
         using var cancellation = new CancellationTokenSource();
         if (boundary == "cancelled") cancellation.Cancel();
-        var result = await backend.GenerateAsync(new(loaded, new(boundary == "target" ? "other" : "csharp"), options), cancellation.Token);
+        var result = await backend.GenerateAsync(new(loaded, TargetId.Create(boundary == "target" ? "other" : "csharp"), options), cancellation.Token);
         var error = ((Outcome<GenerationArtifacts>.Failure)result).Error;
         error.Kind.Should().Be(boundary switch
         {
@@ -149,7 +165,7 @@ public sealed class CSharpGenerationBackendTests
         foreach (var name in new string?[] { null, "First.Generated", "Second.Generated" })
         {
             var options = name is null ? BackendOptions.Empty : ParseOptions("namespace", JsonSerializer.Serialize(name));
-            var result = (Outcome<GenerationArtifacts>.Success)await backend.GenerateAsync(new(loaded, new("csharp"), Validated(backend, options)), default);
+            var result = (Outcome<GenerationArtifacts>.Success)await backend.GenerateAsync(new(loaded, TargetId.Create("csharp"), Validated(backend, options)), default);
             var direct = name is null
                 ? CSharpGenerator.Generate(loaded.Model, GenerationOptions.Default, default)
                 : CSharpGenerator.Generate(loaded.Model, GenerationOptions.Default, NamespaceOverride.TryCreate(name).ResultValue, default);
@@ -170,7 +186,7 @@ public sealed class CSharpGenerationBackendTests
             File.WriteAllText(input, File.ReadAllText(input).Replace("\"WholeNumberLiteral\": 5000", "\"DocumentLiteral\": {\"unsupported\":true}"));
             var loaded = ((Outcome<LoadedModel>.Success)await new GenerationModelLoader(new BoundedModelCapture()).LoadAsync(new(input), ModelReadLimits.Default, default)).Value;
             var backend = new CSharpGenerationBackend();
-            var result = await backend.GenerateAsync(new(loaded, new("csharp"), Validated(backend, BackendOptions.Empty)), default);
+            var result = await backend.GenerateAsync(new(loaded, TargetId.Create("csharp"), Validated(backend, BackendOptions.Empty)), default);
             var error = ((Outcome<GenerationArtifacts>.Failure)result).Error;
             error.Kind.Should().Be(GenerationFailureKind.Semantic);
             error.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("document-literal");
