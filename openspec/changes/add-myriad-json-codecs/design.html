@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-myriad-json-codecs: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+svg text { fill: currentColor; font: 13px system-ui, sans-serif; }
+svg .box { fill: var(--panel); stroke: var(--line); }
+svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-myriad-json-codecs: design</h1>
+<p class="meta">OpenSpec change | 2026-11-07 | proposed | prerequisite of add-mep-core</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a>
+<ul>
+<li><a href="#gen-1">GEN-1. Generate System.Text.Json converters and a context</a></li>
+<li><a href="#gen-2">GEN-2. The FSharp.SystemTextJson vocabulary, checked by output</a></li>
+<li><a href="#gen-3">GEN-3. What the untyped syntax tree can and cannot tell</a></li>
+<li><a href="#gen-4">GEN-4. Configuration: project item, then attributes</a></li>
+<li><a href="#gen-5">GEN-5. Additions for parse-don't-validate and protocols</a></li>
+<li><a href="#gen-6">GEN-6. Errors</a></li>
+<li><a href="#gen-7">GEN-7. Build integration and packaging</a></li>
+<li><a href="#gen-8">GEN-8. Replace the internal stub</a></li>
+</ul></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the motivation and <a href="specs/myriad-json-generation/spec.md">the spec</a> for the requirements.</p>
+<ul>
+<li><code>Morphir.Myriad</code> already ships a Myriad 0.85.0 plugin as a NuGet package. Its package has a private Myriad host that runs with FSharp.Core 11 and .NET major-version roll forward, and an MSBuild coordinator (<code>Morphir.Myriad.Build</code>) that runs the host and orders the generated files before handwritten files. The car rental example uses it through a local feed (<code>artifacts/myriad-feed</code>).</li>
+<li><code>src/Morphir.Internal.CodeGeneration</code> has a <code>json-codec</code> generator that returns empty output, a <code>GenerateJsonCodec</code> attribute and a <code>JsonCodecConfig</code> record. No project uses them. Its <code>IMPLEMENTATION_STATUS.md</code> lists the JSON codec phase as not started.</li>
+<li>Myriad gives a generator the untyped syntax tree of its input file (Fantomas/FCS AST), not type-checked symbols.</li>
+<li>System.Text.Json source generation reads C# syntax only. In reflection mode, System.Text.Json has some F# support, but not for unions, and reflection mode is not trim-safe.</li>
+<li>FSharp.SystemTextJson (reflection-based) defines the union encoding vocabulary that F# users know (<code>JsonUnionEncoding</code>, <code>JsonFSharpOptions</code>, <code>JsonName</code>).</li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> generated code that a trimmed or Native AOT application can use with the normal <code>JsonSerializer</code> calls; the same JSON as FSharp.SystemTextJson for the shared options, so users can move with no wire change; the extra shapes that Morphir needs (MEP, IR V4 and classic, configuration); a public package that other F# projects can use.</p>
+<p><strong>Non-goals:</strong></p>
+<ul>
+<li>Generic user types (<code>type Page&lt;'T&gt; = …</code>). They need a type info for each closed type; the first release reports a build error. Generic F# collections and options are supported.</li>
+<li>Classes and C#-style objects with constructors. System.Text.Json source generation already serves them from a C# project.</li>
+<li>Reflection fallback. A shape that is not supported fails the build.</li>
+<li>Other JSON libraries (Newtonsoft.Json, Thoth). The presets copy their JSON shape, not their API.</li>
+<li>A new Myriad host. The plugin uses the host that <code>Morphir.Myriad</code> already packages.</li>
+</ul>
+
+<h2 id="decisions">Decisions</h2>
+
+<svg viewBox="0 0 760 210" role="img" aria-labelledby="flow-title">
+<title id="flow-title">Build-time flow from annotated F# types to a System.Text.Json context</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<rect class="box" x="10" y="20" width="170" height="60" rx="6"/><text x="95" y="45" text-anchor="middle">Types.fs</text><text x="95" y="63" text-anchor="middle">records, unions, attributes</text>
+<rect class="box" x="10" y="120" width="170" height="60" rx="6"/><text x="95" y="145" text-anchor="middle">.fsproj item</text><text x="95" y="163" text-anchor="middle">context name, defaults</text>
+<rect class="box" x="250" y="70" width="190" height="60" rx="6"/><text x="345" y="95" text-anchor="middle">Myriad host + plugin</text><text x="345" y="113" text-anchor="middle">untyped AST, build time</text>
+<rect class="box" x="510" y="20" width="230" height="60" rx="6"/><text x="625" y="45" text-anchor="middle">AppJson.g.fs</text><text x="625" y="63" text-anchor="middle">JsonConverter&lt;T&gt; per type</text>
+<rect class="box" x="510" y="120" width="230" height="60" rx="6"/><text x="625" y="145" text-anchor="middle">AppJson : JsonSerializerContext</text><text x="625" y="163" text-anchor="middle">JsonTypeInfo&lt;T&gt; members, Default</text>
+<path class="edge" d="M180,50 L248,90"/>
+<path class="edge" d="M180,150 L248,110"/>
+<path class="edge" d="M440,90 L508,55"/>
+<path class="edge" d="M440,110 L508,145"/>
+</svg>
+
+<h3 id="gen-1">GEN-1. Generate System.Text.Json converters and a context</h3>
+<p>For each type, the plugin generates a sealed <code>JsonConverter&lt;T&gt;</code> that reads and writes with <code>Utf8JsonReader</code> and <code>Utf8JsonWriter</code>. For each context, it generates:</p>
+<pre><code class="language-fsharp">type AppJson(options: JsonSerializerOptions | null) =
+    inherit JsonSerializerContext(options)
+    static member val Default = AppJson(JsonSerializerOptions(...defaults...))
+    member this.Person : JsonTypeInfo&lt;Person&gt; = // cached, from JsonMetadataServices.CreateValueInfo
+    override this.GetTypeInfo(t: Type) : JsonTypeInfo | null = // a match on typeof for each type
+    override _.GeneratedSerializerOptions = ...</code></pre>
+<ul>
+<li>A member whose type is in the same context calls that generated converter directly. A member whose type is elsewhere asks <code>options.GetTypeInfo(typeof&lt;T&gt;)</code>, which is trim-safe when the options' resolver covers <code>T</code>. Primitive types use the public built-in converters of <code>JsonMetadataServices</code>.</li>
+<li>Callers use the normal API: <code>JsonSerializer.Serialize(value, AppJson.Default.Person)</code>, <code>JsonTypeInfoResolver.Combine</code>, and <code>JsonSerializerOptions.TypeInfoResolverChain</code>. The <code>Default</code> instance is also an <code>IJsonTypeInfoResolver</code>.</li>
+<li>Generated code depends only on System.Text.Json and FSharp.Core. The annotations package is needed only at compile time for the attributes; nothing in it runs.</li>
+</ul>
+<p>Alternatives considered:</p>
+<ul>
+<li>Plain encode and decode functions (the stub's plan). Rejected: callers could not use <code>JsonSerializer</code>, ASP.NET Core or other libraries that take <code>JsonTypeInfo</code>, and the result would not be "the F# equivalent" of the C# generator.</li>
+<li>Annotate F# types in a C# project with <code>[JsonSerializable]</code>. Rejected: the C# generator cannot represent F# unions, and has no union encodings.</li>
+<li>Emit C# and run the C# generator. Rejected: same limits, plus a second language in every F# consumer.</li>
+</ul>
+
+<h3 id="gen-2">GEN-2. The FSharp.SystemTextJson vocabulary, checked by output</h3>
+<p>The options use the FSharp.SystemTextJson names and meanings, so a user can read their documentation and move a type with no wire change:</p>
+<table>
+<thead><tr><th>Group</th><th>Values</th></tr></thead>
+<tbody>
+<tr><td>Base union encoding</td><td><code>AdjacentTag</code> (default), <code>ExternalTag</code>, <code>InternalTag</code>, <code>Untagged</code></td></tr>
+<tr><td>Union flags</td><td><code>NamedFields</code>, <code>UnwrapFieldlessTags</code>, <code>UnwrapSingleFieldCases</code>, <code>UnwrapSingleCaseUnions</code>, <code>UnwrapRecordCases</code>, <code>UnwrapOption</code>, <code>FieldNamesFromTypes</code>, <code>AllowUnorderedTag</code>, <code>TagCaseInsensitive</code></td></tr>
+<tr><td>Presets</td><td><code>Default</code>, <code>NewtonsoftLike</code>, <code>ThothLike</code>, <code>FSharpLuLike</code></td></tr>
+<tr><td>Names</td><td>union tag name (<code>Case</code>), fields name (<code>Fields</code>), tag and field naming policies, <code>JsonName</code> on cases and fields, <code>JsonPropertyName</code> on fields</td></tr>
+<tr><td>Other</td><td>skippable option fields, allow null fields, map format (<code>Object</code>, <code>ArrayOfPairs</code>, <code>ObjectOrArrayOfPairs</code>), include record properties</td></tr>
+</tbody>
+</table>
+<p>The compatibility tests serialize a corpus of shapes with every encoding, flag and preset through both the generated context and FSharp.SystemTextJson (a test-only dependency, JIT only), and compare the JSON. They also have expected JSON written by hand for each base encoding, so the corpus does not depend only on the other library. Where FSharp.SystemTextJson has a defect, the test records the deviation and follows the documented meaning.</p>
+<p><code>AllowUnorderedTag</code> needs a look-ahead: the converter copies the <code>Utf8JsonReader</code> struct, scans the object for the tag member, and then reads from the original position, as System.Text.Json polymorphism does. Without the flag, the tag must come first, and there is no copy.</p>
+
+<h3 id="gen-3">GEN-3. What the untyped syntax tree can and cannot tell</h3>
+<p>Myriad gives the plugin syntax, not types. The rules that follow from this:</p>
+<ul>
+<li>Built-in names are known by spelling: <code>string</code>, the numeric types, <code>bool</code>, <code>option</code>, <code>voption</code>, <code>list</code>, <code>array</code> and <code>[]</code>, <code>Set</code>, <code>Map</code>, <code>ResizeArray</code>, <code>IReadOnlyList</code>, <code>IReadOnlyCollection</code>, <code>IReadOnlyDictionary</code>, <code>DateTimeOffset</code>, <code>Guid</code>, <code>JsonElement</code> and tuples. A user type with one of these names in an opened namespace is a build error, not a silent guess.</li>
+<li>Types declared in the input file get generated converters. Any other named type is resolved at run time through the options (<a href="#gen-1">GEN-1</a>). A test-time check (<code>AppJson.Verify(options)</code>) asks the options for each such type, so a missing context fails in a unit test, not in production.</li>
+<li>Type abbreviations in the input file are expanded. Abbreviations in other files are not visible; they must be declared in the context's input files or used through their target type.</li>
+<li>Attributes are matched by their name (with or without the <code>Attribute</code> suffix, short or qualified). The annotations package defines them, so the compiler checks their arguments.</li>
+<li>The generated file opens the same namespaces as the input file, and is compiled right after it.</li>
+</ul>
+
+<h3 id="gen-4">GEN-4. Configuration: project item, then attributes</h3>
+<pre><code class="language-xml">&lt;ItemGroup&gt;
+  &lt;Compile Include="Mep/Types.fs" /&gt;
+  &lt;FSharpJsonContext Include="Mep/Types.fs" Name="MepJson" Namespace="Morphir.Mep"
+                     Preset="Default" UnionEncoding="ExternalTag, UnwrapFieldlessTags"
+                     NamingPolicy="CamelCase" SkippableOptionFields="true"
+                     UnknownMembers="Ignore" /&gt;
+&lt;/ItemGroup&gt;</code></pre>
+<pre><code class="language-fsharp">[&lt;JsonUnion(BaseEncoding = JsonUnionEncoding.InternalTag ||| JsonUnionEncoding.NamedFields, TagName = "kind")&gt;]
+type Shape =
+    | [&lt;JsonName "circle"&gt;] Circle of radius: float
+    | [&lt;JsonName "square"&gt;] Square of side: float
+
+[&lt;JsonParsedValue(ParseMember = "Parse", TextMember = "Value")&gt;]
+type ExtensionId = private ExtensionId of string ...</code></pre>
+<ul>
+<li>The project item sets the context defaults. An attribute on a type, case or field overrides them for that item only. There is no global mutable configuration.</li>
+<li>Every type in the input files that has a JSON attribute, or that a context member reaches, is in the context. <code>[&lt;JsonIgnoreType&gt;]</code> leaves a type out.</li>
+<li>The option enums and attributes live in the annotations package, which has no dependency, so a domain project can reference it without a JSON dependency at run time.</li>
+</ul>
+
+<h3 id="gen-5">GEN-5. Additions for parse-don't-validate and protocols</h3>
+<table>
+<thead><tr><th>Addition</th><th>Rule</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Parsed values</td><td><code>JsonParsedValue</code>: write the text member; read through a static <code>Parse : string -&gt; Result&lt;T, 'E&gt;</code> (default) or <code>TryParse</code>; on <code>Error e</code>, throw with <code>e.ToString()</code>. Also valid as an object-map key.</td><td>Readers never build an invalid <code>ExtensionId</code>, version or digest.</td></tr>
+<tr><td>Token-kind selection</td><td><code>Untagged</code> with <code>SelectByTokenKind</code>: each case has one field of a different JSON token kind; checked at build time.</td><td>MEP <code>RequestId</code>, the untyped <code>json</code> value, IR literals.</td></tr>
+<tr><td>Exact numbers</td><td><code>TryGetUInt64</code>, <code>TryGetInt64</code> and so on; never through <code>double</code>. Strings only with <code>AllowNumbersFromStrings</code>.</td><td>u64 request ids, IR integers.</td></tr>
+<tr><td>Member rules</td><td>Required non-option fields; <code>null</code> refused unless allowed; duplicates refused; unknown members ignored or refused.</td><td>Protocol admission and security.</td></tr>
+<tr><td>User converter</td><td><code>[&lt;JsonConverter(typeof&lt;C&gt;)&gt;]</code> (the System.Text.Json attribute) on a type or field; the generated code calls <code>new C()</code>.</td><td>Shapes no option covers, such as the MEP <code>MorphirModel</code> payload.</td></tr>
+</tbody>
+</table>
+
+<h3 id="gen-6">GEN-6. Errors</h3>
+<ul>
+<li>Run time: every failure is a <code>JsonException</code> with a message that names the type and member. System.Text.Json adds the JSON path and position when a converter throws. A parse failure keeps the parser's text.</li>
+<li>Build time: an unsupported shape, an unknown attribute argument, contradictory options or an ambiguous untagged union fails generation with an error that names the file, type and member. Morphir.Myriad's coordinator turns it into an MSBuild error and blocks compilation.</li>
+</ul>
+
+<h3 id="gen-7">GEN-7. Build integration and packaging</h3>
+<ul>
+<li>Names (decided 2026-11-07): the plugin package <code>Morphir.Myriad.SystemTextJson</code> (plugin, build props and targets, the shared Myriad host), the attributes package <code>Morphir.Myriad.SystemTextJson.Annotations</code> (attributes and option enums, <code>netstandard2.0</code>, no dependency), and the Myriad generator <code>morphir-system-text-json</code> (class <code>MorphirSystemTextJsonGenerator</code>). The names keep the Morphir prefix, as <code>Morphir.Myriad</code> and its generator <code>morphir-fsharp</code> do. They do not use the <code>FSharp.SystemTextJson</code> or <code>Myriad</code> prefixes, which belong to other projects. The generator name has the <code>morphir-</code> prefix because one Myriad run can load generators from more than one plugin, and Myriad 0.85.0 filters them by name.</li>
+<li>The private Myriad host and the coordinator from <code>Morphir.Myriad</code> become a shared build component. Both packages carry it. The coordinator gains a mode for <code>.fs</code> inputs with one output file per context; the <code>morphir-fsharp</code> path does not change.</li>
+<li>Projects in this repository: a <code>ProjectReference</code> to the plugin with <code>ReferenceOutputAssembly="false"</code> orders the build, and a repository props file points the targets at the plugin's build output. The targets are the same as in the package. No package feed is needed.</li>
+<li>Generated files go under <code>obj/&lt;configuration&gt;/&lt;tfm&gt;/system-text-json/</code>. Snapshot tests keep a copy of the generated code for a sample context, so reviewers see changes to the generated code in diffs.</li>
+</ul>
+<p><strong>Publishing.</strong> The two new packages and <code>Morphir.Myriad</code> are published to NuGet.org with every morphir-dotnet release (decided 2026-11-07), through the existing path: <code>PackLibs</code> packs them, and <code>deployment.yml</code> pushes them with NuGet trusted publishing. Today <code>Morphir.Myriad</code> is packed only into the local feed <code>artifacts/myriad-feed</code>, and it is not in the <code>LibraryPackages</code> list, so no Myriad plugin is published yet. This change adds:</p>
+<ul>
+<li>the three packages to <code>LibraryPackages</code>: <code>Morphir.Myriad</code> after its backend, and the annotations package before the plugin, so that publishing keeps dependency order;</li>
+<li>for <code>Morphir.Myriad</code>: the release version replaces the fixed local version <code>0.1.0-local.5</code> in the getting-started article, the car rental example and its README, which then restore from NuGet.org; the local feed stays for the package tests;</li>
+<li>a plugin-package check in <code>PackageValidator</code>: the plugin and its dependencies under <code>tools/</code>, the Myriad host, the build props and targets, the README, the license and <code>ThirdPartyNotices.txt</code>; the existing library check applies to the annotations package;</li>
+<li>a smoke test after packing: a clean project restores the packages from the packed output only, and builds a context and a Morphir model;</li>
+<li>the release notes entry and the package README, which is also the NuGet.org page.</li>
+</ul>
+<p>The first push of a new package id needs a NuGet.org account that may create ids with the chosen prefix. The release manager checks this before the first release that has the packages.</p>
+<p>Alternative considered: commit the generated files and check them for drift in CI. Rejected for this repository: it does not exercise the package path that users take, and it adds a manual step to each type change.</p>
+
+<h3 id="gen-8">GEN-8. Replace the internal stub</h3>
+<p>The stub <code>json-codec</code> generator, <code>GenerateJsonCodecAttribute</code> and <code>JsonCodecConfig</code> are removed, with their tests. <code>IMPLEMENTATION_STATUS.md</code> and the README of <code>Morphir.Internal.CodeGeneration</code> point to the new plugin. The other internal generators do not change. The <code>elm-to-fsharp-guru</code> skill template that calls <code>json-codec</code> moves to the new generator.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>The untyped AST cannot see types in other files, so a missing context shows only at run time.</td><td>The generated <code>Verify(options)</code> member and a unit test for each context; the build error for a reserved name used by a user type.</td></tr>
+<tr><td>Myriad 0.85.0 needs the FSharp.Core host alignment; a Myriad update can break both plugins.</td><td>One shared host component with its own package test; a Myriad update is its own change.</td></tr>
+<tr><td>The FSharp.SystemTextJson output changes in a new version.</td><td>The test reference is pinned. The hand-written expected JSON is the reference for this package; a difference becomes a recorded deviation.</td></tr>
+<tr><td>Generated converters are large for big unions.</td><td>Shared helpers in generated code for each context, not for each type; a size check in the AOT probe.</td></tr>
+<tr><td>Scope is large for one change.</td><td>Tasks deliver records and string enums first (enough for most MEP types), then each union encoding, then the additions. Each group lands with its tests.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<p>Additive, except for the removal of the unused stub (<a href="#gen-8">GEN-8</a>). Existing hand-written codecs in <code>Morphir.Models</code> and <code>Morphir.Extensions</code> do not change in this change. A later change can move them, one area at a time, with the existing JSON tests as the reference.</p>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+
+<li>Whether to offer the package to the Myriad maintainers as a listed plugin after the first release.</li>
+</ul>
+
+</main>
+</body>
+</html>

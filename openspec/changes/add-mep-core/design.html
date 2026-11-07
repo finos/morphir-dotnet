@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-mep-core: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+svg text { fill: currentColor; font: 13px system-ui, sans-serif; }
+svg .box { fill: var(--panel); stroke: var(--line); }
+svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-mep-core: design</h1>
+<p class="meta">OpenSpec change | 2026-11-07 | proposed | step 1 of the Morphir extension model PRD | depends on add-myriad-json-codecs</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a>
+<ul>
+<li><a href="#mep-1">MEP-1. One MEP layer, owned by this change</a></li>
+<li><a href="#mep-2">MEP-2. F# with generated JSON converters</a></li>
+<li><a href="#mep-3">MEP-3. Types written against the pinned contract, then checked</a></li>
+<li><a href="#rpc-1">RPC-1. Four layers, one dispatcher</a></li>
+<li><a href="#rpc-2">RPC-2. Request ids and error replies</a></li>
+<li><a href="#ses-1">SES-1. One pure session state machine</a></li>
+<li><a href="#ses-2">SES-2. Transports, not processes</a></li>
+<li><a href="#mt-1">MT-1. Envelope admission is one ordered pure function</a></li>
+<li><a href="#ana-1">ANA-1. The analyzer contract</a></li>
+<li><a href="#ana-2">ANA-2. Built-in analyzers in their own project</a></li>
+<li><a href="#cli-1">CLI-1. morphir validate</a></li>
+<li><a href="#reg-1">REG-1. Registry entries for analyzers and the MEP mapping</a></li>
+<li><a href="#up-1">UP-1. The upstream validate payload proposal</a></li>
+</ul></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the motivation. The requirements are in <a href="specs/mep-protocol/spec.md">mep-protocol</a>, <a href="specs/model-analyzers/spec.md">model-analyzers</a> and <a href="specs/extension-registry/spec.md">extension-registry</a>.</p>
+<ul>
+<li>There is no MEP code in the repository. The <code>add-fsharp-compile</code> change plans <code>src/Morphir.Mep</code> in its group 7 (DTOs, framing, envelopes), group 8 (the guest) and group 9 (the host client). None of it is written. Its branch <code>feat/fsharp-compile</code> has done groups 1.1 to 1.3 (fixtures and the conformance seed).</li>
+<li>The pinned upstream contract is on <code>main</code> in <code>tests/Fixtures/Mep/</code>, from <code>finos/morphir@cde7722eb</code>: <code>mep.ir.json</code> (56 types), three Smithy transcripts and <code>model-transport.cases.json</code>.</li>
+<li>The <a href="../../../docs/content/contributing/design/spikes/extension-model/jsonrpc.md">JSON-RPC spike</a> decided our own layer on System.Text.Json and listed the tests to keep.</li>
+<li>The registry domain is F# (<code>src/Morphir.Extensions</code>), with parsed types and closed unions. The CLI edge is C# (<code>src/Morphir.Tooling</code>). The <code>fsharp-csharp-interop</code> skill has the rules for the boundary.</li>
+<li><code>TypeValidator</code> (<code>src/Morphir.IR.Pipeline.Plugins/TypeValidator.fs</code>) checks a classic package and reports <code>VMessage</code> values with the rule id <code>type-mismatch</code>. No CLI command runs it now.</li>
+<li><code>morphir generate</code> reads a model through <code>GenerationModelLoader</code>, with bounded capture and the classic and V4 readers. Its exit codes are 0, 1, 2 and 130.</li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong></p>
+<ul>
+<li>One MEP implementation that the F# frontend guest, the host client, the WASM host (step 2a) and the .NET guest SDK (step 2b) all use.</li>
+<li>A complete session over an in-memory transport, tested against the pinned transcripts, with zero AOT warnings.</li>
+<li>A user-visible result: <code>morphir validate</code> with the built-in type validator.</li>
+<li>An upstream draft for the validate payload, so step 2 has a contract to pin.</li>
+</ul>
+<p><strong>Non-goals:</strong></p>
+<ul>
+<li>Starting a guest process, the stderr pump and process-tree cleanup. <code>add-fsharp-compile</code> task 9.1 and step 2b add them on top of the stream transport.</li>
+<li>The WASM runtime (step 2a), external analyzers, and the <code>compileModel</code> and <code>generateModel</code> request types (they stay in <code>add-fsharp-compile</code> and step 4).</li>
+<li>Validator request types on the wire. They wait for the upstream contract (<a href="#up-1">UP-1</a>).</li>
+<li>Registering the transform plugins (<code>Optimizer</code>, <code>ExactScalarFolding</code>) or <code>PrettyPrinter</code>. No command runs them.</li>
+<li>An MCK suite. The compatibility kit runner is not ready (#505). This change keeps its cases as data-driven tests that can move into the kit.</li>
+</ul>
+
+<h2 id="decisions">Decisions</h2>
+
+<svg viewBox="0 0 760 300" role="img" aria-labelledby="layers-title">
+<title id="layers-title">Projects and their references in this change</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<rect class="box" x="20" y="20" width="200" height="50" rx="6"/><text x="120" y="50" text-anchor="middle">Morphir.Tooling (C#)</text>
+<rect class="box" x="280" y="20" width="200" height="50" rx="6"/><text x="380" y="45" text-anchor="middle">Morphir.Analyzers (F#)</text><text x="380" y="62" text-anchor="middle">new</text>
+<rect class="box" x="540" y="20" width="200" height="50" rx="6"/><text x="640" y="50" text-anchor="middle">Morphir.IR.Pipeline.Plugins</text>
+<rect class="box" x="150" y="130" width="200" height="50" rx="6"/><text x="250" y="160" text-anchor="middle">Morphir.Extensions (F#)</text>
+<rect class="box" x="410" y="130" width="200" height="50" rx="6"/><text x="510" y="155" text-anchor="middle">Morphir.Models (F#)</text>
+<rect class="box" x="150" y="230" width="200" height="50" rx="6"/><text x="250" y="255" text-anchor="middle">Morphir.Mep (F#)</text><text x="250" y="272" text-anchor="middle">new; uses the Myriad JSON generator</text>
+<path class="edge" d="M220,45 L278,45"/>
+<path class="edge" d="M480,45 L538,45"/>
+<path class="edge" d="M120,70 L220,128"/>
+<path class="edge" d="M360,70 L280,128"/>
+<path class="edge" d="M400,70 L490,128"/>
+<path class="edge" d="M250,180 L250,228"/>
+<path class="edge" d="M350,155 L408,155"/>
+</svg>
+
+<h3 id="mep-1">MEP-1. One MEP layer, owned by this change</h3>
+<p>This change builds the shared part of <code>Morphir.Mep</code>: the JSON-RPC layer, the session lifecycle, model-transport negotiation, envelope admission and <code>Diagnostic</code>. The <code>add-fsharp-compile</code> plan then adds only what is special to frontends: the <code>compileModel</code> types, the context digest, the frontend guest and the process host client. The pull request for this plan also edits that plan's group 7 to say so.</p>
+<p>Alternative considered: let <code>add-fsharp-compile</code> build <code>Morphir.Mep</code> first and step 1 add to it. Rejected: the F# frontend path is large (53 tasks) and its MEP groups come last, so step 2 would wait for groups 1 to 6. The shared core has no frontend dependency.</p>
+
+<h3 id="mep-2">MEP-2. F# with generated JSON converters</h3>
+<p><code>Morphir.Mep</code> is F#, as the <code>add-fsharp-compile</code> design (its project table) and the "F# for the domain" decision say. System.Text.Json source generation does not run on F# code. So the JSON converters and the <code>MepJson</code> context come from the Myriad JSON generator of <a href="../add-myriad-json-codecs/proposal.md">add-myriad-json-codecs</a>, which this change depends on.</p>
+<ul>
+<li>The MEP types are F# records and unions with attributes. Most use the project defaults: camel-case members, skippable option fields (absent, never <code>null</code>), and string tags for fieldless unions such as <code>ExtensionType</code> (<code>"validator"</code>) and <code>DiagnosticSeverity</code>.</li>
+<li>Parsed values (protocol versions, extension ids, SHA-256 digests) use <code>JsonParsedValue</code>, so a reader never builds an invalid value (parse, don't validate).</li>
+<li><code>RequestId</code> and the untyped <code>json</code> value use <code>Untagged</code> with <code>SelectByTokenKind</code>; integers keep their exact range.</li>
+<li>Unknown members follow the contract: ignored where the contract allows extension, refused where it does not.</li>
+<li>Hand-written code is left only where no encoding fits: the classification of a JSON-RPC message by its members (<a href="#rpc-1">RPC-1</a>). Raw <code>params</code> stay a <code>JsonElement</code> until a method binds them through its type info.</li>
+</ul>
+<p>Alternatives considered: hand-written codecs for each type (the first version of this plan; rejected by the product owner: slow to write and easy to get wrong for 56 types); a C# DTO project with a <code>JsonSerializerContext</code> (rejected: a second layer of nullable DTOs, no unions); F# with reflection serialization (rejected: not AOT-safe).</p>
+
+<h3 id="mep-3">MEP-3. Types written against the pinned contract, then checked</h3>
+<p>The PRD asks to generate the MEP types from <code>mep.ir.json</code> if the generators can. Task 2.1 runs the Morphir F# generator on the pinned contract and records the result in the PRD. That generator makes F# types, but not the attributes that the wire rules need. So the plan is to write the annotated types by hand and add a contract test: for each implemented type, read its constructor from <code>mep.ir.json</code>, map the kebab-case field names to wire names, and check that the generated converter writes and requires the same members. The test fails when the pin changes and the code does not. A later change can teach the Morphir F# generator to emit the attributes.</p>
+
+<h3 id="rpc-1">RPC-1. Four layers, one dispatcher</h3>
+<table>
+<thead><tr><th>Layer</th><th>Shape</th><th>Used by</th></tr></thead>
+<tbody>
+<tr><td>Message codec</td><td><code>JsonRpcMessage</code> = Request | Notification | Response | ErrorResponse; read from bytes, write to bytes. Params stay raw (<code>JsonElement</code>) until a method binds them.</td><td>all</td></tr>
+<tr><td>Dispatcher</td><td><code>DispatchAsync(message bytes, ct) : ValueTask&lt;byte[] option&gt;</code>. A method table maps method names to typed handlers through their codecs.</td><td>stdio guest, WASM guest (later), tests</td></tr>
+<tr><td>Framer</td><td><code>Content-Length</code> read and write on a <code>Stream</code>, with the header limit 8192 bytes and the body limit 64 MiB (from <code>frame.rs</code> in <code>finos/morphir-rust</code>).</td><td>process host and guest</td></tr>
+<tr><td>Connection</td><td>Reads frames, calls the dispatcher for inbound requests, and matches inbound responses to a pending-request table for outbound requests. Handles <code>$/cancelRequest</code> both ways.</td><td>process host and guest</td></tr>
+</tbody>
+</table>
+<p>The stdio connection reads a frame, calls <code>DispatchAsync</code> and writes the reply. A single-message caller calls <code>DispatchAsync</code> directly. So both paths give the same bytes (spec: "One dispatch path serves streams and single messages"). A params object binds as one value through its codec; the layer never unwraps a one-member object (the CurlyRpc defect from the spike).</p>
+
+<h3 id="rpc-2">RPC-2. Request ids and error replies</h3>
+<pre><code class="language-fsharp">[&lt;RequireQualifiedAccess&gt;]
+type RequestId =
+    | Number of uint64      // read with Utf8JsonReader.TryGetUInt64
+    | Text of string</code></pre>
+<ul>
+<li>A reply writes the id from the parsed value, so <code>18446744073709551615</code> stays exact. A negative number, a fraction or a number over the <code>u64</code> range gets <code>-32600</code>.</li>
+<li>Bad JSON gets <code>-32700</code> with <code>"id": null</code>. A bad message keeps the connection open. A bad frame closes it, because the reader cannot find the next frame boundary.</li>
+<li>Error codes are a closed union with the contract's <code>error-code</code> values (<code>-32700</code>, <code>-32600</code>, <code>-32601</code>, <code>-32602</code>, <code>-32603</code>, <code>-32800</code>, <code>-32011</code>, <code>-32013</code>, <code>-32014</code> and the others in the pin). No local code is added.</li>
+</ul>
+
+<h3 id="ses-1">SES-1. One pure session state machine</h3>
+<p>Hosts and guests share one lifecycle, as <code>add-fsharp-compile</code> MEP-2 planned:</p>
+<pre><code class="language-fsharp">type SessionState =
+    | Created                                   // describe and initialize only
+    | Initialized of NegotiatedSession          // protocol version, peer info, capabilities, tuples
+    | ShutDown                                  // exit only
+    | Exited
+
+val step : SessionState -&gt; Inbound -&gt; SessionState * Outbound list</code></pre>
+<p>The guest view uses <code>step</code> to decide the reply (<code>-32014</code>, <code>-32011</code>, <code>-32013</code>). The host view uses the same rules to refuse a request before it sends it. The methods are those of the pinned <code>method</code> type that the lifecycle needs: <code>morphir.extension.describe</code>, <code>morphir.initialize</code>, <code>morphir.initialized</code>, <code>morphir.ping</code>, <code>morphir.extension.info</code>, <code>morphir.extension.capabilities</code>, <code>morphir.shutdown</code>, <code>morphir.exit</code>, <code>$/cancelRequest</code> and progress. Task 3.1 takes the exact wire strings from the pin.</p>
+<p>The lifecycle tests replay <code>lifecycle-violations.md</code>, <code>protocol-errors.md</code> and the session part of <code>session-model-transport.md</code>. The transcripts are reviewed inputs. Where a transcript and the contract text disagree, the test follows the contract and the deviation goes into <code>conformance/deviations.md</code> with an upstream issue.</p>
+
+<h3 id="ses-2">SES-2. Transports, not processes</h3>
+<p>This change has two transports: a framed <code>Stream</code> pair, and single-message dispatch. Tests connect a host session and a test guest through in-memory pipes. Starting a child process (no shell, deadlines, the stderr pump, process-tree cleanup) is a thin edge on the stream transport, and <code>add-fsharp-compile</code> 9.1 and step 2b add it. The host session API takes a transport, so that edge needs no change to the core.</p>
+
+<h3 id="mt-1">MT-1. Envelope admission is one ordered pure function</h3>
+<p><code>admit : NegotiatedTuple -&gt; Limits -&gt; MorphirModel -&gt; Result&lt;AdmittedModel, AdmissionFailure&gt;</code> runs the checks in the spec order and stops at the first failure. <code>AdmittedModel</code> holds the verified UTF-8 IR bytes, and only it can reach an IR reader. The function does not decode the IR into Morphir types; the caller passes the bytes to the existing classic or V4 reader. Every case in the pinned <code>model-transport.cases.json</code> is a test. The limit defaults come from the contract; a negotiated limit is the smaller of the two peers' values.</p>
+
+<h3 id="ana-1">ANA-1. The analyzer contract</h3>
+<p>The contract lives in <code>Morphir.Extensions</code>, beside the registry, because each analyzer is a registered extension:</p>
+<pre><code class="language-fsharp">type AnalyzerDiagnostic =
+    { Extension: ExtensionId
+      Diagnostic: Morphir.Mep.Diagnostic }      // severity, code, message, location, related, data
+
+type IModelAnalyzer =
+    abstract Entry: ExtensionEntry              // identity and the validator claim
+    abstract AnalyzeAsync: model: DistributionModel * ct: CancellationToken
+                           -&gt; Task&lt;IReadOnlyList&lt;AnalyzerDiagnostic&gt;&gt;</code></pre>
+<ul>
+<li>The diagnostic is the MEP type, not a copy. So an external analyzer in step 2 returns the same type, and the merge needs no mapping.</li>
+<li>The runner (in F#) selects the analyzers whose claim covers the model's family and version and that configuration does not turn off. It runs them one at a time, in id order, and catches an exception per analyzer as a "failed" outcome. Parallel runs can come later; the order of the result does not depend on them.</li>
+<li>Location: an IR analyzer often has no source position. A <code>VMessage</code> with a path and a position maps to a MEP location (the path as a <code>file:</code> URI, the position made zero-based). Without them, the location is absent, and the IR node name stays in the message. The <code>data</code> member is not used in this change.</li>
+</ul>
+<p>Alternative considered: put the contract in <code>Morphir.IR.Pipeline</code> as a plugin kind. Rejected: pipeline plugins change a <code>VFile</code> tree; analyzers must not change anything, and they must share a type with external analyzers.</p>
+
+<h3 id="ana-2">ANA-2. Built-in analyzers in their own project</h3>
+<p>A new F# project, <code>src/Morphir.Analyzers</code>, holds the built-in analyzers and their entries. It references <code>Morphir.Extensions</code> and <code>Morphir.IR.Pipeline.Plugins</code>. The type-validator analyzer calls <code>TypeValidator</code> on the classic package and maps each <code>VMessage</code> (severity, rule id as the code, message, location). The project follows interop rule 1 (nullness, warnings as errors, trim and AOT). <code>Morphir.IR.Pipeline.Plugins</code> does not change, so it does not need the nullness work that <code>Morphir.Models</code> needed.</p>
+<p>Alternatives considered: put the adapter in <code>Morphir.IR.Pipeline.Plugins</code> (it would then depend on the registry and need nullness turned on), or in <code>Morphir.Extensions</code> (the registry domain would depend on the pipeline).</p>
+
+<h3 id="cli-1">CLI-1. morphir validate</h3>
+<pre><code class="language-console">morphir validate --input &lt;file-or-directory&gt; [--input-format auto|json|ion] [--json]</code></pre>
+<ul>
+<li>A C# slice <code>Features/Validate</code> in <code>Morphir.Tooling</code>, registered by a scenario in both hosts. It reuses <code>GenerationModelLoader</code> and its limits; the loader moves to a shared place if its name or namespace ties it to generation.</li>
+<li>Configuration: the command resolves the layered configuration of the invocation directory with the existing resolver, and reads only <code>extensions."&lt;id&gt;".enabled</code>. Unlike <code>generate</code>, it needs configuration, because the user turns analyzers off there.</li>
+<li>Output: a TUI table through <code>TerminalTable</code> (columns: severity, code, location, message, extension), then a summary line with the counts. Plain mode when stdout is redirected, as in <code>extension list</code>. <code>--json</code> writes one report from a source-generated C# context in <code>Morphir.Tooling</code>. Logs go to stderr.</li>
+<li>Exit codes follow <code>generate</code>: 0, 1 (an error diagnostic), 2 (invocation, input or analyzer failure), 130.</li>
+<li>The name <code>validate</code> is the upstream Rust CLI's reserved command. It is different from <code>morphir ir verify</code>, which checks the JSON schema. The documentation says when to use each.</li>
+</ul>
+
+<h3 id="reg-1">REG-1. Registry entries for analyzers and the MEP mapping</h3>
+<ul>
+<li><code>ExtensionCapability</code> gets a <code>Validator of ValidatorClaim</code> case. <code>ValidatorClaim</code> holds a non-empty set of IR format versions (<code>Versioning.FormatVersion</code>, never an integer). The <code>validator</code> type comes from the claim, as the step 0 rule requires.</li>
+<li>The built-in sources become one list: backends (existing) and analyzers (from <code>Morphir.Analyzers</code>).</li>
+<li><code>ExtensionEntry.ToMep()</code> returns a <code>Morphir.Mep.ExtensionInfo</code>. The claims mapping writes only the contract's claim kinds, so a validator claim stays out of MEP until <a href="#up-1">UP-1</a> lands.</li>
+<li><code>extension list</code> shows the validator entry. Its text table gets no new column; the capability summary column shows <code>validator (1, 2, 3)</code>.</li>
+</ul>
+
+<h3 id="up-1">UP-1. The upstream validate payload proposal</h3>
+<p>MEP <code>0.2.0-draft.1</code> has the <code>validator</code> type, the <code>validate</code> method name and the <code>ValidationError</code> code, but no request, result or capability for it. The proposal follows the model tier, as <code>compileModel</code> and <code>generateModel</code> do:</p>
+<ul>
+<li>a model operation <code>morphir.validator.validateModel</code>, negotiated with the same tuples and limits;</li>
+<li><code>ValidateModelRequest</code>: one <code>MorphirModel</code> envelope and optional <code>options</code> (JSON);</li>
+<li><code>ValidateModelResult</code>: <code>diagnostics</code> (a list of <code>Diagnostic</code>). There is no success flag: the host decides from the severities, and a failure to run is a JSON-RPC error;</li>
+<li>a <code>validator</code> capability claim with the supported tuples, in the claim set;</li>
+<li>the legacy <code>morphir.validator.validate</code> stays reserved and is not defined by this proposal.</li>
+</ul>
+<pre><code class="language-json">{"jsonrpc": "2.0", "id": 7, "method": "morphir.validator.validateModel",
+ "params": {"model": {"envelopeVersion": "0.1.0-draft.1", "irVersion": "4.0.0", "...": "..."}}}
+
+{"jsonrpc": "2.0", "id": 7, "result": {"diagnostics": [
+  {"severity": "warning", "code": "naming.module", "message": "...", "related": []}]}}</code></pre>
+<p>The proposal is a pull request against <code>spec/mep</code> in <code>finos/morphir</code> (Smithy model, generated <code>mep.ir.json</code>, a transcript and model-transport cases). The text is written in this repository first (task 7.1) and opened upstream only after the maintainer approves it. Steps 2a and 2b pin the draft by commit.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>The annotated types drift from the contract.</td><td>The contract test in <a href="#mep-3">MEP-3</a> reads <code>mep.ir.json</code> and fails on drift. The transcript round-trip tests check the bytes.</td></tr>
+<tr><td>This change waits for the Myriad JSON generator.</td><td>Groups 1 and 3 (setup and the JSON-RPC message classification and framing) do not need it and can start first. The generator tasks deliver records and string enums first, which most MEP types need.</td></tr>
+<tr><td>Upstream changes <code>0.2.0-draft.1</code> in place (drafts match exactly, but the text can move).</td><td>The pin has a commit and digests. A pin update is its own change, and all MEP parts move together, as the PRD says.</td></tr>
+<tr><td><code>add-fsharp-compile</code> work in <code>feat/fsharp-compile</code> also starts <code>Morphir.Mep</code>.</td>The pull request for this plan edits that plan's group 7 on <code>main</code>. The branch has not started group 7.</td></tr>
+<tr><td>The upstream validate shape differs from <a href="#up-1">UP-1</a>.</td><td>Nothing on the wire in this change depends on it. Steps 2a and 2b follow what upstream accepts.</td></tr>
+<tr><td>A new command name (<code>validate</code>) beside <code>ir verify</code> confuses users.</td><td>The documentation compares them, and each command's help names the other.</td></tr>
+<tr><td>The TUI table is hard to parse for editors that read compiler-style lines.</td><td><code>--json</code> is the stable format. A compiler-style line format can be an option later.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<p>Additive. A new command, a new registry entry and new projects. No setting, file format or existing output changes, except that <code>extension list</code> shows one more entry. Rollback is a revert.</p>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>The exact text of the second-<code>initialize</code> refusal. The pinned transcripts do not show it; the test checks only that it fails and that the session stays initialized.</li>
+<li>Whether upstream wants the validate payload in <code>0.2.0-draft.1</code> (edited in place) or in the next draft. This decides only the version string that step 2 pins.</li>
+</ul>
+
+</main>
+</body>
+</html>
