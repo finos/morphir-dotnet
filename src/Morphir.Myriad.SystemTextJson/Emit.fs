@@ -342,6 +342,7 @@ module internal Emit =
         |> List.iteri (fun index field ->
             let value = valueOf index field
 
+            // As in FSharp.SystemTextJson, a skippable option is written as its value alone, also without UnwrapOption.
             match field.Type with
             | TypeRef.Option inner when field.Skippable ->
                 w.Line $"match {value} with"
@@ -405,9 +406,20 @@ module internal Emit =
                     w.Line $"{seen index} <- true"
 
                     // A failure inside the value names this member, so the message holds the path within the value.
+                    // A skippable option is read as its value alone, as it is written.
+                    let expression =
+                        let lenient' = lenient || field.NumbersFromStrings
+
+                        match field.Type with
+                        | TypeRef.Option inner when field.Skippable ->
+                            $"(if reader.TokenType = JsonTokenType.Null then None else Some({readExpr codec lenient' inner}))"
+                        | TypeRef.ValueOption inner when field.Skippable ->
+                            $"(if reader.TokenType = JsonTokenType.Null then ValueNone else ValueSome({readExpr codec lenient' inner}))"
+                        | _ -> readExpr codec lenient' field.Type
+
                     let read () =
                         w.Line "try"
-                        w.Indent(fun () -> w.Line $"{local index} <- {readExpr codec (lenient || field.NumbersFromStrings) field.Type}")
+                        w.Indent(fun () -> w.Line $"{local index} <- {expression}")
                         w.Line "with :? JsonException as error ->"
                         w.Indent(fun () ->
                             w.Line $"""raise (JsonException({literal $"In the member '{field.JsonName}' of {typeName}: "} + error.Message, error))""")
@@ -824,7 +836,27 @@ module internal Emit =
                     w.Indent(fun () -> fail w $"A JSON object for {typeName} was expected.")
                     w.Line "else"
                     w.Indent(fun () ->
-                        let fieldless = indexed |> List.filter (fun (_, case) -> case.Fields.IsEmpty)
+                        // The case written as {}: a case with no field, or one whose fields are all skippable options.
+                        let isSkippableOption (field: PlannedField) =
+                            field.Skippable
+                            && (match field.Type with
+                                | TypeRef.Option _
+                                | TypeRef.ValueOption _ -> true
+                                | _ -> false)
+
+                        let fieldless =
+                            indexed
+                            |> List.filter (fun (_, case) ->
+                                if case.Fields.IsEmpty then
+                                    not e.UnwrapFieldlessTags
+                                else
+                                    match recordOf case with
+                                    | Some record ->
+                                        match plan.Records.TryFind record.Slug with
+                                        | Some(_, fields, _) -> fields |> List.forall isSkippableOption
+                                        | None -> false
+                                    | None -> case.Fields |> List.forall isSkippableOption)
+
                         w.Line "let mutable scan = reader"
                         w.Line "if not (scan.Read()) then"
                         w.Indent(fun () -> fail w $"The JSON object for {typeName} is not complete.")
@@ -1262,6 +1294,8 @@ module internal Emit =
 
                 w.Indent(fun () ->
                     match target with
+                    | TypeRef.Primitive p when plan.Settings.NumbersFromStrings && p.NumberTypeName.IsSome ->
+                        w.Line $"ignore options; {codec}.Read{p.Slug}FromString(&reader)"
                     | TypeRef.Primitive p -> w.Line $"ignore options; {codec}.Read{p.Slug}(&reader)"
                     | _ -> w.Line $"{codec}.Read_{target.Slug}(&reader, options)")
 

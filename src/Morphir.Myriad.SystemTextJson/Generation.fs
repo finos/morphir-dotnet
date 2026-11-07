@@ -438,10 +438,23 @@ module Generation =
                             let singleCaseUnwrap = e.UnwrapSingleCaseUnions && cases.Length = 1 && cases.Head.Fields.Length = 1
 
                             if e.Untagged && not e.SelectByTokenKind && not singleCaseUnwrap then
-                                let fieldless = cases |> List.filter (fun c -> c.Fields.IsEmpty)
+                                // Cases written as {}: no field (without UnwrapFieldlessTags), or only options that are left out.
+                                let empty =
+                                    cases
+                                    |> List.filter (fun c ->
+                                        if c.Fields.IsEmpty then
+                                            not e.UnwrapFieldlessTags
+                                        else
+                                            settings.Records.SkipAbsentOptions
+                                            && c.Fields
+                                               |> List.forall (fun f ->
+                                                   match f.Type with
+                                                   | TypeRef.Option _
+                                                   | TypeRef.ValueOption _ -> true
+                                                   | _ -> false))
 
-                                if fieldless.Length > 1 && not e.UnwrapFieldlessTags then
-                                    unsupported declaration declaration.Location None $"""the cases {fieldless |> List.map (fun c -> c.Name) |> String.concat " and "} have no field, so an untagged reader cannot tell them apart; add UnwrapFieldlessTags."""
+                                if empty.Length > 1 then
+                                    unsupported declaration declaration.Location None $"""the cases {empty |> List.map (fun c -> c.Name) |> String.concat " and "} can all be written as {{}}, so an untagged reader cannot tell them apart; add UnwrapFieldlessTags for cases with no field, or make an option field required."""
 
                                 let memberOwners =
                                     cases
