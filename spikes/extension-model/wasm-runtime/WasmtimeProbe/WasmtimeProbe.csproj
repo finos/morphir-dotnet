@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    WasmtimeStatic=true links libwasmtime.a from the Wasmtime C API release
+    (wasmtime-v50.0.1-aarch64-macos-c-api.tar.xz) into the Native AOT binary.
+    Pass the path with -p:WasmtimeStaticLib=<path to libwasmtime.a>.
+    The result is one file: no libwasmtime.dylib beside it.
+  -->
+  <ItemGroup Condition="'$(WasmtimeStatic)' != 'true'">
+    <PackageReference Include="Wasmtime" Version="50.0.1" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(WasmtimeStatic)' == 'true'">
+    <PackageReference Include="Wasmtime" Version="50.0.1" ExcludeAssets="native" />
+    <DirectPInvoke Include="wasmtime" />
+    <NativeLibrary Include="$(WasmtimeStaticLib)" />
+  </ItemGroup>
+</Project>
