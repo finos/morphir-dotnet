@@ -10,9 +10,9 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[11.0.100, )",
-        "resolved": "11.0.100",
-        "contentHash": "ijfOz8ihqkFNdKUY57l8YTrbJNfQW/6tFYAUU57ByZzmTxxf1o12cQaCqDOjNqAz4h86AKS7IwQkNhYcrjLeCQ=="
+        "requested": "[10.1.403, )",
+        "resolved": "10.1.403",
+        "contentHash": "SpKxPt90eSC3pfSKGLnSyucXXKVWokv1KVMTy2uQG36seOgJg14qUxjlcaWjZNWgxJtG5MeH9WpI6PQg4OR4tA=="
       },
       "Ionide.KeepAChangelog.Tasks": {
         "type": "Direct",
@@ -29,13 +29,13 @@
       "morphir.ir.pipeline": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )"
+          "FSharp.Core": "[10.1.403, )"
         }
       },
       "morphir.models": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )",
+          "FSharp.Core": "[10.1.403, )",
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
       },

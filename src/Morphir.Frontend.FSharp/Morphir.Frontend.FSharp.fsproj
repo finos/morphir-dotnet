@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.Frontend.FSharp</RootNamespace>
+        <Description>The in-process F# source frontend for morphir compile: a hermetic F# compiler service edge, checked match evidence, admission, planning and lowering into Morphir IR.</Description>
+        <PackageReleaseNotes>### Added
+The F# compiler service edge and checked match evidence.</PackageReleaseNotes>
+        <PackageTags>$(PackageTags);morphir;fsharp;frontend;compiler</PackageTags>
+        <!-- C# callers read the nullable metadata that F# nullness writes. Without it, C# sees F# types as oblivious. -->
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!--
+          No IsTrimmable or IsAotCompatible: FSharp.Compiler.Service is neither trim-safe nor AOT-safe.
+          Only the JIT dotnet tool (Morphir.Tool) references this project. A CI check keeps it out of the
+          AOT morphir executable.
+        -->
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="FSharp.Compiler.Service" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="FrontendCodes.fs" />
+        <Compile Include="TextLines.fs" />
+        <Compile Include="CompilerEdge.fs" />
+        <Compile Include="Evidence.fs" />
+    </ItemGroup>
+
+</Project>

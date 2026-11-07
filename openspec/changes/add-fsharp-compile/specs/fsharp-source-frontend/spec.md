@@ -25,8 +25,8 @@ The frontend SHALL compile an ordered list of F# source documents as one package
 Errors from F# parsing or type checking SHALL become `fsharp.compiler` error diagnostics that keep the F# message and the error number. When any such error exists, the frontend SHALL produce no model and SHALL NOT also report unsupported-construct diagnostics for code the compiler rejected.
 
 #### Scenario: Type error
-- **WHEN** a value adds an `int` to a `string`
-- **THEN** the result has one `fsharp.compiler` error whose data carries the F# error number, its range points to the expression, and there is no model
+- **WHEN** a value annotated as `int` is given a `string` literal
+- **THEN** the result has one `fsharp.compiler` error whose data carries the F# error number (1), its range points to the literal, and there is no model
 
 ### Requirement: Warnings and information accompany a successful model
 A successful compilation SHALL return its model together with every diagnostic of severity `warning`, `info` or `hint` that any stage produced. F# compiler warnings and messages SHALL become `fsharp.compiler` diagnostics with their F# severity and error number. Only an `error` diagnostic SHALL prevent a model.

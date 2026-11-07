@@ -29,6 +29,7 @@
     <Project Path="src/Morphir/Morphir.csproj" />
     <Project Path="src/Morphir.Configuration/Morphir.Configuration.fsproj" />
     <Project Path="src/Morphir.Compilation/Morphir.Compilation.fsproj" />
+    <Project Path="src/Morphir.Frontend.FSharp/Morphir.Frontend.FSharp.fsproj" />
     <Project Path="src/Morphir.Configuration.IO/Morphir.Configuration.IO.csproj" />
     <Project Path="src/Morphir.Configuration.Microsoft/Morphir.Configuration.Microsoft.csproj" />
     <Project Path="src/Morphir.IR.Pipeline/Morphir.IR.Pipeline.fsproj" />
