@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-fsharp-compile: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; --accent: #0f766e; --warn: #b45309; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; --accent: #5eead4; --warn: #fbbf24; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; vertical-align: top; }
+svg { max-width: 100%; height: auto; color: var(--muted); }
+svg .box { fill: var(--panel); stroke: var(--line); }
+svg .hot { fill: var(--panel); stroke: var(--accent); stroke-width: 2; }
+svg .later { fill: none; stroke: var(--warn); stroke-dasharray: 5 4; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .small { fill: var(--muted); font-size: 11px; }
+svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-fsharp-compile: design</h1>
+<p class="meta">OpenSpec change | revised 2026-11-07 | implementation in progress. Upstream pin <code>finos/morphir@cde7722eb</code>. See <a href="proposal.md">proposal.md</a>, <a href="tasks.md">tasks.md</a> and the specs for
+<a href="specs/fsharp-source-frontend/spec.md">fsharp-source-frontend</a>,
+<a href="specs/ir-model-writing/spec.md">ir-model-writing</a>,
+<a href="specs/project-file-sources/spec.md">project-file-sources</a>,
+<a href="specs/cli-model-compilation/spec.md">cli-model-compilation</a>,
+<a href="specs/compile-task-records/spec.md">compile-task-records</a> and
+<a href="specs/mep-frontend-sessions/spec.md">mep-frontend-sessions</a>.</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#examples">CLI and output examples</a></li>
+<li><a href="#architecture">Architecture</a></li>
+<li><a href="#decisions">Decisions</a>
+  <ul>
+  <li><a href="#arch-1">ARCH-1</a>, <a href="#arch-2">ARCH-2</a>, <a href="#diag-1">DIAG-1</a>, <a href="#strm-1">STRM-1</a>, <a href="#strm-2">STRM-2</a>: extension axes, project boundaries, diagnostics, streaming</li>
+  <li><a href="#ver-1">VER-1</a>, <a href="#mid-1">MID-1</a>, <a href="#irw-1">IRW-1</a>: format versions, native IR builders, writers</li>
+  <li><a href="#src-1">SRC-1</a>, <a href="#src-2">SRC-2</a>: project-file sources</li>
+  <li><a href="#fe-1">FE-1</a>, <a href="#fe-2">FE-2</a>: frontend contract and selection</li>
+  <li><a href="#fsf-1">FSF-1</a> to <a href="#fsf-6">FSF-6</a>: the F# frontend</li>
+  <li><a href="#cli-1">CLI-1</a> to <a href="#cli-3">CLI-3</a>, <a href="#rec-1">REC-1</a>: command, generation pathway, records</li>
+  <li><a href="#mep-1">MEP-1</a> to <a href="#mep-3">MEP-3</a>: the MEP 0.2.0-draft.1 steel thread</li>
+  <li><a href="#mck-1">MCK-1</a>: the first Morphir Compatibility Kit suite; the case data is the oracle</li>
+  </ul></li>
+<li><a href="#delivery">Delivery order</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See proposal.md, section Why. These facts about the current state constrain the approach:</p>
+<ul>
+<li><strong>Generation pipeline.</strong> <code>morphir generate</code> already has the pipeline this change must reuse:
+  <ul>
+  <li><code>GenerateHandler</code> runs settings, then load, then backend resolution, then generation, then publication, all through injected interfaces (<code>src/Morphir.Tooling/Features/Generate/</code>).</li>
+  <li>Backends are added through static <code>TryAddEnumerable</code> registration. The C# backend was added without editing the command, the handler or the resolver.</li>
+  <li><code>VersionedModel</code> wraps a classic or v4 distribution and keeps the exact declared version as a <code>SourceFormatVersion</code>.</li>
+  </ul></li>
+<li><strong>Format versions.</strong> <code>Versioning.FormatVersion = Classic of int | SemVer of SemanticVersion</code> already models integer classic versions and full SemVer, with pre-release and build parts (<code>src/Morphir.Models/IR/Versioning.fs</code>). The upstream writer rule is to write <code>3</code>/<code>4</code> for <code>.0.0</code> releases and the exact string otherwise.</li>
+<li><strong>No complete IR writer exists.</strong> Readers cover classic JSON v1/v2/v3, v4 JSON and Ion. The partial <code>TypeCodec</code>/<code>LiteralCodec</code> encoders produce the wrong v1/v2 tags and a record-field shape that the reader rejects.</li>
+<li><strong>No production conversion between families.</strong> There is no classic-to-v4 or v4-to-classic conversion outside tests. Repository policy forbids silent migration of supplied v4 input to classic.</li>
+<li><strong>AOT.</strong> <code>morphir</code> is published with <code>PublishAot</code> and <code>PublishTrimmed</code>. <code>dotnet-morphir</code> is a JIT dotnet tool that delegates to <code>Morphir.Program.Main</code>. FSharp.Compiler.Service (FCS) is already pinned, but it is not trim-safe or AOT-safe.</li>
+<li><strong>Configuration.</strong> Project discovery and the canonical schema already exist. They have <code>project.*</code>, <code>ir.format_version</code> (default 4), <code>frontend.language</code>, the per-language <code>[frontend.elm]</code> table and <code>workspace.out_dir</code>.</li>
+<li><strong>Project files (checked on .NET SDK 10.0.403).</strong> <code>dotnet msbuild X.fsproj -getItem:Compile</code> evaluates the project without building it. It returns <code>Compile</code> items in declared order as JSON, in about 0.25 s, with no restore and no <code>obj/</code> output. It also reports <code>Link</code> items whose path is outside the project directory.</li>
+<li><strong>Ecosystem (upstream <code>finos/morphir@cde7722eb</code>).</strong>
+  <ul>
+  <li>The Rust CLI implements <code>morphir compile</code> and the out directory with task records, tombstones and locks.</li>
+  <li>The latest MEP contract is <code>0.2.0-draft.1</code>. It adds <code>compileModel</code>/<code>generateModel</code> with exact five-part transport tuples, bilateral limits and the <code>MorphirModel</code> envelope <code>0.1.0-draft.1</code>. A session picks exactly one protocol version.</li>
+  <li>The MEP guest kit (<code>generic-json-library-v1</code>) still requires a legacy <code>0.1</code> stage for every guest, and a guest that is both frontend and backend. It is behind the current contract, so this design does not take it as an input (<a href="#mep-3">MEP-3</a>).</li>
+  <li>Upstream workspace discovery is a portable search over a supplied file tree. It never runs build tools.</li>
+  <li>No F# frontend exists in the ecosystem.</li>
+  </ul></li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals.</strong></p>
+<ul>
+<li>Each future frontend, IR version (including pre-releases), project-file tool and transport is added as a new module plus a registration. Nothing already written needs editing.</li>
+<li>Every stage between the effect edges (file capture, the build tool, FCS, the MEP process, publication) is a pure function from immutable input to <code>Checked</code>, which carries diagnostics on success and on failure (<a href="#diag-1">DIAG-1</a>).</li>
+<li>The F# frontend is complete and solid through the in-process dotnet-tool path before the MEP path depends on it.</li>
+<li>The MEP path implements the latest upstream contract exactly. It adds no member and does not fall back to legacy.</li>
+</ul>
+<p><strong>Non-goals.</strong></p>
+<ul>
+<li>A Morphir type checker. Types come from FCS inference.</li>
+<li>Changes to the readers or the public IR types.</li>
+<li>Fixing the legacy partial encoders.</li>
+<li>Resolving build-tool references.</li>
+<li>Legacy MEP <code>0.1</code>.</li>
+<li>The Ion <code>morphir-model</code> profile.</li>
+<li>Evidence and guarantee checking.</li>
+<li>Running the generated code.</li>
+</ul>
+
+<h2 id="examples">CLI and output examples</h2>
+<pre><code class="language-toml"># morphir.toml
+[project]
+name = "acme/car-rental"
+exposed_modules = ["Pricing"]
+
+[ir]
+format_version = 4            # or "4.0.0"; a declared pre-release such as "4.1.0-draft.1" is also valid
+
+[frontend]
+language = "fsharp"
+
+[frontend.fsharp]
+project_file = "src/Acme.CarRental.fsproj"   # same key in every [frontend.&lt;language&gt;] table
+# extension = "/opt/morphir/morphir-fsharp-frontend"   # optional: use the MEP guest</code></pre>
+<pre><code class="language-console"># In-process frontend (dotnet tool, first delivery)
+dotnet-morphir compile --json
+dotnet-morphir compile --project-file src/Acme.CarRental.fsproj --package-name acme/car-rental --ir-version 3 -o dist/ir
+dotnet-morphir compile --language fsharp --input src/Rates.fs src/Pricing.fs --package-name acme/car-rental
+
+# Compile and generate in one run, in memory
+dotnet-morphir compile --target csharp --generate-output generated/csharp --option namespace=Acme.CarRental
+
+# Ecosystem two-step: generate reads .morphir/out/compile.json
+dotnet-morphir compile
+dotnet-morphir generate --target fsharp --output generated/fsharp
+
+# AOT executable through the MEP 0.2.0-draft.1 guest (second delivery)
+morphir compile --extension "$(which morphir-fsharp-frontend)"</code></pre>
+<pre><code class="language-json">{
+  "success": false,
+  "exitCode": 1,
+  "language": "fsharp",
+  "frontend": "morphir-dotnet-fsharp (in-process)",
+  "irVersion": "4",
+  "sources": { "projectFile": "src/Acme.CarRental.fsproj", "root": "src", "documents": ["Rates.fs", "Pricing.fs"] },
+  "modules": [],
+  "diagnostics": [
+    { "severity": "warning", "code": "msbuild.ignored_package_reference",
+      "message": "PackageReference Newtonsoft.Json is ignored; the F# frontend type-checks against FSharp.Core and the runtime only." },
+    { "severity": "error", "code": "fsharp.unsupported_mutable",
+      "message": "Mutable bindings are not supported; Morphir values are immutable. Use a new let binding.",
+      "location": { "uri": "Pricing.fs",
+        "range": { "start": { "line": 11, "character": 8 }, "end": { "line": 11, "character": 15 } } } }
+  ]
+}</code></pre>
+
+<h2 id="architecture">Architecture</h2>
+<p>One pipeline has four independent extension axes:</p>
+<ul>
+<li><em>project-file providers</em>, chosen by the tool's file pattern;</li>
+<li><em>frontends</em>, chosen by language and transport;</li>
+<li><em>IR builders</em>, one per IR family, which every frontend's single lowering uses (<a href="#mid-1">MID-1</a>);</li>
+<li><em>writers</em>, chosen by exact format version.</li>
+</ul>
+<p>Each axis grows by adding modules (sums), never by multiplying combinations. Generation is reached through the existing backend contracts.</p>
+<svg viewBox="0 0 980 380" role="img" aria-labelledby="arch-title">
+<title id="arch-title">Compile pipeline: settings, source selection with project-file providers, frontend registry with in-process and MEP adapters, native IR builders, writers, record and publication, optional generation</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<rect class="box" x="10" y="20" width="160" height="56" rx="6"/><text x="22" y="44">Settings resolver</text><text class="small" x="22" y="63">CLI &gt; project &gt; default</text>
+<rect class="hot" x="10" y="100" width="160" height="96" rx="6"/><text x="22" y="122">Source selection</text><text class="small" x="22" y="141">files | directory |</text><text class="small" x="22" y="157">project file → provider</text><text class="small" x="22" y="173">(MSBuild evaluation)</text>
+<rect class="box" x="10" y="220" width="160" height="50" rx="6"/><text x="22" y="242">Bounded capture</text><text class="small" x="22" y="259">UTF-8, no links</text>
+<rect class="hot" x="210" y="20" width="200" height="176" rx="6"/><text x="222" y="42">Frontend registry</text><text class="small" x="222" y="60">select by advertised capability</text>
+<rect class="hot" x="225" y="76" width="170" height="44" rx="4"/><text x="235" y="103">In-process F# (JIT tool)</text>
+<rect class="later" x="225" y="132" width="170" height="44" rx="4"/><text x="235" y="152">MEP 0.2.0-draft.1</text><text class="small" x="235" y="168">compileModel host client</text>
+<rect class="later" x="225" y="240" width="170" height="60" rx="4"/><text x="235" y="264">F# MEP guest process</text><text class="small" x="235" y="283">same frontend library</text>
+<rect class="box" x="450" y="20" width="160" height="56" rx="6"/><text x="462" y="44">IR builders</text><text class="small" x="462" y="63">classic | v4, both native</text>
+<rect class="box" x="450" y="120" width="160" height="56" rx="6"/><text x="462" y="144">IR writers</text><text class="small" x="462" y="163">exact FormatVersion</text>
+<rect class="box" x="650" y="20" width="150" height="56" rx="6"/><text x="662" y="44">Task record</text><text class="small" x="662" y="63">.dest, lock, -o install</text>
+<rect class="box" x="650" y="120" width="150" height="56" rx="6"/><text x="662" y="144">LoadedModel</text><text class="small" x="662" y="163">written bytes retained</text>
+<rect class="box" x="830" y="120" width="140" height="56" rx="6"/><text x="842" y="144">Existing backends</text><text class="small" x="842" y="163">fsharp, csharp</text>
+<rect class="box" x="830" y="240" width="140" height="56" rx="6"/><text x="842" y="264">morphir generate</text><text class="small" x="842" y="283">reads compile.json</text>
+<path class="edge" d="M90,76 V100"/><path class="edge" d="M90,196 V220"/>
+<path class="edge" d="M170,245 Q190,200 210,150"/>
+<path class="edge" d="M310,176 V240"/>
+<path class="edge" d="M410,48 H450"/><path class="edge" d="M530,76 V120"/>
+<path class="edge" d="M610,148 H650"/><path class="edge" d="M610,140 Q630,80 650,60"/>
+<path class="edge" d="M800,148 H830"/><path class="edge" d="M725,76 Q800,250 830,268"/>
+<path class="edge" d="M900,240 V176"/>
+<text class="small" x="450" y="350">Solid teal: first delivery (dotnet tool, no MEP). Dashed amber: second delivery (MEP 0.2.0-draft.1 steel thread).</text>
+</svg>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="arch-1">ARCH-1. Open/closed through registries of pure stages</h3>
+<p>Each axis is a small capability descriptor plus a function. A registry selects implementations by descriptor only, using the same rules as <code>RegisteredBackendResolver</code>: exact match, no fallback by registration order, and ambiguity is an error. In C# the same contract is an interface.</p>
+<ul>
+<li>Adding an IR version, including a pre-release, adds a writer declaration. Adding an IR family adds a builder.</li>
+<li>Adding a build tool adds a project-file provider.</li>
+<li>Adding a language or transport adds a frontend registration.</li>
+<li>The handler, the command and the existing stages are not edited.</li>
+</ul>
+<pre><code class="language-fsharp">// Morphir.Compilation (AOT-safe, no FCS reference). Sketch.
+open Morphir.IR                        // Versioning.FormatVersion = Classic of int | SemVer of SemanticVersion
+
+type IrTarget = { Family: ModelFamily; Version: Versioning.FormatVersion }   // never an int
+
+// IIrBuilder&lt;'Type, 'Pattern, 'Value, 'Package&gt;: one native implementation per family (MID-1)
+type FamilyModel =                                      // what builders produce and writers write
+  | Classic of Classic.Distribution&lt;unit, Classic.Type&lt;unit&gt;&gt;
+  | V4 of V4.Distribution
+
+type IrWriter =                                         // one per writer; declares exact versions
+  { Family: ModelFamily
+    Versions: Versioning.FormatVersion list             // e.g. [Classic 3] or [SemVer 4.1.0-draft.1]
+    Write: WriteOptions -&gt; FamilyModel -&gt; Checked&lt;byte[]&gt; }
+
+type ProjectFileProvider =                              // one per build tool
+  { Identity: string; Patterns: string list             // e.g. "*.*proj"
+    Expand: ProjectFile -&gt; CancellationToken -&gt; Task&lt;Checked&lt;SourceSelection&gt;&gt; }</code></pre>
+<p><strong>Alternative considered:</strong> each frontend lowers to every family and reads every tool's project files itself. The work multiplies, and every frontend changes when a version or tool is added.</p>
+
+<h3 id="arch-2">ARCH-2. Project boundaries follow the AOT boundary</h3>
+<table>
+<thead><tr><th>Project</th><th>Language</th><th>AOT</th><th>Contents</th></tr></thead>
+<tbody>
+<tr><td><code>Morphir.Models</code> (existing)</td><td>F#</td><td>yes</td><td>The new writers in <code>Json/Classic/ClassicJsonWriter.fs</code> and <code>Json/V4/V4JsonWriter.fs</code>, next to the readers.</td></tr>
+<tr><td><code>Morphir.Compilation</code> (new)</td><td>F#</td><td>yes</td><td>The compile contract (<a href="#fe-1">FE-1</a>), the IR builder interface with the native classic and v4 builders, the frontend, writer and project-file provider registries, and the UTF-16 range helpers.</td></tr>
+<tr><td><code>Morphir.Frontend.FSharp</code> (new)</td><td>F#</td><td><strong>no</strong></td><td>The FCS edge, admission rules, lowering, name and SDK mapping, and <code>FSharpFrontend.registration</code>.</td></tr>
+<tr><td><code>Morphir.Mep</code> (new)</td><td>F#</td><td>yes</td><td>The MEP <code>0.2.0-draft.1</code> DTOs with a source-generated JSON context, the <code>MorphirModel</code> envelope codec, Content-Length framing, the session core, the host client and the guest loop.</td></tr>
+<tr><td><code>Morphir.Frontend.FSharp.Mep</code> (new)</td><td>F# exe</td><td>no</td><td>The guest executable <code>morphir-fsharp-frontend</code>. It is framework-dependent and packaged as a dotnet tool.</td></tr>
+<tr><td><code>Morphir.Tooling</code> (existing)</td><td>C#</td><td>yes</td><td><code>Features/Compile/</code>, the MSBuild project-file provider (a child process), the record store, and <code>CompilationScenario</code> (which registers the MEP adapter).</td></tr>
+<tr><td><code>Morphir.Tool</code> (existing)</td><td>C#</td><td>no</td><td>Its own composition, which adds <code>FSharpFrontendScenario</code> (<a href="#cli-3">CLI-3</a>).</td></tr>
+</tbody>
+</table>
+<p>A CI check fails if the assembly closure of <code>morphir</code> contains <code>FSharp.Compiler.Service</code> or <code>Morphir.Frontend.FSharp</code>.</p>
+
+<h3 id="diag-1">DIAG-1. Diagnostics travel on both success and failure</h3>
+<p>Every stage between the effect edges returns <code>Checked&lt;'T&gt;</code>, never <code>Result&lt;'T, Diagnostic&gt;</code>. A <code>Result</code> has nowhere to put a warning, an info or a hint on success, so those diagnostics would be lost.</p>
+<pre><code class="language-fsharp">// Morphir.Compilation. Invariants are enforced by smart constructors.
+type Checked&lt;'T&gt; =
+    private
+    | Passed of value: 'T * diagnostics: Diagnostic list   // no error-severity diagnostic
+    | Failed of diagnostics: Diagnostic list               // at least one error, plus any warnings gathered before it
+
+module Checked =
+    val pass   : 'T -&gt; Checked&lt;'T&gt;
+    val note   : Diagnostic -&gt; Checked&lt;unit&gt;              // an error fails; warning, info or hint passes
+    val bind   : ('T -&gt; Checked&lt;'U&gt;) -&gt; Checked&lt;'T&gt; -&gt; Checked&lt;'U&gt;   // keeps diagnostics in order, stops at Failed
+    val zip    : Checked&lt;'T&gt; -&gt; Checked&lt;'U&gt; -&gt; Checked&lt;'T * 'U&gt;      // applicative: runs both, collects all
+    val traverse : ('T -&gt; Checked&lt;'U&gt;) -&gt; 'T list -&gt; Checked&lt;'U list&gt;  // applicative over siblings
+// checked { let! a = x; and! b = y; do! Checked.note w; return f a b }</code></pre>
+<ul>
+<li><strong>Severity alone decides failure.</strong> One <code>error</code> makes the result <code>Failed</code>. <code>warning</code>, <code>info</code> and <code>hint</code> never change the outcome or the exit code.</li>
+<li><strong>Nothing is lost when a stage fails.</strong> A <code>Failed</code> result keeps the warnings gathered before the first error, and <code>FrontendFailure</code> keeps them for operational failures.</li>
+<li><strong>Accumulation.</strong> Dependent steps use <code>let!</code>, which stops at the first failure. Independent steps (admission rules, sibling declarations, cases and arguments) use <code>and!</code>/<code>traverse</code>, which collect every diagnostic. One run therefore reports all independent problems.</li>
+<li><strong>Order.</strong> Diagnostics are kept in the order they were emitted. The report orders them by stage, in the STRM-2 stage order (<code>settings</code>, <code>sources</code>, <code>capture</code>, <code>frontend</code>, <code>write</code>, <code>publish</code>, <code>generate</code>, <code>generatePublish</code>), then by document and position, as the frontend spec requires.</li>
+<li><strong>Edges.</strong> <code>Checked</code> maps one to one onto MEP <code>CompileModelResult</code>: <code>Passed</code> becomes <code>success: true</code> with its diagnostics, and <code>Failed</code> becomes <code>success: false</code>. At the Tooling boundary, <code>Passed</code> becomes a successful <code>Outcome</code> whose success record carries the diagnostics, as <code>GenerationSuccess</code> already does. <code>Failed</code> becomes a semantic failure.</li>
+</ul>
+<p><strong>Alternatives considered:</strong></p>
+<ul>
+<li><code>Result&lt;'T * Diagnostic list, Diagnostic list&gt;</code> does not enforce the severity invariants, and every caller must remember to concatenate the lists.</li>
+<li>A mutable diagnostics sink is an effect inside pure stages, and it makes ordering depend on evaluation order.</li>
+</ul>
+
+<h3 id="strm-1">STRM-1. Stream events at the pipeline edge; the report is their fold</h3>
+<p>Pure stages keep returning <code>Checked</code> values (<a href="#diag-1">DIAG-1</a>). Streaming is added only at the orchestration edge. The compile runner in Tooling is C#, so it uses native async iterators and needs no new F# dependency:</p>
+<pre><code class="language-csharp">public abstract record CompileEvent
+{
+    public sealed record StageStarted(CompileStage Stage) : CompileEvent;
+    public sealed record DiagnosticsReported(CompileStage Stage, string? DocumentUri,
+        ImmutableArray&lt;Diagnostic&gt; Diagnostics) : CompileEvent;
+    public sealed record StageCompleted(CompileStage Stage, bool Passed) : CompileEvent;
+    public sealed record Completed(Outcome&lt;CompileSuccess&gt; Outcome) : CompileEvent;   // always last
+}
+public interface ICompileRunner
+{
+    IAsyncEnumerable&lt;CompileEvent&gt; RunAsync(CompileSettings settings, CancellationToken ct);
+}</code></pre>
+<ul>
+<li><strong>Granularity.</strong> Each stage emits its diagnostics when it completes. Stages that work per document (source capture, admission, writing) emit per document. In this change, the F# compiler checks the whole project at once, so its diagnostics arrive together. Finer streaming comes with incremental checking.</li>
+<li><strong>The report is a fold.</strong> <code>CompileHandler</code> consumes the stream and folds it into the existing single report and <code>Outcome</code>. One property test over the corpus checks that the fold equals the batch path. The terminal <code>Completed</code> event carries the outcome, because the result is only known after the last diagnostic (an error anywhere fails it).</li>
+<li><strong>Consumers in this change.</strong>
+  <ul>
+  <li>Human mode writes each <code>DiagnosticsReported</code> event to stderr as it arrives.</li>
+  <li><code>--json</code> writes only the folded report.</li>
+  <li><code>--json-lines</code> writes each event as one JSON line on stdout as it occurs (<a href="#strm-2">STRM-2</a>).</li>
+  <li>MEP is unchanged.</li>
+  </ul></li>
+<li><strong>Later consumers</strong> use the same stream with no stage changes: watch mode, a daemon, LSP-style per-document publishing, and progress.</li>
+<li><strong>Cancellation</strong> flows through <code>WithCancellation</code>. Cancelling before publication gives exit code 130. <code>IAsyncEnumerable</code> is trim-safe and AOT-safe.</li>
+<li><strong>Upstream.</strong>
+  <ul>
+  <li>The Rust CLI writes one compact report line for <code>--json-lines</code> (<code>crates/morphir/src/output.rs</code>). That seems to be an incorrect implementation of the flag's intended meaning: one JSON record per line, written as events occur. This change implements the intended meaning now (<a href="#strm-2">STRM-2</a>), and an upstream issue proposes the same record format so that the Rust CLI can align.</li>
+  <li>MEP <code>0.2.0-draft.1</code> has no diagnostics notification. This is raised upstream; no local member is invented.</li>
+  </ul></li>
+</ul>
+<p><strong>Alternatives considered:</strong></p>
+<ul>
+<li><code>IAsyncEnumerable</code> inside the pure stages. The pass/fail invariant would need a terminal state anyway, applicative collection and determinism would get harder, and effects would enter the middle-end.</li>
+<li>A callback sink. This is an effect inside the stages, cannot be composed, and gives no back-pressure.</li>
+</ul>
+
+<h3 id="strm-2">STRM-2. <code>--json-lines</code> is the event stream as newline-delimited JSON</h3>
+<p><code>--json-lines</code> writes the STRM-1 events to stdout, one compact UTF-8 JSON object per line, ending each line with <code>\n</code>. Each line is flushed when its event occurs. Logs stay on stderr. Each record has an <code>event</code> member; the other members are camelCase, like the report.</p>
+<pre><code class="language-json">{"event":"stageStarted","stage":"sources"}
+{"event":"diagnostics","stage":"sources","document":"src/Acme.CarRental.fsproj","diagnostics":[{"severity":"warning","code":"msbuild.ignored_package_reference","message":"PackageReference Newtonsoft.Json is ignored."}]}
+{"event":"stageCompleted","stage":"sources","passed":true}
+{"event":"stageStarted","stage":"frontend"}
+{"event":"diagnostics","stage":"frontend","document":"Pricing.fs","diagnostics":[{"severity":"warning","code":"fsharp.compiler","message":"Incomplete pattern matches on this expression.","location":{"uri":"Pricing.fs","range":{"start":{"line":11,"character":4},"end":{"line":11,"character":9}}},"data":{"errorNumber":25}}]}
+{"event":"stageCompleted","stage":"frontend","passed":true}
+{"event":"stageStarted","stage":"write"}
+{"event":"stageCompleted","stage":"write","passed":true}
+{"event":"stageStarted","stage":"publish"}
+{"event":"stageCompleted","stage":"publish","passed":true}
+{"event":"completed","report":{"success":true,"exitCode":0,"irVersion":"4","diagnostics":["... the same two diagnostics ..."]}}</code></pre>
+<ul>
+<li><strong>Stages:</strong> <code>settings</code>, <code>sources</code>, <code>capture</code>, <code>frontend</code> (which includes building the requested family), <code>write</code>, <code>publish</code>, and, with <code>--target</code>, <code>generate</code> and <code>generatePublish</code>. A stage that does not run has no records.</li>
+<li><strong>Exactly one <code>completed</code> record, always last.</strong> It holds the same report object that <code>--json</code> writes, so a consumer that wants only the result reads the last line. Parse errors, the <code>--json</code> plus <code>--json-lines</code> conflict, and cancellation also end with one <code>completed</code> record when output can still be written.</li>
+<li><strong>The stream holds no less than the report.</strong> All <code>diagnostics</code> records together equal the report's diagnostics. Record order is emission order; the report keeps its stage, document and position order.</li>
+<li><strong>Compatibility.</strong> Consumers ignore unknown event types and members, so new stages, events and members can be added without a new format version. Removing or renaming a member is a breaking change.</li>
+<li><strong>Serialization</strong> uses one source-generated <code>JsonSerializerContext</code> for the event records and the report, so trimming and AOT work.</li>
+</ul>
+<p><strong>Alternatives considered:</strong></p>
+<ul>
+<li>Copying the Rust CLI's one-line report. That is not what the flag is for, and it adds nothing over <code>--json</code>.</li>
+<li>A new flag such as <code>--json-stream</code>. It would leave <code>--json-lines</code> with the wrong meaning in the ecosystem, and it would split the tools.</li>
+<li>JSON-RPC notifications on stdout. That needs a protocol for a command-line output format, and MEP has none for diagnostics.</li>
+</ul>
+
+<h3 id="ver-1">VER-1. Format versions are always <code>Versioning.FormatVersion</code></h3>
+<p>No contract, registry key, setting or report field holds a format version as an <code>int</code>. These all carry <code>Versioning.FormatVersion</code>, and <code>SourceFormatVersion</code> where the declared spelling matters:</p>
+<ul>
+<li><code>--ir-version</code></li>
+<li><code>ir.format_version</code></li>
+<li><code>IrTarget</code></li>
+<li>writer declarations</li>
+<li>MEP tuples</li>
+<li>records</li>
+</ul>
+<p>The equivalence rule:</p>
+<ul>
+<li><code>Classic n</code> equals <code>SemVer n.0.0</code>.</li>
+<li>Any other SemVer matches only itself, and a pre-release never matches its release.</li>
+<li>Build metadata is kept in the spelling but has no effect on matching, as SemVer requires.</li>
+</ul>
+<p>One pure function, <code>FormatVersion.sameVersion</code>, owns this rule, and property tests cover it. Writers write integer <code>n</code> for <code>Classic n</code> and <code>n.0.0</code>, and the exact string otherwise.</p>
+<p>A future <code>4.1.0-draft.1</code> writer is therefore one declaration. Today's IR v4 writer declares <code>Classic 4</code>, which also matches <code>4.0.0</code>.</p>
+<p><strong>Alternative considered:</strong> an <code>int</code> major version. It cannot represent pre-releases, and it would merge distinct draft formats.</p>
+
+<h3 id="mid-1">MID-1. Lower once against an IR builder interface; each family builds natively</h3>
+<p>The middle-end is an <strong>object algebra</strong>, also called tagless-final style: an interface with one constructor for each IR node of the supported subset. A frontend writes its lowering once, generic over that interface. Each IR family implements the interface natively. Lowering and building are one pass, and there is no intermediate tree.</p>
+<pre><code class="language-fsharp">// Morphir.Compilation. One member per node of the supported subset; sketch.
+type IIrBuilder&lt;'Type, 'Pattern, 'Value, 'Package&gt; =
+    abstract Family  : ModelFamily
+    abstract TypeRef : Span * FQName * args: 'Type list -&gt; Checked&lt;'Type&gt;
+    abstract Integer : Span * inferred: 'Type * BigInteger -&gt; Checked&lt;'Value&gt;
+    abstract Apply   : Span * inferred: 'Type * fn: 'Value * arg: 'Value -&gt; Checked&lt;'Value&gt;
+    abstract Match   : Span * inferred: 'Type * subject: 'Value * cases: ('Pattern * 'Value) list -&gt; Checked&lt;'Value&gt;
+    // ... literals, constructors, lambdas, let/let rec, records, patterns, definitions, modules
+    abstract Package : PackagePlan * modules: ModulePlan&lt;'Type, 'Value&gt; list -&gt; Checked&lt;'Package&gt;
+
+// Native builders:
+// ClassicBuilder : IIrBuilder&lt;Classic.Type&lt;unit&gt;, Classic.Pattern&lt;Classic.Type&lt;unit&gt;&gt;,
+//                             Classic.Value&lt;unit, Classic.Type&lt;unit&gt;&gt;, Classic.Distribution&lt;unit, Classic.Type&lt;unit&gt;&gt;&gt;
+// V4Builder      : IIrBuilder&lt;V4.Type, V4.Pattern, V4.Value, V4.Distribution&gt;
+// F# frontend, written once:  lower : IIrBuilder&lt;'T,'P,'V,'K&gt; -&gt; CheckedProject -&gt; Checked&lt;'K&gt;</code></pre>
+<ul>
+<li><strong>Native families.</strong> <code>ClassicBuilder</code> builds typed classic nodes, with the inferred type as the value attribute, and has no slot for a <code>Span</code>. <code>V4Builder</code> builds v4 nodes with <code>InferredType</code> and <code>Source</code>. Neither builder reads or creates the other family's model.</li>
+<li><strong>Refusal belongs to each family.</strong> Each family's builder refuses content it cannot hold with <code>morphir.unrepresentable</code>, at the node's span. Examples are an integer outside int64 or a non-BMP <code>Char</code> in <code>ClassicBuilder</code>. The frontend does not know which limits any family has.</li>
+<li><strong>Whole-program work stays outside the builders.</strong> Name collisions, dependency order, module access and the exposed-module set are computed once by the frontend, on its own symbol tables, before building. That result is the <code>PackagePlan</code>/<code>ModulePlan</code>, so it is the same for every family.</li>
+<li><strong>Classic v1, v2 and v3</strong> share <code>ClassicBuilder</code>. They differ only in the writer profile (<a href="#irw-1">IRW-1</a>).</li>
+<li><strong>Typed output.</strong> Builders produce typed family models. <code>VersionedModel</code>, whose classic attributes are wire-specific JSON, is produced only by reading written bytes back (<a href="#cli-2">CLI-2</a>).</li>
+<li><strong>Open/closed.</strong> A new family is one new builder. A new version within a family, including a pre-release, is one new writer declaration (<a href="#ver-1">VER-1</a>). Neither change edits a frontend. The compiler enforces completeness, because every builder must implement every interface member.</li>
+<li><strong>Classic still goes directly to the backends.</strong> The model a backend receives is the requested family's own model. A v3 compile reaches the backend's native classic path, and <code>generate</code> with classic input is unchanged.</li>
+</ul>
+<p><strong>Alternatives considered</strong> (N frontends, M families):</p>
+<table>
+<thead><tr><th>Option</th><th>Code to maintain</th><th>Passes</th><th>Why not chosen</th></tr></thead>
+<tbody>
+<tr><td>A. Lower to v4, then a checked v4→classic projection (the upstream Gleam frontend's approach)</td><td>N + (M−1)</td><td>2 for classic</td><td>Classic is derived, not native, and depends on the draft v4 model. It needs a conversion step between families.</td></tr>
+<tr><td>B. A neutral Core data model, with Core→classic and Core→v4 lowerings</td><td>N + M + the Core types</td><td>2</td><td>Core mirrors the v4 subset almost one to one, which is repetition, and it adds a pass.</td></tr>
+<tr><td>C. Each frontend lowers to each family</td><td>N × M</td><td>1</td><td>Repetition grows with every frontend.</td></tr>
+<tr><td>D. Everything normalized to v4, and backends read only v4</td><td>N + 2, with backends B × 1</td><td>2</td><td>Breaks the direct classic-to-backend connection, and migrates supplied input.</td></tr>
+<tr><td>E. Lower to classic, then promote to v4</td><td>N + 1</td><td>2</td><td>v4 output loses source spans.</td></tr>
+</tbody>
+</table>
+<p>Evidence for these choices: in this repository, v4 holds every classic v3 node and literal (it adds <code>Hole</code>, wider literals, and native, external and incomplete bodies). So option A was possible, and was rejected on design grounds, not on capability. The C# generator already lowers classic and v4 natively and separately.</p>
+<p><strong>Follow-up (separate change):</strong> backends still repeat a classic and a v4 lowering each. The same idea in reverse removes that repetition without migration: a read-only view interface that both families implement, so each backend is written once and classic input still reaches it directly.</p>
+
+<h3 id="irw-1">IRW-1. Writers are profile-driven, and the readers are their oracle</h3>
+<p>One classic writer takes a <code>ClassicWireProfile</code>, a record of data and no behavior, and declares the versions that its profiles cover. Each of v1, v2 and v3 is one value of that record. The profile holds:</p>
+<ul>
+<li>the tag spelling per node family;</li>
+<li>the access wrapper (array or object);</li>
+<li>the module list shape;</li>
+<li>the distribution tag casing.</li>
+</ul>
+<p>The v4 writer writes the canonical compact v4 spellings with the existing <code>CanonicalNames</code> writers. Both writers stream to <code>Utf8JsonWriter</code> in a fixed member order, and take number lexemes from the model, never from a <code>double</code>.</p>
+<p>Correctness is checked from outside the writers:</p>
+<ul>
+<li>round trip through the existing readers over every fixture;</li>
+<li>the bundled v1/v2/v3 JSON schemas;</li>
+<li>the upstream JSON IR examples already pinned in <code>tests/Fixtures/MorphirIon</code>, with their provenance: each is read, written in its own version, and compared structurally.</li>
+</ul>
+<p>The existing partial encoders are not reused or changed. A follow-up issue records their bugs.</p>
+
+<h3 id="src-1">SRC-1. Project files are expanded on the host, through language-neutral providers</h3>
+<p>Source selection produces one <code>SourceSelection { Root; Documents (ordered, root-relative); Inputs; Diagnostics }</code>, from one of three inputs:</p>
+<ul>
+<li><code>--project-file</code>, or the <code>[frontend.&lt;language&gt;].project_file</code> key with the same name;</li>
+<li><code>--input</code> files, in the given order;</li>
+<li>an <code>--input</code> directory, or else <code>project.source_directory</code>, in lexical order.</li>
+</ul>
+<p>The project file has its own flag and does not go through <code>--input</code>. <code>--input</code> keeps its ecosystem meaning (files or a directory), nothing has to guess from a file name whether an input is a project file, and the flag and the config key share one name, so the CLI overrides config in the usual way. <code>--project-file</code> with <code>--input</code> fails (<code>sources.conflicting_source_options</code>). An <code>--input</code> file that a provider recognizes as a project file fails with a hint to use <code>--project-file</code> (<code>sources.project_file_as_input</code>), and is never compiled as a source.</p>
+<p>A project file is passed to the one provider whose pattern matches it. The selection becomes the MEP <code>SourceSet</code> (<code>root</code> plus ordered <code>documents</code>). Neither the frontends nor MEP know that a project file existed, and no provider value travels to a frontend.</p>
+<p>This fits MEP's model, in which the host sends source text and the frontend needs no workspace access. It is also why expansion is not a <code>morphir.workspace.discover</code> concern: upstream discovery is a portable file-tree search that never runs build tools.</p>
+<p>The first provider is <strong>MSBuild evaluation</strong>. It runs this command as a child process, which is AOT-safe:</p>
+<pre><code class="language-console">dotnet msbuild &lt;file&gt; -getItem:Compile -getItem:ProjectReference -getItem:PackageReference -nologo
+  env: MSBUILDDISABLENODEREUSE=1  DOTNET_CLI_TELEMETRY_OPTOUT=1  DOTNET_NOLOGO=1  DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1</code></pre>
+<ul>
+<li>It is evaluation only: no targets, no restore, no output. Order is the declared item order.</li>
+<li>It works for any MSBuild project, so a <code>.csproj</code> expands the same way. Whether its language is supported is the frontend registry's decision.</li>
+<li>Item rules:
+  <ul>
+  <li><code>Link</code> items outside the root get <code>sources.outside_root</code>.</li>
+  <li><code>ProjectReference</code> is refused (<code>msbuild.unsupported_project_reference</code>).</li>
+  <li><code>PackageReference</code> gives a warning (<code>msbuild.ignored_package_reference</code>).</li>
+  </ul></li>
+<li>The output is bounded, with a deadline. A missing SDK gives <code>msbuild.unavailable</code>.</li>
+</ul>
+<p>Evaluation can run project logic: imports and property functions. That is why a provider runs only on a file the user named, and never on a file the command found by itself.</p>
+<p><strong>Alternatives considered:</strong></p>
+<ul>
+<li>Ionide.ProjInfo or Buildalyzer in process. Both are JIT-only and heavier, and they target F# or design-time builds.</li>
+<li>Fable's <code>FscCommandLineArgs</code> design-time build. It is F#-specific and needs a restore.</li>
+<li>A hand-written XML reader. It cannot evaluate conditions, imports or SDK defaults.</li>
+</ul>
+
+<h3 id="src-2">SRC-2. The configuration key is <code>[frontend.&lt;language&gt;].project_file</code></h3>
+<p>Every language table accepts the same key, <code>project_file</code>, and the command reads it from the selected language's table. A project file belongs to a language's toolchain (MSBuild, Gleam, Python packaging), so the per-language tables that upstream already uses (<code>[frontend.elm] extension</code>) are the right place. One key name and one provider registry keep the mechanism neutral.</p>
+<p>The schema defines <code>project_file</code> once, as a per-language table member. It is not repeated for each language. The upstream request is a shared key convention for <code>[frontend.&lt;language&gt;]</code> tables, not a change to project identity.</p>
+<p><strong>Alternatives considered (evaluated during planning):</strong></p>
+<ul>
+<li><code>[project] source_manifest</code> needs a canonical project-identity change upstream, including in discovery snapshots.</li>
+<li>A language-specific key name such as <code>[frontend.fsharp] project</code> needs resolver code for each language and breaks neutrality.</li>
+</ul>
+
+<h3 id="fe-1">FE-1. The in-process compile contract has the semantics of MEP 0.2 <code>compileModel</code></h3>
+<p>The in-process contract is a typed F# model of the latest MEP compile concepts: source set, package, options, context digest, output target, the success/failure result sum, frontend capability and diagnostics. It adds no concept that MEP lacks. Because of this, the MEP adapter is a pure codec, and diagnostics are in the MEP shape (zero-based UTF-16 ranges) in every path.</p>
+<pre><code class="language-fsharp">type SourceDocument = { Uri: string; LanguageId: string; Version: uint64; Text: string }
+type CompileRequest =
+  { LanguageId: string; Root: string option; Documents: SourceDocument list
+    Package: PackageName; ExposedModules: string list option    // None = all public, [] = none
+    Output: IrTarget; ContextDigest: Sha256 }
+type FrontendCapability =
+  { Languages: (string * string list) list; Outputs: IrTarget list
+    Incremental: bool; MultiDocument: bool }
+type CompiledPackage = { Model: FamilyModel; Modules: string list }   // the requested family
+// Checked&lt;CompiledPackage&gt; mirrors CompileModelResult (DIAG-1):
+//   Passed (package, diagnostics) = success: true, model, diagnostics of any non-error severity
+//   Failed diagnostics             = success: false, no model, at least one error
+type Frontend =
+  { Identity: string; Transport: FrontendTransport            // InProcess | Mep of extensionId
+    Capability: FrontendCapability
+    Compile: CompileRequest -&gt; CancellationToken -&gt; Task&lt;Result&lt;Checked&lt;CompiledPackage&gt;, FrontendFailure&gt;&gt; }</code></pre>
+<p><code>FrontendFailure</code> covers operational and protocol failures (exit code 2). It also carries the diagnostics gathered before the failure, so that none are lost. Source problems are always <code>Failed</code> (exit code 1). Warnings, info and hints travel with <code>Passed</code> and never change the exit code.</p>
+<p>The in-process frontend advertises <code>Outputs</code> as every target for which a builder and a writer are registered. It runs its single lowering with the builder of the requested family (<a href="#mid-1">MID-1</a>).</p>
+<p>The MEP adapter decodes the guest's verified payload with the existing readers into the requested family's typed model. Classic value attributes are read as types of that wire version. Because of the writer round-trip rule, writing that model again in the same version gives the guest's payload bytes, and the parity tests check this.</p>
+
+<h3 id="fe-2">FE-2. Frontend selection reads advertised capabilities on every run</h3>
+<p><code>FrontendResolver.resolve</code> filters the registered frontends:</p>
+<ol>
+<li>by language, or by the extensions of every document;</li>
+<li>then by output target;</li>
+<li>then by multi-document support.</li>
+</ol>
+<p>For a MEP frontend, "output target" means one of these:</p>
+<ul>
+<li>a session-admitted tuple with exactly that version;</li>
+<li>for classic versions 1 and 2, an admitted <code>3.0.0</code> tuple, because the host writes the same classic model with a different wire profile (<a href="#mep-3">MEP-3</a>).</li>
+</ul>
+<p>An explicit <code>--extension</code> or <code>[frontend.&lt;language&gt;].extension</code> creates and selects a MEP registration. With no extension configured, the in-process registration wins when it exists. Every refusal names the frontend and the capability.</p>
+
+<h3 id="fsf-1">FSF-1. The F# frontend is an effect edge followed by pure stages</h3>
+<pre><code class="language-console">documents ─▶ FcsCheck (effect: FCS, isolated)          ─▶ CheckedProject | fsharp.compiler errors
+         ─▶ Admission (pure, syntax tree + rule catalog) ─▶ unit           | fsharp.unsupported_* errors (all of them)
+         ─▶ TypeEvidence (effect: analysis-only FCS check) ─▶ CheckedEvidence | fsharp.unsupported_match_shape
+         ─▶ Planning (pure: naming, SDK mapping, access, order) ─▶ PackagePlan | collisions, unmapped references
+         ─▶ Lowering (pure: original syntax + checked evidence, generic over IIrBuilder) ─▶ requested family | morphir.unrepresentable</code></pre>
+<p>Admission collects every refusal before lowering. Planning does the whole-program work once, independent of the family. Lowering is total over admitted input with verified type evidence. Evidence failures stop before lowering; family representation failures come from the requested family's builder (<a href="#mid-1">MID-1</a>). The stages compose with the <code>checked { }</code> computation expression (<a href="#diag-1">DIAG-1</a>). Admission and sibling nodes use the applicative <code>and!</code> form, so that independent problems are all reported. Every stage can add warnings and info diagnostics to a passing result. An example is an F# compiler warning such as FS0025 (incomplete match), which is kept as an <code>fsharp.compiler</code> warning beside the model.</p>
+
+<h3 id="fsf-2">FSF-2. Original match syntax determines structure; FCS supplies checked evidence</h3>
+<p>The <a href="spikes/match-range-join.md">original range-join spike</a> disproved the planned join. Ten of eleven probes fail because typed matches disappear, decision trees use subject ranges, or nested clause targets lose their full source range. Neither matching a larger enclosing range nor choosing a nearby target repairs this. The <a href="spikes/syntax-led-reconstruction.md">replacement proof</a> reconstructs all eleven cases from original syntax with compiler-supplied types.</p>
+<ol>
+<li>Parse and type-check the original ordered documents with the hermetic FCS edge. Keep their syntax, symbols, diagnostics and source-node identities. Run admission on this original syntax. Original compiler errors stop the run; original warnings are published once.</li>
+<li>Enumerate original <code>SynExpr.Match</code> and <code>SynExpr.MatchLambda</code> nodes. Their subjects, clauses, patterns and bodies determine the emitted structure. Keep clauses in source order and recurse into original nested matches. Do not traverse <code>DecisionTree</code> targets to decide which clauses exist.</li>
+<li>Build an analysis-only copy to expose types that FCS reductions hide. Add a fresh <code>as</code> binding to each clause pattern for its subject type. Bind each clause result with <code>match (originalBody) with | freshResult -&gt; freshResult</code>. This result witness preserves nonexpansive generalization, unlike an identity-function application. Check the copy with exactly the same references, language settings and ordered documents. It is never evaluated or emitted.</li>
+<li>Resolve generated witnesses by unique generated identity. Resolve original names and constructors through checked symbols at mapped original token locations. Instantiate generic union fields using the checked subject arguments and <code>FSharpType.Instantiate</code>. Checked constructor arity distinguishes separate fields from a single tuple-valued field. Tuple and list component types come from checked type arguments, never from a handwritten F# type solver.</li>
+<li>Verify that the analysis copy preserves original declaration signatures, generalization, constraints and resolved source references. Normalize generic identities across checks before comparison; never mix symbols from different checked projects. Every required type must be available and unambiguous. A generated-source error, changed original binding or missing/ambiguous evidence gives <code>fsharp.unsupported_match_shape</code> at the original match, with an explanation. No flattened, reordered or partially typed model is returned.</li>
+<li>Pass immutable evidence indexed by original document URI and syntax-node identity to the single lowering over <code>IIrBuilder</code>. Lower original patterns and bodies, with their original ranges. Other expressions use checked symbol/expression evidence; if reduction removed required expression types, expose them through the same checked-witness mechanism and verify them before lowering. Every value and pattern retains an inferred type. Builders receive no generated witnesses or analysis-copy locations. The subject is emitted once; the original evaluation structure and lexical scopes remain intact.</li>
+</ol>
+<p>The supported patterns stay wildcard, variable, literal, tuple, constructor, empty-list, cons, <code>as</code> and unit, including function and <code>let</code> parameters. Guards, OR patterns and the other excluded patterns remain admission refusals. Source match-lambdas retain their implicit argument without inventing source clauses. Native classic and v4 builders and all IR writer registrations are unchanged (<a href="#mid-1">MID-1</a>).</p>
+<p>Generated identifiers are fresh across all supplied documents. An insertion map counts UTF-16 code units and maps symbol queries into the analysis copy; output ranges always come from original syntax. Nested edits must have deterministic nesting order. Production uses explicit syntax visitors, not the reflection walker in the spike. Generated diagnostics are internal evidence failures, never duplicate source warnings or exposed temporary paths.</p>
+<p><strong>Validation boundary.</strong> Task 3.1 proves match discovery, source order, pattern structure, subject/pattern/result types and original body spans. It also tests shadowing, generic field instantiation, computed and reduced-away subjects, generalization, constructor arity, fresh names, CRLF, UTF-16 mapping and evidence refusal. It does not qualify production expression lowering, native builders, diagnostics or MCK behavior. Tasks 3.2 and 3.6 must test those through the production API and both builders. Compiler upgrades rerun the proof.</p>
+<p><strong>Alternatives considered:</strong> typed decision-tree flattening duplicates or hides source structure; approximate range matching is ambiguous and misses erased matches; syntax-only lowering loses inferred types and symbol identity; identity-call witnesses change value generalization. The checked analysis copy costs a second compiler pass, but keeps FCS as the type oracle without requiring a compiler fork.</p>
+
+<h3 id="fsf-3">FSF-3. The unsupported-construct catalog is data</h3>
+<p>Each rule is a record: <code>{ Code; Construct; Message; Suggestion; Example; Detect }</code>. <code>Detect</code> is an active pattern over syntax nodes, or a check of the document kind for <code>.fsi</code> files. The catalog is the single source for three things:</p>
+<ul>
+<li>admission;</li>
+<li>the generated coverage reference;</li>
+<li>a corpus completeness test.</li>
+</ul>
+<p>Codes use the ecosystem form <code>&lt;language&gt;.&lt;snake_case&gt;</code> and are stable once released.</p>
+<p><code>#if</code> directives are refused (<code>fsharp.unsupported_conditional_compilation</code>). This delivery does not take defines from project files, so the frontend must not pick a branch silently.</p>
+<pre><code class="language-fsharp">let rules : AdmissionRule list = [
+  { Code = "fsharp.unsupported_mutable"; Construct = "mutable binding"
+    Message = "Mutable bindings are not supported; Morphir values are immutable."
+    Suggestion = Some "Use a new let binding."; Example = "let mutable x = 0"
+    Detect = function SynBinding.Mutable range -&gt; Some range | _ -&gt; None }
+  // ... one entry per refused construct family in the spec
+]</code></pre>
+
+<h3 id="fsf-4">FSF-4. SDK mapping is a reversible table, checked against the generators</h3>
+<p>One table maps F# symbols, by their full compiled name, to Morphir SDK FQNames and arity. Pipes and composition are lowered structurally. A property test checks each entry against <code>tests/Fixtures/MorphirSDK/inventory.json</code>, and checks that the existing F# generator's forward table (<code>TargetSyntax.sdkValue</code>) maps it back to the same operation. Overloaded numeric operators are resolved by the inferred operand type. This is the same pattern as Fable's Replacements table, scoped to the Morphir SDK.</p>
+
+<h3 id="fsf-5">FSF-5. Hermetic, deterministic FCS configuration</h3>
+<ul>
+<li>The project options are made in memory, from the ordered source selection. The frontend never reads the project file.</li>
+<li>The references are the hosting runtime's trusted platform assemblies plus the bundled <code>FSharp.Core</code>.</li>
+<li>Sources are given to FCS through an in-memory file system under a virtual root, so absolute host paths never reach a range or a model.</li>
+<li>The language version and warning options are fixed.</li>
+<li>One FCS checker is used per process. Original and analysis-copy checks use separate project identities over the same captured document set, with the same options and no evaluation.</li>
+<li>Use a supported exact FCS/FSharp.Core package pair. The spike locally uses 43.12.403/10.1.403. The repository currently pins 34.1.1/11.0.100; production integration must resolve that incompatibility explicitly and rerun the compatibility and host tests. Do not suppress NU1608 or silently alter the central Core pin.</li>
+<li>Frontend identity records compiler service, Core, runtime and evidence-transform revisions. Analysis-copy source and maps are request-local, bounded and cancellation-aware. Compiler diagnostics from original documents remain authoritative.</li>
+</ul>
+
+<h3 id="fsf-6">FSF-6. Fable and Fantomas are prior art, not dependencies</h3>
+<table>
+<thead><tr><th>Source</th><th>What is reused</th><th>What is not used, and why</th></tr></thead>
+<tbody>
+<tr><td>Fable (MIT)</td><td>Design patterns:
+  <ul>
+  <li>how decision trees appear in the typed tree (<a href="#fsf-2">FSF-2</a>);</li>
+  <li>a replacement table for core-library calls (<a href="#fsf-4">FSF-4</a>);</li>
+  <li>how inline values and witnesses appear in the typed tree;</li>
+  <li>a resolver interface for project cracking (<a href="#src-1">SRC-1</a>).</li>
+  </ul></td><td><code>Fable.Transforms</code> as a library. It carries Fable's own AST and replacements for JavaScript, Python and Rust targets.</td></tr>
+<tr><td>Fantomas (Apache-2.0)</td><td>The existing F# backend already formats generated code with Fantomas.Core. That backend becomes a morphir-dotnet check: IR → F# → IR (<a href="#mck-1">MCK-1</a>).</td><td><code>Fantomas.FCS</code> and Oak in the frontend. That fork's syntax tree is not binary-compatible with FCS, and the frontend needs FCS type checking anyway. A second parser would give a second set of ranges.</td></tr>
+</tbody>
+</table>
+<p>If any code is adapted, not only its design, the source file names its origin and <code>NOTICE</code> carries the attribution.</p>
+
+<h3 id="cli-1">CLI-1. One mediator handler owns compile orchestration</h3>
+<p><code>CompileCommand</code> only captures the overrides, calls the mediator and renders the result. <code>CompileHandler.Handle</code> runs these stages, each returning <code>Outcome&lt;T&gt;</code>:</p>
+<ol>
+<li>settings</li>
+<li>source selection (<a href="#src-1">SRC-1</a>)</li>
+<li>source capture</li>
+<li>frontend resolution</li>
+<li>frontend compile, which builds the requested family</li>
+<li>writer</li>
+<li>record and publication</li>
+<li>optional generation</li>
+</ol>
+<p>Pure stages return <code>Checked</code> (<a href="#diag-1">DIAG-1</a>). The compile runner emits each stage's result as events (<a href="#strm-1">STRM-1</a>), and the handler folds them into the Tooling <code>Outcome&lt;T&gt;</code>. It adds the warnings, info and hints of every stage that passed to the success record and to any later failure, so the report holds every diagnostic of the run.</p>
+<p><strong>Settings.</strong> <code>ProjectCompileSettingsResolver</code> uses the existing <code>ProjectSystem.Discover</code>/<code>LoadDetailed</code> and the CLI overrides, and it records where each setting came from. It parses <code>--ir-version</code> and <code>ir.format_version</code> with <code>SourceFormatVersion.parse</code>. The schema keeps <code>ir.format_version</code> as an integer or a SemVer string; the current "1–10" integer range in the schema is widened for SemVer.</p>
+<p><strong>Source capture</strong> reuses the bounded capture core from <code>BoundedModelCapture</code>, extracted into a shared helper.</p>
+<p><strong>Reporting</strong> follows <code>GenerationReport</code>. <code>GenerationDiagnostic</code> gets an optional, additive <code>Range</code>.</p>
+
+<h3 id="cli-2">CLI-2. <code>--target</code> composes compile with the unchanged generation stages</h3>
+<p>After a successful compile and publication, the handler gives the exact bytes that were written to the same <code>IModelLoader</code> that <code>generate --input</code> uses. That loader produces the <code>LoadedModel</code>: the <code>VersionedModel</code>, its descriptor, representation <code>Json</code>, and <code>RetainedInput.File</code>. Classic bytes give a classic model, which reaches the backend's native classic path.</p>
+<p>It then calls the shared tail of the generation pipeline, which moves out of <code>GenerateHandler</code> into <code>GenerationStages.runFrom</code>. The backend therefore sees exactly what <code>generate --input</code> would see.</p>
+<p>The flag is <code>--generate-output</code>, because <code>-o</code> already means IR installation in the ecosystem compile command. Multi-target runs are deferred to <code>morphir build</code>.</p>
+
+<h3 id="cli-3">CLI-3. The dotnet tool gets its own composition root</h3>
+<p><code>Morphir.Program</code> exposes <code>CreateApp(string[] args, Action&lt;MorphirCliBuilder&gt; extend)</code>. <code>Morphir.Tool</code> adds <code>FSharpFrontendScenario</code>, and only <code>Morphir.Tool.csproj</code> references <code>Morphir.Frontend.FSharp</code>. Both hosts register the MSBuild project-file provider.</p>
+
+<h3 id="rec-1">REC-1. Task records match the upstream out-directory contract</h3>
+<p><code>CompileTaskStore</code> implements the upstream rules for:</p>
+<ul>
+<li>root resolution and member paths;</li>
+<li><code>.dest</code> clearing;</li>
+<li>schema-1 records, with unknown members kept;</li>
+<li>tombstones;</li>
+<li><code>installed</code> ledgers;</li>
+<li>locks on <code>compile.lock</code>.</li>
+</ul>
+<p>Two record fields carry inputs from this change:</p>
+<ul>
+<li><code>inputs</code> includes the project file when there is one.</li>
+<li><code>ir.version</code> uses the upstream spelling for the exact format version.</li>
+</ul>
+<p>When <code>--input</code> is absent, <code>RecordGenerationSettingsResolver</code> resolves <code>generate</code> input from the record, and holds the shared lock until loading ends.</p>
+
+<h3 id="mep-1">MEP-1. The MEP steel thread is <code>0.2.0-draft.1</code> only</h3>
+<p><code>Morphir.Mep</code> implements the latest contract's frontend subset:</p>
+<ul>
+<li><code>describe</code>, with claims version <code>0.1.0-draft.2</code>;</li>
+<li><code>initialize</code>, with <code>modelTransport</code>, and <code>initialized</code>;</li>
+<li><code>info</code> and <code>capabilities</code>;</li>
+<li><code>frontend.compileModel</code>;</li>
+<li><code>shutdown</code> and <code>exit</code>.</li>
+</ul>
+<p>It covers JSON-RPC request identities (u64 or string), Content-Length framing and these error codes:</p>
+<table>
+<thead><tr><th>Code</th><th>Meaning here</th></tr></thead>
+<tbody>
+<tr><td><code>-32011</code></td><td>no common protocol version</td></tr>
+<tr><td><code>-32014</code></td><td>request before initialization</td></tr>
+<tr><td><code>-32601</code></td><td>unknown method</td></tr>
+<tr><td><code>-32602</code></td><td>invalid shape, digest or bounds</td></tr>
+<tr><td><code>-32013</code></td><td>negotiated capability not available</td></tr>
+<tr><td><code>-32603</code></td><td>internal error</td></tr>
+</tbody>
+</table>
+<p>The DTOs mirror the upstream Gleam types field for field:</p>
+<ul>
+<li><code>ModelTransportTuple</code> (<code>operation</code>, <code>profile</code>, <code>codec</code>, <code>envelopeVersion</code>, <code>irVersion</code>);</li>
+<li><code>ModelTransportLimits</code> (<code>maxEncodedBytes</code>, <code>maxDecodedBytes</code>, <code>maxDepth</code>, <code>maxNodes</code>);</li>
+<li><code>ModelTransportSupport</code>;</li>
+<li><code>MorphirModel</code> and <code>ModelPayload</code>;</li>
+<li><code>CompileModelRequest</code> and <code>CompileModelResult</code>;</li>
+<li><code>Diagnostic</code>.</li>
+</ul>
+<p>They keep the upstream rules for absent versus empty members, and the rule that a failure result has no <code>model</code> member.</p>
+<p>Only the <code>morphir-ir</code>/<code>morphir-json</code> profile is offered or accepted. The legacy <code>compile</code> flag is false, and <code>0.1</code> is neither offered nor accepted.</p>
+<p>Provenance: pinned copies go under <code>tests/Fixtures/Mep/</code> with a <code>PROVENANCE.md</code> that names <code>cde7722eb</code>. They are <code>mep.ir.json</code>, the Smithy transcripts (<code>session-model-transport.md</code>, <code>lifecycle-violations.md</code>, <code>protocol-errors.md</code>), <code>model-transport.cases.json</code>. The conformance tests replay the model-transport and lifecycle transcripts, and check every DTO against the shapes in <code>mep.ir.json</code>.</p>
+<p>Nothing is invented. A need that the contract does not cover becomes an upstream issue. The protocol definition stays upstream. The executable conformance expectations for it are written in the MCK here (<a href="#mck-1">MCK-1</a>), and the pinned upstream transcripts are inputs to those expectations, not the oracle.</p>
+<p><strong>Alternative considered:</strong> legacy <code>0.1</code> as the first step. Rejected by maintainer direction, which also matches the draft's intent: new work uses the model transport.</p>
+
+<h3 id="mep-2">MEP-2. One session core, verified envelopes, a deterministic context</h3>
+<p><strong>Session core.</strong> The guest loop and the host client share a pure state machine, <code>step : State -&gt; Message -&gt; State * Reply list</code>. The process edge has these parts:</p>
+<ul>
+<li>the host starts the guest with <code>ArgumentList</code>, with no shell;</li>
+<li>bounded frame reads and a stderr pump;</li>
+<li>a deadline per request;</li>
+<li>termination of the process tree on timeout.</li>
+</ul>
+<p>The guest redirects <code>Console.Out</code> before FCS starts.</p>
+<p><strong>Envelopes.</strong> Admission of a <code>MorphirModel</code> is one pure function, run in the upstream order:</p>
+<ol>
+<li>the outer frame limit;</li>
+<li>base64 bounds and canonical form;</li>
+<li>decoded length, then SHA-256;</li>
+<li>JSON decode under depth and node limits;</li>
+<li>profile, envelope version, IR version and critical paths.</li>
+</ol>
+<p>Only after all of these does the existing reader decode the IR.</p>
+<p><strong>Context and identity.</strong></p>
+<ul>
+<li>The host computes <code>contextDigest</code> as the SHA-256 of an RFC 8785 canonical JSON object. That object holds the language id, the source root, each document's URI and text SHA-256 in order, the package, the exposed modules, the options and the output tuple. The construction is documented and tested so that peers agree on it.</li>
+<li>The guest sets <code>modelId</code> to the package name.</li>
+<li>The guest sets <code>revision</code> to the SHA-256 of the context digest plus the frontend identity and version. It is deterministic, and it is not the payload digest, as upstream requires.</li>
+</ul>
+
+<h3 id="mep-3">MEP-3. Versions without a tuple; conformance comes from the contract, not the guest kit</h3>
+<p>The F# guest claims JSON <code>compileModel</code> tuples for <code>3.0.0</code> and <code>4.0.0</code>. Classic format versions 1 and 2 have no defined tuple spelling, and no upstream host requests them. For those, the host compiles at <code>3.0.0</code>, decodes the classic model, and writes it with the requested version's wire profile. This is exact re-encoding within one family, which upstream allows, not a conversion between families. A guest that admits only <code>4.0.0</code> cannot serve a classic request, and the host refuses before dispatch. The parity tests compare every result with the in-process path.</p>
+<p><strong>Conformance comes from the contract, through the MCK.</strong> The guest and the host are checked by MCK cases written here against the pinned <code>0.2.0-draft.1</code> contract (the <code>mep.ir.json</code> types). The Smithy session transcripts and <code>model-transport.cases.json</code> are imported as reviewed inputs (<a href="#mck-1">MCK-1</a>).</p>
+<p>The upstream MEP guest kit (<code>generic-json-library-v1</code>, run by <code>morphir mck mep guest-run</code>) is behind that contract:</p>
+<ul>
+<li>It requires a legacy <code>0.1</code> stage.</li>
+<li>It requires the guest to be both a frontend and a backend for its language.</li>
+<li>It covers only a two-constant Bool library.</li>
+</ul>
+<p>So the kit does not shape this design. The guest stays frontend-only and speaks only <code>0.2.0-draft.1</code>. No backend is added and no kit language is patched locally to pass it, and the kit's expected IR is not a writer oracle. The upstream request is to update the kit to the current contract. Kit qualification follows after that update, and it does not block this change.</p>
+
+<h3 id="mck-1">MCK-1. The corpus is the first Morphir Compatibility Kit suite, and the case data is the oracle</h3>
+<p>morphir-dotnet is to become the home of the Morphir Compatibility Kit (MCK) and of the conformance oracle. The full kit is planned in the separate change <code>establish-morphir-compatibility-kit</code>. This change seeds its first suite, F# compilation, with the minimum case format and runner that the suite needs, and does not wait for the kit change. The rule is the same as in the existing <code>dotnet-sdk-conformance</code> spec: <strong>the oracle is independently written case data, never an implementation</strong>, including this one.</p>
+<p><strong>Location and format.</strong> The suite lives in <code>conformance/suites/frontend-fsharp/</code>, a versioned product directory, not test fixtures. The normative case format is <strong>Gherkin</strong>, the format of the upstream IR v4 kit already pinned in <code>tests/Fixtures/MorphirIon/kit</code>. The decision MCK-FMT and its generalization belong to <code>establish-morphir-compatibility-kit</code>.</p>
+<ul>
+<li><strong>Cases.</strong> Each scenario name starts with a stable id, <code>frontend-fsharp-NNNN</code>. Tags carry the kind of case (for example <code>@semantic</code>, <code>@refusal</code>).</li>
+<li><strong>Steps.</strong> Steps come only from a closed, versioned MCK step vocabulary (<code>conformance/steps/steps-1.md</code>). A linter rejects any other step, and every runner implements the vocabulary. This change adds only the steps that the F# suite needs.</li>
+<li><strong>Artifacts.</strong> Small artifacts, such as F# sources and short expected IR, are docstrings with a content type (<code>"""fsharp</code>, <code>"""json</code>). Large expected IR documents are sidecar files (<code>expected/&lt;id&gt;/ir-&lt;version&gt;.json</code>) that a step references. An optional <code>.fsproj</code> is a sidecar file too.</li>
+<li><strong>Matrices.</strong> <code>Scenario Outline</code> with <code>Examples</code> expresses IR version and input kind. Combinations that are excluded go in an <code>@excluded</code> <code>Examples</code> block with a <code>reason</code> column.</li>
+<li><strong>No adapters in features.</strong> A feature never names an adapter. The implementation under test is chosen when the runner starts.</li>
+<li><strong>Expectations.</strong> All expectations are written by hand, never produced by any writer:
+  <ul>
+  <li>IR, per format version;</li>
+  <li>diagnostics, compared by severity, code and range, but not by message text;</li>
+  <li>call results, as JSON values in steps.</li>
+  </ul></li>
+</ul>
+<p>Refusal scenarios come from the rule catalog (<a href="#fsf-3">FSF-3</a>). A completeness check fails on a missing row (catalog code × IR version × input kind) that has no stated reason. The MCK change generates literate Markdown pages for the docs site from these features. They are never edited by hand.</p>
+<p><strong>Runner and adapters.</strong> <code>Morphir.Conformance</code> is AOT-compatible. It loads cases, drives an implementation under test, and compares results with the expectations. It has three adapters:</p>
+<ul>
+<li><code>library</code>: the .NET frontend, in process;</li>
+<li><code>cli</code>: any <code>morphir</code> executable, through <code>compile --json-lines</code> (<a href="#strm-2">STRM-2</a>), the compile record and the written IR;</li>
+<li><code>mep-guest</code>: any stdio guest that speaks MEP <code>0.2.0-draft.1</code>.</li>
+</ul>
+<p>The same cases can therefore qualify the Rust CLI or another guest, not only morphir-dotnet. The repository's own tests call the same runner, so there is no second harness.</p>
+<p><strong>Kit verdicts</strong> are portable, and any implementation can be checked against them:</p>
+<ol>
+<li><strong>Structural:</strong> the result matches the expected IR under the kit's comparison rules. Object member order is ignored, and classic name-keyed lists are compared without order. Where a case has no hand-written IR for a version, it falls back to a round trip through that version's reader plus schema validation, which is .NET only. The upstream IR examples pinned in <code>tests/Fixtures/MorphirIon</code> are also checked.</li>
+<li><strong>Diagnostics:</strong> the expected severities, codes and ranges are present, and no unexpected error appears.</li>
+<li><strong>Behavioral:</strong> the case's call observations hold. The .NET runner checks them by generating F# from the compiled IR and running it. The expected values are data, written to equal the results of the original F# source.</li>
+</ol>
+<p><strong>morphir-dotnet checks</strong> apply only to this implementation and are not kit verdicts:</p>
+<ul>
+<li>the round trip IR → F# (through the Fantomas-based backend) → IR;</li>
+<li>parity: the in-process and MEP outputs are byte-equal, the <code>compile --target</code> and two-command outputs are byte-equal, and project-file and explicit-file inputs give the same IR.</li>
+</ul>
+<p><strong>Reports.</strong> Each run writes a deterministic verdict report. It records the kit format version, the SHA-256 of the case set, the identity of the implementation (the executable path, its SHA-256 and its reported version, or the library assembly and version), and one verdict per case, adapter and IR version. The PRD records these reports as viability evidence (see <code>docs/adr/</code> and the default-CLI PRD).</p>
+<p><strong>Upstream inputs.</strong> Upstream transcripts, model-transport cases and IR examples are imported as reviewed inputs with provenance. They never override case expectations. When an upstream implementation or kit disagrees with the contract or with intended behavior, the disagreement is recorded with evidence in <code>conformance/deviations.md</code>, and the kit here is the reference. Examples: the Rust CLI's <code>--json-lines</code>, and the guest kit's mandatory legacy stage.</p>
+<pre><code class="language-gherkin">@suite:frontend-fsharp @semantic
+Feature: Record update
+
+  Scenario Outline: frontend-fsharp-0007 Record update changes only the named field
+    Given the F# package "acme/car-rental" exposing "Pricing"
+    And the source "Pricing.fs":
+      """fsharp
+      namespace Acme.CarRental
+      module Pricing =
+          type Car = { Plate: string; Seats: int }
+          let withSeats car = { car with Seats = 4 }
+      """
+    When it is compiled from &lt;input&gt; with IR version &lt;version&gt;
+    Then compilation succeeds with no error diagnostics
+    And value "Pricing.withSeats" equals the expected IR "expected/0007/ir-&lt;version&gt;.json"
+    And calling "Pricing.withSeats" with {"plate":"AB-1","seats":2} returns {"plate":"AB-1","seats":4}
+
+    Examples:
+      | input        | version |
+      | files        | 1       |
+      | files        | 2       |
+      | files        | 3       |
+      | project file | 4       |
+
+    @excluded
+    Examples:
+      | input     | version | reason                                    |
+      | directory | 4       | Covered by frontend-fsharp-0001 ordering. |</code></pre>
+
+<h2 id="delivery">Delivery order</h2>
+<p>The order follows the maintainer priority: the F# frontend is solid in the dotnet tool before MEP depends on it.</p>
+<ol>
+<li><strong>Versions, builders and writers.</strong> <code>FormatVersion</code> rules, the IR builder interface with the native classic and v4 builders, and the IR writers. These are independent of F#.</li>
+<li><strong>Frontend core.</strong> The F# frontend through the library API, with the corpus, the catalog, the coverage documentation and the round-trip oracle.</li>
+<li><strong>Tool path.</strong> <code>dotnet-morphir compile</code> with project-file sources, configuration, the report, records and <code>-o</code>. Then <code>generate</code> from the record, then <code>compile --target</code>. This completes the steel thread without MEP.</li>
+<li><strong>MEP <code>0.2.0-draft.1</code>.</strong> The codec, envelope and session core, then the guest, then the AOT host client, then parity, contract conformance and the AOT publish check.</li>
+</ol>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>Analysis witnesses could alter inference, generalization or name resolution; nested edits could corrupt locations.</td><td>The replacement spike covers the original eleven cases and targeted counterexamples. Production checks original bindings and symbol identity, uses deterministic fresh names and UTF-16 maps, and rejects invalid evidence with <code>fsharp.unsupported_match_shape</code>. The normal corpus still has to pass through both native builders. Guards and OR patterns stay refused.</td></tr>
+<tr><td>A second FCS pass adds memory and latency.</td><td>Capture documents once, reuse the process checker, bound generated-source growth and honor cancellation. Measure original checking and evidence checking separately on the frontend corpus before release.</td></tr>
+<tr><td>Lowering code that is generic over the builder interface is harder to read and debug than code that builds a tree, and there is no intermediate tree to inspect.</td><td>Keep the interface at one member per node of the supported subset. Use the v4 builder's output, which keeps source spans, as the debugging view. Builder unit tests check each member natively. The frontend lowering is tested through both builders with the same corpus. The compiler enforces that every builder implements every member.</td></tr>
+<tr><td>Until upstream aligns, <code>--json-lines</code> gives different output in the .NET CLI and the Rust CLI.</td><td>The <code>completed</code> record holds the full report, so a consumer that reads only the last line still works. The CLI reference documents the difference. An upstream issue proposes the STRM-2 format as the shared meaning, and the .NET CLI aligns with any refinement upstream agrees.</td></tr>
+<tr><td>The streamed diagnostics and the folded report could drift apart.</td><td>The report is computed only as the fold of the stream (<a href="#strm-1">STRM-1</a>), never by a second path. A corpus-wide property test checks the fold against the batch path.</td></tr>
+<tr><td>MSBuild evaluation runs project logic, and the SDK version can change evaluation.</td><td>The provider runs only on a project file the user named, never on a discovered one. It uses evaluation only (no targets, no restore, no node reuse), with a deadline and bounded output. The SDK version is recorded in the report. A missing SDK gives a clear error.</td></tr>
+<tr><td><code>0.2.0-draft.1</code> is a draft and matches only itself. Upstream can refine it in place.</td><td>Pinned fixtures with provenance. The DTOs are checked against the pinned <code>mep.ir.json</code>. A scheduled check compares the pin with upstream and opens an issue when it changes. All protocol code is in <code>Morphir.Mep</code>, behind the stable in-process contract.</td></tr>
+<tr><td>No upstream kit qualification yet, because the MEP guest kit is behind the contract.</td><td>Conformance is checked against the pinned contract (types, transcripts, model-transport cases). The design is not bent to fit the kit. An upstream request asks to update the kit (<a href="#mep-3">MEP-3</a>).</td></tr>
+<tr><td>Pre-release format versions might be compared loosely somewhere.</td><td>One equivalence function (<a href="#ver-1">VER-1</a>) with property tests, and no <code>int</code> version in any contract. Exact declarations are required for selection.</td></tr>
+<tr><td>FCS reference resolution can differ between runtime versions.</td><td>Hermetic references. The FSharp.Core and runtime versions are part of the frontend identity and the MEP revision.</td></tr>
+<tr><td>FCS writes to the console, which corrupts MEP framing.</td><td>The guest redirects the console before FCS starts. A misbehaving-guest host test covers this.</td></tr>
+<tr><td>The JIT tool installs a large dependency (FCS).</td><td>Only <code>Morphir.Tool</code> and the guest carry it. A CI closure check keeps the AOT executable free of it.</td></tr>
+<tr><td>Records shared with the Rust CLI could conflict.</td><td>Same lock files and modes, unknown members preserved, and interop tests against the pinned upstream examples.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<ul>
+<li>All changes add something new. Existing <code>generate --input</code> runs behave exactly as before.</li>
+<li>Only a <code>generate</code> without <code>--input</code> changes: today it fails with the missing-input error, and after this change it reads the compile record.</li>
+<li><code>ir.format_version</code> accepts SemVer strings as well as the current integers. Existing integer values keep their meaning.</li>
+<li>Rollback: remove the scenario registrations. No IR, configuration or wire format changes.</li>
+</ul>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>The package id and name of the guest executable: <code>Morphir.Frontend.FSharp.Tool</code> / <code>morphir-fsharp-frontend</code>.</li>
+<li>Whether to send the request to update the upstream kit before or after the first release of the guest. This does not affect the design.</li>
+</ul>
+
+</main>
+</body>
+</html>

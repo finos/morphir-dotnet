@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>establish-morphir-compatibility-kit: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; --accent: #0f766e; --warn: #b45309; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; --accent: #5eead4; --warn: #fbbf24; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; vertical-align: top; }
+svg { max-width: 100%; height: auto; color: var(--muted); }
+svg .box { fill: var(--panel); stroke: var(--line); }
+svg .hot { fill: var(--panel); stroke: var(--accent); stroke-width: 2; }
+svg .later { fill: none; stroke: var(--warn); stroke-dasharray: 5 4; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .small { fill: var(--muted); font-size: 11px; }
+svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>establish-morphir-compatibility-kit: design</h1>
+<p class="meta">OpenSpec change | 2026-11-06 | proposed. Depends on <code>add-fsharp-compile</code> (its decision MCK-1). Upstream pin <code>finos/morphir@cde7722eb</code>. See <a href="proposal.md">proposal.md</a>, <a href="tasks.md">tasks.md</a> and the specs for
+<a href="specs/conformance-case-format/spec.md">conformance-case-format</a>,
+<a href="specs/conformance-evidence/spec.md">conformance-evidence</a>,
+<a href="specs/conformance-execution/spec.md">conformance-execution</a>,
+<a href="specs/conformance-reports/spec.md">conformance-reports</a> and
+<a href="specs/cli-conformance-command/spec.md">cli-conformance-command</a>.</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#layout">Kit layout and what a case expresses</a></li>
+<li><a href="#decisions">Decisions</a>
+  <ul>
+  <li><a href="#kit-1">KIT-1</a>, <a href="#mck-fmt">MCK-FMT</a>, <a href="#kit-2">KIT-2</a>: case content model, Gherkin case format, comparison</li>
+  <li><a href="#evd-1">EVD-1</a>, <a href="#evd-2">EVD-2</a>: oracle independence, imports and supersession</li>
+  <li><a href="#run-1">RUN-1</a> to <a href="#run-3">RUN-3</a>: plans, adapters, AOT runner</li>
+  <li><a href="#rep-1">REP-1</a>: reports and report checking</li>
+  <li><a href="#cmd-1">CMD-1</a>: the <code>morphir mck</code> command</li>
+  <li><a href="#rel-1">REL-1</a>: relation to add-fsharp-compile and existing corpora</li>
+  </ul></li>
+<li><a href="#delivery">Delivery order</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See proposal.md, section Why. These facts constrain the design:</p>
+<ul>
+<li><strong>Upstream MCK (<code>finos/morphir@cde7722eb</code>, <code>spec/mep/mck/</code>).</strong> The Rust <code>morphir mck mep guest-run</code> and <code>report-check</code> record executable identity, a corpus SHA-256 and complete observations, and they never trust a stored <code>qualified</code> flag. These are good properties, and this design keeps them. The flaws are in the oracle and the plan:
+  <ul>
+  <li>The generic kit's expected IR "was recorded from the published Python 0.4.2 guest".</li>
+  <li>Its comparison ignores list order and accepts a Reference shorthand by default.</li>
+  <li>Every guest must pass a legacy <code>0.1</code> stage, and must be both frontend and backend.</li>
+  </ul></li>
+<li><strong>Local precedent.</strong> <code>dotnet-sdk-conformance</code> already sets the oracle principle and the vocabulary: pinned evidence, <code>classification</code> (required, exclusion, known gap), <code>basis</code>, portable observations, and "shared evidence without shared implementation" (<code>tests/Fixtures/MorphirSDK/cases.json</code>, <code>PROVENANCE.md</code>). <code>tests/Fixtures/MorphirIon</code> pins upstream Ion kit features and <code>mep/model-transport.cases.json</code> with SHA-256 checks.</li>
+<li><strong>The seed.</strong> <code>add-fsharp-compile</code> (MCK-1) creates <code>conformance/</code>, the <code>Morphir.Conformance</code> runner and the <code>cli</code>, <code>mep-guest</code> and <code>library</code> adapters for the F# compile suite. This change generalizes them. It does not start a second runner.</li>
+<li><strong>Hosts.</strong> <code>morphir</code> is a Native AOT executable. <code>dotnet-morphir</code> is a JIT dotnet tool. The MEP protocol definition (Gleam/Smithy) stays upstream.</li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals.</strong></p>
+<ul>
+<li>The oracle is reviewed case data. No implementation, including morphir-dotnet, is the oracle.</li>
+<li>Any implementation in any language can run the kit through a process boundary.</li>
+<li>A qualification report proves exactly what was tested, and anyone can check it again.</li>
+<li>Upstream material is used through review with provenance, and corrections are visible and reported upstream.</li>
+</ul>
+<p><strong>Non-goals.</strong></p>
+<ul>
+<li>Changing the MEP protocol definition.</li>
+<li>Moving the SDK and Ion corpora in this change.</li>
+<li>Embedding the kit in the executable.</li>
+<li>WASM guest hosting.</li>
+<li>Certification or trust of remote reports. A report is evidence, not a signature.</li>
+</ul>
+
+<h2 id="layout">Kit layout and what a case expresses</h2>
+<p>Cases are Gherkin features (<a href="#mck-fmt">MCK-FMT</a>). The kit manifest is TOML, read by the existing configuration TOML reader.</p>
+<pre><code class="language-console">conformance/
+├── KIT.md                          # kit version, rules, authoring guide link
+├── kit.toml                        # kitVersion, step vocabulary version, suites, profiles, normalization catalog
+├── steps/
+│   └── steps-1.md                  # normative MCK step vocabulary, version 1 (grammar + meaning of each step)
+├── suites/
+│   ├── ir-writing/                 # IR codecs and writers
+│   ├── frontend-fsharp/            # seeded by add-fsharp-compile
+│   │   ├── records.feature         # scenarios frontend-fsharp-0001 ...
+│   │   └── records/                # sidecar files, e.g. 0007/expected-v4.json
+│   ├── generation/
+│   ├── cli/                        # compile, generate, task records, --json, --json-lines, exit codes
+│   ├── mep-host/
+│   └── mep-guest/
+├── reviews/                        # review records for tool-assisted expectations
+├── imports/
+│   └── finos-morphir-cde7722eb/    # unchanged upstream bytes + PROVENANCE.md + disposition records
+└── supersession log                # published with each kit release</code></pre>
+<p>Every case expresses this content. The last column shows how Gherkin holds it:</p>
+<table>
+<thead><tr><th>Part</th><th>Content</th><th>In Gherkin</th></tr></thead>
+<tbody>
+<tr><td>Identity</td><td><code>caseId</code>, suite, kit version that introduced it</td><td>Scenario name prefix <code>&lt;suite&gt;-NNNN</code>; tag <code>@since:&lt;kitVersion&gt;</code></td></tr>
+<tr><td>Sources and settings</td><td>Source documents (for example <code>src/Cars.fs</code>), package, options, and the command or MEP request to run</td><td><code>Given</code>/<code>When</code> steps; sources in content-typed docstrings (<code>"""fsharp</code>)</td></tr>
+<tr><td>Applicability</td><td>For each exact format version, and for each claimed capability: applies, or does not apply with a reason</td><td><code>Scenario Outline</code> rows; <code>@excluded</code> Examples blocks with a <code>reason</code> column; capability tags such as <code>@requires:frontend:fsharp</code></td></tr>
+<tr><td>Expectations</td><td>Complete expected IR documents for each exact format version, expected diagnostics (severity, code, range; the message only when normative), CLI observations, MEP exchanges, and allowed extra diagnostics</td><td><code>Then</code> steps; small values in docstrings or data tables; expected IR in sidecar files that a step references</td></tr>
+<tr><td>Comparison</td><td>Canonical comparison by default, or the named normalizations from the catalog</td><td>Tag <code>@normalize:&lt;name&gt;</code>, which the linter checks against the catalog</td></tr>
+<tr><td>Classification and provenance</td><td><code>classification</code>, <code>basis</code>, evidence links and review record, and for imports the source, revision and disposition</td><td>Tags <code>@knownGap:&lt;name&gt;</code> (required is the default), <code>@exclusion</code>, <code>@basis:&lt;kind&gt;</code>, <code>@review:&lt;id&gt;</code> (the file <code>reviews/&lt;id&gt;.md</code>), <code>@import:&lt;source&gt;</code>; evidence links in the scenario description</td></tr>
+</tbody>
+</table>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="kit-1">KIT-1. A content model that does not depend on the format, using the SDK conformance vocabulary, under its own kit version</h3>
+<ul>
+<li>This change fixes what a case must express (<a href="#layout">the table above</a>), not the file syntax. The fields <code>caseId</code>, <code>classification</code> (<code>required</code>, <code>exclusion</code>, <code>knownGap</code>), <code>basis</code> and <code>evidence</code> mean what they mean in <code>dotnet-sdk-conformance</code>, so a later move of that corpus keeps its meaning.</li>
+<li>The file format is Gherkin (<a href="#mck-fmt">MCK-FMT</a>). The runner reads features into the content model through one corpus reader. The rest of the design (plans, adapters, comparison, reports, the command) uses only the content model.</li>
+<li><code>kitVersion</code> is SemVer and is separate from MEP, IR format and CLI versions. A stricter expectation is a breaking change.</li>
+<li>Expected IR is a complete document for each exact format version, named by the IR's own spelling (<code>4</code>, <code>4.1.0-draft.1</code>), never by a bare major number. Every case states for each version whether it applies.</li>
+<li>Kinds of observation: IR document, diagnostics, CLI invocation (exit code, the <code>--json</code> report, <code>--json-lines</code> records, files written), and MEP exchange (request and response, after the response is checked against the contract shape).</li>
+</ul>
+
+<h3 id="mck-fmt">MCK-FMT. Gherkin is the normative case format; literate Markdown is generated</h3>
+<p>Decided by the maintainer. The corpus is Gherkin, using the conventions of the upstream IR v4 kit pinned in <code>tests/Fixtures/MorphirIon/kit</code>: stable <code>&lt;suite&gt;-NNNN</code> ids in scenario names, tags such as <code>@semantic</code> and <code>@spelling</code>, and docstrings with a content type.</p>
+<pre><code class="language-gherkin">@suite:frontend-fsharp @requires:frontend:fsharp @basis:hand-authored @review:0007
+Feature: Records
+  Record types and record update lower to Morphir records.
+
+  Scenario Outline: frontend-fsharp-0007 Record update keeps the other fields
+    Given the package "acme/cars"
+    And the source document "src/Cars.fs":
+      """fsharp
+      module Acme.Cars.Cars
+      type Car = { Plate: string; Seats: int }
+      let withSeats (car: Car) (n: int) = { car with Seats = n }
+      """
+    When the sources are compiled for IR version &lt;version&gt;
+    Then compilation succeeds
+    And the IR equals the file "records/0007/expected-v&lt;version&gt;.json"
+    And there are no diagnostics except severities "info, hint"
+
+    Examples:
+      | version |
+      | 4       |
+      | 3       |
+      | 2       |
+
+    @excluded
+    Examples:
+      | version | reason                                                        |
+      | 1       | classic v1 spelling is covered by suite ir-writing (case 0012) |</code></pre>
+<ul>
+<li><strong>Location and identity.</strong> Features are in <code>conformance/suites/&lt;suite&gt;/</code>. Ids are unique in the kit and are never reused. A removed case keeps its id reserved in <code>kit.toml</code>.</li>
+<li><strong>A closed step vocabulary.</strong> <code>conformance/steps/steps-1.md</code> is the normative grammar: each step's pattern, parameters, docstring content types and meaning. <code>kit.toml</code> declares the vocabulary version. A linter rejects any step outside the grammar. Each runner declares the vocabulary versions it implements, and a run refuses a kit whose vocabulary it does not implement. Adding steps raises the vocabulary minor version, and changing a step's meaning raises its major version.</li>
+<li><strong>Portable parsing.</strong> Official Gherkin parsers (cucumber/gherkin) exist for many languages, so another implementation needs only a parser and the vocabulary document. morphir-dotnet uses the <code>Gherkin</code> package that Reqnroll already depends on. The runner does not use Reqnroll step bindings: the oracle is the feature data plus the vocabulary, not a binding assembly.</li>
+<li><strong>No adapter in features.</strong> The implementation under test is chosen when the runner starts. The linter rejects adapter or executable names in steps and tags.</li>
+<li><strong>Matrices.</strong> <code>Scenario Outline</code> with <code>Examples</code>. Excluded combinations are rows in <code>@excluded</code> Examples blocks with a non-empty <code>reason</code> column. Every combination that the outline's dimensions allow is either listed or excluded.</li>
+<li><strong>Inline and sidecar artifacts.</strong> Sources and small values are docstrings with a content type (<code>"""fsharp</code>, <code>"""json</code>, <code>"""ion</code>) or data tables. Large expectations, such as complete expected IR, are sidecar files beside the feature, referenced by a step. A sidecar that no step references fails validation. Sidecars are part of the case-set digest.</li>
+<li><strong>Provenance and review</strong> (<a href="#evd-1">EVD-1</a>) use tags (<code>@basis:</code>, <code>@review:</code>, <code>@import:</code>, <code>@knownGap:</code>) at feature, rule or scenario level, the nearest level winning. Review records are sidecar Markdown files in <code>conformance/reviews/</code>. Imported upstream features, such as the Ion kit, keep their bytes under <code>imports/</code>. Their dispositions are recorded beside them.</li>
+<li><strong>Generated literate documentation.</strong> A generator renders each feature as a Markdown page for the documentation site, with the feature and scenario prose, the sources, the expectations (sidecars included) and the exclusions with reasons. The pages carry a "generated, do not edit" header. A CI check generates them again and fails when the committed pages differ.</li>
+</ul>
+<p><strong>Alternatives considered:</strong></p>
+<ul>
+<li>Literate Markdown as the normative format. It reads well, but it has no standard parser or outline and matrix structure. It is used for the generated pages instead.</li>
+<li>JSON manifests. They are harder for reviewers to read, and the maintainer rejected them.</li>
+<li>Reqnroll bindings as the oracle. They would tie the oracle to one language's step code.</li>
+</ul>
+
+<h3 id="kit-2">KIT-2. Comparison is exact by default; leniency is named</h3>
+<p>Each kind of observation has one documented canonical form. IR uses the canonical writer form of its version, and JSON reports use canonical JSON (RFC 8785). The default comparison is byte equality of the canonical forms.</p>
+<p>A case can name normalizations from the normalization catalog in the kit manifest, for example:</p>
+<ul>
+<li><code>ignore-json-member-order</code>;</li>
+<li><code>classic-unordered-module-lists</code>;</li>
+<li><code>v4-reference-shorthand</code>;</li>
+<li><code>ignore-variable-members:completedAt</code>.</li>
+</ul>
+<p>Each normalization has a written justification, and the report says which normalizations applied. A failure reports the first difference as a JSON Pointer together with both values.</p>
+<p><strong>Alternative considered:</strong> upstream's fixed set of semantic rules for every case. It hides real differences, such as declaration order in a writer, that some suites must check.</p>
+
+<h3 id="evd-1">EVD-1. Expectations have a basis and a review</h3>
+<p>Each expectation has a basis:</p>
+<ul>
+<li><code>spec-derived</code>: follows from contract or IR text, which the evidence cites;</li>
+<li><code>hand-authored</code>: written by a person from the source;</li>
+<li><code>upstream-imported</code>: admitted from an import without change;</li>
+<li><code>upstream-superseded</code>: an import corrected with evidence.</li>
+</ul>
+<p>An expectation produced by a tool, for example a writer, needs a review record in <code>conformance/reviews/</code>. The record names the reviewer and checks the output against the source. Kit validation enforces that every expected observation has a basis and evidence, and that every tool-produced expectation has a review.</p>
+<p>When morphir-dotnet fails a reviewed case, the code is fixed, or the case gets a named <code>knownGap</code>. The expectation is never edited to match the implementation, as in <code>dotnet-sdk-conformance</code>.</p>
+
+<h3 id="evd-2">EVD-2. Upstream material is imported, given a disposition, and superseded in public</h3>
+<p>Upstream files are copied unchanged under <code>conformance/imports/&lt;source&gt;-&lt;revision&gt;/</code>, with a <code>PROVENANCE.md</code> (repository, immutable revision, license, path, SHA-256). Kit validation checks the digests.</p>
+<p>A disposition record gives every imported case one disposition:</p>
+<ul>
+<li><code>admitted</code>;</li>
+<li><code>superseded</code>, with the corrected expectation, the reason and the evidence;</li>
+<li><code>excluded</code>, with the reason.</li>
+</ul>
+<p>An unclassified imported case fails validation. The supersession log is published with each kit release, and every entry needs an upstream issue link. Release validation enforces this.</p>
+<p>The first import is the pinned <code>spec/mep/mck/</code> material: <code>model-transport.cases.json</code>, the generic and Python kits and the Smithy transcripts. Expected dispositions:</p>
+<ul>
+<li>The legacy <code>0.1</code> stage is excluded from guest profiles that speak only <code>0.2.0-draft.1</code>.</li>
+<li>The frontend+backend round trip is excluded from frontend-only profiles.</li>
+<li>Recorded Python IR expectations are kept only after review against the contract. Otherwise they are superseded.</li>
+</ul>
+
+<h3 id="run-1">RUN-1. Plans come from profiles and claims only</h3>
+<p>A profile names suites and the claims that select them. The runner reads the claims: the MEP <code>describe</code> and <code>initialize</code> results for guests, a CLI capability probe for <code>cli</code>, and registrations for <code>library</code>. It builds the plan as the intersection. A case is planned only when the implementation claims what it tests.</p>
+<p>This removes upstream's coupling:</p>
+<ul>
+<li>A frontend-only guest gets no generation cases.</li>
+<li>A guest that speaks only <code>0.2.0-draft.1</code> gets no legacy stage.</li>
+</ul>
+<p>The plan is part of the report, so <code>report-check</code> can rebuild it.</p>
+
+<h3 id="run-2">RUN-2. Three adapters; process adapters are the qualification path</h3>
+<ul>
+<li><strong><code>cli</code></strong> starts any <code>morphir</code> executable with <code>ArgumentList</code> and no shell, in a fresh temporary workspace, with a fixed environment. It observes the exit code, the stdout report or records, stderr and the files written. The capability probe runs <code>&lt;exe&gt; --version</code> and the documented help JSON, when present.</li>
+<li><strong><code>mep-guest</code></strong> reuses the MEP session core from <code>add-fsharp-compile</code> (<code>Morphir.Mep</code>), including framing, envelope admission, limits, deadlines, stderr draining and process-tree cleanup. Every response is checked against the pinned contract shape before the case comparison.</li>
+<li><strong><code>library</code></strong> runs in process for fast local feedback. It is never the only evidence for a claim about the executable. Qualification of a published build uses <code>cli</code> or <code>mep-guest</code>.</li>
+</ul>
+
+<h3 id="run-3">RUN-3. The runner is part of the AOT executable</h3>
+<p><code>Morphir.Conformance</code> is AOT-compatible. It has a source-generated JSON context for reports and JSON observations, a Gherkin corpus reader and step-vocabulary matcher with no reflection (the <code>Gherkin</code> parser is checked for AOT warnings first), no reflection-based loading, and comparisons over <code>JsonElement</code> and bytes. The <code>library</code> adapter is registered only in hosts that contain the libraries it calls. For F# compile cases, that is <code>dotnet-morphir</code>. A CI closure check keeps FCS out of <code>morphir</code>.</p>
+
+<h3 id="rep-1">REP-1. Reports record everything; report-check trusts nothing stored</h3>
+<p>A report is one JSON document with <code>reportVersion</code>. It holds:</p>
+<ul>
+<li>the kit version and the case-set SHA-256, which is the digest of the kit manifest plus every corpus file, in path order;</li>
+<li>the profile and the plan;</li>
+<li>the claims;</li>
+<li>the runner identity, which is the <code>morphir</code> version and the SHA-256 of its executable;</li>
+<li>the adapter;</li>
+<li>the executable path, its SHA-256 and its ordered arguments;</li>
+<li>the identity files;</li>
+<li>for each case in plan order: the request, the observation, the applied normalizations, the verdict and the first difference.</li>
+</ul>
+<p><code>report-check</code> works in this order:</p>
+<ol>
+<li>verifies the kit digest;</li>
+<li>verifies the identity digests that are present;</li>
+<li>rebuilds the plan from the recorded claims;</li>
+<li>derives each verdict again.</li>
+</ol>
+<p>It never reads a stored verdict as fact. Upstream reports can be checked as evidence only through an adapter for their format. That adapter is a follow-up, and it is not needed to qualify implementations.</p>
+
+<h3 id="cmd-1">CMD-1. <code>morphir mck</code> follows upstream options and exit codes, and this repository's output conventions</h3>
+<pre><code class="language-console">morphir mck list --kit conformance --profile fsharp-frontend-v1
+morphir mck run --kit conformance --expect-kit-sha256 &lt;sha&gt; --profile cli-v1 \
+  --adapter cli --host /usr/local/bin/morphir --report .dev/mck-cli.json
+morphir mck run --kit conformance --profile mep-frontend-v1 --adapter mep-guest \
+  --host "$(which morphir-fsharp-frontend)" --identity-file "$(which morphir-fsharp-frontend)" --report .dev/mck-guest.json
+morphir mck report-check --kit conformance .dev/mck-guest.json</code></pre>
+<ul>
+<li>The option names follow upstream <code>guest-run</code> (<code>--host</code>, <code>--host-arg</code>, <code>--identity-file</code>, <code>--expect-kit-sha256</code>, <code>--report</code>), so existing scripts move easily.</li>
+<li>The exit codes are upstream's: <code>0</code> qualified, <code>1</code> failure or operational error, <code>2</code> invalid invocation. These deliberately differ from <code>compile</code>'s "2 for operational". Scripts for mck already depend on upstream codes, and a conformance run treats any inability to finish as "not qualified".</li>
+<li><code>--json</code> writes one summary. <code>--json-lines</code> writes one record per finished case and then one <code>completed</code> record, with the same streaming rule as <code>morphir compile --json-lines</code> in <code>add-fsharp-compile</code> (STRM-2).</li>
+<li>The command is registered by a Tooling scenario in both hosts. Handlers are mediator handlers, as for <code>generate</code> and <code>compile</code>.</li>
+</ul>
+
+<h3 id="rel-1">REL-1. Relation to add-fsharp-compile and the existing corpora</h3>
+<ul>
+<li><code>add-fsharp-compile</code> lands first. Its corpus becomes suite <code>frontend-fsharp</code>, and its runner and adapters become <code>Morphir.Conformance</code>. This change adds the kit manifest, schemas, profiles, normalization catalog, imports, reports, report checking and the command. If a seed format detail conflicts with this design, this change migrates the seed in its first task group.</li>
+<li><code>tests/Fixtures/MorphirSDK</code> and <code>tests/Fixtures/MorphirIon/kit</code> stay where they are. Later changes import them as suites. The import rules here make that a data move, not a redesign.</li>
+<li>The default-CLI decision record uses MCK reports for morphir-dotnet and the Rust CLI as evidence of parity and viability.</li>
+</ul>
+
+<h2 id="delivery">Delivery order</h2>
+<ol>
+<li><strong>Kit data.</strong> The step vocabulary 1, the Gherkin corpus reader and linter, <code>kit.toml</code>, the normalization catalog, the generated literate pages with the stale check, and migration of the seed suite from <code>add-fsharp-compile</code> to features.</li>
+<li><strong>Evidence.</strong> The basis and review rules, the first upstream import with dispositions, and the supersession log.</li>
+<li><strong>Execution.</strong> Plans from claims, the generalized adapters, isolation, and AOT checks.</li>
+<li><strong>Reports.</strong> The report schema, <code>report-check</code>, and tamper tests.</li>
+<li><strong>Command.</strong> <code>morphir mck run</code>, <code>report-check</code> and <code>list</code>, with output and exit codes.</li>
+<li><strong>Suites.</strong> <code>ir-writing</code>, <code>cli</code>, <code>mep-guest</code> and <code>mep-host</code>, built from the work in <code>add-fsharp-compile</code>.</li>
+<li><strong>Evidence runs.</strong> Run against the morphir-dotnet executables and the Rust CLI, and publish the reports.</li>
+</ol>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>Expectations written by hand are slow to produce and can be wrong.</td><td>Review records are required, and the basis and evidence are checked. Small, focused cases. Tool-produced drafts are allowed only with a review. A wrong expectation is corrected through a kit version change, never in silence.</td></tr>
+<tr><td>morphir-dotnet both implements and judges, so there is a conflict of interest.</td><td>The oracle is data with cited evidence. The rule that an implementation is fixed, never the expectation, applies to morphir-dotnet too. Supersessions are public and linked to upstream issues. The kit runs against other implementations, and its reports can be checked by anyone.</td></tr>
+<tr><td>Upstream and this kit diverge, which confuses the ecosystem.</td><td>The protocol definition stays upstream, and every divergence is an explicit disposition with an issue link. The goal is for the corrected kit to become the shared one.</td></tr>
+<tr><td>Exact comparison makes harmless differences fail.</td><td>Named normalizations exist for real equivalences, each with a written justification. The report shows which ones applied.</td></tr>
+<tr><td>The official Gherkin parser may give trim or AOT warnings in the Native AOT executable.</td><td>Task 2.1 checks it first. If it warns, the corpus reader is a small AOT-safe parser for the Gherkin subset that the vocabulary uses, and the official parser checks it in CI: both must give the same parse for every kit file.</td></tr>
+<tr><td>Running other executables is a security concern.</td><td>The user names the executable explicitly. There is no shell, a fresh temporary workspace, no network by default, deadlines and process-tree cleanup.</td></tr>
+<tr><td>Kit size and release overhead.</td><td>The kit is a separate release archive with a SHA-256, not embedded in the AOT executable.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<ul>
+<li>The additions do not change any existing command.</li>
+<li>Existing conformance tests continue to run.</li>
+<li>Scripts that use upstream <code>morphir mck mep guest-run</code> can move to <code>morphir mck run --adapter mep-guest</code> with the same identity and report options.</li>
+<li>Rollback: remove the scenario registration. The kit data has no effect on other commands.</li>
+</ul>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>Who besides the change author signs review records for the first suites. This is a maintainer process decision; it does not change the record format.</li>
+<li>Whether the kit archive is also published as a NuGet content package, in addition to the release archive.</li>
+</ul>
+
+</main>
+</body>
+</html>

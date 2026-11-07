@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="FSharp.Compiler.Service" VersionOverride="43.12.403" />
+    <PackageReference Include="Expecto" />
+    <ProjectReference Include="../../tests/Morphir.TestSupport/Morphir.TestSupport.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="MatchJoinSpikeTests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+</Project>
