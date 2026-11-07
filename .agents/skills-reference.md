@@ -233,6 +233,8 @@ Muse Code skips project skills until the workspace is trusted (`muse skills list
 ### Rules for project-owned skills
 
 - Edit a project skill only in `.agents/skills/<name>/`. Then run `dotnet fsi scripts/sync-agent-skills.fsx`, which writes the copies to `.claude/skills/` and `.grok/skills/`. `--check` exits 1 when a copy differs.
+- CI: the `lint` job in `.github/workflows/development.yml` runs `--check` on every pull request (about a second, no restore) and marks each drifted file with an annotation. It runs even when the format check fails.
+- Pre-commit: the Husky.Net task `agent-skill-copies` runs `--check` only when a staged file is under `.agents/skills/`, `.claude/skills/` or `.grok/skills/`, or is the script itself. It checks the working tree, so stage the synced copies with the canonical change.
 - Keep each agent file short. It points to the skill, which holds the rules, so the rules exist in one place.
 - OpenSpec generates the `openspec-*` skills in every tool folder. Do not edit them by hand, and the sync script does not touch them.
 

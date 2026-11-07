@@ -22,6 +22,7 @@ let mirrors = [ ".claude/skills"; ".grok/skills" ]
 
 let root = Path.GetFullPath(Path.Combine(__SOURCE_DIRECTORY__, ".."))
 let check = fsi.CommandLineArgs |> Array.contains "--check"
+let onGitHubActions = Environment.GetEnvironmentVariable "GITHUB_ACTIONS" = "true"
 
 let filesUnder (dir: string) =
     if Directory.Exists dir then
@@ -40,9 +41,9 @@ let differences (source: string) (target: string) =
     let targetFiles = filesUnder target
     [ for file in Set.union sourceFiles targetFiles do
           match sourceFiles.Contains file, targetFiles.Contains file with
-          | true, false -> yield $"missing  {file}"
-          | false, true -> yield $"extra    {file}"
-          | _ when not (sameBytes (Path.Combine(source, file)) (Path.Combine(target, file))) -> yield $"differs  {file}"
+          | true, false -> yield "missing", file
+          | false, true -> yield "extra", file
+          | _ when not (sameBytes (Path.Combine(source, file)) (Path.Combine(target, file))) -> yield "differs", file
           | _ -> () ]
 
 let copy (source: string) (target: string) =
@@ -67,7 +68,11 @@ for skill in ownedSkills do
             | found when check ->
                 failed <- true
                 eprintfn $"drift    {mirror}/{skill}"
-                for line in found do eprintfn $"           {line}"
+                for kind, file in found do
+                    eprintfn $"           {kind,-8} {file}"
+                    // A GitHub Actions annotation puts the finding on the file in the pull request.
+                    if onGitHubActions then
+                        printfn $"::error file={mirror}/{skill}/{file},title=Agent skill copy drift::This copy is {kind} compared with .agents/skills/{skill}/. Edit only the canonical skill, then run: dotnet fsi scripts/sync-agent-skills.fsx"
             | _ ->
                 copy source target
                 eprintfn $"synced   {mirror}/{skill}"

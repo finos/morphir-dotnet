@@ -248,7 +248,7 @@ export type TypeExpr =
 
 Project skills and agents
 - Canonical project skills live in `.agents/skills/<name>/SKILL.md`. Codex, GitHub Copilot, Cursor and Muse Code read that folder.
-- Claude Code reads `.claude/skills/` and Grok Build reads `.grok/skills/`. Do not edit those copies of a project skill. Edit `.agents/skills/<name>/`, then run `dotnet fsi scripts/sync-agent-skills.fsx`. `--check` exits 1 when a copy differs.
+- Claude Code reads `.claude/skills/` and Grok Build reads `.grok/skills/`. Do not edit those copies of a project skill. Edit `.agents/skills/<name>/`, then run `dotnet fsi scripts/sync-agent-skills.fsx`. `--check` exits 1 when a copy differs. The `lint` job in `.github/workflows/development.yml` runs the check on every pull request, and the Husky.Net pre-commit hook runs it when a staged file is under a skills folder.
 - Reviewer agents use each tool's format: `.claude/agents/*.md` (Claude Code and Cursor), `.codex/agents/*.toml` (Codex), `.github/agents/*.agent.md` (GitHub Copilot) and `.grok/agents/*.md` (Grok Build). Muse Code has no agent files: start a subagent with the prompt in the skill's "Review mode" section.
 - OpenSpec generates the `openspec-*` skills in every folder. The sync script does not touch them.
 - See [.agents/skills-reference.md](./.agents/skills-reference.md#project-skills-and-agents) for the full table.
