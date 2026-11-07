@@ -34,11 +34,11 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
 
 ## 2. Format versions, native IR builders and IR writers (ir-model-writing)
 
-- [ ] 2.1 Create `src/Morphir.Compilation` (F#, AOT-compatible, no FCS reference) with these parts:
+- [x] 2.1 Create `src/Morphir.Compilation` (F#, AOT-compatible, no FCS reference) with these parts:
   - `IrTarget` over `Versioning.FormatVersion`;
   - `FormatVersion.sameVersion`;
   - `Diagnostic` (the MEP shape with UTF-16 ranges);
-  - `Checked<'T>` and its `checked { }` computation expression (DIAG-1);
+  - `Checked<'T>` and its `check { }` computation expression (DIAG-1; `checked` is a reserved F# keyword);
   - the `IIrBuilder` interface (MID-1), `FamilyModel`, and the builder, writer and project-file provider registry records from ARCH-1.
 
   Verify with property tests:
