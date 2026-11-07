@@ -125,7 +125,7 @@ Console.WriteLine($"Configuration: {config}");
 var executableTypes = new List<string>();
 if (executableType == "all")
 {
-    executableTypes.AddRange(new[] { "aot", "trimmed", "untrimmed" });
+    executableTypes.AddRange(new[] { "aot", "trimmed", "untrimmed", "tool" });
 }
 else
 {
@@ -205,6 +205,17 @@ foreach (var type in executableTypes)
         }
     }
 }
+
+// The dotnet tool build is cheap. Every run builds it, so the scenarios that compare both hosts
+// (and the "tool" executable type) can run it next to the executable under test.
+Console.WriteLine("");
+Console.WriteLine("Building the dotnet-morphir tool...");
+if (RunCommand("dotnet", "build", Path.Combine(projectRoot, "src", "Morphir.Tool", "Morphir.Tool.csproj"), "--configuration", config) != 0)
+{
+    Console.Error.WriteLine("✗ Error: Failed to build src/Morphir.Tool");
+    Environment.Exit(1);
+}
+Console.WriteLine("✓ dotnet-morphir tool is built");
 
 // E2E test project should already be built via BuildE2ETests target
 Console.WriteLine("");

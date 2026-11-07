@@ -75,15 +75,21 @@ Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/
 
 ## 8. Both hosts and AOT
 
-- [ ] 8.1 Add a `tool` executable type to `tests/Morphir.E2E.Tests/Infrastructure/ExecutableLocator.cs` that runs the built `dotnet-morphir.dll` through `dotnet`; verify an `ExecutableRunnerTests` case runs `--version` through it.
-- [ ] 8.2 Add `tests/Morphir.E2E.Tests/Features/ExecutableExtensionList.feature` with steps that run `extension list --json` and check the entries `morphir.csharp` and `morphir.fsharp`, the `host` value and stdout purity; verify it passes against the AOT `morphir` executable and against `dotnet-morphir`.
-- [ ] 8.3 Add a scenario that compares the shared entries of the two hosts' results (spec: "Both hosts list the same shared built-ins"); verify it passes.
-- [ ] 8.4 Publish the AOT `morphir` executable and record the trim and AOT warning count and the binary size before and after; verify there are no new warnings, including from `Morphir.Extensions`, and that the only new assembly in the closure is `Morphir.Extensions`.
+- [x] 8.1 Add a `tool` executable type to `tests/Morphir.E2E.Tests/Infrastructure/ExecutableLocator.cs` that runs the built `dotnet-morphir.dll` through `dotnet`; verify an `ExecutableRunnerTests` case runs `--version` through it.
+  - Done with the app host that the `Morphir.Tool` build writes (`src/Morphir.Tool/bin/<configuration>/net10.0/dotnet-morphir`), which runs `dotnet-morphir.dll` on the installed runtime, so `ExecutableRunner` needs no change. A `tool` run never falls back to a `morphir` executable. `scripts/run-e2e-tests.cs` accepts `tool`, includes it in `all`, and builds `Morphir.Tool` on every run. `ToolTypeRunsTheBuiltDotnetMorphir` passes.
+- [x] 8.2 Add `tests/Morphir.E2E.Tests/Features/ExecutableExtensionList.feature` with steps that run `extension list --json` and check the entries `morphir.csharp` and `morphir.fsharp`, the `host` value and stdout purity; verify it passes against the AOT `morphir` executable and against `dotnet-morphir`.
+  - E2E run with `MORPHIR_EXECUTABLE_TYPE=aot` (the published AOT executable) and `tool`: 27 passed, 0 failed, 1 skipped (`Verify with quiet mode`, an existing `@Ignore`), in each. `dotnet run scripts/run-e2e-tests.cs -- tool Release` passes.
+- [x] 8.3 Add a scenario that compares the shared entries of the two hosts' results (spec: "Both hosts list the same shared built-ins"); verify it passes.
+  - `Both hosts list the same shared built-ins` runs the other host (the tool for a `morphir` type; else the published or built `morphir`) and compares the shared entries, which carry the build version, so both hosts must come from the same commit. It passes in both runs.
+- [x] 8.4 Publish the AOT `morphir` executable and record the trim and AOT warning count and the binary size before and after; verify there are no new warnings, including from `Morphir.Extensions`, and that the only new assembly in the closure is `Morphir.Extensions`.
+  - Measured on osx-arm64 against `main` (`a5f91af`), both published with `./build.sh --target PublishExecutable --configuration Release`: the same 54 warning lines (18 IL2026, 4 IL2104, 30 IL3050, 2 IL3053; 27 unique), 0 new and 0 removed, none from `Morphir.Extensions`; the only new assembly is `Morphir.Extensions`; the executable grows from 17,100,952 to 17,382,456 bytes (+281,504, +1.6%).
 
 ## 9. Closeout: PRD and upstream
 
-- [ ] 9.1 Update PRD step 0 with LANG-1 (F# domain project), PLG-1 (the pipeline plugins register in step 1) and ID-1 (dotted ids; step 3 refuses them in shared upstream files until upstream accepts them), and set the feature status row "Extension registry and built-in list"; verify the PRD index row matches.
+- [x] 9.1 Update PRD step 0 with LANG-1 (F# domain project), PLG-1 (the pipeline plugins register in step 1) and ID-1 (dotted ids; step 3 refuses them in shared upstream files until upstream accepts them), and set the feature status row "Extension registry and built-in list"; verify the PRD index row matches.
+  - PRD step 0 states that the plugins register in step 1, the F# domain project and the dotted id rule; step 1 says `TypeValidator` registers as a `validator` entry; step 3 refuses dotted ids in shared upstream files; the status row says implemented, with the MCK suite still to come; the PRD index row is updated.
 - [ ] 9.2 Draft the upstream proposal for dotted extension ids (the segment grammar, the 238-character limit, the file-name safety argument, and `morphir.csharp` as the example) against the `finos/morphir` extension identity rules and `finos/morphir-rust` `crates/morphir-distribution/src/domain/identity.rs`; get the user's approval, then open it upstream and link it in the PRD and in `proposal.md`; verify the links resolve.
+  - Drafted; waiting for the user's approval before it is opened upstream.
 
 ## Workflow follow-up
 

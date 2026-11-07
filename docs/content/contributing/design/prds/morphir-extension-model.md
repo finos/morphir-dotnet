@@ -201,7 +201,9 @@ Each step merges on its own. External runtimes stay behind an experimental flag 
 ### Step 0: Extension registry
 
 - Built-ins register with MEP `ExtensionInfo` and capability claims, through static DI registration. There is no assembly scanning.
-- The first built-ins: the C# and F# generators, and the plugins in `src/Morphir.IR.Pipeline.Plugins`.
+- The first built-ins are the C# and F# generators. The plugins in `src/Morphir.IR.Pipeline.Plugins` register in step 1 (decided 2026-11-07): no CLI command runs them, so an entry for them would claim a capability that nothing can use.
+- The registry domain is the F# project `src/Morphir.Extensions`, with parsed types and closed unions; the CLI edge stays C# (decided 2026-11-07). Its rules for C# callers are in the `fsharp-csharp-interop` skill.
+- Extension ids are one or more lowercase portable tokens joined by dots, such as `morphir.csharp`. Each token follows the upstream rule; the dots are a superset of upstream (decided 2026-11-07), proposed upstream.
 - `morphir extension list` shows the built-ins, with their deliveries and the host they run in. The other `extension` commands stay as they are until step 3.
 - No other behavior changes.
 - This step does not wait for `Morphir.Mep` (builder's call). The registry uses its own types in the shape of `ExtensionInfo` and capability claims, and maps them to the `Morphir.Mep` types when those land.
@@ -218,7 +220,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
   - If neither library passes, write a minimal layer on System.Text.Json (estimate: 800–1,100 lines with tests): messages with a hand-written converter, a dispatcher with `DispatchAsync(message bytes) → response bytes`, a `Content-Length` framer, and a connection with a pending-request table, `$/cancelRequest` and progress notifications. The WASM path always needs our own dispatcher, because no library has single-message dispatch.
   - Research notes: the "JSON-RPC research" section in [Evidence](#evidence).
 - **Generate the MEP types from the contract model** if the generators can do it: `spec/mep/generated/mep.ir.json` in `finos/morphir` is Morphir IR (package `morphir/mep`). If the generators cannot do it yet, record the gap and write the types by hand against the pinned contract.
-- **The built-in `TypeValidator` runs through an in-process validator contract.** This proves the analyzer shape without a runtime risk. The in-process diagnostic shape follows the MEP `Diagnostic` type and the pipeline `VMessage` fields (severity, message, location, rule id, source).
+- **The built-in `TypeValidator` runs through an in-process validator contract, and registers as a `validator` extension entry.** This proves the analyzer shape without a runtime risk. The in-process diagnostic shape follows the MEP `Diagnostic` type and the pipeline `VMessage` fields (severity, message, location, rule id, source).
 - **Write the upstream proposal for the validate payload.** morphir-dotnet writes the MEP change in `finos/morphir` (decided 2026-11-06). Step 2 can build against the upstream draft PR before it is published. Pin the draft by commit, record its provenance, and move to the published version when it lands. MEP has the `validator` type, the `morphir.validator.validate` method name and the `ValidationError` code (-32003), but no request or result type, no validator capability record, and no `validateModel` model-transport operation. `spec/mep/README.md` lists "validate and transform payloads" as not covered yet. Step 2 needs this contract.
 - **MEP version moves (builder's call, from the "latest only" rule).** When upstream publishes the contract version that has the validate payload, all MEP parts in morphir-dotnet move to that version together: `Morphir.Mep`, the host client, the F# frontend guest and the .NET guest SDK. morphir-dotnet does not keep `0.2.0-draft.1` beside it, because drafts match only exactly.
 
@@ -256,6 +258,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 - Add the `staged/` folders and the `[extension_install] staged` setting, with the default `auto`.
 - Accept a bare `.wasm` module and the [extension package archive](#extension-package-archive) (zip or tar gzip) in `staged/`. `morphir extension install <file>` accepts the same formats, so a user can install an archive without the staged folder.
 - Replace the not-implemented `morphir extension install/use/remove/which` commands (#492) in `src/Morphir.Tooling/Scenarios/ManagementScenario.cs` with real implementations. Update `docs/content/docs/cli/management.md`, which describes a layout with `<platform>` folders that WASM does not need.
+- Refuse to write a dotted extension id into the shared upstream store, catalog or locks until upstream accepts dotted ids. Built-ins never go there.
 - **Ship the levels as a documented superset (decided 2026-11-06).** Step 3 does not wait for upstream. Extensions go into the shared store, catalog and global locks in the upstream format, so upstream CLIs see global installs. The level selection and lock files and the `staged/` folders are additions that upstream CLIs ignore. A project-level or workspace-level selection is visible only to morphir-dotnet until upstream adopts the proposal. Document this difference in the CLI documentation.
 - Send the levels, the staged folders, the extension package archive (both formats) and the install mode to upstream as a proposal against `docs/design/draft/extensions/distribution-and-acquisition.md`. Upstream currently supports only user-global installs from a registered repository, "does not accept a raw `.wasm` file", and does not download during compile or generate "without an explicit install policy". The install mode setting is that policy.
 
@@ -280,7 +283,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 
 | Feature | Status | Step | Completion evidence |
 | --- | --- | --- | --- |
-| Extension registry and built-in list | Planned in `add-extension-registry` ([#492](https://github.com/finos/morphir-dotnet/issues/492)) | 0 | `morphir extension list` shows built-ins in both hosts |
+| Extension registry and built-in list | Implemented in `add-extension-registry` ([#492](https://github.com/finos/morphir-dotnet/issues/492)) | 0 | `morphir extension list` shows built-ins in both hosts; MCK suite still to come |
 | JSON-RPC spike | Planned | 1 | AOT warning count and size for each candidate; decision recorded |
 | MEP core (`Morphir.Mep`) | Planned in `add-fsharp-compile` | 1 | That change's tasks |
 | In-process validator contract | Planned | 1 | `TypeValidator` diagnostics through the contract |
