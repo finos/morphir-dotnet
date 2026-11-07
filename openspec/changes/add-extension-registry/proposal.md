@@ -6,7 +6,7 @@ The [Morphir extension model PRD](../../../docs/content/contributing/design/prds
 
 ## What Changes
 
-- Add an extension registry to `Morphir.Tooling`. Each entry has an identity in the shape of the MEP `ExtensionInfo` record (`id`, `name`, `version`, optional `description`), a delivery, the hosts it runs in, and a non-empty set of capability claims in the shape of the MEP capability records. The entry types come from the claims.
+- Add an extension registry. Its domain types live in a new F# project, `src/Morphir.Extensions`, with C# callers in mind (nullable metadata, C#-friendly members). `Morphir.Tooling` (C#) keeps the CLI edge: DI registration, the command and the JSON report. Each entry has an identity in the shape of the MEP `ExtensionInfo` record (`id`, `name`, `version`, optional `description`), a delivery, the hosts it runs in, and a non-empty set of capability claims in the shape of the MEP capability records. The entry types come from the claims.
 - Parse, don't validate. Every registry value is a parsed type: an id, name, description, version and target cannot be constructed from invalid text, and closed unions replace enums and flags. An entry with no capability, no host or types that disagree with its claims cannot exist, and a catalog cannot hold a duplicate id. Strings exist only at the input boundary and in the command output.
 - An extension id is one or more lowercase portable tokens joined by dots. Each token follows the upstream `ExtensionId` rule. Dots are a morphir-dotnet superset, so the published generate `backend` identities `morphir.csharp` and `morphir.fsharp` stay valid. The closeout of this change proposes dotted ids upstream.
 - The generation contracts that the registry reads become parsed types too: `TargetId`, the IR versions of `BackendCapability` (`SourceFormatVersion`) and the backend identity (`ExtensionId`). `morphir generate` keeps its behavior, its diagnostics and its report.
@@ -38,9 +38,11 @@ None. No existing spec covers `morphir extension`.
 
 ## Impact
 
-- New: `src/Morphir.Tooling/Features/Extensions/` (the parsed types, `NonEmptySet`, the registry unions and catalog, the backend adapter, the list command and report, the JSON context).
-- Changed: `src/Morphir.Tooling/Scenarios/ManagementScenario.cs` (`extension list` handler), `src/Morphir.Tooling/Features/Generate/GenerationContracts.cs` (parsed `TargetId`, `SourceFormatVersion` sets in `BackendCapability`, and `ExtensionId`, `ExtensionName` and an optional `ExtensionDescription` on `BackendDescriptor`), `CliGenerationSettingsResolver.cs` and `RegisteredBackendResolver.cs` (typed inputs, same behavior), the two backends, `src/Morphir/Program.cs` and `src/Morphir.Tool/Program.cs` (host identity).
+- New: `src/Morphir.Extensions` (F#: the parsed types, `NonEmptySet`, the registry unions and catalog, `IExtensionSource`, `TargetId`) and `tests/Morphir.Extensions.Tests` (Expecto and FsCheck), both in `Morphir.slnx`, with the test project in the Nuke test targets.
+- New in `Morphir.Tooling`: `Features/Extensions/` (C#: the backend adapter, the registry service, the list command and report, the JSON context).
+- Changed: `src/Morphir.Tooling/Scenarios/ManagementScenario.cs` (`extension list` handler), `src/Morphir.Tooling/Features/Generate/GenerationContracts.cs` (the F# `TargetId` replaces the C# struct, `SourceFormatVersion` sets in `BackendCapability`, and `ExtensionId`, `ExtensionName` and an optional `ExtensionDescription` on `BackendDescriptor`), `CliGenerationSettingsResolver.cs` and `RegisteredBackendResolver.cs` (typed inputs, same behavior), the two backends, `src/Morphir/Program.cs` and `src/Morphir.Tool/Program.cs` (host identity).
 - Removed: the unused `ExtensionList`, `ExtensionListResult` and `ExtensionInfo` records and `ExtensionHandlers.HandleList` in `src/Morphir.Tooling/Features/Management/`, which have no callers. The other management records stay.
 - Documentation: `docs/content/docs/cli/management.md` (`extension list` output).
 - Tests: parser property tests and unit tests in `tests/Morphir.Tooling.Tests`, the unchanged generate tests and contract scripts, and an executable test that runs `extension list --json` against the AOT `morphir` binary and against `dotnet-morphir`.
-- No new package dependency. No change to the AOT closure.
+- No new package dependency. The AOT closure gains one assembly, `Morphir.Extensions`, with no new trim or AOT warnings.
+- Contributor tooling: the work uses the project skill `fsharp-csharp-interop` and the agent `fsharp-csharp-interop-reviewer`, which are added to the repository with this proposal.
