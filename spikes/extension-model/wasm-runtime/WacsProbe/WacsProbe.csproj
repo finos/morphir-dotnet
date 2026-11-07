@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="WACS" Version="0.16.14" />
+  </ItemGroup>
+</Project>

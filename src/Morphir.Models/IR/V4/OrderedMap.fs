@@ -7,7 +7,7 @@ open System.Collections.Generic
 /// The v4 model says map key order is not meaningful, while a writer must still emit document order.
 /// </summary>
 [<CustomEquality; NoComparison>]
-type OrderedMap<'k, 'v when 'k: equality and 'v: equality> =
+type OrderedMap<'k, 'v when 'k: equality and 'k: not null and 'v: equality> =
     private
         {
             entries: ('k * 'v) list
@@ -52,7 +52,7 @@ module OrderedMap =
         add entries
 
     /// <summary>The map with no entries.</summary>
-    let empty<'k, 'v when 'k: equality and 'v: equality> : OrderedMap<'k, 'v> = {
+    let empty<'k, 'v when 'k: equality and 'k: not null and 'v: equality> : OrderedMap<'k, 'v> = {
         entries = []
         lookup = Dictionary<'k, 'v>()
     }

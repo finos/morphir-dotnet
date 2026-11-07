@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Spike: a morphir-bytes-v1 guest compiled with NativeAOT-LLVM to a core WASM module.
+    See docs/content/contributing/design/spikes/extension-model/dotnet-guest-toolchains.md.
+
+    NativeAOT-LLVM is not in the .NET SDK. Its compiler host packages exist only for
+    linux-x64, linux-arm64 and win-x64, so on macOS run ../build-in-linux.sh.
+    With ProbeIlOnly=true the project builds only the IL, on any host, to check the
+    DllImport, WasmImportLinkage and UnmanagedCallersOnly metadata.
+  -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(ProbeIlOnly)' != 'true'">
+    <RuntimeIdentifier>wasi-wasm</RuntimeIdentifier>
+    <PublishTrimmed>true</PublishTrimmed>
+    <SelfContained>true</SelfContained>
+    <MSBuildEnableWorkloadResolver>false</MSBuildEnableWorkloadResolver>
+    <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+    <!-- A reactor: exports handle and _initialize, no _start. -->
+    <NativeLib>Shared</NativeLib>
+    <!--
+      The package default is wasm32-unknown-wasip2, which links a WASI P2 component.
+      The morphir-bytes-v1 host loads a core module, so ask for wasip1. If the runtime
+      libraries do not link for wasip1, set ProbeWasip2=true: the link then keeps wasip2
+      and skips the component wrapper (the skip-wit-component option of wasm-component-ld).
+    -->
+    <IlcLlvmTarget Condition="'$(ProbeWasip2)' != 'true'">wasm32-unknown-wasip1</IlcLlvmTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(ProbeIlOnly)' != 'true'">
+    <LinkerArg Include="-Wl,--skip-wit-component" Condition="'$(ProbeWasip2)' == 'true'" />
+    <PackageReference Include="Microsoft.DotNet.ILCompiler.LLVM" Version="$(IlcLlvmVersion)" />
+    <PackageReference Include="runtime.$(NETCoreSdkPortableRuntimeIdentifier).Microsoft.DotNet.ILCompiler.LLVM" Version="$(IlcLlvmVersion)" />
+  </ItemGroup>
+</Project>

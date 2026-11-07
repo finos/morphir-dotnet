@@ -115,7 +115,7 @@ module Encode =
                 let keyElement = keyEncoder k
                 let keyStr =
                     match keyElement.ValueKind with
-                    | JsonValueKind.String -> keyElement.GetString()
+                    | JsonValueKind.String -> nonNull (keyElement.GetString())
                     | _ -> keyElement.GetRawText()
                 (keyStr, valueEncoder v))
         object properties

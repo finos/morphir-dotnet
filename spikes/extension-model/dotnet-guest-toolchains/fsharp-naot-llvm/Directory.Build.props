@@ -1,0 +1,6 @@
+<Project>
+  <!-- Stops the walk to the repository Directory.Build.props. Pins the NativeAOT-LLVM line. -->
+  <PropertyGroup>
+    <IlcLlvmVersion>10.0.0-rc.1.26357.1</IlcLlvmVersion>
+  </PropertyGroup>
+</Project>

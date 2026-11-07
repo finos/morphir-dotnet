@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The harness with no WASM runtime: the size baseline. -->
+</Project>

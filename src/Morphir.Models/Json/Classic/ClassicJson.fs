@@ -67,7 +67,8 @@ module internal ClassicJsonDecoder =
         then
             fail "decode" location "Expected a string."
 
-        element.GetString()
+        // A JSON string never reads as null.
+        nonNull (element.GetString())
 
     let prop location (name: string) (element: JsonElement) =
         let mutable result = Unchecked.defaultof<JsonElement>
@@ -326,7 +327,7 @@ module internal ClassicJsonDecoder =
         let lexeme =
             match data.ValueKind with
             | JsonValueKind.String ->
-                let text = data.GetString()
+                let text = nonNull (data.GetString())
 
                 match V4.DecimalLexeme.create text with
                 | Ok _ -> text
@@ -852,7 +853,7 @@ module internal ClassicJsonDecoder =
             then
                 number, 0
             elif element.ValueKind = JsonValueKind.String then
-                match releaseMinor (element.GetString()) with
+                match releaseMinor (nonNull (element.GetString())) with
                 | Some minor -> 3, minor
                 | None -> unsupportedVersion ()
             else

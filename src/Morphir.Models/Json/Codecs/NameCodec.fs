@@ -63,9 +63,9 @@ module NameCodec =
             let mutable error: string option = None
             while error.IsNone && reader.Read() && reader.TokenType <> JsonTokenType.EndArray do
                 if reader.TokenType = JsonTokenType.String then
-                    let segment = reader.GetString()
-                    if not (isNull segment) then
-                        segments.Add(segment.ToLowerInvariant())  // Normalize to lowercase to match Name invariant
+                    match reader.GetString() with
+                    | null -> ()
+                    | segment -> segments.Add(segment.ToLowerInvariant())  // Normalize to lowercase to match Name invariant
                 else
                     error <- Some $"Expected string in Name array, got {reader.TokenType}"
             match error with
@@ -74,11 +74,9 @@ module NameCodec =
 
         | JsonTokenType.String ->
             // SemVer format: kebab-case string
-            let kebabCase = reader.GetString()
-            if isNull kebabCase then
-                Error "Name string value is null"
-            else
-                Ok (fromKebabCase kebabCase)
+            match reader.GetString() with
+            | null -> Error "Name string value is null"
+            | kebabCase -> Ok (fromKebabCase kebabCase)
 
         | _ ->
             Error $"Expected StartArray or String for Name, got {reader.TokenType}"
@@ -126,11 +124,9 @@ module NameCodec =
 
         | JsonValueKind.String ->
             // SemVer format: kebab-case string
-            let kebabCase = element.GetString()
-            if isNull kebabCase then
-                Error "Name string value is null"
-            else
-                Ok (fromKebabCase kebabCase)
+            match element.GetString() with
+            | null -> Error "Name string value is null"
+            | kebabCase -> Ok (fromKebabCase kebabCase)
 
         | _ ->
             Error $"Expected JSON array or string for Name, got {element.ValueKind}"

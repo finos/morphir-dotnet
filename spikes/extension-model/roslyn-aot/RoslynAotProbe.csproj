@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Spike: can a C# frontend built on Roslyn be a built-in of the Native AOT `morphir` executable?
+    See docs/content/contributing/design/spikes/extension-model/roslyn-aot.md.
+
+    The probe opts out of central package management and lock files, so that it builds
+    the same way inside and outside the repository.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- Native AOT, with the trim, AOT and single-file analyzers on. -->
+    <PublishAot>true</PublishAot>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <!-- Show one warning per call site, not one warning per package. -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <!-- RS1036, RS1041, RS2008 apply to analyzer packages; the probe hosts its analyzer in process. -->
+    <NoWarn>$(NoWarn);RS1036;RS1041;RS2008</NoWarn>
+  </PropertyGroup>
+
+  <!-- frontend (default), extensions or full. See the header of Program.cs. -->
+  <PropertyGroup>
+    <ProbeVariant Condition="'$(ProbeVariant)' == ''">frontend</ProbeVariant>
+    <DefineConstants Condition="'$(ProbeVariant)' == 'extensions' Or '$(ProbeVariant)' == 'full'">$(DefineConstants);PROBE_EXTENSIONS</DefineConstants>
+    <DefineConstants Condition="'$(ProbeVariant)' == 'full'">$(DefineConstants);PROBE_FULL</DefineConstants>
+    <DefineConstants Condition="'$(ProbeVariant)' == 'workspaces'">$(DefineConstants);PROBE_WORKSPACES</DefineConstants>
+    <!-- ProbeRefs=sdk: no embedded reference assemblies; read the targeting pack of the installed SDK. -->
+    <DefineConstants Condition="'$(ProbeRefs)' == 'sdk'">$(DefineConstants);PROBE_NO_BASIC</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <!-- Reference assemblies as embedded resources: a single-file AOT app has no ref pack on disk. -->
+    <PackageReference Include="Basic.Reference.Assemblies.Net100" Version="1.8.14" Condition="'$(ProbeRefs)' != 'sdk'" />
+    <!-- workspaces: the Workspaces layer (AdhocWorkspace, MEF host services), which IDE-style tools use. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" Condition="'$(ProbeVariant)' == 'workspaces'" />
+  </ItemGroup>
+  <!--
+    RoslynSingleWarn=true: collapse the warnings of the Roslyn assemblies into one warning per
+    assembly, and keep per-site warnings for every other assembly. This shows the gate a host can use.
+  -->
+  <Target Name="RoslynSingleWarn" AfterTargets="_ComputeManagedAssemblyForILLink" Condition="'$(RoslynSingleWarn)' == 'true'">
+    <ItemGroup>
+      <ManagedAssemblyToLink Update="@(ManagedAssemblyToLink)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('Microsoft.CodeAnalysis'))" TrimmerSingleWarn="true" />
+    </ItemGroup>
+  </Target>
+</Project>
