@@ -47,7 +47,7 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
   - `let!` keeps diagnostics in emission order and stops at the first failure;
   - `and!` and `traverse` collect every diagnostic from all branches;
   - a failure keeps the warnings gathered before it. Also verify that a trimmed and AOT publish of a test console app gives no new warnings.
-- [ ] 2.2 Implement the classic writer with v1, v2 and v3 `ClassicWireProfile` values that declare `Classic 1`, `Classic 2` and `Classic 3`. Verify:
+- [x] 2.2 Implement the classic writer with v1, v2 and v3 `ClassicWireProfile` values that declare `Classic 1`, `Classic 2` and `Classic 3`. Verify:
   - every classic fixture round-trips through `ClassicJson.readDistribution`;
   - every written document validates against the bundled schemas;
   - the version-spelling scenario passes.

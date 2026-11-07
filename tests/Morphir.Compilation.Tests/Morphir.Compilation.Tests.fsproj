@@ -33,6 +33,7 @@
         <Compile Include="DiagnosticTests.fs" />
         <Compile Include="CheckedTests.fs" />
         <Compile Include="RegistryTests.fs" />
+        <Compile Include="WriterTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
