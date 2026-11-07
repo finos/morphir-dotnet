@@ -126,7 +126,7 @@ let tests =
 
                 Expect.equal
                     (diagnostics
-                     |> Seq.map (fun item -> item.Code)
+                     |> Seq.map (fun item -> item.Code.WireValue)
                      |> List.ofSeq
                      |> List.distinct)
                     [ "extension.duplicate_id" ]

@@ -31,7 +31,7 @@ public sealed class ExtensionListCommand : Command
                 stdout(ExtensionListReport.Failure(registry.Host, error).ToJson());
             else
                 foreach (var diagnostic in error.Diagnostics)
-                    stderr.WriteLine($"Error: {diagnostic.Code}: {diagnostic.Message}");
+                    stderr.WriteLine($"Error: {diagnostic.Code.WireValue}: {diagnostic.Message}");
             return 2;
         }
 

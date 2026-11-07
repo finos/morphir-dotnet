@@ -14,7 +14,7 @@ public sealed record ExtensionListReport(string Host, IReadOnlyList<ExtensionLis
         new(catalog.Host.Host.WireValue, catalog.Entries.Select(entry => Entry(entry, catalog.Host.Host)).ToArray(), null);
 
     public static ExtensionListReport Failure(HostIdentity host, RegistryError error) =>
-        new(host.Host.WireValue, [], error.Diagnostics.Select(diagnostic => new ExtensionListDiagnostic(diagnostic.Code, diagnostic.Message)).ToArray());
+        new(host.Host.WireValue, [], error.Diagnostics.Select(diagnostic => new ExtensionListDiagnostic(diagnostic.Code.WireValue, diagnostic.Message)).ToArray());
 
     private static ExtensionListEntry Entry(ExtensionEntry entry, MorphirHost host)
     {

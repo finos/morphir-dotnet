@@ -27,7 +27,7 @@ public sealed class ExtensionCatalogInteropTests
     {
         ExtensionCatalog.TryCreate(Host, [Backend("morphir.csharp"), Backend("morphir.csharp")], out _, out var error).Should().BeFalse();
         error!.Diagnostics.Should().ContainSingle()
-            .Which.Should().Be(new Diagnostic("extension.duplicate_id", "Extension id 'morphir.csharp' is registered more than once."));
+            .Which.Should().Be(new Diagnostic(DiagnosticCode.DuplicateExtensionId, "Extension id 'morphir.csharp' is registered more than once."));
     }
 
     [Test]
@@ -45,7 +45,7 @@ public sealed class ExtensionCatalogInteropTests
     [Test]
     public void AnEntryForOneHostIsNotAvailableInTheOther()
     {
-        var entry = Backend("acme.frontend").WithHosts(HostAvailability.NewOnly(MorphirHost.DotnetTool));
+        var entry = Backend("acme.frontend").WithHosts(HostAvailability.OnlyIn(MorphirHost.DotnetTool));
         entry.IsAvailableIn(MorphirHost.Native).Should().BeFalse();
         entry.IsAvailableIn(MorphirHost.DotnetTool).Should().BeTrue();
     }

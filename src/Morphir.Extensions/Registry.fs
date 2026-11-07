@@ -26,7 +26,9 @@ type MorphirHost =
 /// <summary>The host that runs this process, with its release version.</summary>
 type HostIdentity =
     {
+        /// <summary>The kind of host.</summary>
         Host: MorphirHost
+        /// <summary>The release version.</summary>
         Version: ReleaseVersion
     }
 
@@ -40,6 +42,9 @@ type HostAvailability =
     | AllHosts
     /// <summary>One host only.</summary>
     | Only of MorphirHost
+
+    /// <summary>For C# callers: availability in one host only.</summary>
+    static member OnlyIn(host: MorphirHost) = Only host
 
     /// <summary>True when the extension runs in the host.</summary>
     member this.IsAvailableIn(host: MorphirHost) =
@@ -99,7 +104,9 @@ type ExtensionType =
 /// <summary>What a backend generates: at least one target and at least one IR version, in their declared spelling.</summary>
 type BackendClaim =
     {
+        /// <summary>The target ids, for example <c>csharp</c>.</summary>
         Targets: NonEmptySet<TargetId>
+        /// <summary>The IR versions, in their declared spelling.</summary>
         IrVersions: NonEmptySet<SourceFormatVersion>
     }
 
@@ -126,9 +133,13 @@ type ExtensionCapability =
 /// <summary>Who an extension is, in the shape of the MEP <c>ExtensionInfo</c> record.</summary>
 type ExtensionIdentity =
     {
+        /// <summary>The extension id.</summary>
         Id: ExtensionId
+        /// <summary>The display name.</summary>
         Name: ExtensionName
+        /// <summary>The release version.</summary>
         Version: ReleaseVersion
+        /// <summary>The optional description. C# callers use <c>DescriptionOrNull</c>.</summary>
         Description: ExtensionDescription option
     }
 
@@ -155,9 +166,13 @@ type ExtensionIdentity =
 /// <summary>One extension that a host knows.</summary>
 type ExtensionEntry =
     {
+        /// <summary>Who the extension is.</summary>
         Identity: ExtensionIdentity
+        /// <summary>How the extension is delivered.</summary>
         Delivery: ExtensionDelivery
+        /// <summary>The hosts that the extension runs in.</summary>
         Hosts: HostAvailability
+        /// <summary>The capabilities that the extension claims; at least one.</summary>
         Capabilities: NonEmptySet<ExtensionCapability>
     }
 
@@ -198,15 +213,32 @@ type ExtensionEntry =
     override this.ToString() =
         $"{this.Identity} ({this.Delivery}; {this.Hosts})"
 
+/// <summary>The stable code of a registry diagnostic.</summary>
+[<RequireQualifiedAccess>]
+type DiagnosticCode =
+    /// <summary>An extension id is registered more than once.</summary>
+    | DuplicateExtensionId
+
+    /// <summary>The code that the CLI writes.</summary>
+    member this.WireValue =
+        match this with
+        | DuplicateExtensionId -> "extension.duplicate_id"
+
+    /// <summary>The code that the CLI writes.</summary>
+    override this.ToString() = this.WireValue
+
 /// <summary>A diagnostic for the output edge: a stable code and a message.</summary>
 type Diagnostic =
     {
-        Code: string
+        /// <summary>The stable code.</summary>
+        Code: DiagnosticCode
+        /// <summary>The message for people.</summary>
         Message: string
     }
 
     /// <summary>The code and message.</summary>
-    override this.ToString() = $"{this.Code}: {this.Message}"
+    override this.ToString() =
+        $"{this.Code.WireValue}: {this.Message}"
 
 /// <summary>Why a host cannot build its extension catalog.</summary>
 [<RequireQualifiedAccess>]
@@ -220,7 +252,7 @@ type RegistryError =
         | DuplicateIds ids -> [|
             for id in ids ->
                 {
-                    Code = "extension.duplicate_id"
+                    Code = DiagnosticCode.DuplicateExtensionId
                     Message = $"Extension id '{id}' is registered more than once."
                 }
           |]
@@ -230,7 +262,7 @@ type RegistryError =
         String.Join(
             "; ",
             this.Diagnostics
-            |> Seq.map string
+            |> Seq.map (fun diagnostic -> $"{diagnostic.Code.WireValue}: {diagnostic.Message}")
         )
 
 /// <summary>

@@ -22,7 +22,7 @@ public sealed class ExtensionListCommandTests
     private static ExtensionEntry ToolOnly() => ExtensionEntry.BuiltInBackend(
             ExtensionIdentity.Create(ExtensionId.Create("acme.tool-only"), ExtensionName.Create("Tool only"), Native.Version, null),
             new BackendClaim(NonEmptySet<TargetId>.Create(TargetId.Create("acme")), SourceFormatVersions.Create("4.0.0")))
-        .WithHosts(HostAvailability.NewOnly(MorphirHost.DotnetTool));
+        .WithHosts(HostAvailability.OnlyIn(MorphirHost.DotnetTool));
 
     private static (int Exit, List<string> Out, string Err) Run(ExtensionRegistry registry, bool json)
     {

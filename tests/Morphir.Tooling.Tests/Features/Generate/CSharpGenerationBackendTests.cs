@@ -64,7 +64,7 @@ public sealed class CSharpGenerationBackendTests
         descriptor.Capabilities.Should().HaveCount(2);
         descriptor.Capabilities.Single(x => x.Family.Equals(ModelFamily.Classic)).Versions.Select(version => version.Text).Should().BeEquivalentTo("1", "2", "3", "3.0.0", "3.1.0");
         descriptor.Capabilities.Single(x => x.Family.Equals(ModelFamily.V4)).Versions.Select(version => version.Text).Should().BeEquivalentTo("4", "4.0.0");
-        descriptor.Capabilities.Should().OnlyContain(x => x.Kind.IsLibrary);
+        descriptor.Capabilities.Should().OnlyContain(x => x.Kind.Equals(DistributionKind.Library));
     }
 
     [Test]
