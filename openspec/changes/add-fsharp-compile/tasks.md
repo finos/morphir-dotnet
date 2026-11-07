@@ -60,7 +60,7 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
   - a unit test for every builder member in each family, with classic nodes typed and v4 nodes carrying source spans;
   - a unit test for every classic refusal (integer outside int64, non-BMP `Char`);
   - a test that no code path converts a model from one family to another, including the `generate` loader.
-- [ ] 2.6 Document the versioning rule, the builder interface (and how to add a family), the writer API and the profile table. Verify that the documentation sample compiles as a consumer test. Open a follow-up issue for the v1/v2 bugs in the legacy `TypeCodec`/`LiteralCodec`.
+- [x] 2.6 Document the versioning rule, the builder interface (and how to add a family), the writer API and the profile table. Verify that the documentation sample compiles as a consumer test. Open a follow-up issue for the v1/v2 bugs in the legacy `TypeCodec`/`LiteralCodec`. (Opened [#514](https://github.com/finos/morphir-dotnet/issues/514); the deferred interop findings are [#515](https://github.com/finos/morphir-dotnet/issues/515).)
 
 ## 3. F# frontend core (fsharp-source-frontend)
 
