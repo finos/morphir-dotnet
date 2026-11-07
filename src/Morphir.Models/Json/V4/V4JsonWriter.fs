@@ -46,7 +46,7 @@ module V4JsonWriter =
 
     /// Returns text that a JSON writer can encode, refusing null and a lone surrogate.
     let private checkedText location (text: string) =
-        if isNull text then
+        if isNull (box text) then
             fail "invalid_text" location "The text is null."
 
         let mutable index = 0
@@ -94,7 +94,7 @@ module V4JsonWriter =
 
     /// Whether text is a JSON number: -? (0 | [1-9][0-9]*) (. [0-9]+)? ([eE] [+-]? [0-9]+)?
     let private isJsonNumber (text: string) =
-        let length = if isNull text then 0 else text.Length
+        let length = if isNull (box text) then 0 else text.Length
 
         let isDigitAt position =
             position < length
@@ -537,7 +537,7 @@ module V4JsonWriter =
         | BoolLiteral flag -> tagged json "BoolLiteral" (fun () -> json.WriteBooleanValue flag)
         | CharLiteral text ->
             if
-                isNull text
+                isNull (box text)
                 || not (isOneScalar text)
             then
                 fail
