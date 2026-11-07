@@ -153,3 +153,14 @@ This documentation-only contribution synchronizes both landed C# CLI capability
 deltas, archives the completed change, repairs links and records delivery status.
 It adds no third-party source, license or restriction. Existing notices,
 attribution and original-byte evidence remain applicable and are retained.
+
+Portable F# frontend conformance seed (#499)
+
+Copyright 2026 FINOS contributors.
+
+This contribution adds hand-authored Gherkin cases, the seed step vocabulary,
+case validation, matrix planning, structural comparisons and deterministic
+reports in Morphir.Conformance, with in-process adapter and Native AOT tests.
+The official Gherkin parser is consumed as the MIT-licensed Gherkin 35.0.0
+package, already used transitively by Reqnroll. No parser source is copied or
+modified. Existing notices and the pinned fixture provenance remain applicable.

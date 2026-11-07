@@ -42,7 +42,7 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | --- | --- | --- | --- |
 | Shared foundation | Tracking epic and feature PRD | Implemented | #499 and this document |
 | Shared foundation | Pinned upstream fixtures and SHA-256 provenance | Implemented | Task 1.2; provenance tests observed red, then 2/2 green |
-| Shared foundation | Gherkin MCK seed, vocabulary, linter and deterministic runner | Planned | Task 1.3 |
+| Shared foundation | Gherkin MCK seed, vocabulary, linter and deterministic runner | Implemented | Task 1.3; 27 focused tests, 94.39% sequence coverage, native osx-arm64 smoke |
 | Tool path, first delivery | Compile BDD acceptance contract | Planned | Task 1.4 |
 | Tool path, first delivery | Exact versions, checked diagnostics, native builders and writers | Planned | Tasks 2.1–2.6 |
 | Tool path, first delivery | Syntax-led match reconstruction and checked type-evidence proof | Implemented | Revised task 3.1; 34/34 standalone tests, including all eleven original probes |
@@ -122,6 +122,46 @@ that either product milestone is complete.
   hermetic evidence edge. Task 3.6 still owns lowering through both native builders.
 - Task 3.1 is complete under its revised acceptance criteria. No production
   frontend, emitted IR or MCK qualification is claimed by this checkpoint.
+
+### Portable conformance foundation, 2026-11-07
+
+- Updated `feat/fsharp-compile` with the plan landed in #495, preserving the
+  implementation PRD, pinned fixtures and completed-task markers.
+- Added `Morphir.Conformance`, an internal AOT-compatible library over the
+  official Gherkin 35.0.0 parser already used by Reqnroll. The seed feature and
+  closed vocabulary live under `conformance/`; no expected result comes from a
+  compiler or writer.
+- Case reading validates source documents, stable ids, portable artifact paths,
+  step/tag semantics, explicit matrices and explained exclusions before running
+  an adapter. Cases and artifact digests use ordinal portable file order.
+- The library adapter receives compile input only. Comparison and expectations
+  stay in the runner. Reports retain exact model text, diagnostic keys, requests,
+  exclusions and operational failures, including partial observations and earlier
+  warnings. An operational failure does not truncate later cases.
+- Evidence: the focused test project passes 27 tests, including the two fixture
+  provenance tests. AltCover measured 94.39% sequence coverage and 73.13% branch
+  coverage for `Morphir.Conformance`, without excluding handwritten code.
+- The native osx-arm64 smoke parses the shipped seed and rejects the deliberately
+  incorrect adapter for all twelve variants. Expanded analysis warnings introduce
+  no warning details beyond the existing `morphir` AOT host baseline. The baseline
+  and smoke use the same SDK, runtime and FSharp.Core pin. Existing FSharp.Core
+  reflection/formatting warnings remain visible; none are suppressed.
+- Reproduce unit checks with `dotnet run --project
+  tests/Morphir.Frontend.FSharp.Tests -- --sequenced`. The AOT and warning-baseline
+  commands are documented in `conformance/README.md` and below. Coverage was
+  collected by the repository's existing AltCover 8.9.3, instrumenting only
+  `Morphir.Conformance` and executing the same test assembly.
+- This completes the task 1.3 seed, not frontend qualification. Production binding
+  of the in-process compiler remains task 3.8. Model-family normalization,
+  reader/schema validation and behavioral qualification also remain in that
+  task; the seed does not qualify a production compiler. CLI/MEP adapters and the full kit
+  manifest/profile/report-check features stay in their planned deliveries.
+
+```console
+dotnet publish tests/Morphir.Conformance.Smoke -c Release -r osx-arm64 -p:PublishAot=true -p:TrimmerSingleWarn=false -o /tmp/morphir-conformance-aot
+/tmp/morphir-conformance-aot/Morphir.Conformance.Smoke conformance
+dotnet publish src/Morphir/Morphir.csproj -c Release -r osx-arm64 -p:PublishAot=true -p:TrimmerSingleWarn=false -o /tmp/morphir-existing-aot-baseline
+```
 
 ## Open questions
 

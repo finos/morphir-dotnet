@@ -80,14 +80,6 @@
         "resolved": "3.8.4",
         "contentHash": "KlbpupRCz3Kf+P7gsiDvFXJ980i/9lfihMZFmmxIk0Gf6mopEjy74OTJZmdaKDQpE29eQDBnMZB5khyW3eugrg=="
       },
-      "Gherkin": {
-        "type": "Transitive",
-        "resolved": "35.0.0",
-        "contentHash": "ha+QNevQsXEESbzazUceHTCtKOjoBTBa8kLFdKpu6vSEbb3UMt3a55RG78tIoU/C4qzIqX3jQxaIdIcYGO+IWQ==",
-        "dependencies": {
-          "Cucumber.Messages": "29.0.1"
-        }
-      },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
         "resolved": "2.23.0",
@@ -210,6 +202,15 @@
         "requested": "[11.0.100, )",
         "resolved": "11.0.100",
         "contentHash": "ijfOz8ihqkFNdKUY57l8YTrbJNfQW/6tFYAUU57ByZzmTxxf1o12cQaCqDOjNqAz4h86AKS7IwQkNhYcrjLeCQ=="
+      },
+      "Gherkin": {
+        "type": "CentralTransitive",
+        "requested": "[35.0.0, )",
+        "resolved": "35.0.0",
+        "contentHash": "ha+QNevQsXEESbzazUceHTCtKOjoBTBa8kLFdKpu6vSEbb3UMt3a55RG78tIoU/C4qzIqX3jQxaIdIcYGO+IWQ==",
+        "dependencies": {
+          "Cucumber.Messages": "29.0.1"
+        }
       },
       "YamlDotNet": {
         "type": "CentralTransitive",

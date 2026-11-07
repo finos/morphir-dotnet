@@ -12,10 +12,12 @@
     <PackageReference Include="YoloDev.Expecto.TestSdk" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/Morphir.Conformance/Morphir.Conformance.fsproj" />
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="FixtureProvenanceTests.fs" />
+    <Compile Include="ConformanceTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>

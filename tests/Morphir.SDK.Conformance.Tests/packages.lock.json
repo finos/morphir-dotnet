@@ -107,14 +107,6 @@
         "resolved": "3.8.4",
         "contentHash": "KlbpupRCz3Kf+P7gsiDvFXJ980i/9lfihMZFmmxIk0Gf6mopEjy74OTJZmdaKDQpE29eQDBnMZB5khyW3eugrg=="
       },
-      "Gherkin": {
-        "type": "Transitive",
-        "resolved": "35.0.0",
-        "contentHash": "ha+QNevQsXEESbzazUceHTCtKOjoBTBa8kLFdKpu6vSEbb3UMt3a55RG78tIoU/C4qzIqX3jQxaIdIcYGO+IWQ==",
-        "dependencies": {
-          "Cucumber.Messages": "29.0.1"
-        }
-      },
       "Humanizer.Core": {
         "type": "Transitive",
         "resolved": "3.0.1",
@@ -217,6 +209,15 @@
           "Microsoft.Testing.Platform": "2.2.3",
           "Microsoft.Testing.Platform.MSBuild": "2.2.3",
           "TUnit.Core": "1.48.0"
+        }
+      },
+      "Gherkin": {
+        "type": "CentralTransitive",
+        "requested": "[35.0.0, )",
+        "resolved": "35.0.0",
+        "contentHash": "ha+QNevQsXEESbzazUceHTCtKOjoBTBa8kLFdKpu6vSEbb3UMt3a55RG78tIoU/C4qzIqX3jQxaIdIcYGO+IWQ==",
+        "dependencies": {
+          "Cucumber.Messages": "29.0.1"
         }
       },
       "Json.More.Net": {

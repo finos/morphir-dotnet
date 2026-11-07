@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsPackable>false</IsPackable>
+    <Description>Portable Morphir Compatibility Kit case reader, comparisons and runner.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Gherkin" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Types.fs" />
+    <Compile Include="Corpus.fs" />
+    <Compile Include="JsonComparison.fs" />
+    <Compile Include="Runner.fs" />
+    <Compile Include="Report.fs" />
+  </ItemGroup>
+</Project>

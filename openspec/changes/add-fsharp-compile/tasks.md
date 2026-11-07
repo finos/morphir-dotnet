@@ -10,7 +10,7 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
   - `tests/Fixtures/MorphirOut/`: the record examples and `out-directory.md`.
 
   Verify with a test that checks each file's SHA-256 against its provenance entry.
-- [ ] 1.3 Create the first MCK suite (MCK-1) in Gherkin. It has these parts:
+- [x] 1.3 Create the first MCK suite (MCK-1) in Gherkin. It has these parts:
   - the suite directory `conformance/suites/frontend-fsharp/` with one seed feature;
   - the seed step vocabulary `conformance/steps/steps-1.md` and its linter;
   - `conformance/deviations.md`;
