@@ -204,7 +204,7 @@ definitions:
                         - $ref: "#/definitions/ValueDefinition"
         description: "All value definitions (public and private)."
       doc:
-        type: string
+        type: [string, "null"]
         description: "Optional documentation for the module."
     description: "Complete implementation of a module."
   
@@ -249,7 +249,7 @@ definitions:
                 - $ref: "#/definitions/ValueSpecification"
         description: "Public value specifications only."
       doc:
-        type: string
+        type: [string, "null"]
         description: "Optional documentation for the module."
     description: "Public interface of a module."
   

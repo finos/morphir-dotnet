@@ -55,7 +55,7 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
   - every v4 fixture round-trips through `V4Json.readDistribution`;
   - the exactness and canonical-spelling scenarios pass;
   - a test-only writer declared for `4.1.0-draft.1` is selected only for that exact version.
-- [ ] 2.4 Check both writers against independent upstream IR: for each pinned upstream JSON IR example in `tests/Fixtures/MorphirIon` (with its provenance), read it, write it in its own version, and compare the result structurally with the original. Verify that the comparison is structurally equal and that the bytes are deterministic across runs.
+- [x] 2.4 Check both writers against independent upstream IR: for each pinned upstream JSON IR example in `tests/Fixtures/MorphirIon` (with its provenance), read it, write it in its own version, and compare the result structurally with the original. Verify that the comparison is structurally equal and that the bytes are deterministic across runs.
 - [ ] 2.5 Implement the native `ClassicBuilder` and `V4Builder` (MID-1), each refusing what its family cannot hold with `morphir.unrepresentable`. Verify:
   - a unit test for every builder member in each family, with classic nodes typed and v4 nodes carrying source spans;
   - a unit test for every classic refusal (integer outside int64, non-BMP `Char`);

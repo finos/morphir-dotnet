@@ -405,7 +405,8 @@ type IIrBuilder&lt;'Type, 'Pattern, 'Value, 'Package&gt; =
 <li>the tag spelling per node family;</li>
 <li>the access wrapper (array or object);</li>
 <li>the module list shape;</li>
-<li>the distribution tag casing.</li>
+<li>the distribution tag casing;</li>
+<li>how a module without documentation is written: left out in v1 and v2, <code>"doc": null</code> in v3, as the upstream kit, writer and v3 schema have it. The bundled v3 schema is aligned with upstream to allow <code>null</code>.</li>
 </ul>
 <p>The v4 writer writes the canonical compact v4 spellings with the existing <code>CanonicalNames</code> writers. Both writers stream to <code>Utf8JsonWriter</code> in a fixed member order, and take number lexemes from the model, never from a <code>double</code>.</p>
 <p>Correctness is checked from outside the writers:</p>

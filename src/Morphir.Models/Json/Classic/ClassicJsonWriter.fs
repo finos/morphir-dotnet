@@ -34,6 +34,14 @@ type ClassicModuleListStyle =
     /// <summary><c>[[path, module]]</c> (versions 2 and 3).</summary>
     | Pairs
 
+/// <summary>How a classic wire version writes a module without documentation.</summary>
+[<RequireQualifiedAccess>]
+type ClassicModuleDocStyle =
+    /// <summary>The <c>doc</c> member is left out (versions 1 and 2).</summary>
+    | OmitWhenAbsent
+    /// <summary><c>"doc": null</c> (version 3, as the upstream kit, writer and schema have it).</summary>
+    | NullWhenAbsent
+
 /// <summary>
 /// The wire rules of one classic format version (IRW-1). It is data with no behavior; the writer reads it.
 /// Each of versions 1, 2 and 3 is one value.
@@ -51,6 +59,8 @@ type ClassicWireProfile = {
     Modules: ClassicModuleListStyle
     /// <summary>The distribution tag of a library.</summary>
     LibraryTag: string
+    /// <summary>How a module without documentation is written.</summary>
+    ModuleDocs: ClassicModuleDocStyle
 }
 
 /// <summary>The classic wire profiles.</summary>
@@ -64,6 +74,7 @@ module ClassicWireProfile =
         Access = ClassicAccessStyle.Pair
         Modules = ClassicModuleListStyle.Records
         LibraryTag = "library"
+        ModuleDocs = ClassicModuleDocStyle.OmitWhenAbsent
     }
 
     /// <summary>Classic format version 2.</summary>
@@ -74,6 +85,7 @@ module ClassicWireProfile =
         Access = ClassicAccessStyle.Object
         Modules = ClassicModuleListStyle.Pairs
         LibraryTag = "Library"
+        ModuleDocs = ClassicModuleDocStyle.OmitWhenAbsent
     }
 
     /// <summary>Classic format version 3.</summary>
@@ -84,6 +96,7 @@ module ClassicWireProfile =
         Access = ClassicAccessStyle.Object
         Modules = ClassicModuleListStyle.Pairs
         LibraryTag = "Library"
+        ModuleDocs = ClassicModuleDocStyle.NullWhenAbsent
     }
 
 /// <summary>Why a classic document was not written.</summary>
@@ -586,8 +599,10 @@ module ClassicJsonWriter =
         w.Json.WriteEndObject()
 
     let private moduleDoc (w: Writer<_, _>) (doc: string option) =
-        doc
-        |> Option.iter (fun text -> w.Json.WriteString("doc", text))
+        match doc, w.Profile.ModuleDocs with
+        | Some text, _ -> w.Json.WriteString("doc", text)
+        | None, ClassicModuleDocStyle.NullWhenAbsent -> w.Json.WriteNull "doc"
+        | None, ClassicModuleDocStyle.OmitWhenAbsent -> ()
 
     let private moduleSpecification
         (w: Writer<'ta, _>)
