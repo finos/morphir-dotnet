@@ -283,7 +283,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 
 | Feature | Status | Step | Completion evidence |
 | --- | --- | --- | --- |
-| Extension registry and built-in list | Implemented in `add-extension-registry` ([#492](https://github.com/finos/morphir-dotnet/issues/492)) | 0 | `morphir extension list` shows built-ins in both hosts; MCK suite still to come |
+| Extension registry and built-in list | Landed in [#503](https://github.com/finos/morphir-dotnet/pull/503); `add-extension-registry` archived, spec `extension-registry` | 0 | `morphir extension list` shows built-ins in both hosts; MCK suite still to come |
 | JSON-RPC spike | Planned | 1 | AOT warning count and size for each candidate; decision recorded |
 | MEP core (`Morphir.Mep`) | Planned in `add-fsharp-compile` | 1 | That change's tasks |
 | In-process validator contract | Planned | 1 | `TypeValidator` diagnostics through the contract |
