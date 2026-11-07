@@ -13,8 +13,8 @@
   <!-- Myriad Plugin References -->
   <ItemGroup>
     <!-- Core Myriad -->
-    <PackageReference Include="Myriad.Core" Version="0.8.3" />
-    <PackageReference Include="Myriad.Plugins" Version="0.8.3" />
+    <PackageReference Include="Myriad.Core" Version="0.85.0" />
+    <PackageReference Include="Myriad.Plugins" Version="0.85.0" />
     
     <!-- Custom Morphir Myriad plugins (if available) -->
     <!-- <PackageReference Include="Morphir.Myriad.Plugins" Version="1.0.0" Condition="Exists('$(SolutionDir)/Morphir.Myriad.Plugins')" /> -->
