@@ -61,6 +61,7 @@ These decisions come from the product owner. Each step must keep them.
 | First capability | An **analyzer**: it reads a model and returns diagnostics. It does not change the model and does not write files. |
 | Model format | Extensions receive IR V4 as JSON first. IR V4 Ion comes later. |
 | Discovery | A user can drop an extension file into a `staged` folder under `.morphir/` at each discovery level (system, global, workspace, project). Morphir installs it. |
+| Staged formats | A `staged/` folder accepts a bare `.wasm` module and the zipped extension package: one zip archive of the loose release assets (the release descriptor, the artifacts and their `.sha256` files). See [Zipped extension package](#zipped-extension-package). |
 | Install mode | A setting controls the install mode. With `auto`, Morphir installs staged files on the next command. With `manual`, it installs them only on `morphir extension install`. The default is `auto` before 1.0. The default can change to `manual` when the extension tooling is stable. |
 | Upstream | morphir-dotnet shares the upstream MEP, store and lock format. It reviews the upstream pattern for .NET needs and takes the differences upstream as proposals. |
 | JSON-RPC | Research AOT-safe JSON-RPC libraries before writing our own layer. A spike decides (see [step 1](#step-1-mep-core-for-net)). |
@@ -148,6 +149,8 @@ Rules:
 
 - Morphir never runs a file from a `staged/` folder.
 - Each `staged/` folder acts as an implicit local repository. Install reads the extension's `describe` result, checks the MEP contract version, computes the SHA-256 digest, copies the file into the store atomically, and writes the lock entry at the level where the file was staged. The provenance kind is `staged`.
+- A `staged/` folder accepts two formats: a bare `.wasm` module, and the [zipped extension package](#zipped-extension-package). A process guest must come in the zipped package, because only the descriptor names the executable for each target. Install ignores other files and reports each one with a warning on stderr.
+- For a bare `.wasm` module, the identity, version and capabilities come only from `describe`. For a zipped package, they come from the release descriptor, and `describe` must agree with it.
 - If the same extension id is selected at more than one level, the nearest level wins: project, then workspace, then global, then system. This matches configuration resolution.
 - `extensions.<name>.enabled = false` in configuration turns an extension off at that level. The `extensions` table already exists in `src/Morphir.Configuration/Schema.fs`, with `path`, `url`, `command`, `args`, `enabled` and `config`.
 - Install writes use the same stage-then-move pattern as `ConfigurationTransaction` and `FileTree` publication. Concurrent CLI runs take turns through the interprocess lock.
@@ -159,6 +162,35 @@ Install mode setting (builder's call on the name; the `extensions` table cannot 
 [extension_install]
 staged = "auto"   # or "manual"
 ```
+
+### Zipped extension package
+
+The zipped extension package is one zip archive of the loose assets of one upstream extension release (decided 2026-11-07). Upstream publishes these assets as separate files, and it has no single-file form yet:
+
+- A WASM release (for example `extension/avro/v0.4.0` in `finos/morphir-extensions`) has `morphir-avro-0.4.0.release.json`, `morphir-avro-0.4.0.wasm` and a `.sha256` file for each.
+- A process release (for example `extension/elm-classic/v0.6.0` in `finos/morphir-elm`) has a `*.bundle.release.json` descriptor and one archive for each target (`.tgz`, or `.zip` for Windows) with a `.sha256` file for each. Each target archive holds only the executable.
+
+Layout at the root of the zip:
+
+| Entry | Required |
+| --- | --- |
+| The release descriptor (`*.release.json`, descriptor `2.0.0-draft.2`) | Yes, exactly one |
+| The descriptor's `.sha256` file | Yes |
+| Each artifact that the descriptor names (a `.wasm` module, or a target archive) | At least the artifact for the host's target |
+| Each artifact's `.sha256` file | Yes, for each artifact present |
+
+The zip can leave out the target archives for other platforms. The file names stay the same as the upstream release asset names, so a user can make the zip from a release page without renaming files.
+
+Install of a zipped package:
+
+1. Read the archive without extracting to the destination. Reject an entry with an absolute path, a `..` segment, a drive letter, a symbolic link or a duplicate name. Apply limits to the entry count, the size of each entry and the total extracted size, and reject a compression ratio above the limit. The builder sets the limits and records them.
+2. Check the descriptor against its `.sha256` file. Check each artifact that install uses against its `.sha256` file and against the digest that the descriptor claims. Any mismatch stops the install, and nothing goes into the store.
+3. Select the artifact. A WASM release has one artifact. A process release has one artifact for each target. Install maps the host's .NET runtime identifier to the upstream target triple (for example `win-x64` to `x86_64-pc-windows-msvc`) and selects that artifact. If there is no artifact for the host's target, install stops with an error that names the targets the zip has.
+4. For a target archive, extract the executable with the rules of step 1, check its digest if the descriptor claims one, and set the execute permission on Unix.
+5. Run `describe` on the artifact with the limits of its runtime. The id, version and capabilities must agree with the descriptor.
+6. Copy the artifact and the descriptor into the store in the upstream layout, with stage-then-move. Write the lock entry with provenance kind `staged` and the SHA-256 digest of the zip.
+
+Upstream accepts no archive today ("does not accept a raw `.wasm` file, an archive, a URL, or an unregistered directory"). The zipped package is part of the documented superset, and the step 3 proposal to upstream includes it.
 
 ## Delivery steps
 
@@ -220,9 +252,10 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 - Use the upstream store, catalog and lock files under `MORPHIR_HOME`.
 - Add selection and lock files at the system, global, workspace and project levels.
 - Add the `staged/` folders and the `[extension_install] staged` setting, with the default `auto`.
+- Accept a bare `.wasm` module and the [zipped extension package](#zipped-extension-package) in `staged/`. `morphir extension install <file>` accepts the same two formats, so a user can install a zip without the staged folder.
 - Replace the stub handlers of `morphir extension list/install/use/remove/which` in `src/Morphir.Tooling/Scenarios/ManagementScenario.cs` with real implementations. Update `docs/content/docs/cli/management.md`, which describes a layout with `<platform>` folders that WASM does not need.
 - **Ship the levels as a documented superset (decided 2026-11-06).** Step 3 does not wait for upstream. Extensions go into the shared store, catalog and global locks in the upstream format, so upstream CLIs see global installs. The level selection and lock files and the `staged/` folders are additions that upstream CLIs ignore. A project-level or workspace-level selection is visible only to morphir-dotnet until upstream adopts the proposal. Document this difference in the CLI documentation.
-- Send the levels, the staged folders and the install mode to upstream as a proposal against `docs/design/draft/extensions/distribution-and-acquisition.md`. Upstream currently supports only user-global installs from a registered repository, "does not accept a raw `.wasm` file", and does not download during compile or generate "without an explicit install policy". The install mode setting is that policy.
+- Send the levels, the staged folders, the zipped extension package and the install mode to upstream as a proposal against `docs/design/draft/extensions/distribution-and-acquisition.md`. Upstream currently supports only user-global installs from a registered repository, "does not accept a raw `.wasm` file", and does not download during compile or generate "without an explicit install policy". The install mode setting is that policy.
 
 ### Step 4: Generator, then transformer
 
@@ -256,6 +289,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 | WASM analyzers | Planned | 2a | MCK suite passes in both hosts |
 | Process analyzers and .NET guest SDK | Planned | 2b | C# and F# samples pass the MCK suite in both hosts |
 | Installation, levels and staged folders | Planned | 3 | MCK suite; an upstream CLI reads a global install; level files documented as a superset |
+| Zipped extension package | Planned | 3 | MCK suite installs a zip of the avro WASM release and a zip of the elm-classic process release; the unsafe-archive cases fail with no store change |
 | Generator capability | Planned | 4 | MCK suite |
 | Transformer capability | Planned | 4 | MCK suite |
 | Upstream bundles and grants | Planned | 5 | A published upstream bundle runs in both hosts |
@@ -267,6 +301,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 - Each step runs its tests against the published `morphir` AOT executable and against `dotnet-morphir`. The extension behaves the same in both.
 - Each step keeps the AOT closure check: the `morphir` executable must not contain FSharp.Compiler.Service or any other dependency that is not AOT-safe.
 - Guest failure tests: a guest that writes to stdout outside a frame, a guest that hangs, a guest that uses too much memory, a guest that returns a malformed message, and a guest that claims a capability it does not implement.
+- Zipped package failure tests: an entry with `..` or an absolute path, a symbolic link entry, a duplicate entry, an archive over the size or ratio limit, a digest mismatch, a missing descriptor, no artifact for the host's target, and a `describe` result that does not agree with the descriptor. Each case stops the install and leaves the store, catalog and locks unchanged.
 
 ## Open points
 
@@ -276,6 +311,8 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 | A project lock that refers to a staged file | Step 3 design | A second machine has no repository to get the bytes from. Options include a vendored folder in the repository or a required publish step. |
 | Auto-install of files from a cloned repository | Step 3 design | With `auto`, cloning a repository that has `staged/` files and running a command installs them. The WASM limits reduce the risk. A process guest has no sandbox. The step 3 design must decide whether `auto` applies to process guests. |
 | The validate payload shape | morphir-dotnet proposes, upstream accepts | Step 2 can build against the draft PR. |
+| A file name suffix for the zipped package | Upstream proposal | A plain `.zip` is ambiguous, because a Windows target archive is also a `.zip`. Install tells them apart by the descriptor at the root. A suffix such as `.morphir-extension.zip` would make the format clear to users. |
+| Signing of the zipped package | Upstream | The `.sha256` files prove integrity, not origin. This follows the "Extension signing" item in [Later](#later). |
 
 ## Calls left to the builder
 
@@ -300,6 +337,13 @@ Upstream implementations:
 
 - `finos/morphir-rust`: `crates/morphir-host-native/src/process/frame.rs` (framing and limits), `src/extism/` (WASM host and host functions), `crates/morphir-extension-sdk/src/protocol/request_id.rs` (u64 or string ids), `crates/morphir-common/src/home.rs` (store layout).
 - `finos/morphir-moonbit`: `pkgs/morphir-host/worker/wasm/README.mbt.md` (the two ABIs and limits).
+- `finos/morphir`: `crates/morphir/src/commands/extension/bundle.rs` (a release bundle is a directory) and `.config/published-extension-bundles.toml` (the pinned WASM artifacts and process archives with their digests).
+- `finos/morphir-rust`: `crates/morphir-distribution/src/repository_authoring.rs` (publish reads only a bundle directory).
+
+Upstream release assets (read 2026-11-07):
+
+- `finos/morphir-extensions` release `extension/avro/v0.4.0`: loose `.release.json`, `.wasm` and `.sha256` assets.
+- `finos/morphir-elm` release `extension/elm-classic/v0.6.0`: one `.tgz` or `.zip` for each target, each holding only the executable, with `.sha256` assets and a separate descriptor.
 
 JSON-RPC research (2026-11-06; sources and code read, nothing built under AOT):
 
