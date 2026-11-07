@@ -211,15 +211,20 @@ module internal Emit =
                 w.Line $"if reader.TokenType = JsonTokenType.String && reader.{method}(&value) then value"
                 w.Line $"""else raise (JsonException({literal (label + " was expected.")}))""")
 
-        let viaBuiltIn (converter: string) (label: string) =
+        // The System.Text.Json formats, parsed exactly, with no JsonSerializerOptions (which is not AOT-safe without a context).
+        let exactFormat (format: string) (parse: string) (label: string) =
             w.Line $"static member Read{p.Slug}(reader: byref<Utf8JsonReader>) : {name} ="
             w.Indent(fun () ->
-                w.Line "if reader.TokenType <> JsonTokenType.String then"
-                w.Indent(fun () -> fail w (label + " was expected."))
-                w.Line $"JsonMetadataServices.{converter}.Read(&reader, typeof<{name}>, JsonSerializerOptions.Default)")
+                w.Line "match (if reader.TokenType = JsonTokenType.String then reader.GetString() else null) with"
+                w.Line $"""| null -> raise (JsonException({literal (label + " was expected.")}))"""
+                w.Line "| text ->"
+                w.Indent(fun () ->
+                    w.Line "let mutable value = Unchecked.defaultof<_>"
+                    w.Line $"if {parse} then value"
+                    w.Line $"""else raise (JsonException({literal (label + " was expected.")}))"""))
 
             w.Line $"static member Write{p.Slug}(writer: Utf8JsonWriter, value: {name}) ="
-            w.Indent(fun () -> w.Line $"JsonMetadataServices.{converter}.Write(writer, value, JsonSerializerOptions.Default)")
+            w.Indent(fun () -> w.Line $"writer.WriteStringValue(value.ToString({literal format}, System.Globalization.CultureInfo.InvariantCulture))")
 
         let number (method: string) (label: string) (write: string) =
             tryGet method label
@@ -299,9 +304,18 @@ module internal Emit =
         | Primitive.DateTimeOffset ->
             tryGetString "TryGetDateTimeOffset" "A JSON string with an ISO 8601 date, time and offset"
             w.Line "static member WriteDateTimeOffset(writer: Utf8JsonWriter, value: System.DateTimeOffset) = writer.WriteStringValue(value)"
-        | Primitive.TimeSpan -> viaBuiltIn "TimeSpanConverter" "A JSON string with a time span"
-        | Primitive.DateOnly -> viaBuiltIn "DateOnlyConverter" "A JSON string with a date"
-        | Primitive.TimeOnly -> viaBuiltIn "TimeOnlyConverter" "A JSON string with a time"
+        | Primitive.TimeSpan ->
+            exactFormat "c" "System.TimeSpan.TryParseExact(text, \"c\", System.Globalization.CultureInfo.InvariantCulture, &value)" "A JSON string with a time span"
+        | Primitive.DateOnly ->
+            exactFormat
+                "yyyy-MM-dd"
+                "System.DateOnly.TryParseExact(text, \"yyyy-MM-dd\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, &value)"
+                "A JSON string with a date"
+        | Primitive.TimeOnly ->
+            exactFormat
+                "HH:mm:ss.FFFFFFF"
+                "System.TimeOnly.TryParseExact(text, \"HH:mm:ss.FFFFFFF\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, &value)"
+                "A JSON string with a time"
         | Primitive.JsonElement ->
             w.Line "static member ReadJsonElement(reader: byref<Utf8JsonReader>) : JsonElement = JsonElement.ParseValue(&reader)"
             w.Line "static member WriteJsonElement(writer: Utf8JsonWriter, value: JsonElement) = value.WriteTo(writer)"

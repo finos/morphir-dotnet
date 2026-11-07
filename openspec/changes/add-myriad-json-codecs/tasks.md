@@ -32,7 +32,7 @@ Every behavior task follows red/green/refactor: write the failing test first. Ea
 
 ## 5. AOT, packaging and documentation
 
-- [ ] 5.1 Add an AOT probe that serializes every supported shape through generated contexts, and add it to the AOT checks. Verify zero IL warnings and output equal to JIT, byte for byte, and record the probe size.
+- [x] 5.1 Add an AOT probe that serializes every supported shape through generated contexts, and add it to the AOT checks. Verify zero IL warnings and output equal to JIT, byte for byte, and record the probe size.
 - [ ] 5.2 Pack both packages and add package-consumer tests (a clean project with an empty NuGet cache, as for `Morphir.Myriad`). Verify a clean build, a repeat build that rewrites no generated file, and a failure that blocks compilation.
 - [ ] 5.3 Add snapshot tests of the generated code for the sample context. Verify that a change to the generator shows as a snapshot diff.
 - [ ] 5.4 Remove the stub `json-codec` generator, `GenerateJsonCodecAttribute`, `JsonCodecConfig` and their tests from `Morphir.Internal.CodeGeneration`; update its README and `IMPLEMENTATION_STATUS.md`, and the `elm-to-fsharp-guru` skill template. Verify that the solution builds and that no reference to `json-codec` is left outside the archive.

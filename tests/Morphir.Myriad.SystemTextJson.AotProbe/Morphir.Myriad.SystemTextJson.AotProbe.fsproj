@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <IsPackable>false</IsPackable>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <!-- The trim and AOT analyzers run in every build; the TestMyriadJsonAot target also publishes with Native AOT. -->
+        <IsAotCompatible>true</IsAotCompatible>
+        <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+        <!-- FSharp.Core gives these two summary warnings in every F# AOT app. The TestMyriadJsonAot target checks that they are the only ones. -->
+        <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2104;IL3053</WarningsNotAsErrors>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <!-- Set only here: a global PublishAot would also reach the netstandard2.0 annotations project. -->
+        <PublishAot Condition="'$(MorphirProbeAot)' == 'true'">true</PublishAot>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson\Morphir.Myriad.SystemTextJson.fsproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Build\Morphir.Myriad.SystemTextJson.Build.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Annotations\Morphir.Myriad.SystemTextJson.Annotations.csproj" />
+        <ProjectReference Include="..\..\src\Morphir.Extensions\Morphir.Extensions.fsproj" />
+    </ItemGroup>
+
+    <!-- The probe uses the input files of the test project, with its own contexts. -->
+    <ItemGroup>
+        <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Addresses.fs" Link="Contexts\Addresses.fs" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Addresses.fs" Name="AddressJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Addresses" />
+        <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Records.fs" Link="Contexts\Records.fs" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Records.fs" Name="RecordJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Records" />
+        <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Members.fs" Link="Contexts\Members.fs" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Members.fs" Name="MemberJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Members" Naming="CamelCase" SkippableOptionFields="Always" />
+        <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Numbers.fs" Link="Contexts\Numbers.fs" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Numbers.fs" Name="NumberJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Numbers" />
+        <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Collections.fs" Link="Contexts\Collections.fs" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Collections.fs" Name="CollectionJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Collections" />
+        <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Unions.fs" Link="Contexts\Unions.fs" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Unions.fs" Name="UnionJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Unions" />
+        <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Corpus.fs" Link="Contexts\Corpus.fs" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Corpus.fs" Name="CorpusNewtonsoft" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="NewtonsoftLike" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Corpus.fs" Name="CorpusThoth" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="ThothLike" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Corpus.fs" Name="CorpusRecordCases" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="InternalTag, UnwrapRecordCases" />
+        <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\UntaggedCorpus.fs" Link="Contexts\UntaggedCorpus.fs" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\UntaggedCorpus.fs" Name="CorpusUntagged" Namespace="Morphir.Myriad.SystemTextJson.Tests.UntaggedCorpus" UnionEncoding="Untagged, UnwrapRecordCases" />
+        <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Parsed.fs" Link="Contexts\Parsed.fs" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Parsed.fs" Name="ParsedJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Parsed" />
+        <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Converters.fs" Link="Contexts\Converters.fs" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Converters.fs" Name="ConverterJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Converters" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <Import Project="..\..\src\Morphir.Myriad.SystemTextJson\repository\Morphir.Myriad.SystemTextJson.Repository.targets" />
+
+</Project>

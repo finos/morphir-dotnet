@@ -56,6 +56,7 @@
     <Project Path="tests/Morphir.Myriad.Tests/Morphir.Myriad.Tests.fsproj" />
     <Project Path="tests/Morphir.Myriad.Integration.Tests/Morphir.Myriad.Integration.Tests.csproj" />
     <Project Path="tests/Morphir.Myriad.SystemTextJson.Tests/Morphir.Myriad.SystemTextJson.Tests.fsproj" />
+    <Project Path="tests/Morphir.Myriad.SystemTextJson.AotProbe/Morphir.Myriad.SystemTextJson.AotProbe.fsproj" />
     <Project Path="tests/Morphir.Configuration.Tests/Morphir.Configuration.Tests.fsproj" />
     <Project Path="tests/Morphir.Configuration.IO.Tests/Morphir.Configuration.IO.Tests.csproj" />
     <Project Path="tests/Morphir.Configuration.IO.Smoke/Morphir.Configuration.IO.Smoke.csproj" />
