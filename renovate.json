@@ -123,6 +123,18 @@
       "separateMajorMinor": false
     },
     {
+      "description": "FSharp.Compiler.Service requires one exact FSharp.Core version, and the F# frontend evidence depends on the compiler. Update them together, and review the FSharp.Core version that the new compiler service requires before merging. Rerun the F# frontend tests on every compiler update.",
+      "matchDatasources": [
+        "nuget"
+      ],
+      "matchPackageNames": [
+        "FSharp.Compiler.Service",
+        "FSharp.Core"
+      ],
+      "groupName": "fsharp-compiler",
+      "separateMajorMinor": false
+    },
+    {
       "description": "Verify.TUnit can raise its TUnit.Core minimum in a patch release. Update TUnit, Verify, Reqnroll and their testing-platform dependencies together so the engine, generators and runtime stay compatible, even when their update types differ.",
       "matchDatasources": [
         "nuget"

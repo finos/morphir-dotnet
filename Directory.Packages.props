@@ -37,7 +37,7 @@
     <PackageVersion Include="BunsenBurner.Hedgehog" Version="$(BunsenBurnerVersion)" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Dunet" Version="1.16.2" />
-    <PackageVersion Include="FSharp.Core" Version="11.0.100" />
+    <PackageVersion Include="FSharp.Core" Version="10.1.403" />
     <PackageVersion Include="FSharp.Data" Version="5.0.2" />
     <PackageVersion Include="FSharp.SystemCommandLine" Version="0.17.0-beta4" />
     <PackageVersion Include="Generator.Equals" Version="3.3.0" />
@@ -68,7 +68,7 @@
     <PackageVersion Include="FSharp.Control.FusionTasks" Version="2.6.0" />
     <PackageVersion Include="Fable.React" Version="6.2.0" />
     <PackageVersion Include="Dotnet.ProjInfo.Workspace.FCS" Version="0.39" />
-    <PackageVersion Include="FSharp.Compiler.Service" Version="34.1.1" />
+    <PackageVersion Include="FSharp.Compiler.Service" Version="43.12.403" />
     <PackageVersion Include="LanguageExt.Core" Version="$(LanguageExtVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.14" />

@@ -540,11 +540,11 @@ type Frontend =
 <h3 id="fsf-5">FSF-5. Hermetic, deterministic FCS configuration</h3>
 <ul>
 <li>The project options are made in memory, from the ordered source selection. The frontend never reads the project file.</li>
-<li>The references are the hosting runtime's trusted platform assemblies plus the bundled <code>FSharp.Core</code>.</li>
-<li>Sources are given to FCS through an in-memory file system under a virtual root, so absolute host paths never reach a range or a model.</li>
+<li>The references are the hosting runtime's trusted platform assemblies plus the bundled <code>FSharp.Core</code>. <em>Implementation note (task 3.2):</em> only the trusted platform assemblies in the shared-framework directory are used, so host assemblies such as the compiler service or Morphir libraries are never visible to user code.</li>
+<li>Sources are given to FCS through an in-memory file system under a virtual root, so absolute host paths never reach a range or a model. <em>Implementation note (task 3.2):</em> the checker reads sources through <code>DocumentSource.Custom</code>, which FCS marks experimental (FS0057). It does not replace the process-wide file system. Each request has its own virtual folder, removes its sources and clears its project caches when it ends, and replaces virtual paths in compiler messages with document URIs.</li>
 <li>The language version and warning options are fixed.</li>
 <li>One FCS checker is used per process. Original and analysis-copy checks use separate project identities over the same captured document set, with the same options and no evaluation.</li>
-<li>Use a supported exact FCS/FSharp.Core package pair. The spike locally uses 43.12.403/10.1.403. The repository currently pins 34.1.1/11.0.100; production integration must resolve that incompatibility explicitly and rerun the compatibility and host tests. Do not suppress NU1608 or silently alter the central Core pin.</li>
+<li>Use a supported exact FCS/FSharp.Core package pair. The spike locally uses 43.12.403/10.1.403. The repository currently pins 34.1.1/11.0.100; production integration must resolve that incompatibility explicitly and rerun the compatibility and host tests. Do not suppress NU1608 or silently alter the central Core pin. <em>Resolution (task 3.2):</em> the central pins are now FSharp.Compiler.Service 43.12.403 and FSharp.Core 10.1.403. FSharp.Core 11.0.100 is unlisted on NuGet, and no stable compiler service depends on an 11.x Core (43.13.101 is a release candidate that needs 11.0.101-rc3). No project used the 34.1.1 compiler API. The whole solution builds with the new pair, and Renovate updates the two packages as one group (<code>fsharp-compiler</code>).</li>
 <li>Frontend identity records compiler service, Core, runtime and evidence-transform revisions. Analysis-copy source and maps are request-local, bounded and cancellation-aware. Compiler diagnostics from original documents remain authoritative.</li>
 </ul>
 

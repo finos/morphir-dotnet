@@ -30,9 +30,9 @@
       },
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[11.0.100, )",
-        "resolved": "11.0.100",
-        "contentHash": "ijfOz8ihqkFNdKUY57l8YTrbJNfQW/6tFYAUU57ByZzmTxxf1o12cQaCqDOjNqAz4h86AKS7IwQkNhYcrjLeCQ=="
+        "requested": "[10.1.403, )",
+        "resolved": "10.1.403",
+        "contentHash": "QCVoV4R1zxdACvz+zfsws7gAjqLCWY8FSziBFC9uzUZaLzl57lPvlhtTjPmMWPQYMiUcJkREF1ph1viKlbRsgw=="
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
@@ -144,8 +144,8 @@
       "morphir.internal.codegeneration": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Compiler.Service": "[34.1.1, )",
-          "FSharp.Core": "[11.0.100, )",
+          "FSharp.Compiler.Service": "[43.12.403, )",
+          "FSharp.Core": "[10.1.403, )",
           "Fabulous.AST": "[1.10.0, )",
           "Fantomas.Core": "[7.0.5, )",
           "Myriad.Core": "[0.85.0, )"
@@ -172,11 +172,11 @@
       },
       "FSharp.Compiler.Service": {
         "type": "CentralTransitive",
-        "requested": "[34.1.1, )",
-        "resolved": "34.1.1",
-        "contentHash": "9Q8sgl3XR41eeIBoaxQEG2NQzn0JjWBf+MUvLO8aCTYFZeaPezNTvHvv8+CLHUEeih/fllEFGQM1efkeOA9rUw==",
+        "requested": "[43.12.403, )",
+        "resolved": "43.12.403",
+        "contentHash": "L8nTnxAsjXY6Fjnap5AVHVptbc7QqkNftmQiO0ylAnXpJHMCqO2u2XxmXo2pw4NfAAwClCwnjbF6BMOU3gibMA==",
         "dependencies": {
-          "FSharp.Core": "4.6.2"
+          "FSharp.Core": "[10.1.403]"
         }
       },
       "Myriad.Core": {

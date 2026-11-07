@@ -46,7 +46,8 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Tool path, first delivery | Compile BDD acceptance contract | Implemented | Task 1.4: 12 scenarios in `tests/Morphir.Tooling.Tests/Features/Compile/Compile.feature`, observed red (12/12 failed, `compile` absent), then held `@ignore @pending:<task>` until the named task enables them |
 | Tool path, first delivery | Exact versions, checked diagnostics, native builders and writers | Implemented | Tasks 2.1–2.6: `Morphir.Compilation` (168 tests), classic and v4 writers checked against readers, schemas, the pinned v4 kit and upstream IR; docs in `docs/content/docs/api/compilation.md`; follow-ups #514, #515 |
 | Tool path, first delivery | Syntax-led match reconstruction and checked type-evidence proof | Implemented | Revised task 3.1; 34/34 standalone tests, including all eleven original probes |
-| Tool path, first delivery | Hermetic FCS edge, admission catalog, planning and lowering | Planned | Tasks 3.2–3.8 |
+| Tool path, first delivery | Hermetic FCS edge and checked match evidence | Implemented | Task 3.2; `src/Morphir.Frontend.FSharp`, 39 focused tests in `Morphir.Frontend.FSharp.Tests` |
+| Tool path, first delivery | Admission catalog, planning and lowering | Planned | Tasks 3.3–3.8 |
 | Tool path, first delivery | Generator round trip and coverage documentation | Planned | Tasks 3.9–3.10 |
 | Tool path, first delivery | Sources, configuration, CLI composition and streamed reports | Planned | Tasks 4.1–4.8 |
 | Tool path, first delivery | Compile records and generation from a prior compile | Planned | Tasks 5.1–5.5 |
@@ -122,6 +123,16 @@ that either product milestone is complete.
   hermetic evidence edge. Task 3.6 still owns lowering through both native builders.
 - Task 3.1 is complete under its revised acceptance criteria. No production
   frontend, emitted IR or MCK qualification is claimed by this checkpoint.
+- Task 3.2 resolves the production pairing. The central pins are now
+  FSharp.Compiler.Service 43.12.403 and FSharp.Core 10.1.403. FSharp.Core
+  11.0.100 is unlisted on NuGet, and no stable compiler service depends on an
+  11.x Core. The whole solution builds and its F# test projects pass with the new
+  pair. Renovate updates the two packages as one group.
+- The production evidence edge uses the compiler's `ParsedInput.fold` visitor,
+  not the spike's reflection walker. It compares every original symbol use with
+  the analysis copy (symbol, checked type, generalization and constraints), and
+  refuses with `fsharp.unsupported_match_shape` and a stable reason in the data.
+  Tests prove each refusal reason by changing the analysis copy.
 
 ### Portable conformance foundation, 2026-11-07
 
@@ -193,8 +204,6 @@ dotnet publish src/Morphir/Morphir.csproj -c Release -r osx-arm64 -p:PublishAot=
 
 ## Open questions
 
-- Resolve and validate the production FCS/Core package pairing in task 3.2.
-  The proof's local package overrides do not resolve the repository-wide pairing.
 - Confirm the guest package name during the second delivery, as recorded in the
   design. This does not block the in-process frontend.
 

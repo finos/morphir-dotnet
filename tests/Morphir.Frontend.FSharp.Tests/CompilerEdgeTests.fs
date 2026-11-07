@@ -1,0 +1,311 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+module Morphir.Frontend.FSharp.Tests.CompilerEdgeTests
+
+open System
+open System.IO
+open System.Threading
+open Expecto
+open Morphir.Compilation
+open Morphir.Frontend.FSharp.Analysis
+open Morphir.Frontend.FSharp.Tests.AnalysisSupport
+open Morphir.TestSupport
+
+let private rates =
+    document "src/Rates.fs" "namespace Acme.Demo\nmodule Rates =\n    let dailyRate = 42m\n"
+
+let private usesRates =
+    document
+        "src/Pricing.fs"
+        "namespace Acme.Demo\nmodule Pricing =\n    let price (days: int) = Rates.dailyRate * decimal days\n"
+
+[<Tests>]
+let tests =
+    testList "F# compiler edge" [
+        test "a later document uses an earlier document" {
+            let evidence = passed (analyze [ rates; usesRates ])
+
+            Expect.equal
+                (evidence.Original.Documents
+                 |> List.map (fun document -> document.Uri))
+                [ "src/Rates.fs"; "src/Pricing.fs" ]
+                "order"
+        }
+
+        test "reversed order is an F# error in the later-used document" {
+            let diagnostics = failed (analyze [ usesRates; rates ])
+            Expect.isNonEmpty diagnostics "errors"
+
+            for diagnostic in
+                diagnostics
+                |> List.filter (fun diagnostic -> diagnostic.IsError) do
+                Expect.equal (codeOf diagnostic) "fsharp.compiler" "code"
+                Expect.equal diagnostic.LocationOrNull.Uri "src/Pricing.fs" "located in Pricing.fs"
+
+            mustNotLeak diagnostics
+        }
+
+        test "a type error is an fsharp.compiler error with its number and a zero-based range" {
+            // "1 + \"a\"" gives two F# errors (FS0001 and FS0043). The frontend keeps both, so this case uses one.
+            let diagnostics =
+                failed (analyze [ pricing (program [ "let total: int = \"a\"" ]) ])
+
+            let error =
+                diagnostics
+                |> List.filter (fun diagnostic -> diagnostic.IsError)
+                |> List.exactlyOne
+
+            Expect.equal (codeOf error) "fsharp.compiler" "code"
+            Expect.equal (errorNumber error) 1 "F# error number"
+            Expect.equal error.LocationOrNull.Uri "Pricing.fs" "uri"
+            Expect.equal error.LocationOrNull.Range.Start.Line 2 "zero-based line"
+            Expect.equal error.LocationOrNull.Range.Start.Character 21 "the string literal"
+            Expect.equal error.LocationOrNull.Range.End.Character 24 "exclusive end"
+        }
+
+        test "a range after a non-BMP character counts UTF-16 code units" {
+            let diagnostics =
+                failed (analyze [ pricing (program [ "let s = \"😀\" + mutable" ]) ])
+
+            let onMutable =
+                diagnostics
+                |> List.filter (fun diagnostic -> errorNumber diagnostic = 10)
+                |> List.exactlyOne
+
+            // "    let s = \"" is 13 units, the emoji is 2, then "\" + " is 4: 'mutable' starts at 19.
+            Expect.equal onMutable.LocationOrNull.Range.Start.Line 2 "zero-based line"
+
+            Expect.equal
+                onMutable.LocationOrNull.Range.Start.Character
+                19
+                "the emoji counts as two units"
+
+            Expect.equal onMutable.LocationOrNull.Range.End.Character 26 "exclusive end"
+        }
+
+        test "an F# warning stays beside a passed result" {
+            let result =
+                analyze [
+                    pricing (
+                        program [
+                            "let describe (x: int) ="
+                            "    match x with"
+                            "    | 0 -> \"zero\""
+                        ]
+                    )
+                ]
+
+            passed result
+            |> ignore
+
+            let warning =
+                Checked.diagnostics result
+                |> List.exactlyOne
+
+            Expect.equal warning.Severity DiagnosticSeverity.Warning "severity"
+            Expect.equal (codeOf warning) "fsharp.compiler" "code"
+            Expect.equal (errorNumber warning) 25 "FS0025"
+            Expect.equal warning.LocationOrNull.Range.Start.Line 3 "at the match"
+        }
+
+        test "an F# warning stays when a later stage fails the run" {
+            let result =
+                analyzeWith
+                    unchanged
+                    { EvidenceLimits.Default with
+                        MaxMatches = 0
+                    }
+                    [
+                        pricing (
+                            program [
+                                "let describe (x: int) ="
+                                "    match x with"
+                                "    | 0 -> \"zero\""
+                            ]
+                        )
+                    ]
+
+            let diagnostics = failed result
+
+            Expect.equal
+                (diagnostics
+                 |> List.map (fun diagnostic -> codeOf diagnostic, diagnostic.Severity))
+                [
+                    "fsharp.compiler", DiagnosticSeverity.Warning
+                    "fsharp.unsupported_match_shape", DiagnosticSeverity.Error
+                ]
+                "the warning and the later error"
+        }
+
+        test "diagnostics are in document order, then position order" {
+            let first =
+                document
+                    "A.fs"
+                    "namespace Acme.Demo\nmodule A =\n    let b = 1 + \"b\"\n    let a = 1 + \"a\"\n"
+
+            let second =
+                document "B.fs" "namespace Acme.Demo\nmodule B =\n    let c = 1 + \"c\"\n"
+
+            let diagnostics = failed (analyze [ first; second ])
+
+            Expect.equal
+                (diagnostics
+                 |> List.map (fun diagnostic ->
+                     diagnostic.LocationOrNull.Uri,
+                     diagnostic.LocationOrNull.Range.Start.Line,
+                     diagnostic.LocationOrNull.Range.Start.Character
+                 ))
+                [
+                    "A.fs", 2, 14
+                    "A.fs", 2, 16
+                    "A.fs", 3, 14
+                    "A.fs", 3, 16
+                    "B.fs", 2, 14
+                    "B.fs", 2, 16
+                ]
+                "document, then position: FS0043 on '+' before FS0001 on the string"
+        }
+
+        test
+            "the original and analysis checks share options and order, with separate project identities" {
+            let evidence =
+                passed (
+                    analyze [
+                        rates
+                        document
+                            "src/Pricing.fs"
+                            (program [ "let f (x: int) = match x with | n -> n" ])
+                    ]
+                )
+
+            let original = evidence.Original.Results.ProjectContext.ProjectOptions
+            let analysis = evidence.Project.Results.ProjectContext.ProjectOptions
+            Expect.notEqual original.ProjectFileName analysis.ProjectFileName "separate identities"
+
+            Expect.equal
+                analysis.OtherOptions.Length
+                original.OtherOptions.Length
+                "same number of options"
+
+            let withoutSources (options: string array) =
+                options
+                |> Array.filter (fun option ->
+                    not (option.EndsWith(".fs", StringComparison.Ordinal))
+                )
+
+            Expect.sequenceEqual
+                (withoutSources analysis.OtherOptions)
+                (withoutSources original.OtherOptions)
+                "same options"
+
+            Expect.equal
+                (analysis.SourceFiles
+                 |> Array.map Path.GetFileName)
+                (original.SourceFiles
+                 |> Array.map Path.GetFileName)
+                "same document order"
+
+            Expect.isTrue
+                (Array.forall2
+                    (fun (left: string) right ->
+                        left
+                        <> right
+                    )
+                    analysis.SourceFiles
+                    original.SourceFiles)
+                "separate document paths"
+        }
+
+        test "the references are the runtime framework and the host FSharp.Core only" {
+            let evidence = passed (analyze [ rates ])
+            let options = evidence.Original.Results.ProjectContext.ProjectOptions
+
+            let references =
+                options.OtherOptions
+                |> Array.filter (fun option -> option.StartsWith("-r:", StringComparison.Ordinal))
+                |> Array.map (fun option -> Path.GetFileName(option.Substring 3))
+
+            Expect.contains references "System.Runtime.dll" "framework"
+            Expect.contains references "FSharp.Core.dll" "FSharp.Core"
+
+            for name in [ "Expecto.dll"; "FSharp.Compiler.Service.dll"; "Morphir.Compilation.dll" ] do
+                Expect.isFalse
+                    (Array.contains name references)
+                    $"{name} is a host assembly, not a reference"
+        }
+
+        test "the frontend identity names the compiler, core, runtime and evidence revisions" {
+            let identity = CompilerEdge.identity.Force()
+            Expect.stringContains identity "FSharp.Compiler.Service 43.12.403" "compiler service"
+            Expect.stringContains identity "FSharp.Core 10.1.403" "core"
+            Expect.stringContains identity ".NET" "runtime"
+
+            Expect.stringContains
+                identity
+                $"evidence {CompilerEdge.EvidenceRevision}"
+                "evidence transform"
+        }
+
+        test "sanitizing replaces virtual paths with document URIs" {
+            use session = new CompilerEdge.Session([ rates; usesRates ])
+
+            for kind in [ CheckKind.Original; CheckKind.Analysis ] do
+                Expect.equal
+                    (session.Sanitize $"in {session.PathOf(kind, 1)}")
+                    "in src/Pricing.fs"
+                    "document URI"
+
+            Expect.equal
+                (session.Sanitize $"see {CompilerEdge.virtualRoot}elsewhere")
+                "see elsewhere"
+                "virtual root"
+        }
+
+        test "a cancelled request stops" {
+            use cancelled = new CancellationTokenSource()
+            cancelled.Cancel()
+
+            let run () =
+                (FSharpAnalysis.analyze EvidenceLimits.Default [ rates ] cancelled.Token)
+                    .GetAwaiter()
+                    .GetResult()
+                |> ignore
+
+            Expect.throwsT<OperationCanceledException> run "cancelled"
+        }
+
+        testSequenced
+        <| test "runs in different working directories give byte-identical diagnostics" {
+            use first = TestSandbox.Create("morphir-fsharp-cwd-a-")
+            use second = TestSandbox.Create("morphir-fsharp-cwd-b-")
+            let previous = Environment.CurrentDirectory
+
+            let input = [
+                rates
+                document
+                    "src/Pricing.fs"
+                    (program [
+                        "let describe (x: int) ="
+                        "    match x with"
+                        "    | 0 -> \"zero\""
+                        "let broken = 1 + \"a\""
+                    ])
+            ]
+
+            let run directory =
+                Environment.CurrentDirectory <- directory
+
+                try
+                    Checked.diagnostics (analyze input)
+                    |> describeAll
+                finally
+                    Environment.CurrentDirectory <- previous
+
+            let left = run first.Work
+            let right = run second.Work
+            Expect.isNonEmpty left "diagnostics"
+            Expect.equal left right "byte-identical"
+            Expect.isFalse (left.Contains first.Work) "no working directory"
+            Expect.isFalse (left.Contains "morphir-virtual") "no virtual path"
+        }
+    ]

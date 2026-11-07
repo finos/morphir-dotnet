@@ -4,9 +4,9 @@
     "net10.0": {
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[11.0.100, )",
-        "resolved": "11.0.100",
-        "contentHash": "ijfOz8ihqkFNdKUY57l8YTrbJNfQW/6tFYAUU57ByZzmTxxf1o12cQaCqDOjNqAz4h86AKS7IwQkNhYcrjLeCQ=="
+        "requested": "[10.1.403, )",
+        "resolved": "10.1.403",
+        "contentHash": "QCVoV4R1zxdACvz+zfsws7gAjqLCWY8FSziBFC9uzUZaLzl57lPvlhtTjPmMWPQYMiUcJkREF1ph1viKlbRsgw=="
       },
       "Ionide.KeepAChangelog.Tasks": {
         "type": "Direct",
@@ -40,7 +40,7 @@
       "morphir.codegeneration.fsharp": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )",
+          "FSharp.Core": "[10.1.403, )",
           "Fabulous.AST": "[1.10.0, )",
           "Fantomas.Core": "[7.0.5, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
@@ -51,13 +51,13 @@
       "morphir.ir.pipeline": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )"
+          "FSharp.Core": "[10.1.403, )"
         }
       },
       "morphir.ir.pipeline.plugins": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )",
+          "FSharp.Core": "[10.1.403, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
@@ -65,7 +65,7 @@
       "morphir.models": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )",
+          "FSharp.Core": "[10.1.403, )",
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
       },

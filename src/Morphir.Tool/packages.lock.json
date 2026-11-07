@@ -345,14 +345,14 @@
       "morphir.codegeneration.csharp": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )",
+          "FSharp.Core": "[10.1.403, )",
           "Morphir.Models": "[1.0.0, )"
         }
       },
       "morphir.codegeneration.fsharp": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )",
+          "FSharp.Core": "[10.1.403, )",
           "Fabulous.AST": "[1.10.0, )",
           "Fantomas.Core": "[7.0.5, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
@@ -363,7 +363,7 @@
       "morphir.configuration": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )"
+          "FSharp.Core": "[10.1.403, )"
         }
       },
       "morphir.configuration.io": {
@@ -386,7 +386,7 @@
       "morphir.extensions": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )",
+          "FSharp.Core": "[10.1.403, )",
           "Morphir.Models": "[1.0.0, )"
         }
       },
@@ -394,7 +394,7 @@
         "type": "Project",
         "dependencies": {
           "Eleven19.IonDotnet": "[0.1.4, )",
-          "FSharp.Core": "[11.0.100, )",
+          "FSharp.Core": "[10.1.403, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
@@ -402,13 +402,13 @@
       "morphir.ir.pipeline": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )"
+          "FSharp.Core": "[10.1.403, )"
         }
       },
       "morphir.ir.pipeline.plugins": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )",
+          "FSharp.Core": "[10.1.403, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
@@ -416,7 +416,7 @@
       "morphir.models": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[11.0.100, )",
+          "FSharp.Core": "[10.1.403, )",
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
       },
@@ -495,9 +495,9 @@
       },
       "FSharp.Core": {
         "type": "CentralTransitive",
-        "requested": "[11.0.100, )",
-        "resolved": "11.0.100",
-        "contentHash": "ijfOz8ihqkFNdKUY57l8YTrbJNfQW/6tFYAUU57ByZzmTxxf1o12cQaCqDOjNqAz4h86AKS7IwQkNhYcrjLeCQ=="
+        "requested": "[10.1.403, )",
+        "resolved": "10.1.403",
+        "contentHash": "QCVoV4R1zxdACvz+zfsws7gAjqLCWY8FSziBFC9uzUZaLzl57lPvlhtTjPmMWPQYMiUcJkREF1ph1viKlbRsgw=="
       },
       "FSharp.SystemTextJson": {
         "type": "CentralTransitive",

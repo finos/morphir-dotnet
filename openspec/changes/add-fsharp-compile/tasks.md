@@ -65,7 +65,7 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
 ## 3. F# frontend core (fsharp-source-frontend)
 
 - [x] 3.1 Validate and record the replacement for the disproved exact range join in FSF-2. Reconstruct every core match pattern from original syntax using FCS-checked type witnesses, preserving source order and full original clause-body spans. Replay all eleven original probes; verify reduced-away and computed subjects, match-lambdas, nesting, shadowing, generic fields, multi-field versus tuple-field constructors, polymorphic generalization, fresh identifiers, CRLF and UTF-16 coordinates. Reject missing/ambiguous evidence and changed signatures. Evidence: `spikes/syntax-led-reconstruction.md`, 34/34 standalone tests; production lowering remains task 3.6.
-- [ ] 3.2 Create `src/Morphir.Frontend.FSharp` with the hermetic FCS edge from FSF-5 and the checked-evidence edge from FSF-2. Select and validate a compatible exact FCS/Core package pair without suppressing dependency conflicts. Verify:
+- [x] 3.2 Create `src/Morphir.Frontend.FSharp` with the hermetic FCS edge from FSF-5 and the checked-evidence edge from FSF-2. Select and validate a compatible exact FCS/Core package pair without suppressing dependency conflicts. Verify:
   - F# compiler errors become `fsharp.compiler` diagnostics with zero-based UTF-16 ranges;
   - original and analysis-copy checks share options and document order but have separate project identities;
   - evidence preserves original signatures, generic constraints and source-symbol resolution, with explicit refusal for changed/missing/ambiguous evidence;
