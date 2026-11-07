@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Description>Generate trim-safe and Native AOT-safe System.Text.Json converters and contexts for F# records, unions and enums at build time, through Myriad.</Description>
+    <PackageTags>fsharp;myriad;system.text.json;json;aot;trimming;source-generator</PackageTags>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Tool assemblies intentionally are not consumer references. -->
+    <NoWarn>$(NoWarn);NU5100</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Myriad.Core" />
+    <PackageReference Include="Fantomas.Core" />
+    <ProjectReference Include="../Morphir.Myriad.SystemTextJson.Build/Morphir.Myriad.SystemTextJson.Build.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Settings.fs" />
+    <Compile Include="Syntax.fs" />
+    <Compile Include="Emit.fs" />
+    <Compile Include="Generation.fs" />
+    <Compile Include="Generator.fs" />
+    <None Remove="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../README.md'))" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="build/Morphir.Myriad.SystemTextJson.props" Pack="true" PackagePath="build/" />
+    <None Include="build/Morphir.Myriad.SystemTextJson.targets" Pack="true" PackagePath="build/" />
+  </ItemGroup>
+  <PropertyGroup>
+    <MyriadTaskProjectDirectory>$(MSBuildThisFileDirectory)../Morphir.Myriad.SystemTextJson.Build</MyriadTaskProjectDirectory>
+  </PropertyGroup>
+  <Import Project="../Morphir.Myriad.Hosting/build/MyriadHostPackaging.targets" />
+</Project>

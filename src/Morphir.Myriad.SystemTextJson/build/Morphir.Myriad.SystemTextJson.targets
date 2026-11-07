@@ -1,0 +1,37 @@
+<Project>
+  <!--
+    FSharpJsonContext items: the item is an F# input file that is also a Compile item; its custom metadata
+    are the context settings (Name, Namespace and the encoding defaults). The generated file is compiled
+    right after its input file.
+
+    The paths default to the package layout. The repository targets set them to build outputs.
+  -->
+  <PropertyGroup>
+    <MorphirSystemTextJsonHostPath Condition="'$(MorphirSystemTextJsonHostPath)' == ''">$(MSBuildThisFileDirectory)../tools/host/Myriad.dll</MorphirSystemTextJsonHostPath>
+    <MorphirSystemTextJsonPluginPath Condition="'$(MorphirSystemTextJsonPluginPath)' == ''">$(MSBuildThisFileDirectory)../tools/plugin/Morphir.Myriad.SystemTextJson.dll</MorphirSystemTextJsonPluginPath>
+    <MorphirSystemTextJsonTaskAssembly Condition="'$(MorphirSystemTextJsonTaskAssembly)' == ''">$(MSBuildThisFileDirectory)../tasks/net10.0/Morphir.Myriad.SystemTextJson.Build.dll</MorphirSystemTextJsonTaskAssembly>
+  </PropertyGroup>
+  <UsingTask Condition="'$(MorphirSystemTextJsonTaskHost)' != 'true'" TaskName="Morphir.Myriad.SystemTextJson.Build.GenerateJsonContexts" AssemblyFile="$(MorphirSystemTextJsonTaskAssembly)" />
+  <!-- In the repository the task assembly is a build output; a task host keeps MSBuild nodes from locking it. -->
+  <UsingTask Condition="'$(MorphirSystemTextJsonTaskHost)' == 'true'" TaskName="Morphir.Myriad.SystemTextJson.Build.GenerateJsonContexts" AssemblyFile="$(MorphirSystemTextJsonTaskAssembly)" TaskFactory="TaskHostFactory" />
+  <!-- Set in the target: IntermediateOutputPath may be empty when this file is imported. -->
+  <Target Name="_MorphirSystemTextJsonPaths">
+    <PropertyGroup>
+      <_MorphirSystemTextJsonOutput>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)system-text-json'))</_MorphirSystemTextJsonOutput>
+    </PropertyGroup>
+  </Target>
+  <Target Name="GenerateFSharpJsonContexts" BeforeTargets="CoreCompile" DependsOnTargets="_MorphirSystemTextJsonPaths" Condition="'@(FSharpJsonContext)' != ''">
+    <GenerateJsonContexts Contexts="@(FSharpJsonContext)" Compile="@(Compile)" ProjectDirectory="$(MSBuildProjectDirectory)" OutputDirectory="$(_MorphirSystemTextJsonOutput)" HostPath="$(MorphirSystemTextJsonHostPath)" PluginPath="$(MorphirSystemTextJsonPluginPath)" DotNetHost="$(DotNetHostPath)" DesignTimeBuild="$(DesignTimeBuild)">
+      <Output TaskParameter="OrderedCompile" ItemName="_MorphirSystemTextJsonCompile" />
+      <Output TaskParameter="GeneratedFiles" ItemName="_MorphirSystemTextJsonGenerated" />
+    </GenerateJsonContexts>
+    <ItemGroup>
+      <Compile Remove="@(Compile)" />
+      <Compile Include="@(_MorphirSystemTextJsonCompile)" />
+      <FileWrites Include="@(_MorphirSystemTextJsonGenerated)" />
+    </ItemGroup>
+  </Target>
+  <Target Name="CleanFSharpJsonContexts" AfterTargets="CoreClean" DependsOnTargets="_MorphirSystemTextJsonPaths">
+    <RemoveDir Directories="$(_MorphirSystemTextJsonOutput)" Condition="Exists('$(_MorphirSystemTextJsonOutput)')" />
+  </Target>
+</Project>

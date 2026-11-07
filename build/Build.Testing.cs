@@ -204,6 +204,7 @@ partial class Build
             "Morphir.Ion.Tests",
             "Morphir.Myriad.Tests",
             "Morphir.Myriad.Integration.Tests",
+            "Morphir.Myriad.SystemTextJson.Tests",
         }.Select(project =>
         {
             Serilog.Log.Information("Running {Project}...", project);

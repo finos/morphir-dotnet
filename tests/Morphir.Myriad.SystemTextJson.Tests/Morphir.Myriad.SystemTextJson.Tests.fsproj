@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.Myriad.SystemTextJson.Tests</RootNamespace>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <IsPackable>false</IsPackable>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The plugin is referenced as a library for the generator unit tests, and runs as a Myriad plugin for the contexts below. -->
+        <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson\Morphir.Myriad.SystemTextJson.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Build\Morphir.Myriad.SystemTextJson.Build.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Annotations\Morphir.Myriad.SystemTextJson.Annotations.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Contexts/Empty.fs" />
+        <FSharpJsonContext Include="Contexts/Empty.fs" Name="EmptyJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Empty" />
+        <Compile Include="GenerationTests.fs" />
+        <Compile Include="ContextTests.fs" />
+        <Compile Include="BuildTests.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <Import Project="..\..\src\Morphir.Myriad.SystemTextJson\repository\Morphir.Myriad.SystemTextJson.Repository.targets" />
+
+</Project>
