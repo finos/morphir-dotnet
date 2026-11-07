@@ -19,6 +19,32 @@ let private usesRates =
         "src/Pricing.fs"
         "namespace Acme.Demo\nmodule Pricing =\n    let price (days: int) = Rates.dailyRate * decimal days\n"
 
+/// <summary>
+/// The child-process side of the working-directory test: it prints the diagnostics of a fixed input.
+/// </summary>
+type WorkingDirectoryProbe =
+    static member Argument = "--print-analysis-diagnostics"
+
+    static member Run() =
+        let input = [
+            rates
+            document
+                "src/Pricing.fs"
+                (program [
+                    "let describe (x: int) ="
+                    "    match x with"
+                    "    | 0 -> \"zero\""
+                    "let broken = 1 + \"a\""
+                ])
+        ]
+
+        Console.Out.Write(
+            Checked.diagnostics (analyze input)
+            |> describeAll
+        )
+
+        0
+
 [<Tests>]
 let tests =
     testList "F# compiler edge" [
@@ -131,10 +157,10 @@ let tests =
                 (diagnostics
                  |> List.map (fun diagnostic -> codeOf diagnostic, diagnostic.Severity))
                 [
-                    "fsharp.compiler", DiagnosticSeverity.Warning
                     "fsharp.unsupported_match_shape", DiagnosticSeverity.Error
+                    "fsharp.compiler", DiagnosticSeverity.Warning
                 ]
-                "the warning and the later error"
+                "both, in position order: the match starts before its subject"
         }
 
         test "diagnostics are in document order, then position order" {
@@ -164,6 +190,26 @@ let tests =
                     "B.fs", 2, 16
                 ]
                 "document, then position: FS0043 on '+' before FS0001 on the string"
+        }
+
+        test "compiler and evidence diagnostics are in one document and position order" {
+            let earlier =
+                document
+                    "A.fs"
+                    (program [ "let first (xs: int list) = match xs with | [ a ] -> a | _ -> 0" ])
+
+            let later =
+                document
+                    "B.fs"
+                    "namespace Acme.Demo\nmodule Later =\n    let second (x: int) =\n        match x with\n        | 0 -> 1\n"
+
+            let diagnostics = failed (analyze [ earlier; later ])
+
+            Expect.equal
+                (diagnostics
+                 |> List.map (fun diagnostic -> diagnostic.LocationOrNull.Uri, codeOf diagnostic))
+                [ "A.fs", "fsharp.unsupported_match_shape"; "B.fs", "fsharp.compiler" ]
+                "the refusal in A.fs before the warning in B.fs"
         }
 
         test
@@ -274,36 +320,33 @@ let tests =
             Expect.throwsT<OperationCanceledException> run "cancelled"
         }
 
-        testSequenced
-        <| test "runs in different working directories give byte-identical diagnostics" {
+        testTask "runs in different working directories give byte-identical diagnostics" {
             use first = TestSandbox.Create("morphir-fsharp-cwd-a-")
             use second = TestSandbox.Create("morphir-fsharp-cwd-b-")
-            let previous = Environment.CurrentDirectory
 
-            let input = [
-                rates
-                document
-                    "src/Pricing.fs"
-                    (program [
-                        "let describe (x: int) ="
-                        "    match x with"
-                        "    | 0 -> \"zero\""
-                        "let broken = 1 + \"a\""
-                    ])
-            ]
+            // Each run is a child process with its own working directory. Tests never change the
+            // working directory of the test process.
+            let run (sandbox: TestSandbox) = task {
+                let start =
+                    ChildProcess.StartInfo(
+                        (match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
+                         | null -> "dotnet"
+                         | host -> host),
+                        "exec",
+                        typeof<WorkingDirectoryProbe>.Assembly.Location,
+                        WorkingDirectoryProbe.Argument
+                    )
 
-            let run directory =
-                Environment.CurrentDirectory <- directory
+                start.WorkingDirectory <- sandbox.Work
+                sandbox.Apply start
+                let! result = ChildProcess.RunAsync(start, TimeSpan.FromMinutes 3.0)
+                Expect.equal result.ExitCode 0 result.CombinedOutput
+                return result.StandardOutput
+            }
 
-                try
-                    Checked.diagnostics (analyze input)
-                    |> describeAll
-                finally
-                    Environment.CurrentDirectory <- previous
-
-            let left = run first.Work
-            let right = run second.Work
-            Expect.isNonEmpty left "diagnostics"
+            let! left = run first
+            let! right = run second
+            Expect.stringContains left "fsharp.compiler" "diagnostics"
             Expect.equal left right "byte-identical"
             Expect.isFalse (left.Contains first.Work) "no working directory"
             Expect.isFalse (left.Contains "morphir-virtual") "no virtual path"

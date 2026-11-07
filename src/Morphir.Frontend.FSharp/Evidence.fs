@@ -1129,9 +1129,16 @@ module internal FSharpAnalysis =
                 let! evidence =
                     Evidence.collectWith rewrite limits session project cancellationToken
 
-                return
+                let combined =
                     original
                     |> Checked.bind (fun _ -> evidence)
+
+                // Diagnostics of both stages are in document, then position order (not production order).
+                let ordered = CompilerEdge.order documents (Checked.diagnostics combined)
+
+                match Checked.tryValue combined with
+                | Some value -> return Checked.ofDiagnostics value ordered
+                | None -> return Checked.fail ordered
         }
 
     /// <summary>Checks the ordered documents and builds their match evidence (see <c>analyzeWith</c>).</summary>

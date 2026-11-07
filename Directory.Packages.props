@@ -5,6 +5,12 @@
     <RestoreLockedMode>false</RestoreLockedMode>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    <!--
+      The F# SDK adds its library-packs folder as a restore source. Its FSharp.Core package has a different
+      content hash than the nuget.org package of the same version, so lock files made on one machine fail with
+      NU1403 on another. Restore FSharp.Core from nuget.org only.
+    -->
+    <DisableImplicitLibraryPacksFolder>true</DisableImplicitLibraryPacksFolder>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <PropertyGroup>
