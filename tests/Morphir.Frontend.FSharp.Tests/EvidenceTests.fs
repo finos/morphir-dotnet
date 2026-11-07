@@ -474,11 +474,12 @@ let tests =
                 "match x with | 0 -> \"zero\" | _ -> \"other\""
         }
 
-        test "a pattern outside the supported set is refused" {
+        test
+            "a pattern outside the supported set is refused by evidence when admission does not refuse it" {
             let text =
                 program [ "let get (xs: int list) = match xs with | [ a ] -> a | _ -> 0" ]
 
-            let diagnostics = failed (analyze [ pricing text ])
+            let diagnostics = failed (analyzeWithoutAdmission [ pricing text ])
             mustNotLeak diagnostics
 
             let refusal =

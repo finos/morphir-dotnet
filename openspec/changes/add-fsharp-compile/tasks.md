@@ -73,7 +73,7 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
   - the emoji-line test and CRLF/nested insertion-map tests pass;
   - runs in different working directories give byte-identical diagnostics;
   - F# warnings (for example FS0025) are kept as `fsharp.compiler` warnings beside a successful model, and are kept when a later error fails the run.
-- [ ] 3.3 Implement the admission rule catalog (FSF-3) for every refused construct family, including `#if` and `.fsi`. Verify the refused-families, several-problems, conditional-compilation and catalog-completeness scenarios.
+- [x] 3.3 Implement the admission rule catalog (FSF-3) for every refused construct family, including `#if` and `.fsi`. Verify the refused-families, several-problems, conditional-compilation and catalog-completeness scenarios. Evidence: each catalog rule's example is refused with only its own code at its `Flagged` text; several-problems, conditional-compilation, nesting, multi-document order and supported-subset tests; every corpus refusal code is a catalog code. The one-example-per-family conformance cases are added and run through the kit with task 3.8.
 - [ ] 3.4 Implement planning (FSF-1): naming (words to segments, package-prefix removal, `fsharp.module_outside_package`, `fsharp.name_collision`), access, exposed modules and declaration order, giving the family-neutral `PackagePlan`. Verify the naming and access scenarios.
 - [ ] 3.5 Lower type definitions once, generic over `IIrBuilder`. Verify the type scenarios through both builders: against expected v4 IR written by hand, and against classic version 3 read back through its reader.
 - [ ] 3.6 Lower values and patterns once, generic over `IIrBuilder`, including syntax-led `match` with checked type evidence, with an inferred type on every node and source spans in v4. Verify:
@@ -84,7 +84,7 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
   - that function/let parameter patterns retain the same supported set and compiler-supplied types;
   - that an out-of-range integer gives `morphir.unrepresentable` with classic and succeeds with v4.
 - [ ] 3.7 Implement the SDK mapping table and structural lowering of pipes and composition (FSF-4). Verify the inventory and generator round-trip property tests, the pipe scenario, and `fsharp.unsupported_reference`.
-- [ ] 3.8 Expose `FSharpFrontend.registration`. Run the whole corpus through the library-API entry for IR versions `1` to `4`. Verify the structural, diagnostic and behavioral kit verdicts from MCK-1.
+- [ ] 3.8 Expose `FSharpFrontend.registration`. Run the whole corpus through the library-API entry for IR versions `1` to `4`. Verify the structural, diagnostic and behavioral kit verdicts from MCK-1. Add the hand-written refused-family cases (one per catalog family) to `conformance/suites/frontend-fsharp`.
 - [ ] 3.9 Add the IR → F# → IR round-trip check (a morphir-dotnet check, not a kit verdict): the existing Fantomas-based F# backend generates F# from each applicable corpus IR, and the frontend recompiles it. Verify that the recompiled IR equals the original IR. Any backend output outside the subset fails with a named catalog code.
 - [ ] 3.10 Generate `docs/content/docs/frontends/fsharp/coverage.md` from the catalog. Add an F# frontend overview page that names Fable and Fantomas as prior art (FSF-6). Verify with a test that the generated page matches the catalog.
 

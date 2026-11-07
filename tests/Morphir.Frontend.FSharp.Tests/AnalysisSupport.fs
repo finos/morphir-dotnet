@@ -30,6 +30,17 @@ let analyzeWith rewrite limits documents =
         .GetAwaiter()
         .GetResult()
 
+/// Analysis with no admission rule, to reach the evidence stage with syntax that admission refuses.
+let analyzeWithoutAdmission documents =
+    (FSharpAnalysis.analyzeWithCatalog
+        []
+        unchanged
+        EvidenceLimits.Default
+        documents
+        CancellationToken.None)
+        .GetAwaiter()
+        .GetResult()
+
 let analyze documents =
     analyzeWith unchanged EvidenceLimits.Default documents
 

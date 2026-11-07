@@ -1113,7 +1113,8 @@ module internal FSharpAnalysis =
     /// Checks the ordered documents and builds their match evidence. F# errors stop before evidence.
     /// F# warnings and information stay with the result, also when evidence fails.
     /// </summary>
-    let analyzeWith
+    let analyzeWithCatalog
+        (catalog: AdmissionRule list)
         (rewrite: string -> string list -> string list)
         (limits: EvidenceLimits)
         (documents: SourceDocument list)
@@ -1126,12 +1127,22 @@ module internal FSharpAnalysis =
             match Checked.tryValue original with
             | None -> return Checked.fail (Checked.diagnostics original)
             | Some project ->
-                let! evidence =
-                    Evidence.collectWith rewrite limits session project cancellationToken
-
-                let combined =
+                // Admission reports every refused construct before evidence runs (FSF-1).
+                let admitted =
                     original
-                    |> Checked.bind (fun _ -> evidence)
+                    |> Checked.bind (fun _ -> Admission.admitWith catalog project)
+
+                let! combined =
+                    match Checked.tryValue admitted with
+                    | None -> Task.FromResult(Checked.fail (Checked.diagnostics admitted))
+                    | Some() -> task {
+                        let! evidence =
+                            Evidence.collectWith rewrite limits session project cancellationToken
+
+                        return
+                            admitted
+                            |> Checked.bind (fun _ -> evidence)
+                      }
 
                 // Diagnostics of both stages are in document, then position order (not production order).
                 let ordered = CompilerEdge.order documents (Checked.diagnostics combined)
@@ -1141,6 +1152,10 @@ module internal FSharpAnalysis =
                 | None -> return Checked.fail ordered
         }
 
-    /// <summary>Checks the ordered documents and builds their match evidence (see <c>analyzeWith</c>).</summary>
+    /// <summary>Checks the ordered documents against the whole admission catalog (see <c>analyzeWithCatalog</c>).</summary>
+    let analyzeWith rewrite limits documents cancellationToken =
+        analyzeWithCatalog Admission.rules rewrite limits documents cancellationToken
+
+    /// <summary>Checks the ordered documents and builds their match evidence (see <c>analyzeWithCatalog</c>).</summary>
     let analyze limits documents cancellationToken =
         analyzeWith (fun _ texts -> texts) limits documents cancellationToken
