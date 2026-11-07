@@ -178,6 +178,30 @@ module Generation =
                             | Error _ -> { Declaration = declaration; Shape = PlannedShape.Abbreviation(TypeRef.External declaration.QualifiedName) })
                     | TypeShape.Other -> None)
 
+        // The Object map format needs keys that are JSON member names.
+        let rec maps (t: TypeRef) : TypeRef list =
+            match t with
+            | TypeRef.Map(_, key, value) -> t :: (maps key @ maps value)
+            | TypeRef.Option inner
+            | TypeRef.ValueOption inner
+            | TypeRef.Sequence(_, inner) -> maps inner
+            | TypeRef.Tuple items -> items |> List.collect maps
+            | _ -> []
+
+        if settings.MapFormat = MapFormat.Object then
+            for m in planned do
+                let types =
+                    match m.Shape with
+                    | PlannedShape.Record(fields, _) -> fields |> List.map (fun f -> f.Type)
+                    | PlannedShape.Abbreviation target -> [ target ]
+                    | PlannedShape.Enum _ -> []
+
+                for map in types |> List.collect maps do
+                    match map with
+                    | TypeRef.Map(_, key, _) when not (Emit.mapAsObject MapFormat.Object key) ->
+                        unsupported m.Declaration m.Declaration.Location None $"the Object map format needs a string key, but {map.FSharpName} has the key {key.FSharpName}; use ObjectOrArrayOfPairs or ArrayOfPairs."
+                    | _ -> ()
+
         for declaration in planned |> List.map (fun m -> m.Declaration) do
             if reservedMembers.Contains declaration.Name then
                 unsupported declaration declaration.Location None $"the context type already has a member named '{declaration.Name}'; rename the type or leave it out with JsonIgnoreType."

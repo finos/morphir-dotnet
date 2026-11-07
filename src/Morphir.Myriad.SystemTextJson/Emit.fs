@@ -460,11 +460,20 @@ module internal Emit =
             w.Indent(fun () -> fail w $"A JSON array of {items.Length} items was expected.")
             w.Line $"""({String.concat ", " names})""")
 
-    let private mapMethods (w: CodeWriter) (codec: string) (lenient: bool) (t: TypeRef) (kind: MapKind) (key: TypeRef) (value: TypeRef) =
-        let asObject =
+    /// True when a map with this key is written as a JSON object in the given format.
+    let mapAsObject (format: MapFormat) (key: TypeRef) =
+        let stringKey =
             match key with
             | TypeRef.Primitive Primitive.String -> true
             | _ -> false
+
+        match format with
+        | MapFormat.ArrayOfPairs -> false
+        | MapFormat.Object
+        | MapFormat.ObjectOrArrayOfPairs -> stringKey
+
+    let private mapMethods (w: CodeWriter) (codec: string) (lenient: bool) (format: MapFormat) (t: TypeRef) (kind: MapKind) (key: TypeRef) (value: TypeRef) =
+        let asObject = mapAsObject format key
 
         let build =
             match kind with
@@ -569,7 +578,7 @@ module internal Emit =
                 | TypeRef.Option inner -> optionMethods w codec lenient t inner "Some" "None"
                 | TypeRef.ValueOption inner -> optionMethods w codec lenient t inner "ValueSome" "ValueNone"
                 | TypeRef.Sequence(kind, inner) -> sequenceMethods w codec lenient t kind inner
-                | TypeRef.Map(kind, key, value) -> mapMethods w codec lenient t kind key value
+                | TypeRef.Map(kind, key, value) -> mapMethods w codec lenient plan.Settings.MapFormat t kind key value
                 | TypeRef.Tuple items -> tupleMethods w codec lenient t items
                 | TypeRef.External _ -> externalMethods w t
                 | TypeRef.Local declaration ->

@@ -13,6 +13,7 @@
 
     <ItemGroup>
         <PackageReference Include="Expecto" />
+        <PackageReference Include="FSharp.SystemTextJson" />
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="YoloDev.Expecto.TestSdk" />
@@ -38,11 +39,17 @@
         <FSharpJsonContext Include="Contexts/Numbers.fs" Name="NumberJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Numbers" />
         <Compile Include="Contexts/LenientNumbers.fs" />
         <FSharpJsonContext Include="Contexts/LenientNumbers.fs" Name="LenientJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.LenientNumbers" AllowNumbersFromStrings="true" />
+        <Compile Include="Contexts/Collections.fs" />
+        <FSharpJsonContext Include="Contexts/Collections.fs" Name="CollectionJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Collections" />
+        <Compile Include="Contexts/PairMaps.fs" />
+        <FSharpJsonContext Include="Contexts/PairMaps.fs" Name="PairJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.PairMaps" MapFormat="ArrayOfPairs" />
+        <Compile Include="Compatibility.fs" />
         <Compile Include="GenerationTests.fs" />
         <Compile Include="ContextTests.fs" />
         <Compile Include="RecordTests.fs" />
         <Compile Include="MemberRuleTests.fs" />
         <Compile Include="PrimitiveTests.fs" />
+        <Compile Include="CollectionTests.fs" />
         <Compile Include="BuildTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>

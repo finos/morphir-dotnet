@@ -128,6 +128,21 @@ type Naming =
         | KebabCaseLower -> policy System.Text.Json.JsonNamingPolicy.KebabCaseLower
         | KebabCaseUpper -> policy System.Text.Json.JsonNamingPolicy.KebabCaseUpper
 
+/// How an F# map or dictionary is written. Same names as JsonMapFormat in the annotations package.
+[<RequireQualifiedAccess>]
+type MapFormat =
+    | ObjectOrArrayOfPairs
+    | Object
+    | ArrayOfPairs
+
+    /// Parses the name of a map format.
+    static member Parse(text: string) : Result<MapFormat, string> =
+        match text with
+        | "ObjectOrArrayOfPairs" -> Ok ObjectOrArrayOfPairs
+        | "Object" -> Ok Object
+        | "ArrayOfPairs" -> Ok ArrayOfPairs
+        | _ -> Error "use ObjectOrArrayOfPairs, Object or ArrayOfPairs."
+
 /// The member rules of records: the context defaults, which JsonRecord can override for one record.
 type RecordRules =
     {
@@ -155,11 +170,13 @@ type ContextSettings =
         Records: RecordRules
         /// True: every number in the context is also read from a JSON string.
         NumbersFromStrings: bool
+        /// How maps and dictionaries are written.
+        MapFormat: MapFormat
     }
 
 /// Reads context settings from the Myriad additional parameters.
 module ContextSettings =
-    let private known = set [ "Name"; "Namespace"; "Naming"; "SkippableOptionFields"; "UnknownMembers"; "AllowNullFields"; "AllowNumbersFromStrings" ]
+    let private known = set [ "Name"; "Namespace"; "Naming"; "SkippableOptionFields"; "UnknownMembers"; "AllowNullFields"; "AllowNumbersFromStrings"; "MapFormat" ]
 
     let private required (parameters: IDictionary<string, string>) name (parse: string -> Result<'T, GenerationError>) =
         match parameters.TryGetValue name with
@@ -210,15 +227,17 @@ module ContextSettings =
         let refuse = optional parameters "UnknownMembers" defaults.RefuseUnknownMembers parseUnknownMembers
         let allowNull = optional parameters "AllowNullFields" defaults.AllowNullFields parseBool
         let numbers = optional parameters "AllowNumbersFromStrings" false parseBool
+        let mapFormat = optional parameters "MapFormat" MapFormat.ObjectOrArrayOfPairs MapFormat.Parse
 
-        match name, ns, naming, skip, refuse, allowNull, numbers, unknown with
-        | Ok name, Ok ns, Ok naming, Ok skip, Ok refuse, Ok allowNull, Ok numbers, [] ->
+        match name, ns, naming, skip, refuse, allowNull, numbers, mapFormat, unknown with
+        | Ok name, Ok ns, Ok naming, Ok skip, Ok refuse, Ok allowNull, Ok numbers, Ok mapFormat, [] ->
             Ok
                 {
                     Name = name
                     Namespace = ns
                     Records = { Naming = naming; SkipAbsentOptions = skip; RefuseUnknownMembers = refuse; AllowNullFields = allowNull }
                     NumbersFromStrings = numbers
+                    MapFormat = mapFormat
                 }
         | _ ->
             let errorOf result =
@@ -234,5 +253,6 @@ module ContextSettings =
                 @ errorOf refuse
                 @ errorOf allowNull
                 @ errorOf numbers
+                @ errorOf mapFormat
                 @ unknown
             )
