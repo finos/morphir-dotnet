@@ -34,6 +34,8 @@
         <Compile Include="CheckedTests.fs" />
         <Compile Include="RegistryTests.fs" />
         <Compile Include="WriterTests.fs" />
+        <Compile Include="BuilderTests.fs" />
+        <Compile Include="BuilderMemberTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

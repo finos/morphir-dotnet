@@ -65,9 +65,14 @@ type PackagePlan = {
 
 /// <summary>The family-neutral facts about a module, computed by the frontend before building.</summary>
 type ModulePlan = {
+    /// <summary>The module path, relative to the package.</summary>
     Path: ModulePath
+    /// <summary>Whether the package exposes the module.</summary>
     Access: Access
+    /// <summary>The module documentation, if any.</summary>
     Documentation: string option
+    /// <summary>The module declaration, for diagnostics about the module.</summary>
+    Location: Location
 }
 
 /// <summary>A constructor of a custom type: its name and its named arguments, in order.</summary>
@@ -78,10 +83,16 @@ type ConstructorPlan<'Type> = {
 
 /// <summary>A named definition with its access and documentation, as a module holds it.</summary>
 type Member<'Definition> = {
+    /// <summary>The member name.</summary>
     Name: Name
+    /// <summary>The member access.</summary>
     Access: Access
+    /// <summary>The member documentation, if any.</summary>
     Documentation: string option
+    /// <summary>The built definition.</summary>
     Definition: 'Definition
+    /// <summary>The member declaration, for diagnostics about the member.</summary>
+    Location: Location
 }
 
 /// <summary>

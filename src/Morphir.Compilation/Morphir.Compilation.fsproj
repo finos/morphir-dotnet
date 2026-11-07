@@ -31,6 +31,7 @@ Exact IR targets, checked diagnostics, the IR builder interface and compilation 
         <Compile Include="Builders.fs" />
         <Compile Include="Registries.fs" />
         <Compile Include="Writers.fs" />
+        <Compile Include="FamilyBuilders.fs" />
     </ItemGroup>
 
 </Project>
