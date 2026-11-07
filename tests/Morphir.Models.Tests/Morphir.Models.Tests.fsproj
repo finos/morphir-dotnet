@@ -55,6 +55,7 @@
         <Compile Include="Json/V4/KitCases.fs" />
         <Compile Include="Json/V4/V4KitTests.fs" />
         <Compile Include="Json/V4/V4JsonTests.fs" />
+        <Compile Include="Json/V4/V4JsonWriterTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

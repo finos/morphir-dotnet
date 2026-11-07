@@ -71,6 +71,7 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="Json/V4/V4JsonValues.fs" />
         <Compile Include="Json/V4/V4JsonDistributions.fs" />
         <Compile Include="Json/V4/V4Json.fs" />
+        <Compile Include="Json/V4/V4JsonWriter.fs" />
     </ItemGroup>
 
     <ItemGroup>

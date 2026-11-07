@@ -51,7 +51,7 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
   - every classic fixture round-trips through `ClassicJson.readDistribution`;
   - every written document validates against the bundled schemas;
   - the version-spelling scenario passes.
-- [ ] 2.3 Implement the v4 JSON writer declaring `Classic 4`, with exact number lexemes and canonical `formatVersion` spelling. Verify:
+- [x] 2.3 Implement the v4 JSON writer declaring `Classic 4`, with exact number lexemes and canonical `formatVersion` spelling. Verify:
   - every v4 fixture round-trips through `V4Json.readDistribution`;
   - the exactness and canonical-spelling scenarios pass;
   - a test-only writer declared for `4.1.0-draft.1` is selected only for that exact version.
