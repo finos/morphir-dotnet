@@ -29,9 +29,10 @@ public sealed class ExtensionListCliTests
     {
         var result = await Cli("extension list");
         result.ExitCode.Should().Be(0, result.CombinedOutput);
-        var rows = result.StandardOutput.Split('\n');
+        var rows = result.StandardOutput.Split('\n').Where(row => row.StartsWith('│')).ToArray();
         rows.Should().HaveCount(3);
-        rows[1].Should().StartWith("morphir.csharp ");
-        rows[2].Should().StartWith("morphir.fsharp ");
+        rows[1].Should().StartWith("│ morphir.csharp ");
+        rows[2].Should().StartWith("│ morphir.fsharp ");
+        result.StandardOutput.Should().NotContain("\u001b[", "redirected output is plain text");
     }
 }

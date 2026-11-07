@@ -229,12 +229,18 @@ List the extensions that this host knows. Today these are the built-in generator
 
 ```bash
 $ morphir extension list
-ID              NAME          VERSION  TYPES    DELIVERY  HOSTS
-morphir.csharp  C# generator  0.4.0    backend  built-in  morphir, dotnet-morphir
-morphir.fsharp  F# generator  0.4.0    backend  built-in  morphir, dotnet-morphir
+╭────────────────┬──────────────┬─────────┬─────────┬──────────┬─────────────────────────╮
+│ ID             │ NAME         │ VERSION │ TYPES   │ DELIVERY │ HOSTS                   │
+├────────────────┼──────────────┼─────────┼─────────┼──────────┼─────────────────────────┤
+│ morphir.csharp │ C# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │
+│ morphir.fsharp │ F# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │
+╰────────────────┴──────────────┴─────────┴─────────┴──────────┴─────────────────────────╯
 ```
 
 The rows are sorted by id. The version of a built-in is the version of the host, including any build metadata.
+
+In a terminal the table has styled borders and headers and fits the terminal width. When stdout is redirected, or
+`NO_COLOR` is set, the table has no ANSI codes. The table is for people: scripts use `--json`.
 
 **Options:**
 - `--json`: Write one JSON document on stdout.

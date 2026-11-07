@@ -20,6 +20,9 @@
     <!-- Command-line parsing -->
     <PackageReference Include="System.CommandLine" />
 
+    <!-- TUI-styled tables for list commands (Spectre.Console core only; not Spectre.Console.Cli) -->
+    <PackageReference Include="Spectre.Console" />
+
     <!-- JSON Schema validation -->
     <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="Json.More.Net" />

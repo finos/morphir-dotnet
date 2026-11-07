@@ -44,5 +44,5 @@ None. No existing spec covers `morphir extension`.
 - Removed: the unused `ExtensionList`, `ExtensionListResult` and `ExtensionInfo` records and `ExtensionHandlers.HandleList` in `src/Morphir.Tooling/Features/Management/`, which have no callers. The other management records stay.
 - Documentation: `docs/content/docs/cli/management.md` (`extension list` output).
 - Tests: parser property tests and unit tests in `tests/Morphir.Tooling.Tests`, the unchanged generate tests and contract scripts, and an executable test that runs `extension list --json` against the AOT `morphir` binary and against `dotnet-morphir`.
-- No new package dependency. The AOT closure gains one assembly, `Morphir.Extensions`, with no new trim or AOT warnings.
+- New package dependency in `Morphir.Tooling`: Spectre.Console (core only, already pinned in `Directory.Packages.props` for repository scripts) for TUI-styled tables. The AOT closure gains `Morphir.Extensions` and `Spectre.Console`; task 7.6 measures the effect.
 - Contributor tooling: the work uses the project skill `fsharp-csharp-interop` and the agent `fsharp-csharp-interop-reviewer`, which are added to the repository with this proposal.

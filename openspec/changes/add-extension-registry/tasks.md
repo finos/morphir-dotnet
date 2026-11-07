@@ -73,6 +73,8 @@ Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/
   - No reference remains; the solution builds.
 - [x] 7.5 Update `docs/content/docs/cli/management.md` with the `extension list` text and JSON output, the id rule (including the dotted superset), the meaning of delivery, hosts and `available`, and the note that `--platform` and `--local` apply to installed extensions from PRD step 3; verify the documented commands give the documented output.
   - `TextOutputMatchesTheDocumentation` asserts the documented table exactly; the JSON example is checked field by field by `JsonOutputIsOneDocumentWithMepWireNames`. Full `Morphir.Tooling.Tests`: 603 passed.
+- [x] 7.6 Render the text output of `extension list` as a TUI-styled table through a shared `Infrastructure/TerminalTable` (Spectre.Console core): styled in a terminal, plain when stdout is redirected or `NO_COLOR` is set; update the documented example; verify the table tests and an AOT publish with no new trim or AOT warnings.
+  - Done 2026-11-07 at the user's request (list commands render TUI tables; `--json` is for scripts). `TerminalTable` draws a rounded table with Spectre.Console core; `TerminalProfile.ForStdout` styles it only for a terminal without `NO_COLOR`. 13 extension list tests pass, including the exact documented table and a styled-versus-plain check; full `Morphir.Tooling.Tests` 604 passed. AOT publish: the same 54 warning lines as `main`, none from Spectre.Console; the executable is 18,111,224 bytes (Spectre.Console adds 728,768; +5.9% against `main` in total).
 
 ## 8. Both hosts and AOT
 
@@ -94,6 +96,7 @@ Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/
 
 ## Workflow follow-up
 
+- MCK suite for step 0: a follow-up change after `establish-morphir-compatibility-kit` (0 of 32 tasks done on 2026-11-07) provides the kit. Until then the E2E feature `ExecutableExtensionList.feature` covers both hosts.
 - Follow AGENTS.md for review, CLA-compliant commits, explicit merge approval, archive and issue closure.
 - When upstream decides on dotted ids, update ID-1 in the archived design notes and PRD step 3.
 - After archive, check that `openspec/specs/extension-registry/spec.md` has the Purpose text from this change.

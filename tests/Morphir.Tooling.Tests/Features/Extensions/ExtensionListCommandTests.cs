@@ -3,6 +3,7 @@ using FluentAssertions;
 using Morphir.Extensions;
 using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.Generate;
+using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
@@ -28,21 +29,31 @@ public sealed class ExtensionListCommandTests
     {
         var stdout = new List<string>();
         var stderr = new StringWriter();
-        var exit = ExtensionListCommand.Execute(registry, json, stdout.Add, stderr);
+        var exit = ExtensionListCommand.Execute(registry, json, stdout.Add, stderr, TerminalProfile.Plain);
         return (exit, stdout, stderr.ToString());
     }
 
     [Test]
-    public void TextOutputHasAHeaderAndOneSortedRowForEachEntry()
+    public void TextOutputIsATableWithAHeaderAndOneSortedRowForEachEntry()
     {
         var (exit, lines, err) = Run(Registry(Native), json: false);
         exit.Should().Be(0);
         err.Should().BeEmpty();
-        var rows = string.Join('\n', lines).Split('\n');
+        var rows = string.Join('\n', lines).Split('\n').Where(row => row.StartsWith('│')).ToArray();
         rows.Should().HaveCount(3);
-        rows[0].Should().MatchRegex(@"^ID\s+NAME\s+VERSION\s+TYPES\s+DELIVERY\s+HOSTS$");
-        rows[1].Should().MatchRegex(@"^morphir\.csharp\s+C# generator\s+0\.4\.0\s+backend\s+built-in\s+morphir, dotnet-morphir$");
-        rows[2].Should().StartWith("morphir.fsharp ");
+        rows[0].Should().MatchRegex(@"^│ ID\s+│ NAME\s+│ VERSION\s+│ TYPES\s+│ DELIVERY\s+│ HOSTS\s+│$");
+        rows[1].Should().MatchRegex(@"^│ morphir\.csharp\s+│ C# generator\s+│ 0\.4\.0\s+│ backend\s+│ built-in\s+│ morphir, dotnet-morphir\s+│$");
+        rows[2].Should().StartWith("│ morphir.fsharp ");
+    }
+
+    [Test]
+    public void ATerminalProfileStylesTheTableAndPlainOutputDoesNot()
+    {
+        var styled = new List<string>();
+        ExtensionListCommand.Execute(Registry(Native), false, styled.Add, new StringWriter(), new TerminalProfile(true, 120));
+        string.Join('\n', styled).Should().Contain("\u001b[");
+        var (_, plain, _) = Run(Registry(Native), json: false);
+        string.Join('\n', plain).Should().NotContain("\u001b[");
     }
 
     /// <summary>The text table in docs/content/docs/cli/management.md, for version 0.4.0.</summary>
@@ -51,9 +62,12 @@ public sealed class ExtensionListCommandTests
     {
         var (_, lines, _) = Run(Registry(Native), json: false);
         string.Join('\n', lines).Should().Be(
-            "ID              NAME          VERSION  TYPES    DELIVERY  HOSTS\n" +
-            "morphir.csharp  C# generator  0.4.0    backend  built-in  morphir, dotnet-morphir\n" +
-            "morphir.fsharp  F# generator  0.4.0    backend  built-in  morphir, dotnet-morphir");
+            "╭────────────────┬──────────────┬─────────┬─────────┬──────────┬─────────────────────────╮\n" +
+            "│ ID             │ NAME         │ VERSION │ TYPES   │ DELIVERY │ HOSTS                   │\n" +
+            "├────────────────┼──────────────┼─────────┼─────────┼──────────┼─────────────────────────┤\n" +
+            "│ morphir.csharp │ C# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │\n" +
+            "│ morphir.fsharp │ F# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │\n" +
+            "╰────────────────┴──────────────┴─────────┴─────────┴──────────┴─────────────────────────╯");
     }
 
     [Test]

@@ -246,9 +246,13 @@ private static int Main(string[] args) =&gt;
 <p><code>ManagementScenario</code> keeps the static <code>extension</code> command for <code>install</code>, <code>use</code>, <code>remove</code> and <code>which</code>, and adds <code>list</code> to it as a subcommand built from the service provider. If the builder cannot add a hosted subcommand to a static parent, the scenario builds the whole <code>extension</code> command through <code>AddCommand(Func&lt;IServiceProvider, Command&gt;)</code>; the four other subcommands do not change.</p>
 <p><code>ExtensionListCommand</code> keeps <code>--platform</code> and <code>--local</code> (they apply to installed extensions, and none exist before PRD step 3) and adds <code>--json</code>. <code>ExtensionListReport.From(ExtensionCatalog)</code> is the one place that turns typed values into text. It reads <code>ToString()</code> and the <code>WireValue</code> members, so it has no <code>switch</code> on an F# union. The report record is a serialization shape only. No code parses it back or makes decisions from it.</p>
 <pre><code class="language-console">$ morphir extension list
-ID              NAME           VERSION   TYPES     DELIVERY   HOSTS
-morphir.csharp  C# generator   0.4.0     backend   built-in   morphir, dotnet-morphir
-morphir.fsharp  F# generator   0.4.0     backend   built-in   morphir, dotnet-morphir</code></pre>
+╭────────────────┬──────────────┬─────────┬─────────┬──────────┬─────────────────────────╮
+│ ID             │ NAME         │ VERSION │ TYPES   │ DELIVERY │ HOSTS                   │
+├────────────────┼──────────────┼─────────┼─────────┼──────────┼─────────────────────────┤
+│ morphir.csharp │ C# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │
+│ morphir.fsharp │ F# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │
+╰────────────────┴──────────────┴─────────┴─────────┴──────────┴─────────────────────────╯</code></pre>
+<p>The text output is a TUI-styled table (decided 2026-11-07): list commands render through the shared <code>Infrastructure/TerminalTable</code>, which uses Spectre.Console core (not Spectre.Console.Cli). In a terminal it has ANSI styling and fits the terminal width. When stdout is redirected or <code>NO_COLOR</code> is set, it has no ANSI codes and a fixed width, so files, pipes and tests get the same text. The table is for people; <code>--json</code> is the stable format for scripts.</p>
 <pre><code class="language-json">{
   "host": "morphir",
   "extensions": [
