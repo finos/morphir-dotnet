@@ -178,7 +178,28 @@ type ReleaseVersion =
         | value ->
             match Versioning.SemanticVersion.parse value with
             | Ok version when Versioning.SemanticVersion.toString version = value ->
-                Ok(ReleaseVersion version)
+                // SemVer 2.0.0: a numeric pre-release identifier has no leading zero (build metadata may).
+                let leadingZero =
+                    version.PreRelease
+                    |> Option.bind (fun preRelease ->
+                        preRelease.Split '.'
+                        |> Array.tryFind (fun identifier ->
+                            identifier.Length > 1
+                            && identifier[0] = '0'
+                            && identifier
+                               |> Seq.forall Char.IsAsciiDigit
+                        )
+                    )
+
+                match leadingZero with
+                | Some identifier ->
+                    Error(
+                        ParseFailure.InvalidVersion(
+                            field,
+                            $"numeric pre-release identifier '{identifier}' has a leading zero"
+                        )
+                    )
+                | None -> Ok(ReleaseVersion version)
             | Ok _ ->
                 Error(ParseFailure.InvalidVersion(field, $"'{value}' is not in canonical form"))
             | Error error -> Error(ParseFailure.InvalidVersion(field, Text.versionError error))

@@ -93,6 +93,18 @@ let tests =
                 | other -> failtest $"unexpected {other}"
             }
 
+            for text in [ "1.2.3-01"; "1.2.3-rc.01"; "1.2.3-rc..1" ] do
+                test $"refuses the pre-release in {text}" {
+                    match ReleaseVersion.Parse text with
+                    | Error(ParseFailure.InvalidVersion("release version", _)) -> ()
+                    | other -> failtest $"unexpected {other}"
+                }
+
+            for text in [ "1.2.3-0"; "1.2.3-rc.0"; "1.2.3-0a"; "1.2.3-rc.10"; "1.2.3+01" ] do
+                test $"accepts the identifiers in {text}" {
+                    Expect.isOk (ReleaseVersion.Parse text) "accepted"
+                }
+
             test "refuses a leading zero" {
                 match ReleaseVersion.Parse "01.2.3" with
                 | Error(ParseFailure.InvalidVersion("release version", _)) -> ()

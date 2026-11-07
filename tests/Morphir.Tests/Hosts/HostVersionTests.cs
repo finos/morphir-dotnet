@@ -1,7 +1,7 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using FluentAssertions;
 using Morphir.Extensions;
+using Morphir.TestSupport;
 
 namespace Morphir.Tests.Hosts;
 
@@ -20,16 +20,17 @@ public sealed class HostVersionTests
     [Arguments("dotnet-morphir.dll")]
     public async Task VersionOutputParsesAsAReleaseVersion(string assembly)
     {
-        var start = new ProcessStartInfo(DotnetHost()) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
-        start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, assembly));
-        start.ArgumentList.Add("--version");
-        using var process = Process.Start(start)!;
-        var output = await process.StandardOutput.ReadToEndAsync();
-        await process.WaitForExitAsync();
+        // Every child goes through the shared runner (gate, timeout, process-tree cleanup) and a sandbox.
+        var start = ChildProcess.StartInfo(DotnetHost(), Path.Combine(AppContext.BaseDirectory, assembly), "--version");
+        await using var sandbox = TestSandbox.Create("morphir-host-version-");
+        start.WorkingDirectory = sandbox.Work;
+        sandbox.Apply(start);
+        var result = await ChildProcess.RunAsync(start, TimeSpan.FromSeconds(60));
 
-        process.ExitCode.Should().Be(0);
-        ReleaseVersion.TryParse(output.Trim(), out var version, out var failure).Should().BeTrue(failure?.ToString());
-        version!.ToString().Should().Be(output.Trim());
+        result.ExitCode.Should().Be(0, result.StandardError);
+        var output = result.StandardOutput.Trim();
+        ReleaseVersion.TryParse(output, out var version, out var failure).Should().BeTrue(failure?.ToString());
+        version!.ToString().Should().Be(output);
     }
 
     [Test]

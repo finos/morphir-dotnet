@@ -588,6 +588,9 @@
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
       },
+      "morphir.testsupport": {
+        "type": "Project"
+      },
       "morphir.tool": {
         "type": "Project",
         "dependencies": {
