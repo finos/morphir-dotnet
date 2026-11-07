@@ -9,6 +9,7 @@ When you add or change a public F# type, member or module, or the settings of an
 - The F# project sets `<Nullable>enable</Nullable>`, warnings as errors, and the trim and AOT properties. Without F# nullness, C# cannot see which values may be null.
 - Parse, don't validate: a value with a rule is a type with a private case and `Parse`, `TryParse` and `Create` members. No public constructor on a type with an invariant.
 - On the C# surface: no F# function types, curried members, `option`, `list`, `Set`, `Map` or `Async<'T>`.
+- `TryParse` uses non-nullable `out` types with `[<MaybeNullWhen(...)>]`, never `byref<T | null>`, which C# reads as never null.
 - Override `ToString()`; do not use `%A` in shipped code.
 
 After the change, run the `fsharp-csharp-interop-reviewer` agent on the diff.

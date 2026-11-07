@@ -32,8 +32,8 @@ With F# nullness off, the same call compiles with no warning, because C# reads t
 namespace Morphir.Extensions
 
 open System
-open System.Diagnostics.CodeAnalysis
-open System.Runtime.InteropServices
+open System.Diagnostics.CodeAnalysis // MaybeNullWhen
+open System.Runtime.InteropServices // Out
 
 /// Why a text value was refused. Turned into a diagnostic only at the output edge.
 [<RequireQualifiedAccess>]
@@ -90,16 +90,16 @@ type ExtensionId =
     static member TryParse
         (
             text: string | null,
-            [<Out; NotNullWhen(true)>] result: byref<ExtensionId | null>,
-            [<Out; NotNullWhen(false)>] failure: byref<ParseFailure | null>
+            [<Out; MaybeNullWhen(false)>] result: byref<ExtensionId>,
+            [<Out; MaybeNullWhen(true)>] failure: byref<ParseFailure>
         ) : bool =
         match ExtensionId.Parse text with
         | Ok id ->
             result <- id
-            failure <- null
+            failure <- Unchecked.defaultof<_>
             true
         | Error error ->
-            result <- null
+            result <- Unchecked.defaultof<_>
             failure <- error
             false
 
@@ -116,6 +116,9 @@ C# use:
 if (!ExtensionId.TryParse(text, out var id, out var failure))
     return Fail(failure.ToString());   // failure is not null here
 Use(id);                               // id is not null here
+
+// Reading id inside the if, or failure after it, gives CS8602 (possibly null). With byref<T | null> instead of
+// MaybeNullWhen, C# gives no warning there, because F# does not write byref element nullness into the metadata.
 
 var builtIn = ExtensionId.Create("morphir.csharp");
 ```

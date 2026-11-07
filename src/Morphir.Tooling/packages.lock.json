@@ -425,6 +425,13 @@
           "Vogen": "[8.0.7, )"
         }
       },
+      "morphir.extensions": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.ion": {
         "type": "Project",
         "dependencies": {

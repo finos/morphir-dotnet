@@ -100,7 +100,7 @@ svg .arrow { stroke: var(--muted); fill: none; }
 <thead><tr><th>Need</th><th>Shape</th></tr></thead>
 <tbody>
 <tr><td>C# names and calls</td><td>Static members on the type (<code>ExtensionId.Parse(text)</code>), or <code>[&lt;CompiledName&gt;]</code> on module functions. Tupled parameters, never curried ones.</td></tr>
-<tr><td>Parsing from C#</td><td><code>TryParse(text: string | null, [&lt;Out; NotNullWhen(true)&gt;] result: byref&lt;T | null&gt;, [&lt;Out; NotNullWhen(false)&gt;] failure: byref&lt;ParseFailure | null&gt;) : bool</code>, beside the F# <code>parse : string -&gt; Result&lt;T, ParseFailure&gt;</code>.</td></tr>
+<tr><td>Parsing from C#</td><td><code>TryParse(text: string | null, [&lt;Out; MaybeNullWhen(false)&gt;] result: byref&lt;T&gt;, [&lt;Out; MaybeNullWhen(true)&gt;] failure: byref&lt;ParseFailure&gt;) : bool</code>, beside the F# <code>Parse : string -&gt; Result&lt;T, ParseFailure&gt;</code>. Not <code>byref&lt;T | null&gt;</code>: F# does not write byref element nullness into the metadata, so C# would read both values as never null (found while applying task 2.3).</td></tr>
 <tr><td>Branching on a union in C#</td><td>Avoid it: put the decision in an F# function. Where C# must branch, add a <code>Match</code> member with one <code>Func</code> for each case, so the signature makes C# handle every case.</td></tr>
 <tr><td>Optional values</td><td><code>T | null</code> on the C# surface, <code>option</code> inside F#.</td></tr>
 <tr><td>Collections</td><td><code>IReadOnlyList&lt;T&gt;</code>, <code>ImmutableArray&lt;T&gt;</code> or <code>NonEmptySet&lt;T&gt;</code> on the surface. Never F# <code>list</code>, <code>Set</code> or <code>Map</code>.</td></tr>
@@ -121,8 +121,8 @@ type ExtensionId =
     override this.GetHashCode() = StringComparer.Ordinal.GetHashCode this.Value
     interface IComparable with member this.CompareTo other = String.CompareOrdinal(this.Value, (other :?&gt; ExtensionId).Value)
     static member Parse(text: string | null) : Result&lt;ExtensionId, ParseFailure&gt; = ExtensionId.parse text   // F# callers
-    static member TryParse(text, [&lt;Out; NotNullWhen(true)&gt;] result: byref&lt;ExtensionId | null&gt;,
-                           [&lt;Out; NotNullWhen(false)&gt;] failure: byref&lt;ParseFailure | null&gt;) : bool = …          // C# callers
+    static member TryParse(text, [&lt;Out; MaybeNullWhen(false)&gt;] result: byref&lt;ExtensionId&gt;,
+                           [&lt;Out; MaybeNullWhen(true)&gt;] failure: byref&lt;ParseFailure&gt;) : bool = …                  // C# callers
     static member Create(literal: string) : ExtensionId = …   // literals in source code; throws; a unit test calls each literal
 
 [&lt;RequireQualifiedAccess&gt;]
@@ -194,8 +194,8 @@ type ExtensionCatalog =                                   // private constructor
     member Host: HostIdentity
     member Entries: IReadOnlyList&lt;ExtensionEntry&gt;
     static member create: HostIdentity * seq&lt;ExtensionEntry&gt; -&gt; Result&lt;ExtensionCatalog, RegistryError&gt;        // F#
-    static member TryCreate: HostIdentity * IEnumerable&lt;ExtensionEntry&gt; * [&lt;Out&gt;] catalog: byref&lt;ExtensionCatalog | null&gt;
-                             * [&lt;Out&gt;] error: byref&lt;RegistryError | null&gt; -&gt; bool                                    // C#</code></pre>
+    static member TryCreate: HostIdentity * IEnumerable&lt;ExtensionEntry&gt; * [&lt;Out; MaybeNullWhen(false)&gt;] catalog: byref&lt;ExtensionCatalog&gt;
+                             * [&lt;Out; MaybeNullWhen(true)&gt;] error: byref&lt;RegistryError&gt; -&gt; bool                    // C#</code></pre>
 <p>The C# <code>ExtensionRegistry</code> reads every <code>IExtensionSource</code> and the <code>HostIdentity</code> from the container, and calls <code>ExtensionCatalog.TryCreate</code>. A catalog value always has unique ids, so no later code checks for them. On failure the command writes <code>error.Diagnostics</code> and exits with code 2.</p>
 <p><em>Alternatives:</em> assembly scanning or MEF (not AOT-safe, and the PRD forbids it); attributes plus a source generator (more than two built-ins need; it can come later without a change to <code>IExtensionSource</code>); a static list in <code>Program.cs</code> (it drifts from the backend registrations).</p>
 

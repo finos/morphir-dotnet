@@ -1,6 +1,6 @@
 ---
 name: fsharp-csharp-interop
-description: Rules for F# code that C# calls, and C# code that calls F#, in morphir-dotnet. Covers parsed domain types, nullness metadata, TryParse/Create members, Match members for unions, collections, option and null, equality, ToString and AOT safety, and the .fsproj settings. Use when you add or change a public F# type, member or module that a C# project uses; when C# code calls F# types (unions, records, Result, option, list); when you create an F# project that C# references; or when you review a diff that crosses the F#/C# boundary. Triggers include "F# interop", "C# interop", "call F# from C#", "F# union in C#", "NotNullWhen", "CompiledName", "F# nullness", "Nullable enable fsproj", "oblivious", "TryParse", "parse don't validate".
+description: Rules for F# code that C# calls, and C# code that calls F#, in morphir-dotnet. Covers parsed domain types, nullness metadata, TryParse/Create members, Match members for unions, collections, option and null, equality, ToString and AOT safety, and the .fsproj settings. Use when you add or change a public F# type, member or module that a C# project uses; when C# code calls F# types (unions, records, Result, option, list); when you create an F# project that C# references; or when you review a diff that crosses the F#/C# boundary. Triggers include "F# interop", "C# interop", "call F# from C#", "F# union in C#", "MaybeNullWhen", "NotNullWhen", "CompiledName", "F# nullness", "Nullable enable fsproj", "oblivious", "TryParse", "parse don't validate".
 ---
 
 # F# and C# interop
@@ -53,7 +53,8 @@ Every F# project that C# references sets:
 
 - On the C# surface, an absent value is `T | null`. Inside F#, it is `option`. Convert at the surface with `Option.toObj` and `Option.ofObj`.
 - A parameter that receives text from outside takes `string | null`, so C# can pass what it has and the parser decides.
-- `TryParse` and similar members use `[<Out; NotNullWhen(true)>]` on the result and `[<Out; NotNullWhen(false)>]` on the failure, so C# flow analysis knows which one is set.
+- `TryParse` and similar members use a **non-nullable** `out` type with `[<Out; MaybeNullWhen(false)>]` on the result and `[<Out; MaybeNullWhen(true)>]` on the failure, and assign `Unchecked.defaultof<_>` to the one that is not set. C# flow analysis then knows which one is set.
+- Do not write `byref<T | null>` for an `out` value. F# does not write the nullness of a byref element into the metadata, so C# reads the value as never null and gives no warning when code reads it on the wrong branch.
 - Nullness checks are compile-time only. `null!`, reflection and deserialization can still put `null` into a value. Parse at every real input boundary.
 
 ### 5. Unions seen from C#
@@ -86,7 +87,7 @@ Use this list when you review a diff that crosses the boundary. Report each fail
 - [ ] Rule 2: no public constructor or public case on a type with an invariant; no `[<Struct>]` parsed value; `Create` literals are tested.
 - [ ] Rule 2: no `string`, C# `enum` or flag on the surface where a parsed type or union belongs.
 - [ ] Rule 3: no F# function type, curried member or `Async<'T>` on the C# surface.
-- [ ] Rule 4: no `option` on the C# surface; `TryParse` uses `NotNullWhen`; external text enters as `string | null`.
+- [ ] Rule 4: no `option` on the C# surface; `TryParse` uses `MaybeNullWhen` on non-nullable `out` types, never `byref<T | null>`; external text enters as `string | null`.
 - [ ] Rule 5: C# code does not switch on `Tag`, `IsX` or F# case types; `Match` or an F# function is used instead.
 - [ ] Rule 6: no F# `list`, `Set` or `Map` on the C# surface.
 - [ ] Rule 7: ordinal equality for text identities; `ToString` overridden; no `%A` in shipped code.

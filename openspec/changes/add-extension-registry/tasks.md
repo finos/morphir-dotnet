@@ -7,21 +7,24 @@ Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/
 
 ## 1. Tracking and baseline
 
-- [ ] 1.1 Link step 0 to issue #492 (the `morphir extension` commands): comment on #492 with a link to this change, and add #492 to the PRD feature status table; verify both links resolve.
-- [ ] 1.2 Check whether PR #495 (`add-fsharp-compile`) has landed `Morphir.Program.CreateApp`; record in this task which HOST-1 path applies, and verify the branch builds with `./build.sh` before any production change.
+- [x] 1.1 Link step 0 to issue #492 (the `morphir extension` commands): comment on #492 with a link to this change, and add #492 to the PRD feature status table; verify both links resolve.
+- [x] 1.2 Check whether PR #495 (`add-fsharp-compile`) has landed `Morphir.Program.CreateApp`; record in this task which HOST-1 path applies, and verify the branch builds with `./build.sh` before any production change.
+  - Recorded 2026-11-07: #495 landed only the plan (`3a33379`); neither entry point has `CreateApp`. HOST-1 uses the `Morphir.Program.Run(args, HostIdentity)` path. Baseline `./build.sh` on `a5f91af` succeeded (Restore and Compile, 0:54), with existing NU1608, NU1510 and CS0436 warnings only.
 
 ## 2. F# project setup (LANG-1)
 
-- [ ] 2.1 Add `src/Morphir.Extensions` (F#, `net10.0`) with `Nullable`, `TreatWarningsAsErrors`, `IsTrimmable`, `EnableTrimAnalyzer`, `IsAotCompatible` and `GenerateDocumentationFile`, a reference to `Morphir.Models`, the same packing settings as `Morphir.Tooling`, and an entry in `Morphir.slnx`; verify `dotnet build` of the project has zero warnings.
+- [x] 2.1 Add `src/Morphir.Extensions` (F#, `net10.0`) with `Nullable`, `TreatWarningsAsErrors`, `IsTrimmable`, `EnableTrimAnalyzer`, `IsAotCompatible` and `GenerateDocumentationFile`, a reference to `Morphir.Models`, the same packing settings as `Morphir.Tooling`, and an entry in `Morphir.slnx`; verify `dotnet build` of the project has zero warnings.
 - [ ] 2.2 Add `tests/Morphir.Extensions.Tests` (Expecto, Expecto.FsCheck) to `Morphir.slnx` and to the unit test targets in `build/Build.Testing.cs`; verify `./build.sh --target Test` runs it.
-- [ ] 2.3 Reference `Morphir.Extensions` from `Morphir.Tooling`, and add the interop check from TST-1: a C# call that passes `null` to a non-nullable F# parameter fails to compile; verify the check fails when F# nullness is turned off in the project and passes when it is on.
+- [x] 2.3 Reference `Morphir.Extensions` from `Morphir.Tooling`, and add the interop check from TST-1: a C# call that passes `null` to a non-nullable F# parameter fails to compile; verify the check fails when F# nullness is turned off in the project and passes when it is on.
+  - Done 2026-11-07 with `tests/Morphir.Tooling.Tests/Features/Extensions/ExtensionsNullabilityContractTests.cs`. It reads the nullable metadata that the C# compiler reads (`NullabilityInfoContext` and `MaybeNullWhen`), not a Roslyn compilation, so no new package is needed. With F# nullness off, 7 of 7 tests fail; with it on, 7 of 7 pass.
+  - Found: F# does not write the nullness of a byref element (`byref<T | null>`) into the metadata, so C# read `TryParse` out values as never null and gave no CS8602 on the unsafe branch. `TryParse` and `TryCreate` now use non-nullable out types with `[<MaybeNullWhen>]` (a probe gives CS8602 on each unsafe read and no warning on the safe ones). FFI-1, REG-2 and the `fsharp-csharp-interop` skill are corrected.
 
 ## 3. Parsed value types in F# (TYP-1, ID-1, FFI-1)
 
-- [ ] 3.1 Write failing Expecto tests for `NonEmptySet<'T>` (no empty set can be built, order and equality are stable, `map` keeps the set non-empty, it implements `IReadOnlyCollection<'T>`) and for `ParseFailure`; verify they fail, then implement and verify they pass.
-- [ ] 3.2 Write failing FsCheck properties and Expecto tests for `ExtensionId`: generated valid ids parse and print back unchanged; each spec example in "An extension id is a dotted portable token" is accepted or refused with the matching `ParseFailure`; ordinal equality and order; then implement it with `parse`, `TryParse`, `Create` and a `ToString` override, and verify the tests pass.
-- [ ] 3.3 Do the same for `ExtensionName`, `ExtensionDescription`, `ReleaseVersion` (wraps `Versioning.SemanticVersion.parse`) and `TargetId`; verify the limits (128, 1024), the white-space and control-character cases, and that `0.0.0-dev` and `0.4.0-rc.1` parse.
-- [ ] 3.4 Add C# TUnit tests in `tests/Morphir.Tooling.Tests` that call each `TryParse` and `Create` from C#, with `null` input and nullable flow analysis; verify they pass with no nullable warnings.
+- [x] 3.1 Write failing Expecto tests for `NonEmptySet<'T>` (no empty set can be built, order and equality are stable, `map` keeps the set non-empty, it implements `IReadOnlyCollection<'T>`) and for `ParseFailure`; verify they fail, then implement and verify they pass.
+- [x] 3.2 Write failing FsCheck properties and Expecto tests for `ExtensionId`: generated valid ids parse and print back unchanged; each spec example in "An extension id is a dotted portable token" is accepted or refused with the matching `ParseFailure`; ordinal equality and order; then implement it with `parse`, `TryParse`, `Create` and a `ToString` override, and verify the tests pass.
+- [x] 3.3 Do the same for `ExtensionName`, `ExtensionDescription`, `ReleaseVersion` (wraps `Versioning.SemanticVersion.parse`) and `TargetId`; verify the limits (128, 1024), the white-space and control-character cases, and that `0.0.0-dev` and `0.4.0-rc.1` parse.
+- [x] 3.4 Add C# TUnit tests in `tests/Morphir.Tooling.Tests` that call each `TryParse` and `Create` from C#, with `null` input and nullable flow analysis; verify they pass with no nullable warnings.
 
 ## 4. Typed generation contracts (GEN-1)
 

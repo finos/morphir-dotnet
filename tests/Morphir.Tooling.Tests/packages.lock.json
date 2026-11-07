@@ -568,6 +568,13 @@
           "Vogen": "[8.0.7, )"
         }
       },
+      "morphir.extensions": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[11.0.100, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.ion": {
         "type": "Project",
         "dependencies": {
@@ -621,6 +628,7 @@
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Configuration.IO": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
+          "Morphir.Extensions": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Ion": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )",
