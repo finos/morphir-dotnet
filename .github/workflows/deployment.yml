@@ -28,7 +28,6 @@ on:
 
 env:
     CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
-    NUGET_TOKEN: ${{ secrets.NUGET_KEY }}
 
 jobs:
     validate-version:
@@ -145,7 +144,11 @@ jobs:
 
     release:
         runs-on: ubuntu-latest
+        environment: production
         needs: [validate-version, build-executables]
+        permissions:
+            contents: read
+            id-token: write
         # First of all the release job requires a manual trigger or tag push
         # Second, the release job will only run if it is provided a valid semantic version
         # Third, the release job will only run if the current repository is the main repository
@@ -154,6 +157,15 @@ jobs:
         if: ${{ !failure() }}
 
         steps:
+            - name: Validate trusted publishing configuration
+              env:
+                  NUGET_USER: ${{ vars.NUGET_USER || secrets.NUGET_USER }}
+              run: |
+                  if [ -z "$NUGET_USER" ]; then
+                      echo "::error::Set NUGET_USER to the NuGet username that created the trusted publishing policy for finos/morphir-dotnet and deployment.yml."
+                      exit 1
+                  fi
+
             - name: Fetch Source Code
               uses: actions/checkout@v6.0.1
               with:
@@ -195,8 +207,17 @@ jobs:
             - name: Run all tests (includes build tests)
               run: ./build.sh --target TestAll --configuration ${{ env.CONFIGURATION }}
 
+            # Request the short-lived credential after building and testing so it cannot expire during those steps.
+            - name: Authenticate to NuGet with trusted publishing
+              uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+              id: nuget-login
+              with:
+                  user: ${{ vars.NUGET_USER || secrets.NUGET_USER }}
+
             - name: Publish packages to NuGet
-              run: ./build.sh --target PublishAll --api-key ${{ env.NUGET_TOKEN }} --nuget-source https://api.nuget.org/v3/index.json
+              env:
+                  NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+              run: ./build.sh --target PublishAll --api-key "$NUGET_API_KEY" --nuget-source https://api.nuget.org/v3/index.json
 
     create-github-release:
         runs-on: ubuntu-latest
