@@ -1,9 +1,9 @@
 ---
 title: "PRD: Morphir extension model"
 description: "An incremental roadmap for built-in, WASM and process extensions in morphir-dotnet, on the upstream Morphir Extension Protocol."
-status: Draft
+status: Approved
 created: 2026-11-06
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 ---
 
 # Morphir extension model
