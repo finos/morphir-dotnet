@@ -34,10 +34,15 @@
         <FSharpJsonContext Include="Contexts/Records.fs" Name="RecordJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Records" />
         <Compile Include="Contexts/Members.fs" />
         <FSharpJsonContext Include="Contexts/Members.fs" Name="MemberJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Members" Naming="CamelCase" SkippableOptionFields="Always" />
+        <Compile Include="Contexts/Numbers.fs" />
+        <FSharpJsonContext Include="Contexts/Numbers.fs" Name="NumberJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Numbers" />
+        <Compile Include="Contexts/LenientNumbers.fs" />
+        <FSharpJsonContext Include="Contexts/LenientNumbers.fs" Name="LenientJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.LenientNumbers" AllowNumbersFromStrings="true" />
         <Compile Include="GenerationTests.fs" />
         <Compile Include="ContextTests.fs" />
         <Compile Include="RecordTests.fs" />
         <Compile Include="MemberRuleTests.fs" />
+        <Compile Include="PrimitiveTests.fs" />
         <Compile Include="BuildTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>

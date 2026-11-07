@@ -52,6 +52,28 @@ type Primitive =
         | TimeOnly -> "System.TimeOnly"
         | JsonElement -> "System.Text.Json.JsonElement"
 
+    /// The BCL type name with a TryParse member, for numbers only.
+    member this.NumberTypeName =
+        match this with
+        | Byte -> Some "System.Byte"
+        | SByte -> Some "System.SByte"
+        | Int16 -> Some "System.Int16"
+        | UInt16 -> Some "System.UInt16"
+        | Int32 -> Some "System.Int32"
+        | UInt32 -> Some "System.UInt32"
+        | Int64 -> Some "System.Int64"
+        | UInt64 -> Some "System.UInt64"
+        | Single -> Some "System.Single"
+        | Double -> Some "System.Double"
+        | Decimal -> Some "System.Decimal"
+        | _ -> None
+
+    /// True for integer types; they refuse a fraction in a string.
+    member this.IsInteger =
+        match this with
+        | Byte | SByte | Int16 | UInt16 | Int32 | UInt32 | Int64 | UInt64 -> true
+        | _ -> false
+
     /// A short name for generated member names.
     member this.Slug =
         match this with

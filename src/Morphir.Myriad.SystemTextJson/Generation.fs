@@ -69,6 +69,24 @@ module Generation =
         | TypeRef.External _ -> true
         | _ -> false
 
+    /// True when a JsonNumberHandling attribute on the field allows reading numbers from strings.
+    let private readsNumbersFromStrings (attributes: AttributeUse list) =
+        attributes
+        |> List.filter (fun a -> a.Name = "JsonNumberHandling")
+        |> List.exists (fun a ->
+            a.Positional
+            |> List.exists (function
+                | AttributeValue.Names names -> names |> List.exists (fun n -> n.EndsWith "AllowReadingFromString")
+                | _ -> false))
+
+    /// True for a number, or an option of a number: the shapes where a member can read numbers from strings.
+    let private isNumberField (t: TypeRef) =
+        match t with
+        | TypeRef.Primitive p
+        | TypeRef.Option(TypeRef.Primitive p)
+        | TypeRef.ValueOption(TypeRef.Primitive p) -> p.NumberTypeName.IsSome
+        | _ -> false
+
     /// Names that the context type already uses.
     let private reservedMembers =
         set [ "Default"; "Options"; "GetTypeInfo"; "Verify"; "GeneratedSerializerOptions"; "Equals"; "GetHashCode"; "ToString"; "GetType" ]
@@ -122,7 +140,15 @@ module Generation =
                                 let name = defaultArg field.Name ""
 
                                 resolve declaration field.Location field.Name field.Type
-                                |> Option.map (fun resolved ->
+                                |> Option.bind (fun resolved ->
+                                    let lenient = readsNumbersFromStrings field.Attributes
+
+                                    if lenient && not (isNumberField resolved) then
+                                        unsupported declaration field.Location field.Name "JsonNumberHandling applies only to a number field or an option of a number; set AllowNumbersFromStrings on the context for collections."
+                                        None
+                                    else
+                                        Some(resolved, lenient))
+                                |> Option.map (fun (resolved, lenient) ->
                                     let names = jsonNames field.Attributes
                                     let written = List.tryHead names |> Option.defaultValue (rules.Naming.Apply name)
 
@@ -133,6 +159,7 @@ module Generation =
                                         Type = resolved
                                         Skippable = rules.SkipAbsentOptions
                                         AllowNull = rules.AllowNullFields && acceptsNull resolved
+                                        NumbersFromStrings = lenient
                                     }))
 
                         if resolvedFields.Length = fields.Length then

@@ -43,6 +43,8 @@ type internal PlannedField =
         Skippable: bool
         /// True when a reader accepts null for this field although it is not an option.
         AllowNull: bool
+        /// True when a reader also accepts the number of this field in a JSON string (JsonNumberHandling).
+        NumbersFromStrings: bool
     }
 
 /// A type of the context with its resolved parts.
@@ -128,9 +130,17 @@ module internal Emit =
 
     let private codecName (plan: Plan) = plan.Settings.Name.Value + "Codec"
 
-    let private readExpr (codec: string) (t: TypeRef) =
+    /// The expression that reads a value of the type. With lenient, numbers are also read from strings.
+    let private readExpr (codec: string) (lenient: bool) (t: TypeRef) =
+        let isNumber (p: Primitive) = p.NumberTypeName.IsSome
+
         match t with
+        | TypeRef.Primitive p when lenient && isNumber p -> $"{codec}.Read{p.Slug}FromString(&reader)"
         | TypeRef.Primitive p -> $"{codec}.Read{p.Slug}(&reader)"
+        | TypeRef.Option(TypeRef.Primitive p) when lenient && isNumber p ->
+            $"(if reader.TokenType = JsonTokenType.Null then None else Some({codec}.Read{p.Slug}FromString(&reader)))"
+        | TypeRef.ValueOption(TypeRef.Primitive p) when lenient && isNumber p ->
+            $"(if reader.TokenType = JsonTokenType.Null then ValueNone else ValueSome({codec}.Read{p.Slug}FromString(&reader)))"
         | _ -> $"{codec}.Read_{t.Slug}(&reader, options)"
 
     let private writeStmt (codec: string) (t: TypeRef) (value: string) =
@@ -140,7 +150,7 @@ module internal Emit =
 
     let private fail (w: CodeWriter) (message: string) = w.Line $"raise (JsonException({literal message}))"
 
-    let private primitiveMethods (w: CodeWriter) (p: Primitive) =
+    let private primitiveMethods (w: CodeWriter) (codecPlaceholder: string) (p: Primitive) =
         let name = p.FSharpName
 
         let tryGet (method: string) (label: string) =
@@ -170,6 +180,29 @@ module internal Emit =
         let number (method: string) (label: string) (write: string) =
             tryGet method label
             w.Line $"static member Write{p.Slug}(writer: Utf8JsonWriter, value: {name}) = writer.WriteNumberValue({write})"
+
+            // The same number in a JSON string, for JsonNumberHandling.AllowReadingFromString.
+            let bcl = defaultArg p.NumberTypeName name
+
+            let styles =
+                if p.IsInteger then
+                    "System.Globalization.NumberStyles.AllowLeadingSign"
+                else
+                    "System.Globalization.NumberStyles.AllowLeadingSign ||| System.Globalization.NumberStyles.AllowDecimalPoint ||| System.Globalization.NumberStyles.AllowExponent"
+
+            w.Line $"static member Read{p.Slug}FromString(reader: byref<Utf8JsonReader>) : {name} ="
+            w.Indent(fun () ->
+                w.Line "if reader.TokenType <> JsonTokenType.String then"
+                w.Indent(fun () -> w.Line $"{codecPlaceholder}.Read{p.Slug}(&reader)")
+                w.Line "else"
+                w.Indent(fun () ->
+                    w.Line "match reader.GetString() with"
+                    w.Line $"""| null -> raise (JsonException({literal (label + " was expected.")}))"""
+                    w.Line "| text ->"
+                    w.Indent(fun () ->
+                        w.Line "let mutable value = Unchecked.defaultof<_>"
+                        w.Line $"if {bcl}.TryParse(text, {styles}, System.Globalization.CultureInfo.InvariantCulture, &value) then value"
+                        w.Line $"""else raise (JsonException({literal (label + " was expected.")}))""")))
 
         match p with
         | Primitive.String ->
@@ -245,7 +278,7 @@ module internal Emit =
                 body ())
             w.Line $"""| _ -> raise (JsonException({literal $"A member name of {typeName} was expected."}))""")
 
-    let private recordMethods (w: CodeWriter) (codec: string) (t: TypeRef) (declaration: TypeDeclaration) (fields: PlannedField list) (refuseUnknown: bool) =
+    let private recordMethods (w: CodeWriter) (codec: string) (lenient: bool) (t: TypeRef) (declaration: TypeDeclaration) (fields: PlannedField list) (refuseUnknown: bool) =
         let typeName = declaration.Name
         let local (field: PlannedField) = "field_" + field.Name
         let seen (field: PlannedField) = "seen_" + field.Name
@@ -302,7 +335,7 @@ module internal Emit =
                         // A failure inside the value names this member, so the message holds the path within the value.
                         let read () =
                             w.Line "try"
-                            w.Indent(fun () -> w.Line $"{local field} <- {readExpr codec field.Type}")
+                            w.Indent(fun () -> w.Line $"{local field} <- {readExpr codec (lenient || field.NumbersFromStrings) field.Type}")
                             w.Line "with :? JsonException as error ->"
                             w.Indent(fun () ->
                                 w.Line $"""raise (JsonException({literal $"In the member '{field.JsonName}' of {typeName}: "} + error.Message, error))""")
@@ -354,7 +387,7 @@ module internal Emit =
             w.Line "else"
             w.Indent(fun () -> fail w $"A JSON integer for {declaration.Name} was expected."))
 
-    let private optionMethods (w: CodeWriter) (codec: string) (t: TypeRef) (inner: TypeRef) (some: string) (none: string) =
+    let private optionMethods (w: CodeWriter) (codec: string) (lenient: bool) (t: TypeRef) (inner: TypeRef) (some: string) (none: string) =
         w.Line $"static member Write_{t.Slug}(writer: Utf8JsonWriter, value: {t.FSharpName}, options: JsonSerializerOptions) : unit ="
         w.Indent(fun () ->
             w.Line "ignore options"
@@ -365,9 +398,9 @@ module internal Emit =
         w.Line $"static member Read_{t.Slug}(reader: byref<Utf8JsonReader>, options: JsonSerializerOptions) : {t.FSharpName} ="
         w.Indent(fun () ->
             w.Line "ignore options"
-            w.Line $"if reader.TokenType = JsonTokenType.Null then {none} else {some}({readExpr codec inner})")
+            w.Line $"if reader.TokenType = JsonTokenType.Null then {none} else {some}({readExpr codec lenient inner})")
 
-    let private sequenceMethods (w: CodeWriter) (codec: string) (t: TypeRef) (kind: SequenceKind) (inner: TypeRef) =
+    let private sequenceMethods (w: CodeWriter) (codec: string) (lenient: bool) (t: TypeRef) (kind: SequenceKind) (inner: TypeRef) =
         w.Line $"static member Write_{t.Slug}(writer: Utf8JsonWriter, value: {t.FSharpName}, options: JsonSerializerOptions) : unit ="
         w.Indent(fun () ->
             w.Line "ignore options"
@@ -388,7 +421,7 @@ module internal Emit =
                 w.Line "if not (reader.Read()) then"
                 w.Indent(fun () -> fail w "The JSON array is not complete.")
                 w.Line "if reader.TokenType = JsonTokenType.EndArray then finished <- true"
-                w.Line $"else items.Add({readExpr codec inner})")
+                w.Line $"else items.Add({readExpr codec lenient inner})")
 
             match kind with
             | SequenceKind.List -> w.Line "List.ofSeq items"
@@ -398,7 +431,7 @@ module internal Emit =
             | SequenceKind.ReadOnlyList
             | SequenceKind.ReadOnlyCollection -> w.Line $"items.ToArray() :> {t.FSharpName}")
 
-    let private tupleMethods (w: CodeWriter) (codec: string) (t: TypeRef) (items: TypeRef list) =
+    let private tupleMethods (w: CodeWriter) (codec: string) (lenient: bool) (t: TypeRef) (items: TypeRef list) =
         let names = items |> List.mapi (fun index _ -> $"item{index}")
 
         w.Line $"static member Write_{t.Slug}(writer: Utf8JsonWriter, value: {t.FSharpName}, options: JsonSerializerOptions) : unit ="
@@ -421,13 +454,13 @@ module internal Emit =
             for name, item in List.zip names items do
                 w.Line "if not (reader.Read()) || reader.TokenType = JsonTokenType.EndArray then"
                 w.Indent(fun () -> fail w $"A JSON array of {items.Length} items was expected.")
-                w.Line $"let {name} = {readExpr codec item}"
+                w.Line $"let {name} = {readExpr codec lenient item}"
 
             w.Line "if not (reader.Read()) || reader.TokenType <> JsonTokenType.EndArray then"
             w.Indent(fun () -> fail w $"A JSON array of {items.Length} items was expected.")
             w.Line $"""({String.concat ", " names})""")
 
-    let private mapMethods (w: CodeWriter) (codec: string) (t: TypeRef) (kind: MapKind) (key: TypeRef) (value: TypeRef) =
+    let private mapMethods (w: CodeWriter) (codec: string) (lenient: bool) (t: TypeRef) (kind: MapKind) (key: TypeRef) (value: TypeRef) =
         let asObject =
             match key with
             | TypeRef.Primitive Primitive.String -> true
@@ -479,7 +512,7 @@ module internal Emit =
                     w.Indent(fun () ->
                         w.Line "if not (keys.Add name) then"
                         w.Indent(fun () -> w.Line "raise (JsonException($\"The key '{name}' appears more than once.\"))")
-                        w.Line $"pairs.Add((name, {readExpr codec value}))"))
+                        w.Line $"pairs.Add((name, {readExpr codec lenient value}))"))
             else
                 w.Line "if reader.TokenType <> JsonTokenType.StartArray then"
                 w.Indent(fun () -> fail w "A JSON array of [key, value] pairs was expected.")
@@ -495,10 +528,10 @@ module internal Emit =
                     w.Indent(fun () ->
                         w.Line "if reader.TokenType <> JsonTokenType.StartArray || not (reader.Read()) then"
                         w.Indent(fun () -> fail w "A [key, value] pair was expected.")
-                        w.Line $"let key = {readExpr codec key}"
+                        w.Line $"let key = {readExpr codec lenient key}"
                         w.Line "if not (reader.Read()) then"
                         w.Indent(fun () -> fail w "A [key, value] pair was expected.")
-                        w.Line $"let item = {readExpr codec value}"
+                        w.Line $"let item = {readExpr codec lenient value}"
                         w.Line "if not (reader.Read()) || reader.TokenType <> JsonTokenType.EndArray then"
                         w.Indent(fun () -> fail w "A [key, value] pair was expected.")
                         w.Line "pairs.Add((key, item))"))
@@ -518,6 +551,7 @@ module internal Emit =
 
     let private codec (w: CodeWriter) (plan: Plan) =
         let codec = codecName plan
+        let lenient = plan.Settings.NumbersFromStrings
 
         let all =
             plan.Members
@@ -531,16 +565,16 @@ module internal Emit =
         w.Indent(fun () ->
             for t in all do
                 match t with
-                | TypeRef.Primitive p -> primitiveMethods w p
-                | TypeRef.Option inner -> optionMethods w codec t inner "Some" "None"
-                | TypeRef.ValueOption inner -> optionMethods w codec t inner "ValueSome" "ValueNone"
-                | TypeRef.Sequence(kind, inner) -> sequenceMethods w codec t kind inner
-                | TypeRef.Map(kind, key, value) -> mapMethods w codec t kind key value
-                | TypeRef.Tuple items -> tupleMethods w codec t items
+                | TypeRef.Primitive p -> primitiveMethods w codec p
+                | TypeRef.Option inner -> optionMethods w codec lenient t inner "Some" "None"
+                | TypeRef.ValueOption inner -> optionMethods w codec lenient t inner "ValueSome" "ValueNone"
+                | TypeRef.Sequence(kind, inner) -> sequenceMethods w codec lenient t kind inner
+                | TypeRef.Map(kind, key, value) -> mapMethods w codec lenient t kind key value
+                | TypeRef.Tuple items -> tupleMethods w codec lenient t items
                 | TypeRef.External _ -> externalMethods w t
                 | TypeRef.Local declaration ->
                     match plan.Records.TryFind t.Slug, plan.Enums.TryFind t.Slug with
-                    | Some(_, fields, refuseUnknown), _ -> recordMethods w codec t declaration fields refuseUnknown
+                    | Some(_, fields, refuseUnknown), _ -> recordMethods w codec lenient t declaration fields refuseUnknown
                     | _, Some _ -> enumMethods w t declaration
                     | None, None -> ()
 
