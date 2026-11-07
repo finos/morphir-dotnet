@@ -203,7 +203,7 @@ Each step merges on its own. External runtimes stay behind an experimental flag 
 - Built-ins register with MEP `ExtensionInfo` and capability claims, through static DI registration. There is no assembly scanning.
 - The first built-ins are the C# and F# generators. The plugins in `src/Morphir.IR.Pipeline.Plugins` register in step 1 (decided 2026-11-07): no CLI command runs them, so an entry for them would claim a capability that nothing can use.
 - The registry domain is the F# project `src/Morphir.Extensions`, with parsed types and closed unions; the CLI edge stays C# (decided 2026-11-07). Its rules for C# callers are in the `fsharp-csharp-interop` skill.
-- Extension ids are one or more lowercase portable tokens joined by dots, such as `morphir.csharp`. Each token follows the upstream rule; the dots are a superset of upstream (decided 2026-11-07), proposed upstream.
+- Extension ids are one or more lowercase portable tokens joined by dots, such as `morphir.csharp`. Each token follows the upstream rule; the dots are a superset of upstream (decided 2026-11-07), proposed upstream in [finos/morphir#1137](https://github.com/finos/morphir/issues/1137) and [finos/morphir-rust#329](https://github.com/finos/morphir-rust/issues/329).
 - `morphir extension list` shows the built-ins, with their deliveries and the host they run in. The other `extension` commands stay as they are until step 3.
 - No other behavior changes.
 - This step does not wait for `Morphir.Mep` (builder's call). The registry uses its own types in the shape of `ExtensionInfo` and capability claims, and maps them to the `Morphir.Mep` types when those land.

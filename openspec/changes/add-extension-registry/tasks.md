@@ -91,8 +91,8 @@ Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/
 
 - [x] 9.1 Update PRD step 0 with LANG-1 (F# domain project), PLG-1 (the pipeline plugins register in step 1) and ID-1 (dotted ids; step 3 refuses them in shared upstream files until upstream accepts them), and set the feature status row "Extension registry and built-in list"; verify the PRD index row matches.
   - PRD step 0 states that the plugins register in step 1, the F# domain project and the dotted id rule; step 1 says `TypeValidator` registers as a `validator` entry; step 3 refuses dotted ids in shared upstream files; the status row says implemented, with the MCK suite still to come; the PRD index row is updated.
-- [ ] 9.2 Draft the upstream proposal for dotted extension ids (the segment grammar, the 238-character limit, the file-name safety argument, and `morphir.csharp` as the example) against the `finos/morphir` extension identity rules and `finos/morphir-rust` `crates/morphir-distribution/src/domain/identity.rs`; get the user's approval, then open it upstream and link it in the PRD and in `proposal.md`; verify the links resolve.
-  - Drafted; waiting for the user's approval before it is opened upstream.
+- [x] 9.2 Draft the upstream proposal for dotted extension ids (the segment grammar, the 238-character limit, the file-name safety argument, and `morphir.csharp` as the example) against the `finos/morphir` extension identity rules and `finos/morphir-rust` `crates/morphir-distribution/src/domain/identity.rs`; get the user's approval, then open it upstream and link it in the PRD and in `proposal.md`; verify the links resolve.
+  - Approved by the user on 2026-11-07 and opened as finos/morphir#1137 (proposal) and finos/morphir-rust#329 (implementation), linked to each other and to finos/morphir-dotnet#503; linked in the PRD, `proposal.md` and the CLI documentation.
 
 ## Workflow follow-up
 

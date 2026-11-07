@@ -292,7 +292,7 @@ An extension id is one or more segments joined by dots, at most 238 characters. 
 ASCII letter, contains only lowercase letters, digits and `-`, and ends with a letter or digit. Examples: `morphir.csharp`,
 `acme.tools.lint-2`, `morphir-elm`.
 
-A one-segment id follows the upstream Morphir rule. Dotted ids are a morphir-dotnet superset, proposed upstream.
+A one-segment id follows the upstream Morphir rule. Dotted ids are a morphir-dotnet superset, proposed upstream in [finos/morphir#1137](https://github.com/finos/morphir/issues/1137).
 
 ## Platform Identifiers (RIDs)
 

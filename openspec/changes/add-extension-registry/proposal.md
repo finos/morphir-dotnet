@@ -34,7 +34,7 @@ None. No existing spec covers `morphir extension`.
 - Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/prds/morphir-extension-model.md), step 0.
 - Issue: [#492](https://github.com/finos/morphir-dotnet/issues/492) tracks the `morphir extension` commands. This change implements `extension list` for built-ins; `install`, `use`, `remove` and `which` stay open under #492 until PRD step 3.
 - Related: PR [#495](https://github.com/finos/morphir-dotnet/pull/495) (`add-fsharp-compile`) plans `Morphir.Program.CreateApp(args, extend)` and `Morphir.Mep`. This change must fit both (design decisions HOST-1 and REG-1).
-- Upstream: at closeout, propose dotted extension ids to `finos/morphir` (the extension identity rules) and `finos/morphir-rust` (`crates/morphir-distribution/src/domain/identity.rs`), as design decision ID-1 records.
+- Upstream: dotted extension ids are proposed in [finos/morphir#1137](https://github.com/finos/morphir/issues/1137), with the implementation in [finos/morphir-rust#329](https://github.com/finos/morphir-rust/issues/329), as design decision ID-1 records.
 
 ## Impact
 
