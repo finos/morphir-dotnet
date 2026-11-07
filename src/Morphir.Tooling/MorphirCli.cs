@@ -50,6 +50,7 @@ public sealed class MorphirCliBuilder
     private readonly List<Action<IServiceCollection>> _serviceConfigurations = new();
     private readonly List<Action<RootCommand>> _commandConfigurations = new();
     private readonly List<Func<IServiceProvider, Command>> _hostedCommands = new();
+    private readonly List<Action<RootCommand, IServiceProvider>> _hostedCommandConfigurations = new();
     private readonly List<ICommandProvider> _commandProviders = new();
 
     internal MorphirCliBuilder(string[] args, string description = "Morphir CLI")
@@ -141,6 +142,16 @@ public sealed class MorphirCliBuilder
     }
 
     /// <summary>
+    /// Changes the command tree after the host is built, with its service provider. Use it to add a subcommand
+    /// that needs services to a command that <see cref="AddCommand(Action{RootCommand})"/> created.
+    /// </summary>
+    public MorphirCliBuilder ConfigureHostedCommands(Action<RootCommand, IServiceProvider> configure)
+    {
+        _hostedCommandConfigurations.Add(configure);
+        return this;
+    }
+
+    /// <summary>
     /// Adds a scenario-based configuration bundle.
     /// Scenarios group related commands, services, and configuration together.
     /// </summary>
@@ -209,6 +220,8 @@ public sealed class MorphirCliBuilder
         var host = _hostBuilder.Build();
         foreach (var createCommand in _hostedCommands)
             _rootCommand.Subcommands.Add(createCommand(host.Services));
+        foreach (var configure in _hostedCommandConfigurations)
+            configure(_rootCommand, host.Services);
         return new MorphirCliApp(host, _rootCommand, Args);
     }
 

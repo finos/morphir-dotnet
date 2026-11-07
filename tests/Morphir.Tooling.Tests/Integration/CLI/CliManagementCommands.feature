@@ -25,7 +25,6 @@ Feature: CLI artifact management commands are not implemented yet
       | tool      | use        | tool use t 1.0.0                                 | 491   |
       | tool      | remove     | tool remove t 1.0.0                              | 491   |
       | tool      | which      | tool which t                                     | 491   |
-      | extension | list       | extension list                                   | 492   |
       | extension | install    | extension install e https://example.com/e.zip 1.0.0 | 492 |
       | extension | use        | extension use e 1.0.0                            | 492   |
       | extension | remove     | extension remove e 1.0.0                         | 492   |

@@ -209,17 +209,84 @@ morphir tool which <name> [options]
 
 ## Extension Commands
 
-Manage optional add-ons and plugins.
-
-Extension commands follow the same pattern as tool commands:
+An extension adds a capability to Morphir, such as a code generator. The plan is in the
+[Morphir extension model PRD](../../contributing/design/prds/morphir-extension-model.md).
 
 ```bash
-morphir extension list [--platform <rid>] [--local]
-morphir extension install <name> <url> <version> [--platform <rid>] [--local]
-morphir extension use <name> <version> [--platform <rid>] [--local]
-morphir extension remove <name> <version> [--platform <rid>] [--local]
-morphir extension which <name> [--platform <rid>]
+morphir extension list [--json] [--platform <rid>] [--local]
+morphir extension install <name> <url> <version> [--platform <rid>] [--local]   # not implemented yet
+morphir extension use <name> <version> [--platform <rid>] [--local]             # not implemented yet
+morphir extension remove <name> <version> [--platform <rid>] [--local]          # not implemented yet
+morphir extension which <name> [--platform <rid>]                               # not implemented yet
 ```
+
+`install`, `use`, `remove` and `which` fail with exit code 1 and a link to
+[issue #492](https://github.com/finos/morphir-dotnet/issues/492). They arrive with step 3 of the PRD.
+
+### extension list
+
+List the extensions that this host knows. Today these are the built-in generators of `morphir generate`.
+
+```bash
+$ morphir extension list
+ID              NAME          VERSION  TYPES    DELIVERY  HOSTS
+morphir.csharp  C# generator  0.4.0    backend  built-in  morphir, dotnet-morphir
+morphir.fsharp  F# generator  0.4.0    backend  built-in  morphir, dotnet-morphir
+```
+
+The rows are sorted by id. The version of a built-in is the version of the host, including any build metadata.
+
+**Options:**
+- `--json`: Write one JSON document on stdout.
+- `--platform <rid>`, `--local`: Select installed extensions. There are none until step 3 of the PRD, so these
+  options do not change the result now. Built-in extensions always appear.
+
+With `--json`:
+
+```json
+{
+  "host": "morphir",
+  "extensions": [
+    {
+      "id": "morphir.csharp",
+      "name": "C# generator",
+      "version": "0.4.0",
+      "description": "Generates C# source from a Morphir library model.",
+      "types": ["backend"],
+      "delivery": "built-in",
+      "hosts": ["morphir", "dotnet-morphir"],
+      "available": true,
+      "capabilities": {
+        "backend": { "targets": ["csharp"], "irVersions": ["1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0"], "generate": true }
+      }
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `host` | The host that wrote the list: `morphir` (the Native AOT executable) or `dotnet-morphir` (the dotnet tool). |
+| `id` | The extension id. See [Extension ids](#extension-ids). For a built-in generator, it is also the `backend` value in `morphir generate --json` reports. |
+| `version` | Canonical SemVer 2.0.0. |
+| `description` | Left out when the extension has none. |
+| `types` | MEP extension types: `frontend`, `backend`, `transform`, `validator` or `workspace`. They come from the capabilities. |
+| `delivery` | How the extension is delivered. Now always `built-in`. |
+| `hosts` | The hosts that the extension runs in. |
+| `available` | `true` when the extension runs in this host. An extension for the other host is listed with `false`. |
+| `capabilities.backend` | The MEP backend claim: targets, IR versions in their declared spelling, and `generate`. |
+
+Logs and diagnostics go to stderr, so `morphir extension list --json | jq` works. If two extensions have the same id,
+the command exits with code 2 and names each duplicate id (`extension.duplicate_id`). With `--json`, the document then
+has an empty `extensions` array and a `diagnostics` array.
+
+### Extension ids
+
+An extension id is one or more segments joined by dots, at most 238 characters. Each segment starts with a lowercase
+ASCII letter, contains only lowercase letters, digits and `-`, and ends with a letter or digit. Examples: `morphir.csharp`,
+`acme.tools.lint-2`, `morphir-elm`.
+
+A one-segment id follows the upstream Morphir rule. Dotted ids are a morphir-dotnet superset, proposed upstream.
 
 ## Platform Identifiers (RIDs)
 

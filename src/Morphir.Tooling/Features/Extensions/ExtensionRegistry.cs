@@ -9,6 +9,9 @@ namespace Morphir.Tooling.Features.Extensions;
 /// </summary>
 public sealed class ExtensionRegistry(IEnumerable<IExtensionSource> sources, HostIdentity host)
 {
+    /// <summary>The host that this registry reads for.</summary>
+    public HostIdentity Host => host;
+
     /// <summary>The catalog, or the error that names each duplicate id.</summary>
     public bool TryRead([MaybeNullWhen(false)] out ExtensionCatalog catalog, [MaybeNullWhen(true)] out RegistryError error) =>
         ExtensionCatalog.TryCreate(host, sources.SelectMany(source => source.Entries), out catalog, out error);

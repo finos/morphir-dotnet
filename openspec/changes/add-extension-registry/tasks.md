@@ -62,11 +62,16 @@ Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/
 
 ## 7. `extension list` command (CLI-1, CLN-1)
 
-- [ ] 7.1 Write failing command tests for text output (one row for each entry, sorted, with the six columns), `--json` output (one document with `host` and `extensions`, MEP wire names in `capabilities.backend`, no `description` member when absent), `--local` and `--platform` still showing built-ins, and exit code 2 naming each duplicate id; verify they fail.
-- [ ] 7.2 Add `ExtensionListCommand`, `ExtensionListReport.From(ExtensionCatalog)` as the only typed-to-text mapping (through `ToString` and `WireValue`, with no `switch` on an F# union), and the source-generated `ExtensionListJsonContext`; verify the 7.1 tests pass and stdout holds only command output.
-- [ ] 7.3 Wire `list` into the `extension` command through the service provider and keep `install`, `use`, `remove` and `which` on `NotImplemented` with the #492 link; remove the `extension list` row from `tests/Morphir.Tooling.Tests/Integration/CLI/CliManagementCommands.feature` and verify the other rows still pass.
-- [ ] 7.4 Remove `ExtensionList`, `ExtensionListResult`, `ExtensionInfo` and `ExtensionHandlers.HandleList`; verify the solution builds and no reference remains.
-- [ ] 7.5 Update `docs/content/docs/cli/management.md` with the `extension list` text and JSON output, the id rule (including the dotted superset), the meaning of delivery, hosts and `available`, and the note that `--platform` and `--local` apply to installed extensions from PRD step 3; verify the documented commands give the documented output.
+- [x] 7.1 Write failing command tests for text output (one row for each entry, sorted, with the six columns), `--json` output (one document with `host` and `extensions`, MEP wire names in `capabilities.backend`, no `description` member when absent), `--local` and `--platform` still showing built-ins, and exit code 2 naming each duplicate id; verify they fail.
+  - `ExtensionListCommandTests` (core: text, JSON, absent description, other-host entry, duplicate id) and `ExtensionListCliTests` (the real CLI: `--json`, `--local --json`, `--platform linux-x64 --json`, text).
+- [x] 7.2 Add `ExtensionListCommand`, `ExtensionListReport.From(ExtensionCatalog)` as the only typed-to-text mapping (through `ToString` and `WireValue`, with no `switch` on an F# union), and the source-generated `ExtensionListJsonContext`; verify the 7.1 tests pass and stdout holds only command output.
+  - `ExtensionListCommand.Execute(registry, json, stdout, stderr)` is the testable core; `ExtensionListReport.From` and `Failure` are the only typed-to-text mapping; `ExtensionListJsonContext` leaves out nulls. In JSON, `+` in a version is written as `\u002B`, the System.Text.Json default, as in `generate --json`.
+- [x] 7.3 Wire `list` into the `extension` command through the service provider and keep `install`, `use`, `remove` and `which` on `NotImplemented` with the #492 link; remove the `extension list` row from `tests/Morphir.Tooling.Tests/Integration/CLI/CliManagementCommands.feature` and verify the other rows still pass.
+  - `MorphirCliBuilder.ConfigureHostedCommands` (new) runs after the host is built; `ManagementScenario` uses it to insert `list` first, so `extension --help` differs from the baseline only in the `list` description. The other four subcommands still exit 1 with the #492 link; the 14 remaining `CliManagementCommands.feature` rows pass.
+- [x] 7.4 Remove `ExtensionList`, `ExtensionListResult`, `ExtensionInfo` and `ExtensionHandlers.HandleList`; verify the solution builds and no reference remains.
+  - No reference remains; the solution builds.
+- [x] 7.5 Update `docs/content/docs/cli/management.md` with the `extension list` text and JSON output, the id rule (including the dotted superset), the meaning of delivery, hosts and `available`, and the note that `--platform` and `--local` apply to installed extensions from PRD step 3; verify the documented commands give the documented output.
+  - `TextOutputMatchesTheDocumentation` asserts the documented table exactly; the JSON example is checked field by field by `JsonOutputIsOneDocumentWithMepWireNames`. Full `Morphir.Tooling.Tests`: 603 passed.
 
 ## 8. Both hosts and AOT
 
