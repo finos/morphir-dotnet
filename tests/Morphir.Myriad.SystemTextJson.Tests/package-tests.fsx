@@ -161,6 +161,27 @@ let tests =
               build consumer true |> ignore
               assertEqual first (File.GetLastWriteTimeUtc file))
 
+      "one project uses Morphir.Myriad and Morphir.Myriad.SystemTextJson together",
+      fun () ->
+          withConsumer (fun consumer ->
+              let project = Path.Combine(consumer, "Consumer.fsproj")
+
+              let text =
+                  File.ReadAllText(project)
+                      .Replace(
+                          "<PackageReference Include=\"Morphir.Myriad.SystemTextJson\"",
+                          $"<PackageReference Include=\"Morphir.Myriad\" Version=\"[{version}]\" PrivateAssets=\"all\" />\n<PackageReference Include=\"Morphir.Myriad.SystemTextJson\""
+                      )
+                      .Replace("<Compile Include=\"Types.fs\" />", "<MorphirModel Include=\"model.json\" />\n<Compile Include=\"Types.fs\" />")
+
+              File.WriteAllText(project, text)
+              File.Copy(Path.Combine(root, "tests/Fixtures/MorphirIR/daily-rate-v3.json"), Path.Combine(consumer, "model.json"))
+              File.AppendAllText(Path.Combine(consumer, "Program.fs"), "printfn \"%d\" Car.Rental.Inventory.dailyRate\n")
+              build consumer true |> ignore
+              let lines = (execute consumer).Split('\n')
+              assertEqual "{\"Name\":\"Ada\",\"Age\":36}" lines[0]
+              assertEqual 3 lines.Length)
+
       "a context that the generator refuses blocks compilation",
       fun () ->
           withConsumer (fun consumer ->
@@ -175,7 +196,8 @@ Directory.CreateDirectory workspace |> ignore
 try
     for project in
         [ "src/Morphir.Myriad.SystemTextJson.Annotations/Morphir.Myriad.SystemTextJson.Annotations.csproj"
-          "src/Morphir.Myriad.SystemTextJson/Morphir.Myriad.SystemTextJson.fsproj" ] do
+          "src/Morphir.Myriad.SystemTextJson/Morphir.Myriad.SystemTextJson.fsproj"
+          "src/Morphir.Myriad/Morphir.Myriad.fsproj" ] do
         run root true [ "pack"; Path.Combine(root, project); "-c"; "Release"; "-o"; feed; "-p:PackageVersion=" + version; "--nologo" ]
         |> ignore
 

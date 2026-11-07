@@ -29,6 +29,7 @@
     <Compile Include="Generator.fs" />
     <None Remove="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../README.md'))" />
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="ThirdPartyNotices.txt" Pack="true" PackagePath="/" />
     <None Include="build/Morphir.Myriad.SystemTextJson.props" Pack="true" PackagePath="build/" />
     <None Include="build/Morphir.Myriad.SystemTextJson.targets" Pack="true" PackagePath="build/" />
   </ItemGroup>

@@ -107,6 +107,10 @@ partial class Build : NukeBuild
         ("Morphir.IR.Pipeline.Plugins", SourceDirectory / "Morphir.IR.Pipeline.Plugins" / "Morphir.IR.Pipeline.Plugins.fsproj", true),
         ("Morphir.Ion", SourceDirectory / "Morphir.Ion" / "Morphir.Ion.fsproj", true),
         ("Morphir.CodeGeneration.FSharp", SourceDirectory / "Morphir.CodeGeneration.FSharp" / "Morphir.CodeGeneration.FSharp.fsproj", true),
+        // Myriad plugin packages have no lib/; PackLibs checks their layout with ValidateMyriadPluginPackage.
+        ("Morphir.Myriad", SourceDirectory / "Morphir.Myriad" / "Morphir.Myriad.fsproj", false),
+        ("Morphir.Myriad.SystemTextJson.Annotations", SourceDirectory / "Morphir.Myriad.SystemTextJson.Annotations" / "Morphir.Myriad.SystemTextJson.Annotations.csproj", true),
+        ("Morphir.Myriad.SystemTextJson", SourceDirectory / "Morphir.Myriad.SystemTextJson" / "Morphir.Myriad.SystemTextJson.fsproj", false),
         ("Morphir.CodeGeneration.CSharp", MorphirCodeGenerationCSharpProject, true),
         ("Morphir.Extensions", SourceDirectory / "Morphir.Extensions" / "Morphir.Extensions.fsproj", true),
         ("Morphir.Tooling", MorphirToolingProject, true),
@@ -114,6 +118,13 @@ partial class Build : NukeBuild
         ("Morphir.SDK.FSharp", MorphirSDKFSharpProject, true),
         ("Morphir.SDK", MorphirSDKProject, false),
         ("Morphir.SDK.CSharp", MorphirSDKCSharpProject, true),
+    };
+
+    /// <summary>The Myriad plugin packages in LibraryPackages, with the file name of their MSBuild task assembly.</summary>
+    (string PackageId, string TaskAssembly)[] MyriadPluginPackages => new[]
+    {
+        ("Morphir.Myriad", "Morphir.Myriad.Build.dll"),
+        ("Morphir.Myriad.SystemTextJson", "Morphir.Myriad.SystemTextJson.Build.dll"),
     };
 
     AbsolutePath MorphirCoreTestsProject => TestsDirectory / "Morphir.Core.Tests" / "Morphir.Core.Tests.csproj";
