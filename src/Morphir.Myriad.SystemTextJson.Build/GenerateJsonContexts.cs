@@ -47,7 +47,7 @@ public sealed partial class GenerateJsonContexts : Microsoft.Build.Utilities.Tas
 
     private const string GeneratorClass = "MorphirSystemTextJsonGenerator";
 
-    [GeneratedRegex(@"^error (?<code>MSTJ\d{4}): (?<message>.*)$", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^(?:(?<file>.+?)(?:\((?<line>\d+),(?<column>\d+)\))?: )?error (?<code>MSTJ\d{4}): (?<message>.*)$", RegexOptions.Multiline)]
     private static partial Regex ErrorLine();
 
     private sealed record ContextJob(ITaskItem Item, string InputPath, string Name, string OutputPath, string StampPath, string[] Parameters);
@@ -191,7 +191,10 @@ public sealed partial class GenerateJsonContexts : Microsoft.Build.Utilities.Tas
             var reported = false;
             foreach (Match match in ErrorLine().Matches(run.StandardError))
             {
-                Log.LogError(null, match.Groups["code"].Value, null, job.InputPath, 0, 0, 0, 0, match.Groups["message"].Value.TrimEnd());
+                var file = match.Groups["file"].Success ? match.Groups["file"].Value : job.InputPath;
+                var line = match.Groups["line"].Success ? int.Parse(match.Groups["line"].Value) : 0;
+                var column = match.Groups["column"].Success ? int.Parse(match.Groups["column"].Value) : 0;
+                Log.LogError(null, match.Groups["code"].Value, null, file, line, column, 0, 0, match.Groups["message"].Value.TrimEnd());
                 reported = true;
             }
 

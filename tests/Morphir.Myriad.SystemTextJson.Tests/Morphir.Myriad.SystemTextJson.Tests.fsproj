@@ -28,8 +28,13 @@
     <ItemGroup>
         <Compile Include="Contexts/Empty.fs" />
         <FSharpJsonContext Include="Contexts/Empty.fs" Name="EmptyJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Empty" />
+        <Compile Include="Contexts/Addresses.fs" />
+        <FSharpJsonContext Include="Contexts/Addresses.fs" Name="AddressJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Addresses" />
+        <Compile Include="Contexts/Records.fs" />
+        <FSharpJsonContext Include="Contexts/Records.fs" Name="RecordJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Records" />
         <Compile Include="GenerationTests.fs" />
         <Compile Include="ContextTests.fs" />
+        <Compile Include="RecordTests.fs" />
         <Compile Include="BuildTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>

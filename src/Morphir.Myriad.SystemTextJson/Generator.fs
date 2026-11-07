@@ -22,10 +22,8 @@ type MorphirSystemTextJsonGenerator() =
             match result with
             | Ok code -> Output.Source code
             | Error errors ->
-                let text = errors |> List.map GenerationError.describe
+                // The MSBuild task reads stderr: one error on each line, in the MSBuild canonical form.
+                for error in errors do
+                    Console.Error.WriteLine(GenerationError.toBuildLine error)
 
-                // The MSBuild task reads stderr: one error on each line.
-                for line in text do
-                    Console.Error.WriteLine("error MSTJ0001: " + line)
-
-                invalidOp (String.Join(Environment.NewLine, text))
+                invalidOp (String.Join(Environment.NewLine, errors |> List.map GenerationError.describe))

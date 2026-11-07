@@ -11,7 +11,7 @@ Every behavior task follows red/green/refactor: write the failing test first. Ea
 
 ## 2. Context and records
 
-- [ ] 2.1 Generate the context type (`JsonSerializerContext`, `Default`, a `JsonTypeInfo<T>` member for each type, `GetTypeInfo`, `Verify(options)`) and a converter for a record of primitive fields. Verify a round trip through `JsonSerializer` with the type info, and `JsonTypeInfoResolver.Combine` with a second generated context.
+- [x] 2.1 Generate the context type (`JsonSerializerContext`, `Default`, a `JsonTypeInfo<T>` member for each type, `GetTypeInfo`, `Verify(options)`) and a converter for a record of primitive fields. Verify a round trip through `JsonSerializer` with the type info, and `JsonTypeInfoResolver.Combine` with a second generated context.
 - [ ] 2.2 Add the record member rules: `JsonName` and `JsonPropertyName`, naming policies, required non-option fields, refusal of `null`, skippable options, duplicate refusal and the unknown-member rule. Verify one hand-written expected JSON case for each rule, and the `JsonException` text and path for each failure.
 - [ ] 2.3 Add exact numbers for every integer type, `decimal`, floating point, `bool`, `string`, `Guid`, `DateTimeOffset` and `JsonElement`, and the number-from-string option. Verify the range ends of each type, a fraction for an integer, and `uint64` maximum.
 - [ ] 2.4 Add the collections: `option`, `voption`, `list`, arrays, `Set`, `ResizeArray`, `IReadOnlyList`, `IReadOnlyCollection`, tuples, `Map` and `IReadOnlyDictionary` with the three map formats, and nesting. Verify each shape with expected JSON and with the FSharp.SystemTextJson compatibility check.

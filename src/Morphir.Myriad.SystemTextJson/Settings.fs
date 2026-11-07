@@ -16,6 +16,8 @@ type GenerationError =
     | UnknownSetting of name: string
     /// The input file is not valid F#.
     | ParseFailed of file: string * message: string
+    /// A type or member that the generator cannot encode, at a place in the input file.
+    | Unsupported of file: string * location: Location * typeName: string * memberName: string option * reason: string
 
     /// The text of the error, for a person.
     static member describe(error: GenerationError) =
@@ -24,6 +26,15 @@ type GenerationError =
         | InvalidSetting(name, value, reason) -> $"The context setting '{name}' has the value '{value}', which is not valid: {reason}"
         | UnknownSetting name -> $"The context setting '{name}' is not known."
         | ParseFailed(file, message) -> $"The input file '{file}' could not be parsed: {message}"
+        | Unsupported(_, _, typeName, Some memberName, reason) -> $"{typeName}.{memberName}: {reason}"
+        | Unsupported(_, _, typeName, None, reason) -> $"{typeName}: {reason}"
+
+    /// The error as one line in the MSBuild canonical form, which the MSBuild task reads from stderr.
+    static member toBuildLine(error: GenerationError) =
+        match error with
+        | Unsupported(file, location, _, _, _) -> $"{file}({location.Line},{location.Column}): error MSTJ0010: {GenerationError.describe error}"
+        | ParseFailed(file, _) -> $"{file}: error MSTJ0005: {GenerationError.describe error}"
+        | _ -> $"error MSTJ0001: {GenerationError.describe error}"
 
 /// The rules for F# identifiers that the generator writes.
 module internal Identifiers =

@@ -20,8 +20,10 @@
     <ProjectReference Include="../Morphir.Myriad.SystemTextJson.Build/Morphir.Myriad.SystemTextJson.Build.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Model.fs" />
     <Compile Include="Settings.fs" />
     <Compile Include="Syntax.fs" />
+    <Compile Include="Resolve.fs" />
     <Compile Include="Emit.fs" />
     <Compile Include="Generation.fs" />
     <Compile Include="Generator.fs" />
