@@ -1,0 +1,19 @@
+<Project>
+  <!-- Keeps the probes independent of any parent build settings. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RuntimeIdentifier>osx-arm64</RuntimeIdentifier>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- Do not use the central package management of a parent folder. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <ImportDirectoryPackagesProps>false</ImportDirectoryPackagesProps>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../shared/Probe.cs" Link="Probe.cs" />
+    <None Include="../guest/guest.wasm" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

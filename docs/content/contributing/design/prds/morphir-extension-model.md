@@ -212,6 +212,7 @@ Each step merges on its own. External runtimes stay behind an experimental flag 
 
 This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](https://github.com/finos/morphir-dotnet/pull/495) change plans: the MEP `0.2.0-draft.1` types with source-generated JSON, `Content-Length` framing, the session core, the host client and the guest loop. This PRD does not plan a second MEP layer. It adds these items:
 
+- **Result (2026-11-07, [JSON-RPC spike](../spikes/extension-model/jsonrpc.md)):** `Morphir.Mep` writes its own minimal JSON-RPC 2.0 layer on System.Text.Json. StreamJsonRpc 2.26 has 10 AOT warnings, adds 2.6 MB and closes the connection on a u64 id above `long.MaxValue`. CurlyRpc 0.9.9 has no warnings but cannot bind a params object with exactly one member, such as `DescribeParams`. Neither dispatches a single message without a connection, which the WASM path needs.
 - **JSON-RPC spike, before `Morphir.Mep` writes its framing and session core.** Publish two small AOT console apps, one with CurlyRpc and one with StreamJsonRpc. Record the IL warnings and the binary size. The research found:
   - StreamJsonRpc 2.26: its `SystemTextJsonFormatter` has `RequiresDynamicCode` and `RequiresUnreferencedCode` attributes, numeric ids are `long`, there is no single-message dispatch, and its dependencies are large. Zero warnings is not possible without suppressions.
   - CurlyRpc 0.9.9: marked AOT-compatible and trimmable, with reflection-free typed handlers, `Content-Length` framing and `$/cancelRequest`. It is pre-1.0, from one contributor, and has no single-message dispatch.
@@ -227,10 +228,13 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 ### Spikes before step 2
 
 - **WASM runtime in both hosts.** Host a `morphir-bytes-v1` guest in the AOT single-file binary and in a RID-specific `dotnet-morphir` tool. Compare Wasmtime for .NET, Extism for .NET and a pure managed interpreter. Measure: AOT warnings, native library handling in a single file, binary size, fuel and timeout support, and start time. Both Wasmtime and Extism wrap native libraries.
+  - **Result (2026-11-07, [WASM runtime spike](../spikes/extension-model/wasm-runtime.md)):** Wasmtime for .NET (`Wasmtime` 50.0.1). It is the only candidate that enforces the memory ceiling, fuel and the deadline, with zero AOT warnings. `morphir` links `libwasmtime.a` statically and stays one file (about +10.6 MB, so about 28.8 MB in total). `dotnet-morphir` becomes a RID-specific tool. Extism's .NET SDK cannot return the result of `handle`; the managed interpreter (WACS) cannot stop an endless loop. The static link is tested on osx-arm64 only.
   - **Size:** the WASM runtime can take the `morphir` binary past the 20 MB guideline in `.agents/aot-optimization.md` (decided 2026-11-06). Record the measured size. Size alone does not reject a native runtime.
   - **Packaging:** `dotnet-morphir` can become a RID-specific dotnet tool (decided 2026-11-06). This changes how users install it, so the change that does it must update the install documentation and the release notes.
 - **.NET guest toolchains.** Confirm the current state of C# and F# compiled to WASM: toolchain maturity, module size and F# support. This decides whether the .NET guest SDK targets WASM now or only `process`.
+  - **Result (2026-11-07, [.NET guest toolchain spike](../spikes/extension-model/dotnet-guest-toolchains.md)):** step 2b targets `process` only; WASM guests for C# and F# come later. No supported toolchain makes a core module with only the three `morphir-bytes-v1` imports; NativeAOT-LLVM is experimental and has no macOS arm64 host package. On Linux, the C# and F# guests link only as WASI Preview 2 modules (2.1 MB and 4.1 MB) with about 30 WASI imports, and the closing step fails, so no call ran.
 - **Roslyn in the AOT host.** Check whether a C# frontend built on Roslyn passes the AOT checks. This decides whether a C# frontend can be a built-in in `morphir`.
+  - **Result (2026-11-07, [Roslyn AOT spike](../spikes/extension-model/roslyn-aot.md)):** feasible. With only `Microsoft.CodeAnalysis` and `Microsoft.CodeAnalysis.CSharp` (no Workspaces, emit or analyzer loading), the AOT results equal JIT, with 6 known Roslyn warnings, and one file starts in 21 ms against 380 ms under JIT. It adds about 31 to 38 MB to `morphir`. **Decided 2026-11-07: a C# frontend ships as an optional extension for now, not as a built-in**, so users who do not use C# do not pay the size. The spike shows it can become an AOT built-in later.
 
 ### Step 2a: WASM analyzers
 
@@ -241,6 +245,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 - Analyzer diagnostics merge with the built-in diagnostics. An `error` fails the run, as the pipeline rules say.
 - The user names the extension in configuration: `extensions.<name>.path`. There is no folder discovery in this step. Configuration layering already covers every level.
 - A sample analyzer in Rust or MoonBit, with an MCK suite.
+- **Reference guest from upstream (noted by the user 2026-11-07).** `finos/morphir-elm` (vnext) publishes `morphir-bytes-v1` WASM releases under `extension/elm/*`; `v0.5.0-preview.2` answers `morphir.extension.describe` with its `release.json` claims under `wasmtime` (see the [WASM runtime spike](../spikes/extension-model/wasm-runtime.md#reference-guest-morphir-elm)). The host tests run it for the session lifecycle (`describe`, `initialize`, `shutdown`, `exit`) and the limits, and later for `compileModel` and `generateModel`. A guest that morphir-dotnet did not write is the best check that the host follows MEP.
 - Depends on: the upstream validate payload, and the WASM runtime spike.
 
 ### Step 2b: Process analyzers
@@ -248,6 +253,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 - The host client from `Morphir.Mep` grows from `compileModel` to the validator methods.
 - A .NET guest SDK for C# and F# authors. It hides framing, the handshake and dispatch.
 - Sample analyzers in C# and in F#, packaged as framework-dependent dotnet tools, with an MCK suite.
+- **Reference guest from upstream.** `finos/morphir-elm` publishes `process` builds of the same extension under `extension/elm/*` (to `v0.4.1`) and `extension/elm-classic/*`, for each platform. The process host tests run them for the session lifecycle and model transport, in the same way as the WASM reference guest.
 - The user names the extension in configuration: `extensions.<name>.command` and `args`.
 - Depends on: step 1 and the upstream validate payload.
 
@@ -284,13 +290,13 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 | Feature | Status | Step | Completion evidence |
 | --- | --- | --- | --- |
 | Extension registry and built-in list | Landed in [#503](https://github.com/finos/morphir-dotnet/pull/503); `add-extension-registry` archived, spec `extension-registry` | 0 | `morphir extension list` shows built-ins in both hosts; MCK suite still to come |
-| JSON-RPC spike | Planned | 1 | AOT warning count and size for each candidate; decision recorded |
+| JSON-RPC spike | Done: own layer ([report](../spikes/extension-model/jsonrpc.md)) | 1 | AOT warning count and size for each candidate; decision recorded |
 | MEP core (`Morphir.Mep`) | Planned in `add-fsharp-compile` | 1 | That change's tasks |
 | In-process validator contract | Planned | 1 | `TypeValidator` diagnostics through the contract |
 | Upstream validate payload | Not started | 1 | Upstream draft PR by morphir-dotnet; pinned commit; published contract version |
-| WASM runtime spike | Planned | Spike | Decision recorded with measurements |
-| .NET guest toolchain spike | Planned | Spike | Decision recorded |
-| Roslyn AOT spike | Planned | Spike | Decision recorded |
+| WASM runtime spike | Done: Wasmtime ([report](../spikes/extension-model/wasm-runtime.md)) | Spike | Decision recorded with measurements |
+| .NET guest toolchain spike | Done: `process` only; Linux run confirms ([report](../spikes/extension-model/dotnet-guest-toolchains.md)) | Spike | Decision recorded |
+| Roslyn AOT spike | Done: feasible; ships as an optional extension for now ([report](../spikes/extension-model/roslyn-aot.md)) | Spike | Decision recorded |
 | WASM analyzers | Planned | 2a | MCK suite passes in both hosts |
 | Process analyzers and .NET guest SDK | Planned | 2b | C# and F# samples pass the MCK suite in both hosts |
 | Installation, levels and staged folders | Planned | 3 | MCK suite; an upstream CLI reads a global install; level files documented as a superset |
@@ -316,6 +322,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 | A project lock that refers to a staged file | Step 3 design | A second machine has no repository to get the bytes from. Options include a vendored folder in the repository or a required publish step. |
 | Auto-install of files from a cloned repository | Step 3 design | With `auto`, cloning a repository that has `staged/` files and running a command installs them. The WASM limits reduce the risk. A process guest has no sandbox. The step 3 design must decide whether `auto` applies to process guests. |
 | The validate payload shape | morphir-dotnet proposes, upstream accepts | Step 2 can build against the draft PR. |
+| Memory limit report | Step 2a design | Wasmtime refuses growth past the ceiling by returning -1 from `memory.grow`, so the guest may not trap. The host needs a rule for when it reports `extension.memory_limit`. |
 | A file name suffix for the extension package archive | Upstream proposal | A plain `.zip` or `.tgz` is ambiguous, because the target archives use the same suffixes. Install tells them apart by the descriptor at the root. Suffixes such as `.morphir-extension.zip` and `.morphir-extension.tar.gz` would make the format clear to users. |
 | Signing of the extension package archive | Upstream | The `.sha256` files prove integrity, not origin. This follows the "Extension signing" item in [Later](#later). |
 
@@ -349,6 +356,8 @@ Upstream release assets (read 2026-11-07):
 
 - `finos/morphir-extensions` release `extension/avro/v0.4.0`: loose `.release.json`, `.wasm` and `.sha256` assets.
 - `finos/morphir-elm` release `extension/elm-classic/v0.6.0`: one `.tgz` or `.zip` for each target, each holding only the executable, with `.sha256` assets and a separate descriptor.
+
+Spikes (2026-11-07; probes built and run under Native AOT on osx-arm64; sources in `spikes/extension-model/`): [JSON-RPC](../spikes/extension-model/jsonrpc.md), [WASM runtime](../spikes/extension-model/wasm-runtime.md), [.NET guest toolchains](../spikes/extension-model/dotnet-guest-toolchains.md), [Roslyn under AOT](../spikes/extension-model/roslyn-aot.md).
 
 JSON-RPC research (2026-11-06; sources and code read, nothing built under AOT):
 

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Wasmtime probe as a portable (any RID) framework-dependent dotnet tool. -->
+  <PropertyGroup>
+    <RuntimeIdentifier></RuntimeIdentifier>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>probe-portable</ToolCommandName>
+    <PackageId>Spike.WasmProbe.Portable</PackageId>
+    <Version>0.0.1</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../WasmtimeProbe/Program.cs" Link="Program.cs" />
+    <PackageReference Include="Wasmtime" Version="50.0.1" />
+  </ItemGroup>
+</Project>
