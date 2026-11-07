@@ -193,6 +193,10 @@ let tests =
                     "/work",
                     [ "../shared/Common.fs" ],
                     SourceSelectionFailure.NotPortable "../shared/Common.fs"
+                    "/work",
+                    [ "C:/outside/A.fs" ],
+                    SourceSelectionFailure.NotPortable "C:/outside/A.fs"
+                    "/work", [ "src/C:A.fs" ], SourceSelectionFailure.NotPortable "src/C:A.fs"
                     "/work", [ "A.fs"; "A.fs" ], SourceSelectionFailure.Repeated "A.fs"
                 ] do
                 test $"refuses {failure}" {

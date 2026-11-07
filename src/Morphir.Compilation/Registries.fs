@@ -290,6 +290,7 @@ type SourceSelection =
         let portable (path: string) =
             path.Length > 0
             && not (path.Contains '\\')
+            && not (path.Contains ':')
             && not (path.StartsWith '/')
             && path.Split '/'
                |> Array.forall (fun segment ->

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using Morphir.TestSupport;
 using Morphir.Testing;
 using Morphir.Tooling.Tests.Integration.CLI;
 
@@ -108,7 +109,7 @@ public sealed class GenerateSteps : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_directory)) Directory.Delete(_directory, true);
+        TolerantDirectory.TryDelete(_directory);
     }
 
     internal static string RepositoryRoot()

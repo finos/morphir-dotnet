@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using Morphir.TestSupport;
 using Morphir.Tooling.Tests.Integration.CLI;
 
 namespace Morphir.Tooling.Tests.Features.Compile;
@@ -217,6 +218,6 @@ public sealed class CompileSteps : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_project)) Directory.Delete(_project, true);
+        TolerantDirectory.TryDelete(_project);
     }
 }
