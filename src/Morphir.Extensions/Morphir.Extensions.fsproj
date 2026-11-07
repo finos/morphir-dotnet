@@ -31,6 +31,8 @@ Parsed extension identities, capability claims and the extension catalog for mor
         <Compile Include="Text.fs" />
         <Compile Include="Identifiers.fs" />
         <Compile Include="TextValues.fs" />
+        <Compile Include="FormatVersions.fs" />
+        <Compile Include="Registry.fs" />
     </ItemGroup>
 
 </Project>

@@ -61,6 +61,14 @@ let display (field: string) (limit: int) (text: string | null) : Result<string, 
         | Some index -> Error(ParseFailure.InvalidCharacter(field, index))
         | None -> Ok value
 
+/// The detail text of a SemVer parse error.
+let versionError (error: Morphir.IR.Versioning.ParseError) =
+    match error with
+    | Morphir.IR.Versioning.ParseError.InvalidFormat message
+    | Morphir.IR.Versioning.ParseError.InvalidVersionNumber message
+    | Morphir.IR.Versioning.ParseError.InvalidPreReleaseFormat message
+    | Morphir.IR.Versioning.ParseError.InvalidBuildMetadataFormat message -> message
+
 /// The message of a refused literal in source code.
 let refusedLiteral (field: string) (literal: string) (failure: ParseFailure) =
     $"Invalid {field} literal '{literal}': {failure}"

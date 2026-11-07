@@ -17,6 +17,9 @@ type SourceFormatVersion =
     /// The parsed numeric or semantic version.
     member this.Version = this.Parsed
 
+    /// The exact declaration. The default record text would format through reflection.
+    override this.ToString() = this.Declared
+
 /// Source-version construction does not decide which versions a codec or backend supports.
 [<RequireQualifiedAccess>]
 module SourceFormatVersion =

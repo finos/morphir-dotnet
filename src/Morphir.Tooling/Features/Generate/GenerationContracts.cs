@@ -122,23 +122,6 @@ public sealed record ModelDescriptor(SourceFormatVersion Version, ModelFamily Fa
 
 public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descriptor, ModelRepresentation Representation, RetainedInput Original);
 
-/// <summary>Builds the IR versions that a backend declares, from literals in source code.</summary>
-public static class SourceFormatVersions
-{
-    /// <summary>
-    /// The parsed versions, in their declared spelling (<c>3</c> and <c>3.0.0</c> stay distinct).
-    /// Throws <see cref="ArgumentException"/> for a literal that is not a format version; a unit test calls each literal.
-    /// </summary>
-    public static NonEmptySet<SourceFormatVersion> Create(string first, params string[] rest) =>
-        NonEmptySet<SourceFormatVersion>.Create(Parse(first), rest.Select(Parse).ToArray());
-
-    private static SourceFormatVersion Parse(string literal)
-    {
-        var parsed = SourceFormatVersionModule.parse(literal);
-        return parsed.IsOk ? parsed.ResultValue : throw new ArgumentException($"Invalid format version literal '{literal}'.", nameof(literal));
-    }
-}
-
 public sealed record BackendCapability(ModelFamily Family, NonEmptySet<SourceFormatVersion> Versions, DistributionKind Kind)
 {
     /// <summary>True when the backend declares the model's family, kind and exact declared version.</summary>

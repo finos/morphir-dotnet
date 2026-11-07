@@ -48,6 +48,8 @@ Every F# project that C# references sets:
 - Use tupled parameters on members. Never put an F# function type (`'a -> 'b`) in a C# parameter or return type. Use `Func<...>` or `Action<...>`.
 - Put the code in a `namespace`, not in a top-level module, and use `[<RequireQualifiedAccess>]` on unions and modules.
 - Return `Task<T>` or `ValueTask<T>` and take a `CancellationToken`. Never return `Async<'T>` to C#.
+- C# cannot use `with` on an F# record. Where C# must change one field, give the record a `With...` member (for example `WithHosts`).
+- In C#, `==` and `!=` on an F# union or record compare references, because F# defines no C# equality operators. Compare with `Equals`.
 
 ### 4. Nullness
 
@@ -86,7 +88,7 @@ Use this list when you review a diff that crosses the boundary. Report each fail
 - [ ] Rule 1: the F# project sets nullness, warnings as errors, trim and AOT properties.
 - [ ] Rule 2: no public constructor or public case on a type with an invariant; no `[<Struct>]` parsed value; `Create` literals are tested.
 - [ ] Rule 2: no `string`, C# `enum` or flag on the surface where a parsed type or union belongs.
-- [ ] Rule 3: no F# function type, curried member or `Async<'T>` on the C# surface.
+- [ ] Rule 3: no F# function type, curried member or `Async<'T>` on the C# surface; C# compares F# values with `Equals`, never `==` or `!=`.
 - [ ] Rule 4: no `option` on the C# surface; `TryParse` uses `MaybeNullWhen` on non-nullable `out` types, never `byref<T | null>`; external text enters as `string | null`.
 - [ ] Rule 5: C# code does not switch on `Tag`, `IsX` or F# case types; `Match` or an F# function is used instead.
 - [ ] Rule 6: no F# `list`, `Set` or `Map` on the C# surface.

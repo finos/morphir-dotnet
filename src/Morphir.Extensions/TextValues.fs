@@ -181,15 +181,7 @@ type ReleaseVersion =
                 Ok(ReleaseVersion version)
             | Ok _ ->
                 Error(ParseFailure.InvalidVersion(field, $"'{value}' is not in canonical form"))
-            | Error error ->
-                let detail =
-                    match error with
-                    | Versioning.ParseError.InvalidFormat message
-                    | Versioning.ParseError.InvalidVersionNumber message
-                    | Versioning.ParseError.InvalidPreReleaseFormat message
-                    | Versioning.ParseError.InvalidBuildMetadataFormat message -> message
-
-                Error(ParseFailure.InvalidVersion(field, detail))
+            | Error error -> Error(ParseFailure.InvalidVersion(field, Text.versionError error))
 
     /// <summary>Parses untrusted text. For C# callers.</summary>
     static member TryParse

@@ -62,8 +62,8 @@ public sealed class CSharpGenerationBackendTests
         descriptor.Target.Value.Should().Be("csharp");
         descriptor.SupportedSemantics.Should().BeEmpty();
         descriptor.Capabilities.Should().HaveCount(2);
-        descriptor.Capabilities.Single(x => x.Family.IsClassic).Versions.Select(version => version.Text).Should().BeEquivalentTo("1", "2", "3", "3.0.0", "3.1.0");
-        descriptor.Capabilities.Single(x => x.Family.IsV4).Versions.Select(version => version.Text).Should().BeEquivalentTo("4", "4.0.0");
+        descriptor.Capabilities.Single(x => x.Family.Equals(ModelFamily.Classic)).Versions.Select(version => version.Text).Should().BeEquivalentTo("1", "2", "3", "3.0.0", "3.1.0");
+        descriptor.Capabilities.Single(x => x.Family.Equals(ModelFamily.V4)).Versions.Select(version => version.Text).Should().BeEquivalentTo("4", "4.0.0");
         descriptor.Capabilities.Should().OnlyContain(x => x.Kind.IsLibrary);
     }
 
