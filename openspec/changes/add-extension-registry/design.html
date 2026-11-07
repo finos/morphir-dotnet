@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-extension-registry: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .box { fill: var(--panel); stroke: var(--line); }
+svg .arrow { stroke: var(--muted); fill: none; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-extension-registry: design</h1>
+<p class="meta">OpenSpec change | 2026-11-07 | Proposed | Step 0 of the <a href="../../../docs/content/contributing/design/prds/morphir-extension-model.md">Morphir extension model PRD</a></p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the reason. The requirements are in <a href="specs/extension-registry/spec.md">specs/extension-registry/spec.md</a>. The current state:</p>
+<ul>
+<li><strong>One composition, two hosts.</strong> <code>src/Morphir/Program.cs</code> builds the CLI with <code>MorphirCli.CreateBuilder(...).AddScenario&lt;...&gt;()</code>. <code>dotnet-morphir</code> (<code>src/Morphir.Tool/Program.cs</code>) calls <code>Morphir.Program.Main(args)</code>, so the two hosts cannot tell themselves apart today. <code>VersionInfo</code> is <code>internal</code> to each entry assembly, so <code>Morphir.Tooling</code> cannot read the host version.</li>
+<li><strong>Backends are already static.</strong> <code>GenerationScenario</code> registers <code>FSharpGenerationBackend</code> and <code>CSharpGenerationBackend</code> as <code>IGenerationBackend</code> through <code>TryAddEnumerable</code>. Each has a <code>BackendDescriptor</code> with <code>Identity</code> (<code>morphir.csharp</code>, <code>morphir.fsharp</code>), <code>Target</code> and per-family <code>BackendCapability</code> version sets. <code>RegisteredBackendResolver</code> selects from the same set.</li>
+<li><strong>The <code>extension</code> command is static.</strong> <code>ManagementScenario.CreateExtensionCommand()</code> builds it with no service provider. <code>HandleExtensionList</code> prints two fixed lines. The records in <code>Features/Management/ExtensionCommands.cs</code> and <code>ExtensionHandlers.HandleList</code> have no callers.</li>
+<li><strong>Hosted commands exist.</strong> <code>MorphirCliBuilder.AddCommand(Func&lt;IServiceProvider, Command&gt;)</code> builds a command after the container is built. <code>GenerateCommand</code> uses it.</li>
+<li><strong>MEP shape.</strong> The MEP contract (<code>spec/mep/contract/src/mep.gleam</code> in <code>finos/morphir</code>, <code>0.2.0-draft.1</code>) defines <code>ExtensionInfo { id, name, version, description?, types, author?, homepage?, license?, min_sdk_version? }</code>, <code>ExtensionType</code> with the wire values <code>frontend</code>, <code>backend</code>, <code>transform</code>, <code>validator</code>, <code>workspace</code>, and <code>BackendCapability { targets, ir_versions, generate }</code>.</li>
+<li><strong>Constraints.</strong> The <code>morphir</code> executable is Native AOT and trimmed. No reflection-based discovery, no assembly loading. JSON uses source-generated contexts. Stdout carries command output only.</li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> one registry type that the later PRD steps extend (configured extensions in step 2, installed extensions in step 3) without a change to its shape; one source of truth for generator identity, shared with <code>generate</code>; a host identity that both hosts set explicitly.</p>
+<p><strong>Non-goals:</strong> the selection rule; changes to <code>RegisteredBackendResolver</code>; MEP wire types or JSON-RPC; any external runtime; registration of the pipeline plugins (<a href="#plg-1">PLG-1</a>).</p>
+
+<svg viewBox="0 0 760 210" role="img" aria-labelledby="flow-title">
+<title id="flow-title">Data flow from host composition to extension list</title>
+<rect class="box" x="10" y="20" width="200" height="50" rx="6"/><text x="22" y="50">Entry point: MorphirHost</text>
+<rect class="box" x="10" y="130" width="200" height="50" rx="6"/><text x="22" y="160">IGenerationBackend (x2)</text>
+<rect class="box" x="270" y="75" width="200" height="60" rx="6"/><text x="282" y="100">IExtensionSource</text><text x="282" y="120">(backend adapter, …)</text>
+<rect class="box" x="530" y="20" width="220" height="50" rx="6"/><text x="542" y="50">ExtensionRegistry</text>
+<rect class="box" x="530" y="130" width="220" height="50" rx="6"/><text x="542" y="160">extension list (text | JSON)</text>
+<path class="arrow" d="M210 155 L270 115"/><path class="arrow" d="M470 100 L530 50"/>
+<path class="arrow" d="M210 45 L530 45"/><path class="arrow" d="M640 70 L640 130"/>
+</svg>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="reg-1">REG-1. Own registry types in the shape of MEP, mapped to <code>Morphir.Mep</code> later</h3>
+<p>Add types in <code>src/Morphir.Tooling/Features/Extensions/</code>:</p>
+<pre><code class="language-csharp">public enum ExtensionType { Frontend, Backend, Transform, Validator, Workspace }   // MEP wire values, lower case
+public enum ExtensionDelivery { BuiltIn }                                          // more values in later steps
+public enum MorphirHostKind { Native, DotnetTool }                                 // "morphir", "dotnet-morphir"
+
+public sealed record ExtensionIdentity(string Id, string Name, string Version, string? Description,
+    ImmutableArray&lt;ExtensionType&gt; Types);                                         // MEP ExtensionInfo subset
+
+public sealed record BackendClaim(ImmutableArray&lt;string&gt; Targets, ImmutableArray&lt;string&gt; IrVersions, bool Generate);
+public sealed record ExtensionClaims(BackendClaim? Backend);                       // other claims in later steps
+
+public sealed record ExtensionEntry(ExtensionIdentity Identity, ExtensionDelivery Delivery,
+    ImmutableHashSet&lt;MorphirHostKind&gt; Hosts, ExtensionClaims Claims);</code></pre>
+<p>The identity holds only the MEP members that a built-in fills now. <code>author</code>, <code>homepage</code>, <code>license</code> and <code>min_sdk_version</code> come when a step needs them. Delivery, hosts and availability are morphir-dotnet additions. They are not MEP members and never go on the MEP wire.</p>
+<p>When <code>Morphir.Mep</code> lands (PR #495), add one mapping function from <code>ExtensionIdentity</code> and <code>ExtensionClaims</code> to the MEP <code>ExtensionInfo</code> and <code>ExtensionCapabilities</code>. Do not replace the registry types: they carry the additions.</p>
+<p><em>Alternatives:</em> wait for <code>Morphir.Mep</code> (blocks step 0 on PR #495, which the PRD rules out); use the MEP types directly when they land (they cannot carry delivery and hosts); reuse <code>Features/Management.ExtensionInfo</code> (it models installed versions per platform, not identity).</p>
+
+<h3 id="reg-2">REG-2. Static registration through <code>IExtensionSource</code></h3>
+<p>Each source gives entries. The container holds them through <code>TryAddEnumerable</code>:</p>
+<pre><code class="language-csharp">public interface IExtensionSource { IEnumerable&lt;ExtensionEntry&gt; Entries { get; } }
+
+public sealed class ExtensionRegistry(IEnumerable&lt;IExtensionSource&gt; sources, MorphirHost host)
+{
+    public Outcome&lt;ExtensionCatalog&gt; Read();   // all entries, ordinal sort by id, unique ids
+}
+public sealed record ExtensionCatalog(MorphirHost Host, ImmutableArray&lt;ExtensionEntry&gt; Entries);</code></pre>
+<p><code>Read</code> returns a failure with code <code>extension.duplicate_id</code> that names each duplicate id. The command maps that failure to exit code 2. <code>available</code> in the report is <code>entry.Hosts.Contains(host.Kind)</code>.</p>
+<p><em>Alternatives:</em> assembly scanning or MEF (not AOT-safe, and the PRD forbids it); attributes plus a source generator (more machinery than two built-ins need; can come later without a change to <code>IExtensionSource</code>); a static list in <code>Program.cs</code> (drifts from the backend registrations).</p>
+
+<h3 id="reg-3">REG-3. Backend entries come from the registered backends</h3>
+<p><code>BackendExtensionSource</code> takes <code>IEnumerable&lt;IGenerationBackend&gt;</code> and makes one entry for each backend: id from <code>Descriptor.Identity</code>, type <code>backend</code>, delivery <code>built-in</code>, both hosts, version from <code>MorphirHost.Version</code>, and <code>BackendClaim([Target], versions, true)</code>. The IR versions are the union of the version strings of the descriptor's capabilities, in ordinal order, exactly as the backend declares them (for example <code>3</code> and <code>3.0.0</code> both appear). They are not normalized.</p>
+<p>Add two optional <code>init</code> properties to <code>BackendDescriptor</code>: <code>Name</code> (default: the identity) and <code>Description</code> (default: none). The two backends set <code>"C# generator"</code> and <code>"F# generator"</code>. This keeps one source of truth, so the spec requirement "the list agrees with generation" holds by construction, and a test checks it.</p>
+<p><em>Alternative:</em> a separate built-in table with names and ids (two lists to keep in step).</p>
+
+<h3 id="host-1">HOST-1. Each entry point states its host</h3>
+<pre><code class="language-csharp">public sealed record MorphirHost(MorphirHostKind Kind, string Version)
+{
+    public string CommandName =&gt; Kind switch { MorphirHostKind.Native =&gt; "morphir", MorphirHostKind.DotnetTool =&gt; "dotnet-morphir",
+        _ =&gt; throw new ArgumentOutOfRangeException(nameof(Kind)) };
+}
+
+// src/Morphir/Program.cs
+public static int Main(string[] args) =&gt; Run(args, new MorphirHost(MorphirHostKind.Native, VersionInfo.Version));
+public static int Run(string[] args, MorphirHost host) { /* existing body; registers host as a singleton */ }
+
+// src/Morphir.Tool/Program.cs
+private static int Main(string[] args) =&gt; Morphir.Program.Run(args, new(MorphirHostKind.DotnetTool, VersionInfo.Version));</code></pre>
+<p>If PR #495 has landed when this change is applied, add the host to its <code>CreateApp(string[] args, Action&lt;MorphirCliBuilder&gt; extend)</code> seam instead of adding <code>Run</code>. The behavior is the same. <code>--version</code> stays as it is.</p>
+<p><em>Alternatives:</em> read <code>RuntimeFeature.IsDynamicCodeSupported</code> (true for a JIT test run of the <code>morphir</code> project, so it reports the wrong host); read the process name (it is <code>dotnet</code> when the tool runs as <code>dotnet dotnet-morphir.dll</code>).</p>
+
+<h3 id="host-2">HOST-2. Entries declare their hosts; availability is computed</h3>
+<p>An entry lists the hosts it runs in. A host lists every entry it knows, including entries for the other host only, and marks those as not available. This is what the PRD selection rule needs later: the AOT host can then say "not available in this build" and name the alternative. In this change all real entries have both hosts. A test source registers an entry with only <code>DotnetTool</code> to cover the requirement.</p>
+<p>Rule for later steps: an entry for one host only is declared in shared code (<code>Morphir.Tooling</code>), and only its implementation is bound in that host's composition.</p>
+
+<h3 id="cli-1">CLI-1. <code>extension list</code> becomes a hosted command</h3>
+<p><code>ManagementScenario</code> keeps the static <code>extension</code> command for <code>install</code>, <code>use</code>, <code>remove</code> and <code>which</code>, and adds <code>list</code> to it as a subcommand built from the service provider. If the builder cannot add a hosted subcommand to a static parent, the scenario builds the whole <code>extension</code> command through <code>AddCommand(Func&lt;IServiceProvider, Command&gt;)</code>; the four other subcommands do not change.</p>
+<p><code>ExtensionListCommand</code> keeps <code>--platform</code> and <code>--local</code> (they apply to installed extensions, and none exist before PRD step 3) and adds <code>--json</code>. The handler reads the registry and renders:</p>
+<pre><code class="language-console">$ morphir extension list
+ID              NAME           VERSION   TYPES     DELIVERY   HOSTS
+morphir.csharp  C# generator   0.4.0     backend   built-in   morphir, dotnet-morphir
+morphir.fsharp  F# generator   0.4.0     backend   built-in   morphir, dotnet-morphir</code></pre>
+<pre><code class="language-json">{
+  "host": "morphir",
+  "extensions": [
+    {
+      "id": "morphir.csharp",
+      "name": "C# generator",
+      "version": "0.4.0",
+      "types": ["backend"],
+      "delivery": "built-in",
+      "hosts": ["morphir", "dotnet-morphir"],
+      "available": true,
+      "capabilities": {
+        "backend": { "targets": ["csharp"], "irVersions": ["1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0"], "generate": true }
+      }
+    }
+  ]
+}</code></pre>
+<p>The report record and a source-generated <code>ExtensionListJsonContext</code> (camelCase, indented, <code>description</code> left out when null) live beside the command. Enum values are written through explicit string mapping functions, not a reflection-based converter. The member names inside <code>capabilities.backend</code> are the MEP wire names. A failure writes <code>{"host", "extensions": [], "diagnostics": [{"code", "message"}]}</code> with <code>--json</code>, or one line on stderr without it, and exits 2.</p>
+<p><em>Alternative:</em> a new <code>morphir extension info</code> command (the PRD names <code>list</code>; one command is enough).</p>
+
+<h3 id="plg-1">PLG-1. The pipeline plugins are not registered in this change</h3>
+<p>The PRD lists the plugins in <code>src/Morphir.IR.Pipeline.Plugins</code> as first built-ins. They are not registered here, because no CLI command runs them: <code>Morphir.Tooling</code> does not reference that project, and the plugins are a library API (<code>Plugin&lt;'T&gt;</code>) used inside the F# generator. An entry with a <code>validator</code> or <code>transform</code> type that no command can run would be a false capability claim. PRD step 1 registers <code>TypeValidator</code> as a <code>validator</code> entry when the in-process validator contract and its command exist. The PRD is updated with this decision when this change is approved.</p>
+
+<h3 id="cln-1">CLN-1. Remove the unused list records</h3>
+<p>Remove <code>ExtensionList</code>, <code>ExtensionListResult</code>, <code>ExtensionInfo</code> and <code>ExtensionHandlers.HandleList</code> from <code>Features/Management/</code>. They have no callers, and <code>ExtensionInfo</code> would be confused with the MEP record. The install, use, remove and which records stay until PRD step 3.</p>
+
+<h3 id="tst-1">TST-1. Tests in both hosts</h3>
+<ul>
+<li>Unit tests (<code>tests/Morphir.Tooling.Tests/Features/Extensions/</code>): backend adapter mapping, sort order, duplicate ids, availability for a one-host entry, report JSON round trip, text rows.</li>
+<li>Agreement test: every backend target in the registry resolves through <code>RegisteredBackendResolver</code> for at least one declared model, and every registered backend has an entry.</li>
+<li>Executable tests (<code>tests/Morphir.E2E.Tests</code>): a feature that runs <code>extension list --json</code> and parses stdout. Today the locator finds only the <code>morphir</code> executable. Add a <code>tool</code> executable type that runs the built <code>dotnet-morphir</code>, and run the feature for both. Compare the shared entries of the two results.</li>
+<li>The AOT publish keeps zero new trim and AOT warnings.</li>
+</ul>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>PR #495 changes <code>Morphir.Program</code> at the same time (<code>CreateApp</code>).</td><td><a href="#host-1">HOST-1</a> names both paths. The change is a few lines in each entry point, and the rebase is small.</td></tr>
+<tr><td>The registry types drift from MEP when <code>Morphir.Mep</code> lands.</td><td>The types copy MEP names and wire values. One mapping function and a test that maps every <code>ExtensionType</code> value come with <code>Morphir.Mep</code>.</td></tr>
+<tr><td>Scripts that read the old stub text ("No extensions installed.") break.</td><td>The stub never listed anything. Record the output change in the release notes and the CLI documentation.</td></tr>
+<tr><td>The IR version list shows both <code>3</code> and <code>3.0.0</code>.</td><td>This is what the backends declare, and the spec says "as declared". Normalizing belongs to the version work (<code>Versioning.FormatVersion</code>), not to this change.</td></tr>
+<tr><td>The E2E run of <code>dotnet-morphir</code> needs the tool build in CI.</td><td>Use the build output of <code>Morphir.Tool</code> (<code>dotnet dotnet-morphir.dll</code>), not a packed tool install.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<p>No data migration. The change is additive apart from the <code>extension list</code> output, which was a stub. Rollback: revert the change.</p>
+
+</main>
+</body>
+</html>
