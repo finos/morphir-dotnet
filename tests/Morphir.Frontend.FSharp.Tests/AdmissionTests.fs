@@ -118,6 +118,12 @@ let tests =
                     "an array type",
                     [ "let size (values: int[]) = 0" ],
                     [ "fsharp.unsupported_array" ]
+                    "an array type in postfix form",
+                    [ "let size (values: int array) = 0" ],
+                    [ "fsharp.unsupported_array" ]
+                    "an array type in generic form",
+                    [ "let size (values: array<int>) = 0" ],
+                    [ "fsharp.unsupported_array" ]
                     "a struct record",
                     [ "[<Struct>]"; "type Point = { X: int }" ],
                     [ "fsharp.unsupported_struct" ]

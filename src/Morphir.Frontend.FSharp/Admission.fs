@@ -160,6 +160,31 @@ module internal Admission =
             | _ -> false
         )
 
+    /// <summary>True when a type name resolves to an array type, also through an abbreviation such as 'array'.</summary>
+    let private isArrayName (context: AdmissionContext) (name: SynLongIdent) =
+        let ranges =
+            name.Range
+            :: (name.LongIdent
+                |> List.tryLast
+                |> Option.map (fun ident -> ident.idRange)
+                |> Option.toList)
+
+        ranges
+        |> List.exists (fun range ->
+            context.SymbolsAt range
+            |> List.exists (fun symbolUse ->
+                match symbolUse.Symbol with
+                | :? FSharpEntity as entity ->
+                    entity.IsArrayType
+                    || (entity.IsFSharpAbbreviation
+                        && (let target = entity.AbbreviatedType.StripAbbreviations()
+
+                            target.HasTypeDefinition
+                            && target.TypeDefinition.IsArrayType))
+                | _ -> false
+            )
+        )
+
     let private supportedConstant constant =
         match constant with
         | SynConst.Unit
@@ -508,8 +533,12 @@ module internal Admission =
             (Some "Use a list.")
             (module' [ "let numbers = [| 1; 2 |]" ])
             "[| 1; 2 |]"
-            (Detector.Node(fun _ _ node ->
+            (Detector.Node(fun context _ node ->
                 match node with
+                | SyntaxNode.SynType(SynType.App(typeName = SynType.LongIdent name) as typ) when
+                    isArrayName context name
+                    ->
+                    one typ.Range
                 | SyntaxNode.SynExpr(SynExpr.ArrayOrList(isArray = true) as expression)
                 | SyntaxNode.SynExpr(SynExpr.ArrayOrListComputed(isArray = true) as expression) ->
                     one expression.Range
