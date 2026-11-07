@@ -1,6 +1,18 @@
 Morphir - FINOS
 Copyright 2014 - 2020 Morgan Stanley
 
+F# source frontend and compile steel thread (#499)
+Copyright 2026 FINOS contributors.
+The frontend tracking, conformance probes, tests and documentation are original
+contributions under Apache-2.0. Existing notices and attribution
+remain applicable. Any imported upstream evidence retains its provenance and
+accompanying notices.
+
+Pinned MEP and compile-record evidence is copied from finos/morphir revision
+cde7722eb35987042a49dc646a846d693b0bd7f6. Its FINOS and Morgan Stanley notices
+and Apache-2.0 license are retained in tests/Fixtures/Mep and
+tests/Fixtures/MorphirOut. PROVENANCE.md files record the source paths and hashes.
+
 This product includes software developed at the Fintech Open Source Foundation (https://www.finos.org/).
 This product includes software developed at Morgan Stanley.
 
@@ -141,3 +153,21 @@ This documentation-only contribution synchronizes both landed C# CLI capability
 deltas, archives the completed change, repairs links and records delivery status.
 It adds no third-party source, license or restriction. Existing notices,
 attribution and original-byte evidence remain applicable and are retained.
+
+Portable F# frontend conformance seed (#499)
+
+Copyright 2026 FINOS contributors.
+
+This contribution adds hand-authored Gherkin cases, the seed step vocabulary,
+case validation, matrix planning, structural comparisons and deterministic
+reports in Morphir.Conformance, with in-process adapter and Native AOT tests.
+The official Gherkin parser is consumed as the MIT-licensed Gherkin 35.0.0
+package, already used transitively by Reqnroll. No parser source is copied or
+modified. Existing notices and the pinned fixture provenance remain applicable.
+
+The Windows checkout follow-up preserves pinned fixture bytes and portable
+case-set newlines, with a CRLF manifest regression test. No upstream payload
+or recorded provenance hash is modified.
+
+The conformance matrix follow-up checks every declared scenario, including
+header-only Examples blocks, and adds a regression for omitted scenario variants.

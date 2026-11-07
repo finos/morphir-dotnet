@@ -2,6 +2,7 @@
 
 | PRD | Status | Phase | Current task |
 | --- | --- | --- | --- |
+| [F# source frontend and compile](./fsharp-source-frontend.md) | In Progress | Tracking and acceptance | #499; compile acceptance and native compilation contracts |
 | [C# generation CLI](./integrate-csharp-generation-cli.md) | Implementation landed | Specification archive | #482 squash landed; 9/9 tasks, both deltas synced and archived; archive follow-up landing and coordinator cleanup pending, [#481](https://github.com/finos/morphir-dotnet/issues/481) |
 | [C# code generation](./add-csharp-code-generation.md) | Implementation landed | Archive follow-up | #478 squash landed; 13/13 tasks, spec synced and archive prepared; follow-up landing and coordinator cleanup pending, #474 |
 | [Immutable C# SDK](./add-immutable-csharp-sdk.md) | Implementation and archive landed | Cleanup pending | #470 and archive #472 landed; implementation worktree/artifacts removed; empty archive directory cleanup pending |

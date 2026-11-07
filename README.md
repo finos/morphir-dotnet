@@ -482,6 +482,11 @@ SDK runtime delivery and archival evidence is recorded in the [runtime delivery 
 
 ## OpenSpec change proposals
 
+The [Morphir Compatibility Kit seed](conformance/README.md) contains portable
+F# frontend cases, a closed step vocabulary and the deterministic library runner.
+Its reader/runner tests and Native AOT smoke check are independent of the
+production F# frontend, which is still being implemented.
+
 This repository uses the shared `html-design` OpenSpec workflow. New proposals
 produce capability specs, a standalone `design.html`, and implementation tasks.
 See [the OpenSpec guide](docs/openspec.md) for setup, verification and updates.

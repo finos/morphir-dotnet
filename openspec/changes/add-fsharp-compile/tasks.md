@@ -4,13 +4,13 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
 
 ## 1. Tracking, baseline and acceptance contract
 
-- [ ] 1.1 Open an F# frontend / `morphir compile` epic that links #363 and #368. Add a feature PRD and index entry under `docs/content/contributing/design/prds/`. Verify that the PRD status table separates the tool path, the MEP path and the deferred work, and that `proposal.md` links the new issue.
-- [ ] 1.2 Add pinned upstream fixtures from `finos/morphir@cde7722eb`, each with a `PROVENANCE.md`:
+- [x] 1.1 Open an F# frontend / `morphir compile` epic that links #363 and #368. Add a feature PRD and index entry under `docs/content/contributing/design/prds/`. Verify that the PRD status table separates the tool path, the MEP path and the deferred work, and that `proposal.md` links the new issue.
+- [x] 1.2 Add pinned upstream fixtures from `finos/morphir@cde7722eb`, each with a `PROVENANCE.md`:
   - `tests/Fixtures/Mep/`: `mep.ir.json`, the Smithy transcripts, and `model-transport.cases.json`;
   - `tests/Fixtures/MorphirOut/`: the record examples and `out-directory.md`.
 
   Verify with a test that checks each file's SHA-256 against its provenance entry.
-- [ ] 1.3 Create the first MCK suite (MCK-1) in Gherkin. It has these parts:
+- [x] 1.3 Create the first MCK suite (MCK-1) in Gherkin. It has these parts:
   - the suite directory `conformance/suites/frontend-fsharp/` with one seed feature;
   - the seed step vocabulary `conformance/steps/steps-1.md` and its linter;
   - `conformance/deviations.md`;
