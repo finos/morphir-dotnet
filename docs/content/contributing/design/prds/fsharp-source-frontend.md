@@ -42,7 +42,7 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | --- | --- | --- | --- |
 | Shared foundation | Tracking epic and feature PRD | Implemented | #499 and this document |
 | Shared foundation | Pinned upstream fixtures and SHA-256 provenance | Implemented | Task 1.2; provenance tests observed red, then 2/2 green |
-| Shared foundation | Gherkin MCK seed, vocabulary, linter and deterministic runner | Implemented | Task 1.3; 27 focused tests, 94.39% sequence coverage, native osx-arm64 smoke |
+| Shared foundation | Gherkin MCK seed, vocabulary, linter and deterministic runner | Implemented | Task 1.3; 28 focused tests, 94.39% sequence coverage, native osx-arm64 smoke |
 | Tool path, first delivery | Compile BDD acceptance contract | Planned | Task 1.4 |
 | Tool path, first delivery | Exact versions, checked diagnostics, native builders and writers | Planned | Tasks 2.1–2.6 |
 | Tool path, first delivery | Syntax-led match reconstruction and checked type-evidence proof | Implemented | Revised task 3.1; 34/34 standalone tests, including all eleven original probes |
@@ -138,7 +138,7 @@ that either product milestone is complete.
   stay in the runner. Reports retain exact model text, diagnostic keys, requests,
   exclusions and operational failures, including partial observations and earlier
   warnings. An operational failure does not truncate later cases.
-- Evidence: the focused test project passes 27 tests, including the two fixture
+- Evidence: the focused test project passes 28 tests, including the three fixture
   provenance tests. AltCover measured 94.39% sequence coverage and 73.13% branch
   coverage for `Morphir.Conformance`, without excluding handwritten code.
 - The native osx-arm64 smoke parses the shipped seed and rejects the deliberately
@@ -162,6 +162,20 @@ dotnet publish tests/Morphir.Conformance.Smoke -c Release -r osx-arm64 -p:Publis
 /tmp/morphir-conformance-aot/Morphir.Conformance.Smoke conformance
 dotnet publish src/Morphir/Morphir.csproj -c Release -r osx-arm64 -p:PublishAot=true -p:TrimmerSingleWarn=false -o /tmp/morphir-existing-aot-baseline
 ```
+
+### Windows checkout provenance, 2026-11-07
+
+- Windows CI exposed CRLF-sensitive manifest parsing. The new regression first
+  reproduced the empty-entry result and now verifies identical LF/CRLF parsing.
+- Git attributes preserve original MEP/out-directory fixture bytes and enforce LF
+  for the portable case set. Fixture payloads and recorded hashes are unchanged.
+- A disposable Git index/checkout with `core.autocrlf=true` reproduced byte changes
+  before the fix and now preserves every pinned hash and case-set artifact byte.
+  The original committed fixture blobs were also verified against their manifests.
+- The focused project now passes 28 tests. The full Release test target, including
+  package checks, passed in 5m27s; lint and explicit Fantomas checks also passed.
+  The cancelled Linux/macOS jobs were matrix fail-fast cancellations after the
+  Windows provenance failure.
 
 ## Open questions
 

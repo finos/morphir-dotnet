@@ -164,3 +164,7 @@ reports in Morphir.Conformance, with in-process adapter and Native AOT tests.
 The official Gherkin parser is consumed as the MIT-licensed Gherkin 35.0.0
 package, already used transitively by Reqnroll. No parser source is copied or
 modified. Existing notices and the pinned fixture provenance remain applicable.
+
+The Windows checkout follow-up preserves pinned fixture bytes and portable
+case-set newlines, with a CRLF manifest regression test. No upstream payload
+or recorded provenance hash is modified.

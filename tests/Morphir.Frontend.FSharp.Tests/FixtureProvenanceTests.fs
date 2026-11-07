@@ -6,16 +6,18 @@ open System.Security.Cryptography
 open System.Text.RegularExpressions
 open Expecto
 
+let private parseEntries provenance =
+    Regex.Matches(provenance, @"(?m)^\| `([^`]+)` \| `[^`]+` \| `([0-9a-f]{64})` \|\r?$")
+    |> Seq.map (fun entry -> entry.Groups[1].Value, entry.Groups[2].Value)
+    |> Map.ofSeq
+
 let private verify directory =
     let root =
         Path.GetFullPath(Path.Combine(__SOURCE_DIRECTORY__, "..", "Fixtures", directory))
 
     let provenance = File.ReadAllText(Path.Combine(root, "PROVENANCE.md"))
 
-    let entries =
-        Regex.Matches(provenance, @"(?m)^\| `([^`]+)` \| `[^`]+` \| `([0-9a-f]{64})` \|$")
-        |> Seq.map (fun entry -> entry.Groups[1].Value, entry.Groups[2].Value)
-        |> Map.ofSeq
+    let entries = parseEntries provenance
 
     Expect.isGreaterThan entries.Count 0 "The provenance table must name the imported files"
 
@@ -45,4 +47,28 @@ let tests =
     testList "Pinned frontend inputs" [
         testCase "MEP bytes match their upstream provenance" (fun () -> verify "Mep")
         testCase "Compile records match their upstream provenance" (fun () -> verify "MorphirOut")
+        testCase
+            "CRLF and LF provenance manifests identify the same pinned files"
+            (fun () ->
+                let manifest =
+                    File
+                        .ReadAllText(
+                            Path.Combine(
+                                __SOURCE_DIRECTORY__,
+                                "..",
+                                "Fixtures",
+                                "Mep",
+                                "PROVENANCE.md"
+                            )
+                        )
+                        .Replace("\r\n", "\n")
+
+                let expected = parseEntries manifest
+                Expect.isGreaterThan expected.Count 0 "The checked-in manifest has entries"
+
+                Expect.equal
+                    (parseEntries (manifest.Replace("\n", "\r\n")))
+                    expected
+                    "Checkout newline style must not affect manifest parsing"
+            )
     ]
