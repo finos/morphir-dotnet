@@ -133,18 +133,14 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
 - [ ] 6.3 Add the MCK `cli` adapter. It drives any `morphir` executable through `compile --json-lines`, the compile record and the written IR. Verify it against `dotnet-morphir`, and with a scripted fake executable that checks that the adapter depends only on documented CLI behavior.
 - [ ] 6.4 Run the complete suite through the `library` and `cli` adapters (`dotnet-morphir compile` and `compile --target`) for IR versions `1` to `4` and every input kind. Verify that every kit verdict and every morphir-dotnet check passes, except MEP parity, which is still to come. Store the verdict report as viability evidence in the PRD, and mark the tool-path milestone complete there.
 
-## 7. MEP 0.2.0-draft.1 codec, envelope and session core (mep-frontend-sessions)
+## 7. MEP 0.2.0-draft.1 frontend types on the shared core (mep-frontend-sessions)
 
-- [ ] 7.1 Create `src/Morphir.Mep` (AOT-compatible) with the `0.2.0-draft.1` DTOs, the source-generated JSON context and the upstream absent-versus-empty rules. Verify a round-trip test of every message shape in the pinned `mep.ir.json`, transcripts and `model-transport.cases.json`, and an AOT publish of a test app with no new warnings.
-- [ ] 7.2 Implement Content-Length framing and JSON-RPC envelopes, with request ids (u64 or string) echoed exactly. Verify the framing tests: frame limits, partial reads, Unicode and empty-string ids, and malformed headers.
-- [ ] 7.3 Implement `MorphirModel` admission and creation (MEP-2), plus the context-digest construction. Verify against the pinned model-transport cases:
-  - each bound separately;
-  - non-canonical base64;
-  - length and digest mismatch;
-  - envelope and IR version mismatch;
-  - unknown critical paths;
-  - deterministic `revision`.
-- [ ] 7.4 Implement tuple negotiation (host order, bilateral minimum limits, empty agreement giving `extension.tuple_unavailable`) and the pure session state machine. Verify with replay of the model-transport, `lifecycle-violations.md` and `protocol-errors.md` transcripts, and the Ion-only-offer and legacy-only-host scenarios.
+The shared MEP core comes from the `add-mep-core` change (extension model step 1): `src/Morphir.Mep` in F#, with JSON converters from the Myriad JSON generator (`add-myriad-json-codecs`), the JSON-RPC layer, `Content-Length` framing, the session state machine, tuple negotiation and `MorphirModel` creation and admission. This group adds only what is special to frontends, on top of that core. Do not start it before the core lands.
+
+- [ ] 7.1 Add the annotated `compileModel` types to `Morphir.Mep` (`CompileModelRequest`, `CompileModelResult`, `CompileOptions`, `SourceSet`, `SourceDocument`, `FrontendCapability`, `LanguageCapability` and the compile dependencies), with the upstream absent-versus-empty rules and no `model` member on a failure result. Verify a round-trip test of every compile message in the pinned transcripts and `model-transport.cases.json`, and that the `add-mep-core` contract test covers the new types.
+- [ ] 7.2 Check the shared framing and request-id tests of `add-mep-core` against frontend-sized payloads. Verify a framed `compileModel` round trip near the 64 MiB body limit and one over it.
+- [ ] 7.3 Implement the context-digest construction for `compileModel` requests. Verify the request-context-digest scenario against the pinned model-transport cases.
+- [ ] 7.4 Admit `compileModel` tuples through the shared negotiation. Verify the Ion-only-offer scenario for `compileModel` (`extension.tuple_unavailable`, no request sent) and the host-preference scenario.
 
 ## 8. F# frontend MEP guest
 

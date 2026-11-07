@@ -210,7 +210,7 @@ Each step merges on its own. External runtimes stay behind an experimental flag 
 
 ### Step 1: MEP core for .NET
 
-This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](https://github.com/finos/morphir-dotnet/pull/495) change plans: the MEP `0.2.0-draft.1` types with source-generated JSON, `Content-Length` framing, the session core, the host client and the guest loop. This PRD does not plan a second MEP layer. It adds these items:
+This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](https://github.com/finos/morphir-dotnet/pull/495) change plans: the MEP `0.2.0-draft.1` types with JSON converters from the Myriad generator `Morphir.Myriad.SystemTextJson` (`add-myriad-json-codecs`, decided 2026-11-07: System.Text.Json cannot generate them for F#), `Content-Length` framing, the session core, the host client and the guest loop. This PRD does not plan a second MEP layer. It adds these items:
 
 - **Result (2026-11-07, [JSON-RPC spike](../spikes/extension-model/jsonrpc.md)):** `Morphir.Mep` writes its own minimal JSON-RPC 2.0 layer on System.Text.Json. StreamJsonRpc 2.26 has 10 AOT warnings, adds 2.6 MB and closes the connection on a u64 id above `long.MaxValue`. CurlyRpc 0.9.9 has no warnings but cannot bind a params object with exactly one member, such as `DescribeParams`. Neither dispatches a single message without a connection, which the WASM path needs.
 - **JSON-RPC spike, before `Morphir.Mep` writes its framing and session core.** Publish two small AOT console apps, one with CurlyRpc and one with StreamJsonRpc. Record the IL warnings and the binary size. The research found:
@@ -291,8 +291,9 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 | --- | --- | --- | --- |
 | Extension registry and built-in list | Landed in [#503](https://github.com/finos/morphir-dotnet/pull/503); `add-extension-registry` archived, spec `extension-registry` | 0 | `morphir extension list` shows built-ins in both hosts; MCK suite still to come |
 | JSON-RPC spike | Done: own layer ([report](../spikes/extension-model/jsonrpc.md)) | 1 | AOT warning count and size for each candidate; decision recorded |
-| MEP core (`Morphir.Mep`) | Planned in `add-fsharp-compile` | 1 | That change's tasks |
-| In-process validator contract | Planned | 1 | `TypeValidator` diagnostics through the contract |
+| MEP core (`Morphir.Mep`) | Planned in `add-mep-core` ([#512](https://github.com/finos/morphir-dotnet/issues/512)); `add-fsharp-compile` builds its frontend parts on it | 1 | `add-mep-core` tasks; zero-warning AOT session probe |
+| In-process validator contract and `morphir validate` | Planned in `add-mep-core` | 1 | `morphir.type-validator` diagnostics through `morphir validate` in both hosts |
+| Myriad System.Text.Json generator (`Morphir.Myriad.SystemTextJson`) | Planned in `add-myriad-json-codecs` ([#511](https://github.com/finos/morphir-dotnet/issues/511)); prerequisite of the MEP types | 1 | AOT probe with zero warnings; compatibility corpus; packages on NuGet.org |
 | Upstream validate payload | Not started | 1 | Upstream draft PR by morphir-dotnet; pinned commit; published contract version |
 | WASM runtime spike | Done: Wasmtime ([report](../spikes/extension-model/wasm-runtime.md)) | Spike | Decision recorded with measurements |
 | .NET guest toolchain spike | Done: `process` only; Linux run confirms ([report](../spikes/extension-model/dotnet-guest-toolchains.md)) | Spike | Decision recorded |
