@@ -14,6 +14,13 @@
             "command": "cmd",
             "args": [ "/c", "build.cmd", "--target", "Precommit" ]
          }
+      },
+      {
+         "name": "agent-skill-copies",
+         "command": "dotnet",
+         "args": [ "fsi", "scripts/sync-agent-skills.fsx", "--check" ],
+         "filteringRule": "staged",
+         "include": [ ".agents/skills/**", ".claude/skills/**", ".grok/skills/**", "scripts/sync-agent-skills.fsx" ]
       }
    ]
 }
