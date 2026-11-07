@@ -82,6 +82,9 @@
         <FSharpJsonContext Include="Contexts/Parsed.fs" Name="ParsedJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Parsed" />
         <Compile Include="Contexts/Converters.fs" />
         <FSharpJsonContext Include="Contexts/Converters.fs" Name="ConverterJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Converters" />
+        <Compile Include="Guide/Types.fs" />
+        <FSharpJsonContext Include="Guide/Types.fs" Name="AppJson" Namespace="Guide.Json" Naming="CamelCase" />
+        <Compile Include="Guide/Usage.fs" />
         <Compile Include="Compatibility.fs" />
         <Compile Include="GenerationTests.fs" />
         <Compile Include="ContextTests.fs" />
@@ -94,6 +97,7 @@
         <Compile Include="ParsedTests.fs" />
         <Compile Include="BuildErrorTests.fs" />
         <Compile Include="SnapshotTests.fs" />
+        <Compile Include="GuideTests.fs" />
         <Compile Include="BuildTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
