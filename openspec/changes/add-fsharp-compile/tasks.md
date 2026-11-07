@@ -21,7 +21,7 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
   - the matrix-completeness check fails on a deliberately missing row and passes once the row has a stated reason;
   - two runs give byte-identical reports that hold the case-set SHA-256 and the implementation identity;
   - no feature names an adapter.
-- [ ] 1.4 Add the compile BDD feature files under `tests/Morphir.Tooling.Tests/Features/Compile/`, reusing the generate step definitions. Cover:
+- [x] 1.4 Add the compile BDD feature files under `tests/Morphir.Tooling.Tests/Features/Compile/`, reusing the generate step definitions. Cover:
   - success per IR version, including a pre-release refusal;
   - project-file input;
   - unsupported constructs in JSON mode;

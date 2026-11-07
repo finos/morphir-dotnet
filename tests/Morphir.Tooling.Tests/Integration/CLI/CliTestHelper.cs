@@ -6,6 +6,13 @@ using Morphir.TestSupport;
 
 namespace Morphir.Tooling.Tests.Integration.CLI;
 
+/// <summary>The CLI host that a test runs: the AOT-oriented <c>morphir</c> or the JIT <c>dotnet-morphir</c> tool.</summary>
+public enum CliHost
+{
+    Morphir,
+    DotnetTool
+}
+
 /// <summary>
 /// Helper class for running CLI commands in integration tests
 /// </summary>
@@ -15,7 +22,10 @@ public class CliTestHelper
     private readonly string _testDataDirectory;
     private readonly string? _executablePath;
 
-    public CliTestHelper(string? executablePath = null)
+    public CliTestHelper(string? executablePath = null) : this(executablePath, CliHost.Morphir) { }
+
+    /// <summary>Runs <paramref name="host"/> from source, or <paramref name="executablePath"/> when one is given.</summary>
+    public CliTestHelper(string? executablePath, CliHost host)
     {
         if (executablePath is not null)
         {
@@ -26,7 +36,12 @@ public class CliTestHelper
         var currentDir = Directory.GetCurrentDirectory();
         var repoRoot = FindRepositoryRoot(currentDir);
 
-        _cliProjectPath = Path.Combine(repoRoot, "src", "Morphir", "Morphir.csproj");
+        _cliProjectPath = host switch
+        {
+            CliHost.Morphir => Path.Combine(repoRoot, "src", "Morphir", "Morphir.csproj"),
+            CliHost.DotnetTool => Path.Combine(repoRoot, "src", "Morphir.Tool", "Morphir.Tool.csproj"),
+            _ => throw new ArgumentOutOfRangeException(nameof(host), host, "Unknown CLI host.")
+        };
         _testDataDirectory = Path.Combine(repoRoot, "tests", "Morphir.Tooling.Tests", "TestData");
 
         if (!File.Exists(_cliProjectPath))
