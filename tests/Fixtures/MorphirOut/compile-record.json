@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "task": "compile",
+  "module": "packages/orders",
+  "language": "gleam",
+  "inputs": [],
+  "value": ["morphir-ir"],
+  "ir": {"path": "morphir-ir", "layout": "document-tree", "format": "json", "version": "v4"},
+  "installed": {"/abs/dist": ["morphir-ir/manifest.json", "morphir-ir/Module.json"]},
+  "completedAt": "2026-09-02T10:00:00Z"
+}

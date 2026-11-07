@@ -193,6 +193,7 @@ partial class Build
         var myriadExitCodes = new[]
         {
             "Morphir.TestSupport.Tests",
+            "Morphir.Frontend.FSharp.Tests",
             "Morphir.SDK.Conformance.Tests",
             "Morphir.SDK.CSharp.Tests",
             "Morphir.IR.Pipeline.Plugins.Tests",

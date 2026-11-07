@@ -64,7 +64,7 @@ None. `cli-model-generation` is still owned by the in-flight `add-generate-comma
 
 ## Tracking
 
-- No issue tracks an F# frontend or `morphir compile` yet. Open a frontend epic (with links to [#363](https://github.com/finos/morphir-dotnet/issues/363) and [#368](https://github.com/finos/morphir-dotnet/issues/368)) and a feature PRD before production changes. `tasks.md` records progress.
+- [#499](https://github.com/finos/morphir-dotnet/issues/499) tracks the F# frontend and `morphir compile`, with links to [#363](https://github.com/finos/morphir-dotnet/issues/363) and [#368](https://github.com/finos/morphir-dotnet/issues/368). The [feature PRD](../../../docs/content/contributing/design/prds/fsharp-source-frontend.md) separates tool-path, MEP-path and deferred milestones. `tasks.md` records progress.
 - Upstream contract baseline: `finos/morphir` at `cde7722eb`. This covers:
   - the MEP `0.2.0-draft.1` contract, model transport and transcripts;
   - `docs/cli/compile.md` and `docs/design/out-directory.md`.

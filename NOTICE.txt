@@ -1,6 +1,18 @@
 Morphir - FINOS
 Copyright 2014 - 2020 Morgan Stanley
 
+F# source frontend and compile steel thread (#499)
+Copyright 2026 FINOS contributors.
+The frontend tracking, conformance probes, tests and documentation are original
+contributions under Apache-2.0. Existing notices and attribution
+remain applicable. Any imported upstream evidence retains its provenance and
+accompanying notices.
+
+Pinned MEP and compile-record evidence is copied from finos/morphir revision
+cde7722eb35987042a49dc646a846d693b0bd7f6. Its FINOS and Morgan Stanley notices
+and Apache-2.0 license are retained in tests/Fixtures/Mep and
+tests/Fixtures/MorphirOut. PROVENANCE.md files record the source paths and hashes.
+
 This product includes software developed at the Fintech Open Source Foundation (https://www.finos.org/).
 This product includes software developed at Morgan Stanley.
 
