@@ -43,7 +43,7 @@ Every behavior task follows red/green/refactor: write the failing test first. Ea
 
 ## 6. Integration check
 
-- [ ] 6.1 Run `./build.sh --target Test`, `dotnet format --verify-no-changes`, the AOT checks and the Myriad package tests. Verify that all pass.
+- [x] 6.1 Run `./build.sh --target Test`, `dotnet format --verify-no-changes`, the AOT checks and the Myriad package tests. Verify that all pass.
 
 ## Workflow follow-up
 
