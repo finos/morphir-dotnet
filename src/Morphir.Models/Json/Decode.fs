@@ -29,7 +29,7 @@ module Decode =
     /// </summary>
     let string (element: JsonElement) : Result<string, string> =
         match element.ValueKind with
-        | JsonValueKind.String -> Ok (element.GetString())
+        | JsonValueKind.String -> Ok (nonNull (element.GetString()))
         | _ -> Error $"Expected string, got {element.ValueKind}"
 
     /// <summary>

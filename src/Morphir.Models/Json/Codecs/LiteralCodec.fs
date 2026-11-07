@@ -113,7 +113,7 @@ module LiteralCodec =
             if not (reader.Read()) || reader.TokenType <> JsonTokenType.String then
                 Error "Expected string tag for Literal"
             else
-                let tag = reader.GetString()
+                let tag = nonNull (reader.GetString())
                 let normalizedTag = normalizeTag tag
 
                 // Read value
@@ -132,8 +132,8 @@ module LiteralCodec =
 
                         | "char" ->
                             if reader.TokenType = JsonTokenType.String then
-                                let str = reader.GetString()
-                                if String.IsNullOrEmpty(str) then
+                                let str = nonNull (reader.GetString())
+                                if str.Length = 0 then
                                     Error "CharLiteral value cannot be empty"
                                 elif str.Length > 1 then
                                     Error $"CharLiteral value must be a single character, got '{str}'"
@@ -144,7 +144,7 @@ module LiteralCodec =
 
                         | "string" ->
                             if reader.TokenType = JsonTokenType.String then
-                                Ok (StringLiteral (reader.GetString()))
+                                Ok (StringLiteral (nonNull (reader.GetString())))
                             else
                                 Error $"Expected string value for StringLiteral, got {reader.TokenType}"
 
