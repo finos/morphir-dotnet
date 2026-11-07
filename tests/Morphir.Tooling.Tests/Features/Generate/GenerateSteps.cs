@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using Morphir.TestSupport;
 using Morphir.Testing;
 using Morphir.Tooling.Tests.Integration.CLI;
 
@@ -10,12 +11,14 @@ public sealed class GenerateSteps : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "morphir-generate-" + Guid.NewGuid().ToString("N"));
     private readonly CliTestHelper _cli = new(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI"));
+    private readonly CliRun _run;
     private string _input = "";
     private string _version = "";
     private string _format = "";
-    private CliExecutionResult? _result;
     private string[]? _firstSources;
-    private string Output => Path.Combine(_directory, "output");
+    private string Output => _run.GenerationOutput ?? Path.Combine(_directory, "output");
+
+    public GenerateSteps(CliRun run) => _run = run;
 
     [Given("a daily-rate model at version {string} in {string}")]
     public void Model(string version, string format)
@@ -58,22 +61,15 @@ public sealed class GenerateSteps : IDisposable
         if (omit != "target") arguments.Add("--target fsharp");
         if (omit != "output") arguments.Add($"--output \"{Output}\"");
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        _result = await _cli.ExecuteCommandAsync(string.Join(" ", arguments), timeout.Token);
+        _run.Result = await _cli.ExecuteCommandAsync(string.Join(" ", arguments), timeout.Token);
     }
 
     [Then("generation exits with {int} and one JSON report")]
-    public void Report(int exitCode)
-    {
-        _result.Should().NotBeNull();
-        _result!.ExitCode.Should().Be(exitCode, _result.CombinedOutput);
-        using var json = JsonDocument.Parse(_result.StandardOutput);
-        json.RootElement.GetProperty("success").GetBoolean().Should().Be(exitCode == 0);
-        json.RootElement.GetProperty("diagnostics").ValueKind.Should().Be(JsonValueKind.Array);
-    }
+    public void Report(int exitCode) => _run.ShouldExitWithOneJsonReport(exitCode);
 
     private Tuple<string, string>[] Sources()
     {
-        using var json = JsonDocument.Parse(_result!.StandardOutput);
+        using var json = JsonDocument.Parse(_run.Result!.StandardOutput);
         return json.RootElement.GetProperty("artifacts").EnumerateArray()
             .Select(item => item.GetString()!)
             .Select(path => Tuple.Create(path, File.ReadAllText(Path.Combine(Output, path))))
@@ -113,7 +109,7 @@ public sealed class GenerateSteps : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_directory)) Directory.Delete(_directory, true);
+        TolerantDirectory.TryDelete(_directory);
     }
 
     internal static string RepositoryRoot()

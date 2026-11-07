@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.Compilation</RootNamespace>
+        <Description>Language-neutral Morphir compilation contracts: exact IR targets, checked diagnostics, the IR builder interface and the writer, builder and project-file provider registries.</Description>
+        <PackageReleaseNotes>### Added
+Exact IR targets, checked diagnostics, the IR builder interface and compilation registries.</PackageReleaseNotes>
+        <PackageTags>$(PackageTags);morphir;fsharp;compiler</PackageTags>
+        <!-- C# callers read the nullable metadata that F# nullness writes. Without it, C# sees F# types as oblivious. -->
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Diagnostics.fs" />
+        <Compile Include="Checked.fs" />
+        <Compile Include="Versions.fs" />
+        <Compile Include="Builders.fs" />
+        <Compile Include="Registries.fs" />
+        <Compile Include="Writers.fs" />
+        <Compile Include="FamilyBuilders.fs" />
+    </ItemGroup>
+
+</Project>

@@ -21,7 +21,7 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
   - the matrix-completeness check fails on a deliberately missing row and passes once the row has a stated reason;
   - two runs give byte-identical reports that hold the case-set SHA-256 and the implementation identity;
   - no feature names an adapter.
-- [ ] 1.4 Add the compile BDD feature files under `tests/Morphir.Tooling.Tests/Features/Compile/`, reusing the generate step definitions. Cover:
+- [x] 1.4 Add the compile BDD feature files under `tests/Morphir.Tooling.Tests/Features/Compile/`, reusing the generate step definitions. Cover:
   - success per IR version, including a pre-release refusal;
   - project-file input;
   - unsupported constructs in JSON mode;
@@ -34,11 +34,11 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
 
 ## 2. Format versions, native IR builders and IR writers (ir-model-writing)
 
-- [ ] 2.1 Create `src/Morphir.Compilation` (F#, AOT-compatible, no FCS reference) with these parts:
+- [x] 2.1 Create `src/Morphir.Compilation` (F#, AOT-compatible, no FCS reference) with these parts:
   - `IrTarget` over `Versioning.FormatVersion`;
   - `FormatVersion.sameVersion`;
   - `Diagnostic` (the MEP shape with UTF-16 ranges);
-  - `Checked<'T>` and its `checked { }` computation expression (DIAG-1);
+  - `Checked<'T>` and its `check { }` computation expression (DIAG-1; `checked` is a reserved F# keyword);
   - the `IIrBuilder` interface (MID-1), `FamilyModel`, and the builder, writer and project-file provider registry records from ARCH-1.
 
   Verify with property tests:
@@ -47,20 +47,20 @@ Every behavior task follows red/green/refactor. Each group lands its own tests a
   - `let!` keeps diagnostics in emission order and stops at the first failure;
   - `and!` and `traverse` collect every diagnostic from all branches;
   - a failure keeps the warnings gathered before it. Also verify that a trimmed and AOT publish of a test console app gives no new warnings.
-- [ ] 2.2 Implement the classic writer with v1, v2 and v3 `ClassicWireProfile` values that declare `Classic 1`, `Classic 2` and `Classic 3`. Verify:
+- [x] 2.2 Implement the classic writer with v1, v2 and v3 `ClassicWireProfile` values that declare `Classic 1`, `Classic 2` and `Classic 3`. Verify:
   - every classic fixture round-trips through `ClassicJson.readDistribution`;
   - every written document validates against the bundled schemas;
   - the version-spelling scenario passes.
-- [ ] 2.3 Implement the v4 JSON writer declaring `Classic 4`, with exact number lexemes and canonical `formatVersion` spelling. Verify:
+- [x] 2.3 Implement the v4 JSON writer declaring `Classic 4`, with exact number lexemes and canonical `formatVersion` spelling. Verify:
   - every v4 fixture round-trips through `V4Json.readDistribution`;
   - the exactness and canonical-spelling scenarios pass;
   - a test-only writer declared for `4.1.0-draft.1` is selected only for that exact version.
-- [ ] 2.4 Check both writers against independent upstream IR: for each pinned upstream JSON IR example in `tests/Fixtures/MorphirIon` (with its provenance), read it, write it in its own version, and compare the result structurally with the original. Verify that the comparison is structurally equal and that the bytes are deterministic across runs.
-- [ ] 2.5 Implement the native `ClassicBuilder` and `V4Builder` (MID-1), each refusing what its family cannot hold with `morphir.unrepresentable`. Verify:
+- [x] 2.4 Check both writers against independent upstream IR: for each pinned upstream JSON IR example in `tests/Fixtures/MorphirIon` (with its provenance), read it, write it in its own version, and compare the result structurally with the original. Verify that the comparison is structurally equal and that the bytes are deterministic across runs.
+- [x] 2.5 Implement the native `ClassicBuilder` and `V4Builder` (MID-1), each refusing what its family cannot hold with `morphir.unrepresentable`. Verify:
   - a unit test for every builder member in each family, with classic nodes typed and v4 nodes carrying source spans;
   - a unit test for every classic refusal (integer outside int64, non-BMP `Char`);
   - a test that no code path converts a model from one family to another, including the `generate` loader.
-- [ ] 2.6 Document the versioning rule, the builder interface (and how to add a family), the writer API and the profile table. Verify that the documentation sample compiles as a consumer test. Open a follow-up issue for the v1/v2 bugs in the legacy `TypeCodec`/`LiteralCodec`.
+- [x] 2.6 Document the versioning rule, the builder interface (and how to add a family), the writer API and the profile table. Verify that the documentation sample compiles as a consumer test. Open a follow-up issue for the v1/v2 bugs in the legacy `TypeCodec`/`LiteralCodec`. (Opened [#514](https://github.com/finos/morphir-dotnet/issues/514); the deferred interop findings are [#515](https://github.com/finos/morphir-dotnet/issues/515).)
 
 ## 3. F# frontend core (fsharp-source-frontend)
 

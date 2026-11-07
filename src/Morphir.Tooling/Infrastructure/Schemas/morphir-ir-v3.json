@@ -287,7 +287,7 @@
           "description": "All value definitions (public and private)."
         },
         "doc": {
-          "type": "string",
+          "type": ["string", "null"],
           "description": "Optional documentation for the module."
         }
       },
@@ -373,7 +373,7 @@
           "description": "Public value specifications only."
         },
         "doc": {
-          "type": "string",
+          "type": ["string", "null"],
           "description": "Optional documentation for the module."
         }
       },

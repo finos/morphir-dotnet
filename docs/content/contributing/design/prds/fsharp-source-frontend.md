@@ -43,8 +43,8 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Shared foundation | Tracking epic and feature PRD | Implemented | #499 and this document |
 | Shared foundation | Pinned upstream fixtures and SHA-256 provenance | Implemented | Task 1.2; provenance tests observed red, then 2/2 green |
 | Shared foundation | Gherkin MCK seed, vocabulary, linter and deterministic runner | Implemented | Task 1.3; 29 focused tests, 94.44% sequence coverage, native osx-arm64 smoke |
-| Tool path, first delivery | Compile BDD acceptance contract | Planned | Task 1.4 |
-| Tool path, first delivery | Exact versions, checked diagnostics, native builders and writers | Planned | Tasks 2.1–2.6 |
+| Tool path, first delivery | Compile BDD acceptance contract | Implemented | Task 1.4: 12 scenarios in `tests/Morphir.Tooling.Tests/Features/Compile/Compile.feature`, observed red (12/12 failed, `compile` absent), then held `@ignore @pending:<task>` until the named task enables them |
+| Tool path, first delivery | Exact versions, checked diagnostics, native builders and writers | Implemented | Tasks 2.1–2.6: `Morphir.Compilation` (168 tests), classic and v4 writers checked against readers, schemas, the pinned v4 kit and upstream IR; docs in `docs/content/docs/api/compilation.md`; follow-ups #514, #515 |
 | Tool path, first delivery | Syntax-led match reconstruction and checked type-evidence proof | Implemented | Revised task 3.1; 34/34 standalone tests, including all eleven original probes |
 | Tool path, first delivery | Hermetic FCS edge, admission catalog, planning and lowering | Planned | Tasks 3.2–3.8 |
 | Tool path, first delivery | Generator round trip and coverage documentation | Planned | Tasks 3.9–3.10 |
