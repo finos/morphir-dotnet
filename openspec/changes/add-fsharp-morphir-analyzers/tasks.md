@@ -13,7 +13,7 @@ Tracking: [Frontend epic #499](https://github.com/finos/morphir-dotnet/issues/49
 - [ ] 2.1 Add BDD scenarios to `tests/Morphir.Tooling.Tests/Features/Compile/` for: check succeeds, check fails on a refusal, check with output, refusal line in MSBuild format, and JSON unchanged. Verify that they fail (red) before 2.2.
 - [ ] 2.2 Add `--check` to `morphir compile`: run every stage, skip IR writing, installation, task records and generation, and refuse `-o`, `--target` and `--generate-output` with exit code 2. Verify the check scenarios from 2.1, and a test that the in-process frontend receives the same request as a normal compile.
 - [ ] 2.3 Add a MEP host test: `--check` with a fake MEP guest sends a standard `compileModel` request and writes nothing. Verify the test, and that no new protocol member exists in `Morphir.Mep`.
-- [ ] 2.4 Add `--diagnostic-format msbuild` for human-mode stderr lines, with one-based lines and columns from the zero-based UTF-16 ranges. Add a property test that converts generated ranges and checks that the values are one-based. Verify the MSBuild scenarios from 2.1, and that stdout is empty in human mode.
+- [ ] 2.4 Add `--diagnostic-format msbuild` for human-mode stderr lines, with the absolute document path (selected source root joined with the URI) and one-based lines and columns from the zero-based UTF-16 ranges. Add a property test that converts generated ranges and checks that the values are one-based. Verify the MSBuild scenarios from 2.1, and that stdout is empty in human mode.
 - [ ] 2.5 Document `--check` and `--diagnostic-format` in the `morphir compile` CLI reference. Verify that the documented commands run as written in a temporary project.
 
 ## 3. Analyzer package (ANZ-1, ANZ-2, ANZ-3)
@@ -29,7 +29,7 @@ Tracking: [Frontend epic #499](https://github.com/finos/morphir-dotnet/issues/49
 
 - [ ] 4.1 Add BDD scenarios for the build package: refusal in the build, check is off, no change since the last check, and tool not installed. Use a fixture F# project with a local tool manifest, run through `ChildProcess.RunAsync` in a `TestSandbox`. Verify that they fail before 4.2.
 - [ ] 4.2 Create `src/Morphir.FSharp.Build` with `build/` and `buildTransitive/` props and targets: the `MorphirCheck` target after `CoreCompile`, the tool probe with `build.tool_unavailable`, the response file of `Compile` items, `Exec` in the project directory, and the stamp file. Verify the scenarios from 4.1 on Linux, macOS and Windows in CI.
-- [ ] 4.3 Verify that canonical lines become MSBuild errors at the right file, line and column: assert the binary log (`-bl`) of the fixture build holds the error with code `fsharp.unsupported_mutable`, file `Pricing.fs`, line 3 and column 9.
+- [ ] 4.3 Verify that canonical lines become MSBuild errors at the right file, line and column: assert the binary log (`-bl`) of the fixture build holds the error with code `fsharp.unsupported_mutable`, the absolute path of `Pricing.fs`, line 3 and column 9. Use a second fixture whose `.fsproj` is in the repository root with `project.source_directory = "src"`, and verify that the error names the file under `src`.
 
 ## 5. CI, packaging and documentation
 
