@@ -29,19 +29,23 @@ A check-only compile SHALL send the same frontend request as a normal compile. I
 - **THEN** the guest receives a standard `compileModel` request, and the host discards the returned model
 
 ### Requirement: Diagnostics have an MSBuild format
-With `--diagnostic-format msbuild`, human-mode diagnostics SHALL be lines in the MSBuild canonical format on stderr: `<path>(<line>,<column>,<endLine>,<endColumn>): <error|warning> <code>: <message>`. `<path>` SHALL be the absolute file-system path of the document: the selected source root joined with the diagnostic URI. A document with no file-system path SHALL keep its URI. Lines and columns SHALL be one-based: the zero-based UTF-16 range plus one. Information and hint diagnostics SHALL be lines without a category.
+With `--diagnostic-format msbuild`, human-mode diagnostics SHALL be lines in the MSBuild canonical format on stderr: `<path>(<line>,<column>,<endLine>,<endColumn>): <error|warning> <code>: <message>`. Lines and columns SHALL be one-based: the zero-based UTF-16 range plus one. Information and hint diagnostics SHALL be lines without a category.
 
 #### Scenario: Refusal line
 - **WHEN** `morphir compile --check --diagnostic-format msbuild` reports `fsharp.unsupported_mutable` at zero-based line 2, characters 8 to 15 of the URI `Pricing.fs`, and the selected source root is `<project>/src`
 - **THEN** stderr holds `<project>/src/Pricing.fs(3,9,3,16): error fsharp.unsupported_mutable: ` followed by the message, with `<project>` as an absolute path
 
-#### Scenario: Source root differs from the project directory
-- **WHEN** the `.fsproj` is in the repository root, `project.source_directory` is `src`, and the build runs from the project directory
-- **THEN** each MSBuild error names the absolute path of the file under `src`, and the IDE opens that file
 
 #### Scenario: JSON is unchanged
 - **WHEN** `--diagnostic-format msbuild` and `--json` are both given
 - **THEN** stdout holds the normal JSON report, and the diagnostics in it keep zero-based ranges
+
+### Requirement: MSBuild lines name the absolute document path
+In an MSBuild diagnostic line, `<path>` SHALL be the absolute file-system path of the document: the selected source root joined with the diagnostic URI. A document with no file-system path SHALL keep its URI. The JSON report and the model SHALL keep the root-relative URI.
+
+#### Scenario: Source root differs from the project directory
+- **WHEN** the `.fsproj` is in the repository root, `project.source_directory` is `src`, and the build runs from the project directory
+- **THEN** each MSBuild error names the absolute path of the file under `src`, and the IDE opens that file
 
 ### Requirement: The build package checks a project after compilation
 A project that references the Morphir F# build package and sets `MorphirCheck` to `true` SHALL run a Morphir check after `CoreCompile`. The check SHALL use the project's `Compile` items in their MSBuild order. Each refusal SHALL be an MSBuild error at its file, line and column, and a refusal SHALL fail the build.
