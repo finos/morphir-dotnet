@@ -1,6 +1,5 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
-using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Build.Framework;
@@ -8,6 +7,7 @@ using Microsoft.Build.Utilities;
 using Microsoft.FSharp.Collections;
 using Morphir.CodeGeneration.FSharp;
 using Morphir.IR.Pipeline;
+using Morphir.Myriad.Hosting;
 
 namespace Morphir.Myriad.Build;
 
@@ -147,30 +147,9 @@ public sealed class GenerateMorphirModules : Microsoft.Build.Utilities.Task
         return Path.GetFullPath(Path.Combine(IntermediateDirectory, name + "-" + identity), ProjectDirectory);
     }
 
-    private string PrepareHost(string hostDirectory)
-    {
-        if (!File.Exists(HostPath))
-        {
-            throw new InvalidOperationException($"Myriad host could not be found: '{HostPath}'.");
-        }
-
-        var sourceRoot = Path.GetDirectoryName(HostPath)!;
-        var destinationRoot = Path.Combine(hostDirectory, ".host");
-        Directory.CreateDirectory(destinationRoot);
-        foreach (var file in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
-        {
-            var destination = Path.Combine(destinationRoot, Path.GetRelativePath(sourceRoot, file));
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            File.Copy(file, destination);
-        }
-
-        // Myriad 0.85.0 bundles FSharp.Core 9. Align it with the backend runtime.
-        // A single higher-version Core must load before the host and plugin share
-        // Fantomas async APIs. Never modify the restored tool in the NuGet cache.
-        var sharedCore = Path.Combine(Path.GetDirectoryName(PluginPath)!, "FSharp.Core.dll");
-        File.Copy(sharedCore, Path.Combine(destinationRoot, "FSharp.Core.dll"), true);
-        return Path.Combine(destinationRoot, Path.GetFileName(HostPath));
-    }
+    private string PrepareHost(string hostDirectory) =>
+        // The plugin's FSharp.Core replaces the one that Myriad 0.85.0 bundles.
+        MyriadHost.Prepare(HostPath, Path.Combine(Path.GetDirectoryName(PluginPath)!, "FSharp.Core.dll"), hostDirectory);
 
     private bool Generate(string inputPath, string modulePath, string outputPath, string compatibleHost)
     {
@@ -180,40 +159,26 @@ public sealed class GenerateMorphirModules : Microsoft.Build.Utilities.Task
             return false;
         }
 
-        var host = string.IsNullOrWhiteSpace(DotNetHost) ? Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet" : DotNetHost;
-        var start = new ProcessStartInfo(host)
+        MyriadRun run;
+        try
         {
-            WorkingDirectory = ProjectDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        foreach (var argument in new[] { "--roll-forward", "LatestMajor", compatibleHost, "--inputfile", inputPath, "--outputfile", outputPath, "--plugin", PluginPath, "--generator-filter", "MorphirFSharpGenerator", "--additionalparams", "MorphirModule=" + modulePath })
-        {
-            start.ArgumentList.Add(argument);
+            run = MyriadHost.Run(DotNetHost, compatibleHost, ProjectDirectory,
+                ["--inputfile", inputPath, "--outputfile", outputPath, "--plugin", PluginPath, "--generator-filter", "MorphirFSharpGenerator", "--additionalparams", "MorphirModule=" + modulePath]);
         }
-
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the Myriad host.");
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(120000))
+        catch (TimeoutException)
         {
-            process.Kill(true);
             throw new InvalidOperationException($"Myriad exceeded two minutes for '{inputPath}' module '{modulePath}'.");
         }
 
-        var output = stdout.GetAwaiter().GetResult();
-        var diagnostics = stderr.GetAwaiter().GetResult();
-        if (process.ExitCode != 0 || !File.Exists(outputPath))
+        if (run.ExitCode != 0 || !File.Exists(outputPath))
         {
-            Log.LogError($"Myriad failed for '{inputPath}' module '{modulePath}' with exit code {process.ExitCode}: {diagnostics}{output}");
+            Log.LogError($"Myriad failed for '{inputPath}' module '{modulePath}' with exit code {run.ExitCode}: {run.StandardError}{run.StandardOutput}");
             return false;
         }
 
-        if (!string.IsNullOrWhiteSpace(diagnostics))
+        if (!string.IsNullOrWhiteSpace(run.StandardError))
         {
-            Log.LogMessage(MessageImportance.Low, "{0}", diagnostics.Trim());
+            Log.LogMessage(MessageImportance.Low, "{0}", run.StandardError.Trim());
         }
 
         return true;

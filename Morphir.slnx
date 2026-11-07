@@ -24,6 +24,8 @@
     <Project Path="src/Morphir.CodeGeneration.CSharp/Morphir.CodeGeneration.CSharp.fsproj" />
     <Project Path="src/Morphir.Myriad/Morphir.Myriad.fsproj" />
     <Project Path="src/Morphir.Myriad.Build/Morphir.Myriad.Build.csproj" />
+    <Project Path="src/Morphir.Myriad.Hosting/Morphir.Myriad.Hosting.csproj" />
+    <Project Path="src/Morphir.Myriad.SystemTextJson.Annotations/Morphir.Myriad.SystemTextJson.Annotations.csproj" />
     <Project Path="src/Morphir.Extensions/Morphir.Extensions.fsproj" />
     <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
     <Project Path="src/Morphir/Morphir.csproj" />
