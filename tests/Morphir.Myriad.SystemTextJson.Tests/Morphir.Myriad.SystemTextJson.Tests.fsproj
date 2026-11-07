@@ -93,6 +93,7 @@
         <Compile Include="CorpusTests.fs" />
         <Compile Include="ParsedTests.fs" />
         <Compile Include="BuildErrorTests.fs" />
+        <Compile Include="SnapshotTests.fs" />
         <Compile Include="BuildTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
