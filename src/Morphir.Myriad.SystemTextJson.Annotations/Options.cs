@@ -5,8 +5,8 @@ using System;
 namespace Morphir.Myriad.SystemTextJson;
 
 /// <summary>
-/// How a union is written as JSON. Combine one base encoding with flags. The names and meanings follow
-/// FSharp.SystemTextJson, so the same options give the same JSON.
+/// How a union is written as JSON. Combine one base encoding with flags, or use a preset. The names, the values and
+/// the meanings are those of FSharp.SystemTextJson's <c>JsonUnionEncoding</c>, so the same options give the same JSON.
 /// </summary>
 [Flags]
 public enum JsonUnionEncoding
@@ -20,11 +20,11 @@ public enum JsonUnionEncoding
     /// <summary>Base encoding: <c>["Name",...]</c>, or <c>{"Case":"Name",...}</c> with <see cref="NamedFields"/>.</summary>
     InternalTag = 0x4,
 
-    /// <summary>Base encoding: the fields only, with no case name.</summary>
-    Untagged = 0x8,
-
     /// <summary>Write the fields as an object with one member for each field, not as an array.</summary>
     NamedFields = 0x100,
+
+    /// <summary>Base encoding: the fields only, as an object, with no case name. Includes <see cref="NamedFields"/>.</summary>
+    Untagged = 0x8 | NamedFields,
 
     /// <summary>Write a case with no field as the string of its name.</summary>
     UnwrapFieldlessTags = 0x200,
@@ -35,26 +35,23 @@ public enum JsonUnionEncoding
     /// <summary>Write a union with one case and one field as that field.</summary>
     UnwrapSingleCaseUnions = 0x800,
 
-    /// <summary>Write the single field of a case without the array or object around it.</summary>
+    /// <summary>With <see cref="AdjacentTag"/> or <see cref="ExternalTag"/>: write the single field of a case without the array or object around it.</summary>
     UnwrapSingleFieldCases = 0x1000,
 
-    /// <summary>Write the members of a case's single record field in place of the field.</summary>
-    UnwrapRecordCases = 0x2000,
-
-    /// <summary>Name fields that have no name after their type.</summary>
-    FieldNamesFromTypes = 0x4000,
+    /// <summary>Write the members of a case's single record field in place of the field. Includes <see cref="NamedFields"/>.</summary>
+    UnwrapRecordCases = 0x2000 | NamedFields,
 
     /// <summary>When reading, accept the case name after other members.</summary>
-    AllowUnorderedTag = 0x8000,
+    AllowUnorderedTag = 0x4000,
 
-    /// <summary>When reading, match case names with no regard to letter case.</summary>
-    TagCaseInsensitive = 0x10000,
+    /// <summary>Name fields that have no name after their type, such as <c>Int32</c> or <c>Point</c>.</summary>
+    UnionFieldNamesFromTypes = 0x8000,
 
     /// <summary>
-    /// With <see cref="Untagged"/>: choose the case by the JSON token kind of the value. Each case has one field,
-    /// and no two cases share a token kind. Not part of FSharp.SystemTextJson.
+    /// With <see cref="Untagged"/>: choose the case by the JSON token kind of the value, and write the value of the
+    /// case's one field alone. No two cases may share a token kind. Not part of FSharp.SystemTextJson.
     /// </summary>
-    SelectByTokenKind = 0x20000,
+    SelectByTokenKind = 0x10000,
 
     /// <summary>Preset: <see cref="AdjacentTag"/>, <see cref="UnwrapOption"/>, <see cref="UnwrapSingleCaseUnions"/>, <see cref="AllowUnorderedTag"/>.</summary>
     Default = AdjacentTag | UnwrapOption | UnwrapSingleCaseUnions | AllowUnorderedTag,

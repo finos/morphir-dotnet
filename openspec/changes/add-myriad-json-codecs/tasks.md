@@ -19,11 +19,11 @@ Every behavior task follows red/green/refactor: write the failing test first. Ea
 
 ## 3. Unions
 
-- [ ] 3.1 Add fieldless unions with `UnwrapFieldlessTags`, `JsonName` on cases, the tag naming policy and `TagCaseInsensitive`. Verify the MEP `ExtensionType` shape (`"validator"`) and the failure for an unknown string.
-- [ ] 3.2 Add `AdjacentTag` and `ExternalTag` with positional and `NamedFields` fields, `UnwrapSingleFieldCases`, the tag and fields names, and `AllowUnorderedTag` (with the reader look-ahead). Verify each combination against expected JSON and the compatibility check, including a tag after the fields.
-- [ ] 3.3 Add `InternalTag` (array form and `NamedFields` object form), `UnwrapRecordCases` and `FieldNamesFromTypes`. Verify the classic IR array shape and a `kind`-tagged object shape.
-- [ ] 3.4 Add `Untagged` with unique field names, `SelectByTokenKind`, `UnwrapSingleCaseUnions` and `UnwrapOption`. Verify the `RequestId` scenario, the untyped JSON value, and the build error for an ambiguous untagged union.
-- [ ] 3.5 Add the presets `Default`, `NewtonsoftLike`, `ThothLike` and `FSharpLuLike`, and recursive types. Verify the whole compatibility corpus for each preset.
+- [x] 3.1 Add fieldless unions with `UnwrapFieldlessTags`, `JsonName` on cases, the tag naming policy and `TagCaseInsensitive`. Verify the MEP `ExtensionType` shape (`"validator"`) and the failure for an unknown string.
+- [x] 3.2 Add `AdjacentTag` and `ExternalTag` with positional and `NamedFields` fields, `UnwrapSingleFieldCases`, the tag and fields names, and `AllowUnorderedTag` (with the reader look-ahead). Verify each combination against expected JSON and the compatibility check, including a tag after the fields.
+- [x] 3.3 Add `InternalTag` (array form and `NamedFields` object form), `UnwrapRecordCases` and `UnionFieldNamesFromTypes`. Verify the classic IR array shape and a `kind`-tagged object shape.
+- [x] 3.4 Add `Untagged` with unique field names, `SelectByTokenKind`, `UnwrapSingleCaseUnions` and `UnwrapOption`. Verify the `RequestId` scenario, the untyped JSON value, and the build error for an ambiguous untagged union.
+- [x] 3.5 Add the presets `Default`, `NewtonsoftLike`, `ThothLike` and `FSharpLuLike`, and recursive types. Verify the whole compatibility corpus for each preset.
 
 ## 4. Parsed values and user converters
 

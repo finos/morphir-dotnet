@@ -159,6 +159,116 @@ type RecordRules =
     static member Default =
         { Naming = Naming.AsIs; SkipAbsentOptions = false; RefuseUnknownMembers = false; AllowNullFields = false }
 
+/// A union encoding: one base encoding and flags. The values are those of FSharp.SystemTextJson's JsonUnionEncoding.
+[<Struct; CustomEquality; NoComparison>]
+type UnionEncoding =
+    private
+    | UnionEncoding of int
+
+    /// The flag bits.
+    member this.Bits = let (UnionEncoding bits) = this in bits
+
+    override this.Equals(other: obj | null) =
+        match other with
+        | :? UnionEncoding as e -> e.Bits = this.Bits
+        | _ -> false
+
+    override this.GetHashCode() = this.Bits
+
+    static member private Names =
+        [
+            "AdjacentTag", 0x1
+            "ExternalTag", 0x2
+            "InternalTag", 0x4
+            "NamedFields", 0x100
+            "Untagged", 0x108
+            "UnwrapFieldlessTags", 0x200
+            "UnwrapOption", 0x400
+            "UnwrapSingleCaseUnions", 0x800
+            "UnwrapSingleFieldCases", 0x1000
+            "UnwrapRecordCases", 0x2100
+            "AllowUnorderedTag", 0x4000
+            "UnionFieldNamesFromTypes", 0x8000
+            "SelectByTokenKind", 0x10000
+            "Default", 0x4c01
+            "NewtonsoftLike", 0x4001
+            "ThothLike", 0x4204
+            "FSharpLuLike", 0x5602
+        ]
+        |> Map.ofList
+
+    member private this.Has(bits: int) = this.Bits &&& bits = bits
+    /// The base encoding is ExternalTag.
+    member this.ExternalTag = this.Has 0x2
+    /// The base encoding is InternalTag.
+    member this.InternalTag = this.Has 0x4
+    /// The base encoding is Untagged.
+    member this.Untagged = this.Has 0x8
+    /// The base encoding is AdjacentTag (also when no base bit is set).
+    member this.AdjacentTag = not (this.ExternalTag || this.InternalTag || this.Untagged)
+    member this.NamedFields = this.Has 0x100
+    member this.UnwrapFieldlessTags = this.Has 0x200
+    member this.UnwrapOption = this.Has 0x400
+    member this.UnwrapSingleCaseUnions = this.Has 0x800
+    member this.UnwrapSingleFieldCases = this.Has 0x1000
+    member this.UnwrapRecordCases = this.Has 0x2100
+    member this.AllowUnorderedTag = this.Has 0x4000
+    member this.FieldNamesFromTypes = this.Has 0x8000
+    member this.SelectByTokenKind = this.Has 0x10000
+
+    /// The FSharp.SystemTextJson default.
+    static member Default = UnionEncoding 0x4c01
+
+    /// Parses names joined by commas, spaces or '|', such as "ExternalTag, UnwrapFieldlessTags" or "FSharpLuLike".
+    static member Parse(text: string) : Result<UnionEncoding, string> =
+        UnionEncoding.ParseNames(text.Split([| ','; '|'; ' ' |], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray)
+
+    /// Parses a list of encoding names, such as the values of a JsonUnion attribute argument.
+    static member ParseNames(names: string list) : Result<UnionEncoding, string> =
+        let unknown = names |> List.filter (fun n -> not (UnionEncoding.Names.ContainsKey n))
+
+        if not unknown.IsEmpty then
+            Error $"""'{String.concat "', '" unknown}' is not a union encoding name."""
+        elif names.IsEmpty then
+            Error "name a base encoding (AdjacentTag, ExternalTag, InternalTag or Untagged) or a preset."
+        else
+            let bits = names |> List.fold (fun bits n -> bits ||| UnionEncoding.Names[n]) 0
+            let bases = [ 0x1; 0x2; 0x4; 0x8 ] |> List.filter (fun b -> bits &&& b = b)
+
+            if bases.Length > 1 then
+                Error "more than one base encoding is set; use one of AdjacentTag, ExternalTag, InternalTag and Untagged."
+            elif bits &&& 0x10000 <> 0 && bits &&& 0x8 = 0 then
+                Error "SelectByTokenKind needs the Untagged base encoding."
+            else
+                Ok(UnionEncoding bits)
+
+/// The encoding rules of unions: the context defaults, which JsonUnion can override for one union.
+type UnionRules =
+    {
+        Encoding: UnionEncoding
+        /// The name of the case member.
+        TagName: string
+        /// The name of the fields member (AdjacentTag).
+        FieldsName: string
+        TagNaming: Naming
+        /// None: use the record naming of the context.
+        FieldNaming: Naming option
+        TagCaseInsensitive: bool
+        RefuseUnknownMembers: bool
+    }
+
+    /// The defaults of FSharp.SystemTextJson.
+    static member Default =
+        {
+            Encoding = UnionEncoding.Default
+            TagName = "Case"
+            FieldsName = "Fields"
+            TagNaming = Naming.AsIs
+            FieldNaming = None
+            TagCaseInsensitive = false
+            RefuseUnknownMembers = false
+        }
+
 /// The settings of one context, from the FSharpJsonContext item in the project file.
 type ContextSettings =
     {
@@ -172,11 +282,13 @@ type ContextSettings =
         NumbersFromStrings: bool
         /// How maps and dictionaries are written.
         MapFormat: MapFormat
+        /// The default encoding rules of unions.
+        Unions: UnionRules
     }
 
 /// Reads context settings from the Myriad additional parameters.
 module ContextSettings =
-    let private known = set [ "Name"; "Namespace"; "Naming"; "SkippableOptionFields"; "UnknownMembers"; "AllowNullFields"; "AllowNumbersFromStrings"; "MapFormat" ]
+    let private known = set [ "Name"; "Namespace"; "Naming"; "SkippableOptionFields"; "UnknownMembers"; "AllowNullFields"; "AllowNumbersFromStrings"; "MapFormat"; "UnionEncoding"; "UnionTagName"; "UnionFieldsName"; "UnionTagNaming"; "UnionFieldNaming"; "UnionTagCaseInsensitive" ]
 
     let private required (parameters: IDictionary<string, string>) name (parse: string -> Result<'T, GenerationError>) =
         match parameters.TryGetValue name with
@@ -228,9 +340,32 @@ module ContextSettings =
         let allowNull = optional parameters "AllowNullFields" defaults.AllowNullFields parseBool
         let numbers = optional parameters "AllowNumbersFromStrings" false parseBool
         let mapFormat = optional parameters "MapFormat" MapFormat.ObjectOrArrayOfPairs MapFormat.Parse
+        let unionDefaults = UnionRules.Default
+        let encoding = optional parameters "UnionEncoding" unionDefaults.Encoding UnionEncoding.Parse
+        let nonEmpty (text: string) = if text.Length = 0 then Error "it must not be empty." else Ok text
+        let tagName = optional parameters "UnionTagName" unionDefaults.TagName nonEmpty
+        let fieldsName = optional parameters "UnionFieldsName" unionDefaults.FieldsName nonEmpty
+        let tagNaming = optional parameters "UnionTagNaming" unionDefaults.TagNaming Naming.Parse
+        let fieldNaming = optional parameters "UnionFieldNaming" None (Naming.Parse >> Result.map Some)
+        let insensitive = optional parameters "UnionTagCaseInsensitive" false parseBool
 
-        match name, ns, naming, skip, refuse, allowNull, numbers, mapFormat, unknown with
-        | Ok name, Ok ns, Ok naming, Ok skip, Ok refuse, Ok allowNull, Ok numbers, Ok mapFormat, [] ->
+        let unions =
+            match encoding, tagName, fieldsName, tagNaming, fieldNaming, insensitive, refuse with
+            | Ok encoding, Ok tagName, Ok fieldsName, Ok tagNaming, Ok fieldNaming, Ok insensitive, Ok refuse ->
+                Ok
+                    {
+                        Encoding = encoding
+                        TagName = tagName
+                        FieldsName = fieldsName
+                        TagNaming = tagNaming
+                        FieldNaming = fieldNaming
+                        TagCaseInsensitive = insensitive
+                        RefuseUnknownMembers = refuse
+                    }
+            | _ -> Error(GenerationError.MissingSetting "union settings")
+
+        match name, ns, naming, skip, refuse, allowNull, numbers, mapFormat, unions, unknown with
+        | Ok name, Ok ns, Ok naming, Ok skip, Ok refuse, Ok allowNull, Ok numbers, Ok mapFormat, Ok unions, [] ->
             Ok
                 {
                     Name = name
@@ -238,6 +373,7 @@ module ContextSettings =
                     Records = { Naming = naming; SkipAbsentOptions = skip; RefuseUnknownMembers = refuse; AllowNullFields = allowNull }
                     NumbersFromStrings = numbers
                     MapFormat = mapFormat
+                    Unions = unions
                 }
         | _ ->
             let errorOf result =
@@ -254,5 +390,11 @@ module ContextSettings =
                 @ errorOf allowNull
                 @ errorOf numbers
                 @ errorOf mapFormat
+                @ errorOf encoding
+                @ errorOf tagName
+                @ errorOf fieldsName
+                @ errorOf tagNaming
+                @ errorOf fieldNaming
+                @ errorOf insensitive
                 @ unknown
             )

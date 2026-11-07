@@ -87,6 +87,65 @@ module Generation =
         | TypeRef.ValueOption(TypeRef.Primitive p) -> p.NumberTypeName.IsSome
         | _ -> false
 
+    /// The union rules after the JsonUnion attribute of one union, or the errors in its arguments.
+    let private unionRules (defaults: UnionRules) (attributes: AttributeUse list) : Result<UnionRules, (Location * string) list> =
+        match attributes |> List.tryFind (fun a -> a.Name = "JsonUnion") with
+        | None -> Ok defaults
+        | Some attribute ->
+            let step (rules: Result<UnionRules, (Location * string) list>) (name: string, value: AttributeValue) =
+                let invalid reason = Error [ attribute.Location, $"the JsonUnion argument {name} {reason}" ]
+
+                let next =
+                    match name, value with
+                    | "BaseEncoding", AttributeValue.Names names ->
+                        match UnionEncoding.ParseNames(names |> List.map (fun n -> n.Split('.') |> Array.last)) with
+                        | Ok encoding -> Ok(fun (r: UnionRules) -> { r with Encoding = encoding })
+                        | Error reason -> invalid reason
+                    | "BaseEncoding", _ -> invalid "must be JsonUnionEncoding values joined by |||."
+                    | "TagName", AttributeValue.Text text when text.Length > 0 -> Ok(fun r -> { r with TagName = text })
+                    | "FieldsName", AttributeValue.Text text when text.Length > 0 -> Ok(fun r -> { r with FieldsName = text })
+                    | ("TagName" | "FieldsName"), _ -> invalid "must be a text that is not empty."
+                    | "TagNaming", value ->
+                        match lastName value |> Option.map Naming.Parse with
+                        | Some(Ok naming) -> Ok(fun r -> { r with TagNaming = naming })
+                        | _ -> invalid "must be a JsonNaming value."
+                    | "FieldNaming", value ->
+                        match lastName value |> Option.map Naming.Parse with
+                        | Some(Ok naming) -> Ok(fun r -> { r with FieldNaming = Some naming })
+                        | _ -> invalid "must be a JsonNaming value."
+                    | "UnknownMembers", value ->
+                        match lastName value |> Option.map ContextSettings.parseUnknownMembers with
+                        | Some(Ok refuse) -> Ok(fun r -> { r with RefuseUnknownMembers = refuse })
+                        | _ -> invalid "must be a JsonUnknownMembers value."
+                    | "TagCaseInsensitive", AttributeValue.Bool value -> Ok(fun r -> { r with TagCaseInsensitive = value })
+                    | "TagCaseInsensitive", _ -> invalid "must be true or false."
+                    | _ -> invalid "is not known."
+
+                match rules, next with
+                | Ok rules, Ok change -> Ok(change rules)
+                | Error errors, Error more -> Error(errors @ more)
+                | Error errors, Ok _ -> Error errors
+                | Ok _, Error more -> Error more
+
+            attribute.Named |> List.fold step (Ok defaults)
+
+    /// The JSON token kind of a value of the type, for SelectByTokenKind.
+    let private tokenKind (format: MapFormat) (plan: Map<string, TypeShape>) (t: TypeRef) : TokenKind option =
+        match t with
+        | TypeRef.Primitive Primitive.Bool -> Some TokenKind.Boolean
+        | TypeRef.Primitive Primitive.JsonElement -> None
+        | TypeRef.Primitive p when p.NumberTypeName.IsSome -> Some TokenKind.Number
+        | TypeRef.Primitive _ -> Some TokenKind.String
+        | TypeRef.Sequence _
+        | TypeRef.Tuple _ -> Some TokenKind.Array
+        | TypeRef.Map(_, key, _) -> Some(if Emit.mapAsObject format key then TokenKind.Object else TokenKind.Array)
+        | TypeRef.Local declaration ->
+            match plan.TryFind declaration.Name with
+            | Some(TypeShape.Record _) -> Some TokenKind.Object
+            | Some(TypeShape.Enum _) -> Some TokenKind.Number
+            | _ -> None
+        | _ -> None
+
     /// Names that the context type already uses.
     let private reservedMembers =
         set [ "Default"; "Options"; "GetTypeInfo"; "Verify"; "GeneratedSerializerOptions"; "Equals"; "GetHashCode"; "ToString"; "GetType" ]
@@ -176,9 +235,146 @@ module Generation =
                             Some { Declaration = declaration; Shape = PlannedShape.Record(resolvedFields, rules.RefuseUnknownMembers) }
                         else
                             None
-                    | TypeShape.Union _ ->
-                        unsupported declaration declaration.Location None "unions are not supported yet."
+                    | TypeShape.Union(_, true) ->
+                        unsupported declaration declaration.Location None "the union cases are private, so generated code cannot build them."
                         None
+                    | TypeShape.Union(cases, false) ->
+                        let rules =
+                            match unionRules settings.Unions declaration.Attributes with
+                            | Ok rules -> rules
+                            | Error problems ->
+                                for location, reason in problems do
+                                    unsupported declaration location None reason
+
+                                settings.Unions
+
+                        let fieldNaming = defaultArg rules.FieldNaming settings.Records.Naming
+                        let e = rules.Encoding
+
+                        let planCase (case: CaseSyntax) =
+                            let tags = jsonNames (case.Attributes |> List.filter (fun a -> a.Named |> List.forall (fun (n, _) -> n <> "Field")))
+                            let tag = List.tryHead tags |> Option.defaultValue (rules.TagNaming.Apply case.Name)
+
+                            // JsonName(..., Field = "x") on the case names the field x.
+                            let fieldNames =
+                                case.Attributes
+                                |> List.filter (fun a -> a.Name = "JsonName")
+                                |> List.choose (fun a ->
+                                    match a.Named |> List.tryFind (fun (n, _) -> n = "Field") with
+                                    | Some(_, AttributeValue.Text field) ->
+                                        Some(field, a.Positional |> List.choose (function AttributeValue.Text t -> Some t | _ -> None))
+                                    | _ -> None)
+                                |> Map.ofList
+
+                            let fields =
+                                case.Fields
+                                |> List.mapi (fun index field ->
+                                    let memberName = $"{case.Name}.{defaultArg field.Name (string index)}"
+
+                                    match Resolve.resolve included [] field.Type with
+                                    | Error reason ->
+                                        unsupported declaration field.Location (Some memberName) reason
+                                        None
+                                    | Ok resolved ->
+                                        let fsharpName =
+                                            match field.Name with
+                                            | Some name -> name
+                                            | None when case.Fields.Length = 1 -> "Item"
+                                            | None -> $"Item{index + 1}"
+
+                                        let baseName =
+                                            match field.Name with
+                                            | None when e.FieldNamesFromTypes ->
+                                                match Resolve.clrName resolved with
+                                                | Some name -> name
+                                                | None ->
+                                                    unsupported declaration field.Location (Some memberName) "UnionFieldNamesFromTypes needs a field type with a name."
+                                                    fsharpName
+                                            | _ -> fsharpName
+
+                                        let names =
+                                            match fieldNames.TryFind fsharpName with
+                                            | Some names when not names.IsEmpty -> names
+                                            | _ -> jsonNames field.Attributes
+
+                                        let written = List.tryHead names |> Option.defaultValue (fieldNaming.Apply baseName)
+
+                                        Some
+                                            {
+                                                Name = fsharpName
+                                                JsonName = written
+                                                ReadNames = (if names.IsEmpty then [ written ] else names)
+                                                Type = resolved
+                                                Skippable = settings.Records.SkipAbsentOptions
+                                                AllowNull = false
+                                                NumbersFromStrings = readsNumbersFromStrings field.Attributes
+                                            })
+
+                            if fields |> List.forall Option.isSome then
+                                let fields = fields |> List.choose id
+
+                                for group in fields |> List.groupBy (fun f -> f.JsonName) do
+                                    if (snd group).Length > 1 then
+                                        unsupported declaration case.Location (Some case.Name) $"more than one field has the JSON name '{fst group}'."
+
+                                Some { Name = case.Name; Tag = tag; ReadTags = (if tags.IsEmpty then [ tag ] else tags); Fields = fields }
+                            else
+                                None
+
+                        let planned = cases |> List.map planCase
+
+                        if planned |> List.forall Option.isSome then
+                            let cases = planned |> List.choose id
+
+                            for group in cases |> List.collect (fun c -> c.ReadTags |> List.map (fun t -> t, c)) |> List.groupBy fst do
+                                if (snd group).Length > 1 then
+                                    unsupported declaration declaration.Location None $"more than one case has the tag '{fst group}'."
+
+                            let shapes = included |> List.map (fun d -> d.Name, d.Shape) |> Map.ofList
+
+                            let kinds =
+                                if e.SelectByTokenKind then
+                                    cases
+                                    |> List.map (fun case ->
+                                        match case.Fields with
+                                        | [ field ] ->
+                                            match tokenKind settings.MapFormat shapes field.Type with
+                                            | Some kind -> Some kind
+                                            | None ->
+                                                unsupported declaration declaration.Location (Some case.Name) $"SelectByTokenKind needs a field whose JSON token kind is known at build time; {field.Type.FSharpName} has none."
+                                                None
+                                        | _ ->
+                                            unsupported declaration declaration.Location (Some case.Name) "SelectByTokenKind needs exactly one field in each case."
+                                            None)
+                                    |> List.choose id
+                                else
+                                    []
+
+                            if e.SelectByTokenKind then
+                                for group in kinds |> List.countBy id do
+                                    if snd group > 1 then
+                                        unsupported declaration declaration.Location None $"more than one case has the JSON token kind {fst group}, so SelectByTokenKind cannot choose between them."
+
+                            let singleCaseUnwrap = e.UnwrapSingleCaseUnions && cases.Length = 1 && cases.Head.Fields.Length = 1
+
+                            if e.Untagged && not e.SelectByTokenKind && not singleCaseUnwrap then
+                                let fieldless = cases |> List.filter (fun c -> c.Fields.IsEmpty)
+
+                                if fieldless.Length > 1 && not e.UnwrapFieldlessTags then
+                                    unsupported declaration declaration.Location None $"""the cases {fieldless |> List.map (fun c -> c.Name) |> String.concat " and "} have no field, so an untagged reader cannot tell them apart; add UnwrapFieldlessTags."""
+
+                                let memberOwners =
+                                    cases
+                                    |> List.collect (fun c -> c.Fields |> List.collect (fun f -> f.ReadNames) |> List.distinct |> List.map (fun n -> n, c.Name))
+                                    |> List.groupBy fst
+
+                                for name, owners in memberOwners do
+                                    if owners.Length > 1 then
+                                        unsupported declaration declaration.Location None $"""the cases {owners |> List.map snd |> String.concat " and "} both have the member '{name}', so an untagged reader cannot tell them apart."""
+
+                            Some { Declaration = declaration; Shape = PlannedShape.Union(cases, rules, kinds) }
+                        else
+                            None
                     | TypeShape.Enum cases -> Some { Declaration = declaration; Shape = PlannedShape.Enum cases }
                     | TypeShape.Abbreviation target ->
                         resolve declaration declaration.Location None (TypeSyntax.Named([ declaration.Name ], []))
@@ -204,6 +400,7 @@ module Generation =
                     match m.Shape with
                     | PlannedShape.Record(fields, _) -> fields |> List.map (fun f -> f.Type)
                     | PlannedShape.Abbreviation target -> [ target ]
+                    | PlannedShape.Union(cases, _, _) -> cases |> List.collect (fun c -> c.Fields |> List.map (fun f -> f.Type))
                     | PlannedShape.Enum _ -> []
 
                 for map in types |> List.collect maps do
@@ -235,6 +432,13 @@ module Generation =
                         |> List.choose (fun m ->
                             match m.Shape with
                             | PlannedShape.Record(fields, refuse) -> Some((TypeRef.Local m.Declaration).Slug, (m.Declaration, fields, refuse))
+                            | _ -> None)
+                        |> Map.ofList
+                    Unions =
+                        planned
+                        |> List.choose (fun m ->
+                            match m.Shape with
+                            | PlannedShape.Union(cases, rules, kinds) -> Some((TypeRef.Local m.Declaration).Slug, (m.Declaration, cases, rules, kinds))
                             | _ -> None)
                         |> Map.ofList
                     Enums =

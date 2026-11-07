@@ -161,6 +161,18 @@ type TypeRef =
 
 /// Resolves field types against the declarations of the input file.
 module Resolve =
+    /// The .NET type name of a type, for UnionFieldNamesFromTypes (Int32, String, Point).
+    let clrName (t: TypeRef) =
+        match t with
+        | TypeRef.Primitive p ->
+            match p with
+            | Primitive.String -> Some "String"
+            | Primitive.Bool -> Some "Boolean"
+            | other -> Some other.Slug
+        | TypeRef.Local declaration -> Some declaration.Name
+        | TypeRef.External name -> Some((name.Split('<')[0]).Split('.') |> Array.last)
+        | _ -> None
+
     let private primitives =
         [
             [ "string"; "String"; "System.String" ], Primitive.String

@@ -28,6 +28,9 @@ public sealed class JsonUnionAttribute : Attribute
 
     /// <summary>What a reader does with an unknown member of a case object.</summary>
     public JsonUnknownMembers UnknownMembers { get; set; }
+
+    /// <summary>When true, a reader matches case names with no regard to letter case.</summary>
+    public bool TagCaseInsensitive { get; set; }
 }
 
 /// <summary>Sets the member rules of one record. Unset members keep the context defaults.</summary>

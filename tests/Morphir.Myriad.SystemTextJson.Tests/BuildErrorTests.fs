@@ -65,6 +65,20 @@ let tests =
             expectError "type R = private { A: int }\n" [ "R"; "private" ]
         }
 
+        test "an untagged union whose cases share a token kind is refused and names the union" {
+            let source = "[<JsonUnion(BaseEncoding = (JsonUnionEncoding.Untagged ||| JsonUnionEncoding.SelectByTokenKind))>]\ntype Id =\n    | Small of int\n    | Large of int64\n"
+            expectError source [ "Id"; "token kind"; "Number" ]
+        }
+
+        test "an untagged union whose cases share a member name is refused and names both cases" {
+            let source = "[<JsonUnion(BaseEncoding = JsonUnionEncoding.Untagged)>]\ntype U =\n    | First of x: int\n    | Second of x: string\n"
+            expectError source [ "U"; "First"; "Second"; "'x'" ]
+        }
+
+        test "two base encodings on one union are refused" {
+            expectError "[<JsonUnion(BaseEncoding = (JsonUnionEncoding.AdjacentTag ||| JsonUnionEncoding.ExternalTag))>]\ntype U = | A | B\n" [ "U"; "more than one base encoding" ]
+        }
+
         test "every error is reported, not only the first" {
             let lines = errors "type A<'T> = { X: 'T }\ntype B = { Y: seq<int> }\n"
             Expect.hasLength lines 2 "two errors"
