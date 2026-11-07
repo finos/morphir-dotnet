@@ -45,7 +45,7 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Shared foundation | Gherkin MCK seed, vocabulary, linter and deterministic runner | Planned | Task 1.3 |
 | Tool path, first delivery | Compile BDD acceptance contract | Planned | Task 1.4 |
 | Tool path, first delivery | Exact versions, checked diagnostics, native builders and writers | Planned | Tasks 2.1–2.6 |
-| Tool path, first delivery | FCS typed/syntax match-range join spike | Blocked on design revision | Task 3.1; exact join passes 1 of 11 probes; see findings |
+| Tool path, first delivery | Syntax-led match reconstruction and checked type-evidence proof | Implemented | Revised task 3.1; 34/34 standalone tests, including all eleven original probes |
 | Tool path, first delivery | Hermetic FCS edge, admission catalog, planning and lowering | Planned | Tasks 3.2–3.8 |
 | Tool path, first delivery | Generator round trip and coverage documentation | Planned | Tasks 3.9–3.10 |
 | Tool path, first delivery | Sources, configuration, CLI composition and streamed reports | Planned | Tasks 4.1–4.8 |
@@ -95,19 +95,38 @@ that either product milestone is complete.
 - The exact FSF-2 join is disproved by a reproducible probe. Several admitted
   patterns have no exposed decision tree; other trees use the subject range;
   nested clause bodies can lose the source body's range. The planned join
-  passes only the match-lambda probe. Task 3.1 is not marked complete.
+  passes only the match-lambda probe. This original probe remains a historical failing reproduction; the revised task 3.1 is validated below.
 - [Findings and reproduction](../../../../../openspec/changes/add-fsharp-compile/spikes/match-range-join.md)
   record all cases and the separate compiler-service/Core compatibility issue.
 - The current FCS 34.1.1 pin cannot read the bundled modern Core metadata. A
   local 43.12.403 probe checks every source, but its exact Core dependency
   conflicts with the repository's 11.0.100 pin. Neither central pin is changed.
-- The proposed next investigation preserves the supported subset and builder
-  design while testing syntax-led match reconstruction with typed information.
+- The maintainer authorized revising and validating syntax-led reconstruction,
+  preserving the supported subset, source order and native builder architecture.
+
+### Syntax-led reconstruction proof, 2026-11-07
+
+- FSF-2 now uses original match syntax for structure and ranges, with FCS-checked
+  types and symbol identity. An analysis-only copy adds fresh subject aliases and
+  nonexpansive result-match bindings; generated nodes never reach IR builders.
+- The standalone proof passes 34/34 tests, including all eleven original probes,
+  shadowing, generic field instantiation, computed/reduced subjects, polymorphic
+  generalization, constructor arity, nested spans, CRLF, UTF-16 and evidence refusal.
+- An identity-call result wrapper failed a real polymorphic counterexample.
+  Replacing it with a nonexpansive match binding made that case pass. Signature
+  preservation is a required production check, not an assumed property.
+- [Replacement findings and reproduction](../../../../../openspec/changes/add-fsharp-compile/spikes/syntax-led-reconstruction.md)
+  describe the proof boundary. The spike uses a local exact FCS 43.12.403/Core
+  10.1.403 pair without changing central pins. Task 3.2 still owns production
+  compiler compatibility, full binding/constraint/reference verification and the
+  hermetic evidence edge. Task 3.6 still owns lowering through both native builders.
+- Task 3.1 is complete under its revised acceptance criteria. No production
+  frontend, emitted IR or MCK qualification is claimed by this checkpoint.
 
 ## Open questions
 
-- Validate the typed decision-tree/source-clause range join for every admitted
-  pattern. A failed assumption requires a recorded design decision before lowering.
+- Resolve and validate the production FCS/Core package pairing in task 3.2.
+  The proof's local package overrides do not resolve the repository-wide pairing.
 - Confirm the guest package name during the second delivery, as recorded in the
   design. This does not block the in-process frontend.
 

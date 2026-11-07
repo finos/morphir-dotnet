@@ -68,6 +68,14 @@ The frontend SHALL lower wildcard, variable, literal, tuple, constructor, empty-
 - **WHEN** a `match` has cases `Rented 0`, `Rented n` and `Available` in that order
 - **THEN** the Morphir pattern match has three cases in the same order with the same bindings
 
+#### Scenario: Reduced-away and nested matches keep their source structure
+- **WHEN** the compiler reduces a variable, tuple, literal or unit match, or changes the typed target ranges of a nested match
+- **THEN** the model still has the original source match clauses in source order, with their original bindings and body structure, and compilation does not require a surviving decision-tree node or an exact target-range join
+
+#### Scenario: Constructor field arity
+- **WHEN** one union case has two fields `of int * string` and another has one tuple-valued field `of (int * string)`
+- **THEN** their lowered patterns have two constructor arguments and one tuple constructor argument respectively, with compiler-supplied component types in source order
+
 #### Scenario: Guard is refused
 - **WHEN** a match case uses `when n > 3`
 - **THEN** compilation fails with `fsharp.unsupported_pattern_guard` at the guard's range
@@ -144,6 +152,20 @@ Every lowered value and pattern node SHALL carry its F# inferred type as a Morph
 #### Scenario: Inferred type on a lambda
 - **WHEN** `fun x -> x + 1` is compiled where `x` is inferred as `int`
 - **THEN** in every IR version, the lambda's type is SDK `Int -> Int` and its argument pattern's type is SDK `Int`, and in IR v4 both nodes carry their source ranges
+
+### Requirement: Analysis evidence preserves the original checked program
+The frontend SHALL use original syntax for match structure and locations, and compiler-checked information for types and symbol identity. Analysis-only transformations SHALL preserve checked binding types, generalization, constraints, source-symbol resolution and evaluation structure. Generated witnesses SHALL NOT appear in emitted models or public source diagnostics.
+
+#### Scenario: Polymorphic match result
+- **WHEN** `let identity = match () with | () -> fun value -> value` is used at both `int` and `string`
+- **THEN** compilation preserves its generic function type, and generated evidence bindings do not restrict it to one use type
+
+### Requirement: Unavailable match evidence fails explicitly
+Missing, ambiguous or changed match evidence SHALL fail with `fsharp.unsupported_match_shape` at the original match and no model. The frontend SHALL NOT guess types, reorder clauses or flatten matches to bypass unavailable evidence.
+
+#### Scenario: Invalid match evidence
+- **WHEN** required checked match evidence is missing, ambiguous or changes an original binding signature
+- **THEN** compilation fails with `fsharp.unsupported_match_shape` located in the original document, emits no model and exposes no generated-source path
 
 ### Requirement: Frontend conformance is defined by implementation-independent cases
 The frontend's conformance SHALL be defined by portable Morphir Compatibility Kit cases. Each case holds its sources, settings and independently written expectations: IR, diagnostics and call results. No expected result SHALL be produced by the implementation under test. Any implementation SHALL be able to run the cases through its command line or a MEP guest, and get a verdict report that names it and the case set.

@@ -1,7 +1,9 @@
 # Match-range join spike, 2026-11-07
 
-Status: the FSF-2 assumption is disproved. Task 3.1 remains incomplete; no
-production lowering is implemented from the disproved rule.
+Status: the original FSF-2 assumption is disproved. This failing probe is retained
+as historical evidence. Revised task 3.1 is completed by the
+[syntax-led reconstruction proof](syntax-led-reconstruction.md); no production
+lowering is implemented from the disproved rule.
 
 ## Reproduction
 
@@ -70,7 +72,7 @@ FSharp.Core 11.0.100 produces NU1608. The spike records that warning; it does no
 suppress it or change either central package pin. A compatible, supported
 compiler-service/Core pairing must be chosen before production integration.
 
-## Proposed next investigation
+## Replacement investigation
 
 Preserve the supported pattern set, clause order, source locations and native
 builder architecture. Investigate syntax-led match reconstruction with typed
@@ -80,3 +82,6 @@ clause bodies. Prove it against these eleven cases before replacing FSF-2.
 Do not narrow the supported subset or emit flattened matches as an implicit
 workaround. If the proposed reconstruction cannot retain inferred types and
 evaluation structure, return to design review with that evidence.
+
+The authorized replacement is now recorded in [FSF-2](../design.html#fsf-2) and
+validated by the [syntax-led proof](syntax-led-reconstruction.md).

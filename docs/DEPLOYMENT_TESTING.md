@@ -14,6 +14,36 @@ The deployment workflow (`.github/workflows/deployment.yml`) is triggered by:
 - [ ] All tests passing locally
 - [ ] Version number follows semantic versioning (e.g., `0.2.1` or `0.2.1-rc.1`)
 
+## NuGet trusted publishing
+
+Deployment uses GitHub OIDC and `NuGet/login` to obtain a temporary NuGet API key
+immediately before publishing. It does not use the stored `NUGET_KEY` or
+`NUGET_TOKEN` secrets. Only the `release` job has `id-token: write` permission.
+
+Before running a release:
+
+1. In NuGet.org, open **Trusted Publishing** under your personal user profile.
+   Select the account or organization that owns the Morphir packages as the
+   package owner. The current policy selects `Morphir`. Confirm that the GitHub
+   policy trusts repository owner `finos`, repository `morphir-dotnet`, and
+   workflow file `deployment.yml`, without the directory path.
+2. Set the policy's environment restriction to `production`, matching
+   `environment: production` on the workflow's `release` job.
+3. Confirm the policy covers all package IDs in `LibraryPackages` in
+   `build/Build.cs`, plus `Morphir.Tool`. It must allow new package creation as
+   well as new versions for IDs that have not been published before. The package
+   glob `Morphir*` covers all 15 packages, including the root `Morphir` package.
+4. Set the repository Actions variable `NUGET_USER` to the personal NuGet username
+   that creates the policy, even when an organization is selected as package
+   owner. Use the NuGet username, not an email address, organization name or
+   GitHub username. The current policy was created by `DamReev`. An existing
+   Actions secret named `NUGET_USER` is also accepted. No permanent API key is needed.
+
+The workflow checks for `NUGET_USER` before building packages. NuGet checks the
+policy when `NuGet/login` exchanges the OIDC token. See the
+[NuGet trusted publishing documentation](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing)
+for policy ownership and package scopes.
+
 ## Testing on a Fork (Recommended)
 
 **IMPORTANT**: Always test on a fork first to avoid accidental releases to the main repository.
@@ -85,7 +115,7 @@ Check that each step completes successfully:
   - Downloads executable artifacts
   - Packs NuGet packages
   - Runs TestAll (unit tests + build tests)
-  - **Note**: Will fail at NuGet publish step if you don't have NUGET_KEY secret configured (this is expected)
+  - **Note**: A fork without `NUGET_USER` fails the configuration check. A fork is not trusted by the main repository's NuGet policy, so OIDC login will fail even if a username is configured.
   
 - ✅ `create-github-release` job:
   - Downloads executables
@@ -176,12 +206,20 @@ Watch the workflow execution in real-time and verify all steps complete successf
 
 ### NuGet Publish Fails
 
-**Error**: `API_KEY is required for publishing`
+Check which step failed:
 
-**Solution**: 
-- On fork: This is expected unless you configure NUGET_KEY secret
-- On main repo: Ensure NUGET_KEY secret is set in repository settings
-- For testing: Use `skip-git-release: true` to test everything except publishing
+- **Validate trusted publishing configuration**: Set the Actions variable
+  `NUGET_USER` to the personal NuGet username that created the trust policy.
+- **Authenticate to NuGet with trusted publishing**: Check the policy's profile,
+  repository owner, repository, workflow filename, environment restriction,
+  activation status and package scopes against the configuration above.
+- **Publish packages to NuGet**: Check the temporary credential's package scopes
+  and whether the policy allows both new packages and new versions. Do not
+  restore a stored API key as a workaround.
+
+`skip-git-release: true` only skips creation of the GitHub release. It still
+publishes NuGet packages, so it is not a publishing dry run. A fork without its
+own trust policy cannot complete NuGet publishing.
 
 ## Production Deployment Checklist
 
@@ -276,15 +314,12 @@ If deployment fails:
 - Verify workflow file has valid YAML syntax
 - Check repository Actions settings (Actions must be enabled)
 
-### Secrets Not Available
+### Publishing Credentials Not Available
 
-**Issue**: GITHUB_TOKEN or NUGET_KEY not found
-
-**Solutions**:
-- GITHUB_TOKEN: Automatically provided by GitHub Actions
-- NUGET_KEY: Must be configured in repository secrets
-  - Go to Settings > Secrets and variables > Actions
-  - Add secret named `NUGET_KEY` with your NuGet API key
+GitHub provides `GITHUB_TOKEN` automatically. NuGet publishing requires the
+`NUGET_USER` profile name and a matching trusted publishing policy, as described
+above. `NuGet/login` supplies the temporary API key through its step output.
+The old `NUGET_KEY` and `NUGET_TOKEN` secrets are no longer read by deployment.
 
 ### Permission Denied
 
