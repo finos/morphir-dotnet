@@ -255,7 +255,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 - Add selection and lock files at the system, global, workspace and project levels.
 - Add the `staged/` folders and the `[extension_install] staged` setting, with the default `auto`.
 - Accept a bare `.wasm` module and the [extension package archive](#extension-package-archive) (zip or tar gzip) in `staged/`. `morphir extension install <file>` accepts the same formats, so a user can install an archive without the staged folder.
-- Replace the stub handlers of `morphir extension list/install/use/remove/which` in `src/Morphir.Tooling/Scenarios/ManagementScenario.cs` with real implementations. Update `docs/content/docs/cli/management.md`, which describes a layout with `<platform>` folders that WASM does not need.
+- Replace the not-implemented `morphir extension install/use/remove/which` commands (#492) in `src/Morphir.Tooling/Scenarios/ManagementScenario.cs` with real implementations. Update `docs/content/docs/cli/management.md`, which describes a layout with `<platform>` folders that WASM does not need.
 - **Ship the levels as a documented superset (decided 2026-11-06).** Step 3 does not wait for upstream. Extensions go into the shared store, catalog and global locks in the upstream format, so upstream CLIs see global installs. The level selection and lock files and the `staged/` folders are additions that upstream CLIs ignore. A project-level or workspace-level selection is visible only to morphir-dotnet until upstream adopts the proposal. Document this difference in the CLI documentation.
 - Send the levels, the staged folders, the extension package archive (both formats) and the install mode to upstream as a proposal against `docs/design/draft/extensions/distribution-and-acquisition.md`. Upstream currently supports only user-global installs from a registered repository, "does not accept a raw `.wasm` file", and does not download during compile or generate "without an explicit install policy". The install mode setting is that policy.
 
@@ -280,7 +280,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 
 | Feature | Status | Step | Completion evidence |
 | --- | --- | --- | --- |
-| Extension registry and built-in list | Planned | 0 | `morphir extension list` shows built-ins in both hosts |
+| Extension registry and built-in list | Planned in `add-extension-registry` ([#492](https://github.com/finos/morphir-dotnet/issues/492)) | 0 | `morphir extension list` shows built-ins in both hosts |
 | JSON-RPC spike | Planned | 1 | AOT warning count and size for each candidate; decision recorded |
 | MEP core (`Morphir.Mep`) | Planned in `add-fsharp-compile` | 1 | That change's tasks |
 | In-process validator contract | Planned | 1 | `TypeValidator` diagnostics through the contract |

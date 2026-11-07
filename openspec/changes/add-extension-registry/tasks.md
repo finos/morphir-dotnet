@@ -7,7 +7,7 @@ Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/
 
 ## 1. Tracking and baseline
 
-- [ ] 1.1 Create the GitHub issue for PRD step 0 and link it in `proposal.md` and in the PRD feature status table; verify both links resolve.
+- [ ] 1.1 Link step 0 to issue #492 (the `morphir extension` commands): comment on #492 with a link to this change, and add #492 to the PRD feature status table; verify both links resolve.
 - [ ] 1.2 Check whether PR #495 (`add-fsharp-compile`) has landed `Morphir.Program.CreateApp`; record in this task which HOST-1 path applies, and verify the branch builds with `./build.sh` before any production change.
 
 ## 2. F# project setup (LANG-1)
@@ -49,7 +49,7 @@ Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/
 
 - [ ] 7.1 Write failing command tests for text output (one row for each entry, sorted, with the six columns), `--json` output (one document with `host` and `extensions`, MEP wire names in `capabilities.backend`, no `description` member when absent), `--local` and `--platform` still showing built-ins, and exit code 2 naming each duplicate id; verify they fail.
 - [ ] 7.2 Add `ExtensionListCommand`, `ExtensionListReport.From(ExtensionCatalog)` as the only typed-to-text mapping (through `ToString` and `WireValue`, with no `switch` on an F# union), and the source-generated `ExtensionListJsonContext`; verify the 7.1 tests pass and stdout holds only command output.
-- [ ] 7.3 Wire `list` into the `extension` command through the service provider and keep `install`, `use`, `remove` and `which` unchanged; verify their help text and stub output are unchanged.
+- [ ] 7.3 Wire `list` into the `extension` command through the service provider and keep `install`, `use`, `remove` and `which` on `NotImplemented` with the #492 link; remove the `extension list` row from `tests/Morphir.Tooling.Tests/Integration/CLI/CliManagementCommands.feature` and verify the other rows still pass.
 - [ ] 7.4 Remove `ExtensionList`, `ExtensionListResult`, `ExtensionInfo` and `ExtensionHandlers.HandleList`; verify the solution builds and no reference remains.
 - [ ] 7.5 Update `docs/content/docs/cli/management.md` with the `extension list` text and JSON output, the id rule (including the dotted superset), the meaning of delivery, hosts and `available`, and the note that `--platform` and `--local` apply to installed extensions from PRD step 3; verify the documented commands give the documented output.
 

@@ -2,7 +2,7 @@
 
 ## Why
 
-The [Morphir extension model PRD](../../../docs/content/contributing/design/prds/morphir-extension-model.md) delivers extensions in small steps. Step 0 makes the built-in capabilities visible as extensions before any external runtime exists. Today `morphir extension list` is a stub that prints "No extensions installed.", although both hosts already contain two generators. The later steps (selection rule, analyzers, installation) need one registry that knows each extension, its capabilities, its delivery and the hosts it runs in.
+The [Morphir extension model PRD](../../../docs/content/contributing/design/prds/morphir-extension-model.md) delivers extensions in small steps. Step 0 makes the built-in capabilities visible as extensions before any external runtime exists. Today `morphir extension list` fails with "not implemented yet" and links issue [#492](https://github.com/finos/morphir-dotnet/issues/492) (since #489), although both hosts already contain two generators. The later steps (selection rule, analyzers, installation) need one registry that knows each extension, its capabilities, its delivery and the hosts it runs in.
 
 ## What Changes
 
@@ -32,7 +32,7 @@ None. No existing spec covers `morphir extension`.
 ## Tracking
 
 - Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/prds/morphir-extension-model.md), step 0.
-- No GitHub issue exists yet. Create one and link it here before implementation starts, as `openspec/config.yaml` requires.
+- Issue: [#492](https://github.com/finos/morphir-dotnet/issues/492) tracks the `morphir extension` commands. This change implements `extension list` for built-ins; `install`, `use`, `remove` and `which` stay open under #492 until PRD step 3.
 - Related: PR [#495](https://github.com/finos/morphir-dotnet/pull/495) (`add-fsharp-compile`) plans `Morphir.Program.CreateApp(args, extend)` and `Morphir.Mep`. This change must fit both (design decisions HOST-1 and REG-1).
 - Upstream: at closeout, propose dotted extension ids to `finos/morphir` (the extension identity rules) and `finos/morphir-rust` (`crates/morphir-distribution/src/domain/identity.rs`), as design decision ID-1 records.
 
@@ -40,7 +40,7 @@ None. No existing spec covers `morphir extension`.
 
 - New: `src/Morphir.Extensions` (F#: the parsed types, `NonEmptySet`, the registry unions and catalog, `IExtensionSource`, `TargetId`) and `tests/Morphir.Extensions.Tests` (Expecto and FsCheck), both in `Morphir.slnx`, with the test project in the Nuke test targets.
 - New in `Morphir.Tooling`: `Features/Extensions/` (C#: the backend adapter, the registry service, the list command and report, the JSON context).
-- Changed: `src/Morphir.Tooling/Scenarios/ManagementScenario.cs` (`extension list` handler), `src/Morphir.Tooling/Features/Generate/GenerationContracts.cs` (the F# `TargetId` replaces the C# struct, `SourceFormatVersion` sets in `BackendCapability`, and `ExtensionId`, `ExtensionName` and an optional `ExtensionDescription` on `BackendDescriptor`), `CliGenerationSettingsResolver.cs` and `RegisteredBackendResolver.cs` (typed inputs, same behavior), the two backends, `src/Morphir/Program.cs` and `src/Morphir.Tool/Program.cs` (host identity).
+- Changed: `src/Morphir.Tooling/Scenarios/ManagementScenario.cs` (`extension list` is no longer a not-implemented command), `tests/Morphir.Tooling.Tests/Integration/CLI/CliManagementCommands.feature` (its `extension list` row), `src/Morphir.Tooling/Features/Generate/GenerationContracts.cs` (the F# `TargetId` replaces the C# struct, `SourceFormatVersion` sets in `BackendCapability`, and `ExtensionId`, `ExtensionName` and an optional `ExtensionDescription` on `BackendDescriptor`), `CliGenerationSettingsResolver.cs` and `RegisteredBackendResolver.cs` (typed inputs, same behavior), the two backends, `src/Morphir/Program.cs` and `src/Morphir.Tool/Program.cs` (host identity).
 - Removed: the unused `ExtensionList`, `ExtensionListResult` and `ExtensionInfo` records and `ExtensionHandlers.HandleList` in `src/Morphir.Tooling/Features/Management/`, which have no callers. The other management records stay.
 - Documentation: `docs/content/docs/cli/management.md` (`extension list` output).
 - Tests: parser property tests and unit tests in `tests/Morphir.Tooling.Tests`, the unchanged generate tests and contract scripts, and an executable test that runs `extension list --json` against the AOT `morphir` binary and against `dotnet-morphir`.
