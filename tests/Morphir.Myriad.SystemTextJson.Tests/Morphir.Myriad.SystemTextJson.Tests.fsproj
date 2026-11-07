@@ -50,6 +50,7 @@
         <Compile Include="MemberRuleTests.fs" />
         <Compile Include="PrimitiveTests.fs" />
         <Compile Include="CollectionTests.fs" />
+        <Compile Include="BuildErrorTests.fs" />
         <Compile Include="BuildTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>

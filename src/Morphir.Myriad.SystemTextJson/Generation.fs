@@ -116,7 +116,10 @@ module Generation =
         let planned =
             included
             |> List.choose (fun declaration ->
-                if not declaration.Parameters.IsEmpty then
+                if Resolve.reservedNames.Contains declaration.Name then
+                    unsupported declaration declaration.Location None $"'{declaration.Name}' is the name of a built-in type that the generator reads by its name; rename the type."
+                    None
+                elif not declaration.Parameters.IsEmpty then
                     unsupported declaration declaration.Location None "generic types are not supported; declare an abbreviation of a closed type instead."
                     None
                 else
@@ -139,7 +142,14 @@ module Generation =
                             |> List.choose (fun field ->
                                 let name = defaultArg field.Name ""
 
+                                let hasJsonName = hasAttribute "JsonName" field.Attributes
+                                let hasPropertyName = hasAttribute "JsonPropertyName" field.Attributes
+
+                                if hasJsonName && hasPropertyName then
+                                    unsupported declaration field.Location field.Name "JsonName and JsonPropertyName both set the member name; use one of them."
+
                                 resolve declaration field.Location field.Name field.Type
+                                |> Option.filter (fun _ -> not (hasJsonName && hasPropertyName))
                                 |> Option.bind (fun resolved ->
                                     let lenient = readsNumbersFromStrings field.Attributes
 

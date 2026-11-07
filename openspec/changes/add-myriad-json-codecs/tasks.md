@@ -15,7 +15,7 @@ Every behavior task follows red/green/refactor: write the failing test first. Ea
 - [x] 2.2 Add the record member rules: `JsonName` and `JsonPropertyName`, naming policies, required non-option fields, refusal of `null`, skippable options, duplicate refusal and the unknown-member rule. Verify one hand-written expected JSON case for each rule, and the `JsonException` text and path for each failure.
 - [x] 2.3 Add exact numbers for every integer type, `decimal`, floating point, `bool`, `string`, `Guid`, `DateTimeOffset` and `JsonElement`, and the number-from-string option. Verify the range ends of each type, a fraction for an integer, and `uint64` maximum.
 - [x] 2.4 Add the collections: `option`, `voption`, `list`, arrays, `Set`, `ResizeArray`, `IReadOnlyList`, `IReadOnlyCollection`, tuples, `Map` and `IReadOnlyDictionary` with the three map formats, and nesting. Verify each shape with expected JSON and with the FSharp.SystemTextJson compatibility check.
-- [ ] 2.5 Add build errors for unsupported input: generic user types, a reserved built-in name used by a user type, an unknown attribute argument and contradictory options. Verify that each error names the file, type, member and reason.
+- [x] 2.5 Add build errors for unsupported input: generic user types, a reserved built-in name used by a user type, an unknown attribute argument and contradictory options. Verify that each error names the file, type, member and reason.
 
 ## 3. Unions
 

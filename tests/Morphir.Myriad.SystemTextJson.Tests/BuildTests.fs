@@ -81,6 +81,18 @@ let tests =
                 Directory.Delete(folder, true)
         }
 
+        test "a type that the generator cannot encode is a build error at its line and column" {
+            let exitCode, output, folder =
+                buildFixture "namespace Fixture\n\ntype Page<'T> = { Items: 'T list }\n" """<FSharpJsonContext Include="Types.fs" Name="FixtureJson" Namespace="Fixture.Json" />"""
+
+            try
+                Expect.notEqual exitCode 0 "the build fails"
+                Expect.stringContains output "Types.fs(3," "the file and line"
+                Expect.stringContains output "error MSTJ0010: Page: generic types are not supported" "the MSBuild error"
+            finally
+                Directory.Delete(folder, true)
+        }
+
         test "a valid context builds, and a repeat build does not rewrite the generated file" {
             let source = "namespace Fixture\n\nmodule Marker =\n    let value = 0\n"
             let item = """<FSharpJsonContext Include="Types.fs" Name="FixtureJson" Namespace="Fixture.Json" />"""
