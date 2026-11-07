@@ -1505,7 +1505,7 @@ dotnet fsi generate-myriad-plugin.fsx <plugin-name>
 dotnet fsi codegen-helpers.fsx <command> [args]
 
 # Commands:
-# - json-codec <type-file> - Generate JSON codec
+# - (JSON: use the Morphir.Myriad.SystemTextJson plugin and an FSharpJsonContext item)
 # - visitor <type-file> - Generate visitor pattern
 # - lenses <type-file> - Generate lenses for nested updates
 ```

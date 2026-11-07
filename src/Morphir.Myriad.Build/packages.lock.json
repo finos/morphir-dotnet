@@ -97,6 +97,9 @@
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
       },
+      "morphir.myriad.hosting": {
+        "type": "Project"
+      },
       "Fabulous.AST": {
         "type": "CentralTransitive",
         "requested": "[1.10.0, )",

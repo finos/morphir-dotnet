@@ -1434,7 +1434,7 @@ Location: `.claude/skills/elm-to-fsharp-guru/scripts/`
 
 **codegen-helpers.fsx**
 - Build-time code generation utilities
-- Commands: json-codec, visitor, lenses
+- Commands: visitor, lenses (JSON: the Morphir.Myriad.SystemTextJson plugin)
 - **Token Savings**: ~500 tokens
 
 #### Manual Workflow for Non-Claude Agents

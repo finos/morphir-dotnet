@@ -1,0 +1,27 @@
+<Project>
+  <!--
+    Shared packaging for Morphir Myriad plugin packages. A plugin project imports this file,
+    sets MyriadTaskProjectDirectory to its MSBuild task project, and gets:
+      tools/plugin/  the plugin and its dependencies
+      tasks/net10.0/ the MSBuild task assembly and its dependencies (including Morphir.Myriad.Hosting)
+      tools/host/    the Myriad host, with the plugin's FSharp.Core instead of the host's
+  -->
+  <PropertyGroup>
+    <MorphirMyriadHostVersion>0.85.0</MorphirMyriadHostVersion>
+    <_MyriadHostRoot>$(NuGetPackageRoot)/myriad/$(MorphirMyriadHostVersion)/tools/net9.0/any</_MyriadHostRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageDownload Include="myriad" Version="[$(MorphirMyriadHostVersion)]" />
+  </ItemGroup>
+  <Target Name="IncludeMyriadTools" BeforeTargets="_GetPackageFiles">
+    <Error Condition="'$(MyriadTaskProjectDirectory)' == ''" Text="Set MyriadTaskProjectDirectory before importing MyriadHostPackaging.targets." />
+    <ItemGroup>
+      <None Include="$(TargetDir)*.dll;$(TargetDir)*.deps.json" Pack="true" PackagePath="tools/plugin/" />
+      <None Include="$(MyriadTaskProjectDirectory)/bin/$(Configuration)/net10.0/*.dll;$(MyriadTaskProjectDirectory)/bin/$(Configuration)/net10.0/*.deps.json" Pack="true" PackagePath="tasks/net10.0/" />
+      <_MorphirHostFile Include="$(_MyriadHostRoot)/**/*" Exclude="$(_MyriadHostRoot)/FSharp.Core.dll" />
+      <None Include="@(_MorphirHostFile)" Pack="true" PackagePath="tools/host/%(_MorphirHostFile.RecursiveDir)" />
+      <None Include="$(TargetDir)FSharp.Core.dll" Pack="true" PackagePath="tools/host/" />
+      <None Include="$(NuGetPackageRoot)/myriad/$(MorphirMyriadHostVersion)/README.md" Pack="true" PackagePath="tools/host/UPSTREAM-README.md" />
+    </ItemGroup>
+  </Target>
+</Project>

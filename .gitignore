@@ -295,3 +295,6 @@ test-*.json
 
 # Shared OpenSpec checker build cache
 /scripts/_build/
+
+# Snapshot test output that differs from the accepted snapshot
+*.received

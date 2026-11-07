@@ -1,0 +1,16 @@
+<Project>
+  <!--
+    For projects in this repository: use the plugin, the task and the Myriad host from build outputs and the
+    NuGet cache, with no package feed. The project also needs ProjectReference items to the plugin and to
+    Morphir.Myriad.SystemTextJson.Build (ReferenceOutputAssembly="false"), so they build first.
+  -->
+  <PropertyGroup>
+    <_MorphirSystemTextJsonSource>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</_MorphirSystemTextJsonSource>
+    <MorphirSystemTextJsonPluginPath>$(_MorphirSystemTextJsonSource)/bin/$(Configuration)/net10.0/Morphir.Myriad.SystemTextJson.dll</MorphirSystemTextJsonPluginPath>
+    <MorphirSystemTextJsonTaskAssembly>$(_MorphirSystemTextJsonSource)/../Morphir.Myriad.SystemTextJson.Build/bin/$(Configuration)/net10.0/Morphir.Myriad.SystemTextJson.Build.dll</MorphirSystemTextJsonTaskAssembly>
+    <MorphirSystemTextJsonHostPath>$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))myriad/0.85.0/tools/net9.0/any/Myriad.dll</MorphirSystemTextJsonHostPath>
+    <MorphirSystemTextJsonTaskHost>true</MorphirSystemTextJsonTaskHost>
+  </PropertyGroup>
+  <Import Project="$(_MorphirSystemTextJsonSource)/build/Morphir.Myriad.SystemTextJson.props" />
+  <Import Project="$(_MorphirSystemTextJsonSource)/build/Morphir.Myriad.SystemTextJson.targets" />
+</Project>

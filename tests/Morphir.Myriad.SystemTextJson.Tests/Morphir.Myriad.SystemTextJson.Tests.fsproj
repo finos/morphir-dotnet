@@ -1,0 +1,110 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.Myriad.SystemTextJson.Tests</RootNamespace>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <IsPackable>false</IsPackable>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="FSharp.SystemTextJson" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The plugin is referenced as a library for the generator unit tests, and runs as a Myriad plugin for the contexts below. -->
+        <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson\Morphir.Myriad.SystemTextJson.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Build\Morphir.Myriad.SystemTextJson.Build.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Annotations\Morphir.Myriad.SystemTextJson.Annotations.csproj" />
+        <ProjectReference Include="..\..\src\Morphir.Extensions\Morphir.Extensions.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Contexts/Empty.fs" />
+        <FSharpJsonContext Include="Contexts/Empty.fs" Name="EmptyJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Empty" />
+        <Compile Include="Contexts/Addresses.fs" />
+        <FSharpJsonContext Include="Contexts/Addresses.fs" Name="AddressJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Addresses" />
+        <Compile Include="Contexts/Records.fs" />
+        <FSharpJsonContext Include="Contexts/Records.fs" Name="RecordJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Records" />
+        <Compile Include="Contexts/Members.fs" />
+        <FSharpJsonContext Include="Contexts/Members.fs" Name="MemberJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Members" Naming="CamelCase" SkippableOptionFields="Always" />
+        <Compile Include="Contexts/Numbers.fs" />
+        <FSharpJsonContext Include="Contexts/Numbers.fs" Name="NumberJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Numbers" />
+        <Compile Include="Contexts/LenientNumbers.fs" />
+        <FSharpJsonContext Include="Contexts/LenientNumbers.fs" Name="LenientJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.LenientNumbers" AllowNumbersFromStrings="true" />
+        <Compile Include="Contexts/Collections.fs" />
+        <FSharpJsonContext Include="Contexts/Collections.fs" Name="CollectionJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Collections" />
+        <Compile Include="Contexts/PairMaps.fs" />
+        <FSharpJsonContext Include="Contexts/PairMaps.fs" Name="PairJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.PairMaps" MapFormat="ArrayOfPairs" />
+        <Compile Include="Contexts/Unions.fs" />
+        <FSharpJsonContext Include="Contexts/Unions.fs" Name="UnionJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Unions" />
+        <Compile Include="Contexts/Corpus.fs" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_AdjacentTag" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="AdjacentTag" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_AdjacentTag_NamedFields" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="AdjacentTag, NamedFields" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_AdjacentTag_UnwrapFieldlessTags" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="AdjacentTag, UnwrapFieldlessTags" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_AdjacentTag_UnwrapSingleFieldCases" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="AdjacentTag, UnwrapSingleFieldCases" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_AdjacentTag_UnwrapRecordCases" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="AdjacentTag, UnwrapRecordCases" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_AdjacentTag_NamedFields_UnionFieldNamesFromTypes" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="AdjacentTag, NamedFields, UnionFieldNamesFromTypes" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_AdjacentTag_UnwrapOption_UnwrapSingleCaseUnions" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="AdjacentTag, UnwrapOption, UnwrapSingleCaseUnions" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_ExternalTag" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="ExternalTag" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_ExternalTag_NamedFields" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="ExternalTag, NamedFields" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_ExternalTag_UnwrapFieldlessTags" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="ExternalTag, UnwrapFieldlessTags" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_ExternalTag_UnwrapSingleFieldCases" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="ExternalTag, UnwrapSingleFieldCases" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_ExternalTag_UnwrapRecordCases" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="ExternalTag, UnwrapRecordCases" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_ExternalTag_NamedFields_UnionFieldNamesFromTypes" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="ExternalTag, NamedFields, UnionFieldNamesFromTypes" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_ExternalTag_UnwrapOption_UnwrapSingleCaseUnions" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="ExternalTag, UnwrapOption, UnwrapSingleCaseUnions" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_InternalTag" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="InternalTag" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_InternalTag_NamedFields" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="InternalTag, NamedFields" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_InternalTag_UnwrapFieldlessTags" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="InternalTag, UnwrapFieldlessTags" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_InternalTag_UnwrapSingleFieldCases" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="InternalTag, UnwrapSingleFieldCases" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_InternalTag_UnwrapRecordCases" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="InternalTag, UnwrapRecordCases" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_InternalTag_NamedFields_UnionFieldNamesFromTypes" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="InternalTag, NamedFields, UnionFieldNamesFromTypes" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_InternalTag_UnwrapOption_UnwrapSingleCaseUnions" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="InternalTag, UnwrapOption, UnwrapSingleCaseUnions" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_Default" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="Default" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_NewtonsoftLike" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="NewtonsoftLike" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_ThothLike" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="ThothLike" />
+        <FSharpJsonContext Include="Contexts/Corpus.fs" Name="C_FSharpLuLike" Namespace="Morphir.Myriad.SystemTextJson.Tests.Corpus" UnionEncoding="FSharpLuLike" />
+        <Compile Include="Contexts/UntaggedCorpus.fs" />
+        <FSharpJsonContext Include="Contexts/UntaggedCorpus.fs" Name="U_Untagged" Namespace="Morphir.Myriad.SystemTextJson.Tests.UntaggedCorpus" UnionEncoding="Untagged" />
+        <FSharpJsonContext Include="Contexts/UntaggedCorpus.fs" Name="U_Untagged_UnwrapFieldlessTags" Namespace="Morphir.Myriad.SystemTextJson.Tests.UntaggedCorpus" UnionEncoding="Untagged, UnwrapFieldlessTags" />
+        <FSharpJsonContext Include="Contexts/UntaggedCorpus.fs" Name="U_Untagged_UnwrapRecordCases" Namespace="Morphir.Myriad.SystemTextJson.Tests.UntaggedCorpus" UnionEncoding="Untagged, UnwrapRecordCases" />
+        <FSharpJsonContext Include="Contexts/UntaggedCorpus.fs" Name="U_Untagged_UnionFieldNamesFromTypes" Namespace="Morphir.Myriad.SystemTextJson.Tests.UntaggedCorpus" UnionEncoding="Untagged, UnionFieldNamesFromTypes" />
+        <FSharpJsonContext Include="Contexts/UntaggedCorpus.fs" Name="U_Untagged_UnwrapOption_UnwrapSingleCaseUnions" Namespace="Morphir.Myriad.SystemTextJson.Tests.UntaggedCorpus" UnionEncoding="Untagged, UnwrapOption, UnwrapSingleCaseUnions" />
+        <Compile Include="Contexts/Parsed.fs" />
+        <FSharpJsonContext Include="Contexts/Parsed.fs" Name="ParsedJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Parsed" />
+        <Compile Include="Contexts/Converters.fs" />
+        <FSharpJsonContext Include="Contexts/Converters.fs" Name="ConverterJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Converters" />
+        <Compile Include="Contexts/SkippedOptions.fs" />
+        <FSharpJsonContext Include="Contexts/SkippedOptions.fs" Name="SkippedJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.SkippedOptions" UnionEncoding="AdjacentTag" SkippableOptionFields="Always" />
+        <Compile Include="Guide/Types.fs" />
+        <FSharpJsonContext Include="Guide/Types.fs" Name="AppJson" Namespace="Guide.Json" Naming="CamelCase" />
+        <Compile Include="Guide/Usage.fs" />
+        <Compile Include="Compatibility.fs" />
+        <Compile Include="GenerationTests.fs" />
+        <Compile Include="ContextTests.fs" />
+        <Compile Include="RecordTests.fs" />
+        <Compile Include="MemberRuleTests.fs" />
+        <Compile Include="PrimitiveTests.fs" />
+        <Compile Include="CollectionTests.fs" />
+        <Compile Include="UnionTests.fs" />
+        <Compile Include="CorpusTests.fs" />
+        <Compile Include="ParsedTests.fs" />
+        <Compile Include="BuildErrorTests.fs" />
+        <Compile Include="SnapshotTests.fs" />
+        <Compile Include="GuideTests.fs" />
+        <Compile Include="ReviewTests.fs" />
+        <Compile Include="BuildTests.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <Import Project="..\..\src\Morphir.Myriad.SystemTextJson\repository\Morphir.Myriad.SystemTextJson.Repository.targets" />
+
+</Project>

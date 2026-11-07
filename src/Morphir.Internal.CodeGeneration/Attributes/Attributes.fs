@@ -2,17 +2,6 @@ namespace Morphir.Internal.CodeGeneration
 
 open System
 
-/// Marker attribute for JSON codec generation
-[<AttributeUsage(AttributeTargets.Class ||| AttributeTargets.Struct, AllowMultiple = false)>]
-type GenerateJsonCodecAttribute() =
-    inherit Attribute()
-
-    /// Namespace for generated code (optional, defaults to current namespace + ".Generated")
-    member val Namespace: string = null with get, set
-
-    /// Property naming policy (e.g., "camelCase", "PascalCase")
-    member val PropertyNamingPolicy: string = "camelCase" with get, set
-
 /// Marker attribute for visitor pattern generation
 [<AttributeUsage(AttributeTargets.Class, AllowMultiple = false)>]
 type GenerateVisitorAttribute() =

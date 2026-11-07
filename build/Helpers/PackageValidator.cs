@@ -150,6 +150,61 @@ public static class PackageValidator
     }
 
     /// <summary>
+    /// Validates a Morphir Myriad plugin package (Morphir.Myriad, Morphir.Myriad.SystemTextJson): the plugin and its
+    /// dependencies under tools/plugin/, the Myriad host under tools/host/, the MSBuild task under tasks/net10.0/,
+    /// the build props and targets, the README and the third-party notices.
+    /// </summary>
+    /// <param name="packagePath">Full path to the .nupkg file</param>
+    /// <param name="packageId">The package id, which names the build props and targets</param>
+    /// <param name="taskAssembly">The file name of the MSBuild task assembly</param>
+    /// <returns>ValidationResult with success status and any error messages</returns>
+    /// <exception cref="FileNotFoundException">Thrown when package file does not exist</exception>
+    public static ValidationResult ValidateMyriadPluginPackage(string packagePath, string packageId, string taskAssembly)
+    {
+        if (!File.Exists(packagePath))
+        {
+            throw new FileNotFoundException($"Package file not found: {packagePath}", packagePath);
+        }
+
+        var errors = new List<string>();
+
+        try
+        {
+            using var archive = ZipFile.OpenRead(packagePath);
+            var entries = archive.Entries.Select(e => e.FullName).ToHashSet();
+            var required = new[]
+            {
+                $"tools/plugin/{packageId}.dll",
+                "tools/plugin/FSharp.Core.dll",
+                "tools/host/Myriad.dll",
+                "tools/host/FSharp.Core.dll",
+                $"tasks/net10.0/{taskAssembly}",
+                "tasks/net10.0/Morphir.Myriad.Hosting.dll",
+                $"build/{packageId}.props",
+                $"build/{packageId}.targets",
+                "README.md",
+                "ThirdPartyNotices.txt",
+            };
+
+            foreach (var entry in required.Where(entry => !entries.Contains(entry)))
+            {
+                errors.Add($"Myriad plugin package must contain '{entry}'");
+            }
+
+            if (entries.Any(e => e.StartsWith("lib/")))
+            {
+                errors.Add("Myriad plugin package should not contain 'lib/': consumers do not reference the plugin");
+            }
+        }
+        catch (Exception ex)
+        {
+            errors.Add($"Failed to read package: {ex.Message}");
+        }
+
+        return errors.Any() ? ValidationResult.Failure(errors.ToArray()) : ValidationResult.Success();
+    }
+
+    /// <summary>
     /// Validates the DotnetToolSettings.xml content
     /// Checks for required Command element with Name and EntryPoint attributes
     /// </summary>

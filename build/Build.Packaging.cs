@@ -63,6 +63,21 @@ partial class Build
                 }
                 Serilog.Log.Information($"✓ {packageId} package validated successfully");
             }
+
+            foreach (var (packageId, taskAssembly) in MyriadPluginPackages)
+            {
+                var packagePath = PathHelper.GetLibraryPackagePath(packageId, versionString, OutputDir);
+                var validation = PackageValidator.ValidateMyriadPluginPackage(packagePath, packageId, taskAssembly);
+                if (!validation.IsValid)
+                {
+                    foreach (var error in validation.Errors)
+                    {
+                        Serilog.Log.Error($"  - {error}");
+                    }
+                    throw new Exception($"{packageId} Myriad plugin package validation failed. See errors above.");
+                }
+                Serilog.Log.Information($"✓ {packageId} Myriad plugin package validated successfully");
+            }
         });
 
     /// <summary>

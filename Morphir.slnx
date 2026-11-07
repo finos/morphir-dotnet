@@ -24,6 +24,10 @@
     <Project Path="src/Morphir.CodeGeneration.CSharp/Morphir.CodeGeneration.CSharp.fsproj" />
     <Project Path="src/Morphir.Myriad/Morphir.Myriad.fsproj" />
     <Project Path="src/Morphir.Myriad.Build/Morphir.Myriad.Build.csproj" />
+    <Project Path="src/Morphir.Myriad.Hosting/Morphir.Myriad.Hosting.csproj" />
+    <Project Path="src/Morphir.Myriad.SystemTextJson.Annotations/Morphir.Myriad.SystemTextJson.Annotations.csproj" />
+    <Project Path="src/Morphir.Myriad.SystemTextJson/Morphir.Myriad.SystemTextJson.fsproj" />
+    <Project Path="src/Morphir.Myriad.SystemTextJson.Build/Morphir.Myriad.SystemTextJson.Build.csproj" />
     <Project Path="src/Morphir.Extensions/Morphir.Extensions.fsproj" />
     <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
     <Project Path="src/Morphir/Morphir.csproj" />
@@ -53,6 +57,8 @@
     <Project Path="tests/Morphir.CodeGeneration.CSharp.Tests/Morphir.CodeGeneration.CSharp.Tests.fsproj" />
     <Project Path="tests/Morphir.Myriad.Tests/Morphir.Myriad.Tests.fsproj" />
     <Project Path="tests/Morphir.Myriad.Integration.Tests/Morphir.Myriad.Integration.Tests.csproj" />
+    <Project Path="tests/Morphir.Myriad.SystemTextJson.Tests/Morphir.Myriad.SystemTextJson.Tests.fsproj" />
+    <Project Path="tests/Morphir.Myriad.SystemTextJson.AotProbe/Morphir.Myriad.SystemTextJson.AotProbe.fsproj" />
     <Project Path="tests/Morphir.Configuration.Tests/Morphir.Configuration.Tests.fsproj" />
     <Project Path="tests/Morphir.Configuration.IO.Tests/Morphir.Configuration.IO.Tests.csproj" />
     <Project Path="tests/Morphir.Configuration.IO.Smoke/Morphir.Configuration.IO.Smoke.csproj" />

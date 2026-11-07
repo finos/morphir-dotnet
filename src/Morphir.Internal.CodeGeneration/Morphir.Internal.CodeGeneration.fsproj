@@ -31,7 +31,6 @@
         <Compile Include="Core/CodeGenHelpers.fs" />
         <Compile Include="Attributes/Attributes.fs" />
         <Compile Include="Attributes/ConfigurationAttributes.fs" />
-        <Compile Include="Generators/JsonCodecGenerator.fs" />
         <Compile Include="Generators/VisitorGenerator.fs" />
         <Compile Include="Generators/LensGenerator.fs" />
         <Compile Include="Generators/ActivePatternGenerator.fs" />

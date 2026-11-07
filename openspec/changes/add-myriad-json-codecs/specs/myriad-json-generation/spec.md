@@ -29,14 +29,18 @@ A record SHALL be a JSON object with one member for each field, named by the fie
 
 #### Scenario: Missing required member
 - **WHEN** JSON for `Person` has no `name` member
-- **THEN** deserialization fails with a `JsonException` that names `name` and the JSON path
+- **THEN** deserialization fails with a `JsonException` that names `name` and `Person`, with the path and position that System.Text.Json gives
+
+#### Scenario: Failure inside a nested value
+- **WHEN** a member of a record inside another record has a value of the wrong kind
+- **THEN** the message names each member on the way to the failure, outer member first
 
 #### Scenario: Skippable option
 - **WHEN** a context sets skippable option fields and a `Person` has `Nickname = None`
 - **THEN** the JSON has no `nickname` member, and JSON with no `nickname` member reads back as `None`
 
 ### Requirement: Union encodings match the shared vocabulary
-Unions SHALL support the base encodings `AdjacentTag`, `ExternalTag`, `InternalTag` and `Untagged`, the flags `NamedFields`, `UnwrapFieldlessTags`, `UnwrapSingleFieldCases`, `UnwrapSingleCaseUnions`, `UnwrapRecordCases`, `UnwrapOption`, `AllowUnorderedTag` and `TagCaseInsensitive`, and the presets `Default`, `NewtonsoftLike`, `ThothLike` and `FSharpLuLike`, with the meanings that FSharp.SystemTextJson gives them.
+Unions SHALL support the base encodings `AdjacentTag`, `ExternalTag`, `InternalTag` and `Untagged`, the flags `NamedFields`, `UnwrapFieldlessTags`, `UnwrapSingleFieldCases`, `UnwrapSingleCaseUnions`, `UnwrapRecordCases`, `UnwrapOption`, `AllowUnorderedTag` and `UnionFieldNamesFromTypes`, case-insensitive tags, and the presets `Default`, `NewtonsoftLike`, `ThothLike` and `FSharpLuLike`, with the meanings that FSharp.SystemTextJson gives them.
 
 #### Scenario: Same output as FSharp.SystemTextJson
 - **WHEN** the compatibility corpus serializes each union and record shape with each base encoding, flag and preset, through the generated context and through FSharp.SystemTextJson with the same options

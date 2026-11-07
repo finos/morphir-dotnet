@@ -1,0 +1,25 @@
+namespace Sample
+
+open Morphir.Myriad.SystemTextJson
+
+/// A record with an option, a list and a map.
+type Order = { Id: OrderId; Lines: Line list; Notes: string option; Totals: Map<string, decimal> }
+
+/// One line of an order.
+and Line = { Sku: string; Quantity: int }
+
+/// A parsed value.
+and [<JsonParsedValue(TextMember = "Value")>] OrderId =
+    private
+    | OrderId of string
+
+    member this.Value = let (OrderId value) = this in value
+
+    static member Parse(text: string) : Result<OrderId, string> =
+        if text.StartsWith "O-" then Ok(OrderId text) else Error $"'{text}' is not an order id."
+
+/// A union with an internal tag.
+[<JsonUnion(BaseEncoding = (JsonUnionEncoding.InternalTag ||| JsonUnionEncoding.NamedFields), TagName = "kind")>]
+type Event =
+    | Placed of order: Order
+    | Cancelled of reason: string

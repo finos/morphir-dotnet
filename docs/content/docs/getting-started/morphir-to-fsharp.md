@@ -15,22 +15,19 @@ Compile a Morphir model JSON file into F# as part of an ordinary build. This art
 
 Run the following commands from the repository root. The checked-in model is sufficient; a separate Morphir frontend is not required.
 
-## Build a local plugin package
+## Choose the plugin version
 
-```sh
-dotnet pack src/Morphir.Myriad/Morphir.Myriad.fsproj -c Release \
-  -o artifacts/myriad-feed -p:PackageVersion=0.1.0-local.5
-```
+`Morphir.Myriad` is published to NuGet.org with each morphir-dotnet release, from the first release after 0.4.0-alpha.1. In the commands below, put that release's version in place of `RELEASE_VERSION`.
 
 `Morphir.Myriad` includes its backend, build task and the matched Myriad 0.85.0 host. Myriad.Core 0.85.0 and Fantomas.Core 7.0.5 are the matching plugin dependencies. The bundled host uses an aligned FSharp.Core and major-version roll forward to load the .NET 10 plugin, including on the first cold restore.
 
 ## Configure the model input
 
-The example's `examples/car-rental/CarRental.fsproj` references the local plugin version and declares the JSON input once:
+The example's `examples/car-rental/CarRental.fsproj` references the plugin and declares the JSON input once:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Morphir.Myriad" Version="0.1.0-local.5" PrivateAssets="all" />
+  <PackageReference Include="Morphir.Myriad" Version="RELEASE_VERSION" PrivateAssets="all" />
   <MorphirModel Include="models/car-rental-v3.json" />
   <Compile Include="Program.fs" />
 </ItemGroup>
@@ -42,11 +39,11 @@ This snippet uses ordinary NuGet version syntax for a standalone project. In thi
 
 ```sh
 dotnet restore examples/car-rental/CarRental.fsproj \
-  --configfile examples/car-rental/NuGet.config
-dotnet run --project examples/car-rental/CarRental.fsproj --no-restore
+  --configfile examples/car-rental/NuGet.config -p:MorphirMyriadVersion=RELEASE_VERSION
+dotnet run --project examples/car-rental/CarRental.fsproj --no-restore -p:MorphirMyriadVersion=RELEASE_VERSION
 ```
 
-The supplied NuGet configuration maps `Morphir.Myriad` to the local feed, avoiding the repository's broader source mapping. The application prints:
+The supplied NuGet configuration restores every package from NuGet.org, and keeps the repository's own source mapping out of the example. The application prints:
 
 ```text
 dailyRate=5000
@@ -64,7 +61,7 @@ The first generated value is `Car.Rental.Inventory.dailyRate`. The driver also c
 
 Look beneath `examples/car-rental/obj/<configuration>/net10.0/morphir/`. The model has seven generated files: `Domain.fs`, `Inventory.fs`, `Reservation.fs`, `Pickup.fs`, `Return.fs`, `Billing.fs` and `Workflow.fs`. The accompanying `manifest.json` lists them in dependency order. Myriad inserts them before `Program.fs` in compilation.
 
-Edit the model JSON or its optional F# authoring script, then rebuild. Generated files are build artifacts and are regenerated; do not edit them directly. When rebuilding the plugin package, use a fresh version and pass `-p:MorphirMyriadVersion=<version>` to restore/run so NuGet does not reuse an older package.
+Edit the model JSON or its optional F# authoring script, then rebuild. Generated files are build artifacts and are regenerated; do not edit them directly.
 
 ## Next steps
 

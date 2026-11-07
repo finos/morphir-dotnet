@@ -124,7 +124,7 @@ svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
 <thead><tr><th>Group</th><th>Values</th></tr></thead>
 <tbody>
 <tr><td>Base union encoding</td><td><code>AdjacentTag</code> (default), <code>ExternalTag</code>, <code>InternalTag</code>, <code>Untagged</code></td></tr>
-<tr><td>Union flags</td><td><code>NamedFields</code>, <code>UnwrapFieldlessTags</code>, <code>UnwrapSingleFieldCases</code>, <code>UnwrapSingleCaseUnions</code>, <code>UnwrapRecordCases</code>, <code>UnwrapOption</code>, <code>FieldNamesFromTypes</code>, <code>AllowUnorderedTag</code>, <code>TagCaseInsensitive</code></td></tr>
+<tr><td>Union flags</td><td><code>NamedFields</code>, <code>UnwrapFieldlessTags</code>, <code>UnwrapSingleFieldCases</code>, <code>UnwrapSingleCaseUnions</code>, <code>UnwrapRecordCases</code>, <code>UnwrapOption</code>, <code>UnionFieldNamesFromTypes</code>, <code>AllowUnorderedTag</code>; and the case-insensitive tag option</td></tr>
 <tr><td>Presets</td><td><code>Default</code>, <code>NewtonsoftLike</code>, <code>ThothLike</code>, <code>FSharpLuLike</code></td></tr>
 <tr><td>Names</td><td>union tag name (<code>Case</code>), fields name (<code>Fields</code>), tag and field naming policies, <code>JsonName</code> on cases and fields, <code>JsonPropertyName</code> on fields</td></tr>
 <tr><td>Other</td><td>skippable option fields, allow null fields, map format (<code>Object</code>, <code>ArrayOfPairs</code>, <code>ObjectOrArrayOfPairs</code>), include record properties</td></tr>
@@ -141,6 +141,7 @@ svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
 <li>Type abbreviations in the input file are expanded. Abbreviations in other files are not visible; they must be declared in the context's input files or used through their target type.</li>
 <li>Attributes are matched by their name (with or without the <code>Attribute</code> suffix, short or qualified). The annotations package defines them, so the compiler checks their arguments.</li>
 <li>The generated file opens the same namespaces as the input file, and is compiled right after it.</li>
+<li>A union case can have the name of its type (<code>type Code = Code of string</code>), and then <code>Ns.Code</code> means the case. Generated code reaches union cases and the static members of parsed values through internal abbreviations (<code>&lt;Context&gt;Types.U_…</code>, <code>T_…</code>), which have no case of that name.</li>
 </ul>
 
 <h3 id="gen-4">GEN-4. Configuration: project item, then attributes</h3>
@@ -168,7 +169,7 @@ type ExtensionId = private ExtensionId of string ...</code></pre>
 <table>
 <thead><tr><th>Addition</th><th>Rule</th><th>Why</th></tr></thead>
 <tbody>
-<tr><td>Parsed values</td><td><code>JsonParsedValue</code>: write the text member; read through a static <code>Parse : string -&gt; Result&lt;T, 'E&gt;</code> (default) or <code>TryParse</code>; on <code>Error e</code>, throw with <code>e.ToString()</code>. Also valid as an object-map key.</td><td>Readers never build an invalid <code>ExtensionId</code>, version or digest.</td></tr>
+<tr><td>Parsed values</td><td><code>JsonParsedValue</code>: write the text member; read through a static <code>Parse : string -&gt; Result&lt;T, 'E&gt;</code> (default) or <code>TryParse</code>; on <code>Error e</code>, throw with <code>e.ToString()</code>. Also valid as an object-map key. For a type from another assembly, put the attribute on an abbreviation in the input file (<code>[&lt;JsonParsedValue&gt;] type IdText = ExtensionId</code>); every use of that type in the context is then a parsed value.</td><td>Readers never build an invalid <code>ExtensionId</code>, version or digest.</td></tr>
 <tr><td>Token-kind selection</td><td><code>Untagged</code> with <code>SelectByTokenKind</code>: each case has one field of a different JSON token kind; checked at build time.</td><td>MEP <code>RequestId</code>, the untyped <code>json</code> value, IR literals.</td></tr>
 <tr><td>Exact numbers</td><td><code>TryGetUInt64</code>, <code>TryGetInt64</code> and so on; never through <code>double</code>. Strings only with <code>AllowNumbersFromStrings</code>.</td><td>u64 request ids, IR integers.</td></tr>
 <tr><td>Member rules</td><td>Required non-option fields; <code>null</code> refused unless allowed; duplicates refused; unknown members ignored or refused.</td><td>Protocol admission and security.</td></tr>
@@ -178,7 +179,7 @@ type ExtensionId = private ExtensionId of string ...</code></pre>
 
 <h3 id="gen-6">GEN-6. Errors</h3>
 <ul>
-<li>Run time: every failure is a <code>JsonException</code> with a message that names the type and member. System.Text.Json adds the JSON path and position when a converter throws. A parse failure keeps the parser's text.</li>
+<li>Run time: every failure is a <code>JsonException</code> with a message that names the type and member. System.Text.Json adds the JSON path of the value that a converter reads, and the exact line and byte position. It cannot see inside a generated converter, so a failure inside a nested value is wrapped once for each member on the way to it (<code>In the member 'head' of Household: In the member 'age' of Person: …</code>). A parse failure keeps the parser's text.</li>
 <li>Build time: an unsupported shape, an unknown attribute argument, contradictory options or an ambiguous untagged union fails generation with an error that names the file, type and member. Morphir.Myriad's coordinator turns it into an MSBuild error and blocks compilation.</li>
 </ul>
 
@@ -210,7 +211,8 @@ type ExtensionId = private ExtensionId of string ...</code></pre>
 <tr><td>The untyped AST cannot see types in other files, so a missing context shows only at run time.</td><td>The generated <code>Verify(options)</code> member and a unit test for each context; the build error for a reserved name used by a user type.</td></tr>
 <tr><td>Myriad 0.85.0 needs the FSharp.Core host alignment; a Myriad update can break both plugins.</td><td>One shared host component with its own package test; a Myriad update is its own change.</td></tr>
 <tr><td>The FSharp.SystemTextJson output changes in a new version.</td><td>The test reference is pinned. The hand-written expected JSON is the reference for this package; a difference becomes a recorded deviation.</td></tr>
-<tr><td>Generated converters are large for big unions.</td><td>Shared helpers in generated code for each context, not for each type; a size check in the AOT probe.</td></tr>
+<tr><td>Generated converters are large for big unions.</td><td>Shared helpers in generated code for each context, not for each type; a size check in the AOT probe. Measured 2026-11-07: the probe (12 contexts, every shape) is 4,883,064 bytes as a Native AOT binary on osx-arm64.</td></tr>
+<tr><td>The F# compiler does not run the trim and AOT analyzers, so an AOT problem in generated F# code shows only when the code is published.</td><td>The <code>TestMyriadJsonAot</code> target publishes the probe with Native AOT in CI (Ubuntu), allows only the two FSharp.Core summary warnings (IL2104, IL3053), and compares the native output with JIT. It found and fixed one problem: <code>JsonSerializerOptions.Default</code> in the date and time readers.</td></tr>
 <tr><td>Scope is large for one change.</td><td>Tasks deliver records and string enums first (enough for most MEP types), then each union encoding, then the additions. Each group lands with its tests.</td></tr>
 </tbody>
 </table>

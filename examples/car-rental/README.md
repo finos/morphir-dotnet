@@ -2,14 +2,12 @@
 
 This example compiles classic Morphir model JSON through `Morphir.Myriad`. The model owns inventory lookup, reservation, pickup, return and billing. [Program.fs](Program.fs) supplies inputs, calls the generated functions and checks their results.
 
-From the repository root, with the SDK in `global.json` installed:
+`Morphir.Myriad` is on NuGet.org from the first morphir-dotnet release after 0.4.0-alpha.1. From the repository root, with the SDK in `global.json` installed, run the example with a release version in place of `RELEASE_VERSION`:
 
 ```sh
-dotnet pack src/Morphir.Myriad/Morphir.Myriad.fsproj -c Release \
-  -o artifacts/myriad-feed -p:PackageVersion=0.1.0-local.5
 dotnet restore examples/car-rental/CarRental.fsproj \
-  --configfile examples/car-rental/NuGet.config
-dotnet run --project examples/car-rental/CarRental.fsproj --no-restore
+  --configfile examples/car-rental/NuGet.config -p:MorphirMyriadVersion=RELEASE_VERSION
+dotnet run --project examples/car-rental/CarRental.fsproj --no-restore -p:MorphirMyriadVersion=RELEASE_VERSION
 ```
 
 Expected application output:
@@ -24,7 +22,7 @@ invoice=15000
 rejections=7
 ```
 
-To select another classic version, pass `-p:MorphirModelFile=models/car-rental-v1.json` or `models/car-rental-v2.json` to `dotnet run`. All three fixtures describe the same rules. The example's NuGet configuration maps this plugin to the local feed and other dependencies to NuGet. When changing the plugin itself, use a fresh package version for pack, restore and run via `-p:MorphirMyriadVersion=...` to avoid consuming an older package with the same version from the NuGet cache.
+To select another classic version, pass `-p:MorphirModelFile=models/car-rental-v1.json` or `models/car-rental-v2.json` to `dotnet run`. All three fixtures describe the same rules. The example's NuGet configuration restores every package from NuGet.org. A build with no `MorphirMyriadVersion` stops with a message that asks for one.
 
 The build generates `Domain.fs`, `Inventory.fs`, `Reservation.fs`, `Pickup.fs`, `Return.fs`, `Billing.fs` and `Workflow.fs` beneath the project's `obj/` directory. Their manifest specifies compile order. The model deliberately lists modules in reverse dependency order to exercise that planning.
 

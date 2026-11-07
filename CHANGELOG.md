@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Morphir.Myriad.SystemTextJson`: a Myriad plugin that generates trim-safe and Native AOT-safe System.Text.Json converters and a `JsonSerializerContext` for F# records, unions and enums at build time. The union encodings, flags and presets give the same JSON as FSharp.SystemTextJson; parsed values, cases chosen by JSON token kind, exact numbers and member rules are added. See the Myriad JSON guide ([#511](https://github.com/finos/morphir-dotnet/issues/511))
+- `Morphir.Myriad.SystemTextJson.Annotations`: the attributes and options of the generator, for `netstandard2.0`, with no dependency ([#511](https://github.com/finos/morphir-dotnet/issues/511))
+- `Morphir.Myriad` is published to NuGet.org with each release; it was only packed into a local feed before ([#511](https://github.com/finos/morphir-dotnet/issues/511))
+
+### Changed
+- The car rental example and the Morphir-to-F# article use `Morphir.Myriad` from NuGet.org with the release version in `MorphirMyriadVersion`, not a local feed ([#511](https://github.com/finos/morphir-dotnet/issues/511))
+
+### Removed
+- The internal stub `json-codec` Myriad generator, which returned no code; use `Morphir.Myriad.SystemTextJson` ([#511](https://github.com/finos/morphir-dotnet/issues/511))
+
 ## [0.4.0-alpha.1] - 2026-11-06
 
 ### Fixed

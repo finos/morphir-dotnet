@@ -31,13 +31,11 @@
     <ItemGroup>
         <!-- Source files -->
         <Compile Include="TestHelpers.fs" />
-        <Compile Include="Generators\JsonCodecGeneratorTests.fs" />
         <Compile Include="Generators\VisitorGeneratorTests.fs" />
         <Compile Include="Generators\LensGeneratorTests.fs" />
         <Compile Include="Generators\ActivePatternGeneratorTests.fs" />
         <Compile Include="Generators\BuilderGeneratorTests.fs" />
         <!-- Test data files (will be used by Myriad for code generation) -->
-        <Compile Include="TestData\JsonCodecTestTypes.fs" />
         <Compile Include="TestData\VisitorTestTypes.fs" />
         <Compile Include="TestData\LensTestTypes.fs" />
         <Compile Include="TestData\ActivePatternTestTypes.fs" />

@@ -33,7 +33,6 @@ module TestHelpers =
             // This is a simplified check - in real implementation,
             // we'd use reflection or a name property
             match gen with
-            | :? JsonCodecGenerator when name = "json-codec" -> true
             | :? VisitorGenerator when name = "visitor" -> true
             | :? LensGenerator when name = "lenses" -> true
             | :? ActivePatternGenerator when name = "active-patterns" -> true
@@ -70,7 +69,6 @@ module TestHelpers =
     /// Test that all generators are registered
     let testAllGeneratorsRegistered () : unit =
         let expectedGenerators = [
-            "json-codec"
             "visitor"
             "lenses"
             "active-patterns"
