@@ -19,13 +19,16 @@ type ExtensionId =
         let (ExtensionId value) = this
         value
 
+    /// <summary>The canonical text.</summary>
     override this.ToString() = this.Value
 
+    /// <summary>True for a value of the same type with equal content. Text is compared ordinally.</summary>
     override this.Equals(other: obj | null) =
         match other with
         | :? ExtensionId as id -> String.Equals(this.Value, id.Value, StringComparison.Ordinal)
         | _ -> false
 
+    /// <summary>A hash that agrees with <c>Equals</c>.</summary>
     override this.GetHashCode() =
         StringComparer.Ordinal.GetHashCode this.Value
 
@@ -75,13 +78,16 @@ type TargetId =
         let (TargetId value) = this
         value
 
+    /// <summary>The canonical text.</summary>
     override this.ToString() = this.Value
 
+    /// <summary>True for a value of the same type with equal content. Text is compared ordinally.</summary>
     override this.Equals(other: obj | null) =
         match other with
         | :? TargetId as id -> String.Equals(this.Value, id.Value, StringComparison.Ordinal)
         | _ -> false
 
+    /// <summary>A hash that agrees with <c>Equals</c>.</summary>
     override this.GetHashCode() =
         StringComparer.Ordinal.GetHashCode this.Value
 

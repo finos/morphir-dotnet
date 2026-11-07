@@ -7,7 +7,12 @@ open System.Diagnostics.CodeAnalysis
 open System.Runtime.InteropServices
 
 /// <summary>An immutable set with at least one element, ordered by the element type.</summary>
-/// <remarks>F# callers use the <c>NonEmptySet</c> module. C# callers use <c>Create</c>, <c>TryCreate</c> and <c>Map</c>.</remarks>
+/// <remarks>
+/// F# callers use the <c>NonEmptySet</c> module. C# callers use <c>Create</c>, <c>TryCreate</c> and <c>Map</c>,
+/// not the compiled <c>NonEmptySetModule</c>, which uses F# function and list types.
+/// The element type must implement <c>IComparable</c>: C# cannot see the F# comparison constraint, and an element
+/// type without it fails at run time when the set is built.
+/// </remarks>
 [<Sealed>]
 type NonEmptySet<'T when 'T: comparison> internal (items: Set<'T>) =
     do
@@ -48,13 +53,16 @@ type NonEmptySet<'T when 'T: comparison> internal (items: Set<'T>) =
     member _.Map<'U when 'U: comparison>(mapping: Func<'T, 'U>) : NonEmptySet<'U> =
         NonEmptySet<'U>(Set.map mapping.Invoke items)
 
+    /// <summary>True for a value of the same type with equal content. Text is compared ordinally.</summary>
     override _.Equals(other: obj | null) =
         match other with
         | :? NonEmptySet<'T> as set -> items = set.Items
         | _ -> false
 
+    /// <summary>A hash that agrees with <c>Equals</c>.</summary>
     override _.GetHashCode() = hash items
 
+    /// <summary>The canonical text.</summary>
     override _.ToString() =
         items
         |> Seq.map string

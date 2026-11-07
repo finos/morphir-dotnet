@@ -1,7 +1,5 @@
 namespace Morphir.Extensions
 
-open Morphir.IR
-
 /// <summary>Why a text value was refused. The output edge turns it into a diagnostic.</summary>
 [<RequireQualifiedAccess>]
 type ParseFailure =
@@ -14,7 +12,7 @@ type ParseFailure =
     /// <summary>The dot-separated segment at the index is not a lowercase portable token.</summary>
     | InvalidSegment of field: string * segment: int
     /// <summary>The text is not a canonical SemVer 2.0.0 version.</summary>
-    | InvalidVersion of field: string * error: Versioning.ParseError
+    | InvalidVersion of field: string * detail: string
 
     /// <summary>The name of the value that was refused, for example "extension id".</summary>
     member this.Field =
@@ -34,12 +32,5 @@ type ParseFailure =
             $"{field} has white space at its start or end, or a control character, at index {index}"
         | InvalidSegment(field, segment) ->
             $"{field} segment {segment} is not a lowercase portable token ([a-z]([a-z0-9-]*[a-z0-9])?)"
-        | InvalidVersion(field, error) ->
-            let detail =
-                match error with
-                | Versioning.ParseError.InvalidFormat message
-                | Versioning.ParseError.InvalidVersionNumber message
-                | Versioning.ParseError.InvalidPreReleaseFormat message
-                | Versioning.ParseError.InvalidBuildMetadataFormat message -> message
-
+        | InvalidVersion(field, detail) ->
             $"{field} is not a canonical SemVer 2.0.0 version: {detail}"

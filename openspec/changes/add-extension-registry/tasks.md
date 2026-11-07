@@ -28,7 +28,8 @@ Parent: [Morphir extension model PRD](../../../docs/content/contributing/design/
 
 ## 4. Typed generation contracts (GEN-1)
 
-- [ ] 4.1 Write a failing test that a malformed `--target` (for example `C#`) gives the same `unknown-target` invocation failure, message and list of available targets as a well-formed unknown target; verify it fails for the expected reason.
+- [x] 4.1 Write a failing test that a malformed `--target` (for example `C#`) gives the same `unknown-target` invocation failure, message and list of available targets as a well-formed unknown target; verify it fails for the expected reason.
+  - Done as a characterization test (`GenerationHandlerTests.MalformedTargetFailsLikeAnUnknownTarget`, cases `C#`, `CSharp`, `a..b`). It passes before the change, because today a malformed target already fails in the backend resolver; it pins that behavior through GEN-1. Locally it needs a real `TMPDIR` on macOS, as CI sets.
 - [ ] 4.2 Remove the C# `TargetId` struct, use the F# `TargetId`, and parse `--target` with `TargetId.TryParse` in `CliGenerationSettingsResolver`; verify 4.1 passes and the existing generate tests pass unchanged.
 - [ ] 4.3 Change `BackendCapability.Versions` to `NonEmptySet<SourceFormatVersion>` and `Supports` to compare `SourceFormatVersion` values; verify the existing resolver tests for exact versions, `3` against `3.0.0`, and pre-releases pass unchanged.
 - [ ] 4.4 Give `BackendDescriptor` an `ExtensionId Id`, an `ExtensionName Name`, an optional `ExtensionDescription` and a `NonEmptySet<BackendCapability>`; set `morphir.csharp` / "C# generator" and `morphir.fsharp` / "F# generator" with `Create`; verify the `backend` report field is unchanged, `tests/Morphir.Tooling.Tests/Features/Generate/verify-csharp-cli.ps1` and `verify-csharp-cli-contracts.ps1` pass, and a test calls every literal.

@@ -16,14 +16,17 @@ type ExtensionName =
         let (ExtensionName value) = this
         value
 
+    /// <summary>The canonical text.</summary>
     override this.ToString() = this.Value
 
+    /// <summary>True for a value of the same type with equal content. Text is compared ordinally.</summary>
     override this.Equals(other: obj | null) =
         match other with
         | :? ExtensionName as name ->
             String.Equals(this.Value, name.Value, StringComparison.Ordinal)
         | _ -> false
 
+    /// <summary>A hash that agrees with <c>Equals</c>.</summary>
     override this.GetHashCode() =
         StringComparer.Ordinal.GetHashCode this.Value
 
@@ -72,14 +75,17 @@ type ExtensionDescription =
         let (ExtensionDescription value) = this
         value
 
+    /// <summary>The canonical text.</summary>
     override this.ToString() = this.Value
 
+    /// <summary>True for a value of the same type with equal content. Text is compared ordinally.</summary>
     override this.Equals(other: obj | null) =
         match other with
         | :? ExtensionDescription as description ->
             String.Equals(this.Value, description.Value, StringComparison.Ordinal)
         | _ -> false
 
+    /// <summary>A hash that agrees with <c>Equals</c>.</summary>
     override this.GetHashCode() =
         StringComparer.Ordinal.GetHashCode this.Value
 
@@ -127,21 +133,38 @@ type ReleaseVersion =
     private
     | ReleaseVersion of Versioning.SemanticVersion
 
-    /// <summary>The parsed SemVer value.</summary>
-    member this.SemanticVersion =
+    /// The parsed SemVer value. Internal: its record has a public constructor and option fields.
+    member internal this.SemanticVersion =
         let (ReleaseVersion version) = this
         version
+
+    /// <summary>The major version number.</summary>
+    member this.Major = this.SemanticVersion.Major
+
+    /// <summary>The minor version number.</summary>
+    member this.Minor = this.SemanticVersion.Minor
+
+    /// <summary>The patch version number.</summary>
+    member this.Patch = this.SemanticVersion.Patch
+
+    /// <summary>The pre-release identifiers, for example <c>rc.1</c>, or null when there are none.</summary>
+    member this.PreRelease = Option.toObj this.SemanticVersion.PreRelease
+
+    /// <summary>The build metadata, or null when there is none.</summary>
+    member this.BuildMetadata = Option.toObj this.SemanticVersion.BuildMetadata
 
     /// <summary>The canonical text.</summary>
     override this.ToString() =
         Versioning.SemanticVersion.toString this.SemanticVersion
 
+    /// <summary>True for a value of the same type with equal content. Text is compared ordinally.</summary>
     override this.Equals(other: obj | null) =
         match other with
         | :? ReleaseVersion as version ->
             String.Equals(this.ToString(), version.ToString(), StringComparison.Ordinal)
         | _ -> false
 
+    /// <summary>A hash that agrees with <c>Equals</c>.</summary>
     override this.GetHashCode() =
         StringComparer.Ordinal.GetHashCode(this.ToString())
 
@@ -157,13 +180,16 @@ type ReleaseVersion =
             | Ok version when Versioning.SemanticVersion.toString version = value ->
                 Ok(ReleaseVersion version)
             | Ok _ ->
-                Error(
-                    ParseFailure.InvalidVersion(
-                        field,
-                        Versioning.ParseError.InvalidFormat $"'{value}' is not in canonical form"
-                    )
-                )
-            | Error error -> Error(ParseFailure.InvalidVersion(field, error))
+                Error(ParseFailure.InvalidVersion(field, $"'{value}' is not in canonical form"))
+            | Error error ->
+                let detail =
+                    match error with
+                    | Versioning.ParseError.InvalidFormat message
+                    | Versioning.ParseError.InvalidVersionNumber message
+                    | Versioning.ParseError.InvalidPreReleaseFormat message
+                    | Versioning.ParseError.InvalidBuildMetadataFormat message -> message
+
+                Error(ParseFailure.InvalidVersion(field, detail))
 
     /// <summary>Parses untrusted text. For C# callers.</summary>
     static member TryParse

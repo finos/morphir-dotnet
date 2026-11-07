@@ -101,8 +101,9 @@ let tests =
 
             test "keeps the parsed SemVer value" {
                 let version = ReleaseVersion.Create "0.4.0-rc.1"
-                Expect.equal version.SemanticVersion.Minor 4 "minor"
-                Expect.equal version.SemanticVersion.PreRelease (Some "rc.1") "pre-release"
+                Expect.equal version.Minor 4 "minor"
+                Expect.equal version.PreRelease "rc.1" "pre-release"
+                Expect.isNull version.BuildMetadata "no build metadata"
             }
         ]
     ]
