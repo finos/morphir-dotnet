@@ -7,7 +7,7 @@ dotnet = "10.0.403"
 node = "24.14.1"
 
 [tools."github:moonrockz/mission-control"]
-version = "0.1.0"
+version = "0.1.1"
 version_prefix = "tools-v"
 
 [tools."github:moonrockz/mission-control".platforms]
