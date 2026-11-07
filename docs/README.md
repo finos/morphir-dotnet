@@ -5,7 +5,7 @@ This directory contains the Hugo-based documentation site for Morphir .NET.
 ## Prerequisites
 
 - [Hugo Extended](https://gohugo.io/installation/) (v0.120.0 or later)
-- Node.js and npm (for theme dependencies)
+- Node.js 24 and npm (for theme dependencies and Hugo's PostCSS permission model)
 
 ## Local Development
 
