@@ -9,6 +9,7 @@ changes aligned with Morphir IR and tooling.
 - **This file (AGENTS.md)**: Primary guidance for all AI agents
 - **Specialized Topics**: See [.agents/](./.agents/) directory for domain-specific guides
   - [Skills Reference](./.agents/skills-reference.md) - QA Tester, AOT Guru, Release Manager, Technical Writer
+  - [F# and C# interop skill](./.agents/skills/fsharp-csharp-interop/SKILL.md) - Rules for F# code that C# calls; reviewer agent `fsharp-csharp-interop-reviewer`
   - [Capabilities Matrix](./.agents/capabilities-matrix.md) - Cross-agent feature availability
   - [QA Testing](./.agents/qa-testing.md) - Test plans, playbooks, scripts
   - [AOT Optimization](./.agents/aot-optimization.md) - Trimming, AOT guidance
@@ -43,6 +44,7 @@ Architecture (high-level)
 Stacks and baselines
 - C# 14, .NET 10 (SDK pinned in global.json).
 - F# for ADT-heavy components where appropriate.
+  - When C# calls F# code, follow the `fsharp-csharp-interop` skill (`.agents/skills/fsharp-csharp-interop/SKILL.md`) and run the `fsharp-csharp-interop-reviewer` agent on the diff.
 - TypeScript optional for dev tooling/schema checks.
 - Critter Stack (WolverineFx & Marten) used in development for messaging and persistence.
 
@@ -243,6 +245,13 @@ export type TypeExpr =
 - If OpenAPI/JSON Schemas exist, keep in `docs/spec/schemas/` and validate in CI.
 
 ## 8) Tooling and Scripts for Agents
+
+Project skills and agents
+- Canonical project skills live in `.agents/skills/<name>/SKILL.md`. Codex, GitHub Copilot, Cursor and Muse Code read that folder.
+- Claude Code reads `.claude/skills/` and Grok Build reads `.grok/skills/`. Do not edit those copies of a project skill. Edit `.agents/skills/<name>/`, then run `dotnet fsi scripts/sync-agent-skills.fsx`. `--check` exits 1 when a copy differs.
+- Reviewer agents use each tool's format: `.claude/agents/*.md` (Claude Code and Cursor), `.codex/agents/*.toml` (Codex), `.github/agents/*.agent.md` (GitHub Copilot) and `.grok/agents/*.md` (Grok Build). Muse Code has no agent files: start a subagent with the prompt in the skill's "Review mode" section.
+- OpenSpec generates the `openspec-*` skills in every folder. The sync script does not touch them.
+- See [.agents/skills-reference.md](./.agents/skills-reference.md#project-skills-and-agents) for the full table.
 
 Scripts to provide/use:
 - scripts/format-all — format .NET (and TS if present)

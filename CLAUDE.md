@@ -12,6 +12,7 @@ This file provides Claude Code-specific guidance for the morphir-dotnet reposito
 - `@skill release-manager` - Release lifecycle, changelog, version management
 - `@skill technical-writer` - Documentation, Hugo/Docsy, diagrams, style guide
 - `@skill vulnerability-resolver` - CVE scanning, fix/suppress decisions, security documentation
+- `fsharp-csharp-interop` - Rules for F# code that C# calls; subagent `fsharp-csharp-interop-reviewer` reviews the diff. Canonical copy: `.agents/skills/fsharp-csharp-interop/` (edit there, then run `dotnet fsi scripts/sync-agent-skills.fsx`)
 
 See [.agents/skills-reference.md](./.agents/skills-reference.md) for complete skill documentation.
 
