@@ -39,6 +39,7 @@ let sameBytes (a: string) (b: string) =
 let differences (source: string) (target: string) =
     let sourceFiles = filesUnder source
     let targetFiles = filesUnder target
+
     [ for file in Set.union sourceFiles targetFiles do
           match sourceFiles.Contains file, targetFiles.Contains file with
           | true, false -> yield "missing", file
@@ -47,7 +48,9 @@ let differences (source: string) (target: string) =
           | _ -> () ]
 
 let copy (source: string) (target: string) =
-    if Directory.Exists target then Directory.Delete(target, true)
+    if Directory.Exists target then
+        Directory.Delete(target, true)
+
     for file in filesUnder source do
         let destination = Path.Combine(target, file)
         Directory.CreateDirectory(Path.GetDirectoryName destination) |> ignore
@@ -57,26 +60,32 @@ let mutable failed = false
 
 for skill in ownedSkills do
     let source = Path.Combine(root, ".agents", "skills", skill)
+
     if not (File.Exists(Path.Combine(source, "SKILL.md"))) then
         eprintfn $"error: {source}/SKILL.md does not exist"
         failed <- true
     else
         for mirror in mirrors do
             let target = Path.Combine(root, mirror, skill)
+
             match differences source target with
             | [] -> eprintfn $"ok       {mirror}/{skill}"
             | found when check ->
                 failed <- true
                 eprintfn $"drift    {mirror}/{skill}"
+
                 for kind, file in found do
-                    eprintfn $"           {kind,-8} {file}"
+                    eprintfn $"           {kind, -8} {file}"
                     // A GitHub Actions annotation puts the finding on the file in the pull request.
                     if onGitHubActions then
-                        printfn $"::error file={mirror}/{skill}/{file},title=Agent skill copy drift::This copy is {kind} compared with .agents/skills/{skill}/. Edit only the canonical skill, then run: dotnet fsi scripts/sync-agent-skills.fsx"
+                        printfn
+                            $"::error file={mirror}/{skill}/{file},title=Agent skill copy drift::This copy is {kind} compared with .agents/skills/{skill}/. Edit only the canonical skill, then run: dotnet fsi scripts/sync-agent-skills.fsx"
             | _ ->
                 copy source target
                 eprintfn $"synced   {mirror}/{skill}"
 
 if failed then
-    if check then eprintfn "Run: dotnet fsi scripts/sync-agent-skills.fsx"
+    if check then
+        eprintfn "Run: dotnet fsi scripts/sync-agent-skills.fsx"
+
     exit 1
