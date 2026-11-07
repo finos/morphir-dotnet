@@ -21,12 +21,17 @@ public class CliTestHelper
     private readonly string _cliProjectPath;
     private readonly string _testDataDirectory;
     private readonly string? _executablePath;
+    private readonly ProcessGate? _gate;
 
-    public CliTestHelper(string? executablePath = null) : this(executablePath, CliHost.Morphir) { }
+    /// <param name="executablePath">A published CLI to run instead of <c>dotnet run</c> on the CLI project.</param>
+    /// <param name="gate">The process gate for each command. The default is <see cref="ProcessGate.Shared"/>.</param>
+    public CliTestHelper(string? executablePath = null, ProcessGate? gate = null) : this(executablePath, CliHost.Morphir, gate) { }
 
     /// <summary>Runs <paramref name="host"/> from source, or <paramref name="executablePath"/> when one is given.</summary>
-    public CliTestHelper(string? executablePath, CliHost host)
+    /// <param name="gate">The process gate for each command. The default is <see cref="ProcessGate.Shared"/>.</param>
+    public CliTestHelper(string? executablePath, CliHost host, ProcessGate? gate = null)
     {
+        _gate = gate;
         if (executablePath is not null)
         {
             _executablePath = Path.GetFullPath(executablePath);
@@ -55,12 +60,17 @@ public class CliTestHelper
         }
     }
 
-    /// <summary>
-    /// Execute a CLI command and return the result
-    /// </summary>
     /// <summary>Applied when a caller gives no timeout. It starts once a process slot is held.</summary>
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(120);
 
+    /// <summary>Executes a CLI command and returns the result.</summary>
+    /// <param name="arguments">The command line after the executable.</param>
+    /// <param name="ct">
+    /// Cancels the command, also while it waits for a process slot. Do not give a time budget with it: a
+    /// <see cref="CancellationTokenSource"/> made with a delay starts to count before the slot is held, so a
+    /// long queue for the gate uses the budget. Use <paramref name="timeout"/> for a budget.
+    /// </param>
+    /// <param name="timeout">The time budget for the command. It starts once a process slot is held.</param>
     public async Task<CliExecutionResult> ExecuteCommandAsync(string arguments, CancellationToken ct = default, TimeSpan? timeout = null)
     {
         // Replace <test-data> placeholder with actual path
@@ -85,7 +95,7 @@ public class CliTestHelper
         sandbox.Apply(startInfo);
 
         // The shared runner gates concurrency, reads both streams, and kills and awaits the tree on timeout.
-        var result = await ChildProcess.RunAsync(startInfo, timeout ?? DefaultTimeout, ct);
+        var result = await ChildProcess.RunAsync(startInfo, timeout ?? DefaultTimeout, ct, _gate);
         return new CliExecutionResult(
             ExitCode: result.ExitCode,
             StandardOutput: result.StandardOutput.Trim(),

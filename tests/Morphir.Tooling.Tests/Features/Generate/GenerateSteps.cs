@@ -60,8 +60,7 @@ public sealed class GenerateSteps : IDisposable
         if (omit != "input") arguments.Add($"--input \"{_input}\"");
         if (omit != "target") arguments.Add("--target fsharp");
         if (omit != "output") arguments.Add($"--output \"{Output}\"");
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        _run.Result = await _cli.ExecuteCommandAsync(string.Join(" ", arguments), timeout.Token);
+        _run.Result = await _cli.ExecuteCommandAsync(string.Join(" ", arguments), timeout: TimeSpan.FromSeconds(60));
     }
 
     [Then("generation exits with {int} and one JSON report")]

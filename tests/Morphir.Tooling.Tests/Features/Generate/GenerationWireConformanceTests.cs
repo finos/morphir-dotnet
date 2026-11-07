@@ -26,8 +26,7 @@ public sealed class GenerationWireConformanceTests : IDisposable
         if (Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI") is { } executable)
         {
             var output = Path.Combine(_root, "published-" + Guid.NewGuid().ToString("N"));
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-            var response = await new CliTestHelper(executable).ExecuteCommandAsync($"generate --input \"{path}\" --target fsharp --output \"{output}\" --json", timeout.Token);
+            var response = await new CliTestHelper(executable).ExecuteCommandAsync($"generate --input \"{path}\" --target fsharp --output \"{output}\" --json", timeout: TimeSpan.FromSeconds(60));
             using var report = JsonDocument.Parse(response.StandardOutput);
             report.RootElement.GetProperty("exitCode").GetInt32().Should().Be(response.ExitCode);
             if (response.ExitCode != 0) return Generated.NewError(ListModule.OfSeq(report.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString()!)));
