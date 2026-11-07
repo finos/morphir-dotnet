@@ -10,56 +10,30 @@ namespace Morphir.E2E.Tests.Features;
 [Binding]
 public class SharedSteps
 {
-    // Use instance fields to avoid race conditions in parallel test execution
-    // The ScenarioContext ensures each scenario gets its own instance
-    private static ExecutableLocator? _executableLocator;
-    private static ExecutableRunner? _executableRunner;
-    private static TestDataResolver? _testDataResolver;
+    /// <summary>The scenario key every step class uses for the last command's result.</summary>
+    public const string LastExecutionResultKey = "LastExecutionResult";
 
-    // Thread-local storage for execution result to avoid parallel test interference
-    [ThreadStatic]
-    private static ExecutableExecutionResult? _executionResult;
+    private readonly ScenarioContext _scenarioContext;
 
-    private static ExecutableLocator ExecutableLocator
-    {
-        get
-        {
-            _executableLocator ??= new ExecutableLocator();
-            return _executableLocator;
-        }
-    }
+    public SharedSteps(ScenarioContext scenarioContext) => _scenarioContext = scenarioContext;
 
-    private static ExecutableRunner ExecutableRunner
-    {
-        get
-        {
-            if (_executableRunner == null)
-            {
-                var executablePath = ExecutableLocator.GetExecutablePath();
-                if (executablePath == null)
-                {
-                    throw new InvalidOperationException("Morphir executable not found. Build the executable first.");
-                }
-                _executableRunner = new ExecutableRunner(executablePath);
-            }
-            return _executableRunner;
-        }
-    }
+    // Locating the executable and test data is read-only and safe to share; results are per scenario.
+    // Lazy<T> initializes once even when scenarios run in parallel.
+    private static readonly Lazy<ExecutableLocator> Locator = new(() => new ExecutableLocator());
+    private static readonly Lazy<TestDataResolver> Resolver = new(() => new TestDataResolver());
+    private static readonly Lazy<ExecutableRunner> Runner = new(() => new ExecutableRunner(
+        Locator.Value.GetExecutablePath()
+        ?? throw new InvalidOperationException("Morphir executable not found. Build the executable first.")));
 
-    private static TestDataResolver TestDataResolver
-    {
-        get
-        {
-            _testDataResolver ??= new TestDataResolver();
-            return _testDataResolver;
-        }
-    }
+    private static ExecutableLocator ExecutableLocator => Locator.Value;
+    private static ExecutableRunner ExecutableRunner => Runner.Value;
+    private static TestDataResolver TestDataResolver => Resolver.Value;
 
-    public static ExecutableExecutionResult? ExecutionResult
-    {
-        get => _executionResult;
-        set => _executionResult = value;
-    }
+    /// <summary>The last command result in this scenario. A [ThreadStatic] field is lost across awaits.</summary>
+    public static ExecutableExecutionResult? Last(ScenarioContext scenarioContext) =>
+        scenarioContext.TryGetValue(LastExecutionResultKey, out ExecutableExecutionResult result) ? result : null;
+
+    private ExecutableExecutionResult? ExecutionResult => Last(_scenarioContext);
 
     [Given("a Morphir executable is available")]
     public void GivenAMorphirExecutableIsAvailable()
@@ -73,7 +47,7 @@ public class SharedSteps
     public async Task WhenIRunTheCommand(string command)
     {
         var resolvedCommand = TestDataResolver.ResolvePath(command);
-        ExecutionResult = await ExecutableRunner.ExecuteCommandAsync(resolvedCommand);
+        _scenarioContext[LastExecutionResultKey] = await ExecutableRunner.ExecuteCommandAsync(resolvedCommand);
     }
 
     [Then("the exit code should be (\\d+)")]

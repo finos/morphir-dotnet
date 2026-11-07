@@ -29,7 +29,6 @@ on:
 env:
     CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
     NUGET_TOKEN: ${{ secrets.NUGET_KEY }}
-    GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
 jobs:
     validate-version:
@@ -155,17 +154,10 @@ jobs:
         if: ${{ !failure() }}
 
         steps:
-            - name: 🔍 GH_TOKEN
-              if: env.GH_TOKEN == ''
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: echo "GH_TOKEN=${GITHUB_TOKEN}" >> $GITHUB_ENV
-
             - name: Fetch Source Code
               uses: actions/checkout@v6.0.1
               with:
                   fetch-depth: 0
-                  token: ${{ env.GH_TOKEN }}
 
             - name: Setup .NET SDK
               uses: actions/setup-dotnet@v5

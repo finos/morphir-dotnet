@@ -165,6 +165,7 @@ public sealed class ConfigurationEditService(IProjectTree tree, IConfigurationTr
     private sealed class ObservedTree(IProjectTree inner, IConfigurationTransactionHost storage, Dictionary<string, ConfigurationObservation> evidence) : IProjectTree
     {
         public string Boundary => inner.Boundary;
+        public string? MorphirHome => inner.MorphirHome;
         public ProjectEntry Observe(string path)
         {
             var before = storage.Observe(path);
@@ -186,6 +187,7 @@ public sealed class ConfigurationEditService(IProjectTree tree, IConfigurationTr
     private sealed class OverlayTree(IProjectTree inner, string target, string text) : IProjectTree
     {
         public string Boundary => inner.Boundary;
+        public string? MorphirHome => inner.MorphirHome;
         public ProjectEntry Observe(string path)
         {
             if (path == target) return ProjectEntry.NewFile(ConfigurationReader.ReadText(path, text).Content);

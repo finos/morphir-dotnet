@@ -3,6 +3,8 @@ using System.Text;
 using FluentAssertions;
 using Morphir.Configuration.IO;
 
+using Morphir.TestSupport;
+
 namespace Morphir.Configuration.IO.Tests;
 
 public sealed class ConfigurationRecoveryProcessTests
@@ -129,11 +131,8 @@ public sealed class ConfigurationRecoveryProcessTests
         start.ArgumentList.Add("--results-directory"); start.ArgumentList.Add(root + "/child-results-" + Guid.NewGuid().ToString("N"));
         start.Environment["MORPHIR_RECOVERY_CHILD_ROOT"] = root;
         start.Environment["MORPHIR_RECOVERY_CHILD_WINDOW"] = window;
-        using var process = Process.Start(start)!;
-        var output = process.StandardOutput.ReadToEndAsync(); var errors = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try { await process.WaitForExitAsync(timeout.Token); }
-        catch { process.Kill(true); throw; }
-        return (process.ExitCode, await output + await errors);
+        // A full child test host: gated, captured concurrently, and killed and awaited on timeout.
+        var result = await ChildProcess.RunAsync(start, TimeSpan.FromSeconds(120));
+        return (result.ExitCode, result.StandardOutput + result.StandardError);
     }
 }

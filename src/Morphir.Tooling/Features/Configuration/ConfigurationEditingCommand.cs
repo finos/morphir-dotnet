@@ -26,7 +26,7 @@ public sealed class ConfigurationEditingCommand : Command, IMorphirParseErrorHan
     private readonly Option<string?> _config = new("--config");
     private readonly Option<string[]> _profiles = new("--profiles") { Arity = ArgumentArity.OneOrMore, AllowMultipleArgumentsPerToken = false };
     private readonly Option<bool> _noProfiles = new("--no-profiles");
-    private readonly Option<bool> _isolated = new("--isolated");
+    private readonly Option<bool> _isolated = new("--isolated") { Description = "Exclude machine and personal files; accepts true or false (default: MORPHIR_ISOLATED, else false)" };
     private readonly Option<string[]> _warnings = new("--suppress-warning") { Arity = ArgumentArity.OneOrMore, AllowMultipleArgumentsPerToken = false };
 
     public ConfigurationEditingCommand(string operation, IConfigurationEditingHost host, bool hostInitializationFailed = false)
@@ -40,7 +40,7 @@ public sealed class ConfigurationEditingCommand : Command, IMorphirParseErrorHan
         SetAction(Execute);
     }
 
-    private readonly Option<string?> _boundary = new("--discovery-boundary");
+    private readonly Option<string?> _boundary = new("--discovery-boundary") { Description = "Bound discovery to this directory and its descendants (default: MORPHIR_DISCOVERY_BOUNDARY, else the filesystem root)" };
     public int HandleParseErrors(ParseResult parsed) => Render(ConfigurationEditReport.Failure(Name, "config.usage"), parsed.Tokens.Any(t => t.Value is "--json" or "--json=true"));
 
     private int Execute(ParseResult parsed)
@@ -71,6 +71,14 @@ public sealed class ConfigurationEditingCommand : Command, IMorphirParseErrorHan
             return Render(ConfigurationEditReport.Failure(Name, "config.edit_format"), json);
         var environment = System.Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
             .Where(p => p.Key is string && p.Value is string).ToDictionary(p => (string)p.Key, p => (string)p.Value!, StringComparer.Ordinal);
+        // Containment comes from the flags, then the environment; it is checked before any configuration I/O.
+        var resolution = Containment.Resolve(parsed.GetValue(_boundary), parsed.GetResult(_isolated) is { Implicit: false } ? parsed.GetValue(_isolated) : null,
+            environment, System.Environment.CurrentDirectory);
+        var containmentFailure = resolution.Failure ?? resolution.Value!.RequireInside(System.Environment.CurrentDirectory);
+        if (containmentFailure is not null)
+            return Render(ConfigurationEditReport.Failure(Name, containmentFailure.Code) with
+            { Diagnostics = [new(containmentFailure.Code, "error", containmentFailure.Message, null, null, null, null)] }, json);
+        var containment = resolution.Value!;
         var requested = parsed.GetValue(_profiles) ?? [];
         var disabled = parsed.GetValue(_noProfiles);
         if (disabled && requested.Length > 0) return Render(ConfigurationEditReport.Failure(Name, "config.usage"), json);
@@ -84,8 +92,8 @@ public sealed class ConfigurationEditingCommand : Command, IMorphirParseErrorHan
         var scope = parsed.GetValue(_workspace) ? QueryScope.Workspace : parsed.GetValue(_project) is not null ? QueryScope.Project :
             parsed.GetValue(_user) ? QueryScope.User : parsed.GetValue(_global) ? QueryScope.Global : parsed.GetValue(_system) ? QueryScope.System :
             parsed.GetValue(_file) is { } file ? QueryScope.NewFile(ProjectPath.join(System.Environment.CurrentDirectory, file)) : QueryScope.Effective;
-        var invocation = new ConfigurationInvocation(scope, parsed.GetValue(_project), parsed.GetValue(_config), parsed.GetValue(_boundary), profiles,
-            parsed.GetValue(_isolated), parsed.GetValue(_warnings) ?? [], environment);
+        var invocation = new ConfigurationInvocation(scope, parsed.GetValue(_project), parsed.GetValue(_config), containment.NativeBoundary, profiles,
+            containment.Isolated, parsed.GetValue(_warnings) ?? [], environment);
         var request = new EditRequest(_value is null ? EditOperation.Unset : EditOperation.NewSet(parsed.GetValue(_value)!, kind), key);
         try { return Render(_host.Execute(invocation, request, parsed.GetValue(_dryRun)), json); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)

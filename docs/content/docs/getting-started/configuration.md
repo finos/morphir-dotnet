@@ -69,7 +69,7 @@ Isolation retains declared primaries and supplied values while omitting machine 
 
 Machine files require both explicit `MachineLocationInput` and a separately authorized `MachineTree`. No ambient machine access is implied by this example. A relative `SelectedPath` resolves from the invocation directory, while the project selector resolves from the effective workspace root.
 
-Existing artifact-management commands still use their legacy Git-first `WorkspaceDiscovery`. They do not switch root policies when these libraries are installed.
+The `dist`, `tool` and `extension` commands are not implemented yet ([#490](https://github.com/finos/morphir-dotnet/issues/490), [#491](https://github.com/finos/morphir-dotnet/issues/491), [#492](https://github.com/finos/morphir-dotnet/issues/492)); when they are, they will use this same discovery.
 
 ## Inspect the effective values
 

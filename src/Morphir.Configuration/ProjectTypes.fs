@@ -110,7 +110,14 @@ type ProjectEntry =
     | File of SourceContent
 
 type ProjectSnapshot = { Entries: Map<string, ProjectEntry> }
-type DiscoveryRequest = { StartPath: string; Boundary: string }
+
+/// MorphirHome is the global Morphir home (MORPHIR_HOME, else the home directory's .morphir). When supplied,
+/// primary-named files directly in it never declare a project or workspace.
+type DiscoveryRequest = {
+    StartPath: string
+    Boundary: string
+    MorphirHome: string option
+}
 
 type ProjectLocation = {
     Path: string

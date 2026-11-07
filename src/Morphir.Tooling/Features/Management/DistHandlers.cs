@@ -127,7 +127,7 @@ public static class DistHandlers
             };
 
             var manifestPath = resolver.GetManifestPath(ArtifactType.Dist, platform, command.Version, useLocal: command.Local);
-            var manifestJson = JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
+            var manifestJson = JsonSerializer.Serialize(manifest, ManifestJsonContext.Default.Manifest);
             await File.WriteAllTextAsync(manifestPath, manifestJson, ct);
 
             logger?.LogInformation("Installation complete at {Path}", installPath);

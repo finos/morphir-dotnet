@@ -659,12 +659,17 @@ Use `resume-release.fsx` script:
    - Beta: {major}.{minor}.{patch}-beta.{N}
    - RC: {major}.{minor}.{patch}-rc.{N}
 
-2. **Update CHANGELOG.md** with pre-release marker
+2. **Update CHANGELOG.md** with the pre-release version
    ```markdown
    ## [1.0.0-alpha.1] - 2025-12-18
 
-   **Note**: This is a pre-release version for testing only.
+   ### Changed
+   - ...
    ```
+
+   **Do not add free text between the version heading and its first `###` section.**
+   Ionide.KeepAChangelog.Tasks rejects it (`IKC0002 ... No sequence terminator`) and every
+   build fails. Put pre-release caveats in the GitHub release notes or a changelog entry.
 
 3. **Follow standard release workflow** with pre-release version
 

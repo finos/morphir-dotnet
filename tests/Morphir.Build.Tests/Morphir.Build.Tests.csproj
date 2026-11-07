@@ -22,6 +22,7 @@
   <ItemGroup>
     <!-- Reference to build project for helper classes -->
     <ProjectReference Include="../../build/_build.csproj" />
+    <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
   </ItemGroup>
 
   <ItemGroup>

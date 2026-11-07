@@ -227,6 +227,9 @@
           "FSharp.Core": "[11.0.100, )"
         }
       },
+      "morphir.testsupport": {
+        "type": "Project"
+      },
       "Fabulous.AST": {
         "type": "CentralTransitive",
         "requested": "[1.10.0, )",

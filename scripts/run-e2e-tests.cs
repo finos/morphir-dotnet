@@ -244,10 +244,11 @@ foreach (var type in executableTypes)
     var testArgs = new List<string> { "exec", testDllPath };
     if (!includeManualTests)
     {
-        // Exclude AOT tests by filtering out tests that contain "Trimming" or "AOT" in their names
-        // These are the manual-only tests that should run in the dedicated workflow
+        // Exclude scenarios tagged @manual-only (the AOT and trimming features); they run in the
+        // dedicated manual workflow. Reqnroll turns tags into TUnit categories. The filter needs
+        // the full /assembly/namespace/class/test path: a shorter one selects no tests at all.
         testArgs.Add("--treenode-filter");
-        testArgs.Add("*/!(Trimming*|*AOT*)");
+        testArgs.Add("/*/*/*/*[Category!=manual-only]");
     }
     
     var exitCode = RunCommand("dotnet", testArgs.ToArray());

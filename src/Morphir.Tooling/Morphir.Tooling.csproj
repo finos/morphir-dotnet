@@ -33,7 +33,6 @@
     <PackageReference Include="Serilog.Sinks.Console" />
 
     <!-- TOML parsing -->
-    <PackageReference Include="CsToml" />
   </ItemGroup>
 
   <ItemGroup>

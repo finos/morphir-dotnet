@@ -9,7 +9,7 @@ public class TestDataResolver
 
     public TestDataResolver()
     {
-        var repositoryRoot = FindRepositoryRoot(Directory.GetCurrentDirectory());
+        var repositoryRoot = FindRepositoryRoot(AppContext.BaseDirectory);
         // Reference shared test data from Morphir.Tooling.Tests
         _testDataDirectory = Path.Combine(repositoryRoot, "tests", "Morphir.Tooling.Tests", "TestData");
 
@@ -57,7 +57,8 @@ public class TestDataResolver
         var current = new DirectoryInfo(startPath);
         while (current != null)
         {
-            if (Directory.Exists(Path.Combine(current.FullName, ".git")))
+            // .git is a directory in a clone and a file in a worktree
+            if (Path.Exists(Path.Combine(current.FullName, ".git")))
                 return current.FullName;
 
             current = current.Parent;

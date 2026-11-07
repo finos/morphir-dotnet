@@ -69,16 +69,52 @@ A workspace-root invocation reads the root unless shared selection chooses one d
 | `--show-scope` | Include winning source roles with entries |
 | `--json` | Emit one JSON report with typed JSON values and structured diagnostics |
 | `--config <path>` | Overlay an explicitly selected configuration file |
-| `--discovery-boundary <directory>` | Include this directory in discovery and exclude its parents |
+| `--discovery-boundary <directory>` | Include this directory in discovery and exclude its parents. Default: `MORPHIR_DISCOVERY_BOUNDARY`, else the current filesystem volume |
 | `--profiles <names>` | Comma-separated profile names, repeatable in order |
 | `--no-profiles` | Disable profiles; conflicts with `--profiles` |
-| `--isolated` | Exclude machine and personal files; retain active profiles and supplied environment values |
+| `--isolated [true\|false]` | Exclude machine and personal files; retain active profiles and supplied environment values. Default: `MORPHIR_ISOLATED`, else `false`. `--isolated false` turns off isolation set in the environment |
 | `--suppress-warning <code>` | Suppress a supported warning, repeatable |
 | `--help` | Show help without configuration discovery or loading |
 
 Profile names match `[a-z][a-z0-9_-]{0,63}`. Invalid explicit or environment profile names fail before discovery. `--profiles ci --profiles metrics` activates `ci` then `metrics`; use `--no-profiles` to disable activation. The supported mixed-format warning codes are `config.yaml_beside_toml` and `config.json_keys_below_toml`. Unknown suppression codes produce a structured warning.
 
 Without an explicit boundary, the native CLI searches within the current filesystem volume. It captures native machine locations and environment values at execution time. Machine paths use their own filesystem roots, including other Windows drives and redirected UNC shares, independently of the project discovery boundary. Embedded hosts can instead supply bounded or mounted trees without ambient machine access. See the [configuration guide]({{< relref "/guides/configuration" >}}).
+
+### Containment from the environment
+
+A parent process, CI job or test harness can contain every `config` command without changing its arguments:
+
+| Variable | Mirrors | Accepted values |
+| --- | --- | --- |
+| `MORPHIR_DISCOVERY_BOUNDARY` | `--discovery-boundary` | A directory. A relative path resolves against the current directory. Native Windows drive and UNC paths work with either separator |
+| `MORPHIR_ISOLATED` | `--isolated` | `true`, `false`, `1` or `0`, in any case |
+
+A flag on the command line wins over its variable, and the variable wins over the default. An empty variable counts as unset. Neither variable ever becomes a configuration value.
+
+The command fails with exit code 2, before reading any configuration, when:
+
+- `MORPHIR_ISOLATED` has any other value. The `containment.invalid_value` diagnostic names the variable and the accepted values.
+- The current directory is outside the effective boundary. The `discovery.boundary` diagnostic names the boundary and where it came from, so an inherited variable is easy to spot.
+
+`--help` never reads either variable.
+
+```console
+$ export MORPHIR_DISCOVERY_BOUNDARY=$PWD MORPHIR_ISOLATED=1
+$ morphir config path --json
+```
+
+`config path --json` reports what was in effect:
+
+```json
+"containment": {
+  "boundary": "/home/ada/repo",
+  "boundarySource": "environment",
+  "isolated": true,
+  "isolationSource": "environment"
+}
+```
+
+Each source is `flag`, `environment` or `default`.
 
 ## JSON contract
 
@@ -97,6 +133,7 @@ Every read command emits one object with these fields. The [JSON Schema](https:/
 | `diagnostics` | Array of `{code, severity, message, path, key, line, column}` |
 | `valueTypes` | Array of `{pointer, kind, encoding}` for canonical types requiring JSON metadata |
 | `exitCode` | Integer `0`, `1` or `2` |
+| `containment` | `path` only: `{boundary, boundarySource, isolated, isolationSource}`; omitted by other operations |
 
 A `source` is `{path, format, role, order, profile}`. `format` is `json`, `yaml`, `toml` or `memory`; `role` uses the canonical source-role name such as `RootPrimary`, `MemberPrimary`, `Global` or `Environment`. `profile` is a name or `null`. Source status is `loaded`, `missing`, `skipped` or `failed`; optional missing candidates remain in the source inventory.
 

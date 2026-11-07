@@ -34,13 +34,14 @@ public sealed class WorkspaceMigrationCommand : Command, IMorphirParseErrorHandl
     private readonly Option<string[]> _exclude = new("--exclude") { Description = "Root-relative exclusion pattern; repeatable", Arity = ArgumentArity.OneOrMore, AllowMultipleArgumentsPerToken = false };
     private readonly Option<bool> _dryRun = new("--dry-run") { Description = "Preview the complete aggregate without writing" };
     private readonly Option<bool> _json = new("--json") { Description = "Emit one redacted structured JSON result" };
+    private readonly Option<string?> _boundary = new("--discovery-boundary") { Description = "The directory must lie inside this boundary (default: MORPHIR_DISCOVERY_BOUNDARY, else the filesystem root)" };
 
     public WorkspaceMigrationCommand(IWorkspaceMigrationHost host, bool initializationFailed = false) : base("migrate", "Adopt classic projects within one bounded workspace")
     {
         _host = host;
         _initializationFailed = initializationFailed;
         Arguments.Add(_directory);
-        foreach (var option in new Option[] { _include, _exclude, _dryRun, _json }) Options.Add(option);
+        foreach (var option in new Option[] { _include, _exclude, _dryRun, _json, _boundary }) Options.Add(option);
         SetAction(Execute);
     }
 
@@ -61,6 +62,14 @@ public sealed class WorkspaceMigrationCommand : Command, IMorphirParseErrorHandl
         if (directory is not null && string.IsNullOrWhiteSpace(directory)
             || includes.Concat(excludes).Any(pattern => string.IsNullOrWhiteSpace(pattern) || pattern.StartsWith('-')))
             return Render(WorkspaceMigrationReport.Failure("workspace.migrate_usage", "Directory and filter patterns must be nonempty. Prefix a literal leading-dash pattern with './'.", dryRun), json);
+        if (parsed.GetValue(_boundary) is { } boundaryValue && string.IsNullOrWhiteSpace(boundaryValue))
+            return Render(WorkspaceMigrationReport.Failure("workspace.migrate_usage", "The discovery boundary must be nonempty.", dryRun), json);
+        // The directory is the inventory's authorization root; the boundary is an outer limit it must lie within.
+        // Migration never reads machine or personal sources, so MORPHIR_ISOLATED is not consulted.
+        var containment = Containment.Resolve(parsed.GetValue(_boundary), flagIsolated: true, Containment.CurrentEnvironment(),
+            System.Environment.CurrentDirectory).Value!;
+        if (containment.RequireInside(Path.GetFullPath(directory ?? System.Environment.CurrentDirectory)) is { } outside)
+            return Render(WorkspaceMigrationReport.Failure(outside.Code, outside.Message, dryRun), json);
         if (_initializationFailed)
             return Render(WorkspaceMigrationReport.Failure("workspace.migrate_initialization", "Host configuration initialization failed. Check appsettings and access permissions.", dryRun), json);
         try { return Render(_host.Execute(new(directory, includes, excludes, dryRun)), json); }

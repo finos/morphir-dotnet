@@ -5,7 +5,14 @@ public sealed class FileSystemProjectTree : IProjectTree
 {
     public string Boundary { get; }
 
-    public FileSystemProjectTree(string boundary) => Boundary = ProjectPath.normalize(Path.GetFullPath(boundary));
+    /// <inheritdoc />
+    public string? MorphirHome { get; }
+
+    public FileSystemProjectTree(string boundary, string? morphirHome = null)
+    {
+        Boundary = ProjectPath.normalize(Path.GetFullPath(boundary));
+        MorphirHome = string.IsNullOrEmpty(morphirHome) ? null : ProjectPath.normalize(Path.GetFullPath(morphirHome));
+    }
 
     public ProjectEntry Observe(string path)
     {

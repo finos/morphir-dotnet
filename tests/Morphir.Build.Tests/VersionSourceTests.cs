@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using FluentAssertions;
+using Morphir.TestSupport;
 using TUnit.Core;
 
 namespace Morphir.Build.Tests;
@@ -19,7 +20,7 @@ public class VersionSourceTests
     [Arguments("src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj")]
     public async Task PackageVersion_WithoutOverride_IsChangelogVersion(string project)
     {
-        var version = ResolvePackageVersion(project);
+        var version = await ResolvePackageVersion(project);
 
         version.Should().Be(GetChangelogVersion());
         await Task.CompletedTask;
@@ -32,22 +33,18 @@ public class VersionSourceTests
     [Arguments("src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj", "Version")]
     public async Task PackageVersion_WithExplicitOverride_IsOverride(string project, string property)
     {
-        var version = ResolvePackageVersion(project, $"-p:{property}={OverrideVersion}");
+        var version = await ResolvePackageVersion(project, $"-p:{property}={OverrideVersion}");
 
         version.Should().Be(OverrideVersion);
         await Task.CompletedTask;
     }
 
-    private static string ResolvePackageVersion(string project, params string[] extraArguments)
+    private static async Task<string> ResolvePackageVersion(string project, params string[] extraArguments)
     {
         var root = TestFixture.GetRepositoryRoot();
         var startInfo = new ProcessStartInfo("dotnet")
         {
             WorkingDirectory = root,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
         };
 
         foreach (var argument in new[]
@@ -59,13 +56,9 @@ public class VersionSourceTests
             startInfo.ArgumentList.Add(argument);
         }
 
-        using var process = Process.Start(startInfo)!;
-        var stderr = process.StandardError.ReadToEndAsync();
-        var stdout = process.StandardOutput.ReadToEnd().Trim();
-        process.WaitForExit();
-
-        process.ExitCode.Should().Be(0, $"msbuild should evaluate {project}: {stdout} {stderr.Result}");
-        return stdout;
+        var result = await ChildProcess.RunAsync(startInfo, TimeSpan.FromMinutes(2));
+        result.ExitCode.Should().Be(0, $"msbuild should evaluate {project}: {result.CombinedOutput}");
+        return result.StandardOutput.Trim();
     }
 
     private static string GetChangelogVersion()

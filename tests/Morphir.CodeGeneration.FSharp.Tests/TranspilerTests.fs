@@ -7,6 +7,7 @@ open System.Diagnostics
 open System.IO
 open System.Text.Json.Nodes
 open Morphir.Testing
+open Morphir.TestSupport
 open Morphir.CodeGeneration.FSharp.Tests.TranspilerAdapter
 
 module F = Morphir.CodeGeneration.FSharp.Tests.Fixtures
@@ -956,25 +957,21 @@ let contractTests =
                 |> Option.defaultValue "dotnet"
 
             let run arguments =
-                let start = ProcessStartInfo(dotnet)
+                let start = ChildProcess.StartInfo(dotnet, Array.ofSeq arguments)
                 start.WorkingDirectory <- directory
-                start.RedirectStandardOutput <- true
-                start.RedirectStandardError <- true
+                // No MSBuild node may outlive the build and keep the directory locked.
+                start.Environment["MSBUILDDISABLENODEREUSE"] <- "1"
 
-                for argument in arguments do
-                    start.ArgumentList.Add(argument)
+                // Gated, captured concurrently, and the tree is killed and awaited on timeout.
+                let result =
+                    ChildProcess
+                        .RunAsync(start, TimeSpan.FromSeconds 120.0)
+                        .GetAwaiter()
+                        .GetResult()
 
-                use child = Process.Start(start)
-                let output = child.StandardOutput.ReadToEndAsync()
-                let error = child.StandardError.ReadToEndAsync()
-
-                if not (child.WaitForExit(60000)) then
-                    child.Kill(true)
-                    failtest "privacy compiler timeout"
-
-                child.ExitCode,
-                output.Result
-                + error.Result
+                result.ExitCode,
+                result.StandardOutput
+                + result.StandardError
 
             try
                 for module' in modules do

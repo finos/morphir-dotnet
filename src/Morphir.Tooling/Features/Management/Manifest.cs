@@ -58,6 +58,14 @@ public sealed record Manifest
 }
 
 /// <summary>
+/// Source-generated serialization for manifests: the trimmed executable disables
+/// reflection-based JSON. Property names come from the [JsonPropertyName] attributes.
+/// </summary>
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(Manifest))]
+internal partial class ManifestJsonContext : JsonSerializerContext;
+
+/// <summary>
 /// Type of managed artifact.
 /// </summary>
 public enum ArtifactType

@@ -7,13 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.0-rc.1] - 2026-11-06
+## [0.4.0-alpha.1] - 2026-11-06
 
 ### Fixed
+- The global Morphir home is no longer discovered as a project. Walking up from a directory under the home folder used to find `~/.morphir/morphir.toml` through the `.morphir/` layout and load it as both a global source and the project's primary. It now loads only as a global source ([#494](https://github.com/finos/morphir-dotnet/issues/494))
+- A native Windows `MORPHIR_HOME` such as `C:\Users\me\.morphir` works. It was treated as relative and joined onto the current directory, so every `config` command failed with `discovery.read_error` ([#494](https://github.com/finos/morphir-dotnet/issues/494))
 - Every Morphir assembly now takes its version from CHANGELOG.md, so assemblies no longer reference each other as `1.0.0.0`. An explicit `-p:Version` or `-p:PackageVersion` still wins, for local and test packages. Previously the packed `dotnet-morphir` tool failed `generate` with `Could not load file or assembly 'Morphir.Models, Version=1.0.0.0'`
 - `Morphir.Tooling` and `Morphir` can now be installed from NuGet: releases also publish their dependencies `Morphir.Configuration`, `Morphir.Configuration.IO`, `Morphir.IR.Pipeline`, `Morphir.IR.Pipeline.Plugins`, `Morphir.Ion` and `Morphir.CodeGeneration.FSharp`. A build test now fails if a packed package depends on a Morphir package that is not packed
 - GitHub releases now include the `morphir-{rid}-v{version}.tar.gz` archives that the proto plugin downloads, so `proto install morphir` works again
 - The deployment workflow now requires the release version to be the latest release in CHANGELOG.md, which is the version the build stamps. The ignored `--version` arguments and the `--version-override` build parameter, which had no effect, are removed
+- `morphir ir verify --json` no longer crashes in the standalone executables with `Reflection-based serialization has been disabled`; it now uses source-generated JSON serialization
+- The deployment workflow's end-to-end tests run again. Their test filter was malformed and selected no tests, which hid an invalid step definition, a duplicate step definition and the `ir verify --json` crash
 - `PublishLocalTool` installs from the local package directory again; it no longer fails on the repository's package source mapping
 - The documentation site builds again: Docsy is pinned to v0.13.0 and Hugo to 0.169.0, after Docsy v0.18 moved its theme out of the module root
 - F# `Decimal.fromString` roundtrips invariant SDK output under comma-decimal cultures while retaining unambiguous localized input; package migration checks also exercise a later release version ([#465](https://github.com/finos/morphir-dotnet/issues/465)).
@@ -26,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CRITICAL**: Removed contradictory Claude co-author example from AGENTS.md and strengthened CLA compliance warnings in both AGENTS.md and CLAUDE.md (issue #270)
 
 ### Added
+- `MORPHIR_DISCOVERY_BOUNDARY` and `MORPHIR_ISOLATED` environment variables mirror `--discovery-boundary` and `--isolated` for the `config` commands, and `MORPHIR_DISCOVERY_BOUNDARY` also bounds `project migrate` and `workspace migrate`, which gains `--discovery-boundary`. A flag wins over its variable, which wins over the default. `--isolated` now accepts `true` or `false`, so a command can turn off isolation set in the environment, and `config path --json` reports the effective controls and their sources ([#494](https://github.com/finos/morphir-dotnet/issues/494))
+- Shared test sandbox, child-process runner and machine tripwire in `tests/Morphir.TestSupport`, so tests stay off the developer's real Morphir configuration ([#494](https://github.com/finos/morphir-dotnet/issues/494))
 - Synchronized both landed C# CLI deltas into the main specifications and archived all nine checked tasks; archive PR landing and coordinator cleanup remain pending ([#481](https://github.com/finos/morphir-dotnet/issues/481), [#482](https://github.com/finos/morphir-dotnet/pull/482)).
 - Added exact `csharp` CLI generation with numeric 14/15 profiles, a validated optional namespace and the existing owned publication/reporting flow ([#481](https://github.com/finos/morphir-dotnet/issues/481)).
 - Synchronized the landed C# generator's eight requirements and 19 scenarios into the main specification and prepared its 13-task OpenSpec archive; archive follow-up landing and coordinator cleanup remain pending ([#474](https://github.com/finos/morphir-dotnet/issues/474), [#478](https://github.com/finos/morphir-dotnet/pull/478)).
@@ -68,7 +74,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CLA compliance guidance** in AGENTS.md with remediation steps for accidental Claude co-author inclusion
 - **GitHub issue #270** for F# script to automatically remove Claude co-author from commit history
 
+### Removed
+- **BREAKING** (Morphir.Tooling API): `Morphir.Tooling.Configuration.ConfigResolver`, `WorkspaceDiscovery` and `TomlParser` are removed. They walked to the filesystem root and treated any `.git` or `.morphir` directory as a workspace, including the global Morphir home, and could not be contained. No restorable package release ever exposed them. Use `ProjectSystem.Discover` / `ProjectSystem.LoadDetailed` and the shared resolver; replace the legacy CI mode with a named profile selected by `--profiles` or `MORPHIR_PROFILES` ([#494](https://github.com/finos/morphir-dotnet/issues/494))
+
 ### Changed
+- The `dist`, `tool` and `extension` sub-commands now fail with "not implemented yet", exit code 1 and a link to their tracking issue ([#490](https://github.com/finos/morphir-dotnet/issues/490), [#491](https://github.com/finos/morphir-dotnet/issues/491), [#492](https://github.com/finos/morphir-dotnet/issues/492)). Previously they printed a message and exited 0 without doing anything
 - **BREAKING**: The classic `Distribution` has a `Specs` case for IR 3.1.0, and `Distribution.packageDefinition` returns an option because a `Specs` distribution has no definitions
 - The classic JSON decoder moved from `Morphir.CodeGeneration.FSharp` to `Morphir.Models`. F# generation keeps its acceptance rules and diagnostics
 - Ignore Reqnroll-generated `*.feature.cs` files per Reqnroll best practices
@@ -219,8 +229,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-rc.1...HEAD
-[0.4.0-rc.1]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.2...v0.4.0-rc.1
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.1...HEAD
+[0.4.0-alpha.1]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.2...v0.4.0-alpha.1
 [0.3.0-rc.2]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.1...v0.3.0-rc.2
 [0.3.0-rc.1]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-010...v0.3.0-rc.1
 [0.2.0-alpha-010]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-009...v0.2.0-alpha-010
