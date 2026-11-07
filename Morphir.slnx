@@ -24,6 +24,7 @@
     <Project Path="src/Morphir.CodeGeneration.CSharp/Morphir.CodeGeneration.CSharp.fsproj" />
     <Project Path="src/Morphir.Myriad/Morphir.Myriad.fsproj" />
     <Project Path="src/Morphir.Myriad.Build/Morphir.Myriad.Build.csproj" />
+    <Project Path="src/Morphir.Extensions/Morphir.Extensions.fsproj" />
     <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
     <Project Path="src/Morphir/Morphir.csproj" />
     <Project Path="src/Morphir.Configuration/Morphir.Configuration.fsproj" />
@@ -60,6 +61,7 @@
     <Project Path="tests/Morphir.Internal.CodeGeneration.Tests/Morphir.Internal.CodeGeneration.Tests.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Tests/Morphir.IR.Pipeline.Tests.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Plugins.Tests/Morphir.IR.Pipeline.Plugins.Tests.fsproj" />
+    <Project Path="tests/Morphir.Extensions.Tests/Morphir.Extensions.Tests.fsproj" />
     <Project Path="tests/Morphir.Tooling.Tests/Morphir.Tooling.Tests.csproj" />
     <Project Path="tests/Morphir.TestSupport/Morphir.TestSupport.csproj" />
     <Project Path="tests/Morphir.TestSupport.Tests/Morphir.TestSupport.Tests.csproj" />

@@ -9,49 +9,6 @@ namespace Morphir.Tooling.Features.Management;
 /// </summary>
 public static class ExtensionHandlers
 {
-    public static Task<ExtensionListResult> HandleList(
-        ExtensionList command,
-        ArtifactPathResolver resolver,
-        ILogger? logger = null,
-        CancellationToken ct = default)
-    {
-        var platform = command.Platform ?? Infrastructure.RuntimeIdentifier.GetCurrentRid();
-        logger?.LogInformation("Listing extensions for platform {Platform}, local={Local}", platform, command.Local);
-
-        var extensionRoot = resolver.GetArtifactRoot(ArtifactType.Extension, command.Local);
-        var platformRoot = Path.Combine(extensionRoot, platform);
-
-        var extensions = new List<ExtensionInfo>();
-
-        if (Directory.Exists(platformRoot))
-        {
-            foreach (var extensionDir in Directory.GetDirectories(platformRoot))
-            {
-                var extensionName = Path.GetFileName(extensionDir);
-                var versions = Directory.GetDirectories(extensionDir)
-                    .Select(Path.GetFileName)
-                    .Where(v => v != null)
-                    .Cast<string>()
-                    .ToList();
-
-                var activeVersion = resolver.GetActiveVersion(ArtifactType.Extension, name: extensionName, useLocal: command.Local);
-
-                extensions.Add(new ExtensionInfo(
-                    Name: extensionName,
-                    InstalledVersions: versions,
-                    ActiveVersion: activeVersion,
-                    Platform: platform
-                ));
-            }
-        }
-
-        return Task.FromResult(new ExtensionListResult(
-            Extensions: extensions.OrderBy(e => e.Name).ToList(),
-            Platform: platform,
-            IsLocal: command.Local
-        ));
-    }
-
     public static async Task<ExtensionInstallResult> HandleInstall(
         ExtensionInstall command,
         ArtifactPathResolver resolver,

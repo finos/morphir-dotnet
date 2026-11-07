@@ -100,7 +100,7 @@ svg .arrow { stroke: var(--muted); fill: none; }
 <thead><tr><th>Need</th><th>Shape</th></tr></thead>
 <tbody>
 <tr><td>C# names and calls</td><td>Static members on the type (<code>ExtensionId.Parse(text)</code>), or <code>[&lt;CompiledName&gt;]</code> on module functions. Tupled parameters, never curried ones.</td></tr>
-<tr><td>Parsing from C#</td><td><code>TryParse(text: string | null, [&lt;Out; NotNullWhen(true)&gt;] result: byref&lt;T | null&gt;, [&lt;Out; NotNullWhen(false)&gt;] failure: byref&lt;ParseFailure | null&gt;) : bool</code>, beside the F# <code>parse : string -&gt; Result&lt;T, ParseFailure&gt;</code>.</td></tr>
+<tr><td>Parsing from C#</td><td><code>TryParse(text: string | null, [&lt;Out; MaybeNullWhen(false)&gt;] result: byref&lt;T&gt;, [&lt;Out; MaybeNullWhen(true)&gt;] failure: byref&lt;ParseFailure&gt;) : bool</code>, beside the F# <code>Parse : string -&gt; Result&lt;T, ParseFailure&gt;</code>. Not <code>byref&lt;T | null&gt;</code>: F# does not write byref element nullness into the metadata, so C# would read both values as never null (found while applying task 2.3).</td></tr>
 <tr><td>Branching on a union in C#</td><td>Avoid it: put the decision in an F# function. Where C# must branch, add a <code>Match</code> member with one <code>Func</code> for each case, so the signature makes C# handle every case.</td></tr>
 <tr><td>Optional values</td><td><code>T | null</code> on the C# surface, <code>option</code> inside F#.</td></tr>
 <tr><td>Collections</td><td><code>IReadOnlyList&lt;T&gt;</code>, <code>ImmutableArray&lt;T&gt;</code> or <code>NonEmptySet&lt;T&gt;</code> on the surface. Never F# <code>list</code>, <code>Set</code> or <code>Map</code>.</td></tr>
@@ -121,8 +121,8 @@ type ExtensionId =
     override this.GetHashCode() = StringComparer.Ordinal.GetHashCode this.Value
     interface IComparable with member this.CompareTo other = String.CompareOrdinal(this.Value, (other :?&gt; ExtensionId).Value)
     static member Parse(text: string | null) : Result&lt;ExtensionId, ParseFailure&gt; = ExtensionId.parse text   // F# callers
-    static member TryParse(text, [&lt;Out; NotNullWhen(true)&gt;] result: byref&lt;ExtensionId | null&gt;,
-                           [&lt;Out; NotNullWhen(false)&gt;] failure: byref&lt;ParseFailure | null&gt;) : bool = …          // C# callers
+    static member TryParse(text, [&lt;Out; MaybeNullWhen(false)&gt;] result: byref&lt;ExtensionId&gt;,
+                           [&lt;Out; MaybeNullWhen(true)&gt;] failure: byref&lt;ParseFailure&gt;) : bool = …                  // C# callers
     static member Create(literal: string) : ExtensionId = …   // literals in source code; throws; a unit test calls each literal
 
 [&lt;RequireQualifiedAccess&gt;]
@@ -194,8 +194,8 @@ type ExtensionCatalog =                                   // private constructor
     member Host: HostIdentity
     member Entries: IReadOnlyList&lt;ExtensionEntry&gt;
     static member create: HostIdentity * seq&lt;ExtensionEntry&gt; -&gt; Result&lt;ExtensionCatalog, RegistryError&gt;        // F#
-    static member TryCreate: HostIdentity * IEnumerable&lt;ExtensionEntry&gt; * [&lt;Out&gt;] catalog: byref&lt;ExtensionCatalog | null&gt;
-                             * [&lt;Out&gt;] error: byref&lt;RegistryError | null&gt; -&gt; bool                                    // C#</code></pre>
+    static member TryCreate: HostIdentity * IEnumerable&lt;ExtensionEntry&gt; * [&lt;Out; MaybeNullWhen(false)&gt;] catalog: byref&lt;ExtensionCatalog&gt;
+                             * [&lt;Out; MaybeNullWhen(true)&gt;] error: byref&lt;RegistryError&gt; -&gt; bool                    // C#</code></pre>
 <p>The C# <code>ExtensionRegistry</code> reads every <code>IExtensionSource</code> and the <code>HostIdentity</code> from the container, and calls <code>ExtensionCatalog.TryCreate</code>. A catalog value always has unique ids, so no later code checks for them. On failure the command writes <code>error.Diagnostics</code> and exits with code 2.</p>
 <p><em>Alternatives:</em> assembly scanning or MEF (not AOT-safe, and the PRD forbids it); attributes plus a source generator (more than two built-ins need; it can come later without a change to <code>IExtensionSource</code>); a static list in <code>Program.cs</code> (it drifts from the backend registrations).</p>
 
@@ -216,10 +216,11 @@ type ExtensionCatalog =                                   // private constructor
 <tr><td><code>TargetId</code></td><td>C# <code>readonly record struct TargetId(string Value)</code></td><td>The F# parsed value (<a href="#typ-1">TYP-1</a>), with the <code>ExtensionId</code> grammar. The C# struct is removed.</td></tr>
 <tr><td><code>BackendCapability.Versions</code></td><td><code>ImmutableHashSet&lt;string&gt;</code></td><td><code>NonEmptySet&lt;SourceFormatVersion&gt;</code>; <code>Supports</code> compares <code>model.Version</code> by value, so the exact declared spelling still decides the match</td></tr>
 <tr><td><code>BackendDescriptor.Identity</code></td><td><code>string</code></td><td><code>ExtensionId Id</code>, plus <code>ExtensionName Name</code> and <code>ExtensionDescription? Description</code></td></tr>
-<tr><td><code>BackendDescriptor.Capabilities</code></td><td><code>ImmutableArray&lt;BackendCapability&gt;</code></td><td><code>NonEmptySet&lt;BackendCapability&gt;</code></td></tr>
+<tr><td><code>BackendDescriptor.Capabilities</code></td><td><code>ImmutableArray&lt;BackendCapability&gt;</code></td><td>Unchanged type; the constructor refuses an empty list. <code>BackendCapability</code> is a C# record with no order, and <code>NonEmptySet</code> needs one (decided while applying task 4.4).</td></tr>
+<tr><td><code>GenerationSettings.Target</code></td><td><code>TargetId</code></td><td><code>RequestedTarget</code>: <code>Valid(TargetId)</code> or <code>Malformed(input)</code> (decided while applying task 4.2)</td></tr>
 </tbody>
 </table>
-<p><strong><code>generate</code> behavior does not change.</strong> <code>CliGenerationSettingsResolver</code> parses <code>--target</code> with <code>TargetId.TryParse</code>. A parse failure gives the same <code>unknown-target</code> invocation failure, with the same message and list of available targets, as a well-formed unknown target does today. The <code>backend</code> report field is <code>ExtensionId.ToString()</code>, so it is still <code>morphir.csharp</code> or <code>morphir.fsharp</code>. The existing generate tests and the PowerShell contract scripts run unchanged and pass.</p>
+<p><strong><code>generate</code> behavior does not change.</strong> <code>CliGenerationSettingsResolver</code> parses <code>--target</code> into a <code>RequestedTarget</code>. A <code>Malformed</code> target names no registered target, so <code>RegisteredBackendResolver</code> gives it the same <code>unknown-target</code> invocation failure, with the same message and list of available targets, as a well-formed unknown target, at the same point in the run. Failing in the settings resolver instead would change which error comes first and would need every registered target there. Only a <code>Valid</code> target reaches a backend, and C# compares targets with <code>Equals</code>, because <code>==</code> on an F# union compares references. The <code>backend</code> report field is <code>ExtensionId.ToString()</code>, so it is still <code>morphir.csharp</code> or <code>morphir.fsharp</code>. The existing generate tests and the PowerShell contract scripts run unchanged and pass.</p>
 <p><code>ModelDescriptor</code>, <code>SourceFormatVersion</code> and the option parsing are already typed, and they do not change.</p>
 
 <h3 id="id-1">ID-1. Extension ids may contain dots, as a documented superset of upstream</h3>
@@ -245,9 +246,13 @@ private static int Main(string[] args) =&gt;
 <p><code>ManagementScenario</code> keeps the static <code>extension</code> command for <code>install</code>, <code>use</code>, <code>remove</code> and <code>which</code>, and adds <code>list</code> to it as a subcommand built from the service provider. If the builder cannot add a hosted subcommand to a static parent, the scenario builds the whole <code>extension</code> command through <code>AddCommand(Func&lt;IServiceProvider, Command&gt;)</code>; the four other subcommands do not change.</p>
 <p><code>ExtensionListCommand</code> keeps <code>--platform</code> and <code>--local</code> (they apply to installed extensions, and none exist before PRD step 3) and adds <code>--json</code>. <code>ExtensionListReport.From(ExtensionCatalog)</code> is the one place that turns typed values into text. It reads <code>ToString()</code> and the <code>WireValue</code> members, so it has no <code>switch</code> on an F# union. The report record is a serialization shape only. No code parses it back or makes decisions from it.</p>
 <pre><code class="language-console">$ morphir extension list
-ID              NAME           VERSION   TYPES     DELIVERY   HOSTS
-morphir.csharp  C# generator   0.4.0     backend   built-in   morphir, dotnet-morphir
-morphir.fsharp  F# generator   0.4.0     backend   built-in   morphir, dotnet-morphir</code></pre>
+╭────────────────┬──────────────┬─────────┬─────────┬──────────┬─────────────────────────╮
+│ ID             │ NAME         │ VERSION │ TYPES   │ DELIVERY │ HOSTS                   │
+├────────────────┼──────────────┼─────────┼─────────┼──────────┼─────────────────────────┤
+│ morphir.csharp │ C# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │
+│ morphir.fsharp │ F# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │
+╰────────────────┴──────────────┴─────────┴─────────┴──────────┴─────────────────────────╯</code></pre>
+<p>The text output is a TUI-styled table (decided 2026-11-07): list commands render through the shared <code>Infrastructure/TerminalTable</code>, which uses Spectre.Console core (not Spectre.Console.Cli). In a terminal it has ANSI styling and fits the terminal width. When stdout is redirected or <code>NO_COLOR</code> is set, it has no ANSI codes and a fixed width, so files, pipes and tests get the same text. The table is for people; <code>--json</code> is the stable format for scripts.</p>
 <pre><code class="language-json">{
   "host": "morphir",
   "extensions": [

@@ -1,4 +1,8 @@
 using System.CommandLine;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Morphir.Extensions;
+using Morphir.Tooling.Features.Extensions;
 
 namespace Morphir.Tooling.Scenarios;
 
@@ -10,6 +14,13 @@ public class ManagementScenario : IMorphirCliScenario
 {
     public void Configure(MorphirCliBuilder builder)
     {
+        // Static registration only: each source is a known type, and the host identity comes from the entry point.
+        builder.ConfigureServices(services =>
+        {
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IExtensionSource, BackendExtensionSource>());
+            services.TryAddSingleton<ExtensionRegistry>();
+        });
+
         builder.AddCommand(rootCommand =>
         {
             // Create top-level dist, tool, and extension commands
@@ -21,6 +32,9 @@ public class ManagementScenario : IMorphirCliScenario
             rootCommand.Subcommands.Add(toolCommand);
             rootCommand.Subcommands.Add(extensionCommand);
         });
+
+        builder.ConfigureHostedCommands((rootCommand, services) =>
+            rootCommand.Subcommands.Single(command => command.Name == "extension").Subcommands.Insert(0, new ExtensionListCommand(services)));
     }
 
     private static Command CreateDistCommand()
@@ -151,14 +165,7 @@ public class ManagementScenario : IMorphirCliScenario
     {
         var extensionCommand = new Command("extension", "Manage Morphir extensions");
 
-        // extension list
-        var listCommand = new Command("list", "List installed extensions (not implemented yet)");
-        var listPlatformOption = new Option<string?>("--platform") { Description = "Platform RID (defaults to current)" };
-        var listLocalOption = new Option<bool>("--local") { Description = "List local (project) installations only" };
-        listCommand.Options.Add(listPlatformOption);
-        listCommand.Options.Add(listLocalOption);
-        listCommand.SetAction(_ => NotImplemented("extension", "list"));
-        extensionCommand.Subcommands.Add(listCommand);
+        // extension list needs the extension registry, so ConfigureHostedCommands inserts it first, after the host is built.
 
         // extension install
         var installCommand = new Command("install", "Install an extension (not implemented yet)");

@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace Morphir.E2E.Tests.Infrastructure;
@@ -16,10 +17,43 @@ public class ExecutableLocator
         _currentRid = GetCurrentRid();
     }
 
+    /// <summary>The executable type under test: <c>MORPHIR_EXECUTABLE_TYPE</c>, or <c>aot</c>.</summary>
+    public static string CurrentType => Environment.GetEnvironmentVariable("MORPHIR_EXECUTABLE_TYPE") ?? "aot";
+
+    /// <summary>The host that an executable type runs as: <c>dotnet-morphir</c> for <c>tool</c>, else <c>morphir</c>.</summary>
+    public static string HostFor(string executableType) => executableType == "tool" ? "dotnet-morphir" : "morphir";
+
+    private static string Configuration =>
+        typeof(ExecutableLocator).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration ?? "Release";
+
+    private static string AppHost(string name) => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? name + ".exe" : name;
+
+    /// <summary>
+    /// The app host of the built dotnet tool, <c>src/Morphir.Tool/bin/&lt;configuration&gt;/net10.0/dotnet-morphir</c>.
+    /// It runs <c>dotnet-morphir.dll</c> on the installed .NET runtime, as the packed tool does.
+    /// </summary>
+    public string? GetToolPath()
+    {
+        var path = Path.Combine(_repositoryRoot, "src", "Morphir.Tool", "bin", Configuration, "net10.0", AppHost("dotnet-morphir"));
+        return File.Exists(path) ? path : null;
+    }
+
+    /// <summary>
+    /// A <c>morphir</c> executable: the published AOT or single-file executable, or else the app host of the same build.
+    /// </summary>
+    public string? GetNativeHostPath()
+    {
+        foreach (var type in new[] { "aot", "trimmed", "untrimmed" })
+            if (GetExecutablePath(type) is { } path && !path.Contains(Path.Combine("src", "Morphir.Tool"), StringComparison.Ordinal))
+                return path;
+        var appHost = Path.Combine(_repositoryRoot, "src", "Morphir", "bin", Configuration, "net10.0", AppHost("morphir"));
+        return File.Exists(appHost) ? appHost : null;
+    }
+
     /// <summary>
     /// Get the path to the executable based on type
     /// </summary>
-    /// <param name="executableType">Type of executable: "aot", "trimmed", "untrimmed", or null for auto-detect</param>
+    /// <param name="executableType">Type of executable: "aot", "trimmed", "untrimmed", "tool", or null for auto-detect</param>
     /// <returns>Path to the executable, or null if not found</returns>
     public string? GetExecutablePath(string? executableType = null)
     {
@@ -31,7 +65,11 @@ public class ExecutableLocator
         }
 
         // Determine executable type from environment or parameter
-        var type = executableType ?? Environment.GetEnvironmentVariable("MORPHIR_EXECUTABLE_TYPE") ?? "aot";
+        var type = executableType ?? CurrentType;
+
+        // The tool is a different host, so never fall back to a morphir executable for it.
+        if (type == "tool")
+            return GetToolPath();
 
         // All executables use lowercase "morphir" (consistent naming)
         var aotExecutableName = GetExecutableName(isAot: false);

@@ -5,6 +5,7 @@ using Morphir.IR.Pipeline;
 using Morphir.Tooling.Features.Generate;
 
 using Morphir.TestSupport;
+using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
@@ -23,7 +24,7 @@ public sealed class CSharpGenerationPublicationTests : IDisposable
         var backend = new CSharpGenerationBackend();
         var options = naming is null ? BackendOptions.Empty : CSharpGenerationBackendTests.ParseOptions("namespace", System.Text.Json.JsonSerializer.Serialize(naming));
         var validated = CSharpGenerationBackendTests.Validated(backend, options);
-        return ((Outcome<GenerationArtifacts>.Success)await backend.GenerateAsync(new(loaded, new("csharp"), validated), default)).Value;
+        return ((Outcome<GenerationArtifacts>.Success)await backend.GenerateAsync(new(loaded, TargetId.Create("csharp"), validated), default)).Value;
     }
 
     private async Task<Outcome<GenerationPublication>> Publish(GenerationArtifacts artifacts, CancellationToken ct = default) =>

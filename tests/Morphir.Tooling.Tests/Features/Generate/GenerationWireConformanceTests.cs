@@ -11,6 +11,7 @@ using Sources = Microsoft.FSharp.Collections.FSharpList<System.Tuple<string, str
 using Generated = Microsoft.FSharp.Core.FSharpResult<Microsoft.FSharp.Collections.FSharpList<System.Tuple<string, string>>, Microsoft.FSharp.Collections.FSharpList<string>>;
 
 using Morphir.TestSupport;
+using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
@@ -40,7 +41,7 @@ public sealed class GenerationWireConformanceTests : IDisposable
         var loaded = ((Outcome<LoadedModel>.Success)result).Value;
         var backend = new FSharpGenerationBackend();
         var options = ((Outcome<ValidatedBackendOptions>.Success)backend.ValidateOptions(BackendOptions.Empty)).Value;
-        var generated = await backend.GenerateAsync(new(loaded, new("fsharp"), options), default);
+        var generated = await backend.GenerateAsync(new(loaded, TargetId.Create("fsharp"), options), default);
         if (generated is Outcome<GenerationArtifacts>.Failure failure) return Generated.NewError(ListModule.OfSeq(failure.Error.Diagnostics.Select(d => d.Code)));
         var tree = ((Outcome<GenerationArtifacts>.Success)generated).Value.Tree;
         var files = VFileTreeModule.allFiles(tree).ToDictionary(file => file.Path.Value, file => VFileModule.readText(file).ResultValue);

@@ -29,11 +29,11 @@ public static class GenerateHandler
             var selected = backendResolver.Resolve(settings.Target, model.Descriptor);
             if (selected is Outcome<IGenerationBackend>.Failure selectionFailure) return Failed(selectionFailure.Error);
             var backend = ((Outcome<IGenerationBackend>.Success)selected).Value;
-            backendIdentity = backend.Descriptor.Identity;
+            backendIdentity = backend.Descriptor.Id.Value;
             var validation = backend.ValidateOptions(settings.Options);
             if (validation is Outcome<ValidatedBackendOptions>.Failure optionFailure) return Failed(optionFailure.Error);
             var options = ((Outcome<ValidatedBackendOptions>.Success)validation).Value;
-            var generation = await backend.GenerateAsync(new(model, settings.Target, options), ct);
+            var generation = await backend.GenerateAsync(new(model, backend.Descriptor.Target, options), ct);
             if (generation is Outcome<GenerationArtifacts>.Failure generationFailure) return Failed(generationFailure.Error);
             var artifacts = ((Outcome<GenerationArtifacts>.Success)generation).Value;
             var family = ModelLabels.Family(model.Model.Family);
@@ -42,7 +42,7 @@ public static class GenerateHandler
             var publication = await publisher.PublishAsync(artifacts, settings.Input, settings.Publication, ct);
             if (publication is Outcome<GenerationPublication>.Failure publicationFailure) return Failed(publicationFailure.Error);
             var receipt = ((Outcome<GenerationPublication>.Success)publication).Value;
-            return new Outcome<GenerationSuccess>.Success(new(settings.Target.Value, backend.Descriptor.Identity, model.Original.SourcePath,
+            return new Outcome<GenerationSuccess>.Success(new(backend.Descriptor.Target.Value, backend.Descriptor.Id.Value, model.Original.SourcePath,
                 settings.Publication.OutputDirectory, model.Model.SourceVersion.Text, family, kind,
                 model.Representation.ToString(), receipt, artifacts.Diagnostics));
         }

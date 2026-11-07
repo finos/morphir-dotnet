@@ -5,6 +5,7 @@ using Morphir.IR.Model;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Scenarios;
 using Morphir.Tooling.Tests.Integration.CLI;
+using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
@@ -64,7 +65,7 @@ public sealed class GenerationReportingTests
     private sealed class SlowBackend : IGenerationBackend
     {
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public BackendDescriptor Descriptor { get; } = new("test.slow", new("slow"), [new(ModelFamily.Classic, ["3"], DistributionKind.Library)]);
+        public BackendDescriptor Descriptor { get; } = new(ExtensionId.Create("test.slow"), ExtensionName.Create("Slow test backend"), TargetId.Create("slow"), [new(ModelFamily.Classic, SourceFormatVersions.Create("3"), DistributionKind.Library)]);
         public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options) => new Outcome<ValidatedBackendOptions>.Success(new Options());
         public async ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct)
         {

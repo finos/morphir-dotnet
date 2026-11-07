@@ -16,6 +16,12 @@ let private classicJson =
 [<Tests>]
 let tests =
     testList "Versioned semantic model" [
+        testCase "a source format version prints its exact declaration"
+        <| fun () ->
+            for text in [ "3"; "3.0.0"; "4.1.0-draft.1" ] do
+                match SourceFormatVersion.parse text with
+                | Ok version -> Expect.equal (string version) text "declared text"
+                | Error error -> failtest $"refused {text}: {error}"
         testCase "classic integer and semantic versions retain separate source context"
         <| fun () ->
             use document = JsonDocument.Parse classicJson
