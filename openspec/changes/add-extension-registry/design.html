@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-extension-registry: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .box { fill: var(--panel); stroke: var(--line); }
+svg .arrow { stroke: var(--muted); fill: none; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-extension-registry: design</h1>
+<p class="meta">OpenSpec change | 2026-11-07 | Proposed | Step 0 of the <a href="../../../docs/content/contributing/design/prds/morphir-extension-model.md">Morphir extension model PRD</a></p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the reason. The requirements are in <a href="specs/extension-registry/spec.md">specs/extension-registry/spec.md</a>. The current state:</p>
+<ul>
+<li><strong>One composition, two hosts.</strong> <code>src/Morphir/Program.cs</code> builds the CLI with <code>MorphirCli.CreateBuilder(...).AddScenario&lt;...&gt;()</code>. <code>dotnet-morphir</code> (<code>src/Morphir.Tool/Program.cs</code>) calls <code>Morphir.Program.Main(args)</code>, so the two hosts cannot tell themselves apart today. <code>VersionInfo</code> is <code>internal</code> to each entry assembly, so <code>Morphir.Tooling</code> cannot read the host version.</li>
+<li><strong>Backends are already static.</strong> <code>GenerationScenario</code> registers <code>FSharpGenerationBackend</code> and <code>CSharpGenerationBackend</code> as <code>IGenerationBackend</code> through <code>TryAddEnumerable</code>. Each has a <code>BackendDescriptor</code> with <code>Identity</code> (<code>morphir.csharp</code>, <code>morphir.fsharp</code>), <code>Target</code> and per-family <code>BackendCapability</code> version sets. <code>RegisteredBackendResolver</code> selects from the same set.</li>
+<li><strong>The <code>extension</code> command is static.</strong> <code>ManagementScenario.CreateExtensionCommand()</code> builds it with no service provider. Since #489, every <code>dist</code>, <code>tool</code> and <code>extension</code> subcommand fails through <code>NotImplemented(group, subcommand)</code> with exit code 1 and a link to its tracking issue (#492 for <code>extension</code>), and <code>CliManagementCommands.feature</code> checks this. The records in <code>Features/Management/ExtensionCommands.cs</code> and <code>ExtensionHandlers.HandleList</code> have no callers.</li>
+<li><strong>Hosted commands exist.</strong> <code>MorphirCliBuilder.AddCommand(Func&lt;IServiceProvider, Command&gt;)</code> builds a command after the container is built. <code>GenerateCommand</code> uses it.</li>
+<li><strong>MEP shape.</strong> The MEP contract (<code>spec/mep/contract/src/mep.gleam</code> in <code>finos/morphir</code>, <code>0.2.0-draft.1</code>) defines <code>ExtensionInfo { id, name, version, description?, types, author?, homepage?, license?, min_sdk_version? }</code>, <code>ExtensionType</code> with the wire values <code>frontend</code>, <code>backend</code>, <code>transform</code>, <code>validator</code>, <code>workspace</code>, and <code>BackendCapability { targets, ir_versions, generate }</code>.</li>
+<li><strong>Constraints.</strong> The <code>morphir</code> executable is Native AOT and trimmed. No reflection-based discovery, no assembly loading. JSON uses source-generated contexts. Stdout carries command output only.</li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> registry and generation contracts in which invalid values cannot be constructed (<a href="#typ-1">TYP-1</a>), written in F# with a C# edge (<a href="#lang-1">LANG-1</a>, <a href="#ffi-1">FFI-1</a>); one registry type that the later PRD steps extend (configured extensions in step 2, installed extensions in step 3) without a change to its shape; one source of truth for generator identity, shared with <code>generate</code>; a host identity that both hosts set explicitly.</p>
+<p><strong>Non-goals:</strong> the selection rule; a change to <code>RegisteredBackendResolver</code> behavior (its inputs become typed, <a href="#gen-1">GEN-1</a>); MEP wire types or JSON-RPC; any external runtime; registration of the pipeline plugins (<a href="#plg-1">PLG-1</a>).</p>
+
+<svg viewBox="0 0 760 210" role="img" aria-labelledby="flow-title">
+<title id="flow-title">Data flow from host composition to extension list</title>
+<rect class="box" x="10" y="20" width="200" height="50" rx="6"/><text x="22" y="50">Entry point: HostIdentity</text>
+<rect class="box" x="10" y="130" width="200" height="50" rx="6"/><text x="22" y="160">IGenerationBackend (x2)</text>
+<rect class="box" x="270" y="75" width="200" height="60" rx="6"/><text x="282" y="100">IExtensionSource</text><text x="282" y="120">(backend adapter, …)</text>
+<rect class="box" x="530" y="20" width="220" height="50" rx="6"/><text x="542" y="50">ExtensionRegistry</text>
+<rect class="box" x="530" y="130" width="220" height="50" rx="6"/><text x="542" y="160">extension list (text | JSON)</text>
+<path class="arrow" d="M210 155 L270 115"/><path class="arrow" d="M470 100 L530 50"/>
+<path class="arrow" d="M210 45 L530 45"/><path class="arrow" d="M640 70 L640 130"/>
+</svg>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="lang-1">LANG-1. The domain is F#; the CLI edge stays C#</h3>
+<p>AGENTS.md says "F# for ADT-heavy components where appropriate". The registry is almost entirely parsed values and closed unions, so its domain goes into a new F# project. The C# code keeps the parts that only C# can do or that are thin glue.</p>
+<table>
+<thead><tr><th>Project</th><th>Language</th><th>Holds</th></tr></thead>
+<tbody>
+<tr><td><code>src/Morphir.Extensions</code> (new)</td><td>F#</td><td>The parsed values (<a href="#typ-1">TYP-1</a>), the registry unions and records (<a href="#reg-1">REG-1</a>), <code>ExtensionCatalog</code> and <code>RegistryError</code> (<a href="#reg-2">REG-2</a>), <code>IExtensionSource</code>, <code>TargetId</code> (<a href="#gen-1">GEN-1</a>), and the wire values and diagnostics that the output edge needs. It references <code>Morphir.Models</code> (for <code>Versioning</code> and <code>SourceFormatVersion</code>) and nothing from the CLI.</td></tr>
+<tr><td><code>src/Morphir.Tooling</code></td><td>C#</td><td><code>BackendExtensionSource</code> (it reads the C# <code>IGenerationBackend</code>), DI registration, <code>ExtensionListCommand</code>, the JSON report record and its <code>JsonSerializerContext</code>.</td></tr>
+<tr><td><code>tests/Morphir.Extensions.Tests</code> (new)</td><td>F#</td><td>Expecto and Expecto.FsCheck, as the other F# test projects use.</td></tr>
+</tbody>
+</table>
+<p>What must stay in C#: the System.Text.Json source generator runs only in C# and does not support F# unions; <code>System.CommandLine</code> and the scenario builder are C#; any Foundatio.Mediator handler is found by a C# source generator.</p>
+<p>The new project sets <code>&lt;Nullable&gt;enable&lt;/Nullable&gt;</code>, <code>&lt;TreatWarningsAsErrors&gt;true&lt;/TreatWarningsAsErrors&gt;</code>, <code>&lt;IsTrimmable&gt;true&lt;/IsTrimmable&gt;</code>, <code>&lt;EnableTrimAnalyzer&gt;true&lt;/EnableTrimAnalyzer&gt;</code>, <code>&lt;IsAotCompatible&gt;true&lt;/IsAotCompatible&gt;</code> and <code>&lt;GenerateDocumentationFile&gt;true&lt;/GenerateDocumentationFile&gt;</code>. With F# nullness on, the assembly carries nullable metadata, so the C# compiler in <code>Morphir.Tooling</code> (nullable on, warnings as errors) refuses a <code>null</code> passed to a non-nullable F# parameter. Without it, C# treats F# types as "oblivious" and gives no warning. The project packs with the same settings as <code>Morphir.Tooling</code>, so a package that contains <code>Morphir.Tooling</code> can resolve it.</p>
+<p>This also fits PR #495: <code>Morphir.Mep</code> is F#, so the later mapping between the registry types and the MEP types is F# to F#.</p>
+<p><em>Alternatives:</em> all C# with abstract-record unions (the previous draft; no exhaustive matching, and every union needs <code>_ =&gt; throw</code> arms); C# 15 <code>union</code> types (not released; on <code>net10.0</code> they need preview and polyfills, see <a href="#open-questions">Open questions</a>); put the types in <code>Morphir.Models</code> (that project is the published IR model package, not tooling).</p>
+
+<h3 id="ffi-1">FFI-1. F# types are shaped for their C# callers</h3>
+<p>The project skill <code>fsharp-csharp-interop</code> (<code>.agents/skills/fsharp-csharp-interop/SKILL.md</code>) holds the full rules and examples. Apply them only to the surface that C# calls: the parsed values that C# parses or constructs, <code>IExtensionSource</code>, <code>ExtensionCatalog</code>, the wire values and diagnostics, and <code>TargetId</code>. The rules that this change uses:</p>
+<table>
+<thead><tr><th>Need</th><th>Shape</th></tr></thead>
+<tbody>
+<tr><td>C# names and calls</td><td>Static members on the type (<code>ExtensionId.Parse(text)</code>), or <code>[&lt;CompiledName&gt;]</code> on module functions. Tupled parameters, never curried ones.</td></tr>
+<tr><td>Parsing from C#</td><td><code>TryParse(text: string | null, [&lt;Out; NotNullWhen(true)&gt;] result: byref&lt;T | null&gt;, [&lt;Out; NotNullWhen(false)&gt;] failure: byref&lt;ParseFailure | null&gt;) : bool</code>, beside the F# <code>parse : string -&gt; Result&lt;T, ParseFailure&gt;</code>.</td></tr>
+<tr><td>Branching on a union in C#</td><td>Avoid it: put the decision in an F# function. Where C# must branch, add a <code>Match</code> member with one <code>Func</code> for each case, so the signature makes C# handle every case.</td></tr>
+<tr><td>Optional values</td><td><code>T | null</code> on the C# surface, <code>option</code> inside F#.</td></tr>
+<tr><td>Collections</td><td><code>IReadOnlyList&lt;T&gt;</code>, <code>ImmutableArray&lt;T&gt;</code> or <code>NonEmptySet&lt;T&gt;</code> on the surface. Never F# <code>list</code>, <code>Set</code> or <code>Map</code>.</td></tr>
+<tr><td>Equality, order and text</td><td><code>[&lt;CustomEquality; CustomComparison&gt;]</code> with ordinal comparison where order matters (<code>ExtensionId</code>). An explicit <code>ToString()</code> override on every type: the default prints through reflection (<code>%A</code>), which is not AOT-safe.</td></tr>
+<tr><td>No invalid default</td><td>Parsed values are reference types. Never <code>[&lt;Struct&gt;]</code>: <code>default</code> would skip the parser.</td></tr>
+</tbody>
+</table>
+<p>A reviewer agent (<code>fsharp-csharp-interop-reviewer</code>) checks a diff against these rules. The skill and the agent are already in the repository, for every supported coding agent (see <code>.agents/skills-reference.md</code>). Each task group runs the reviewer before it is complete.</p>
+
+<h3 id="typ-1">TYP-1. Parse, don't validate: every domain value is a parsed type</h3>
+<p>No registry or generation contract holds a raw <code>string</code>, a C# <code>enum</code> or a flag that must be checked later. A parsed value is a single-case union with a private case, so only its own module can build it:</p>
+<pre><code class="language-fsharp">[&lt;CustomEquality; CustomComparison&gt;]
+type ExtensionId =
+    private | ExtensionId of string
+    member this.Value = let (ExtensionId v) = this in v
+    override this.ToString() = this.Value
+    override this.Equals other = match other with :? ExtensionId as id -&gt; String.Equals(this.Value, id.Value, StringComparison.Ordinal) | _ -&gt; false
+    override this.GetHashCode() = StringComparer.Ordinal.GetHashCode this.Value
+    interface IComparable with member this.CompareTo other = String.CompareOrdinal(this.Value, (other :?&gt; ExtensionId).Value)
+    static member Parse(text: string | null) : Result&lt;ExtensionId, ParseFailure&gt; = ExtensionId.parse text   // F# callers
+    static member TryParse(text, [&lt;Out; NotNullWhen(true)&gt;] result: byref&lt;ExtensionId | null&gt;,
+                           [&lt;Out; NotNullWhen(false)&gt;] failure: byref&lt;ParseFailure | null&gt;) : bool = …          // C# callers
+    static member Create(literal: string) : ExtensionId = …   // literals in source code; throws; a unit test calls each literal
+
+[&lt;RequireQualifiedAccess&gt;]
+type ParseFailure =            // turned into a diagnostic code and message only at the output edge
+    | Empty of field: string
+    | TooLong of field: string * limit: int
+    | InvalidCharacter of field: string * index: int
+    | InvalidSegment of field: string * segment: int
+    | InvalidVersion of field: string * error: Versioning.ParseError</code></pre>
+<p>The parsed types and their rules:</p>
+<table>
+<thead><tr><th>Type</th><th>Rule</th><th>Reuses</th></tr></thead>
+<tbody>
+<tr><td><code>ExtensionId</code></td><td>One or more segments joined by <code>.</code>. Each segment matches <code>[a-z]([a-z0-9-]*[a-z0-9])?</code>. At most 238 characters. See <a href="#id-1">ID-1</a>.</td><td>Upstream <code>ExtensionId</code> rule for each segment</td></tr>
+<tr><td><code>ExtensionName</code></td><td>1 to 128 characters, no leading or trailing white space, no control characters.</td><td></td></tr>
+<tr><td><code>ExtensionDescription</code></td><td>1 to 1024 characters, same character rules. Absence is <code>option</code> in F# and <code>ExtensionDescription | null</code> on the C# surface, never an empty string.</td><td></td></tr>
+<tr><td><code>ReleaseVersion</code></td><td>SemVer 2.0.0. Wraps the parsed value, because the <code>SemanticVersion</code> record has a public constructor.</td><td><code>Versioning.SemanticVersion.parse</code></td></tr>
+<tr><td><code>TargetId</code></td><td>The <code>ExtensionId</code> grammar. See <a href="#gen-1">GEN-1</a>.</td><td>Replaces the C# string struct</td></tr>
+<tr><td><code>NonEmptySet&lt;'T&gt;</code></td><td>A class with a private constructor that implements <code>IReadOnlyCollection&lt;'T&gt;</code>. Ordered by <code>'T</code>, at least one element. <code>NonEmptySet.create first rest</code>, <code>NonEmptySet.tryOfSeq</code> (<code>Error Empty</code> for no elements) and <code>NonEmptySet.map</code>.</td><td></td></tr>
+<tr><td>IR versions</td><td>Each one is a <code>SourceFormatVersion</code>, which keeps the declared spelling (<code>3</code> and <code>3.0.0</code> stay distinct).</td><td><code>Morphir.IR.Model.SourceFormatVersion</code></td></tr>
+</tbody>
+</table>
+
+<h3 id="reg-1">REG-1. Registry types in the shape of MEP, mapped to <code>Morphir.Mep</code> later</h3>
+<pre><code class="language-fsharp">[&lt;RequireQualifiedAccess&gt;] type MorphirHost = Native | DotnetTool            // "morphir", "dotnet-morphir"
+type HostIdentity = { Host: MorphirHost; Version: ReleaseVersion }
+[&lt;RequireQualifiedAccess&gt;] type HostAvailability = AllHosts | Only of MorphirHost   // an empty host set cannot exist
+[&lt;RequireQualifiedAccess&gt;] type ExtensionDelivery = BuiltIn                   // Process of … and Wasm of … in later steps
+[&lt;RequireQualifiedAccess&gt;] type ExtensionType = Frontend | Backend | Transform | Validator | Workspace
+
+type BackendClaim = { Targets: NonEmptySet&lt;TargetId&gt;; IrVersions: NonEmptySet&lt;SourceFormatVersion&gt; }
+
+[&lt;RequireQualifiedAccess&gt;]
+type ExtensionCapability =
+    | Backend of BackendClaim                                                  // more cases in later steps
+    member this.Type = match this with Backend _ -&gt; ExtensionType.Backend      // exhaustive; no wildcard
+
+type ExtensionIdentity = { Id: ExtensionId; Name: ExtensionName; Version: ReleaseVersion; Description: ExtensionDescription option }
+
+type ExtensionEntry =
+    { Identity: ExtensionIdentity; Delivery: ExtensionDelivery; Hosts: HostAvailability
+      Capabilities: NonEmptySet&lt;ExtensionCapability&gt; }
+    member this.Types = this.Capabilities |&gt; NonEmptySet.map (fun c -&gt; c.Type)     // derived, never stored
+    member this.IsAvailableIn host = match this.Hosts with HostAvailability.AllHosts -&gt; true | HostAvailability.Only h -&gt; h = host</code></pre>
+<p>What the types rule out:</p>
+<ul>
+<li>An entry with no types. A capability is required, so there is always at least one type.</li>
+<li>Types that disagree with the claims. Types come from the claims.</li>
+<li>An entry for no host.</li>
+<li>A backend claim with no target or no IR version.</li>
+<li>A <code>generate</code> flag set to false on a backend claim. Generation is the only backend operation in MEP, so the output edge writes <code>generate: true</code> for every backend claim.</li>
+</ul>
+<p>The F# compiler checks every match on these unions, with no wildcard arm. Each union has a <code>WireValue</code> member (for example <code>"backend"</code>, <code>"built-in"</code>, <code>"dotnet-morphir"</code>), so the C# output edge reads text and never branches on a union (<a href="#ffi-1">FFI-1</a>). The C# entry points build hosts with the generated static members <code>MorphirHost.Native</code> and <code>MorphirHost.DotnetTool</code>.</p>
+<p>The identity holds only the MEP members that a built-in fills now. <code>author</code>, <code>homepage</code>, <code>license</code> and <code>min_sdk_version</code> come with parsed types when a step needs them. Delivery, hosts and availability are morphir-dotnet additions. They never go on the MEP wire.</p>
+<p>When <code>Morphir.Mep</code> lands (PR #495), add one F# mapping from these types to the MEP <code>ExtensionInfo</code> and <code>ExtensionCapabilities</code>, and one parser from MEP messages into them. Do not replace the registry types: they carry the additions and the invariants.</p>
+<p><em>Alternatives:</em> string records validated by the registry (the first draft; the checks move away from the data, and an invalid entry can exist); wait for <code>Morphir.Mep</code> (this blocks step 0 on PR #495, which the PRD rules out); reuse <code>Features/Management.ExtensionInfo</code> (it models installed versions, not identity).</p>
+
+<h3 id="reg-2">REG-2. Static registration through <code>IExtensionSource</code>; the catalog cannot hold a duplicate</h3>
+<pre><code class="language-fsharp">type IExtensionSource =
+    abstract Entries: IReadOnlyList&lt;ExtensionEntry&gt;
+
+[&lt;RequireQualifiedAccess&gt;]
+type RegistryError =
+    | DuplicateIds of NonEmptySet&lt;ExtensionId&gt;
+    member this.Diagnostics : IReadOnlyList&lt;Diagnostic&gt; = …   // code "extension.duplicate_id", message names every id
+
+[&lt;Sealed&gt;]
+type ExtensionCatalog =                                   // private constructor; ids unique; ordinal order by id
+    member Host: HostIdentity
+    member Entries: IReadOnlyList&lt;ExtensionEntry&gt;
+    static member create: HostIdentity * seq&lt;ExtensionEntry&gt; -&gt; Result&lt;ExtensionCatalog, RegistryError&gt;        // F#
+    static member TryCreate: HostIdentity * IEnumerable&lt;ExtensionEntry&gt; * [&lt;Out&gt;] catalog: byref&lt;ExtensionCatalog | null&gt;
+                             * [&lt;Out&gt;] error: byref&lt;RegistryError | null&gt; -&gt; bool                                    // C#</code></pre>
+<p>The C# <code>ExtensionRegistry</code> reads every <code>IExtensionSource</code> and the <code>HostIdentity</code> from the container, and calls <code>ExtensionCatalog.TryCreate</code>. A catalog value always has unique ids, so no later code checks for them. On failure the command writes <code>error.Diagnostics</code> and exits with code 2.</p>
+<p><em>Alternatives:</em> assembly scanning or MEF (not AOT-safe, and the PRD forbids it); attributes plus a source generator (more than two built-ins need; it can come later without a change to <code>IExtensionSource</code>); a static list in <code>Program.cs</code> (it drifts from the backend registrations).</p>
+
+<h3 id="reg-3">REG-3. Backend entries come from the registered backends</h3>
+<p>The C# <code>BackendExtensionSource</code> takes <code>IEnumerable&lt;IGenerationBackend&gt;</code> and makes one entry for each backend. It does no parsing: <code>BackendDescriptor</code> already holds parsed values (<a href="#gen-1">GEN-1</a>).</p>
+<ul>
+<li>Identity: <code>Descriptor.Id</code>, <code>Descriptor.Name</code>, <code>Descriptor.Description</code>, and the host's <code>ReleaseVersion</code>.</li>
+<li>Delivery <code>BuiltIn</code>, hosts <code>AllHosts</code>.</li>
+<li>One capability, a backend claim with <code>Descriptor.Target</code> and the union of the capability versions. An F# helper, <code>ExtensionEntry.BuiltInBackend(...)</code>, builds it, so the C# code does not construct union cases by hand.</li>
+</ul>
+<p>The two backends declare <code>ExtensionId.Create("morphir.csharp")</code> and <code>ExtensionId.Create("morphir.fsharp")</code>, with the names "C# generator" and "F# generator". The list and <code>generate</code> share one source of truth, and a test checks that they agree.</p>
+
+<h3 id="gen-1">GEN-1. The generation contracts hold parsed values</h3>
+<p>The registry reads the generation contracts, so those contracts hold parsed values in this change. The types come from <code>Morphir.Extensions</code>. The contracts themselves stay in C#.</p>
+<table>
+<thead><tr><th>Contract</th><th>Today</th><th>After</th></tr></thead>
+<tbody>
+<tr><td><code>TargetId</code></td><td>C# <code>readonly record struct TargetId(string Value)</code></td><td>The F# parsed value (<a href="#typ-1">TYP-1</a>), with the <code>ExtensionId</code> grammar. The C# struct is removed.</td></tr>
+<tr><td><code>BackendCapability.Versions</code></td><td><code>ImmutableHashSet&lt;string&gt;</code></td><td><code>NonEmptySet&lt;SourceFormatVersion&gt;</code>; <code>Supports</code> compares <code>model.Version</code> by value, so the exact declared spelling still decides the match</td></tr>
+<tr><td><code>BackendDescriptor.Identity</code></td><td><code>string</code></td><td><code>ExtensionId Id</code>, plus <code>ExtensionName Name</code> and <code>ExtensionDescription? Description</code></td></tr>
+<tr><td><code>BackendDescriptor.Capabilities</code></td><td><code>ImmutableArray&lt;BackendCapability&gt;</code></td><td><code>NonEmptySet&lt;BackendCapability&gt;</code></td></tr>
+</tbody>
+</table>
+<p><strong><code>generate</code> behavior does not change.</strong> <code>CliGenerationSettingsResolver</code> parses <code>--target</code> with <code>TargetId.TryParse</code>. A parse failure gives the same <code>unknown-target</code> invocation failure, with the same message and list of available targets, as a well-formed unknown target does today. The <code>backend</code> report field is <code>ExtensionId.ToString()</code>, so it is still <code>morphir.csharp</code> or <code>morphir.fsharp</code>. The existing generate tests and the PowerShell contract scripts run unchanged and pass.</p>
+<p><code>ModelDescriptor</code>, <code>SourceFormatVersion</code> and the option parsing are already typed, and they do not change.</p>
+
+<h3 id="id-1">ID-1. Extension ids may contain dots, as a documented superset of upstream</h3>
+<p>The upstream rule (<code>crates/morphir-distribution/src/domain/identity.rs</code> in <code>finos/morphir-rust</code>) allows one lowercase portable token: <code>[a-z]([a-z0-9-]*[a-z0-9])?</code>, at most 238 characters. It refuses <code>morphir.csharp</code>. morphir-dotnet accepts one or more such tokens joined by dots (decided 2026-11-07). This keeps the published <code>backend</code> identities, and a namespace prefix such as <code>morphir.</code> stays possible.</p>
+<p>Each segment follows the upstream token rule, so an id still has no empty segment, no <code>.</code> or <code>..</code> segment, and no leading or trailing dot. Ids stay portable as file names: <code>morphir.csharp.json</code> is valid on every supported platform. Until upstream accepts dots, a dotted id is a morphir-dotnet extension. Built-ins never go into the upstream store, so step 0 is not affected. PRD step 3 must refuse to write a dotted id into the shared upstream store or locks until upstream accepts it. The closeout of this change sends the proposal upstream (task 9.2).</p>
+<p><em>Alternatives:</em> rename to <code>morphir-csharp</code> everywhere (this breaks the published <code>backend</code> report field); keep two identities, one for the extension and one for the backend (one backend would have two names).</p>
+
+<h3 id="host-1">HOST-1. Each entry point states its host</h3>
+<pre><code class="language-csharp">// src/Morphir/Program.cs
+public static int Main(string[] args) =&gt; Run(args, new HostIdentity(MorphirHost.Native, ReleaseVersion.Create(VersionInfo.Version)));
+public static int Run(string[] args, HostIdentity host) { /* existing body; registers host as a singleton */ }
+
+// src/Morphir.Tool/Program.cs
+private static int Main(string[] args) =&gt;
+    Morphir.Program.Run(args, new HostIdentity(MorphirHost.DotnetTool, ReleaseVersion.Create(VersionInfo.Version)));</code></pre>
+<p><code>VersionInfo.Version</code> comes from the build (<code>0.0.0-dev</code> when no version is set). <code>ReleaseVersion.Create</code> throws at start if the build writes a value that is not SemVer. A build test runs <code>--version</code> and parses the output, which catches this before release. If PR #495 has landed when this change is applied, add <code>HostIdentity</code> to its <code>CreateApp(string[] args, Action&lt;MorphirCliBuilder&gt; extend)</code> seam instead of adding <code>Run</code>. <code>--version</code> stays as it is.</p>
+<p><em>Alternatives:</em> read <code>RuntimeFeature.IsDynamicCodeSupported</code> (true for a JIT test run of the <code>morphir</code> project, so it reports the wrong host); read the process name (it is <code>dotnet</code> when the tool runs as <code>dotnet dotnet-morphir.dll</code>).</p>
+
+<h3 id="host-2">HOST-2. Entries declare their hosts; availability is computed</h3>
+<p>A host lists every entry it knows, including entries for the other host only, and marks those as not available. The PRD selection rule needs this later: the AOT host can say "not available in this build" and name the alternative. In this change all real entries are <code>AllHosts</code>. A test source registers an <code>Only DotnetTool</code> entry to cover the requirement. Rule for later steps: an entry for one host is declared in shared code, and only its implementation is bound in that host's composition.</p>
+
+<h3 id="cli-1">CLI-1. <code>extension list</code> becomes a hosted command; strings exist only at the output edge</h3>
+<p><code>ManagementScenario</code> keeps the static <code>extension</code> command for <code>install</code>, <code>use</code>, <code>remove</code> and <code>which</code>, and adds <code>list</code> to it as a subcommand built from the service provider. If the builder cannot add a hosted subcommand to a static parent, the scenario builds the whole <code>extension</code> command through <code>AddCommand(Func&lt;IServiceProvider, Command&gt;)</code>; the four other subcommands do not change.</p>
+<p><code>ExtensionListCommand</code> keeps <code>--platform</code> and <code>--local</code> (they apply to installed extensions, and none exist before PRD step 3) and adds <code>--json</code>. <code>ExtensionListReport.From(ExtensionCatalog)</code> is the one place that turns typed values into text. It reads <code>ToString()</code> and the <code>WireValue</code> members, so it has no <code>switch</code> on an F# union. The report record is a serialization shape only. No code parses it back or makes decisions from it.</p>
+<pre><code class="language-console">$ morphir extension list
+ID              NAME           VERSION   TYPES     DELIVERY   HOSTS
+morphir.csharp  C# generator   0.4.0     backend   built-in   morphir, dotnet-morphir
+morphir.fsharp  F# generator   0.4.0     backend   built-in   morphir, dotnet-morphir</code></pre>
+<pre><code class="language-json">{
+  "host": "morphir",
+  "extensions": [
+    {
+      "id": "morphir.csharp",
+      "name": "C# generator",
+      "version": "0.4.0",
+      "types": ["backend"],
+      "delivery": "built-in",
+      "hosts": ["morphir", "dotnet-morphir"],
+      "available": true,
+      "capabilities": {
+        "backend": { "targets": ["csharp"], "irVersions": ["1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0"], "generate": true }
+      }
+    }
+  ]
+}</code></pre>
+<p>A source-generated <code>ExtensionListJsonContext</code> in C# (camelCase, indented, <code>description</code> left out when absent) serializes the report. The member names inside <code>capabilities.backend</code> are the MEP wire names. A failure writes <code>{"host", "extensions": [], "diagnostics": [{"code", "message"}]}</code> with <code>--json</code>, or one line on stderr without it, and exits 2.</p>
+<p><em>Alternative:</em> a new <code>morphir extension info</code> command (the PRD names <code>list</code>; one command is enough).</p>
+
+<h3 id="plg-1">PLG-1. The pipeline plugins are not registered in this change</h3>
+<p>The PRD lists the plugins in <code>src/Morphir.IR.Pipeline.Plugins</code> as first built-ins. They are not registered here, because no CLI command runs them: <code>Morphir.Tooling</code> does not reference that project, and the plugins are a library API (<code>Plugin&lt;'T&gt;</code>) used inside the F# generator. An entry with a <code>validator</code> or <code>transform</code> capability that no command can run would be a false claim. PRD step 1 registers <code>TypeValidator</code> as a <code>Validator</code> capability when the in-process validator contract and its command exist. The PRD is updated with this decision (task 9.1).</p>
+
+<h3 id="cln-1">CLN-1. Remove the unused list records</h3>
+<p>Remove <code>ExtensionList</code>, <code>ExtensionListResult</code>, <code>ExtensionInfo</code> and <code>ExtensionHandlers.HandleList</code> from <code>Features/Management/</code>. They have no callers, and <code>ExtensionInfo</code> would be confused with the MEP record. The install, use, remove and which records stay until PRD step 3.</p>
+
+<h3 id="tst-1">TST-1. Tests</h3>
+<ul>
+<li><strong>Parsers</strong> (<code>tests/Morphir.Extensions.Tests</code>, Expecto and FsCheck): for each parsed type, properties that every generated valid text parses and prints back unchanged, and tests for each <code>ParseFailure</code> case. The <code>ExtensionId</code> tests include the upstream examples, dotted ids, and <code>.</code>, <code>..</code>, <code>a..b</code>, <code>.a</code>, <code>a.</code>, <code>A</code>, <code>1a</code>, <code>a-</code> and 239 characters. A test calls <code>Create</code> for every literal in source code.</li>
+<li><strong>Registry</strong> (same project): types derived from capabilities, <code>IsAvailableIn</code>, ordinal order, and <code>DuplicateIds</code> naming every duplicate.</li>
+<li><strong>Interop</strong> (<code>tests/Morphir.Tooling.Tests</code>, TUnit, C#): <code>TryParse</code> and <code>TryCreate</code> from C# with nullable flow, and a compile-time check that passing <code>null</code> to a non-nullable F# parameter is an error (a project that is expected to fail to build, or a Roslyn test).</li>
+<li><strong>Generation (GEN-1):</strong> the existing generate tests and contract scripts pass unchanged. A new test checks that a malformed <code>--target</code> (for example <code>C#</code>) gives the same <code>unknown-target</code> diagnostic as an unknown well-formed target.</li>
+<li><strong>Agreement:</strong> every registered backend has an entry, and every backend target in the registry resolves through <code>RegisteredBackendResolver</code> for at least one declared model.</li>
+<li><strong>Executables</strong> (<code>tests/Morphir.E2E.Tests</code>): a feature that runs <code>extension list --json</code> and parses stdout. Today the locator finds only the <code>morphir</code> executable. Add a <code>tool</code> executable type that runs the built <code>dotnet-morphir</code>, run the feature for both, and compare the shared entries.</li>
+<li>The AOT publish keeps zero new trim and AOT warnings, including from <code>Morphir.Extensions</code>.</li>
+</ul>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>PR #495 changes <code>Morphir.Program</code> at the same time (<code>CreateApp</code>).</td><td><a href="#host-1">HOST-1</a> names both paths. The change is a few lines in each entry point.</td></tr>
+<tr><td>GEN-1 touches generation code that is already released.</td><td>The output and diagnostics stay the same, and the existing tests and contract scripts run without change. The new malformed-target test pins the one new code path.</td></tr>
+<tr><td>F# code that prints through reflection (<code>%A</code>, default <code>ToString</code>) adds AOT warnings.</td><td>Every type overrides <code>ToString</code>; the project has <code>IsAotCompatible</code> and warnings as errors; task 8.4 counts warnings in the published binary.</td></tr>
+<tr><td>C# can still pass <code>null</code> at run time (<code>null!</code>, reflection, deserialization).</td><td>Nullable metadata makes this a compile error in normal code. Real input boundaries parse text with <code>TryParse</code>, which accepts <code>string | null</code>.</td></tr>
+<tr><td>A new project adds build and packaging work.</td><td>It packs like <code>Morphir.Tooling</code>; task 2.2 adds its tests to the Nuke test targets; the release check confirms the package set.</td></tr>
+<tr><td>Dotted ids are not valid upstream yet (<a href="#id-1">ID-1</a>).</td><td>Built-ins never enter the upstream store. PRD step 3 refuses dotted ids in shared upstream files until upstream accepts them. The upstream proposal is a closeout task.</td></tr>
+<tr><td><code>Create</code> throws for an invalid literal at run time, not at compile time.</td><td>Literals are few and fixed. A unit test calls each one, so CI catches a bad literal before release.</td></tr>
+<tr><td>A build that writes a non-SemVer <code>VersionInfo.Version</code> would stop the host at start.</td><td>The build test parses <code>--version</code> output with the same parser.</td></tr>
+<tr><td>The registry types drift from MEP when <code>Morphir.Mep</code> lands.</td><td>The types copy MEP names and wire values. One mapping, one parser and a round-trip test come with <code>Morphir.Mep</code>.</td></tr>
+<tr><td><code>extension list</code> changes from a not-implemented failure (exit code 1) to a result (exit code 0).</td><td>This is the intended change. Remove its row from <code>CliManagementCommands.feature</code>, keep the rows for the other four <code>extension</code> subcommands, and record the change in the release notes and the CLI documentation.</td></tr>
+<tr><td>The E2E run of <code>dotnet-morphir</code> needs the tool build in CI.</td><td>Use the build output of <code>Morphir.Tool</code> (<code>dotnet dotnet-morphir.dll</code>), not a packed tool install.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<p>No data migration. The change is additive apart from <code>extension list</code>, which was a not-implemented command. Rollback: revert the change.</p>
+
+<h2 id="open-questions">Open questions</h2>
+<p><strong>C# 15 union types.</strong> After .NET 11 is generally available, a separate change can decide whether the C# edge uses C# 15 <code>union</code> or <code>closed</code> types. That would not change these decisions: the domain stays F# (<a href="#lang-1">LANG-1</a>). It would only change how C# code consumes F# unions where a <code>Match</code> member exists now.</p>
+
+</main>
+</body>
+</html>

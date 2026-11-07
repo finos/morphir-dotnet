@@ -1,0 +1,7 @@
+---
+description: Rules for F# code that C# calls in morphir-dotnet
+globs: "**/*.fs,**/*.fsi,**/*.fsproj"
+alwaysApply: false
+---
+
+When you add or change a public F# type, member or module, or the settings of an F# project, check whether a C# project uses it. If it does, follow the `fsharp-csharp-interop` skill in `.agents/skills/fsharp-csharp-interop/SKILL.md`, and run the `fsharp-csharp-interop-reviewer` subagent on the diff afterwards.

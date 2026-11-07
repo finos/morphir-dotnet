@@ -18,6 +18,7 @@ This project uses **AGENTS.md** as the primary guidance file for all AI coding a
    - QA Tester, AOT Guru, Release Manager, Technical Writer
    - Automation scripts and playbooks
    - Decision trees and patterns
+   - F# code that C# calls: the `fsharp-csharp-interop` skill (`.agents/skills/`), the `fsharp-csharp-interop-reviewer` subagent (`.claude/agents/`) and the rule `.cursor/rules/fsharp-csharp-interop.mdc`
 
 4. **[CLAUDE.md](./CLAUDE.md)** - For Claude Code-specific features (if using Claude)
    - Also useful for understanding project patterns

@@ -213,6 +213,50 @@ Select code → Invoke context action → AI may reference skills
 
 See [capabilities-matrix.md](./capabilities-matrix.md) for detailed comparison.
 
+## Project Skills and Agents
+
+Project skills use the open `SKILL.md` format: a folder `<name>/` with a `SKILL.md` file whose YAML frontmatter has `name` and `description`. Each tool reads the name and description first and loads the full skill when a task matches the description.
+
+### Where each tool finds them
+
+| Tool | Project skills | Project agents | File-pattern rules |
+| --- | --- | --- | --- |
+| Claude Code | `.claude/skills/` (copy) | `.claude/agents/*.md` | (skill description) |
+| Codex | `.agents/skills/` (canonical) | `.codex/agents/*.toml` | (skill description) |
+| GitHub Copilot | `.agents/skills/`, also `.github/skills/` and `.claude/skills/` | `.github/agents/*.agent.md` | `.github/instructions/*.instructions.md` (`applyTo`) |
+| Cursor | `.agents/skills/`, also `.cursor/skills/` and the Claude and Codex folders | `.claude/agents/` and `.codex/agents/` (also `.cursor/agents/`) | `.cursor/rules/*.mdc` (`globs`) |
+| Grok Build | `.grok/skills/` (copy) | `.grok/agents/*.md` | (skill description) |
+| Muse Code | `.agents/skills/`, also `.claude/skills/` and `.codex/skills/` | None as files: start a subagent at run time | (skill description) |
+
+Muse Code skips project skills until the workspace is trusted (`muse skills list --source project --trust-workspace`).
+
+### Rules for project-owned skills
+
+- Edit a project skill only in `.agents/skills/<name>/`. Then run `dotnet fsi scripts/sync-agent-skills.fsx`, which writes the copies to `.claude/skills/` and `.grok/skills/`. `--check` exits 1 when a copy differs.
+- CI: the `lint` job in `.github/workflows/development.yml` runs `--check` on every pull request (about a second, no restore) and marks each drifted file with an annotation. It runs even when the format check fails.
+- Pre-commit: the Husky.Net task `agent-skill-copies` runs `--check` only when a staged file is under `.agents/skills/`, `.claude/skills/` or `.grok/skills/`, or is the script itself. It checks the working tree, so stage the synced copies with the canonical change.
+- Keep each agent file short. It points to the skill, which holds the rules, so the rules exist in one place.
+- OpenSpec generates the `openspec-*` skills in every tool folder. Do not edit them by hand, and the sync script does not touch them.
+
+### fsharp-csharp-interop
+
+**Skill:** [.agents/skills/fsharp-csharp-interop/SKILL.md](./skills/fsharp-csharp-interop/SKILL.md), with code in [references/patterns.md](./skills/fsharp-csharp-interop/references/patterns.md).
+
+**Use when:** you add or change F# code that C# calls, C# code that calls F# types, or the settings of an F# project that C# references.
+
+**Covers:** project settings (F# nullness metadata), parse-don't-validate types with `Parse`, `TryParse` and `Create`, names and calls, `option` and `null`, unions seen from C# (`Match` members), collections, equality, `ToString` and AOT safety, and a review checklist.
+
+**Reviewer agent:** `fsharp-csharp-interop-reviewer` (Codex: `fsharp_csharp_interop_reviewer`). It is read-only and reports `path:line: rule N: problem. fix.` findings.
+
+| Tool | How to run the reviewer |
+| --- | --- |
+| Claude Code | Ask Claude to use the `fsharp-csharp-interop-reviewer` subagent. `/agents` lists it. |
+| Codex | Ask Codex to spawn the `fsharp_csharp_interop_reviewer` agent. |
+| GitHub Copilot | Select `fsharp-csharp-interop-reviewer` in the agents list (IDE, cloud agent) or use `/agent` in Copilot CLI. |
+| Cursor | Ask for the `fsharp-csharp-interop-reviewer` subagent (Cursor reads `.claude/agents/`). |
+| Grok Build | `/agents`, then select `fsharp-csharp-interop-reviewer`. |
+| Muse Code | Start a subagent with the prompt in the skill's "Review mode" section. |
+
 ## Available Skills
 
 ### 1. QA Tester Guru

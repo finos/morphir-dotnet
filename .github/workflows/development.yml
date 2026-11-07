@@ -32,6 +32,7 @@ jobs:
               with:
                   fetch-depth: 0
             - name: Setup .NET SDK
+              id: setup-dotnet
               uses: actions/setup-dotnet@v5
               with:
                   global-json-file: global.json
@@ -47,6 +48,11 @@ jobs:
               run: DOTNET_RESTORE_LOCKED_MODE=false ./build.sh --target Restore
             - name: Check code formatting
               run: ./build.sh --target Lint
+            # About a second, with no restore: dotnet fsi needs only the SDK above.
+            # It runs even when restore or formatting fails, so one push reports both problems.
+            - name: Check agent skill copies
+              if: ${{ !cancelled() && steps.setup-dotnet.outcome == 'success' }}
+              run: dotnet fsi scripts/sync-agent-skills.fsx --check
 
     test:
         strategy:
