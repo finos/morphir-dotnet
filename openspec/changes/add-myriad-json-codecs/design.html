@@ -141,6 +141,7 @@ svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
 <li>Type abbreviations in the input file are expanded. Abbreviations in other files are not visible; they must be declared in the context's input files or used through their target type.</li>
 <li>Attributes are matched by their name (with or without the <code>Attribute</code> suffix, short or qualified). The annotations package defines them, so the compiler checks their arguments.</li>
 <li>The generated file opens the same namespaces as the input file, and is compiled right after it.</li>
+<li>A union case can have the name of its type (<code>type Code = Code of string</code>), and then <code>Ns.Code</code> means the case. Generated code reaches union cases and the static members of parsed values through internal abbreviations (<code>&lt;Context&gt;Types.U_…</code>, <code>T_…</code>), which have no case of that name.</li>
 </ul>
 
 <h3 id="gen-4">GEN-4. Configuration: project item, then attributes</h3>
@@ -168,7 +169,7 @@ type ExtensionId = private ExtensionId of string ...</code></pre>
 <table>
 <thead><tr><th>Addition</th><th>Rule</th><th>Why</th></tr></thead>
 <tbody>
-<tr><td>Parsed values</td><td><code>JsonParsedValue</code>: write the text member; read through a static <code>Parse : string -&gt; Result&lt;T, 'E&gt;</code> (default) or <code>TryParse</code>; on <code>Error e</code>, throw with <code>e.ToString()</code>. Also valid as an object-map key.</td><td>Readers never build an invalid <code>ExtensionId</code>, version or digest.</td></tr>
+<tr><td>Parsed values</td><td><code>JsonParsedValue</code>: write the text member; read through a static <code>Parse : string -&gt; Result&lt;T, 'E&gt;</code> (default) or <code>TryParse</code>; on <code>Error e</code>, throw with <code>e.ToString()</code>. Also valid as an object-map key. For a type from another assembly, put the attribute on an abbreviation in the input file (<code>[&lt;JsonParsedValue&gt;] type IdText = ExtensionId</code>); every use of that type in the context is then a parsed value.</td><td>Readers never build an invalid <code>ExtensionId</code>, version or digest.</td></tr>
 <tr><td>Token-kind selection</td><td><code>Untagged</code> with <code>SelectByTokenKind</code>: each case has one field of a different JSON token kind; checked at build time.</td><td>MEP <code>RequestId</code>, the untyped <code>json</code> value, IR literals.</td></tr>
 <tr><td>Exact numbers</td><td><code>TryGetUInt64</code>, <code>TryGetInt64</code> and so on; never through <code>double</code>. Strings only with <code>AllowNumbersFromStrings</code>.</td><td>u64 request ids, IR integers.</td></tr>
 <tr><td>Member rules</td><td>Required non-option fields; <code>null</code> refused unless allowed; duplicates refused; unknown members ignored or refused.</td><td>Protocol admission and security.</td></tr>

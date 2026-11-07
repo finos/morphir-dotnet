@@ -141,7 +141,9 @@ module internal Emit =
     let private children (plan: Plan) (t: TypeRef) : TypeRef list =
         match t with
         | TypeRef.Primitive _
-        | TypeRef.External _ -> []
+        | TypeRef.External _
+        | TypeRef.Parsed _
+        | TypeRef.Custom _ -> []
         | TypeRef.Option inner
         | TypeRef.ValueOption inner
         | TypeRef.Sequence(_, inner) -> [ inner ]
@@ -963,7 +965,8 @@ module internal Emit =
     let mapAsObject (format: MapFormat) (key: TypeRef) =
         let stringKey =
             match key with
-            | TypeRef.Primitive Primitive.String -> true
+            | TypeRef.Primitive Primitive.String
+            | TypeRef.Parsed _ -> true
             | _ -> false
 
         match format with
@@ -987,7 +990,10 @@ module internal Emit =
                 w.Line "writer.WriteStartObject()"
                 w.Line "for pair in value do"
                 w.Indent(fun () ->
-                    w.Line "writer.WritePropertyName(pair.Key)"
+                    match key with
+                    | TypeRef.Parsed _ -> w.Line $"writer.WritePropertyName({codec}.Text_{key.Slug}(pair.Key))"
+                    | _ -> w.Line "writer.WritePropertyName(pair.Key)"
+
                     w.Line(writeStmt codec value "pair.Value"))
 
                 w.Line "writer.WriteEndObject()"
@@ -1020,7 +1026,15 @@ module internal Emit =
                     w.Indent(fun () ->
                         w.Line "if not (keys.Add name) then"
                         w.Indent(fun () -> w.Line "raise (JsonException($\"The key '{name}' appears more than once.\"))")
-                        w.Line $"pairs.Add((name, {readExpr codec lenient value}))"))
+
+                        match key with
+                        | TypeRef.Parsed _ ->
+                            w.Line "let key ="
+                            w.Indent(fun () ->
+                                w.Line $"try {codec}.Parse_{key.Slug}(name)"
+                                w.Line "with :? JsonException as error -> raise (JsonException($\"The key '{name}': {error.Message}\", error))")
+                            w.Line $"pairs.Add((key, {readExpr codec lenient value}))"
+                        | _ -> w.Line $"pairs.Add((name, {readExpr codec lenient value}))"))
             else
                 w.Line "if reader.TokenType <> JsonTokenType.StartArray then"
                 w.Indent(fun () -> fail w "A JSON array of [key, value] pairs was expected.")
@@ -1046,6 +1060,51 @@ module internal Emit =
 
             w.Line build)
 
+    let private parsedMethods (w: CodeWriter) (plan: Plan) (codec: string) (t: TypeRef) (name: string) (spec: ParsedSpec) =
+        // Static members are reached through an abbreviation, so a case with the name of its type does not hide the type.
+        let alias = $"{plan.Settings.Name.Value}Types.T_{t.Slug}"
+
+        w.Line $"static member Parse_{t.Slug}(text: string) : {name} ="
+        w.Indent(fun () ->
+            if spec.UsesTryParse then
+                w.Line $"let mutable value = Unchecked.defaultof<{name}>"
+                w.Line $"if {alias}.{spec.ParseMember}(text, &value) then value"
+                w.Line $"""else raise (JsonException($"'{{text}}' is not a valid {name}."))"""
+            else
+                w.Line $"match {alias}.{spec.ParseMember} text with"
+                w.Line "| Ok value -> value"
+                w.Line "| Error failure -> raise (JsonException(string failure))")
+
+        w.Line $"static member Text_{t.Slug}(value: {name}) : string ="
+        w.Indent(fun () ->
+            if spec.TextMember = "ToString" then
+                w.Line "string value"
+            else
+                w.Line $"value.{spec.TextMember}")
+
+        w.Line $"static member Write_{t.Slug}(writer: Utf8JsonWriter, value: {name}, options: JsonSerializerOptions) : unit ="
+        w.Indent(fun () ->
+            w.Line "ignore options"
+            w.Line $"writer.WriteStringValue({codec}.Text_{t.Slug}(value))")
+
+        w.Line $"static member Read_{t.Slug}(reader: byref<Utf8JsonReader>, options: JsonSerializerOptions) : {name} ="
+        w.Indent(fun () ->
+            w.Line "ignore options"
+            w.Line "match (if reader.TokenType = JsonTokenType.String then reader.GetString() else null) with"
+            w.Line $"""| null -> raise (JsonException({literal $"A JSON string for {name} was expected."}))"""
+            w.Line $"| text -> {codec}.Parse_{t.Slug}(text)")
+
+    let private customMethods (w: CodeWriter) (plan: Plan) (t: TypeRef) (name: string) =
+        let converter = $"{plan.Settings.Name.Value}Converters.c_{t.Slug}"
+
+        w.Line $"static member Write_{t.Slug}(writer: Utf8JsonWriter, value: {name}, options: JsonSerializerOptions) : unit ="
+        w.Indent(fun () -> w.Line $"{converter}.Write(writer, value, options)")
+        w.Line $"static member Read_{t.Slug}(reader: byref<Utf8JsonReader>, options: JsonSerializerOptions) : {name} ="
+        w.Indent(fun () ->
+            w.Line $"match box ({converter}.Read(&reader, typeof<{name}>, options)) with"
+            w.Line $"""| null -> raise (JsonException({literal $"The converter returned null for {name}."}))"""
+            w.Line $"| value -> unbox<{name}> value")
+
     let private externalMethods (w: CodeWriter) (t: TypeRef) =
         let name = t.FSharpName
 
@@ -1061,12 +1120,35 @@ module internal Emit =
         let codec = codecName plan
         let lenient = plan.Settings.NumbersFromStrings
 
-        if not plan.Unions.IsEmpty then
-            w.Line "/// <summary>Abbreviations of the unions, to reach their cases.</summary>"
-            w.Line $"module internal {plan.Settings.Name.Value}Unions ="
+        let customs =
+            allShapes plan
+            |> List.choose (function
+                | TypeRef.Custom(name, converter) as t -> Some(t, name, converter)
+                | _ -> None)
+
+        if not customs.IsEmpty then
+            w.Line "/// <summary>One instance of each user converter, created with no reflection.</summary>"
+            w.Line $"module internal {plan.Settings.Name.Value}Converters ="
+            w.Indent(fun () ->
+                for t, name, converter in customs do
+                    w.Line $"let c_{t.Slug}: JsonConverter<{name}> = {converter}()")
+            w.Blank()
+
+        let parsed =
+            allShapes plan
+            |> List.choose (function
+                | TypeRef.Parsed(name, _) as t -> Some(t.Slug, name)
+                | _ -> None)
+
+        if not plan.Unions.IsEmpty || not parsed.IsEmpty then
+            w.Line "/// <summary>Abbreviations of the unions and parsed values, to reach their cases and static members.</summary>"
+            w.Line $"module internal {plan.Settings.Name.Value}Types ="
             w.Indent(fun () ->
                 for KeyValue(slug, (declaration, _, _, _)) in plan.Unions do
-                    w.Line $"type U_{slug} = {declaration.QualifiedName}")
+                    w.Line $"type U_{slug} = {declaration.QualifiedName}"
+
+                for slug, name in parsed do
+                    w.Line $"type T_{slug} = {name}")
             w.Blank()
 
         let all = allShapes plan
@@ -1119,13 +1201,15 @@ module internal Emit =
                 | TypeRef.Map(kind, key, value) -> mapMethods w codec lenient plan.Settings.MapFormat t kind key value
                 | TypeRef.Tuple items -> tupleMethods w codec lenient t items
                 | TypeRef.External _ -> externalMethods w t
+                | TypeRef.Parsed(name, spec) -> parsedMethods w plan codec t name spec
+                | TypeRef.Custom(name, _) -> customMethods w plan t name
                 | TypeRef.Local declaration ->
                     match plan.Records.TryFind t.Slug, plan.Enums.TryFind t.Slug, plan.Unions.TryFind t.Slug with
                     | Some(_, fields, refuseUnknown), _, _ -> recordMethods w codec lenient t declaration fields refuseUnknown
                     | _, Some _, _ -> enumMethods w t declaration
                     | _, _, Some(_, cases, rules, kinds) ->
                         // Cases are reached through an abbreviation, so a case with the name of its type does not hide the type.
-                        unionMethods w codec lenient plan t declaration cases rules kinds $"{plan.Settings.Name.Value}Unions.U_{t.Slug}." None
+                        unionMethods w codec lenient plan t declaration cases rules kinds $"{plan.Settings.Name.Value}Types.U_{t.Slug}." None
                     | None, None, None -> ()
 
             // An empty class still needs a member.

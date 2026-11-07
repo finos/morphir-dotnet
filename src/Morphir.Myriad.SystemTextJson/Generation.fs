@@ -135,7 +135,8 @@ module Generation =
         | TypeRef.Primitive Primitive.Bool -> Some TokenKind.Boolean
         | TypeRef.Primitive Primitive.JsonElement -> None
         | TypeRef.Primitive p when p.NumberTypeName.IsSome -> Some TokenKind.Number
-        | TypeRef.Primitive _ -> Some TokenKind.String
+        | TypeRef.Primitive _
+        | TypeRef.Parsed _ -> Some TokenKind.String
         | TypeRef.Sequence _
         | TypeRef.Tuple _ -> Some TokenKind.Array
         | TypeRef.Map(_, key, _) -> Some(if Emit.mapAsObject format key then TokenKind.Object else TokenKind.Array)
@@ -145,6 +146,35 @@ module Generation =
             | Some(TypeShape.Enum _) -> Some TokenKind.Number
             | _ -> None
         | _ -> None
+
+    /// The JsonParsedValue settings of a type, when it has the attribute.
+    let private parsedSpec (attributes: AttributeUse list) : ParsedSpec option =
+        attributes
+        |> List.tryFind (fun a -> a.Name = "JsonParsedValue")
+        |> Option.map (fun a ->
+            let text name fallback =
+                a.Named
+                |> List.tryPick (function
+                    | n, AttributeValue.Text t when n = name -> Some t
+                    | _ -> None)
+                |> Option.defaultValue fallback
+
+            let flag name =
+                a.Named
+                |> List.exists (function
+                    | n, AttributeValue.Bool true when n = name -> true
+                    | _ -> false)
+
+            { ParseMember = text "ParseMember" "Parse"; UsesTryParse = flag "UsesTryParse"; TextMember = text "TextMember" "ToString" })
+
+    /// The converter type in a System.Text.Json JsonConverter attribute, when there is one.
+    let private converterOf (attributes: AttributeUse list) : string option =
+        attributes
+        |> List.tryFind (fun a -> a.Name = "JsonConverter")
+        |> Option.bind (fun a ->
+            match a.Positional with
+            | [ AttributeValue.TypeOf name ] -> Some name
+            | _ -> None)
 
     /// Names that the context type already uses.
     let private reservedMembers =
@@ -165,8 +195,52 @@ module Generation =
                     | TypeShape.Other -> false
                     | _ -> true))
 
+        // Parsed values and user converters, from attributes on local types and on abbreviations of outside types.
+        let parsedLocal =
+            included
+            |> List.choose (fun d ->
+                match d.Shape, parsedSpec d.Attributes with
+                | TypeShape.Abbreviation _, _ -> None
+                | _, Some spec -> Some(d.Name, (d.QualifiedName, spec))
+                | _ -> None)
+            |> Map.ofList
+
+        let parsedOutside =
+            included
+            |> List.choose (fun d ->
+                match d.Shape, parsedSpec d.Attributes with
+                | TypeShape.Abbreviation target, Some spec -> Some(Resolve.describe target, (d.QualifiedName, spec))
+                | _ -> None)
+
+        let customLocal =
+            included
+            |> List.choose (fun d -> converterOf d.Attributes |> Option.map (fun c -> d.Name, (d.QualifiedName, c)))
+            |> Map.ofList
+
+        let rec rewrite (t: TypeRef) : TypeRef =
+            match t with
+            | TypeRef.Local d when parsedLocal.ContainsKey d.Name -> TypeRef.Parsed parsedLocal[d.Name]
+            | TypeRef.Local d when customLocal.ContainsKey d.Name -> TypeRef.Custom customLocal[d.Name]
+            | TypeRef.External name ->
+                parsedOutside
+                |> List.tryFind (fun (target, _) -> target = name || target.EndsWith("." + name) || name.EndsWith("." + target))
+                |> Option.map (fun (_, parsed) -> TypeRef.Parsed parsed)
+                |> Option.defaultValue t
+            | TypeRef.Option inner -> TypeRef.Option(rewrite inner)
+            | TypeRef.ValueOption inner -> TypeRef.ValueOption(rewrite inner)
+            | TypeRef.Sequence(kind, inner) -> TypeRef.Sequence(kind, rewrite inner)
+            | TypeRef.Map(kind, key, value) -> TypeRef.Map(kind, rewrite key, rewrite value)
+            | TypeRef.Tuple items -> TypeRef.Tuple(items |> List.map rewrite)
+            | _ -> t
+
+        /// A field type with a JsonConverter attribute on the field uses that converter for the whole field type.
+        let withFieldConverter (attributes: AttributeUse list) (t: TypeRef) =
+            match converterOf attributes with
+            | Some converter -> TypeRef.Custom(t.FSharpName, converter)
+            | None -> t
+
         let resolve (declaration: TypeDeclaration) (location: Location) (memberName: string option) (syntax: TypeSyntax) =
-            match Resolve.resolve included [] syntax with
+            match Resolve.resolve included [] syntax |> Result.map rewrite with
             | Ok resolved -> Some resolved
             | Error reason ->
                 unsupported declaration location memberName reason
@@ -181,6 +255,12 @@ module Generation =
                 elif not declaration.Parameters.IsEmpty then
                     unsupported declaration declaration.Location None "generic types are not supported; declare an abbreviation of a closed type instead."
                     None
+                elif (parsedSpec declaration.Attributes).IsSome then
+                    let spec = (parsedSpec declaration.Attributes).Value
+                    Some { Declaration = declaration; Shape = PlannedShape.Abbreviation(TypeRef.Parsed(declaration.QualifiedName, spec)) }
+                elif (converterOf declaration.Attributes).IsSome then
+                    let converter = (converterOf declaration.Attributes).Value
+                    Some { Declaration = declaration; Shape = PlannedShape.Abbreviation(TypeRef.Custom(declaration.QualifiedName, converter)) }
                 else
                     match declaration.Shape with
                     | TypeShape.Record(_, true) ->
@@ -216,7 +296,7 @@ module Generation =
                                         unsupported declaration field.Location field.Name "JsonNumberHandling applies only to a number field or an option of a number; set AllowNumbersFromStrings on the context for collections."
                                         None
                                     else
-                                        Some(resolved, lenient))
+                                        Some(withFieldConverter field.Attributes resolved, lenient))
                                 |> Option.map (fun (resolved, lenient) ->
                                     let names = jsonNames field.Attributes
                                     let written = List.tryHead names |> Option.defaultValue (rules.Naming.Apply name)
@@ -271,7 +351,7 @@ module Generation =
                                 |> List.mapi (fun index field ->
                                     let memberName = $"{case.Name}.{defaultArg field.Name (string index)}"
 
-                                    match Resolve.resolve included [] field.Type with
+                                    match Resolve.resolve included [] field.Type |> Result.map (rewrite >> withFieldConverter field.Attributes) with
                                     | Error reason ->
                                         unsupported declaration field.Location (Some memberName) reason
                                         None
@@ -379,7 +459,7 @@ module Generation =
                     | TypeShape.Abbreviation target ->
                         resolve declaration declaration.Location None (TypeSyntax.Named([ declaration.Name ], []))
                         |> Option.map (fun _ ->
-                            match Resolve.resolve included [ declaration.Name ] target with
+                            match Resolve.resolve included [ declaration.Name ] target |> Result.map rewrite with
                             | Ok resolved -> { Declaration = declaration; Shape = PlannedShape.Abbreviation resolved }
                             | Error _ -> { Declaration = declaration; Shape = PlannedShape.Abbreviation(TypeRef.External declaration.QualifiedName) })
                     | TypeShape.Other -> None)

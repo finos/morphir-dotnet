@@ -77,8 +77,10 @@ public sealed class JsonNameAttribute : Attribute
 /// <summary>
 /// Marks a type whose values come only from a parser, such as a single-case union with a private case.
 /// A writer writes the text member; a reader calls the parse member and never builds an invalid value.
+/// On an abbreviation of a type from another assembly (<c>type IdText = ExtensionId</c>), it makes that type
+/// a parsed value in the context.
 /// </summary>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface, AllowMultiple = false)]
 public sealed class JsonParsedValueAttribute : Attribute
 {
     /// <summary>

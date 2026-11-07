@@ -24,6 +24,7 @@
         <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson\Morphir.Myriad.SystemTextJson.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Build\Morphir.Myriad.SystemTextJson.Build.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
         <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Annotations\Morphir.Myriad.SystemTextJson.Annotations.csproj" />
+        <ProjectReference Include="..\..\src\Morphir.Extensions\Morphir.Extensions.fsproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -77,6 +78,10 @@
         <FSharpJsonContext Include="Contexts/UntaggedCorpus.fs" Name="U_Untagged_UnwrapRecordCases" Namespace="Morphir.Myriad.SystemTextJson.Tests.UntaggedCorpus" UnionEncoding="Untagged, UnwrapRecordCases" />
         <FSharpJsonContext Include="Contexts/UntaggedCorpus.fs" Name="U_Untagged_UnionFieldNamesFromTypes" Namespace="Morphir.Myriad.SystemTextJson.Tests.UntaggedCorpus" UnionEncoding="Untagged, UnionFieldNamesFromTypes" />
         <FSharpJsonContext Include="Contexts/UntaggedCorpus.fs" Name="U_Untagged_UnwrapOption_UnwrapSingleCaseUnions" Namespace="Morphir.Myriad.SystemTextJson.Tests.UntaggedCorpus" UnionEncoding="Untagged, UnwrapOption, UnwrapSingleCaseUnions" />
+        <Compile Include="Contexts/Parsed.fs" />
+        <FSharpJsonContext Include="Contexts/Parsed.fs" Name="ParsedJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Parsed" />
+        <Compile Include="Contexts/Converters.fs" />
+        <FSharpJsonContext Include="Contexts/Converters.fs" Name="ConverterJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Converters" />
         <Compile Include="Compatibility.fs" />
         <Compile Include="GenerationTests.fs" />
         <Compile Include="ContextTests.fs" />
@@ -86,6 +91,7 @@
         <Compile Include="CollectionTests.fs" />
         <Compile Include="UnionTests.fs" />
         <Compile Include="CorpusTests.fs" />
+        <Compile Include="ParsedTests.fs" />
         <Compile Include="BuildErrorTests.fs" />
         <Compile Include="BuildTests.fs" />
         <Compile Include="Program.fs" />

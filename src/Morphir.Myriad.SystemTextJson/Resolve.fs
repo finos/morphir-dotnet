@@ -115,6 +115,17 @@ type MapKind =
     | Map
     | ReadOnlyDictionary
 
+/// How a parsed value is read and written: JsonParsedValue.
+type ParsedSpec =
+    {
+        /// The static member that parses text.
+        ParseMember: string
+        /// True for a C#-style TryParse(text, out value); false for Parse: string -> Result.
+        UsesTryParse: bool
+        /// The instance member that gives the text; "ToString" calls ToString().
+        TextMember: string
+    }
+
 /// A field type after resolution.
 [<RequireQualifiedAccess>]
 type TypeRef =
@@ -128,6 +139,10 @@ type TypeRef =
     | Local of TypeDeclaration
     /// A named type declared elsewhere; the options must resolve it at run time.
     | External of fsharpName: string
+    /// A parsed value: written as text, read only through its parser.
+    | Parsed of fsharpName: string * ParsedSpec
+    /// A type or member with a user converter.
+    | Custom of fsharpName: string * converter: string
 
     /// The F# spelling of the type, for generated code.
     member this.FSharpName: string =
@@ -146,6 +161,8 @@ type TypeRef =
         | Tuple items -> "(" + (items |> List.map (fun item -> item.FSharpName) |> String.concat " * ") + ")"
         | Local declaration -> declaration.QualifiedName
         | External name -> name
+        | Parsed(name, _) -> name
+        | Custom(name, _) -> name
 
     /// A name for generated members, unique for each distinct type.
     member this.Slug: string =
@@ -158,6 +175,9 @@ type TypeRef =
         | Tuple items -> "Tuple_" + (items |> List.map (fun item -> item.Slug) |> String.concat "_") + "_End"
         | Local declaration -> String.concat "_" (declaration.Path @ [ declaration.Name ])
         | External name -> "External_" + (name |> String.map (fun c -> if System.Char.IsLetterOrDigit c then c else '_'))
+        | Parsed(name, _) -> "Parsed_" + (name |> String.map (fun c -> if System.Char.IsLetterOrDigit c then c else '_'))
+        | Custom(name, converter) ->
+            "Custom_" + ((name + "_" + converter) |> String.map (fun c -> if System.Char.IsLetterOrDigit c then c else '_'))
 
 /// Resolves field types against the declarations of the input file.
 module Resolve =
@@ -170,7 +190,9 @@ module Resolve =
             | Primitive.Bool -> Some "Boolean"
             | other -> Some other.Slug
         | TypeRef.Local declaration -> Some declaration.Name
-        | TypeRef.External name -> Some((name.Split('<')[0]).Split('.') |> Array.last)
+        | TypeRef.External name
+        | TypeRef.Parsed(name, _)
+        | TypeRef.Custom(name, _) -> Some((name.Split('<')[0]).Split('.') |> Array.last)
         | _ -> None
 
     let private primitives =

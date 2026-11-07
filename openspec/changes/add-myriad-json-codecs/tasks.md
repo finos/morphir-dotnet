@@ -27,8 +27,8 @@ Every behavior task follows red/green/refactor: write the failing test first. Ea
 
 ## 4. Parsed values and user converters
 
-- [ ] 4.1 Add `JsonParsedValue` with `Parse` (result) and `TryParse` members, as a value and as an object-map key. Verify with `Morphir.Extensions` `ExtensionId` and `ReleaseVersion`: valid text round-trips, and invalid text fails with the parser's text and no value built.
-- [ ] 4.2 Add the System.Text.Json `JsonConverter` attribute on a type and on a field. Verify that the user converter handles only that type or field, with no reflection in the generated code.
+- [x] 4.1 Add `JsonParsedValue` with `Parse` (result) and `TryParse` members, as a value and as an object-map key. Verify with `Morphir.Extensions` `ExtensionId` and `ReleaseVersion`: valid text round-trips, and invalid text fails with the parser's text and no value built.
+- [x] 4.2 Add the System.Text.Json `JsonConverter` attribute on a type and on a field. Verify that the user converter handles only that type or field, with no reflection in the generated code.
 
 ## 5. AOT, packaging and documentation
 
