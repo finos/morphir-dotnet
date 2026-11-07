@@ -39,12 +39,17 @@ type internal PlannedField =
         /// Every JSON member name that is read.
         ReadNames: string list
         Type: TypeRef
+        /// True when an absent option is left out of the JSON.
+        Skippable: bool
+        /// True when a reader accepts null for this field although it is not an option.
+        AllowNull: bool
     }
 
 /// A type of the context with its resolved parts.
 [<RequireQualifiedAccess>]
 type internal PlannedShape =
-    | Record of PlannedField list
+    /// The fields, and true when a reader refuses unknown members.
+    | Record of PlannedField list * refuseUnknown: bool
     | Enum of (string * int64) list
     | Abbreviation of TypeRef
 
@@ -72,7 +77,7 @@ type internal Plan =
         Source: SourceFile
         Members: PlannedMember list
         /// Records of the input, by the slug of their TypeRef, for the codec methods.
-        Records: Map<string, TypeDeclaration * PlannedField list>
+        Records: Map<string, TypeDeclaration * PlannedField list * bool>
         /// Enums of the input, by slug.
         Enums: Map<string, TypeDeclaration * (string * int64) list>
     }
@@ -116,7 +121,7 @@ module internal Emit =
             | TypeRef.Tuple items -> items
             | TypeRef.Local _ ->
                 match plan.Records.TryFind t.Slug with
-                | Some(_, fields) -> fields |> List.map (fun field -> field.Type)
+                | Some(_, fields, _) -> fields |> List.map (fun field -> field.Type)
                 | None -> []
 
         (children |> List.collect (shapes plan)) @ [ t ]
@@ -240,7 +245,7 @@ module internal Emit =
                 body ())
             w.Line $"""| _ -> raise (JsonException({literal $"A member name of {typeName} was expected."}))""")
 
-    let private recordMethods (w: CodeWriter) (codec: string) (t: TypeRef) (declaration: TypeDeclaration) (fields: PlannedField list) =
+    let private recordMethods (w: CodeWriter) (codec: string) (t: TypeRef) (declaration: TypeDeclaration) (fields: PlannedField list) (refuseUnknown: bool) =
         let typeName = declaration.Name
         let local (field: PlannedField) = "field_" + field.Name
         let seen (field: PlannedField) = "seen_" + field.Name
@@ -251,8 +256,24 @@ module internal Emit =
             w.Line "writer.WriteStartObject()"
 
             for field in fields do
-                w.Line $"writer.WritePropertyName({literal field.JsonName})"
-                w.Line(writeStmt codec field.Type $"value.{field.Name}")
+                match field.Type with
+                | TypeRef.Option inner when field.Skippable ->
+                    w.Line $"match value.{field.Name} with"
+                    w.Line "| Some item ->"
+                    w.Indent(fun () ->
+                        w.Line $"writer.WritePropertyName({literal field.JsonName})"
+                        w.Line(writeStmt codec inner "item"))
+                    w.Line "| None -> ()"
+                | TypeRef.ValueOption inner when field.Skippable ->
+                    w.Line $"match value.{field.Name} with"
+                    w.Line "| ValueSome item ->"
+                    w.Indent(fun () ->
+                        w.Line $"writer.WritePropertyName({literal field.JsonName})"
+                        w.Line(writeStmt codec inner "item"))
+                    w.Line "| ValueNone -> ()"
+                | _ ->
+                    w.Line $"writer.WritePropertyName({literal field.JsonName})"
+                    w.Line(writeStmt codec field.Type $"value.{field.Name}")
 
             w.Line "writer.WriteEndObject()")
 
@@ -278,19 +299,34 @@ module internal Emit =
                         w.Indent(fun () -> fail w $"The member '{field.JsonName}' of {typeName} appears more than once.")
                         w.Line $"{seen field} <- true"
 
+                        // A failure inside the value names this member, so the message holds the path within the value.
+                        let read () =
+                            w.Line "try"
+                            w.Indent(fun () -> w.Line $"{local field} <- {readExpr codec field.Type}")
+                            w.Line "with :? JsonException as error ->"
+                            w.Indent(fun () ->
+                                w.Line $"""raise (JsonException({literal $"In the member '{field.JsonName}' of {typeName}: "} + error.Message, error))""")
+
                         match field.Type with
                         | TypeRef.Option _
-                        | TypeRef.ValueOption _ -> ()
+                        | TypeRef.ValueOption _ -> read ()
+                        | _ when field.AllowNull ->
+                            w.Line "if reader.TokenType = JsonTokenType.Null then"
+                            w.Indent(fun () -> w.Line $"{local field} <- Unchecked.defaultof<{field.Type.FSharpName}>")
+                            w.Line "else"
+                            w.Indent read
                         | _ ->
                             w.Line "if reader.TokenType = JsonTokenType.Null then"
                             w.Indent(fun () -> fail w $"The member '{field.JsonName}' of {typeName} is null.")
-
-                        w.Line $"{local field} <- {readExpr codec field.Type}")
+                            read ())
 
                 w.Line "| _ ->"
                 w.Indent(fun () ->
-                    w.Line "if not (reader.TrySkip()) then"
-                    w.Indent(fun () -> fail w $"The JSON object for {typeName} is not complete.")))
+                    if refuseUnknown then
+                        w.Line $"""raise (JsonException($"The member '{{memberName}}' is not a member of {typeName}."))"""
+                    else
+                        w.Line "if not (reader.TrySkip()) then"
+                        w.Indent(fun () -> fail w $"The JSON object for {typeName} is not complete.")))
 
             for field in fields do
                 match field.Type with
@@ -504,7 +540,7 @@ module internal Emit =
                 | TypeRef.External _ -> externalMethods w t
                 | TypeRef.Local declaration ->
                     match plan.Records.TryFind t.Slug, plan.Enums.TryFind t.Slug with
-                    | Some(_, fields), _ -> recordMethods w codec t declaration fields
+                    | Some(_, fields, refuseUnknown), _ -> recordMethods w codec t declaration fields refuseUnknown
                     | _, Some _ -> enumMethods w t declaration
                     | None, None -> ()
 

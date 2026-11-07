@@ -17,6 +17,58 @@ module Generation =
                 | AttributeValue.Text text -> Some text
                 | _ -> None))
 
+    /// The last part of a dotted name, such as CamelCase in JsonNaming.CamelCase.
+    let private lastName (value: AttributeValue) =
+        match value with
+        | AttributeValue.Names [ name ] -> Some(name.Split('.') |> Array.last)
+        | _ -> None
+
+    /// The record rules after the JsonRecord attribute of one record, or the errors in its arguments.
+    let private recordRules (defaults: RecordRules) (attributes: AttributeUse list) : Result<RecordRules, (Location * string) list> =
+        match attributes |> List.tryFind (fun a -> a.Name = "JsonRecord") with
+        | None -> Ok defaults
+        | Some attribute ->
+            let step (rules: Result<RecordRules, (Location * string) list>) (name: string, value: AttributeValue) =
+                let invalid reason = Error [ attribute.Location, $"the JsonRecord argument {name} {reason}" ]
+
+                let next =
+                    match name, value with
+                    | "Naming", value ->
+                        match lastName value |> Option.map Naming.Parse with
+                        | Some(Ok naming) -> Ok(fun (r: RecordRules) -> { r with Naming = naming })
+                        | _ -> invalid "must be a JsonNaming value."
+                    | "SkippableOptionFields", value ->
+                        match lastName value |> Option.map ContextSettings.parseSkippable with
+                        | Some(Ok skip) -> Ok(fun r -> { r with SkipAbsentOptions = skip })
+                        | _ -> invalid "must be a JsonSkippableOptionFields value."
+                    | "UnknownMembers", value ->
+                        match lastName value |> Option.map ContextSettings.parseUnknownMembers with
+                        | Some(Ok refuse) -> Ok(fun r -> { r with RefuseUnknownMembers = refuse })
+                        | _ -> invalid "must be a JsonUnknownMembers value."
+                    | "AllowNullFields", AttributeValue.Bool allow -> Ok(fun r -> { r with AllowNullFields = allow })
+                    | "AllowNullFields", _ -> invalid "must be true or false."
+                    | _ -> invalid "is not known."
+
+                match rules, next with
+                | Ok rules, Ok change -> Ok(change rules)
+                | Error errors, Error more -> Error(errors @ more)
+                | Error errors, Ok _ -> Error errors
+                | Ok _, Error more -> Error more
+
+            attribute.Named |> List.fold step (Ok defaults)
+
+    /// True when the field type accepts null, so AllowNullFields can apply to it.
+    let private acceptsNull (t: TypeRef) =
+        match t with
+        | TypeRef.Primitive Primitive.String
+        | TypeRef.Sequence(SequenceKind.Array, _)
+        | TypeRef.Sequence(SequenceKind.ResizeArray, _)
+        | TypeRef.Sequence(SequenceKind.ReadOnlyList, _)
+        | TypeRef.Sequence(SequenceKind.ReadOnlyCollection, _)
+        | TypeRef.Map(MapKind.ReadOnlyDictionary, _, _)
+        | TypeRef.External _ -> true
+        | _ -> false
+
     /// Names that the context type already uses.
     let private reservedMembers =
         set [ "Default"; "Options"; "GetTypeInfo"; "Verify"; "GeneratedSerializerOptions"; "Equals"; "GetHashCode"; "ToString"; "GetType" ]
@@ -55,6 +107,15 @@ module Generation =
                         unsupported declaration declaration.Location None "the record representation is private, so generated code cannot build it."
                         None
                     | TypeShape.Record(fields, false) ->
+                        let rules =
+                            match recordRules settings.Records declaration.Attributes with
+                            | Ok rules -> rules
+                            | Error problems ->
+                                for location, reason in problems do
+                                    unsupported declaration location None reason
+
+                                settings.Records
+
                         let resolvedFields =
                             fields
                             |> List.choose (fun field ->
@@ -63,17 +124,19 @@ module Generation =
                                 resolve declaration field.Location field.Name field.Type
                                 |> Option.map (fun resolved ->
                                     let names = jsonNames field.Attributes
-                                    let written = List.tryHead names |> Option.defaultValue name
+                                    let written = List.tryHead names |> Option.defaultValue (rules.Naming.Apply name)
 
                                     {
                                         Name = name
                                         JsonName = written
                                         ReadNames = (if names.IsEmpty then [ written ] else names)
                                         Type = resolved
+                                        Skippable = rules.SkipAbsentOptions
+                                        AllowNull = rules.AllowNullFields && acceptsNull resolved
                                     }))
 
                         if resolvedFields.Length = fields.Length then
-                            Some { Declaration = declaration; Shape = PlannedShape.Record resolvedFields }
+                            Some { Declaration = declaration; Shape = PlannedShape.Record(resolvedFields, rules.RefuseUnknownMembers) }
                         else
                             None
                     | TypeShape.Union _ ->
@@ -110,7 +173,7 @@ module Generation =
                         planned
                         |> List.choose (fun m ->
                             match m.Shape with
-                            | PlannedShape.Record fields -> Some((TypeRef.Local m.Declaration).Slug, (m.Declaration, fields))
+                            | PlannedShape.Record(fields, refuse) -> Some((TypeRef.Local m.Declaration).Slug, (m.Declaration, fields, refuse))
                             | _ -> None)
                         |> Map.ofList
                     Enums =

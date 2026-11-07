@@ -48,6 +48,17 @@ let tests =
             RecordJson.Default.Verify(combined ())
         }
 
+        test "a failure in a nested record names each member on the way to it" {
+            let options = combined ()
+            let json = """{"Head":{"Name":"Ada","Age":"old","Active":true},"Home":{"Street":"Main","Number":7}}"""
+
+            try
+                JsonSerializer.Deserialize(json, typeInfo<Household> options) |> ignore
+                failtest "the JSON was accepted"
+            with :? JsonException as error ->
+                Expect.stringContains error.Message "In the member 'Head' of Household: In the member 'Age' of Person:" "the path within the value"
+        }
+
         test "a context resolves only its own types" {
             Expect.isNotNull (RecordJson.Default.GetTypeInfo typeof<Person>) "Person"
             Expect.isNull (RecordJson.Default.GetTypeInfo typeof<Address>) "Address is in another context"

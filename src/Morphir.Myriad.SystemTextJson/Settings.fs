@@ -91,6 +91,59 @@ type ContextNamespace =
         else
             Error(GenerationError.InvalidSetting("Namespace", text, "it must be F# identifiers joined by dots, such as Sample.Json."))
 
+/// How member and case names are made from F# names. Same names as JsonNaming in the annotations package.
+[<RequireQualifiedAccess>]
+type Naming =
+    | AsIs
+    | CamelCase
+    | PascalCase
+    | SnakeCaseLower
+    | SnakeCaseUpper
+    | KebabCaseLower
+    | KebabCaseUpper
+
+    /// Parses the name of a naming policy.
+    static member Parse(text: string) : Result<Naming, string> =
+        match text with
+        | "AsIs" -> Ok AsIs
+        | "CamelCase" -> Ok CamelCase
+        | "PascalCase" -> Ok PascalCase
+        | "SnakeCaseLower" -> Ok SnakeCaseLower
+        | "SnakeCaseUpper" -> Ok SnakeCaseUpper
+        | "KebabCaseLower" -> Ok KebabCaseLower
+        | "KebabCaseUpper" -> Ok KebabCaseUpper
+        | _ -> Error "use AsIs, CamelCase, PascalCase, SnakeCaseLower, SnakeCaseUpper, KebabCaseLower or KebabCaseUpper."
+
+    /// Applies the policy to an F# name. The System.Text.Json policies give the same names as at run time.
+    member this.Apply(name: string) : string =
+        let policy (p: System.Text.Json.JsonNamingPolicy) = p.ConvertName name
+
+        match this with
+        | AsIs -> name
+        | CamelCase -> policy System.Text.Json.JsonNamingPolicy.CamelCase
+        | PascalCase when name.Length > 0 -> string (Char.ToUpperInvariant name[0]) + name.Substring 1
+        | PascalCase -> name
+        | SnakeCaseLower -> policy System.Text.Json.JsonNamingPolicy.SnakeCaseLower
+        | SnakeCaseUpper -> policy System.Text.Json.JsonNamingPolicy.SnakeCaseUpper
+        | KebabCaseLower -> policy System.Text.Json.JsonNamingPolicy.KebabCaseLower
+        | KebabCaseUpper -> policy System.Text.Json.JsonNamingPolicy.KebabCaseUpper
+
+/// The member rules of records: the context defaults, which JsonRecord can override for one record.
+type RecordRules =
+    {
+        Naming: Naming
+        /// True: a member whose value is None or ValueNone is left out.
+        SkipAbsentOptions: bool
+        /// True: a reader refuses a member that the record does not declare.
+        RefuseUnknownMembers: bool
+        /// True: a reader accepts null for a field that is not an option, where the field type accepts null.
+        AllowNullFields: bool
+    }
+
+    /// The defaults of FSharp.SystemTextJson.
+    static member Default =
+        { Naming = Naming.AsIs; SkipAbsentOptions = false; RefuseUnknownMembers = false; AllowNullFields = false }
+
 /// The settings of one context, from the FSharpJsonContext item in the project file.
 type ContextSettings =
     {
@@ -98,16 +151,45 @@ type ContextSettings =
         Name: ContextName
         /// The namespace of the generated file.
         Namespace: ContextNamespace
+        /// The default member rules of records.
+        Records: RecordRules
     }
 
 /// Reads context settings from the Myriad additional parameters.
 module ContextSettings =
-    let private known = set [ "Name"; "Namespace" ]
+    let private known = set [ "Name"; "Namespace"; "Naming"; "SkippableOptionFields"; "UnknownMembers"; "AllowNullFields" ]
 
     let private required (parameters: IDictionary<string, string>) name (parse: string -> Result<'T, GenerationError>) =
         match parameters.TryGetValue name with
         | true, value -> parse value
         | _ -> Error(GenerationError.MissingSetting name)
+
+    let private optional (parameters: IDictionary<string, string>) name (fallback: 'T) (parse: string -> Result<'T, string>) =
+        match parameters.TryGetValue name with
+        | true, value ->
+            parse value |> Result.mapError (fun reason -> GenerationError.InvalidSetting(name, value, reason))
+        | _ -> Ok fallback
+
+    /// Parses true or false.
+    let parseBool (text: string) : Result<bool, string> =
+        match text.ToLowerInvariant() with
+        | "true" -> Ok true
+        | "false" -> Ok false
+        | _ -> Error "use true or false."
+
+    /// Parses Always or Never (true and false are also accepted).
+    let parseSkippable (text: string) : Result<bool, string> =
+        match text with
+        | "Always" -> Ok true
+        | "Never" -> Ok false
+        | _ -> parseBool text |> Result.mapError (fun _ -> "use Always or Never.")
+
+    /// Parses Ignore or Refuse.
+    let parseUnknownMembers (text: string) : Result<bool, string> =
+        match text with
+        | "Ignore" -> Ok false
+        | "Refuse" -> Ok true
+        | _ -> Error "use Ignore or Refuse."
 
     /// Parses the settings. Returns every error, not only the first.
     let parse (parameters: IDictionary<string, string>) : Result<ContextSettings, GenerationError list> =
@@ -118,15 +200,34 @@ module ContextSettings =
             |> Seq.map GenerationError.UnknownSetting
             |> Seq.toList
 
+        let defaults = RecordRules.Default
         let name = required parameters "Name" ContextName.Parse
         let ns = required parameters "Namespace" ContextNamespace.Parse
+        let naming = optional parameters "Naming" defaults.Naming Naming.Parse
+        let skip = optional parameters "SkippableOptionFields" defaults.SkipAbsentOptions parseSkippable
+        let refuse = optional parameters "UnknownMembers" defaults.RefuseUnknownMembers parseUnknownMembers
+        let allowNull = optional parameters "AllowNullFields" defaults.AllowNullFields parseBool
 
-        match name, ns, unknown with
-        | Ok name, Ok ns, [] -> Ok { Name = name; Namespace = ns }
+        match name, ns, naming, skip, refuse, allowNull, unknown with
+        | Ok name, Ok ns, Ok naming, Ok skip, Ok refuse, Ok allowNull, [] ->
+            Ok
+                {
+                    Name = name
+                    Namespace = ns
+                    Records = { Naming = naming; SkipAbsentOptions = skip; RefuseUnknownMembers = refuse; AllowNullFields = allowNull }
+                }
         | _ ->
-            let errors =
-                [ match name with Error e -> yield e | Ok _ -> ()
-                  match ns with Error e -> yield e | Ok _ -> ()
-                  yield! unknown ]
+            let errorOf result =
+                match result with
+                | Error e -> [ e ]
+                | Ok _ -> []
 
-            Error errors
+            Error(
+                errorOf name
+                @ errorOf ns
+                @ errorOf naming
+                @ errorOf skip
+                @ errorOf refuse
+                @ errorOf allowNull
+                @ unknown
+            )

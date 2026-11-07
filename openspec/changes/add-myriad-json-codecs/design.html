@@ -178,7 +178,7 @@ type ExtensionId = private ExtensionId of string ...</code></pre>
 
 <h3 id="gen-6">GEN-6. Errors</h3>
 <ul>
-<li>Run time: every failure is a <code>JsonException</code> with a message that names the type and member. System.Text.Json adds the JSON path and position when a converter throws. A parse failure keeps the parser's text.</li>
+<li>Run time: every failure is a <code>JsonException</code> with a message that names the type and member. System.Text.Json adds the JSON path of the value that a converter reads, and the exact line and byte position. It cannot see inside a generated converter, so a failure inside a nested value is wrapped once for each member on the way to it (<code>In the member 'head' of Household: In the member 'age' of Person: …</code>). A parse failure keeps the parser's text.</li>
 <li>Build time: an unsupported shape, an unknown attribute argument, contradictory options or an ambiguous untagged union fails generation with an error that names the file, type and member. Morphir.Myriad's coordinator turns it into an MSBuild error and blocks compilation.</li>
 </ul>
 
