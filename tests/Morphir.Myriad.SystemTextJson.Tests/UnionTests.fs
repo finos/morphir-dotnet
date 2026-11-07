@@ -108,6 +108,28 @@ let tests =
             Expect.equal (JsonSerializer.Deserialize(json, UnionJson.Default.Tree)) value "the value read back"
         }
 
+        test "a tag member that appears twice is refused" {
+            refused (fun () -> JsonSerializer.Deserialize("""{"Case":"OneArg","Case":"NoArgs","Fields":[1]}""", UnionJson.Default.Shape)) "adjacent" |> ignore
+            refused (fun () -> JsonSerializer.Deserialize("""{"kind":"missing","kind":"typeMismatch","name":"x"}""", UnionJson.Default.Problem)) "internal" |> ignore
+
+            refused (fun () -> JsonSerializer.Deserialize("""{"Case":"WithRecord","Case":"WithRecord","X":1,"Y":2}""", Corpus.C_InternalTag_UnwrapRecordCases.Default.Shape)) "record case"
+            |> ignore
+        }
+
+        test "an external-tag case with no field accepts only an empty payload" {
+            let shape = Corpus.C_ExternalTag.Default.Shape
+            Expect.equal (JsonSerializer.Deserialize("""{"NoArgs":[]}""", shape)) Corpus.NoArgs "an empty array"
+            Expect.equal (JsonSerializer.Deserialize("""{"NoArgs":{}}""", shape)) Corpus.NoArgs "an empty object"
+
+            for payload in [ """{"unexpected":123}"""; "[1]"; "1"; "null"; "\"x\"" ] do
+                refused (fun () -> JsonSerializer.Deserialize($"""{{"NoArgs":{payload}}}""", shape)) payload |> ignore
+        }
+
+        test "an adjacent-tag case with no field accepts only an empty Fields member" {
+            Expect.equal (JsonSerializer.Deserialize("""{"Case":"NoArgs","Fields":[]}""", UnionJson.Default.Shape)) NoArgs "an empty array"
+            refused (fun () -> JsonSerializer.Deserialize("""{"Case":"NoArgs","Fields":[1]}""", UnionJson.Default.Shape)) "[1]" |> ignore
+        }
+
         test "a case with the wrong number of fields fails" {
             refused (fun () -> JsonSerializer.Deserialize("""{"Case":"TwoArgs","Fields":[3]}""", UnionJson.Default.Shape)) "one field" |> ignore
         }

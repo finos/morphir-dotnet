@@ -77,6 +77,7 @@ type internal SampleJsonCodec =
         let mutable seen0 = false
         let mutable field1 = Unchecked.defaultof<int>
         let mutable seen1 = false
+        let mutable seenIgnored = false
         let mutable finished = false
         while not finished do
             if not (reader.Read()) then
@@ -88,6 +89,9 @@ type internal SampleJsonCodec =
                 reader.Read() |> ignore
                 match memberName with
                 | name when ignoreMember.Length > 0 && String.Equals(name, ignoreMember, StringComparison.Ordinal) ->
+                    if seenIgnored then
+                        raise (JsonException($"The member '{ignoreMember}' of Line appears more than once."))
+                    seenIgnored <- true
                     if not (reader.TrySkip()) then
                         raise (JsonException("The JSON object for Line is not complete."))
                 | "sku" ->
@@ -218,6 +222,7 @@ type internal SampleJsonCodec =
         let mutable seen2 = false
         let mutable field3 = Unchecked.defaultof<Map<string, decimal>>
         let mutable seen3 = false
+        let mutable seenIgnored = false
         let mutable finished = false
         while not finished do
             if not (reader.Read()) then
@@ -229,6 +234,9 @@ type internal SampleJsonCodec =
                 reader.Read() |> ignore
                 match memberName with
                 | name when ignoreMember.Length > 0 && String.Equals(name, ignoreMember, StringComparison.Ordinal) ->
+                    if seenIgnored then
+                        raise (JsonException($"The member '{ignoreMember}' of Order appears more than once."))
+                    seenIgnored <- true
                     if not (reader.TrySkip()) then
                         raise (JsonException("The JSON object for Order is not complete."))
                 | "id" ->
@@ -309,6 +317,7 @@ type internal SampleJsonCodec =
             raise (JsonException("A JSON object with the fields of Event.Placed was expected."))
         let mutable field0 = Unchecked.defaultof<global.Sample.Order>
         let mutable seen0 = false
+        let mutable seenIgnored = false
         let mutable finished = false
         while not finished do
             if not (reader.Read()) then
@@ -320,6 +329,9 @@ type internal SampleJsonCodec =
                 reader.Read() |> ignore
                 match memberName with
                 | name when ignoreMember.Length > 0 && String.Equals(name, ignoreMember, StringComparison.Ordinal) ->
+                    if seenIgnored then
+                        raise (JsonException($"The member '{ignoreMember}' of Event.Placed appears more than once."))
+                    seenIgnored <- true
                     if not (reader.TrySkip()) then
                         raise (JsonException("The JSON object for Event.Placed is not complete."))
                 | "order" ->
@@ -355,6 +367,7 @@ type internal SampleJsonCodec =
             raise (JsonException("A JSON object for Event was expected."))
         let mutable field0 = Unchecked.defaultof<global.Sample.Order>
         let mutable seen0 = false
+        let mutable seenIgnored = false
         let mutable finished = false
         while not finished do
             if not (reader.Read()) then
@@ -366,6 +379,9 @@ type internal SampleJsonCodec =
                 reader.Read() |> ignore
                 match memberName with
                 | name when ignoreMember.Length > 0 && String.Equals(name, ignoreMember, StringComparison.Ordinal) ->
+                    if seenIgnored then
+                        raise (JsonException($"The member '{ignoreMember}' of Event.Placed appears more than once."))
+                    seenIgnored <- true
                     if not (reader.TrySkip()) then
                         raise (JsonException("The JSON object for Event.Placed is not complete."))
                 | "order" ->
@@ -393,6 +409,7 @@ type internal SampleJsonCodec =
             raise (JsonException("A JSON object with the fields of Event.Cancelled was expected."))
         let mutable field0 = Unchecked.defaultof<string>
         let mutable seen0 = false
+        let mutable seenIgnored = false
         let mutable finished = false
         while not finished do
             if not (reader.Read()) then
@@ -404,6 +421,9 @@ type internal SampleJsonCodec =
                 reader.Read() |> ignore
                 match memberName with
                 | name when ignoreMember.Length > 0 && String.Equals(name, ignoreMember, StringComparison.Ordinal) ->
+                    if seenIgnored then
+                        raise (JsonException($"The member '{ignoreMember}' of Event.Cancelled appears more than once."))
+                    seenIgnored <- true
                     if not (reader.TrySkip()) then
                         raise (JsonException("The JSON object for Event.Cancelled is not complete."))
                 | "reason" ->
@@ -439,6 +459,7 @@ type internal SampleJsonCodec =
             raise (JsonException("A JSON object for Event was expected."))
         let mutable field0 = Unchecked.defaultof<string>
         let mutable seen0 = false
+        let mutable seenIgnored = false
         let mutable finished = false
         while not finished do
             if not (reader.Read()) then
@@ -450,6 +471,9 @@ type internal SampleJsonCodec =
                 reader.Read() |> ignore
                 match memberName with
                 | name when ignoreMember.Length > 0 && String.Equals(name, ignoreMember, StringComparison.Ordinal) ->
+                    if seenIgnored then
+                        raise (JsonException($"The member '{ignoreMember}' of Event.Cancelled appears more than once."))
+                    seenIgnored <- true
                     if not (reader.TrySkip()) then
                         raise (JsonException("The JSON object for Event.Cancelled is not complete."))
                 | "reason" ->

@@ -381,10 +381,16 @@ module internal Emit =
             w.Line $"let mutable {local index} = Unchecked.defaultof<{field.Type.FSharpName}>"
             w.Line $"let mutable {seen index} = false")
 
+        // The skipped member (the tag of an internally tagged union) may appear only once.
+        w.Line "let mutable seenIgnored = false"
+
         objectLoop w typeName (fun () ->
             w.Line "match memberName with"
             w.Line "| name when ignoreMember.Length > 0 && String.Equals(name, ignoreMember, StringComparison.Ordinal) ->"
             w.Indent(fun () ->
+                w.Line "if seenIgnored then"
+                w.Indent(fun () -> w.Line $"""raise (JsonException($"The member '{{ignoreMember}}' of {typeName} appears more than once."))""")
+                w.Line "seenIgnored <- true"
                 w.Line "if not (reader.TrySkip()) then"
                 w.Indent(fun () -> fail w $"The JSON object for {typeName} is not complete."))
 
@@ -633,8 +639,15 @@ module internal Emit =
 
                 match recordOf case with
                 | _ when case.Fields.IsEmpty ->
-                    w.Line "if not (reader.TrySkip()) then"
-                    w.Indent(fun () -> fail w $"The JSON value for {typeName} is not complete.")
+                    // A case with no field has an empty payload: [] or {}.
+                    w.Line "let closing ="
+                    w.Indent(fun () ->
+                        w.Line "match reader.TokenType with"
+                        w.Line "| JsonTokenType.StartArray -> JsonTokenType.EndArray"
+                        w.Line "| JsonTokenType.StartObject -> JsonTokenType.EndObject"
+                        w.Line $"""| _ -> raise (JsonException({literal $"The case {typeName}.{case.Name} has no field, so its payload must be [] or {{}}."}))""")
+                    w.Line "if not (reader.Read()) || reader.TokenType <> closing then"
+                    w.Indent(fun () -> fail w $"The case {typeName}.{case.Name} has no field, so its payload must be [] or {{}}.")
                     w.Line(construct case [])
                 | _ when unwrapSingle case ->
                     readPositional case.Fields.Head "value0"
@@ -853,10 +866,15 @@ module internal Emit =
                         w.Line $"let mutable result = Unchecked.defaultof<{union}>"
                         w.Line "let mutable hasResult = false"
 
+                        w.Line "let mutable seenTag = false"
+
                         objectLoop w typeName (fun () ->
                             w.Line "match memberName with"
                             w.Line $"| {literal rules.TagName} ->"
                             w.Indent(fun () ->
+                                w.Line "if seenTag then"
+                                w.Indent(fun () -> fail w $"The member '{rules.TagName}' of {typeName} appears more than once.")
+                                w.Line "seenTag <- true"
                                 w.Line "if not (reader.TrySkip()) then"
                                 w.Indent(fun () -> fail w $"The JSON object for {typeName} is not complete."))
                             w.Line $"| {literal rules.FieldsName} ->"
