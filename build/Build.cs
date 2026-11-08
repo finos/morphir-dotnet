@@ -100,6 +100,8 @@ partial class Build : NukeBuild
     (string PackageId, AbsolutePath Project, bool HasLibrary)[] LibraryPackages => new[]
     {
         ("Morphir.Core", MorphirCoreProject, true),
+        // No dependency: the attributes that F# source uses for the Morphir F# frontend.
+        ("Morphir.FSharp.Annotations", SourceDirectory / "Morphir.FSharp.Annotations" / "Morphir.FSharp.Annotations.csproj", true),
         ("Morphir.Configuration", SourceDirectory / "Morphir.Configuration" / "Morphir.Configuration.fsproj", true),
         ("Morphir.Configuration.IO", SourceDirectory / "Morphir.Configuration.IO" / "Morphir.Configuration.IO.csproj", true),
         ("Morphir.Models", MorphirModelsProject, true),

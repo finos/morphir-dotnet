@@ -29,6 +29,8 @@ The F# compiler service edge and checked match evidence.</PackageReleaseNotes>
 
     <ItemGroup>
         <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
+        <!-- User code compiles against these attributes: the compiler edge adds this assembly to its references. -->
+        <ProjectReference Include="..\Morphir.FSharp.Annotations\Morphir.FSharp.Annotations.csproj" />
     </ItemGroup>
 
     <ItemGroup>

@@ -37,6 +37,10 @@ module FSharpCodes =
     [<CompiledName("UnsupportedName")>]
     let unsupportedName = DiagnosticCode.Create "fsharp.unsupported_name"
 
+    /// <summary>A <c>[&lt;MorphirName&gt;]</c> value is not a canonical Morphir name.</summary>
+    [<CompiledName("InvalidMorphirName")>]
+    let invalidMorphirName = DiagnosticCode.Create "fsharp.invalid_morphir_name"
+
 /// <summary>Language-neutral compilation codes that the F# frontend reports.</summary>
 [<RequireQualifiedAccess>]
 module CompileCodes =

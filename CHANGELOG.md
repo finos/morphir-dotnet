@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Morphir.FSharp.Annotations`: `[<MorphirName("...")>]` sets the Morphir name of an F# value, type, union case, record field or module, in canonical Morphir name syntax, for example to name an operator. For `netstandard2.0`, with no dependency ([#499](https://github.com/finos/morphir-dotnet/issues/499))
+
 ## [0.4.0-alpha.2] - 2026-11-07
 
 ### Added

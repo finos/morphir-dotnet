@@ -316,6 +316,173 @@ let tests =
                 "code"
         }
 
+        test "an operator with MorphirName takes its Morphir name from the attribute" {
+            let result =
+                passed (
+                    plan [
+                        source "Pricing.fs" [
+                            "namespace Acme.CarRental"
+                            "open Morphir"
+                            "module Pricing ="
+                            "    [<MorphirName(\"triple-add\")>]"
+                            "    let (+++) a b = a + b + 1"
+                            "    let total = 1 +++ 2"
+                        ]
+                    ]
+                )
+
+            Expect.equal
+                (result.Modules.Head.Values
+                 |> List.map (fun value -> words value.Name))
+                [ [ "triple"; "add" ]; [ "total" ] ]
+                "the declared name"
+        }
+
+        test "MorphirName names types, constructors, record fields, values and modules" {
+            let result =
+                passed (
+                    plan [
+                        source "Pricing.fs" [
+                            "namespace Acme.CarRental"
+                            "open Morphir"
+                            "[<MorphirName(\"prices\")>]"
+                            "module Pricing ="
+                            "    [<MorphirName(\"vehicle\")>]"
+                            "    type Car = { [<MorphirName(\"plate-id\")>] Plate: string }"
+                            "    type Status ="
+                            "        | [<MorphirName(\"in-use\")>] Rented"
+                            "        | Available"
+                            "    [<MorphirName(\"value-in-USD\")>]"
+                            "    let priceUsd = 42"
+                            "    [<MorphirName(\"specials\")>]"
+                            "    module Discounts ="
+                            "        let weekly = 1"
+                        ]
+                    ]
+                )
+
+            Expect.equal
+                (result.Modules
+                 |> List.map modulePath)
+                [ [ [ "prices" ] ]; [ [ "prices" ]; [ "specials" ] ] ]
+                "module segments"
+
+            let prices = find result [ [ "prices" ] ]
+
+            let car =
+                prices.Types
+                |> List.find (fun planned -> planned.Entity.DisplayName = "Car")
+
+            Expect.equal (words car.Name) [ "vehicle" ] "type"
+
+            Expect.equal
+                (car.Entity.FSharpFields
+                 |> Seq.map (fun field ->
+                     result.TryField(car.Entity, field)
+                     |> Option.map Name.toList
+                 )
+                 |> List.ofSeq)
+                [ Some [ "plate"; "id" ] ]
+                "record field"
+
+            let status =
+                prices.Types
+                |> List.find (fun planned -> planned.Entity.DisplayName = "Status")
+
+            Expect.equal
+                (status.Entity.UnionCases
+                 |> Seq.map (fun case ->
+                     result.TryConstructor case
+                     |> Option.map (fun name -> Name.toList name.LocalName)
+                 )
+                 |> List.ofSeq)
+                [ Some [ "in"; "use" ]; Some [ "available" ] ]
+                "constructors"
+
+            Expect.equal
+                (words prices.Values.Head.Name)
+                [ "value"; "in"; "u"; "s"; "d" ]
+                "value with an initialism"
+        }
+
+        test "CompiledName is accepted and does not change a Morphir name" {
+            let result =
+                passed (
+                    plan [
+                        source "Pricing.fs" [
+                            "namespace Acme.CarRental"
+                            "module Pricing ="
+                            "    [<CompiledName(\"DailyRateValue\")>]"
+                            "    let dailyRate = 42"
+                        ]
+                    ]
+                )
+
+            Expect.equal
+                (words result.Modules.Head.Values.Head.Name)
+                [ "daily"; "rate" ]
+                "the source name"
+        }
+
+        test "an operator without MorphirName stays refused, with CompiledName too" {
+            let diagnostics =
+                failed (
+                    plan [
+                        source "Pricing.fs" [
+                            "namespace Acme.CarRental"
+                            "module Pricing ="
+                            "    [<CompiledName(\"TripleAdd\")>]"
+                            "    let (+++) a b = a + b + 1"
+                        ]
+                    ]
+                )
+
+            let refusal = List.exactlyOne diagnostics
+            Expect.equal (codeOf refusal) "fsharp.unsupported_name" "code"
+            Expect.stringContains refusal.Message "MorphirName" "the message names the fix"
+        }
+
+        test "an invalid MorphirName is refused" {
+            let diagnostics =
+                failed (
+                    plan [
+                        source "Pricing.fs" [
+                            "namespace Acme.CarRental"
+                            "module Pricing ="
+                            "    [<Morphir.MorphirName(\"Triple Add!\")>]"
+                            "    let tripleAdd a b = a + b"
+                        ]
+                    ]
+                )
+
+            Expect.equal
+                (diagnostics
+                 |> List.map codeOf)
+                [ "fsharp.invalid_morphir_name" ]
+                "code"
+        }
+
+        test "a declared Morphir name can collide" {
+            let diagnostics =
+                failed (
+                    plan [
+                        source "Pricing.fs" [
+                            "namespace Acme.CarRental"
+                            "module Pricing ="
+                            "    let tripleAdd a b = a + b"
+                            "    [<Morphir.MorphirName(\"triple-add\")>]"
+                            "    let (+++) a b = a + b + 1"
+                        ]
+                    ]
+                )
+
+            Expect.equal
+                (diagnostics
+                 |> List.map codeOf)
+                [ "fsharp.name_collision" ]
+                "collision"
+        }
+
         test "a module-level tuple binding is refused" {
             let diagnostics =
                 failed (

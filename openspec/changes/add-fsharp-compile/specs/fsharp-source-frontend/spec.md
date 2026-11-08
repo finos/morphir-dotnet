@@ -140,11 +140,22 @@ F# identifiers SHALL map to Morphir names by splitting camelCase and PascalCase 
 - **THEN** compilation fails with `fsharp.name_collision`, with related locations for both declarations
 
 ### Requirement: Identifiers without Morphir words are refused
-An F# identifier that gives no Morphir name, such as a custom operator, SHALL fail with `fsharp.unsupported_name` at the identifier.
+An F# identifier that gives no Morphir name, such as a custom operator, SHALL fail with `fsharp.unsupported_name` at the identifier, unless the declaration has `[<MorphirName>]`.
 
 #### Scenario: Custom operator
 - **WHEN** a module defines `let (+++) a b = a + b`
 - **THEN** compilation fails with `fsharp.unsupported_name` at the operator definition
+
+### Requirement: MorphirName sets a Morphir name
+A value, type, union case, record field or module with `[<Morphir.MorphirName(name)>]` from `Morphir.FSharp.Annotations` SHALL have the Morphir name parsed from `name` in canonical Morphir name syntax. A name that does not parse SHALL fail with `fsharp.invalid_morphir_name`. `[<CompiledName>]` SHALL NOT change a Morphir name.
+
+#### Scenario: Named operator
+- **WHEN** a module defines `[<MorphirName("triple-add")>] let (+++) a b = a + b`
+- **THEN** the value's Morphir name is `["triple", "add"]`
+
+#### Scenario: Invalid declared name
+- **WHEN** a value has `[<MorphirName("Triple Add!")>]`
+- **THEN** compilation fails with `fsharp.invalid_morphir_name` at the value
 
 ### Requirement: Access follows exposed modules and F# visibility
 A module SHALL be public when the exposed-module list is absent or names it, and private otherwise. An empty list SHALL expose no module. A `private` or `internal` declaration SHALL be private. An exposed module name that matches no compiled module SHALL be a `compile.unknown_exposed_module` error.

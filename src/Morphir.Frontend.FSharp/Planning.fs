@@ -67,6 +67,9 @@ module internal PlanKeys =
         | Some owner -> $"value:{fullName owner}.{value.CompiledName}"
         | None -> $"value:{value.CompiledName}"
 
+    /// <summary>The key of a record field.</summary>
+    let field (record: FSharpEntity) (field: FSharpField) = $"field:{fullName record}.{field.Name}"
+
     /// <summary>The key of a union case.</summary>
     let case (case: FSharpUnionCase) =
         let owner = case.ReturnType.StripAbbreviations()
@@ -98,6 +101,11 @@ type internal FrontendPlan =
 
     /// <summary>The Morphir name of a module-level value of this package.</summary>
     member this.TryValue(value: FSharpMemberOrFunctionOrValue) = this.Find(PlanKeys.value value)
+
+    /// <summary>The Morphir name of a record field of this package (the local name of the result).</summary>
+    member this.TryField(record: FSharpEntity, field: FSharpField) =
+        this.Find(PlanKeys.field record field)
+        |> Option.map (fun name -> name.LocalName)
 
     /// <summary>The Morphir name of a union case of this package.</summary>
     member this.TryConstructor(case: FSharpUnionCase) = this.Find(PlanKeys.case case)
@@ -254,22 +262,57 @@ module internal Planning =
         text
         |> Seq.exists Char.IsLetterOrDigit
 
-    /// <summary>A Morphir name for an F# identifier, or an error when it gives no name.</summary>
-    let private morphirName (document: CheckedDocument) (text: string) (range: range) =
-        let name = Name.fromString text
+    let private morphirNameAttribute = "Morphir.MorphirNameAttribute"
 
-        if
-            hasWordCharacter text
-            && not (Name.isEmpty name)
-        then
-            Ok name
-        else
-            Error(
-                Diagnostic.error
-                    FSharpCodes.unsupportedName
-                    $"The F# name '{text}' gives no Morphir name. Morphir names are words; use a name with letters."
-                |> Diagnostic.at (locate document range)
-            )
+    /// <summary>The value of a <c>[&lt;MorphirName&gt;]</c> attribute, if the declaration has one.</summary>
+    let private declaredName (attributes: FSharpAttribute seq) =
+        attributes
+        |> Seq.tryPick (fun attribute ->
+            if attribute.AttributeType.TryFullName = Some morphirNameAttribute then
+                match List.ofSeq attribute.ConstructorArguments with
+                | [ (_, (:? string as name)) ] -> Some name
+                | _ -> Some ""
+            else
+                None
+        )
+
+    /// <summary>
+    /// The Morphir name of a declaration: the <c>[&lt;MorphirName&gt;]</c> value in canonical syntax when the
+    /// declaration has one, or else the words of the F# identifier. An error when neither gives a name.
+    /// </summary>
+    let private morphirName
+        (document: CheckedDocument)
+        (attributes: FSharpAttribute seq)
+        (text: string)
+        (range: range)
+        =
+        match declaredName attributes with
+        | Some declared ->
+            match CanonicalNames.parseName declared with
+            | Ok name when not (Name.isEmpty name) -> Ok name
+            | _ ->
+                Error(
+                    Diagnostic.error
+                        FSharpCodes.invalidMorphirName
+                        $"The Morphir name '{declared}' of '{text}' is not a canonical Morphir name. Use lowercase words joined with '-', for example 'triple-add'."
+                    |> Diagnostic.at (locate document range)
+                )
+        | None ->
+
+            let name = Name.fromString text
+
+            if
+                hasWordCharacter text
+                && not (Name.isEmpty name)
+            then
+                Ok name
+            else
+                Error(
+                    Diagnostic.error
+                        FSharpCodes.unsupportedName
+                        $"The F# name '{text}' gives no Morphir name. Morphir names are words: use a name with letters, or add [<Morphir.MorphirName(\"...\")>]."
+                    |> Diagnostic.at (locate document range)
+                )
 
     /// <summary>Reports each declaration whose Morphir name was already declared in the same scope.</summary>
     let private collisionsBy
@@ -366,7 +409,14 @@ module internal Planning =
                                 | _ -> None
                             )
 
-                        match morphirName document ident.idText ident.idRange, entity with
+                        let typeName =
+                            entity
+                            |> Option.map (fun entity ->
+                                morphirName document entity.Attributes ident.idText ident.idRange
+                            )
+                            |> Option.defaultValue (Ok(Name.fromString ident.idText))
+
+                        match typeName, entity with
                         | Error diagnostic, _ -> diagnostics.Add diagnostic
                         | Ok _, None ->
                             diagnostics.Add(
@@ -386,7 +436,14 @@ module internal Planning =
                                 for index, SynUnionCase(ident = SynIdent(caseIdent, _)) in
                                     List.indexed cases do
                                     match
-                                        morphirName document caseIdent.idText caseIdent.idRange
+                                        morphirName
+                                            document
+                                            (if index < checkedCases.Length then
+                                                 checkedCases[index].Attributes :> seq<_>
+                                             else
+                                                 Seq.empty)
+                                            caseIdent.idText
+                                            caseIdent.idRange
                                     with
                                     | Error diagnostic -> diagnostics.Add diagnostic
                                     | Ok caseName ->
@@ -403,17 +460,38 @@ module internal Planning =
                                             )
                             | SynTypeDefnRepr.Simple(
                                 simpleRepr = SynTypeDefnSimpleRepr.Record(recordFields = fields)) ->
+                                let checkedFields = List.ofSeq entity.FSharpFields
+
                                 let fieldItems = [
-                                    for SynField(idOpt = fieldIdent) in fields do
+                                    for index, SynField(idOpt = fieldIdent) in List.indexed fields do
                                         match fieldIdent with
                                         | Some fieldIdent ->
+                                            let checkedField = List.tryItem index checkedFields
+
+                                            let attributes =
+                                                match checkedField with
+                                                | Some field ->
+                                                    Seq.append
+                                                        field.PropertyAttributes
+                                                        field.FieldAttributes
+                                                | None -> Seq.empty
+
                                             match
                                                 morphirName
                                                     document
+                                                    attributes
                                                     fieldIdent.idText
                                                     fieldIdent.idRange
                                             with
                                             | Ok fieldName ->
+                                                match checkedField with
+                                                | Some field ->
+                                                    names.Add(
+                                                        PlanKeys.field entity field,
+                                                        fqName fieldName
+                                                    )
+                                                | None -> ()
+
                                                 yield
                                                     fieldName,
                                                     locate document fieldIdent.idRange,
@@ -465,7 +543,12 @@ module internal Planning =
                                 | Some value -> value.DisplayNameCore
                                 | None -> ident.idText
 
-                            match morphirName document text ident.idRange, value with
+                            let attributes =
+                                match value with
+                                | Some value -> value.Attributes :> seq<_>
+                                | None -> Seq.empty
+
+                            match morphirName document attributes text ident.idRange, value with
                             | Error diagnostic, _ -> diagnostics.Add diagnostic
                             | Ok _, None ->
                                 diagnostics.Add(
@@ -573,10 +656,68 @@ module internal Planning =
                 )
                 []
 
-        let located =
+        // Each module segment takes its name from [<MorphirName>] on that module, when present.
+        let segmentNames (source: Source) =
+            source.Path
+            |> List.map (fun ident ->
+                let attributes =
+                    definitionSymbol evidence source.Document ident.idRange
+                    |> List.tryPick (fun symbol ->
+                        match symbol with
+                        | :? FSharpEntity as entity when entity.IsFSharpModule ->
+                            Some entity.Attributes
+                        | _ -> None
+                    )
+
+                match attributes with
+                | Some attributes ->
+                    morphirName source.Document attributes ident.idText ident.idRange
+                | None -> Ok(Name.fromString ident.idText)
+            )
+
+        let named =
             all
             |> List.map (fun source ->
-                let names = nameOf source.Path
+                let results = segmentNames source
+
+                let errors =
+                    results
+                    |> List.choose (fun result ->
+                        match result with
+                        | Error diagnostic -> Some diagnostic
+                        | Ok _ -> None
+                    )
+
+                source,
+                (if errors.IsEmpty then
+                     Ok(
+                         results
+                         |> List.choose (fun result ->
+                             match result with
+                             | Ok name -> Some name
+                             | Error _ -> None
+                         )
+                     )
+                 else
+                     Error errors)
+            )
+
+        let invalidSegments =
+            named
+            |> List.collect (fun (_, result) ->
+                match result with
+                | Error errors -> errors
+                | Ok _ -> []
+            )
+
+        let located =
+            named
+            |> List.choose (fun (source, result) ->
+                match result with
+                | Ok names -> Some(source, names)
+                | Error _ -> None
+            )
+            |> List.map (fun (source, names) ->
 
                 let relative =
                     if
@@ -661,7 +802,8 @@ module internal Planning =
                  ))
 
         let diagnostics =
-            outside
+            invalidSegments
+            @ outside
             @ unknown
             @ moduleCollisions
             @ (results

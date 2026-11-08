@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!-- netstandard2.0 with no dependency, so any F# project can reference it with any FSharp.Core. -->
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <RootNamespace>Morphir</RootNamespace>
+        <IsPackable>true</IsPackable>
+        <PackageId>Morphir.FSharp.Annotations</PackageId>
+        <Description>Attributes that F# source code uses to give Morphir information to the Morphir F# frontend, such as [&lt;MorphirName&gt;]. No dependencies.</Description>
+        <PackageReleaseNotes>### Added
+MorphirNameAttribute: sets the Morphir name of a declaration.</PackageReleaseNotes>
+        <PackageTags>$(PackageTags);morphir;fsharp;attributes</PackageTags>
+    </PropertyGroup>
+
+</Project>
