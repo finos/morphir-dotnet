@@ -35,6 +35,7 @@ The F# compiler service edge and checked match evidence.</PackageReleaseNotes>
         <Compile Include="FrontendCodes.fs" />
         <Compile Include="TextLines.fs" />
         <Compile Include="CompilerEdge.fs" />
+        <Compile Include="AdmissionCatalog.fs" />
         <Compile Include="Admission.fs" />
         <Compile Include="Evidence.fs" />
     </ItemGroup>

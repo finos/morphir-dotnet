@@ -56,7 +56,7 @@ let private codes diagnostics =
     |> List.map codeOf
 
 let private ruleTest (rule: AdmissionRule) =
-    test $"{rule.Code.Value}: the example is refused at its construct" {
+    test $"{rule.Code}: the example is refused at its construct" {
         let documents = documentsOf rule.Example
         let diagnostics = failed (analyze documents)
         mustNotLeak diagnostics
@@ -70,7 +70,7 @@ let private ruleTest (rule: AdmissionRule) =
         Expect.equal
             (codes diagnostics
              |> List.distinct)
-            [ rule.Code.Value ]
+            [ rule.Code ]
             "only this rule's code"
 
         let first = errors.Head
@@ -156,10 +156,39 @@ let tests =
                 }
         ]
 
+        test "every catalog code is a valid diagnostic code" {
+            for rule in Admission.rules do
+                Expect.isOk (DiagnosticCode.Parse rule.Code) rule.Code
+        }
+
+        test "the shared catalog sources open only the BCL, FSharp.Core and the F# compiler service" {
+            let source =
+                Path.GetFullPath(
+                    Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "src", "Morphir.Frontend.FSharp")
+                )
+
+            for file in [ "TextLines.fs"; "AdmissionCatalog.fs" ] do
+                let opens =
+                    File.ReadAllLines(Path.Combine(source, file))
+                    |> Array.filter (fun line -> line.StartsWith("open ", StringComparison.Ordinal))
+                    |> Array.map (fun line -> line.Substring 5)
+
+                for name in opens do
+                    Expect.isTrue
+                        (name = "System"
+                         || name.StartsWith("System.", StringComparison.Ordinal)
+                         || name.StartsWith("FSharp.Compiler.", StringComparison.Ordinal))
+                        $"{file} opens {name}"
+
+                Expect.isFalse
+                    (File.ReadAllText(Path.Combine(source, file)).Contains "Morphir.Compilation")
+                    $"{file} does not use Morphir.Compilation"
+        }
+
         test "catalog codes are unique and in the ecosystem form" {
             let all =
                 Admission.rules
-                |> List.map (fun rule -> rule.Code.Value)
+                |> List.map (fun rule -> rule.Code)
 
             Expect.equal (List.distinct all) all "unique"
 
@@ -173,7 +202,7 @@ let tests =
         test "every refused family of the spec has a catalog code" {
             let all =
                 Admission.rules
-                |> List.map (fun rule -> rule.Code.Value)
+                |> List.map (fun rule -> rule.Code)
                 |> Set.ofList
 
             for family in
@@ -231,7 +260,7 @@ let tests =
 
             let all =
                 Admission.rules
-                |> List.map (fun rule -> rule.Code.Value)
+                |> List.map (fun rule -> rule.Code)
                 |> Set.ofList
 
             Expect.isNonEmpty used "the corpus has refusals"
