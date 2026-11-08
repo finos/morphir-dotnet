@@ -145,8 +145,12 @@
         "dependencies": {
           "FSharp.Compiler.Service": "[43.12.403, )",
           "FSharp.Core": "[10.1.403, )",
-          "Morphir.Compilation": "[1.0.0, )"
+          "Morphir.Compilation": "[1.0.0, )",
+          "Morphir.FSharp.Annotations": "[1.0.0, )"
         }
+      },
+      "morphir.fsharp.annotations": {
+        "type": "Project"
       },
       "morphir.models": {
         "type": "Project",

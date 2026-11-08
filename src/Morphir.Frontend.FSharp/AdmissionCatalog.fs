@@ -105,7 +105,13 @@ module internal AdmissionCatalog =
 
     /// <summary>Attributes that have no effect on the meaning of the code that Morphir models.</summary>
     let private harmless =
-        set [ "RequireQualifiedAccess"; "AutoOpen"; "CompilationRepresentation" ]
+        set [
+            "RequireQualifiedAccess"
+            "AutoOpen"
+            "CompilationRepresentation"
+            "CompiledName"
+            "MorphirName"
+        ]
 
     /// <summary>Attributes that a specific rule refuses instead of the attribute rule.</summary>
     let private specific = set [ "Struct"; "Measure" ]
@@ -732,7 +738,7 @@ module internal AdmissionCatalog =
             "attribute with an effect"
             "This attribute changes the meaning of the code and is not supported."
             (Some
-                "Remove the attribute. Only RequireQualifiedAccess, AutoOpen and CompilationRepresentation are accepted.")
+                "Remove the attribute. Only RequireQualifiedAccess, AutoOpen, CompilationRepresentation, CompiledName and MorphirName are accepted.")
             (module' [ "[<Literal>]"; "let Limit = 10" ])
             "Literal"
             (Detector.Node(fun _ _ node ->
