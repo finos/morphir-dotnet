@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-fsharp-morphir-analyzers: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-fsharp-morphir-analyzers: design</h1>
+<p class="meta">OpenSpec change | 2026-11-07 | proposed. See <a href="proposal.md">proposal.md</a>, <a href="tasks.md">tasks.md</a>, <a href="specs/fsharp-editor-diagnostics/spec.md">fsharp-editor-diagnostics</a> and <a href="specs/fsharp-build-diagnostics/spec.md">fsharp-build-diagnostics</a>.</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a>
+  <ul>
+  <li><a href="#cat-1">CAT-1. The catalog is shared source with string codes</a></li>
+  <li><a href="#anz-1">ANZ-1. The analyzer builds against the SDK's compiler pin</a></li>
+  <li><a href="#anz-2">ANZ-2. A Morphir project is found by its morphir.toml</a></li>
+  <li><a href="#anz-3">ANZ-3. The analyzer checks only documents that type-check</a></li>
+  <li><a href="#bld-1">BLD-1. Check-only is a host option of compile</a></li>
+  <li><a href="#bld-2">BLD-2. MSBuild reads canonical lines from stderr</a></li>
+  <li><a href="#bld-3">BLD-3. The build target is opt-in and incremental</a></li>
+  <li><a href="#aot-1">AOT-1. Both packages are JIT-only</a></li>
+  </ul>
+</li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See proposal.md for the motivation. These facts shape the approach:</p>
+<ul>
+<li>The F# compiler (<code>fsc</code>) and FSharp.Compiler.Service (FCS) have no analyzer or plugin hook. Roslyn analyzers do not run on F#.</li>
+<li>FSharp.Analyzers.SDK 0.41.0 (net10.0) is the community analyzer framework. It depends on FSharp.Compiler.Service exactly <code>[43.12.402]</code> and FSharp.Core exactly <code>[10.1.402]</code>. Its command-line tool is the <code>fsharp-analyzers</code> dotnet tool 0.41.0, which can write SARIF. FsAutoComplete loads analyzers in editors when <code>FSharp.enableAnalyzers</code> is on and <code>FSharp.analyzersPath</code> names their folder. FsAutoComplete is the language server of Ionide for VS Code and of other LSP editors.</li>
+<li>We assume that Visual Studio and Rider do not load FSharp.Analyzers.SDK analyzers. This is not yet verified (see <a href="#open-questions">Open questions</a>). The MSBuild target (<a href="#bld-2">BLD-2</a>) covers these IDEs in either case.</li>
+<li>The repository pins FSharp.Compiler.Service 43.12.403 and FSharp.Core 10.1.403 (<code>add-fsharp-compile</code> FSF-5), with central transitive pinning. NU1608 is not suppressed.</li>
+<li>The admission catalog (<code>add-fsharp-compile</code> FSF-3, task 3.3) is in <code>src/Morphir.Frontend.FSharp/Admission.fs</code>. Its detectors read only FCS syntax, syntax trivia and checked symbol uses. Today it also uses <code>Morphir.Compilation</code> (<code>DiagnosticCode</code>, <code>Diagnostic</code>) and the frontend's <code>CheckedDocument</code> and <code>CompilerEdge</code>.</li>
+</ul>
+
+<svg viewBox="0 0 760 210" role="img" aria-labelledby="flow-title">
+<title id="flow-title">One catalog source, three hosts</title>
+<rect x="290" y="10" width="180" height="50" rx="6" fill="none" stroke="currentColor"/>
+<text x="380" y="40" text-anchor="middle" fill="currentColor" font-size="14">Shared catalog source</text>
+<rect x="10" y="140" width="220" height="56" rx="6" fill="none" stroke="currentColor"/>
+<text x="120" y="164" text-anchor="middle" fill="currentColor" font-size="13">Morphir.Frontend.FSharp</text>
+<text x="120" y="184" text-anchor="middle" fill="currentColor" font-size="12">FCS 43.12.403 (compile, --check)</text>
+<rect x="270" y="140" width="220" height="56" rx="6" fill="none" stroke="currentColor"/>
+<text x="380" y="164" text-anchor="middle" fill="currentColor" font-size="13">Morphir.FSharp.Analyzers</text>
+<text x="380" y="184" text-anchor="middle" fill="currentColor" font-size="12">SDK 0.41.0, FCS 43.12.402</text>
+<rect x="530" y="140" width="220" height="56" rx="6" fill="none" stroke="currentColor"/>
+<text x="640" y="164" text-anchor="middle" fill="currentColor" font-size="13">Morphir.FSharp.Build</text>
+<text x="640" y="184" text-anchor="middle" fill="currentColor" font-size="12">MSBuild target, runs dotnet-morphir</text>
+<line x1="350" y1="60" x2="120" y2="140" stroke="currentColor"/>
+<line x1="380" y1="60" x2="380" y2="140" stroke="currentColor"/>
+<line x1="230" y1="168" x2="270" y2="168" stroke="currentColor" stroke-dasharray="4 3"/>
+<line x1="530" y1="168" x2="490" y2="168" stroke="currentColor" stroke-dasharray="4 3"/>
+<text x="380" y="110" text-anchor="middle" fill="currentColor" font-size="12">compile-linked (same .fs files)</text>
+<text x="640" y="120" text-anchor="middle" fill="currentColor" font-size="12">process call, no FCS in MSBuild</text>
+</svg>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> one rule catalog with three hosts; the same code, message and range in every host; no FCS version conflict in any one restore graph; no change to MEP.</p>
+<p><strong>Non-goals:</strong> new refusal rules; quick fixes; a language server; refusal through <code>[&lt;CompilerMessage&gt;]</code> attributes; support for analyzer hosts other than FsAutoComplete and the <code>fsharp-analyzers</code> tool.</p>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="cat-1">CAT-1. The catalog is shared source with string codes</h3>
+<p>Split the admission code in <code>src/Morphir.Frontend.FSharp</code> into these parts:</p>
+<ul>
+<li><code>TextLines.fs</code> (already shared-safe): line index and UTF-16 offsets.</li>
+<li><code>AdmissionCatalog.fs</code>: an input shape <code>AdmissionDocument = { Uri; Path; Text; Lines; Syntax }</code>, the symbol lookup function, the rule records, the detectors, the findings and the nested-refusal reduction. Codes are plain strings, such as <code>"fsharp.unsupported_mutable"</code>. The file opens only FCS namespaces and FSharp.Core.</li>
+<li><code>Admission.fs</code> (frontend only): converts findings to <code>Morphir.Compilation</code> diagnostics with <code>DiagnosticCode.Create</code>, and orders them.</li>
+</ul>
+<p>The analyzer project includes <code>TextLines.fs</code> and <code>AdmissionCatalog.fs</code> as linked <code>Compile</code> items. A test in each test project compiles every catalog example and checks the code and the flagged text.</p>
+<p><em>Alternatives considered:</em> a project reference from the analyzer to <code>Morphir.Frontend.FSharp</code> puts two exact FCS and Core pins in one graph (NU1608, or a downgrade error). A separate catalog assembly has the same problem, because it must reference one FCS. A source generator for each host adds a build step for a few hundred lines.</p>
+
+<h3 id="anz-1">ANZ-1. The analyzer builds against the SDK's compiler pin</h3>
+<p><code>src/Morphir.FSharp.Analyzers</code> references FSharp.Analyzers.SDK 0.41.0 and sets <code>VersionOverride</code> for FSharp.Compiler.Service 43.12.402 and FSharp.Core 10.1.402. No other project references it. The analyzer host (FsAutoComplete or the <code>fsharp-analyzers</code> tool) supplies FCS at run time, so the package does not ship FCS. The package puts the analyzer assembly in <code>analyzers/dotnet/fs/</code>, the folder that the SDK documents for analyzer packages. One function has both <code>[&lt;CliAnalyzer&gt;]</code> and <code>[&lt;EditorAnalyzer&gt;]</code>. It builds an <code>AdmissionDocument</code> from the context's parse tree, source text and symbol uses.</p>
+<p>A CI job builds the analyzer and the frontend in the same run. A compile error in either one shows FCS API drift in the shared source. Renovate puts FSharp.Analyzers.SDK and FSharp.Analyzers.SDK.Testing in one group, separate from the <code>fsharp-compiler</code> group, because each follows a different FCS version.</p>
+<p><em>Alternatives considered:</em> move the whole repository to the SDK's FCS pin. That couples the frontend to the analyzer release cadence, and the SDK is often one patch behind the compiler. Fork the SDK: too much upkeep.</p>
+
+<h3 id="anz-2">ANZ-2. A Morphir project is found by its morphir.toml</h3>
+<p>FsAutoComplete loads the analyzer for every F# document in the workspace. The analyzer reports only when the document's directory or an ancestor directory holds <code>morphir.toml</code>. It does not read the file. The search stops at the file-system root, and its result is cached for each directory. This is the same file that <code>morphir compile</code> project discovery uses.</p>
+<p><em>Alternatives considered:</em> an MSBuild property (an analyzer cannot read MSBuild properties); a define constant (it changes compilation, and <code>#if</code> is refused anyway); report for all F# code (noise in ordinary projects).</p>
+
+<h3 id="anz-3">ANZ-3. The analyzer checks only documents that type-check</h3>
+<p>When the check results of a document hold an F# error, the analyzer reports nothing for it. This matches the frontend, where compiler errors stop the run before admission. The editor already shows the compiler error. Some detectors (active-pattern use, unit-of-measure types) need checked symbols, which are not complete when the document has an error.</p>
+
+<h3 id="bld-1">BLD-1. Check-only is a host option of compile</h3>
+<p><code>morphir compile --check</code> runs source selection, the frontend and every diagnostic stage. Then it stops before IR writing, output installation, task records and generation. The frontend request is unchanged: in process it is the same <code>CompileRequest</code>, and for a MEP frontend it is a standard <code>compileModel</code> call. The host discards the returned model. The JSON report has <code>output</code> set to <code>null</code> and a <code>check: true</code> member that consumers can ignore.</p>
+<p><em>Alternatives considered:</em> a new top-level <code>morphir check</code> verb. It can clash with a future ecosystem command, and it repeats every compile setting. A <code>typesOnly</code> or <code>dryRun</code> MEP option: MEP 0.2.0-draft.1 has no such member, and this change must not add one.</p>
+
+<h3 id="bld-2">BLD-2. MSBuild reads canonical lines from stderr</h3>
+<p><code>--diagnostic-format msbuild</code> changes only the human-mode diagnostic lines on stderr. Each line has the form <code>&lt;uri&gt;(&lt;line&gt;,&lt;column&gt;,&lt;endLine&gt;,&lt;endColumn&gt;): error &lt;code&gt;: &lt;message&gt;</code>, with one-based lines and columns (the zero-based UTF-16 values plus one). The MSBuild <code>Exec</code> task recognizes canonical error and warning lines in its output by default and logs them as MSBuild errors and warnings. So no custom MSBuild task assembly is needed. Stdout stays empty in human mode, and <code>--json</code> output does not change (AGENTS.md: stdout is data, stderr is diagnostics).</p>
+<p>The diagnostic URI is relative to the selected source root, and the source root can differ from the project directory (for example, an <code>.fsproj</code> at the repository root with <code>project.source_directory = "src"</code>). So the MSBuild line does not use the URI unchanged. It uses the absolute file-system path of the document: the selected source root joined with the URI. MSBuild and every IDE then open the right file from any working directory. A document that has no file-system path (an in-memory source) keeps its URI. The JSON report and the model keep the root-relative URI. Columns count UTF-16 code units, which is how Visual Studio counts characters on a line.</p>
+<p><em>Alternatives considered:</em> a custom MSBuild task that reads <code>--json</code>. It loads into the MSBuild process, needs its own assembly for each MSBuild version, and gives no better result. A SARIF file only: build error lists do not read SARIF.</p>
+
+<h3 id="bld-3">BLD-3. The build target is opt-in and incremental</h3>
+<pre><code class="language-xml">&lt;Target Name="MorphirCheck" AfterTargets="CoreCompile"
+        Condition="'$(MorphirCheck)' == 'true'"
+        Inputs="@(Compile);$(MorphirConfigFile);$(MSBuildProjectFullPath)"
+        Outputs="$(IntermediateOutputPath)morphir-check.stamp"&gt;
+  &lt;!-- 1. probe: dotnet tool run dotnet-morphir -- --version; failure gives build.tool_unavailable --&gt;
+  &lt;!-- 2. write @(Compile) in order to $(IntermediateOutputPath)morphir-check.rsp --&gt;
+  &lt;!-- 3. Exec: dotnet tool run dotnet-morphir -- compile --check
+              --diagnostic-format msbuild @morphir-check.rsp --&gt;
+  &lt;!-- 4. touch the stamp only when the check passes --&gt;
+&lt;/Target&gt;</code></pre>
+<ul>
+<li>It runs after <code>CoreCompile</code>, so an F# error fails the build first, as in the frontend.</li>
+<li>It passes the <code>Compile</code> items through <code>--input</code> in MSBuild order, written to a response file. This avoids a second project evaluation and command-line length limits. System.CommandLine reads <code>@file</code> response files.</li>
+<li>The package name comes from <code>MorphirPackageName</code>, else from <code>morphir.toml</code>.</li>
+<li>Exit code 1 means refusals, which the canonical lines already logged. Exit code 2 is an operational failure, which the target logs as one error with the command's stderr summary.</li>
+</ul>
+<p><em>Alternatives considered:</em> run before <code>CoreCompile</code> (duplicates compiler errors); pass <code>--project-file</code> (a nested MSBuild evaluation inside a build); a global tool (versions drift between machines; the local tool manifest pins one version).</p>
+
+<h3 id="aot-1">AOT-1. Both packages are JIT-only</h3>
+<p>The analyzer runs inside FsAutoComplete or the analyzers tool. The build package has no assembly and calls the JIT <code>dotnet-morphir</code> tool. The AOT <code>morphir</code> executable does not reference either one. The existing CI check that keeps FSharp.Compiler.Service out of the <code>morphir</code> assembly closure stays in force. <code>--check</code> and <code>--diagnostic-format</code> are host options, so they are also available in <code>morphir</code> with a configured MEP frontend.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>The FsAutoComplete in a user's editor uses a different SDK version, and does not load the analyzer.</td><td>Publish one analyzer release for each SDK minor version. Document the matching Ionide and FsAutoComplete versions. Test with FSharp.Analyzers.SDK.Testing at the same version.</td></tr>
+<tr><td>The shared catalog uses an FCS API that differs between 43.12.402 and 43.12.403.</td><td>The CI job builds both hosts (<a href="#anz-1">ANZ-1</a>). Each test project checks every catalog example.</td></tr>
+<tr><td>The analyzer and the frontend report different ranges, because the SDK gives a different source text or symbol set.</td><td>A parity test runs both hosts over the same example documents and compares codes and ranges (spec: Catalog parity).</td></tr>
+<tr><td>The build check adds a second FCS check and a process start to every build.</td><td>The check is opt-in and incremental (<a href="#bld-3">BLD-3</a>).</td></tr>
+<tr><td>Visual Studio or Rider does not load the analyzer.</td><td>The MSBuild target gives the same errors in their error lists after a build.</td></tr>
+<tr><td>F# code under a <code>morphir.toml</code> that is not part of the model (for example tests) gets refusals in the editor.</td><td>Document that Morphir models go in their own project directory. An exclusion setting can come later without a spec change to the rules.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<p>Both packages are new and opt-in. To roll back, remove the package reference, or set <code>MorphirCheck</code> to <code>false</code>, or remove the analyzer path from the editor settings. The catalog refactor (<a href="#cat-1">CAT-1</a>) does not change frontend behavior. The existing frontend tests must pass unchanged before and after it.</p>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>Do Rider or Visual Studio load FSharp.Analyzers.SDK analyzers? Verify before the docs task. The answer changes only the guide, because the build target covers both IDEs.</li>
+<li>Does FsAutoComplete find analyzers in restored NuGet packages, or must users set <code>FSharp.analyzersPath</code> to the package folder? Verify before the docs task.</li>
+</ul>
+
+</main>
+</body>
+</html>
