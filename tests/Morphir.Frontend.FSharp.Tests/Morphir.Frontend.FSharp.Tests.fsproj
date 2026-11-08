@@ -24,6 +24,8 @@
     <Compile Include="EvidenceTests.fs" />
     <Compile Include="AdmissionTests.fs" />
     <Compile Include="PlanningTests.fs" />
+    <Compile Include="LoweringSupport.fs" />
+    <Compile Include="TypeLoweringTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>

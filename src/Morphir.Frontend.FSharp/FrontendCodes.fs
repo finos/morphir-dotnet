@@ -41,6 +41,13 @@ module FSharpCodes =
     [<CompiledName("InvalidMorphirName")>]
     let invalidMorphirName = DiagnosticCode.Create "fsharp.invalid_morphir_name"
 
+    /// <summary>
+    /// An F# type, function or member outside the package has no Morphir SDK mapping. The message names the
+    /// F# symbol.
+    /// </summary>
+    [<CompiledName("UnsupportedReference")>]
+    let unsupportedReference = DiagnosticCode.Create "fsharp.unsupported_reference"
+
 /// <summary>Language-neutral compilation codes that the F# frontend reports.</summary>
 [<RequireQualifiedAccess>]
 module CompileCodes =
