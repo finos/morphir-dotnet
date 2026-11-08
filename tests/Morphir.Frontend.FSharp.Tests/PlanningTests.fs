@@ -483,6 +483,50 @@ let tests =
                 "collision"
         }
 
+        test "values that share a CompiledName keep their own Morphir names" {
+            let result =
+                passed (
+                    plan [
+                        source "Pricing.fs" [
+                            "namespace Acme.CarRental"
+                            "module Pricing ="
+                            "    [<CompiledName(\"Scale\")>]"
+                            "    let scaleInt (x: int) = x * 2"
+                            "    [<CompiledName(\"Scale\")>]"
+                            "    let scaleFloat (x: float) = x * 2.0"
+                        ]
+                    ]
+                )
+
+            Expect.equal
+                (result.Modules.Head.Values
+                 |> List.map (fun value ->
+                     result.TryValue value.Symbol
+                     |> Option.map (fun name -> Name.toList name.LocalName)
+                 ))
+                [ Some [ "scale"; "int" ]; Some [ "scale"; "float" ] ]
+                "each symbol has its own name"
+        }
+
+        test "distinct namespaces with one Morphir path collide instead of merging" {
+            let diagnostics =
+                failed (
+                    plan [
+                        source "Plates.fs" [
+                            "namespace Acme.CarRental.Shared"
+                            "type Plate = string"
+                        ]
+                        source "Seats.fs" [ "namespace Acme.CarRental.shared"; "type Seats = int" ]
+                    ]
+                )
+
+            Expect.equal
+                (diagnostics
+                 |> List.map codeOf)
+                [ "fsharp.name_collision" ]
+                "collision"
+        }
+
         test "a module-level tuple binding is refused" {
             let diagnostics =
                 failed (

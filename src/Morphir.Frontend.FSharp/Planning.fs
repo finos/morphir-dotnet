@@ -64,8 +64,9 @@ module internal PlanKeys =
     /// <summary>The key of a module-level value.</summary>
     let value (value: FSharpMemberOrFunctionOrValue) =
         match value.DeclaringEntity with
-        | Some owner -> $"value:{fullName owner}.{value.CompiledName}"
-        | None -> $"value:{value.CompiledName}"
+        // The F# logical name: unique in its module, unlike a CompiledName that overloads can share.
+        | Some owner -> $"value:{fullName owner}.{value.LogicalName}"
+        | None -> $"value:{value.LogicalName}"
 
     /// <summary>The key of a record field.</summary>
     let field (record: FSharpEntity) (field: FSharpField) = $"field:{fullName record}.{field.Name}"
@@ -75,9 +76,9 @@ module internal PlanKeys =
         let owner = case.ReturnType.StripAbbreviations()
 
         if owner.HasTypeDefinition then
-            $"case:{fullName owner.TypeDefinition}.{case.CompiledName}"
+            $"case:{fullName owner.TypeDefinition}.{case.Name}"
         else
-            $"case:{case.CompiledName}"
+            $"case:{case.Name}"
 
 /// <summary>
 /// The family-neutral result of planning (FSF-1): the package plan, the modules in document and source order,
@@ -632,7 +633,9 @@ module internal Planning =
                             merged
                             |> List.tryFindIndex (fun earlier ->
                                 earlier.IsNamespace
-                                && nameOf earlier.Path = nameOf source.Path
+                                // The same F# namespace (ordinal), not the same Morphir path: distinct
+                                // namespaces with one Morphir path must reach the collision check.
+                                && textOf earlier.Path = textOf source.Path
                             )
                         else
                             None
