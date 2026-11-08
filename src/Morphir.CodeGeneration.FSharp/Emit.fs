@@ -189,12 +189,16 @@ module internal Emit =
         packageNames name.PackagePath
         |> List.map (fun n -> String.concat "" (words n)) = [ "morphir"; "sdk" ]
 
+    /// The lookup key of an SDK name in the TargetSyntax tables, such as "basics.lessthan" or "int.int64".
+    /// The key is never written as an F# identifier, so a word may start with a digit (Int64 is int-64).
     let sdkName (name: FQName) =
+        let joined (Name value) = String.concat "" value
+
         (moduleNames name.ModulePath
-         |> List.map (fun n -> String.concat "" (words n))
+         |> List.map joined
          |> String.concat ".")
         + "."
-        + String.concat "" (words name.LocalName)
+        + joined name.LocalName
 
     let literal value =
         match value with

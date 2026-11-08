@@ -211,6 +211,24 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
                 None
         | None -> None
 
+    /// <summary>The Morphir constructor of a union case: a case of this package, or an SDK constructor.</summary>
+    let constructorOf (case: FSharpUnionCase) =
+        match plan.TryConstructor case with
+        | Some fqName -> Some fqName
+        | None ->
+            match SdkMapping.tryCase (SdkMapping.caseKey case) with
+            | Some {
+                       Kind = SdkCaseKind.Constructor
+                       Target = target
+                   } -> Some target
+            | _ -> None
+
+    /// <summary>The operand shape of the first parameter of a function type.</summary>
+    let operandOf (ty: LoweredType) =
+        ty.TryPeel()
+        |> Option.bind (fun (argument, _) -> argument.TryChecked)
+        |> Option.map SdkMapping.operand
+
     member private this.Pattern(evidenceOfPattern: PatternEvidence) : Checked<'Pattern> =
         let range = evidenceOfPattern.Syntax.Range
         let at = locate range
@@ -244,7 +262,7 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
             | PatternShape.Constructor case ->
                 let! arguments = children ()
 
-                match plan.TryConstructor case with
+                match constructorOf case with
                 | Some fqName ->
                     return! builder.PatternConstructor(at, patternType, fqName, arguments)
                 | None ->
@@ -252,7 +270,7 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
                         fail
                             FSharpCodes.unsupportedReference
                             range
-                            $"The union case '{case.FullName}' is not a constructor of this package."
+                            $"The union case '{SdkMapping.caseKey case}' is not a constructor of this package or of the Morphir SDK."
             | PatternShape.As ->
                 match evidenceOfPattern.Children with
                 | [ inner; { Shape = PatternShape.Variable alias } ] ->
@@ -284,13 +302,19 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
                     syntax.Range
                     $"This pattern cannot be lowered exactly: {failure.Explanation}."
 
+    /// <summary>
+    /// Lowers a reference to a value or a union case. A refusal is reported at <c>failureRange</c>: the whole
+    /// call when the reference is the function of an application.
+    /// </summary>
     member private this.Reference
         (
             range: range,
             symbol: FSharpSymbol,
-            ty: LoweredType
+            ty: LoweredType,
+            ?failureRange: range
         ) : Checked<'Value> =
         let at = locate range
+        let failureRange = defaultArg failureRange range
 
         check {
             let! valueType = lowerTy range ty
@@ -302,25 +326,52 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
                 | None when not value.IsModuleValueOrMember ->
                     return! builder.Variable(at, valueType, Name.fromString value.DisplayName)
                 | None ->
-                    return!
-                        fail
-                            FSharpCodes.unsupportedReference
-                            range
-                            $"The F# value '{value.FullName}' has no Morphir mapping."
+                    let key = SdkMapping.valueKey value
+                    let operand = operandOf ty
+
+                    match SdkMapping.tryValue key operand with
+                    | Some entry -> return! builder.Reference(at, valueType, entry.Target)
+                    | None when SdkMapping.isMapped key ->
+                        let operandText =
+                            operand
+                            |> Option.map (fun operand -> operand.Text)
+                            |> Option.defaultValue "unknown"
+
+                        return!
+                            fail
+                                FSharpCodes.unsupportedReference
+                                failureRange
+                                $"The F# operator or function '{value.DisplayName}' ({value.FullName}) has no Morphir SDK mapping for '{operandText}' operands."
+                    | None ->
+                        return!
+                            fail
+                                FSharpCodes.unsupportedReference
+                                failureRange
+                                $"The F# value '{value.FullName}' has no Morphir mapping."
             | :? FSharpUnionCase as case ->
                 match plan.TryConstructor case with
                 | Some fqName -> return! builder.Constructor(at, valueType, fqName)
                 | None ->
-                    return!
-                        fail
-                            FSharpCodes.unsupportedReference
-                            range
-                            $"The union case '{case.FullName}' has no Morphir mapping."
+                    match SdkMapping.tryCase (SdkMapping.caseKey case) with
+                    | Some {
+                               Kind = SdkCaseKind.Constructor
+                               Target = target
+                           } -> return! builder.Constructor(at, valueType, target)
+                    | Some {
+                               Kind = SdkCaseKind.Function
+                               Target = target
+                           } -> return! builder.Reference(at, valueType, target)
+                    | None ->
+                        return!
+                            fail
+                                FSharpCodes.unsupportedReference
+                                failureRange
+                                $"The union case '{SdkMapping.caseKey case}' has no Morphir mapping."
             | other ->
                 return!
                     fail
                         FSharpCodes.unsupportedReference
-                        range
+                        failureRange
                         $"The F# symbol '{other.FullName}' has no Morphir mapping."
         }
 
@@ -345,23 +396,34 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
                 arguments
                 (LoweredType.Checked result)
 
+        // Another call can have the same range: the pipe in 'xs |> List.map f' or an operator's witness.
+        let isHead (value: FSharpMemberOrFunctionOrValue) =
+            match symbol with
+            | Some(:? FSharpMemberOrFunctionOrValue as head) -> head.IsEffectivelySameAs value
+            | _ -> false
+
         let fromCall =
             typed.At(document.Index, spine)
             |> List.tryPick (fun expression ->
                 match expression with
                 | NewUnionCase(union, case, _) -> Some(constructorType union case)
-                | Call(_, _, _, _, arguments)
+                | Call(_, value, _, _, arguments) when
+                    isHead value
+                    && arguments.Length = arity
+                    && arity > 0
+                    ->
+                    Some(arrowOf arguments expression.Type)
                 | Application(_, _, arguments) when
                     arguments.Length = arity
                     && arity > 0
                     ->
                     Some(arrowOf arguments expression.Type)
-                | Call(_, value, objectArguments, valueArguments, _) ->
+                | Call(_, value, classTypes, methodTypes, _) when isHead value ->
                     instantiate
                         value.FullType
                         value.GenericParameters
-                        (objectArguments
-                         @ valueArguments)
+                        (classTypes
+                         @ methodTypes)
                     |> Option.map LoweredType.Checked
                 | Application(Value value, typeArguments, _) ->
                     instantiate value.FullType value.GenericParameters typeArguments
@@ -400,27 +462,37 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
             identifiers: Ident list,
             expected: LoweredType option
         ) =
-        let isValue (ident: Ident) =
-            symbolsAt ident.idRange
-            |> List.exists (fun symbol ->
-                match symbol with
-                | :? FSharpMemberOrFunctionOrValue
-                | :? FSharpUnionCase -> true
-                | _ -> false
-            )
+        // The compiler records a value at its identifier, or a qualified value such as List.map at the whole
+        // long identifier.
+        let valueAt (ident: Ident) =
+            let isValue range =
+                symbolsAt range
+                |> List.exists (fun symbol ->
+                    match symbol with
+                    | :? FSharpMemberOrFunctionOrValue
+                    | :? FSharpUnionCase -> true
+                    | _ -> false
+                )
+
+            [ ident.idRange; Range.unionRanges identifiers.Head.idRange ident.idRange ]
+            |> List.tryFind isValue
 
         match
             identifiers
-            |> List.tryFindIndex isValue
+            |> List.indexed
+            |> List.tryPick (fun (index, ident) ->
+                valueAt ident
+                |> Option.map (fun symbolRange -> index, symbolRange)
+            )
         with
         | None -> unsupported range "This name does not refer to a value."
-        | Some index ->
+        | Some(index, symbolRange) ->
             let head = identifiers[index]
             let fields = List.skip (index + 1) identifiers
             let headRange = Range.unionRanges identifiers.Head.idRange head.idRange
             let headExpected = if fields.IsEmpty then expected else None
 
-            match this.Head(head.idRange, range, 0, headExpected) with
+            match this.Head(symbolRange, range, 0, headExpected) with
             | Some symbol, Some ty ->
                 let start =
                     this.Reference(headRange, symbol, ty)
@@ -455,10 +527,25 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
                                 | _ -> None
                             )
 
-                        match field with
-                        | None ->
+                        let member' =
+                            symbolsAt ident.idRange
+                            @ symbolsAt range
+                            |> List.tryPick (fun symbol ->
+                                match symbol with
+                                | :? FSharpMemberOrFunctionOrValue as value when value.IsMember ->
+                                    Some value
+                                | _ -> None
+                            )
+
+                        match field, member' with
+                        | None, Some value ->
+                            fail
+                                FSharpCodes.unsupportedReference
+                                range
+                                $"The .NET member '{value.FullName}' has no Morphir mapping."
+                        | None, None ->
                             unsupported ident.idRange "Only record fields can follow a value."
-                        | Some field ->
+                        | Some field, _ ->
                             match typeOf range (fieldType targetType field) with
                             | None -> noType range
                             | Some ty -> check {
@@ -554,11 +641,7 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
 
             this.Fields(start, target.Range, name.LongIdent)
 
-        | SynExpr.App(isInfix = false) -> this.Application(expression, expected)
-        | SynExpr.App(isInfix = true) ->
-            unsupported
-                range
-                "Operators are mapped to the Morphir SDK with the SDK mapping table (task 3.7)."
+        | SynExpr.App _ -> this.Application(expression, expected)
 
         | SynExpr.Tuple(isStruct = false; exprs = elements) ->
             match
@@ -750,9 +833,10 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
     /// compiler's call or application at the spine's range, or from the function's checked type.
     /// </summary>
     member private this.Application(expression: SynExpr, expected: LoweredType option) =
+        // 'a + b' is an infix application of the operator to 'a', applied to 'b'.
         let rec flatten expression arguments =
             match expression with
-            | SynExpr.App(isInfix = false; funcExpr = func; argExpr = argument) ->
+            | SynExpr.App(funcExpr = func; argExpr = argument) ->
                 flatten
                     func
                     ((argument, expression.Range)
@@ -768,25 +852,150 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
             | SynExpr.TypeApp(expr = inner) -> inner
             | other -> other
 
+        // The value symbol of a named head, and the range where the compiler records it: the identifier, or
+        // the whole long identifier for a qualified name such as List.map.
+        let named =
+            let valueSymbol range =
+                symbolsAt range
+                |> List.tryFind (fun symbol ->
+                    match symbol with
+                    | :? FSharpMemberOrFunctionOrValue
+                    | :? FSharpUnionCase -> true
+                    | _ -> false
+                )
+                |> Option.map (fun symbol -> symbol, range)
+
+            match head with
+            | SynExpr.Ident ident -> valueSymbol ident.idRange
+            | SynExpr.LongIdent(longDotId = name) when name.LongIdent.Length > 0 ->
+                let last = List.last name.LongIdent
+
+                valueSymbol last.idRange
+                |> Option.orElse (valueSymbol name.Range)
+            | _ -> None
+
+        let structural =
+            match named with
+            | Some(:? FSharpMemberOrFunctionOrValue as value, _) ->
+                SdkMapping.tryStructural (SdkMapping.valueKey value)
+            | _ -> None
+
+        match structural, arguments with
+        | Some operator, [ left, _; right, _ ] ->
+            match named with
+            | Some(:? FSharpMemberOrFunctionOrValue as value, _) ->
+                this.Structural(expression.Range, value, operator, left, right)
+            | _ -> unsupported expression.Range "This operator has no checked symbol."
+        | Some _, _ ->
+            fail
+                FSharpCodes.unsupportedReference
+                expression.Range
+                "A pipe or composition operator is lowered only with both of its operands."
+        | None, _ -> this.Apply(expression, head, named, arguments)
+
+    /// <summary>
+    /// Lowers <c>x |&gt; f</c> and <c>f &lt;| x</c> as <c>f x</c>, and <c>f &gt;&gt; g</c> and
+    /// <c>g &lt;&lt; f</c> as <c>fun x -&gt; g (f x)</c>, with the types of the compiler's operator call.
+    /// </summary>
+    member private this.Structural
+        (
+            range: range,
+            operatorValue: FSharpMemberOrFunctionOrValue,
+            operator: StructuralOperator,
+            left: SynExpr,
+            right: SynExpr
+        ) : Checked<'Value> =
+        let at = locate range
+
+        let operatorType =
+            typed.At(document.Index, range)
+            |> List.tryPick (fun expression ->
+                match expression with
+                | Call(_, value, classTypes, methodTypes, _) when
+                    value.IsEffectivelySameAs operatorValue
+                    ->
+                    instantiate
+                        value.FullType
+                        value.GenericParameters
+                        (classTypes
+                         @ methodTypes)
+                | _ -> None
+            )
+
+        let parts =
+            operatorType
+            |> Option.bind (fun full -> (LoweredType.Checked full).TryPeel())
+            |> Option.bind (fun (leftType, rest) ->
+                rest.TryPeel()
+                |> Option.map (fun (rightType, resultType) -> leftType, rightType, resultType)
+            )
+
+        let apply (func: SynExpr) funcType (argument: SynExpr) argumentType resultType = check {
+            let! resultValueType = lowerTy range resultType
+            and! funcValue = this.Expression(func, Some funcType)
+            and! argumentValue = this.Expression(argument, Some argumentType)
+            return! builder.Apply(at, resultValueType, funcValue, argumentValue)
+        }
+
+        let compose
+            (first: SynExpr)
+            firstType
+            (second: SynExpr)
+            secondType
+            (resultType: LoweredType)
+            =
+            match
+                resultType.TryPeel(),
+                firstType
+                |> fun (ty: LoweredType) -> ty.TryPeel()
+            with
+            | Some(argumentType, finalType), Some(_, middleType) ->
+                let argument = freshNames ()
+
+                check {
+                    let! functionType = lowerTy range resultType
+                    and! argumentValueType = lowerTy range argumentType
+                    and! middleValueType = lowerTy range middleType
+                    and! finalValueType = lowerTy range finalType
+                    and! firstValue = this.Expression(first, Some firstType)
+                    and! secondValue = this.Expression(second, Some secondType)
+                    let! wildcard = builder.PatternWildcard(at, argumentValueType)
+                    let! parameter = builder.PatternAs(at, argumentValueType, wildcard, argument)
+                    let! variable = builder.Variable(at, argumentValueType, argument)
+                    let! inner = builder.Apply(at, middleValueType, firstValue, variable)
+                    let! outer = builder.Apply(at, finalValueType, secondValue, inner)
+                    return! builder.Lambda(at, functionType, parameter, outer)
+                }
+            | _ -> noType range
+
+        match parts with
+        | None -> noType range
+        | Some(leftType, rightType, resultType) ->
+            match operator with
+            | StructuralOperator.PipeRight -> apply right rightType left leftType resultType
+            | StructuralOperator.PipeLeft -> apply left leftType right rightType resultType
+            | StructuralOperator.ComposeRight -> compose left leftType right rightType resultType
+            | StructuralOperator.ComposeLeft -> compose right rightType left leftType resultType
+
+    /// <summary>
+    /// Lowers an application spine <c>f a b</c> as nested applications. The function type comes from the
+    /// compiler's call or application at the spine's range, or from the function's checked type.
+    /// </summary>
+    member private this.Apply
+        (
+            expression: SynExpr,
+            head: SynExpr,
+            named: (FSharpSymbol * range) option,
+            arguments: (SynExpr * range) list
+        ) =
         // A union case with several fields takes them as one tuple in F# syntax, but its Morphir constructor
-        // takes them one by one. A case with one tuple-valued field keeps the tuple.
+        // takes them one by one. A case with one tuple-valued field keeps the tuple. 'x :: xs' is a case
+        // with two fields applied to a tuple.
         let arguments =
             let caseFields =
-                match head with
-                | SynExpr.Ident ident -> Some ident.idRange
-                | SynExpr.LongIdent(longDotId = name) ->
-                    name.LongIdent
-                    |> List.tryLast
-                    |> Option.map (fun ident -> ident.idRange)
+                match named with
+                | Some(:? FSharpUnionCase as case, _) -> Some case.Fields.Count
                 | _ -> None
-                |> Option.bind (fun range ->
-                    symbolsAt range
-                    |> List.tryPick (fun symbol ->
-                        match symbol with
-                        | :? FSharpUnionCase as case -> Some case.Fields.Count
-                        | _ -> None
-                    )
-                )
 
             let rec unparen expression =
                 match expression with
@@ -803,39 +1012,29 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
             | _ -> arguments
 
         let headValue =
-            match head with
-            | SynExpr.Ident ident ->
-                match this.Head(ident.idRange, expression.Range, arguments.Length, None) with
-                | Some symbol, Some ty ->
-                    this.Reference(ident.idRange, symbol, ty)
-                    |> Checked.map (fun value -> value, ty)
-                | Some _, None -> noType ident.idRange
-                | None, _ -> unsupported ident.idRange "This name does not refer to a value."
-            | SynExpr.LongIdent(longDotId = name) when name.LongIdent.Length > 0 ->
-                let last = List.last name.LongIdent
+            match named with
+            | Some(symbol, symbolRange) ->
+                let referenceRange =
+                    match head with
+                    | SynExpr.LongIdent _ -> head.Range
+                    | _ -> symbolRange
 
-                match symbolsAt last.idRange with
-                | (:? FSharpMemberOrFunctionOrValue | :? FSharpUnionCase) :: _ ->
-                    match this.Head(last.idRange, expression.Range, arguments.Length, None) with
-                    | Some symbol, Some ty ->
-                        this.Reference(head.Range, symbol, ty)
-                        |> Checked.map (fun value -> value, ty)
-                    | Some _, None -> noType head.Range
-                    | None, _ -> unsupported head.Range "This name does not refer to a value."
-                | _ ->
-                    this.Expression(head, None)
+                match this.Head(symbolRange, expression.Range, arguments.Length, None) with
+                | _, Some ty ->
+                    this.Reference(referenceRange, symbol, ty, expression.Range)
+                    |> Checked.map (fun value -> value, ty)
+                | _, None -> noType referenceRange
+            | None ->
+                match head with
+                | SynExpr.Ident ident ->
+                    unsupported ident.idRange "This name does not refer to a value."
+                | other ->
+                    this.Expression(other, None)
                     |> Checked.bind (fun value ->
-                        match this.TypeOfValue head with
+                        match this.TypeOfValue other with
                         | Some ty -> Checked.pass (value, ty)
-                        | None -> noType head.Range
+                        | None -> noType other.Range
                     )
-            | other ->
-                this.Expression(other, None)
-                |> Checked.bind (fun value ->
-                    match this.TypeOfValue other with
-                    | Some ty -> Checked.pass (value, ty)
-                    | None -> noType other.Range
-                )
 
         arguments
         |> List.fold

@@ -91,6 +91,17 @@ Operators and library functions SHALL be lowered only through a documented mappi
 - **WHEN** a value calls `System.Math.Round`
 - **THEN** compilation fails with `fsharp.unsupported_reference` naming `System.Math.Round` at the call's range
 
+#### Scenario: Operand type selects the SDK operation
+- **WHEN** `a + b` is compiled with `decimal` operands and `a / b` with `int` operands
+- **THEN** the bodies apply SDK `Decimal.add` and SDK `Basics.integerDivide`, and `a + b` with `int64` operands fails with `fsharp.unsupported_reference` at the expression's range
+
+### Requirement: SDK mapping entries are checked
+Each SDK mapping entry SHALL be an operation of the reviewed .NET SDK inventory with the same arity, or SHALL name why it is outside that contract. The F# generator SHALL write each entry as F# that the frontend maps back to the same SDK name.
+
+#### Scenario: Entry outside the SDK contract
+- **WHEN** an entry maps `&&` to SDK `Basics.and`, which the SDK inventory does not list
+- **THEN** the entry names its reason, and the table tests fail if the reason is empty or if the inventory lists the operation
+
 ### Requirement: Unsupported constructs have specific diagnostics
 Every construct outside the supported subset SHALL produce an error with a stable code `fsharp.unsupported_<construct>`, a message naming the construct, and the construct's source range. The published rule catalog SHALL list each code. All refusals in a run SHALL be reported together.
 
