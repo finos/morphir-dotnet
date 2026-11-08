@@ -261,6 +261,37 @@ let tests =
                     $"FSharp.Core has the structural operator {key}"
         }
 
+        test "every value entry's F# type uses only types that lower to Morphir" {
+            let core = fsharpCore.Force()
+
+            let rec mapped (typ: FSharpType) =
+                let typ = typ.StripAbbreviations()
+
+                let ownType =
+                    typ.IsGenericParameter
+                    || typ.IsFunctionType
+                    || typ.IsTupleType
+                    || (typ.HasTypeDefinition
+                        && (typ.TypeDefinition.TryFullName = Some "Microsoft.FSharp.Core.Unit"
+                            || (SdkMapping.tryType typ.TypeDefinition.FullName).IsSome))
+
+                typ.IsGenericParameter
+                || ownType
+                   && (typ.GenericArguments
+                       |> Seq.forall mapped)
+
+            for entry in SdkMapping.values do
+                let entityName, compiledName = splitKey entry.Symbol
+
+                let value =
+                    core[entityName].MembersFunctionsAndValues
+                    |> Seq.find (fun value -> value.CompiledName = compiledName)
+
+                Expect.isTrue
+                    (mapped value.FullType)
+                    $"{entry.Symbol}: {value.FullType.Format FSharpDisplayContext.Empty} lowers to Morphir"
+        }
+
         test
             "the F# generator writes every value and case entry as F# that maps back to the same SDK name" {
             let spelling target =

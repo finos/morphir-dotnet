@@ -36,7 +36,8 @@ module internal TargetSyntax =
         | "basics.compare" -> Some "Morphir.SDK.Basics.compare"
         | "basics.identity" -> Some "global.Microsoft.FSharp.Core.Operators.id"
         | "basics.integerdivide" -> Some "(/)"
-        | "basics.negate" -> Some "(~-)"
+        // Checked, as the SDK contract requires: negating Int32.MinValue is an overflow.
+        | "basics.negate" -> Some "global.Microsoft.FSharp.Core.Operators.Checked.(~-)"
         | "basics.abs" -> Some "abs"
         | "basics.min" -> Some "min"
         | "basics.max" -> Some "max"

@@ -127,10 +127,15 @@ type internal StructuralOperator =
     | ComposeRight
     /// <summary><c>g &lt;&lt; f</c> is <c>fun x -&gt; g (f x)</c>.</summary>
     | ComposeLeft
+    /// <summary><c>a &amp;&amp; b</c> is <c>if a then b else false</c>, so <c>b</c> is evaluated only when needed.</summary>
+    | BooleanAnd
+    /// <summary><c>a || b</c> is <c>if a then true else b</c>, so <c>b</c> is evaluated only when needed.</summary>
+    | BooleanOr
 
 /// <summary>
 /// The SDK mapping table (FSF-4). F# symbols map by full compiled name to Morphir SDK names. Overloaded
-/// operators select an entry by the compiler's operand type. Pipes and composition are lowered by structure.
+/// operators select an entry by the compiler's operand type. Pipes, composition, <c>&amp;&amp;</c> and <c>||</c> are
+/// lowered by structure.
 /// Tests check each entry against the SDK inventory, and check that the F# generator maps it back.
 /// </summary>
 [<RequireQualifiedAccess>]
@@ -148,7 +153,7 @@ module internal SdkMapping =
 
     let private outsideBoolean =
         SdkTier.Outside
-            "Morphir SDK Basics Boolean operator; the reviewed .NET SDK contract has no Boolean operations yet."
+            "Morphir SDK Basics.not; the reviewed .NET SDK contract has no Boolean operations yet."
 
     let private outsideString =
         SdkTier.Outside
@@ -249,6 +254,13 @@ module internal SdkMapping =
             SdkTier.Contract
         value
             (operators
+             + "Checked.op_UnaryNegation")
+            numbers
+            (sdk "Basics" "negate")
+            1
+            SdkTier.Contract
+        value
+            (operators
              + "Abs")
             numbers
             (sdk "Basics" "abs")
@@ -310,20 +322,6 @@ module internal SdkMapping =
             (sdk "Basics" "notEqual")
             2
             SdkTier.Contract
-        value
-            (intrinsic
-             + "op_BooleanAnd")
-            OperandRule.Any
-            (sdk "Basics" "and")
-            2
-            outsideBoolean
-        value
-            (intrinsic
-             + "op_BooleanOr")
-            OperandRule.Any
-            (sdk "Basics" "or")
-            2
-            outsideBoolean
         value
             (operators
              + "Not")
@@ -416,13 +414,6 @@ module internal SdkMapping =
             (sdk "String" "length")
             1
             outsideString
-        value
-            (stringModule
-             + "Concat")
-            OperandRule.Any
-            (sdk "String" "join")
-            2
-            outsideString
     ]
 
     let private case name target kind arity = {
@@ -511,6 +502,12 @@ module internal SdkMapping =
         operators
         + "op_ComposeLeft",
         StructuralOperator.ComposeLeft
+        intrinsic
+        + "op_BooleanAnd",
+        StructuralOperator.BooleanAnd
+        intrinsic
+        + "op_BooleanOr",
+        StructuralOperator.BooleanOr
     ]
 
     let private entityName (entity: FSharpEntity) =

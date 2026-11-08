@@ -316,64 +316,55 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
         let at = locate range
         let failureRange = defaultArg failureRange range
 
-        check {
-            let! valueType = lowerTy range ty
+        let refuse message =
+            fail FSharpCodes.unsupportedReference failureRange message
 
-            match symbol with
-            | :? FSharpMemberOrFunctionOrValue as value ->
-                match plan.TryValue value with
-                | Some fqName -> return! builder.Reference(at, valueType, fqName)
-                | None when not value.IsModuleValueOrMember ->
-                    return! builder.Variable(at, valueType, Name.fromString value.DisplayName)
+        // The mapping is decided before the type is lowered, so an unmapped function is named even when its
+        // type has no Morphir mapping either.
+        let typed (build: 'Type -> Checked<'Value>) =
+            lowerTy range ty
+            |> Checked.bind build
+
+        match symbol with
+        | :? FSharpMemberOrFunctionOrValue as value ->
+            match plan.TryValue value with
+            | Some fqName -> typed (fun valueType -> builder.Reference(at, valueType, fqName))
+            | None when not value.IsModuleValueOrMember ->
+                typed (fun valueType ->
+                    builder.Variable(at, valueType, Name.fromString value.DisplayName)
+                )
+            | None ->
+                let key = SdkMapping.valueKey value
+                let operand = operandOf ty
+
+                match SdkMapping.tryValue key operand with
+                | Some entry ->
+                    typed (fun valueType -> builder.Reference(at, valueType, entry.Target))
+                | None when SdkMapping.isMapped key ->
+                    let operandText =
+                        operand
+                        |> Option.map (fun operand -> operand.Text)
+                        |> Option.defaultValue "unknown"
+
+                    refuse
+                        $"The F# operator or function '{value.DisplayName}' ({value.FullName}) has no Morphir SDK mapping for '{operandText}' operands."
+                | None -> refuse $"The F# value '{value.FullName}' has no Morphir mapping."
+        | :? FSharpUnionCase as case ->
+            match plan.TryConstructor case with
+            | Some fqName -> typed (fun valueType -> builder.Constructor(at, valueType, fqName))
+            | None ->
+                match SdkMapping.tryCase (SdkMapping.caseKey case) with
+                | Some {
+                           Kind = SdkCaseKind.Constructor
+                           Target = target
+                       } -> typed (fun valueType -> builder.Constructor(at, valueType, target))
+                | Some {
+                           Kind = SdkCaseKind.Function
+                           Target = target
+                       } -> typed (fun valueType -> builder.Reference(at, valueType, target))
                 | None ->
-                    let key = SdkMapping.valueKey value
-                    let operand = operandOf ty
-
-                    match SdkMapping.tryValue key operand with
-                    | Some entry -> return! builder.Reference(at, valueType, entry.Target)
-                    | None when SdkMapping.isMapped key ->
-                        let operandText =
-                            operand
-                            |> Option.map (fun operand -> operand.Text)
-                            |> Option.defaultValue "unknown"
-
-                        return!
-                            fail
-                                FSharpCodes.unsupportedReference
-                                failureRange
-                                $"The F# operator or function '{value.DisplayName}' ({value.FullName}) has no Morphir SDK mapping for '{operandText}' operands."
-                    | None ->
-                        return!
-                            fail
-                                FSharpCodes.unsupportedReference
-                                failureRange
-                                $"The F# value '{value.FullName}' has no Morphir mapping."
-            | :? FSharpUnionCase as case ->
-                match plan.TryConstructor case with
-                | Some fqName -> return! builder.Constructor(at, valueType, fqName)
-                | None ->
-                    match SdkMapping.tryCase (SdkMapping.caseKey case) with
-                    | Some {
-                               Kind = SdkCaseKind.Constructor
-                               Target = target
-                           } -> return! builder.Constructor(at, valueType, target)
-                    | Some {
-                               Kind = SdkCaseKind.Function
-                               Target = target
-                           } -> return! builder.Reference(at, valueType, target)
-                    | None ->
-                        return!
-                            fail
-                                FSharpCodes.unsupportedReference
-                                failureRange
-                                $"The union case '{SdkMapping.caseKey case}' has no Morphir mapping."
-            | other ->
-                return!
-                    fail
-                        FSharpCodes.unsupportedReference
-                        failureRange
-                        $"The F# symbol '{other.FullName}' has no Morphir mapping."
-        }
+                    refuse $"The union case '{SdkMapping.caseKey case}' has no Morphir mapping."
+        | other -> refuse $"The F# symbol '{other.FullName}' has no Morphir mapping."
 
     /// <summary>The value symbol named by an identifier, and its type when the compiler gives one.</summary>
     member private this.Head(range: range, spine: range, arity: int, expected: LoweredType option) =
@@ -894,8 +885,9 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
         | None, _ -> this.Apply(expression, head, named, arguments)
 
     /// <summary>
-    /// Lowers <c>x |&gt; f</c> and <c>f &lt;| x</c> as <c>f x</c>, and <c>f &gt;&gt; g</c> and
-    /// <c>g &lt;&lt; f</c> as <c>fun x -&gt; g (f x)</c>, with the types of the compiler's operator call.
+    /// Lowers <c>x |&gt; f</c> and <c>f &lt;| x</c> as <c>f x</c>, <c>f &gt;&gt; g</c> and
+    /// <c>g &lt;&lt; f</c> as <c>fun x -&gt; g (f x)</c>, with the types of the compiler's operator call, and
+    /// <c>a &amp;&amp; b</c> and <c>a || b</c> as if-then-else, which keeps short-circuit evaluation.
     /// </summary>
     member private this.Structural
         (
@@ -908,19 +900,24 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
         let at = locate range
 
         let operatorType =
-            typed.At(document.Index, range)
-            |> List.tryPick (fun expression ->
-                match expression with
-                | Call(_, value, classTypes, methodTypes, _) when
-                    value.IsEffectivelySameAs operatorValue
-                    ->
-                    instantiate
-                        value.FullType
-                        value.GenericParameters
-                        (classTypes
-                         @ methodTypes)
-                | _ -> None
-            )
+            match operator with
+            // The compiler gives no call for && and ||: they are already if-then-else. They are not generic.
+            | StructuralOperator.BooleanAnd
+            | StructuralOperator.BooleanOr -> Some operatorValue.FullType
+            | _ ->
+                typed.At(document.Index, range)
+                |> List.tryPick (fun expression ->
+                    match expression with
+                    | Call(_, value, classTypes, methodTypes, _) when
+                        value.IsEffectivelySameAs operatorValue
+                        ->
+                        instantiate
+                            value.FullType
+                            value.GenericParameters
+                            (classTypes
+                             @ methodTypes)
+                    | _ -> None
+                )
 
         let parts =
             operatorType
@@ -968,6 +965,22 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
                 }
             | _ -> noType range
 
+        // a && b is if a then b else false; a || b is if a then true else b.
+        let condition (first: SynExpr) firstType (second: SynExpr) secondType resultType constant = check {
+            let! resultValueType = lowerTy range resultType
+            and! firstValue = this.Expression(first, Some firstType)
+            and! secondValue = this.Expression(second, Some secondType)
+            let! constantValue = builder.Literal(at, resultValueType, LiteralValue.Bool constant)
+
+            let thenValue, elseValue =
+                if constant then
+                    constantValue, secondValue
+                else
+                    secondValue, constantValue
+
+            return! builder.IfThenElse(at, resultValueType, firstValue, thenValue, elseValue)
+        }
+
         match parts with
         | None -> noType range
         | Some(leftType, rightType, resultType) ->
@@ -976,6 +989,10 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
             | StructuralOperator.PipeLeft -> apply left leftType right rightType resultType
             | StructuralOperator.ComposeRight -> compose left leftType right rightType resultType
             | StructuralOperator.ComposeLeft -> compose right rightType left leftType resultType
+            | StructuralOperator.BooleanAnd ->
+                condition left leftType right rightType resultType false
+            | StructuralOperator.BooleanOr ->
+                condition left leftType right rightType resultType true
 
     /// <summary>
     /// Lowers an application spine <c>f a b</c> as nested applications. The function type comes from the

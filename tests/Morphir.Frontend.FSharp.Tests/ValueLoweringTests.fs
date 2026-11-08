@@ -558,16 +558,51 @@ let sdkTests =
                 "the operand type selects the operation"
         }
 
-        test "Boolean, comparison and equality operators map to SDK Basics" {
+        test
+            "comparison, equality and not map to SDK Basics; && and || keep short-circuit evaluation" {
+            let values =
+                valuesOf (
+                    v4Document [
+                        "let ok (a: int) (b: int) = a < b && not (a = b)"
+                        "let guarded (x: int) = x <> 0 && 10 / x > 1"
+                        "let either (a: bool) (b: bool) = a || b"
+                    ]
+                )
+
+            let body (name: string) =
+                strip (values[name]["Public"]["ExpressionBody"]["body"])
+
+            let expected =
+                """{"IfThenElse": {"condition": {"Apply": {"function": {"Apply": {"function": @LT@, "argument": {"Variable": {"name": "a"}}}},
+                                                       "argument": {"Variable": {"name": "b"}}}},
+                  "then": {"Apply": {"function": @NOT@,
+                    "argument": {"Apply": {"function": {"Apply": {"function": @EQ@, "argument": {"Variable": {"name": "a"}}}},
+                                           "argument": {"Variable": {"name": "b"}}}}}},
+                  "else": {"Literal": {"literal": {"BoolLiteral": false}}}}}"""
+
             expectValue
-                ((v4Value [ "let ok (a: int) (b: int) = a < b && not (a = b)" ] "ok")["body"])
-                $"""{{"Apply": {{"function": {{"Apply": {{"function": {sdkRef "basics#and"},
-                  "argument": {{"Apply": {{"function": {{"Apply": {{"function": {sdkRef "basics#less-than"}, "argument": {{"Variable": {{"name": "a"}}}}}}}},
-                                         "argument": {{"Variable": {{"name": "b"}}}}}}}}}}}},
-                  "argument": {{"Apply": {{"function": {sdkRef "basics#not"},
-                    "argument": {{"Apply": {{"function": {{"Apply": {{"function": {sdkRef "basics#equal"}, "argument": {{"Variable": {{"name": "a"}}}}}}}},
-                                           "argument": {{"Variable": {{"name": "b"}}}}}}}}}}}}}}}}"""
-                "ok"
+                (body "ok")
+                (expected
+                    .Replace("@LT@", sdkRef "basics#less-than")
+                    .Replace("@NOT@", sdkRef "basics#not")
+                    .Replace("@EQ@", sdkRef "basics#equal"))
+                "a < b && not (a = b)"
+
+            let guarded = body "guarded"
+
+            Expect.equal
+                (binaryHead (
+                    guarded["IfThenElse"]["then"]["Apply"]["function"]["Apply"]["argument"]
+                ))
+                "morphir/SDK:basics#integer-divide"
+                "the division is evaluated only in the then branch"
+
+            expectValue
+                (body "either")
+                """{"IfThenElse": {"condition": {"Variable": {"name": "a"}},
+                  "then": {"Literal": {"literal": {"BoolLiteral": true}}},
+                  "else": {"Variable": {"name": "b"}}}}"""
+                "a || b"
         }
 
         test "composition becomes a lambda, and a backward pipe becomes an application" {
@@ -686,6 +721,10 @@ let sdkTests =
                 "let big (a: int64) (b: int64) = a + b", "a + b", [ "(+)"; "int64" ]
                 "let earlier (a: decimal) (b: decimal) = a < b", "a < b", [ "(<)"; "decimal" ]
                 "let size (s: string) = s.Length", "s.Length", [ "System.String.Length" ]
+                // String.concat takes a sequence, which has no Morphir type.
+                "let joined (xs: string list) = String.concat \",\" xs",
+                "String.concat \",\" xs",
+                [ "String.concat" ]
             ]
 
             for line, construct, names in cases do

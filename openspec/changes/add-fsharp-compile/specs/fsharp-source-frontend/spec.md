@@ -91,6 +91,10 @@ Operators and library functions SHALL be lowered only through a documented mappi
 - **WHEN** a value calls `System.Math.Round`
 - **THEN** compilation fails with `fsharp.unsupported_reference` naming `System.Math.Round` at the call's range
 
+#### Scenario: Boolean operators keep short-circuit evaluation
+- **WHEN** `x <> 0 && 10 / x > 1` is compiled
+- **THEN** the body is an if-then-else whose condition is `x <> 0`, whose then branch holds the division, and whose else branch is `false`
+
 #### Scenario: Operand type selects the SDK operation
 - **WHEN** `a + b` is compiled with `decimal` operands and `a / b` with `int` operands
 - **THEN** the bodies apply SDK `Decimal.add` and SDK `Basics.integerDivide`, and `a + b` with `int64` operands fails with `fsharp.unsupported_reference` at the expression's range
@@ -99,7 +103,7 @@ Operators and library functions SHALL be lowered only through a documented mappi
 Each SDK mapping entry SHALL be an operation of the reviewed .NET SDK inventory with the same arity, or SHALL name why it is outside that contract. The F# generator SHALL write each entry as F# that the frontend maps back to the same SDK name.
 
 #### Scenario: Entry outside the SDK contract
-- **WHEN** an entry maps `&&` to SDK `Basics.and`, which the SDK inventory does not list
+- **WHEN** an entry maps `not` to SDK `Basics.not`, which the SDK inventory does not list
 - **THEN** the entry names its reason, and the table tests fail if the reason is empty or if the inventory lists the operation
 
 ### Requirement: Unsupported constructs have specific diagnostics
