@@ -11,46 +11,6 @@ open Morphir.Frontend.FSharp
 open Morphir.IR
 
 /// <summary>
-/// The Morphir SDK types that F# types map to. Task 3.7 folds this table into the SDK mapping table (FSF-4).
-/// </summary>
-[<RequireQualifiedAccess>]
-module internal SdkTypes =
-
-    /// <summary>The Morphir SDK package, <c>morphir/SDK</c>.</summary>
-    let package = PackageName(Path [ Name [ "morphir" ]; Name [ "s"; "d"; "k" ] ])
-
-    let private sdk (moduleName: string) (localName: string) = {
-        PackagePath = package
-        ModulePath = ModulePath(Path [ Name.fromString moduleName ])
-        LocalName = Name.fromString localName
-    }
-
-    /// <summary>
-    /// The SDK type and the order of its arguments for an F# type definition, by full name. F# <c>Result</c>
-    /// is <c>Result&lt;'T, 'TError&gt;</c>; the SDK <c>Result</c> takes the error type first.
-    /// </summary>
-    let tryFind (fullName: string) : (FQName * ('a list -> 'a list)) option =
-        match fullName with
-        | "System.Int32" -> Some(sdk "basics" "int", id)
-        | "System.Int64" -> Some(sdk "int" "int64", id)
-        | "System.Boolean" -> Some(sdk "basics" "bool", id)
-        | "System.Double" -> Some(sdk "basics" "float", id)
-        | "System.Decimal" -> Some(sdk "decimal" "decimal", id)
-        | "System.Char" -> Some(sdk "char" "char", id)
-        | "System.String" -> Some(sdk "string" "string", id)
-        | "Microsoft.FSharp.Core.FSharpOption`1" -> Some(sdk "maybe" "maybe", id)
-        | "Microsoft.FSharp.Collections.FSharpList`1" -> Some(sdk "list" "list", id)
-        | "Microsoft.FSharp.Core.FSharpResult`2" ->
-            Some(
-                sdk "result" "result",
-                fun arguments ->
-                    match arguments with
-                    | [ success; error ] -> [ error; success ]
-                    | other -> other
-            )
-        | _ -> None
-
-/// <summary>
 /// Lowering (FSF-1): the single lowering of a planned package, generic over <c>IIrBuilder</c>, so every IR
 /// family builds natively from the same code (MID-1). Task 3.5 lowers type definitions; task 3.6 adds values.
 /// </summary>
@@ -123,11 +83,13 @@ module internal Lowering =
             if fullName definition = "Microsoft.FSharp.Core.Unit" then
                 builder.TypeUnit location
             else
-                match SdkTypes.tryFind (fullName definition) with
-                | Some(fqName, order) ->
+                match SdkMapping.tryType (fullName definition) with
+                | Some entry ->
                     arguments ()
                     |> Checked.bind (fun arguments ->
-                        builder.TypeReference(location, fqName, order arguments)
+                        match SdkMapping.orderArguments entry arguments with
+                        | Some ordered -> builder.TypeReference(location, entry.Target, ordered)
+                        | None -> unsupportedReference location (fullName definition)
                     )
                 | None -> unsupportedReference location (fullName definition)
         | None -> unsupportedReference location (typ.Format FSharpDisplayContext.Empty)
@@ -234,39 +196,3 @@ module internal Lowering =
                     $"The type '{entity.DisplayName}' is not a record, union or type abbreviation."
                 |> Diagnostic.at at
             ]
-
-    /// <summary>Lowers one planned module. Values come with task 3.6.</summary>
-    let lowerModule
-        (builder:
-            IIrBuilder<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition, 'Module, 'Package>)
-        (plan: FrontendPlan)
-        (planned: PlannedModule)
-        : Checked<'Module> =
-        planned.Types
-        |> Checked.traverse (fun plannedType ->
-            lowerTypeDefinition builder plan plannedType
-            |> Checked.map (fun definition -> {
-                Name = plannedType.Name
-                Access = plannedType.Access
-                Documentation = plannedType.Documentation
-                Definition = definition
-                Location = plannedType.Location
-            })
-        )
-        |> Checked.bind (fun types -> builder.Module(planned.Plan, types, []))
-
-    /// <summary>Lowers the whole planned package with one builder.</summary>
-    let lowerPackage
-        (builder:
-            IIrBuilder<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition, 'Module, 'Package>)
-        (plan: FrontendPlan)
-        : Checked<'Package> =
-        plan.Modules
-        |> Checked.traverse (lowerModule builder plan)
-        |> Checked.bind (fun modules -> builder.Package(plan.Package, modules))
-
-/// <summary>The lowering of a planned package as a builder program, for any registered IR family.</summary>
-[<Sealed>]
-type internal PackageLowering(plan: FrontendPlan) =
-    interface IBuilderProgram with
-        member _.Run(builder) = Lowering.lowerPackage builder plan

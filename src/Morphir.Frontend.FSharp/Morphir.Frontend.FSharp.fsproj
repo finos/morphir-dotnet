@@ -40,8 +40,11 @@ The F# compiler service edge and checked match evidence.</PackageReleaseNotes>
         <Compile Include="AdmissionCatalog.fs" />
         <Compile Include="Admission.fs" />
         <Compile Include="Evidence.fs" />
+        <Compile Include="TypedIndex.fs" />
         <Compile Include="Planning.fs" />
+        <Compile Include="SdkMapping.fs" />
         <Compile Include="Lowering.fs" />
+        <Compile Include="ValueLowering.fs" />
     </ItemGroup>
 
 </Project>
