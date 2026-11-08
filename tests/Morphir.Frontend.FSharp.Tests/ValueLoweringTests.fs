@@ -449,3 +449,316 @@ let tests =
                     $"{version} refuses"
         }
     ]
+
+/// The text of a JSON string value, or "-" when the value is missing.
+let private textOf (node: JsonNode | null) =
+    match node with
+    | null -> "-"
+    | value -> value.GetValue<string>()
+
+/// The reference that a body applies to two arguments: <c>f a b</c>.
+let private binaryHead (body: JsonNode | null) =
+    textOf (body["Apply"]["function"]["Apply"]["function"]["Reference"]["fqname"])
+
+/// The diagnostics of a refused v4 build of the Fleet module.
+let private refusal lines =
+    failed (buildAndWrite v4 version4 (planOf [ fleet lines ]))
+
+/// The zero-based range of the first occurrence of a text on a Fleet body line (the first body line is 2).
+let private rangeOf (lines: string list) (line: int) (text: string) =
+    let start =
+        4
+        + lines[line].IndexOf text
+
+    $"Fleet.fs:{line + 2}:{start}-{line + 2}:{start
+                                              + text.Length}"
+
+let private locationOf (diagnostic: Diagnostic) =
+    match diagnostic.LocationOrNull with
+    | null -> "-"
+    | location ->
+        let range = location.Range
+        $"{location.Uri}:{range.Start.Line}:{range.Start.Character}-{range.End.Line}:{range.End.Character}"
+
+let private sdkRef name =
+    $"""{{"Reference": {{"fqname": "morphir/SDK:{name}"}}}}"""
+
+[<Tests>]
+let sdkTests =
+    testList "F# SDK lowering" [
+        test "a pipe and arithmetic apply SDK List.map to a lambda that applies SDK Basics.add" {
+            expectValue
+                ((v4Value [ "let next (xs: int list) = xs |> List.map (fun x -> x + 1)" ] "next")["body"])
+                $"""{{"Apply": {{"function": {{"Apply": {{"function": {sdkRef "list#map"},
+                  "argument": {{"Lambda": {{"pattern": {{"AsPattern": {{"pattern": {{"WildcardPattern": {{}}}}, "name": "x"}}}},
+                    "body": {{"Apply": {{"function": {{"Apply": {{"function": {sdkRef "basics#add"},
+                      "argument": {{"Variable": {{"name": "x"}}}}}}}},
+                      "argument": {{"Literal": {{"literal": {{"IntegerLiteral": 1}}}}}}}}}}}}}}}}}},
+                  "argument": {{"Variable": {{"name": "xs"}}}}}}}}"""
+                "next"
+        }
+
+        test "a curried function with a local binding ends in an SDK add application" {
+            let expected =
+                """{"LetDefinition": {"name": "amount", "definition": {"ExpressionBody": {"inputTypes": {}, "outputType": @INT@, "body":
+                    {"Apply": {"function": {"Apply": {"function": @MULTIPLY@, "argument": {"Variable": {"name": "rate"}}}},
+                               "argument": {"Variable": {"name": "days"}}}}}},
+                  "in": {"Apply": {"function": {"Apply": {"function": @ADD@, "argument": {"Variable": {"name": "amount"}}}},
+                                   "argument": {"Literal": {"literal": {"IntegerLiteral": 10}}}}}}}"""
+
+            expectValue
+                ((v4Value
+                    [
+                        "let total (rate: int) (days: int) = let amount = rate * days in amount + 10"
+                    ]
+                    "total")["body"])
+                (expected
+                    .Replace("@MULTIPLY@", sdkRef "basics#multiply")
+                    .Replace("@ADD@", sdkRef "basics#add"))
+                "total"
+        }
+
+        test "a lambda over an inferred int applies SDK add with an Int -> Int type" {
+            let values = valuesOf (v4Document [ "let increment = fun x -> x + 1" ])
+            let lambda = values["increment"]["Public"]["ExpressionBody"]["body"]["Lambda"]
+
+            expectValue
+                (strip (lambda["attributes"]["inferredType"]))
+                """{"Function": {"parameterType": @INT@, "returnType": @INT@}}"""
+                "lambda type"
+
+            Expect.equal (binaryHead (lambda["body"])) "morphir/SDK:basics#add" "the body adds"
+        }
+
+        test "an overloaded operator selects its SDK operation by the compiler's operand type" {
+            let values =
+                valuesOf (
+                    v4Document [
+                        "let money (a: decimal) (b: decimal) = a + b"
+                        "let shout (s: string) = s + \"!\""
+                        "let ratio (a: float) (b: float) = a / b"
+                        "let share (a: int) (b: int) = a / b"
+                        "let less (a: decimal) (b: decimal) = a - b"
+                    ]
+                )
+
+            let head (name: string) =
+                binaryHead (values[name]["Public"]["ExpressionBody"]["body"])
+
+            Expect.equal
+                ([ "money"; "shout"; "ratio"; "share"; "less" ]
+                 |> List.map head)
+                [
+                    "morphir/SDK:decimal#add"
+                    "morphir/SDK:string#append"
+                    "morphir/SDK:basics#divide"
+                    "morphir/SDK:basics#integer-divide"
+                    "morphir/SDK:decimal#sub"
+                ]
+                "the operand type selects the operation"
+        }
+
+        test
+            "comparison, equality and not map to SDK Basics; && and || keep short-circuit evaluation" {
+            let values =
+                valuesOf (
+                    v4Document [
+                        "let ok (a: int) (b: int) = a < b && not (a = b)"
+                        "let guarded (x: int) = x <> 0 && 10 / x > 1"
+                        "let either (a: bool) (b: bool) = a || b"
+                    ]
+                )
+
+            let body (name: string) =
+                strip (values[name]["Public"]["ExpressionBody"]["body"])
+
+            let expected =
+                """{"IfThenElse": {"condition": {"Apply": {"function": {"Apply": {"function": @LT@, "argument": {"Variable": {"name": "a"}}}},
+                                                       "argument": {"Variable": {"name": "b"}}}},
+                  "then": {"Apply": {"function": @NOT@,
+                    "argument": {"Apply": {"function": {"Apply": {"function": @EQ@, "argument": {"Variable": {"name": "a"}}}},
+                                           "argument": {"Variable": {"name": "b"}}}}}},
+                  "else": {"Literal": {"literal": {"BoolLiteral": false}}}}}"""
+
+            expectValue
+                (body "ok")
+                (expected
+                    .Replace("@LT@", sdkRef "basics#less-than")
+                    .Replace("@NOT@", sdkRef "basics#not")
+                    .Replace("@EQ@", sdkRef "basics#equal"))
+                "a < b && not (a = b)"
+
+            let guarded = body "guarded"
+
+            Expect.equal
+                (binaryHead (
+                    guarded["IfThenElse"]["then"]["Apply"]["function"]["Apply"]["argument"]
+                ))
+                "morphir/SDK:basics#integer-divide"
+                "the division is evaluated only in the then branch"
+
+            expectValue
+                (body "either")
+                """{"IfThenElse": {"condition": {"Variable": {"name": "a"}},
+                  "then": {"Literal": {"literal": {"BoolLiteral": true}}},
+                  "else": {"Variable": {"name": "b"}}}}"""
+                "a || b"
+        }
+
+        test "composition becomes a lambda, and a backward pipe becomes an application" {
+            let values =
+                valuesOf (
+                    v4Document [
+                        "let forward (f: int -> int) (g: int -> string) = f >> g"
+                        "let backward (f: int -> int) (g: int -> string) = g << f"
+                        "let applied (f: int -> int) = List.map f <| [ 1 ]"
+                    ]
+                )
+
+            let body (name: string) =
+                strip values[name]["Public"]["ExpressionBody"]["body"]
+
+            let composed =
+                """{"Lambda": {"pattern": {"AsPattern": {"pattern": {"WildcardPattern": {}}, "name": "subject-1"}},
+                  "body": {"Apply": {"function": {"Variable": {"name": "g"}},
+                    "argument": {"Apply": {"function": {"Variable": {"name": "f"}}, "argument": {"Variable": {"name": "subject-1"}}}}}}}}"""
+
+            expectValue (body "forward") composed "f >> g"
+            expectValue (body "backward") composed "g << f"
+
+            expectValue
+                (body "applied")
+                $"""{{"Apply": {{"function": {{"Apply": {{"function": {sdkRef "list#map"}, "argument": {{"Variable": {{"name": "f"}}}}}}}},
+                  "argument": {{"List": {{"items": [{{"Literal": {{"literal": {{"IntegerLiteral": 1}}}}}}]}}}}}}}}"""
+                "List.map f <| [ 1 ]"
+        }
+
+        test
+            "option, result and list cases map to SDK constructors and functions, in values and patterns" {
+            let values =
+                valuesOf (
+                    v4Document [
+                        "let wrap (x: int) = Some x"
+                        "let empty: int option = None"
+                        "let get (o: int option) = match o with | Some v -> v | None -> 0"
+                        "let check (x: int) : Result<int, string> = if x > 0 then Ok x else Error \"negative\""
+                        "let push (x: int) (xs: int list) = x :: xs"
+                        "let twice (o: int option) = Option.bind (fun v -> Some (v * 2)) o"
+                    ]
+                )
+
+            let body (name: string) =
+                strip values[name]["Public"]["ExpressionBody"]["body"]
+
+            expectValue
+                (body "wrap")
+                """{"Apply": {"function": {"Constructor": {"fqname": "morphir/SDK:maybe#just"}}, "argument": {"Variable": {"name": "x"}}}}"""
+                "Some x"
+
+            expectValue
+                (body "empty")
+                """{"Constructor": {"fqname": "morphir/SDK:maybe#nothing"}}"""
+                "None"
+
+            expectValue
+                ((body "get")["PatternMatch"]["cases"])
+                """[{"pattern": {"ConstructorPattern": {"fqname": "morphir/SDK:maybe#just",
+                     "patterns": [{"AsPattern": {"pattern": {"WildcardPattern": {}}, "name": "v"}}]}},
+                   "body": {"Variable": {"name": "v"}}},
+                  {"pattern": {"ConstructorPattern": {"fqname": "morphir/SDK:maybe#nothing", "patterns": []}},
+                   "body": {"Literal": {"literal": {"IntegerLiteral": 0}}}}]"""
+                "Some and None patterns"
+
+            let check = body "check"
+
+            Expect.equal
+                (textOf (check["IfThenElse"]["then"]["Apply"]["function"]["Constructor"]["fqname"]))
+                "morphir/SDK:result#ok"
+                "Ok"
+
+            Expect.equal
+                (textOf (check["IfThenElse"]["else"]["Apply"]["function"]["Constructor"]["fqname"]))
+                "morphir/SDK:result#err"
+                "Error"
+
+            Expect.equal (binaryHead (body "push")) "morphir/SDK:list#cons" "x :: xs"
+            Expect.equal (binaryHead (body "twice")) "morphir/SDK:maybe#and-then" "Option.bind"
+        }
+
+        test "an operator of the package is applied like a function" {
+            let values =
+                valuesOf (
+                    v4Document [
+                        "[<Morphir.MorphirName(\"triple-add\")>]"
+                        "let (+++) (a: int) (b: int) = a"
+                        "let total = 1 +++ 2"
+                    ]
+                )
+
+            Expect.equal
+                (binaryHead (strip (values["total"]["Public"]["ExpressionBody"]["body"])))
+                "acme/car-rental:fleet#triple-add"
+                "1 +++ 2"
+        }
+
+        test "an unmapped library call is refused at the call's range, naming the F# symbol" {
+            let lines = [ "let round (v: float) = System.Math.Round v" ]
+
+            match refusal lines with
+            | [ diagnostic ] ->
+                Expect.equal (codeOf diagnostic) "fsharp.unsupported_reference" "code"
+                Expect.stringContains diagnostic.Message "System.Math.Round" "names the symbol"
+
+                Expect.equal
+                    (locationOf diagnostic)
+                    (rangeOf lines 0 "System.Math.Round v")
+                    "the call's range"
+            | other -> failtestf "Expected one diagnostic, got:\n%s" (describeAll other)
+        }
+
+        test "an operator on an unmapped operand type, and a .NET member, are refused and named" {
+            let cases = [
+                "let big (a: int64) (b: int64) = a + b", "a + b", [ "(+)"; "int64" ]
+                "let earlier (a: decimal) (b: decimal) = a < b", "a < b", [ "(<)"; "decimal" ]
+                "let size (s: string) = s.Length", "s.Length", [ "System.String.Length" ]
+                // String.concat takes a sequence, which has no Morphir type.
+                "let joined (xs: string list) = String.concat \",\" xs",
+                "String.concat \",\" xs",
+                [ "String.concat" ]
+            ]
+
+            for line, construct, names in cases do
+                match refusal [ line ] with
+                | [ diagnostic ] ->
+                    Expect.equal (codeOf diagnostic) "fsharp.unsupported_reference" $"{line}: code"
+
+                    for name in names do
+                        Expect.stringContains diagnostic.Message name $"{line}: names {name}"
+
+                    Expect.equal
+                        (locationOf diagnostic)
+                        (rangeOf [ line ] 0 construct)
+                        $"{line}: range"
+                | other ->
+                    failtestf "%s: expected one diagnostic, got:\n%s" line (describeAll other)
+        }
+
+        test "both families lower SDK references, and classic v3 is read back" {
+            let compiled =
+                planOf [
+                    fleet [
+                        "let next (xs: int list) = xs |> List.map (fun x -> x + 1)"
+                        "let get (o: int option) = match o with | Some v -> v | None -> 0"
+                        "let ok (a: int) (b: int) = a < b && not (a = b)"
+                    ]
+                ]
+
+            for version in [ Versioning.Classic 1; Versioning.Classic 2; v3 ] do
+                let bytes = passed (buildAndWrite classic version compiled)
+                use document = JsonDocument.Parse(System.ReadOnlyMemory<byte>(bytes))
+
+                match Morphir.Json.Classic.ClassicJson.readDistribution document.RootElement with
+                | Ok _ -> ()
+                | Error error -> failtestf "classic %A was not read back: %A" version error
+        }
+    ]

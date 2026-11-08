@@ -45,6 +45,14 @@
         "resolved": "29.0.1",
         "contentHash": "R2oo/wR3mXrbdK04Yraf+KhB01f/lyBkLQZcdxYt9XKE6tV+Af45MEk+jfbsew1SVvrAO0WvkIRwGYUozKCJvQ=="
       },
+      "Fantomas.FCS": {
+        "type": "Transitive",
+        "resolved": "7.0.5",
+        "contentHash": "WxifhpLkDuv/WronO8UcEe8gsSTuuMqrUjnke/kUd11vTJ9T8IYouGidT+sSDaf1dAMaf1bb6maz/h+/dSu6wg==",
+        "dependencies": {
+          "FSharp.Core": "8.0.100"
+        }
+      },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
         "resolved": "2.23.0",
@@ -126,6 +134,17 @@
         "resolved": "13.0.3",
         "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
       },
+      "morphir.codegeneration.fsharp": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Fabulous.AST": "[1.10.0, )",
+          "Fantomas.Core": "[7.0.5, )",
+          "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.IR.Pipeline.Plugins": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.compilation": {
         "type": "Project",
         "dependencies": {
@@ -152,6 +171,20 @@
       "morphir.fsharp.annotations": {
         "type": "Project"
       },
+      "morphir.ir.pipeline": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )"
+        }
+      },
+      "morphir.ir.pipeline.plugins": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.models": {
         "type": "Project",
         "dependencies": {
@@ -161,6 +194,25 @@
       },
       "morphir.testsupport": {
         "type": "Project"
+      },
+      "Fabulous.AST": {
+        "type": "CentralTransitive",
+        "requested": "[1.10.0, )",
+        "resolved": "1.10.0",
+        "contentHash": "7Hr980JrpWQGLs/kiM+d0cCtaCtl8Za8SHMYbM9Xuc2+ICysHEwz3fAOidNMv8oAiA87gpGEfZArsaVUtK64Uw==",
+        "dependencies": {
+          "Fantomas.Core": "[7.0.1]"
+        }
+      },
+      "Fantomas.Core": {
+        "type": "CentralTransitive",
+        "requested": "[7.0.5, )",
+        "resolved": "7.0.5",
+        "contentHash": "wGbCsAqKhyhuDwMsOXh4p9GJvw7OzJX/OwoPAVw913Fae2rbczREl8L8U5hZIadoJmhuyIu0Dp/8UJToykZs6Q==",
+        "dependencies": {
+          "FSharp.Core": "8.0.100",
+          "Fantomas.FCS": "7.0.5"
+        }
       },
       "FSharp.Compiler.Service": {
         "type": "CentralTransitive",
