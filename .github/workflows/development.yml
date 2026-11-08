@@ -56,6 +56,7 @@ jobs:
 
     test:
         strategy:
+            fail-fast: false # TEMPORARY experiment for #524: each leg must finish.
             matrix:
                 os: [ubuntu-latest, windows-latest, macOS-latest]
         runs-on: ${{ matrix.os }}
