@@ -1,77 +1,34 @@
-// Myriad Plugin Template
-// This file provides a starting point for creating custom Myriad plugins
-
+// Myriad 0.85.0 plugin template.
 module {PluginName}
 
 open Myriad.Core
-open FSharp.Compiler.SyntaxTree
-open FSharp.Compiler.XmlDoc
-open FSharp.Compiler.Range
+open Fantomas.FCS.Syntax
 
-// Plugin attribute and generator implementation
+// Implement attribute selection before generating code for annotated types.
+let hasGeneratorAttribute (_typeDef: SynTypeDefn) : bool =
+    false
+
+// Output.Ast expects whole modules or namespaces from Fantomas.FCS, not module declarations
+// or types from FSharp.Compiler.Service. Replace this no-op with the generated modules.
+let generateCode (_namespace: LongIdent) (_typeDef: SynTypeDefn) : SynModuleOrNamespace list =
+    []
+
 [<MyriadGenerator("{plugin-id}")>]
 type {PluginName}Generator() =
     interface IMyriadGenerator with
+        member _.ValidInputExtensions = seq { ".fs" }
+
         member _.Generate(context: GeneratorContext) : Output =
-            // Parse input AST
-            let namespaceAndTypes = 
-                context.InputFilename
-                |> Myriad.Core.Ast.extractTypeDefn
-            
-            // Generate code for each type
             let generated =
-                namespaceAndTypes
+                Ast.fromFilename context.InputFilename
+                |> Async.RunSynchronously
+                |> Array.toList
+                |> List.collect (fun (ast, _) -> Ast.extractTypeDefn ast)
                 |> List.collect (fun (ns, types) ->
                     types
-                    |> List.choose (fun typeDef ->
-                        // Check if type has the generator attribute
-                        if hasGeneratorAttribute typeDef then
-                            Some (generateCode ns typeDef)
-                        else
-                            None
-                    )
-                )
-            
-            // Return generated AST
+                    |> List.filter hasGeneratorAttribute
+                    |> List.collect (generateCode ns))
+
             Output.Ast generated
 
-// Helper: Check if type has generator attribute
-let hasGeneratorAttribute (typeDef: SynTypeDefn) : bool =
-    // Implementation to check for [<{PluginName}>] attribute
-    // Myriad provides utilities for this
-    false // Placeholder
-
-// Helper: Generate code for a type
-let generateCode (ns: LongIdent) (typeDef: SynTypeDefn) : SynModuleDecl =
-    // Extract type information
-    let (SynTypeDefn.SynTypeDefn(typeInfo, _, _, _, _, _)) = typeDef
-    let (SynComponentInfo.SynComponentInfo(_, typeParams, _, longId, _, _, _, _)) = typeInfo
-    
-    // Generate functions/types based on input
-    let generatedMembers = [
-        // Example: Generate a helper function
-        // createFunction "helperFunc" ...
-    ]
-    
-    // Return module declaration with generated members
-    SynModuleDecl.Types(generatedMembers, range0)
-
-// Example helper functions for code generation
-
-let createFunction (name: string) (parameters: SynPat list) (body: SynExpr) : SynBinding =
-    // Create a function binding
-    // See FSharp.Compiler.SyntaxTree for API
-    failwith "Not implemented"
-
-let createType (name: string) (cases: (string * SynType list) list) : SynTypeDefn =
-    // Create a discriminated union type
-    failwith "Not implemented"
-
-let createRecord (name: string) (fields: (string * SynType) list) : SynTypeDefn =
-    // Create a record type
-    failwith "Not implemented"
-
-// References:
-// - Myriad Core: https://github.com/MoiraeSoftware/myriad
-// - F# Compiler SyntaxTree: https://fsharp.github.io/fsharp-compiler-docs/
-// - Custom Plugin Guide: https://moiraesoftware.github.io/myriad/how-to/Create-Plugins.html
+// Contract: https://github.com/MoiraeSoftware/myriad/blob/165a7e5b424a16b5d507797e9ed43e4c3da12f5b/src/Myriad.Core/Types.fs

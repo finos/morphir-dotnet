@@ -34,6 +34,7 @@ let createPluginProject (pluginName: string) (outputDir: string) =
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
@@ -41,38 +42,17 @@ let createPluginProject (pluginName: string) (outputDir: string) =
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Myriad.Core" Version="0.8.3" />
-    <PackageReference Include="FSharp.Compiler.Service" Version="43.8.400" />
+    <PackageReference Include="Myriad.Core" Version="0.85.0" />
   </ItemGroup>
 </Project>"""
     File.WriteAllText(projectFile, projectContent)
     
     // Create plugin source file
     let pluginFile = Path.Combine(projectDir, "Plugin.fs")
-    let pluginContent = $"""module {pluginName}
-
-open Myriad.Core
-open FSharp.Compiler.SyntaxTree
-
-[<MyriadGenerator("{pluginName.ToLower()}")>]
-type {pluginName}Generator() =
-    interface IMyriadGenerator with
-        member _.Generate(context: GeneratorContext) : Output =
-            // TODO: Implement your code generation logic here
-            
-            // 1. Parse input AST
-            // let inputTypes = parseInputTypes context
-            
-            // 2. Generate code
-            // let generatedCode = generateCode inputTypes
-            
-            // 3. Return generated AST
-            Output.Ast []
-
-// Helper functions
-// let parseInputTypes (context: GeneratorContext) = ...
-// let generateCode (types: ...) = ...
-"""
+    let pluginContent =
+        File.ReadAllText(Path.Combine(__SOURCE_DIRECTORY__, "../templates/myriad-plugin.fs"))
+            .Replace("{PluginName}", pluginName)
+            .Replace("{plugin-id}", pluginName.ToLowerInvariant())
     File.WriteAllText(pluginFile, pluginContent)
     
     // Create README
@@ -128,7 +108,8 @@ AnsiConsole.Status()
         
         let projectDir = createPluginProject pluginName outputDir
         
-        AnsiConsole.Clear()
+        if not Console.IsOutputRedirected then
+            AnsiConsole.Clear()
         let panel = Panel($"[bold green]✓[/] Myriad Plugin Scaffolded")
         panel.Border <- BoxBorder.Rounded
         AnsiConsole.Write(panel)

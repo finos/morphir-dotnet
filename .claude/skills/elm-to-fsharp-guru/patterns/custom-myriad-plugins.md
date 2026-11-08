@@ -17,14 +17,20 @@ Guide to creating custom Myriad plugins for morphir-dotnet.
 module MyPlugin
 
 open Myriad.Core
-open FSharp.Compiler.SyntaxTree
+open Fantomas.FCS.Syntax
 
 [<MyriadGenerator("my-plugin")>]
 type MyGenerator() =
     interface IMyriadGenerator with
+        member _.ValidInputExtensions = seq { ".fs" }
+
         member _.Generate(context: GeneratorContext) : Output =
             // 1. Parse input AST
-            let types = Myriad.Core.Ast.extractTypeDefn context.InputFilename
+            let types =
+                Ast.fromFilename context.InputFilename
+                |> Async.RunSynchronously
+                |> Array.toList
+                |> List.collect (fun (ast, _) -> Ast.extractTypeDefn ast)
             
             // 2. Generate code
             let generated = generateForTypes types

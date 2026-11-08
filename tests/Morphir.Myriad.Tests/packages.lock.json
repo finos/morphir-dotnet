@@ -184,6 +184,9 @@
           "Myriad.Core": "[0.85.0, )"
         }
       },
+      "morphir.myriad.hosting": {
+        "type": "Project"
+      },
       "morphir.testsupport": {
         "type": "Project"
       },

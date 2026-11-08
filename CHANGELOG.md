@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Custom Myriad plugin scaffolds build and load with Myriad 0.85.0, using Fantomas syntax types and copied runtime dependencies. Myriad and its coupled code generation dependencies now have their own Renovate update group, including the bundled host pins.
+
 ## [0.4.0-alpha.2] - 2026-11-07
 
 ### Added
