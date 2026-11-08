@@ -24,9 +24,8 @@ public sealed class CSharpCliGenerationTests : IDisposable
         var arguments = new List<string> { "generate", "--input", input, "--target", "csharp", "--output", output ?? Output };
         if (json) arguments.Add("--json");
         foreach (var option in options) { arguments.Add("--option"); arguments.Add(option); }
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         return await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI"))
-            .ExecuteCommandAsync(string.Join(" ", arguments.Select(Quote)), timeout.Token);
+            .ExecuteCommandAsync(string.Join(" ", arguments.Select(Quote)), timeout: TimeSpan.FromSeconds(60));
     }
 
     [Test]

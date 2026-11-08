@@ -196,8 +196,7 @@ public sealed class CompileSteps : IDisposable
 
     private async Task Run(CliTestHelper host, string arguments)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
-        _run.Result = await host.ExecuteCommandAsync(arguments, timeout.Token);
+        _run.Result = await host.ExecuteCommandAsync(arguments, timeout: TimeSpan.FromSeconds(120));
     }
 
     private (string Code, string? Uri)[] Diagnostics()

@@ -28,9 +28,8 @@ public sealed class CSharpGenerationSteps : IDisposable
 
     private async Task Invoke(string? option)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         _result = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI"))
-            .ExecuteCommandAsync($"generate --input \"{_input}\" --target csharp --output \"{Output}\" --json {(option is null ? "" : "--option " + option)}", timeout.Token);
+            .ExecuteCommandAsync($"generate --input \"{_input}\" --target csharp --output \"{Output}\" --json {(option is null ? "" : "--option " + option)}", timeout: TimeSpan.FromSeconds(60));
     }
 
     [Given("the C# library contains a document literal")]
