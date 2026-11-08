@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using Nuke.Common;
 using Nuke.Common.IO;
@@ -11,6 +12,26 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 /// </summary>
 partial class Build
 {
+    [Parameter("Time with no test progress after which a Microsoft.Testing.Platform test run takes a hang dump and stops - Default is '10m'")]
+    readonly string TestHangTimeout = "10m";
+
+    /// <summary>Results of the last Test run (reports, hang logs and hang dumps), one directory for each test assembly.</summary>
+    AbsolutePath TestResultsDirectory => RootDirectory / "artifacts" / "test-results";
+
+    /// <summary>The test assemblies that run on Microsoft.Testing.Platform and reference its HangDump extension.</summary>
+    static readonly string[] HangDumpProjects =
+    [
+        "Morphir.Core.Tests",
+        "Morphir.Tooling.Tests",
+        "Morphir.Configuration.IO.Tests",
+        "Morphir.Configuration.Microsoft.Tests",
+        "Morphir.TestSupport.Tests",
+        "Morphir.SDK.Conformance.Tests",
+        "Morphir.SDK.CSharp.Tests",
+        "Morphir.Tests",
+        "Morphir.Myriad.Integration.Tests",
+    ];
+
     /// <summary>
     /// Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests, Morphir.Internal.CodeGeneration.Tests, Morphir.Models.Tests, Morphir.IR.Pipeline.Tests, Morphir.SDK.Tests)
     /// Tests are run using TUnit and Expecto test frameworks
@@ -147,26 +168,29 @@ partial class Build
         Serilog.Log.Information($"Running tests with configuration: {configuration}");
         Serilog.Log.Information("================================================");
 
+        // A retry must not see the hang logs of the attempt before it.
+        TestResultsDirectory.CreateOrCleanDirectory();
+
         // Run Morphir.Core.Tests
         Serilog.Log.Information("");
         Serilog.Log.Information("Running Morphir.Core.Tests...");
         var coreTestDll = TestsDirectory / "Morphir.Core.Tests" / "bin" / configuration / "net10.0" / "Morphir.Core.Tests.dll";
-        var coreExitCode = RunCommand("dotnet", "exec", coreTestDll);
+        var coreExitCode = RunTestAssembly("Morphir.Core.Tests", coreTestDll);
 
         // Run Morphir.Tooling.Tests
         Serilog.Log.Information("");
         Serilog.Log.Information("Running Morphir.Tooling.Tests...");
         var toolingTestDll = TestsDirectory / "Morphir.Tooling.Tests" / "bin" / configuration / "net10.0" / "Morphir.Tooling.Tests.dll";
-        var toolingExitCode = RunCommand("dotnet", "exec", toolingTestDll);
+        var toolingExitCode = RunTestAssembly("Morphir.Tooling.Tests", toolingTestDll);
 
         // Reuse compiled outputs and invoke each configuration suite's configured runner.
         var configurationTestDll = TestsDirectory / "Morphir.Configuration.Tests" / "bin" / configuration / "net10.0" / "Morphir.Configuration.Tests.dll";
         var configurationExitCode = RunCommand("dotnet", "exec", configurationTestDll, "--sequenced");
         var configurationIoTestDll = TestsDirectory / "Morphir.Configuration.IO.Tests" / "bin" / configuration / "net10.0" / "Morphir.Configuration.IO.Tests.dll";
-        var configurationIoExitCode = RunCommand("dotnet", "exec", configurationIoTestDll, "--maximum-parallel-tests", "1");
+        var configurationIoExitCode = RunTestAssembly("Morphir.Configuration.IO.Tests", configurationIoTestDll, "--maximum-parallel-tests", "1");
 
         var configurationMicrosoftTestDll = TestsDirectory / "Morphir.Configuration.Microsoft.Tests" / "bin" / configuration / "net10.0" / "Morphir.Configuration.Microsoft.Tests.dll";
-        var configurationMicrosoftExitCode = RunCommand("dotnet", "exec", configurationMicrosoftTestDll, "--maximum-parallel-tests", "1");
+        var configurationMicrosoftExitCode = RunTestAssembly("Morphir.Configuration.Microsoft.Tests", configurationMicrosoftTestDll, "--maximum-parallel-tests", "1");
 
         // Exercise the actual generated CLI DTO source without loading the CLI host.
         var configurationInspectionSmokeDll = TestsDirectory / "Morphir.Configuration.Inspection.Smoke" / "bin" / configuration / "net10.0" / "Morphir.Configuration.Inspection.Smoke.dll";
@@ -218,13 +242,15 @@ partial class Build
             var testDll = TestsDirectory / project / "bin" / configuration / "net10.0" / $"{project}.dll";
             var exitCode = project == "Morphir.CodeGeneration.CSharp.Tests"
                 ? RunCommand("dotnet", "exec", testDll, "--sequenced")
-                : RunCommand("dotnet", "exec", testDll);
+                : RunTestAssembly(project, testDll);
             if (exitCode != 0)
             {
                 Serilog.Log.Error("{Project}: exit code {ExitCode}", project, exitCode);
             }
             return exitCode;
         }).ToArray();
+
+        ReportHangs();
 
         // Check if any tests failed
         if (coreExitCode != 0 || toolingExitCode != 0 || configurationExitCode != 0 || configurationIoExitCode != 0 || configurationMicrosoftExitCode != 0 || configurationInspectionExitCode != 0 || codeGenExitCode != 0 || modelsExitCode != 0 || pipelineExitCode != 0 || sdkExitCode != 0 || myriadExitCodes.Any(code => code != 0))
@@ -248,5 +274,43 @@ partial class Build
         Serilog.Log.Information("");
         Serilog.Log.Information("================================================");
         Serilog.Log.Information("All tests PASSED");
+    }
+
+    /// <summary>
+    /// Runs one test assembly. A Microsoft.Testing.Platform assembly gets a hang dump: after
+    /// <see cref="TestHangTimeout"/> with no test progress, the platform writes the names of the running tests
+    /// and a mini dump to <see cref="TestResultsDirectory"/>, then stops the test process.
+    /// </summary>
+    int RunTestAssembly(string project, AbsolutePath testDll, params string[] options)
+    {
+        string[] hangDump = HangDumpProjects.Contains(project)
+            ? ["--hangdump", "--hangdump-timeout", TestHangTimeout, "--hangdump-type", "Mini", "--results-directory", TestResultsDirectory / project]
+            : [];
+        return RunCommand("dotnet", ["exec", testDll, .. options, .. hangDump]);
+    }
+
+    /// <summary>
+    /// Logs each hang that the HangDump extension recorded. In GitHub Actions it also sets the step output
+    /// <c>hang=true</c> and adds the hang to the job summary, so the workflow can tell a hang from a test failure.
+    /// </summary>
+    void ReportHangs()
+    {
+        var logs = TestResultsDirectory.GlobFiles("**/*_hang.log");
+        if (logs.Count == 0) return;
+
+        var summary = new System.Text.StringBuilder("### Test hang\n\n");
+        foreach (var log in logs)
+        {
+            var project = log.Parent.Name;
+            var running = File.ReadAllText(log).Trim();
+            Serilog.Log.Error("Test hang in {Project} after {Timeout} with no test progress. Tests still running:{NewLine}{Tests}",
+                project, TestHangTimeout, Environment.NewLine, running);
+            summary.Append($"{project} stopped after {TestHangTimeout} with no test progress. Tests still running:\n\n```text\n{running}\n```\n\n");
+        }
+
+        var output = Environment.GetEnvironmentVariable("GITHUB_OUTPUT");
+        if (!string.IsNullOrEmpty(output)) File.AppendAllText(output, "hang=true\n");
+        var stepSummary = Environment.GetEnvironmentVariable("GITHUB_STEP_SUMMARY");
+        if (!string.IsNullOrEmpty(stepSummary)) File.AppendAllText(stepSummary, summary.ToString());
     }
 }

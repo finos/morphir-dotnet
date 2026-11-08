@@ -19,6 +19,7 @@
         <PackageReference Include="Shouldly" />
         <PackageReference Include="Shouldly.Json" />
         <PackageReference Include="TUnit" />
+        <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
         <PackageReference Include="Verify.TUnit" />
     </ItemGroup>
     

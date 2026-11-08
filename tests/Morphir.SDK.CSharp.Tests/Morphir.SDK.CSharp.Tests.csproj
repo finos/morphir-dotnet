@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="TUnit" />
+    <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="Reqnroll" />
     <PackageReference Include="Reqnroll.TUnit" />

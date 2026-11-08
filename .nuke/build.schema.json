@@ -190,6 +190,10 @@
           "type": "string",
           "description": "Output directory for untrimmed single-file executables"
         },
+        "TestHangTimeout": {
+          "type": "string",
+          "description": "Time with no test progress after which a Microsoft.Testing.Platform test run takes a hang dump and stops - Default is '10m'"
+        },
         "ToolDllDir": {
           "type": "string",
           "description": "Output directory for tool DLLs"

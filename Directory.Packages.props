@@ -94,6 +94,7 @@
     <PackageVersion Include="BlazorMonaco" Version="3.4.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.7.0" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="2.2.3" />
     <PackageVersion Include="Reqnroll" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Reqnroll.TUnit" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Serilog" Version="4.3.1" />
