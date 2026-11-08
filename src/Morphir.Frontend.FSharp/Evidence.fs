@@ -614,7 +614,11 @@ module internal Evidence =
         typ.HasTypeDefinition
         && typ.TypeDefinition.TryFullName = Some "Microsoft.FSharp.Collections.FSharpList`1"
 
-    let private patterns (evidence: CheckedEvidence) (document: int) =
+    /// <summary>
+    /// The pattern evidence of an original pattern for an expected checked type: shapes, checked symbols and
+    /// component types from the compiler. Lowering also uses it for function and let parameter patterns.
+    /// </summary>
+    let patterns (evidence: CheckedEvidence) (document: int) =
         let caseAt (range: range) =
             evidence.SymbolsAt(document, range)
             |> List.choose (fun symbolUse ->

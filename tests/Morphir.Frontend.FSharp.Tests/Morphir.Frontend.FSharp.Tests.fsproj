@@ -26,6 +26,7 @@
     <Compile Include="PlanningTests.fs" />
     <Compile Include="LoweringSupport.fs" />
     <Compile Include="TypeLoweringTests.fs" />
+    <Compile Include="ValueLoweringTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>

@@ -50,7 +50,8 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Tool path, first delivery | Admission catalog | Implemented | Task 3.3; `Admission.fs`, 38 rules with examples, 62 admission tests |
 | Tool path, first delivery | Planning | Implemented | Task 3.4; `Planning.fs`, 21 planning tests; `[<MorphirName>]` in `Morphir.FSharp.Annotations` |
 | Tool path, first delivery | Type lowering | Implemented | Task 3.5; `Lowering.fs`, 10 tests through both builders |
-| Tool path, first delivery | Value lowering, SDK mapping and registration | Planned | Tasks 3.6–3.8 |
+| Tool path, first delivery | Value and pattern lowering | Implemented | Task 3.6; `ValueLowering.fs`, `TypedIndex.fs`, 12 tests through both builders |
+| Tool path, first delivery | SDK mapping and registration | Planned | Tasks 3.7–3.8 |
 | Tool path, first delivery | Generator round trip and coverage documentation | Planned | Tasks 3.9–3.10 |
 | Tool path, first delivery | Sources, configuration, CLI composition and streamed reports | Planned | Tasks 4.1–4.8 |
 | Tool path, first delivery | Compile records and generation from a prior compile | Planned | Tasks 5.1–5.5 |
