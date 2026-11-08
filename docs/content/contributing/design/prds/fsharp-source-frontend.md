@@ -52,8 +52,8 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Tool path, first delivery | Type lowering | Implemented | Task 3.5; `Lowering.fs`, 10 tests through both builders |
 | Tool path, first delivery | Value and pattern lowering | Implemented | Task 3.6; `ValueLowering.fs`, `TypedIndex.fs`, 12 tests through both builders |
 | Tool path, first delivery | SDK mapping | Implemented | Task 3.7; `SdkMapping.fs`, 9 table tests (inventory, FSharp.Core and F# generator round trip) and 11 lowering tests |
-| Tool path, first delivery | Registration and corpus run | Planned | Task 3.8 |
-| Tool path, first delivery | Generator round trip and coverage documentation | Planned | Tasks 3.9–3.10 |
+| Tool path, first delivery | Registration and corpus run | Implemented | Task 3.8; `FSharpFrontend.registration` over the FE-1 contract (`IFrontend`), the `library` adapter, 39 corpus scenarios (one refusal per catalog code and a semantic case with hand-written IR for versions 1–4), 468 cases qualify; behavioral verdict moved to task 3.9 |
+| Tool path, first delivery | Behavioral verdict, generator round trip and coverage documentation | Planned | Tasks 3.9–3.10 |
 | Tool path, first delivery | Sources, configuration, CLI composition and streamed reports | Planned | Tasks 4.1–4.8 |
 | Tool path, first delivery | Compile records and generation from a prior compile | Planned | Tasks 5.1–5.5 |
 | Tool path, first delivery | In-memory generation and library/CLI qualification | Planned | Tasks 6.1–6.4 |
@@ -167,10 +167,12 @@ that either product milestone is complete.
   commands are documented in `conformance/README.md` and below. Coverage was
   collected by the repository's existing AltCover 8.9.3, instrumenting only
   `Morphir.Conformance` and executing the same test assembly.
-- This completes the task 1.3 seed, not frontend qualification. Production binding
-  of the in-process compiler remains task 3.8. Model-family normalization,
-  reader/schema validation and behavioral qualification also remain in that
-  task; the seed does not qualify a production compiler. CLI/MEP adapters and the full kit
+- This completes the task 1.3 seed, not frontend qualification. Task 3.8 binds
+  the production in-process compiler through the `library` adapter. Every
+  semantic case has hand-written IR for every version, so the reader and schema
+  fallback is not used, and the classic writers order name-keyed lists by name.
+  Behavioral qualification moves to task 3.9, which builds the F# generation it
+  needs. CLI/MEP adapters and the full kit
   manifest/profile/report-check features stay in their planned deliveries.
 
 ```console

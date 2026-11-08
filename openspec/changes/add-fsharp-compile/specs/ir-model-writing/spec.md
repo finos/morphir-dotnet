@@ -64,6 +64,10 @@ A frontend SHALL lower its source once, against a contract that does not depend 
 - **WHEN** a build of the tool has no IR v4 support registered and compiles with IR version 3
 - **THEN** the compile succeeds, and its output equals the IR version 3 output of a build with v4 support
 
+#### Scenario: Classic member without documentation
+- **WHEN** a type or value without documentation is built in the classic family and written as versions 1, 2 and 3
+- **THEN** each version writes the member in the `{"doc": "", "value": ...}` wrapper, as upstream Morphir tools do
+
 ### Requirement: Unrepresentable content is refused
 When the requested family cannot hold a model element exactly, building SHALL fail with `morphir.unrepresentable`. The diagnostic SHALL name the element, its source location and the requested version, and no document SHALL be written. Nothing SHALL be rounded, dropped or renamed to make the model fit. Source locations, which classic IR has no place for, SHALL NOT count as model elements for this rule.
 

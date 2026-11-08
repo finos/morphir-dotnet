@@ -287,6 +287,33 @@ let tests =
                         "modules"
                 | other -> failtest $"{other}"
             }
+
+            test
+                "A member without documentation keeps the documentation wrapper, as upstream writes it" {
+                let m =
+                    ok (
+                        b.Module(
+                            plan,
+                            [],
+                            [
+                                {
+                                    Name = n "rate"
+                                    Access = Access.Public
+                                    Documentation = None
+                                    Definition = d
+                                    Location = here
+                                }
+                            ]
+                        )
+                    )
+
+                let moduleDefinition = (snd m).Value
+
+                Expect.equal
+                    moduleDefinition.Values[n "rate"].Value
+                    (Classic.Documented.WithDocumentation("", d))
+                    "an empty documentation"
+            }
         ]
 
         testList "V4Builder" [

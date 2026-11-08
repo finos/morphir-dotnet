@@ -15,7 +15,7 @@ let private documentsOf (example: (string * string) list) =
     |> List.map (fun (uri, text) -> document uri text)
 
 /// The source text at the zero-based range of a diagnostic.
-let private flagged (documents: SourceDocument list) (diagnostic: Diagnostic) =
+let private flagged (documents: FSharpDocument list) (diagnostic: Diagnostic) =
     let location = diagnostic.LocationOrNull
 
     let text =

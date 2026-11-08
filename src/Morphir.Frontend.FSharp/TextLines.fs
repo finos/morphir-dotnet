@@ -5,7 +5,7 @@ namespace Morphir.Frontend.FSharp.Analysis
 open System
 
 /// <summary>One ordered F# source document: the URI that the caller gave, and its text.</summary>
-type internal SourceDocument = { Uri: string; Text: string }
+type internal FSharpDocument = { Uri: string; Text: string }
 
 /// <summary>
 /// The line starts of a text, in UTF-16 code units. F# ends a line at <c>'\n'</c>, so a CRLF line ends at

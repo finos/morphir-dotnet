@@ -318,7 +318,7 @@ module internal Evidence =
             struct (range.StartLine, range.StartColumn, -range.EndLine, -range.EndColumn)
         )
 
-    let private freshPrefix (documents: SourceDocument list) =
+    let private freshPrefix (documents: FSharpDocument list) =
         let rec attempt number =
             let prefix = $"__morphir_evidence_{number}_"
 
@@ -1121,7 +1121,7 @@ module internal FSharpAnalysis =
         (catalog: AdmissionRule list)
         (rewrite: string -> string list -> string list)
         (limits: EvidenceLimits)
-        (documents: SourceDocument list)
+        (documents: FSharpDocument list)
         (cancellationToken: CancellationToken)
         : Task<Checked<CheckedEvidence>> =
         task {
