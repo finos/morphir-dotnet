@@ -536,6 +536,10 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
                 return! builder.Literal(at, literalType, value)
               }
 
+        | SynExpr.TypeApp(expr = SynExpr.Ident ident) ->
+            this.Identifiers(range, [ ident ], typeOf range expected)
+        | SynExpr.TypeApp(expr = SynExpr.LongIdent(longDotId = name)) ->
+            this.Identifiers(range, name.LongIdent, typeOf range expected)
         | SynExpr.Ident ident -> this.Identifiers(range, [ ident ], expected)
         | SynExpr.LongIdent(longDotId = name) -> this.Identifiers(range, name.LongIdent, expected)
 
@@ -756,6 +760,47 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
             | head -> head, arguments
 
         let head, arguments = flatten expression []
+
+        // An explicit type application (identity<int> 1) names the same head; the compiler's call or
+        // application at the spine gives its instantiation.
+        let head =
+            match head with
+            | SynExpr.TypeApp(expr = inner) -> inner
+            | other -> other
+
+        // A union case with several fields takes them as one tuple in F# syntax, but its Morphir constructor
+        // takes them one by one. A case with one tuple-valued field keeps the tuple.
+        let arguments =
+            let caseFields =
+                match head with
+                | SynExpr.Ident ident -> Some ident.idRange
+                | SynExpr.LongIdent(longDotId = name) ->
+                    name.LongIdent
+                    |> List.tryLast
+                    |> Option.map (fun ident -> ident.idRange)
+                | _ -> None
+                |> Option.bind (fun range ->
+                    symbolsAt range
+                    |> List.tryPick (fun symbol ->
+                        match symbol with
+                        | :? FSharpUnionCase as case -> Some case.Fields.Count
+                        | _ -> None
+                    )
+                )
+
+            let rec unparen expression =
+                match expression with
+                | SynExpr.Paren(expr = inner) -> unparen inner
+                | other -> other
+
+            match caseFields, arguments with
+            | Some count, [ argument, range ] when count > 1 ->
+                match unparen argument with
+                | SynExpr.Tuple(isStruct = false; exprs = elements) when elements.Length = count ->
+                    elements
+                    |> List.map (fun element -> element, Range.unionRanges head.Range element.Range)
+                | _ -> [ argument, range ]
+            | _ -> arguments
 
         let headValue =
             match head with
@@ -1006,6 +1051,60 @@ type internal ValueLowering<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefi
 [<RequireQualifiedAccess>]
 module internal PackageLowerings =
 
+    /// <summary>
+    /// Refuses two different local names in one value definition that give the same Morphir name, such as
+    /// <c>fooBar</c> and <c>foo_bar</c>: Morphir variables are names, so one could capture the other.
+    /// Shadowing with the same F# name keeps F# scoping and is allowed.
+    /// </summary>
+    let localCollisions
+        (evidence: CheckedEvidence)
+        (document: CheckedDocument)
+        (binding: range)
+        : Checked<unit> =
+        let locals =
+            evidence.Original.Uses
+            |> Array.filter (fun symbolUse ->
+                symbolUse.IsFromDefinition
+                && String.Equals(symbolUse.Range.FileName, document.Path, StringComparison.Ordinal)
+                && Range.rangeContainsRange binding symbolUse.Range
+            )
+            |> Array.choose (fun symbolUse ->
+                match symbolUse.Symbol with
+                | :? FSharpMemberOrFunctionOrValue as value when not value.IsModuleValueOrMember ->
+                    Some(value.DisplayName, symbolUse.Range)
+                | _ -> None
+            )
+            |> Array.sortBy (fun (_, range) -> struct (range.StartLine, range.StartColumn))
+
+        let first = Dictionary<Name, string * range>()
+
+        let diagnostics = [
+            for text, range in locals do
+                let name = Name.fromString text
+
+                match first.TryGetValue name with
+                | true, (firstText, firstRange) when
+                    firstText
+                    <> text
+                    ->
+                    let words = String.Join(" ", Name.toList name)
+
+                    Diagnostic.error
+                        FSharpCodes.nameCollision
+                        $"'{text}' and '{firstText}' have the same Morphir name ({words}) in one value definition. Rename one of them."
+                    |> Diagnostic.at (Location.Create(document.Uri, CompilerEdge.rangeOf range))
+                    |> Diagnostic.withRelated
+                        {
+                            Location =
+                                Location.Create(document.Uri, CompilerEdge.rangeOf firstRange)
+                            Message = $"'{firstText}' is declared here."
+                        }
+                | true, _ -> ()
+                | _ -> first[name] <- (text, range)
+        ]
+
+        Checked.ofDiagnostics () diagnostics
+
     /// <summary>Lowers one planned module: its types, then its values.</summary>
     let lowerModule
         (builder:
@@ -1035,8 +1134,12 @@ module internal PackageLowerings =
                     evidence.Original.Documents
                     |> List.find (fun document -> document.Uri = plannedValue.Location.Uri)
 
-                ValueLowering(builder, plan, evidence, typed, document)
-                    .Definition(plannedValue.Syntax, plannedValue.Symbol.FullType)
+                // The binding's own range covers only its head; the check needs the body too.
+                localCollisions evidence document plannedValue.Syntax.RangeOfBindingWithRhs
+                |> Checked.bind (fun () ->
+                    ValueLowering(builder, plan, evidence, typed, document)
+                        .Definition(plannedValue.Syntax, plannedValue.Symbol.FullType)
+                )
                 |> Checked.map (fun definition -> {
                     Name = plannedValue.Name
                     Access = plannedValue.Access

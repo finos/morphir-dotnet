@@ -365,6 +365,77 @@ let tests =
             |> ignore
         }
 
+        test
+            "a constructor with several fields takes the tuple's elements, and a tuple-valued field keeps the tuple" {
+            let values =
+                valuesOf (
+                    v4Document [
+                        "type Shape = Pair of int * string | Tupled of (int * string)"
+                        "let pair = Pair (1, \"a\")"
+                        "let tupled = Tupled (1, \"a\")"
+                    ]
+                )
+
+            let body (name: string) =
+                strip values[name]["Public"]["ExpressionBody"]["body"]
+
+            expectValue
+                (body "pair")
+                """{"Apply": {"function": {"Apply": {"function": {"Constructor": {"fqname": "acme/car-rental:fleet#pair"}},
+                  "argument": {"Literal": {"literal": {"IntegerLiteral": 1}}}}},
+                  "argument": {"Literal": {"literal": {"StringLiteral": "a"}}}}}"""
+                "two fields"
+
+            expectValue
+                (body "tupled")
+                """{"Apply": {"function": {"Constructor": {"fqname": "acme/car-rental:fleet#tupled"}},
+                  "argument": {"Tuple": {"elements": [{"Literal": {"literal": {"IntegerLiteral": 1}}}, {"Literal": {"literal": {"StringLiteral": "a"}}}]}}}}"""
+                "one tuple field"
+        }
+
+        test "an explicit type application is lowered with the compiler's instantiation" {
+            let values =
+                valuesOf (
+                    v4Document [
+                        "let identity (x: 'T) = x"
+                        "let one = identity<int> 1"
+                        "let text = identity<string>"
+                    ]
+                )
+
+            expectValue
+                (strip values["one"]["Public"]["ExpressionBody"]["body"])
+                """{"Apply": {"function": {"Reference": {"fqname": "acme/car-rental:fleet#identity"}},
+                  "argument": {"Literal": {"literal": {"IntegerLiteral": 1}}}}}"""
+                "applied"
+
+            expectValue
+                (strip values["text"]["Public"]["ExpressionBody"]["outputType"])
+                """{"Function": {"parameterType": {"Reference": {"fqname": "morphir/SDK:string#string"}},
+                  "returnType": {"Reference": {"fqname": "morphir/SDK:string#string"}}}}"""
+                "instantiated value"
+        }
+
+        test
+            "different local names with one Morphir name are refused, and same-name shadowing is kept" {
+            let collision =
+                planOf [ fleet [ "let f (fooBar: int) = let foo_bar = 2 in fooBar" ] ]
+
+            for family, version in [ v4, version4; classic, v3 ] do
+                let diagnostics = failed (buildAndWrite family version collision)
+
+                Expect.equal
+                    (diagnostics
+                     |> List.map codeOf)
+                    [ "fsharp.name_collision" ]
+                    $"{version}"
+
+            let shadowing = planOf [ fleet [ "let f (x: int) = let x = 2 in x" ] ]
+
+            passed (buildAndWrite v4 version4 shadowing)
+            |> ignore
+        }
+
         test "a value that a family cannot hold is refused by that family's builder" {
             // F# literals cannot exceed int64, the classic limit; the builders' own tests cover integers that
             // only v4 holds. A non-finite float is refused by both families, from the same lowering.
