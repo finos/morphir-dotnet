@@ -6,6 +6,8 @@ Step 1 of the [Morphir extension model](../../../docs/content/contributing/desig
 
 ## What Changes
 
+- Extend the Myriad JSON generator first with opt-in missing-member defaults, empty-collection omission, flattened extension data and versioned member/path migration. These additional wire rules were confirmed against the pinned contract and approved on 2026-11-08 UTC. Deliver this prerequisite separately from the protocol integration.
+
 - Add `src/Morphir.Mep`, an F# project that is trimmable and AOT-compatible. It is the one MEP layer for every morphir-dotnet host, guest and frontend. It holds:
   - our own JSON-RPC 2.0 layer on System.Text.Json (the [JSON-RPC spike](../../../docs/content/contributing/design/spikes/extension-model/jsonrpc.md) decision): messages, `u64`-or-string request ids, error replies, one dispatcher for single messages (`bytes -> bytes`), `Content-Length` framing with the upstream limits, a connection with a pending-request table, `$/cancelRequest` and notifications;
   - the MEP `0.2.0-draft.1` session types and the lifecycle (`describe`, `initialize`, `initialized`, `info`, `capabilities`, `shutdown`, `exit`) as one pure state machine for hosts and guests;
@@ -29,6 +31,7 @@ Step 1 of the [Morphir extension model](../../../docs/content/contributing/desig
 
 ### Modified Capabilities
 
+- `myriad-json-generation`: opt-in record defaults, empty omission, extension data, versioned aliases and critical-path validation for the MEP wire rules.
 - `extension-registry`: built-in analyzers are registered entries with the type `validator`, and every entry maps to a MEP `ExtensionInfo` with claims that the pinned contract accepts.
 
 ## Tracking

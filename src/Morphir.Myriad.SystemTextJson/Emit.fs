@@ -29,6 +29,13 @@ type internal CodeWriter() =
 
     override _.ToString() = builder.ToString()
 
+/// A version member's legacy wire spelling and canonical replacement.
+type internal VersionAliasSpec =
+    { LegacyName: string
+      LegacyVersion: string
+      CurrentVersion: string
+      CriticalMember: string option }
+
 /// A record field after resolution.
 type internal PlannedField =
     {
@@ -45,6 +52,14 @@ type internal PlannedField =
         AllowNull: bool
         /// True when a reader also accepts the number of this field in a JSON string (JsonNumberHandling).
         NumbersFromStrings: bool
+        /// A JSON literal read by the generated field codec when the member is missing.
+        DefaultJson: string option
+        /// True when an empty collection is left out on writing.
+        OmitEmpty: bool
+        /// A synthetic string-keyed JsonElement map holding otherwise unknown object members.
+        ExtensionData: bool
+        VersionAlias: VersionAliasSpec option
+        KnownPaths: string list option
     }
 
 /// A union case after resolution.
@@ -336,31 +351,88 @@ module internal Emit =
                 body ())
             w.Line $"""| _ -> raise (JsonException({literal $"A member name of {typeName} was expected."}))""")
 
+    let private validatePaths (w: CodeWriter) (field: PlannedField) (value: string) =
+        match field.KnownPaths with
+        | None -> ()
+        | Some paths ->
+            w.Line $"if System.Object.ReferenceEquals({value}, null) then"
+            w.Indent(fun () -> fail w $"The critical-path collection '{field.JsonName}' is null.")
+            w.Line $"for path in {value} do"
+            w.Indent(fun () ->
+                if not paths.IsEmpty then
+                    let names = paths |> List.map literal |> String.concat " | "
+                    w.Line "match path with"
+                    w.Line $"| {names} -> ()"
+                    w.Line "| _ ->"
+                    w.Indent(fun () -> fail w $"The field '{field.JsonName}' contains an unknown critical path.")
+                else
+                    fail w $"The field '{field.JsonName}' allows no critical paths.")
+
     /// Writes one property for each field. valueOf gives the F# expression of a field's value.
     let private writeMembers (w: CodeWriter) (codec: string) (fields: PlannedField list) (valueOf: int -> PlannedField -> string) =
         fields
         |> List.iteri (fun index field ->
             let value = valueOf index field
 
-            // As in FSharp.SystemTextJson, a skippable option is written as its value alone, also without UnwrapOption.
-            match field.Type with
-            | TypeRef.Option inner when field.Skippable ->
-                w.Line $"match {value} with"
-                w.Line "| Some item ->"
-                w.Indent(fun () ->
+            validatePaths w field value
+            match field.VersionAlias with
+            | Some alias ->
+                let text =
+                    match field.Type with
+                    | TypeRef.Parsed _ -> $"{codec}.Text_{field.Type.Slug}({value})"
+                    | _ -> value
+                w.Line $"if {text} <> {literal alias.CurrentVersion} then"
+                w.Indent(fun () -> fail w $"The version member '{field.JsonName}' must use its current version on writing.")
+            | None -> ()
+
+            let writeField () =
+                // As in FSharp.SystemTextJson, a skippable option is written as its value alone, also without UnwrapOption.
+                match field.Type with
+                | TypeRef.Option inner when field.Skippable ->
+                    w.Line $"match {value} with"
+                    w.Line "| Some item ->"
+                    w.Indent(fun () ->
+                        w.Line $"writer.WritePropertyName({literal field.JsonName})"
+                        w.Line(writeStmt codec inner "item"))
+                    w.Line "| None -> ()"
+                | TypeRef.ValueOption inner when field.Skippable ->
+                    w.Line $"match {value} with"
+                    w.Line "| ValueSome item ->"
+                    w.Indent(fun () ->
+                        w.Line $"writer.WritePropertyName({literal field.JsonName})"
+                        w.Line(writeStmt codec inner "item"))
+                    w.Line "| ValueNone -> ()"
+                | _ ->
                     w.Line $"writer.WritePropertyName({literal field.JsonName})"
-                    w.Line(writeStmt codec inner "item"))
-                w.Line "| None -> ()"
-            | TypeRef.ValueOption inner when field.Skippable ->
-                w.Line $"match {value} with"
-                w.Line "| ValueSome item ->"
+                    w.Line(writeStmt codec field.Type value)
+            if field.ExtensionData then
+                let reserved = fields |> List.filter (fun f -> not f.ExtensionData) |> List.collect (fun f -> f.ReadNames) |> List.distinct
+                w.Line $"if System.Object.ReferenceEquals({value}, null) then"
+                w.Indent(fun () -> fail w $"The extension data field '{field.Name}' is null.")
+                w.Line $"for pair in {value} do"
                 w.Indent(fun () ->
-                    w.Line $"writer.WritePropertyName({literal field.JsonName})"
-                    w.Line(writeStmt codec inner "item"))
-                w.Line "| ValueNone -> ()"
-            | _ ->
-                w.Line $"writer.WritePropertyName({literal field.JsonName})"
-                w.Line(writeStmt codec field.Type value))
+                    if not reserved.IsEmpty then
+                        w.Line "match pair.Key with"
+                        let names = reserved |> List.map literal |> String.concat " | "
+                        w.Line $"| {names} ->"
+                        w.Indent(fun () -> fail w "An extension data key conflicts with a named member or alias.")
+                        w.Line "| _ -> ()"
+                    w.Line "writer.WritePropertyName(pair.Key)"
+                    w.Line "pair.Value.WriteTo(writer)")
+            elif field.OmitEmpty then
+                w.Line $"if System.Object.ReferenceEquals({value}, null) || not (Seq.isEmpty {value}) then"
+                w.Indent writeField
+            else
+                writeField ())
+
+    let private readFieldExpression codec lenient (field: PlannedField) =
+        let lenient = lenient || field.NumbersFromStrings
+        match field.Type with
+        | TypeRef.Option inner when field.Skippable ->
+            $"(if reader.TokenType = JsonTokenType.Null then None else Some({readExpr codec lenient inner}))"
+        | TypeRef.ValueOption inner when field.Skippable ->
+            $"(if reader.TokenType = JsonTokenType.Null then ValueNone else ValueSome({readExpr codec lenient inner}))"
+        | _ -> readExpr codec lenient field.Type
 
     /// Reads the members of the JSON object at the reader into one local for each field (field0, field1, ...).
     /// The variable ignoreMember names a member to skip (the tag of an internally tagged union), or is empty.
@@ -376,11 +448,16 @@ module internal Emit =
         =
         let local index = $"field{index}"
         let seen index = $"seen{index}"
+        let extension = fields |> List.tryFind (fun field -> field.ExtensionData)
+
+        if extension.IsSome then
+            w.Line "let extensionMembers = System.Collections.Generic.Dictionary<string, JsonElement>(StringComparer.Ordinal)"
 
         fields
         |> List.iteri (fun index field ->
             w.Line $"let mutable {local index} = Unchecked.defaultof<{field.Type.FSharpName}>"
-            w.Line $"let mutable {seen index} = false")
+            if not field.ExtensionData then w.Line $"let mutable {seen index} = false"
+            if field.VersionAlias.IsSome then w.Line $"let mutable legacyVersion{index} = false")
 
         // The skipped member (the tag of an internally tagged union) may appear only once.
         w.Line "let mutable seenIgnored = false"
@@ -396,7 +473,9 @@ module internal Emit =
                 w.Indent(fun () -> fail w $"The JSON object for {typeName} is not complete."))
 
             fields
-            |> List.iteri (fun index field ->
+            |> List.indexed
+            |> List.filter (fun (_, field) -> not field.ExtensionData)
+            |> List.iter (fun (index, field) ->
                 let names = field.ReadNames |> List.map literal |> String.concat " | "
                 w.Line $"| {names} ->"
 
@@ -405,21 +484,33 @@ module internal Emit =
                     w.Indent(fun () -> fail w $"The member '{field.JsonName}' of {typeName} appears more than once.")
                     w.Line $"{seen index} <- true"
 
+                    match field.VersionAlias with
+                    | Some alias ->
+                        w.Line "if reader.TokenType <> JsonTokenType.String then"
+                        w.Indent(fun () -> fail w $"The version member '{field.JsonName}' must be a string.")
+                        w.Line $"legacyVersion{index} <- memberName = {literal alias.LegacyName}"
+                        w.Line $"let expectedVersion = if legacyVersion{index} then {literal alias.LegacyVersion} else {literal alias.CurrentVersion}"
+                        w.Line "if reader.GetString() <> expectedVersion then"
+                        w.Indent(fun () -> fail w $"The name and version of '{field.JsonName}' do not agree.")
+                    | None -> ()
+
                     // A failure inside the value names this member, so the message holds the path within the value.
                     // A skippable option is read as its value alone, as it is written.
-                    let expression =
-                        let lenient' = lenient || field.NumbersFromStrings
-
-                        match field.Type with
-                        | TypeRef.Option inner when field.Skippable ->
-                            $"(if reader.TokenType = JsonTokenType.Null then None else Some({readExpr codec lenient' inner}))"
-                        | TypeRef.ValueOption inner when field.Skippable ->
-                            $"(if reader.TokenType = JsonTokenType.Null then ValueNone else ValueSome({readExpr codec lenient' inner}))"
-                        | _ -> readExpr codec lenient' field.Type
+                    let expression = readFieldExpression codec lenient field
 
                     let read () =
                         w.Line "try"
-                        w.Indent(fun () -> w.Line $"{local index} <- {expression}")
+                        w.Indent(fun () ->
+                            match field.VersionAlias with
+                            | Some alias ->
+                                w.Line $"let readCurrentVersion () ="
+                                w.Indent(fun () ->
+                                    let json = "\"" + (System.Text.Json.JsonEncodedText.Encode(alias.CurrentVersion)).ToString() + "\""
+                                    w.Line $"let mutable reader = Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes({literal json}))"
+                                    w.Line "reader.Read() |> ignore"
+                                    w.Line expression)
+                                w.Line $"{local index} <- readCurrentVersion ()"
+                            | None -> w.Line $"{local index} <- {expression}")
                         w.Line "with :? JsonException as error ->"
                         w.Indent(fun () ->
                             w.Line $"""raise (JsonException({literal $"In the member '{field.JsonName}' of {typeName}: "} + error.Message, error))""")
@@ -439,7 +530,15 @@ module internal Emit =
 
             w.Line "| _ ->"
             w.Indent(fun () ->
-                if refuseUnknown then
+                if extension.IsSome then
+                    w.Line "match memberName with"
+                    w.Line "| null -> raise (JsonException(\"A member name was expected.\"))"
+                    w.Line "| name ->"
+                    w.Indent(fun () ->
+                        w.Line "if extensionMembers.ContainsKey(name) then"
+                        w.Indent(fun () -> w.Line $"""raise (JsonException($"The member '{{name}}' of {typeName} appears more than once."))""")
+                        w.Line "extensionMembers.Add(name, JsonElement.ParseValue(&reader))")
+                elif refuseUnknown then
                     w.Line $"""raise (JsonException($"The member '{{memberName}}' is not a member of {typeName}."))"""
                 else
                     w.Line "if not (reader.TrySkip()) then"
@@ -447,13 +546,54 @@ module internal Emit =
 
         fields
         |> List.iteri (fun index field ->
-            match field.Type with
-            | TypeRef.Option _ -> w.Line $"if not {seen index} then {local index} <- None"
-            | TypeRef.ValueOption _ -> w.Line $"if not {seen index} then {local index} <- ValueNone"
+            match field.DefaultJson, field.Type with
+            | _, TypeRef.Map(MapKind.Map, _, _) when field.ExtensionData ->
+                w.Line $"{local index} <- extensionMembers |> Seq.map (fun pair -> pair.Key, pair.Value) |> Map.ofSeq"
+            | _, TypeRef.Map(MapKind.ReadOnlyDictionary, _, _) when field.ExtensionData ->
+                w.Line $"{local index} <- System.Collections.ObjectModel.ReadOnlyDictionary<string, JsonElement>(extensionMembers)"
+            | Some json, _ ->
+                w.Line $"if not {seen index} then"
+                w.Indent(fun () ->
+                    w.Line "let readDefault () ="
+                    w.Indent(fun () ->
+                        w.Line $"let mutable reader = Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes({literal json}))"
+                        w.Line "reader.Read() |> ignore"
+                        let expression = readFieldExpression codec lenient field
+                        if field.AllowNull then
+                            w.Line $"(if reader.TokenType = JsonTokenType.Null then Unchecked.defaultof<{field.Type.FSharpName}> else {expression})"
+                        else
+                            w.Line expression)
+                    w.Line $"{local index} <- readDefault ()")
+            | None, TypeRef.Option _ -> w.Line $"if not {seen index} then {local index} <- None"
+            | None, TypeRef.ValueOption _ -> w.Line $"if not {seen index} then {local index} <- ValueNone"
             | _ ->
                 w.Line $"if not {seen index} then"
                 w.Indent(fun () -> fail w $"The member '{field.JsonName}' of {typeName} is required."))
 
+        for index, field in List.indexed fields do
+            match field.VersionAlias with
+            | Some alias ->
+                match alias.CriticalMember with
+                | Some name ->
+                    let criticalIndex = fields |> List.findIndex (fun f -> f.JsonName = name)
+                    let critical = fields[criticalIndex]
+                    let convert =
+                        match critical.Type with
+                        | TypeRef.Sequence(SequenceKind.List, _) -> "List.ofSeq"
+                        | TypeRef.Sequence(SequenceKind.Set, _) -> "Set.ofSeq"
+                        | TypeRef.Sequence(SequenceKind.ResizeArray, _) -> "ResizeArray"
+                        | _ -> "Array.ofSeq"
+                    w.Line $"if legacyVersion{index} then"
+                    w.Indent(fun () ->
+                        w.Line $"{local criticalIndex} <- {local criticalIndex} |> Seq.map (fun path ->"
+                        w.Indent(fun () ->
+                            w.Line $"if path = {literal field.JsonName} then"
+                            w.Indent(fun () -> fail w "A legacy critical list cannot name the current version member.")
+                            w.Line $"if path = {literal alias.LegacyName} then {literal field.JsonName} else path) |> {convert}"))
+                | None -> ()
+            | None -> ()
+
+        fields |> List.iteri (fun index field -> validatePaths w field (local index))
         finish (fields |> List.mapi (fun index _ -> local index))
 
     let private recordMethods (w: CodeWriter) (codec: string) (lenient: bool) (t: TypeRef) (declaration: TypeDeclaration) (fields: PlannedField list) (refuseUnknown: bool) =
@@ -559,7 +699,15 @@ module internal Emit =
 
         let writeInline (case: PlannedCase) =
             match recordOf case with
-            | Some record -> w.Line $"{codec}.WriteMembers_{record.Slug}(writer, f0, options)"
+            | Some record ->
+                if e.InternalTag then
+                    let _, recordFields, _ = plan.Records[record.Slug]
+                    for field in recordFields |> List.filter (fun field -> field.ExtensionData) do
+                        w.Line $"for pair in f0.{field.Name} do"
+                        w.Indent(fun () ->
+                            w.Line $"if pair.Key = {literal rules.TagName} then"
+                            w.Indent(fun () -> fail w "An extension data key conflicts with the enclosing union tag."))
+                w.Line $"{codec}.WriteMembers_{record.Slug}(writer, f0, options)"
             | None -> writeMembers w codec case.Fields (fun index _ -> $"f{index}")
 
         let writeCase (case: PlannedCase) =
@@ -1251,6 +1399,11 @@ module internal Emit =
                             Skippable = false
                             AllowNull = false
                             NumbersFromStrings = false
+                            DefaultJson = None
+                            OmitEmpty = false
+                            ExtensionData = false
+                            VersionAlias = None
+                            KnownPaths = None
                         }
 
                     let cases =

@@ -26,5 +26,6 @@ The package carries the Myriad 0.85.0 host and runs it during the build. No sepa
 - **FSharp.SystemTextJson encodings.** `AdjacentTag`, `ExternalTag`, `InternalTag` and `Untagged`, the unwrap flags and the presets give the same JSON as FSharp.SystemTextJson.
 - **Parse, don't validate.** A `JsonParsedValue` type is read only through its parser.
 - **Exact numbers, member rules, user converters,** and cases chosen by JSON token kind.
+- Opt-in missing-member defaults, empty-collection omission, flattened extension data, and versioned member/critical-path migration for wire contracts.
 
 See the [guide](https://finos.github.io/morphir-dotnet/docs/guides/myriad-json/) for the settings, the attributes and the union encodings. The bundled third-party components and their licenses are listed in `ThirdPartyNotices.txt`.

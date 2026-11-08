@@ -95,6 +95,11 @@ Attributes on a type, a case or a field override the context settings for that i
 | `JsonPropertyName` | Field | The System.Text.Json attribute, for one name |
 | `JsonParsedValue` | Type, abbreviation | A value that is written as text and read only through its parser |
 | `JsonIgnoreType` | Type | Leave the type out of the context |
+| `JsonDefaultValue` | Record field | Read this JSON literal through the generated field codec when the member is absent |
+| `JsonOmitEmpty` | Record collection field | Omit an empty collection on writing |
+| `JsonExtensionData` | Record map field | Capture unknown members and write them beside the named members. This is the System.Text.Json attribute |
+| `JsonVersionAlias` | Record version field | Normalize an exact legacy member/version pair to the current member and version |
+| `JsonKnownPaths` | Record string collection | Accept only the declared exact critical paths |
 | `JsonConverter` | Type, field | The System.Text.Json attribute: use this converter |
 | `JsonNumberHandling` | Number field | The System.Text.Json attribute: `AllowReadingFromString` for this field |
 
@@ -114,10 +119,47 @@ It is written as `{"max_items":3,"colour":"red"}`, and `{"max_items":3,"color":"
 
 A record is a JSON object with one member for each field.
 
-- A field that is not an option is required: a missing member or `null` fails.
+- A field that is not an option is required unless it declares a missing-member default or extension data. A missing required member or disallowed `null` fails.
 - An option is `null` for `None`, or left out with `SkippableOptionFields`. A missing member reads as `None`.
 - A member that appears twice fails. An unknown member is skipped or refused, as `UnknownMembers` says.
 - `AllowNullFields` accepts `null` for a field whose type accepts `null` (string, arrays, `ResizeArray`, read-only interfaces, types from other contexts).
+
+### Defaults and empty collections
+
+The wire-rule annotations below require a generator and annotations package built after `0.4.0-alpha.2`.
+
+These annotations opt into wire rules for a particular record field. Other fields keep their existing required-member rules:
+
+```fsharp
+type Diagnostic =
+    { Message: string
+      [<JsonDefaultValue("[]"); JsonOmitEmpty>]
+      Related: string list
+      [<JsonDefaultValue("false")>]
+      Retryable: bool }
+```
+
+An absent `Related` reads as `[]`; an empty `Related` is omitted on writing. An absent `Retryable` reads as false and is still written. `JsonDefaultValue` takes one complete JSON value as a string literal. The generated codec reads it using the field's normal encoding, including parsed-value parsers and union settings. Malformed JSON fails generation; a default of the wrong type fails through that codec when used. Explicit null never selects the default. `JsonOmitEmpty` supports sequences and maps, and does not itself make a missing member optional.
+
+### Open objects
+
+Mark one `Map<string, JsonElement>` or `IReadOnlyDictionary<string, JsonElement>` record field with the System.Text.Json `JsonExtensionData` attribute. Unknown members enter that map and are written directly into the record object. The map is empty when no unknown member is present. There is no wrapper named after the field. Duplicate input members and output keys colliding with named members, their aliases, or an enclosing union tag are refused. Extension data cannot be combined with `UnknownMembers.Refuse` or additional default/omission annotations on the same field.
+
+### Versioned member migration
+
+For a format whose version member changed its name, declare the exact legacy and current values. For example, the MEP claims contract uses:
+
+```fsharp
+type Claims =
+    { [<JsonVersionAlias("statementVersion", "0.1.0-draft.1", "0.1.0-draft.2", CriticalMember = "critical")>]
+      ClaimsVersion: string
+      [<JsonDefaultValue("[]"); JsonOmitEmpty; JsonKnownPaths("claimsVersion", "protocolVersions", "capabilities", "capabilities.frontend")>]
+      Critical: string list }
+```
+
+With camel-case context naming, a reader accepts `statementVersion` only with draft.1 and `claimsVersion` only with draft.2. Both names together fail. Legacy input normalizes to draft.2 and its exact `statementVersion` critical path becomes `claimsVersion`. A legacy list naming `claimsVersion` fails. Writers require the current version and write only `claimsVersion`.
+
+`CriticalMember` is optional and names a JSON member, not an F# field. When set, it must name a string collection with `JsonKnownPaths` that allows the current version-member path and excludes the legacy path. The paths shown above illustrate a subset; declare every path your format understands. Known parents never permit unknown children. The version field can also be a `JsonParsedValue` type; its parser receives the normalized current text. One version alias is allowed per record. These wire annotations apply to record fields.
 
 ## Unions
 

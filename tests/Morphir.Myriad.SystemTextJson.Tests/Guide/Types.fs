@@ -32,3 +32,16 @@ type Email =
 type RequestId =
     | Number of uint64
     | Text of string
+
+type Diagnostic =
+    { Message: string
+      [<JsonDefaultValue("[]"); JsonOmitEmpty>]
+      Related: string list
+      [<JsonDefaultValue("false")>]
+      Retryable: bool }
+
+type Claims =
+    { [<JsonVersionAlias("statementVersion", "0.1.0-draft.1", "0.1.0-draft.2", CriticalMember = "critical")>]
+      ClaimsVersion: string
+      [<JsonDefaultValue("[]"); JsonOmitEmpty; JsonKnownPaths("claimsVersion", "protocolVersions", "capabilities", "capabilities.frontend")>]
+      Critical: string list }

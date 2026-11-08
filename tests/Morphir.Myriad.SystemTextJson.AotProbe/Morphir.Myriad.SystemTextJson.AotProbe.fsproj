@@ -51,6 +51,9 @@
         <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Parsed.fs" Name="ParsedJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Parsed" />
         <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Converters.fs" Link="Contexts\Converters.fs" />
         <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\Converters.fs" Name="ConverterJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.Converters" />
+        <Compile Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\WireRules.fs" Link="Contexts\WireRules.fs" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\WireRules.fs" Name="WireJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.WireRules" Naming="CamelCase" SkippableOptionFields="Always" UnionEncoding="Default, UnwrapFieldlessTags" UnionTagNaming="CamelCase" />
+        <FSharpJsonContext Include="..\Morphir.Myriad.SystemTextJson.Tests\Contexts\WireRules.fs" Name="WireLegacy" Namespace="Morphir.Myriad.SystemTextJson.Tests.WireRules" Naming="CamelCase" SkippableOptionFields="Always" UnionEncoding="AdjacentTag, UnwrapFieldlessTags" UnionTagNaming="CamelCase" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

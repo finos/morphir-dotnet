@@ -2,6 +2,16 @@
 
 Every behavior task follows red/green/refactor: write the failing test first. Group 2 and the later groups that read or write MEP types need the Myriad JSON generator from `add-myriad-json-codecs`; groups 1 and 3 can start before it lands. Each group lands its own tests and documentation. The pinned contract in `tests/Fixtures/Mep/` is the reference; transcripts are reviewed inputs, and a disagreement with the contract text goes into `conformance/deviations.md` with an upstream issue. No contract, setting or registry key holds a format version as an integer. F# code that C# calls follows the `fsharp-csharp-interop` skill, and each group that changes that boundary runs the `fsharp-csharp-interop-reviewer` agent on its diff.
 
+## 0. Generated wire-rule prerequisite (approved 2026-11-08 UTC)
+
+These tasks land separately before the remaining MEP types. Keep codecs generated; the pinned contract's type documentation is the acceptance reference.
+
+- [x] 0.1 Add opt-in `JsonDefaultValue` JSON-literal defaults for missing record fields. Test false flags, empty collections and fieldless union defaults, malformed defaults, and explicit null remaining invalid for non-null fields. Unannotated fields remain required.
+- [x] 0.2 Add opt-in `JsonOmitEmpty` for collection fields. Test omission of empty collections, unchanged nonempty values, and round trips together with a missing-field default. Refuse unsupported field shapes at generation time.
+- [x] 0.3 Support `JsonExtensionData` on one string-keyed JsonElement map field. Test flattened unknown-member preservation, duplicate refusal, known-name collisions on write, empty default and invalid declarations.
+- [x] 0.4 Add generated versioned-alias migration and critical-path validation. Test the pinned claims draft.1 to draft.2 member and path migration, current canonical writes, mismatched name/version refusal, both names refused, and unknown critical paths refused. Keep protocol constants in annotated input rather than in the generator.
+- [x] 0.5 Document the annotations, run the compatibility and snapshot suites, package consumers, Native AOT/JIT equality and the full repository tests. Verify unchanged contexts retain their existing output.
+
 ## 1. Tracking and project setup
 
 - [x] 1.1 Open the step 1 issue for the extension model (link the PRD, #503, #499 and this change) and link it from `proposal.md`. Verify that the issue and the proposal link each other.

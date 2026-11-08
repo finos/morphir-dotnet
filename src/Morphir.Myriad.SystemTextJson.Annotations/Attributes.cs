@@ -101,3 +101,62 @@ public sealed class JsonParsedValueAttribute : Attribute
 public sealed class JsonIgnoreTypeAttribute : Attribute
 {
 }
+
+/// <summary>
+/// Supplies a JSON literal for an absent record member. The generated codec reads the literal using
+/// the field's normal rules. Explicit null values retain those rules and do not use the default.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = false)]
+public sealed class JsonDefaultValueAttribute : Attribute
+{
+    /// <summary>Creates a missing-member default from one complete JSON value.</summary>
+    public JsonDefaultValueAttribute(string json) => Json = json;
+
+    /// <summary>The JSON literal read when the member is absent.</summary>
+    public string Json { get; }
+}
+
+/// <summary>Omits an empty record collection on writing. It does not change missing-member or null rules.</summary>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = false)]
+public sealed class JsonOmitEmptyAttribute : Attribute
+{
+}
+
+/// <summary>
+/// Reads one legacy spelling of a record's version member and normalizes it to the current version.
+/// The current JSON member name comes from the field's normal naming rules.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = false)]
+public sealed class JsonVersionAliasAttribute : Attribute
+{
+    /// <summary>Declares the legacy member name and exact legacy/current version values.</summary>
+    public JsonVersionAliasAttribute(string legacyName, string legacyVersion, string currentVersion)
+    {
+        LegacyName = legacyName;
+        LegacyVersion = legacyVersion;
+        CurrentVersion = currentVersion;
+    }
+
+    /// <summary>The member name used only by the legacy version.</summary>
+    public string LegacyName { get; }
+
+    /// <summary>The exact legacy version value.</summary>
+    public string LegacyVersion { get; }
+
+    /// <summary>The canonical current version value.</summary>
+    public string CurrentVersion { get; }
+
+    /// <summary>The JSON name of a string collection whose exact version-member path is migrated.</summary>
+    public string? CriticalMember { get; set; }
+}
+
+/// <summary>Requires every path in a record's string collection to match one of these exact paths.</summary>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = false)]
+public sealed class JsonKnownPathsAttribute : Attribute
+{
+    /// <summary>Declares the exact paths. A known parent does not allow unknown children.</summary>
+    public JsonKnownPathsAttribute(params string[] paths) => Paths = paths;
+
+    /// <summary>The paths accepted by the reader and writer.</summary>
+    public string[] Paths { get; }
+}
