@@ -288,8 +288,7 @@ let tests =
                 | other -> failtest $"{other}"
             }
 
-            test
-                "A member without documentation keeps the documentation wrapper, as upstream writes it" {
+            test "A member without documentation has no documentation in the model" {
                 let m =
                     ok (
                         b.Module(
@@ -311,8 +310,8 @@ let tests =
 
                 Expect.equal
                     moduleDefinition.Values[n "rate"].Value
-                    (Classic.Documented.WithDocumentation("", d))
-                    "an empty documentation"
+                    (Classic.Documented.WithoutDocumentation d)
+                    "no documentation; the writer decides its spelling"
             }
         ]
 

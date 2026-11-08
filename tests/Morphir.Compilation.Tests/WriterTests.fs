@@ -94,6 +94,44 @@ let tests =
                 | other -> failtest $"{other}"
             }
 
+        for requested in [ "1"; "2"; "3" ] do
+            test
+                $"version {requested} omits absent documentation by default, and wraps it on request" {
+                let writeWith options =
+                    registry.Resolve(version requested)
+                    |> Checked.bind (fun resolved ->
+                        resolved.Writer.Write(
+                            resolved.Target,
+                            options,
+                            sample (WholeNumberLiteral 7L)
+                        )
+                    )
+                    |> Checked.tryValue
+                    |> Option.map Encoding.UTF8.GetString
+                    |> Option.defaultValue ""
+
+                let compact = writeWith WriteOptions.Compact
+
+                let wrapped =
+                    writeWith (
+                        WriteOptions.Compact.WithAbsentDocumentation
+                            AbsentDocumentation.EmptyWrapper
+                    )
+
+                Expect.isFalse (compact.Contains "\"doc\":\"\"") "no empty wrapper by default"
+
+                Expect.stringContains
+                    wrapped
+                    "{\"doc\":\"\",\"value\":{\"inputTypes\""
+                    "the morphir-elm wrapper"
+
+                use document = JsonDocument.Parse wrapped
+
+                match ClassicJson.readDistribution document.RootElement with
+                | Ok _ -> ()
+                | Error error -> failtest error.Message
+            }
+
         test "4 is not a classic version" {
             Expect.equal
                 (codes (write "4" (sample (BoolLiteral true))))

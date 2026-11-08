@@ -66,7 +66,7 @@ A frontend SHALL lower its source once, against a contract that does not depend 
 
 #### Scenario: Classic member without documentation
 - **WHEN** a type or value without documentation is built in the classic family and written as versions 1, 2 and 3
-- **THEN** each version writes the member in the `{"doc": "", "value": ...}` wrapper, as upstream Morphir tools do
+- **THEN** by default each version writes the member without a documentation wrapper, and with the `EmptyWrapper` write option each version writes it in the `{"doc": "", "value": ...}` wrapper that morphir-elm writes; the reader accepts both forms
 
 ### Requirement: Unrepresentable content is refused
 When the requested family cannot hold a model element exactly, building SHALL fail with `morphir.unrepresentable`. The diagnostic SHALL name the element, its source location and the requested version, and no document SHALL be written. Nothing SHALL be rounded, dropped or renamed to make the model fit. Source locations, which classic IR has no place for, SHALL NOT count as model elements for this rule.

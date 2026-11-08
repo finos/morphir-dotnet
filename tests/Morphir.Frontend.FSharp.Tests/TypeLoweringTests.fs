@@ -109,10 +109,10 @@ let tests =
                     "type Status = Available | Rented of days: int"
                 ])
                 """[
-                  [["car"], {"access": "Public", "value": {"doc": "", "value": ["TypeAliasDefinition", [],
-                    ["Record", {}, [{"name": ["plate"], "tpe": @CTEXT@}, {"name": ["seats"], "tpe": @CINT@}]]]}}],
-                  [["status"], {"access": "Public", "value": {"doc": "", "value": ["CustomTypeDefinition", [],
-                    {"access": "Public", "value": [[["available"], []], [["rented"], [[["days"], @CINT@]]]]}]}}]
+                  [["car"], {"access": "Public", "value": ["TypeAliasDefinition", [],
+                    ["Record", {}, [{"name": ["plate"], "tpe": @CTEXT@}, {"name": ["seats"], "tpe": @CINT@}]]]}],
+                  [["status"], {"access": "Public", "value": ["CustomTypeDefinition", [],
+                    {"access": "Public", "value": [[["available"], []], [["rented"], [[["days"], @CINT@]]]]}]}]
                 ]"""
                 "classic types"
         }

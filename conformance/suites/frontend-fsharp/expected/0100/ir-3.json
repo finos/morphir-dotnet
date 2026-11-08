@@ -29,79 +29,76 @@
                   ],
                   {
                     "access": "Public",
-                    "value": {
-                      "doc": "",
-                      "value": [
-                        "TypeAliasDefinition",
-                        [],
+                    "value": [
+                      "TypeAliasDefinition",
+                      [],
+                      [
+                        "Record",
+                        {},
                         [
-                          "Record",
-                          {},
-                          [
-                            {
-                              "name": [
-                                "plate"
-                              ],
-                              "tpe": [
-                                "Reference",
-                                {},
+                          {
+                            "name": [
+                              "plate"
+                            ],
+                            "tpe": [
+                              "Reference",
+                              {},
+                              [
                                 [
                                   [
-                                    [
-                                      "morphir"
-                                    ],
-                                    [
-                                      "s",
-                                      "d",
-                                      "k"
-                                    ]
+                                    "morphir"
                                   ],
                                   [
-                                    [
-                                      "string"
-                                    ]
-                                  ],
+                                    "s",
+                                    "d",
+                                    "k"
+                                  ]
+                                ],
+                                [
                                   [
                                     "string"
                                   ]
                                 ],
-                                []
-                              ]
-                            },
-                            {
-                              "name": [
-                                "seats"
+                                [
+                                  "string"
+                                ]
                               ],
-                              "tpe": [
-                                "Reference",
-                                {},
+                              []
+                            ]
+                          },
+                          {
+                            "name": [
+                              "seats"
+                            ],
+                            "tpe": [
+                              "Reference",
+                              {},
+                              [
                                 [
                                   [
-                                    [
-                                      "morphir"
-                                    ],
-                                    [
-                                      "s",
-                                      "d",
-                                      "k"
-                                    ]
+                                    "morphir"
                                   ],
                                   [
-                                    [
-                                      "basics"
-                                    ]
-                                  ],
-                                  [
-                                    "int"
+                                    "s",
+                                    "d",
+                                    "k"
                                   ]
                                 ],
-                                []
-                              ]
-                            }
-                          ]
+                                [
+                                  [
+                                    "basics"
+                                  ]
+                                ],
+                                [
+                                  "int"
+                                ]
+                              ],
+                              []
+                            ]
+                          }
                         ]
                       ]
-                    }
+                    ]
                   }
                 ]
               ],
@@ -113,62 +110,87 @@
                   {
                     "access": "Public",
                     "value": {
-                      "doc": "",
-                      "value": {
-                        "inputTypes": [
+                      "inputTypes": [
+                        [
+                          [
+                            "car"
+                          ],
+                          [
+                            "Reference",
+                            {},
+                            [
+                              [
+                                [
+                                  "acme"
+                                ],
+                                [
+                                  "demo"
+                                ]
+                              ],
+                              [
+                                [
+                                  "pricing"
+                                ]
+                              ],
+                              [
+                                "car"
+                              ]
+                            ],
+                            []
+                          ],
+                          [
+                            "Reference",
+                            {},
+                            [
+                              [
+                                [
+                                  "acme"
+                                ],
+                                [
+                                  "demo"
+                                ]
+                              ],
+                              [
+                                [
+                                  "pricing"
+                                ]
+                              ],
+                              [
+                                "car"
+                              ]
+                            ],
+                            []
+                          ]
+                        ]
+                      ],
+                      "outputType": [
+                        "Reference",
+                        {},
+                        [
                           [
                             [
-                              "car"
+                              "morphir"
                             ],
                             [
-                              "Reference",
-                              {},
-                              [
-                                [
-                                  [
-                                    "acme"
-                                  ],
-                                  [
-                                    "demo"
-                                  ]
-                                ],
-                                [
-                                  [
-                                    "pricing"
-                                  ]
-                                ],
-                                [
-                                  "car"
-                                ]
-                              ],
-                              []
-                            ],
-                            [
-                              "Reference",
-                              {},
-                              [
-                                [
-                                  [
-                                    "acme"
-                                  ],
-                                  [
-                                    "demo"
-                                  ]
-                                ],
-                                [
-                                  [
-                                    "pricing"
-                                  ]
-                                ],
-                                [
-                                  "car"
-                                ]
-                              ],
-                              []
+                              "s",
+                              "d",
+                              "k"
                             ]
+                          ],
+                          [
+                            [
+                              "basics"
+                            ]
+                          ],
+                          [
+                            "int"
                           ]
                         ],
-                        "outputType": [
+                        []
+                      ],
+                      "body": [
+                        "Field",
+                        [
                           "Reference",
                           {},
                           [
@@ -193,67 +215,39 @@
                           ],
                           []
                         ],
-                        "body": [
-                          "Field",
+                        [
+                          "Variable",
                           [
                             "Reference",
                             {},
                             [
                               [
                                 [
-                                  "morphir"
+                                  "acme"
                                 ],
                                 [
-                                  "s",
-                                  "d",
-                                  "k"
+                                  "demo"
                                 ]
                               ],
                               [
                                 [
-                                  "basics"
+                                  "pricing"
                                 ]
                               ],
                               [
-                                "int"
+                                "car"
                               ]
                             ],
                             []
                           ],
                           [
-                            "Variable",
-                            [
-                              "Reference",
-                              {},
-                              [
-                                [
-                                  [
-                                    "acme"
-                                  ],
-                                  [
-                                    "demo"
-                                  ]
-                                ],
-                                [
-                                  [
-                                    "pricing"
-                                  ]
-                                ],
-                                [
-                                  "car"
-                                ]
-                              ],
-                              []
-                            ],
-                            [
-                              "car"
-                            ]
-                          ],
-                          [
-                            "seats"
+                            "car"
                           ]
+                        ],
+                        [
+                          "seats"
                         ]
-                      }
+                      ]
                     }
                   }
                 ]

@@ -62,10 +62,12 @@ type ClassicBuilder() =
         | Access.Public -> Classic.AccessControlled.Public
         | Access.Private -> Classic.AccessControlled.Private
 
-    // Upstream morphir-elm writes the documentation wrapper on every type and value, with "" when there is no
-    // documentation, so a member without documentation still has the wrapper.
+    // A member without documentation stays without it in the model. The writer decides how to spell it
+    // (WriteOptions.AbsentDocumentation).
     static let documented (doc: string option) (value: 'T) =
-        Classic.Documented.WithDocumentation(Option.defaultValue "" doc, value)
+        match doc with
+        | Some text -> Classic.Documented.WithDocumentation(text, value)
+        | None -> Classic.Documented.WithoutDocumentation value
 
     static let literal (location: Location) (value: LiteralValue) : Checked<Classic.Literal> =
         match value with

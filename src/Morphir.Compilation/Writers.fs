@@ -36,6 +36,68 @@ type ClassicIrWriter() =
     /// <summary>The identity of the classic JSON writer.</summary>
     static member Identity = ComponentId.Create "morphir-dotnet.classic-json"
 
+    /// <summary>Gives every type and value without documentation an empty documentation.</summary>
+    static member private WrapAbsentDocumentation
+        (distribution: Classic.Distribution.Distribution<_, _>)
+        =
+        let wrap (documented: Classic.Documented.Documented<'v>) =
+            match documented with
+            | Classic.Documented.WithoutDocumentation value ->
+                Classic.Documented.WithDocumentation("", value)
+            | other -> other
+
+        let specification (spec: Classic.Module.ModuleSpecification<_>) =
+            { spec with
+                Types = Map.map (fun _ value -> wrap value) spec.Types
+                Values = Map.map (fun _ value -> wrap value) spec.Values
+            }
+
+        let dependencies =
+            Map.map (fun _ (package: Classic.Package.PackageSpecification<_>) ->
+                ({
+                    Modules = Map.map (fun _ spec -> specification spec) package.Modules
+                }
+                : Classic.Package.PackageSpecification<_>)
+            )
+
+        let controlled
+            (entry: Classic.AccessControlled.AccessControlled<Classic.Documented.Documented<'v>>)
+            =
+            { entry with Value = wrap entry.Value }
+
+        match distribution with
+        | Classic.Distribution.Library(name, packages, definition) ->
+            let modules =
+                definition.Modules
+                |> Map.map (fun
+                                _
+                                (entry:
+                                    Classic.AccessControlled.AccessControlled<Classic.Module.ModuleDefinition<_, _>>) ->
+                    { entry with
+                        Value =
+                            { entry.Value with
+                                Types = Map.map (fun _ value -> controlled value) entry.Value.Types
+                                Values =
+                                    Map.map (fun _ value -> controlled value) entry.Value.Values
+                            }
+                    }
+                )
+
+            Classic.Distribution.Library(
+                name,
+                dependencies packages,
+                ({ Modules = modules }: Classic.Package.PackageDefinition<_, _>)
+            )
+        | Classic.Distribution.Specs(name, packages, spec) ->
+            Classic.Distribution.Specs(
+                name,
+                dependencies packages,
+                ({
+                    Modules = Map.map (fun _ value -> specification value) spec.Modules
+                }
+                : Classic.Package.PackageSpecification<_>)
+            )
+
     override _.ToString() = "classic JSON writer (1, 2, 3)"
 
     interface IIrWriter with
@@ -64,6 +126,12 @@ type ClassicIrWriter() =
                         $"The classic writer does not write format version {Versioning.version target.Version}."
                 ]
             | FamilyModel.Classic distribution, Some(_, profile) ->
+                let distribution =
+                    match options.AbsentDocumentation with
+                    | AbsentDocumentation.Omit -> distribution
+                    | AbsentDocumentation.EmptyWrapper ->
+                        ClassicIrWriter.WrapAbsentDocumentation distribution
+
                 match ClassicJsonWriter.writeTyped profile options.Indented distribution with
                 | Ok bytes -> Checked.pass bytes
                 | Error error ->

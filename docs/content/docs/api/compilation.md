@@ -95,6 +95,12 @@ The classic writer reads its rules from a `ClassicWireProfile`, a record of data
 | Library tag | `library` | `Library` | `Library` |
 | Module without documentation | `doc` left out | `doc` left out | `"doc": null` |
 
+`WriteOptions` sets the layout (`Indented`) and the spelling of a type or value without documentation
+(`AbsentDocumentation`). `WriteOptions.Compact` is compact and uses `Omit`: the member is written without a
+documentation wrapper, which gives smaller output. `EmptyWrapper` writes `{"doc": "", "value": ...}`, as
+morphir-elm does, in all three classic versions. The reader accepts both forms. IR v4 always leaves out absent
+documentation. C# callers change one setting with `WithIndented` and `WithAbsentDocumentation`.
+
 ## Frontends
 
 A frontend implements `IFrontend`. It has an identity, a transport and a `FrontendCapability`: the languages
