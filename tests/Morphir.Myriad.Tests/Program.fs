@@ -7,6 +7,7 @@ open System.IO
 open Expecto
 open Myriad.Core
 open Morphir.Myriad
+open Morphir.Myriad.Hosting
 open Morphir.TestSupport
 
 module Program =
@@ -39,9 +40,91 @@ module Program =
 
         GeneratorContext.Create(None, (fun _ -> Seq.empty), path, None, parameters)
 
+    let prepareHost directory (plugin: string) =
+        let host =
+            Path.Combine(
+                TestSandbox.RealNuGetPackagesFolder,
+                "myriad",
+                "0.85.0",
+                "tools",
+                "net9.0",
+                "any",
+                "Myriad.dll"
+            )
+
+        MyriadHost.Prepare(
+            host,
+            Path.Combine(Path.GetDirectoryName plugin, "FSharp.Core.dll"),
+            directory
+        )
+
     [<Tests>]
     let tests =
         testList "Morphir Myriad" [
+            testCase "a scaffolded plugin builds and runs with the current Myriad host"
+            <| fun _ ->
+                let tripwire = MachineTripwire.Capture()
+
+                use guard =
+                    { new IDisposable with
+                        member _.Dispose() = tripwire.AssertUnchanged()
+                    }
+
+                use sandbox = TestSandbox.Create("myriad-scaffold-")
+
+                let skill =
+                    Path.GetFullPath(
+                        Path.Combine(
+                            __SOURCE_DIRECTORY__,
+                            "../../.claude/skills/elm-to-fsharp-guru"
+                        )
+                    )
+
+                let run arguments =
+                    let start = ChildProcess.StartInfo("dotnet", Array.ofList arguments)
+                    start.WorkingDirectory <- sandbox.Work
+                    sandbox.Apply start
+
+                    let result =
+                        ChildProcess
+                            .RunAsync(start, TimeSpan.FromMinutes 2.0)
+                            .GetAwaiter()
+                            .GetResult()
+
+                    Expect.equal result.ExitCode 0 result.CombinedOutput
+
+                run [
+                    "fsi"
+                    Path.Combine(skill, "scripts/generate-myriad-plugin.fsx")
+                    "UpgradePlugin"
+                ]
+
+                let project = Path.Combine(sandbox.Work, "UpgradePlugin", "UpgradePlugin.fsproj")
+                let pluginOutput = Path.Combine(sandbox.Work, "plugin output")
+                run [ "build"; project; "--output"; pluginOutput; "--nologo" ]
+
+                let plugin = Path.Combine(pluginOutput, "UpgradePlugin.dll")
+
+                let host = prepareHost sandbox.Work plugin
+                let input = Path.Combine(sandbox.Work, "Types.fs")
+                let output = Path.Combine(sandbox.Work, "Generated.fs")
+                File.WriteAllText(input, "namespace Input\n\ntype Person = { Name: string }\n")
+
+                run [
+                    "--roll-forward"
+                    "LatestMajor"
+                    host
+                    "--inputfile"
+                    input
+                    "--outputfile"
+                    output
+                    "--plugin"
+                    plugin
+                    "--generator-filter"
+                    "UpgradePluginGenerator"
+                ]
+
+                Expect.isTrue (File.Exists output) "the host accepts the scaffold's AST output"
             testCase "a missing module selector fails explicitly"
             <| fun _ ->
                 let generator = MorphirFSharpGenerator() :> IMyriadGenerator
@@ -83,43 +166,8 @@ module Program =
             <| fun _ ->
                 withModel
                 <| fun directory path ->
-                    let packages =
-                        match Environment.GetEnvironmentVariable "NUGET_PACKAGES" with
-                        | null ->
-                            Path.Combine(
-                                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                                ".nuget",
-                                "packages"
-                            )
-                        | value -> value
-
-                    let host =
-                        Path.Combine(
-                            packages,
-                            "myriad",
-                            "0.85.0",
-                            "tools",
-                            "net9.0",
-                            "any",
-                            "Myriad.dll"
-                        )
-
                     let plugin = typeof<MorphirFSharpGenerator>.Assembly.Location
-                    let compatibleDirectory = Path.Combine(directory, "host")
-
-                    Directory.CreateDirectory compatibleDirectory
-                    |> ignore
-
-                    for file in Directory.GetFiles(Path.GetDirectoryName host) do
-                        File.Copy(file, Path.Combine(compatibleDirectory, Path.GetFileName file))
-
-                    File.Copy(
-                        Path.Combine(Path.GetDirectoryName plugin, "FSharp.Core.dll"),
-                        Path.Combine(compatibleDirectory, "FSharp.Core.dll"),
-                        true
-                    )
-
-                    let compatibleHost = Path.Combine(compatibleDirectory, "Myriad.dll")
+                    let compatibleHost = prepareHost directory plugin
                     let output = Path.Combine(directory, "Inventory.fs")
 
                     let dotnet =

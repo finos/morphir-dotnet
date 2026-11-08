@@ -31,7 +31,7 @@ Only assign an output directory to one model. The build rejects duplicate output
 
 ## Version and host contract
 
-The plugin uses Myriad.Core 0.85.0, Fabulous.AST 1.10.0, Fantomas.Core 7.0.5 and the repository's FSharp.Core 11.0.100. The package bundles the real Myriad 0.85.0 host and launches it with .NET major-version roll forward. A cold first restore supplies the whole generation toolchain through the single package reference.
+The plugin uses Myriad.Core 0.85.0, Fabulous.AST 1.10.0, Fantomas.Core 7.0.5 and the repository's pinned FSharp.Core. The package bundles the real Myriad 0.85.0 host and launches it with .NET major-version roll forward. A cold first restore supplies the whole generation toolchain through the single package reference.
 
 The host's FSharp.Core must match the plugin's runtime identity when formatting crosses their boundary. The bundled host is aligned with the plugin's FSharp.Core and the coordinator uses an isolated runtime; it does not change the restored NuGet cache. Package contents include upstream attribution and third-party notices. Use the package's normal build integration to obtain this setup automatically.
 
@@ -48,6 +48,31 @@ dotnet --roll-forward LatestMajor <Myriad.dll> \
 ```
 
 In Myriad 0.85.0, `--generator-filter` selects the CLR type name. Passing the attribute name there does not select this generator. The normal `MorphirModel` build integration supplies the correct selection and output ordering for every module.
+
+### Maintain custom plugins
+
+The legacy Elm migration scaffolder creates a .NET 10 plugin project for Myriad.Core 0.85.0:
+
+```powershell
+dotnet fsi .claude/skills/elm-to-fsharp-guru/scripts/generate-myriad-plugin.fsx MyPlugin
+dotnet build MyPlugin/MyPlugin.fsproj
+```
+
+The starter parses F# input and emits no code until you implement its attribute selection and module generation functions. Myriad 0.85.0 uses `Fantomas.FCS.Syntax` types. `Ast.fromFilename` parses the file asynchronously, and `Ast.extractTypeDefn` takes the resulting `ParsedInput`, not a filename. `Output.Ast` contains whole `SynModuleOrNamespace` nodes. Implement both `ValidInputExtensions` and `Generate` on `IMyriadGenerator`.
+
+The scaffold copies runtime dependencies beside the plugin. When invoking the upstream host directly, align its FSharp.Core with the plugin as described above. Building the plugin alone does not configure a consumer's code generation.
+
+Renovate groups Myriad's host, core, SDK and plugins with Fantomas.Core and Fabulous.AST in `fsharp-codegen`, separately from general .NET updates. Before merging an upgrade, run the generator suites and both package-consumer scripts:
+
+```powershell
+dotnet run --project tests/Morphir.Myriad.Tests
+dotnet run --project tests/Morphir.Internal.CodeGeneration.Tests
+dotnet run --project tests/Morphir.Myriad.SystemTextJson.Tests
+dotnet fsi tests/Morphir.Myriad.Tests/package-tests.fsx
+dotnet fsi tests/Morphir.Myriad.SystemTextJson.Tests/package-tests.fsx
+```
+
+The scaffold regression test builds a new plugin in a sandbox and runs it through the real host. The package scripts also check cold restores, repeat builds, failures, and consumers using both Morphir plugins.
 
 ## Supported inputs and declarations
 

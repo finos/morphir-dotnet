@@ -497,11 +497,13 @@ type Config = {
 module MyMyriadPlugin
 
 open Myriad.Core
-open FSharp.Compiler.SyntaxTree
+open Fantomas.FCS.Syntax
 
 [<MyriadGenerator("my-plugin")>]
 type MyGenerator() =
     interface IMyriadGenerator with
+        member _.ValidInputExtensions = seq { ".fs" }
+
         member _.Generate(context: GeneratorContext) : Output =
             // 1. Parse input AST
             let inputTypes = parseInputTypes context
@@ -520,8 +522,8 @@ type MyGenerator() =
 </PropertyGroup>
 
 <ItemGroup>
-  <PackageReference Include="Myriad.Core" Version="0.8.3" />
-  <PackageReference Include="Myriad.Plugins" Version="0.8.3" />
+  <PackageReference Include="Myriad.Core" Version="0.85.0" />
+  <PackageReference Include="Myriad.Plugins" Version="0.85.0" />
 </ItemGroup>
 
 <ItemGroup>

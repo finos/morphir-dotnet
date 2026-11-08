@@ -19,7 +19,7 @@ The foundation for the Myriad code generation plugin has been successfully imple
 - ✅ Integrates with full solution build
 
 ### Dependencies ✅
-- ✅ Myriad.Core 0.8.3
+- ✅ Myriad.Core 0.85.0
 - ✅ Fabulous.AST 1.9.0
 - ✅ Fantomas.Core 6.3.0
 - ✅ FSharp.Compiler.Service 34.1.1

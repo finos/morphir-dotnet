@@ -26,6 +26,30 @@
       ],
       "depNameTemplate": "dotnet-sdk",
       "datasourceTemplate": "dotnet-version"
+    },
+    {
+      "description": "Track the bundled Myriad host pins with the generator packages.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^src/Morphir\\.Myriad[^/]*/(?:build/[^/]+\\.props|build/MyriadHostPackaging\\.targets)$/"
+      ],
+      "matchStrings": [
+        "<MorphirMyriadHostVersion>(?<currentValue>[^<]+)</MorphirMyriadHostVersion>"
+      ],
+      "depNameTemplate": "myriad",
+      "datasourceTemplate": "nuget"
+    },
+    {
+      "description": "Track the Myriad.Core version embedded in the plugin scaffold's project template.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.claude/skills/elm-to-fsharp-guru/scripts/generate-myriad-plugin\\.fsx$/"
+      ],
+      "matchStrings": [
+        "<PackageReference Include=\"Myriad\\.Core\" Version=\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "Myriad.Core",
+      "datasourceTemplate": "nuget"
     }
   ],
   "packageRules": [
@@ -111,13 +135,17 @@
       "allowedVersions": "/^10\\./"
     },
     {
-      "description": "Fabulous.AST requires an exact Fantomas.Core version. Keep their available updates together even when their update types differ, overriding the generic NuGet groups. Review the required Fantomas.Core version before merging.",
+      "description": "Myriad's host, plugins and generator contract share Fantomas AST types. Fabulous.AST also requires an exact Fantomas.Core version. Update this code generation toolchain independently of general NuGet updates and review host/runtime compatibility before merging.",
       "matchDatasources": [
         "nuget"
       ],
       "matchPackageNames": [
         "Fabulous.AST",
-        "Fantomas.Core"
+        "Fantomas.Core",
+        "myriad",
+        "Myriad.Core",
+        "Myriad.Plugins",
+        "Myriad.Sdk"
       ],
       "groupName": "fsharp-codegen",
       "separateMajorMinor": false
