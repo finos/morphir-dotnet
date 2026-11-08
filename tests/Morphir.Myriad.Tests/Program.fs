@@ -100,10 +100,10 @@ module Program =
                 ]
 
                 let project = Path.Combine(sandbox.Work, "UpgradePlugin", "UpgradePlugin.fsproj")
-                run [ "build"; project; "--nologo" ]
+                let pluginOutput = Path.Combine(sandbox.Work, "plugin output")
+                run [ "build"; project; "--output"; pluginOutput; "--nologo" ]
 
-                let plugin =
-                    Path.Combine(sandbox.Work, "UpgradePlugin/bin/Debug/net10.0/UpgradePlugin.dll")
+                let plugin = Path.Combine(pluginOutput, "UpgradePlugin.dll")
 
                 let host = prepareHost sandbox.Work plugin
                 let input = Path.Combine(sandbox.Work, "Types.fs")
