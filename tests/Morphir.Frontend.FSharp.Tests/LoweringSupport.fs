@@ -17,17 +17,26 @@ let carRental =
     | Ok path -> PackageName path
     | Error message -> failwith message
 
+/// A checked and planned package, ready to lower.
+type Compiled = {
+    Plan: FrontendPlan
+    Evidence: CheckedEvidence
+}
+
 /// Plans the documents for package acme/car-rental with every module exposed.
 let planOf documents =
     let evidence = passed (analyze documents)
 
-    Planning.plan
-        {
-            Package = carRental
-            ExposedModules = None
-        }
-        evidence
-    |> passed
+    let plan =
+        Planning.plan
+            {
+                Package = carRental
+                ExposedModules = None
+            }
+            evidence
+        |> passed
+
+    { Plan = plan; Evidence = evidence }
 
 let private writers =
     WriterRegistry.Create [ ClassicIrWriter() :> IIrWriter; V4IrWriter() ]
@@ -36,9 +45,9 @@ let private writers =
 let buildAndWrite
     (family: IFamilyBuilder)
     (version: Versioning.FormatVersion)
-    (plan: FrontendPlan)
+    (compiled: Compiled)
     =
-    family.Build(PackageLowering plan)
+    family.Build(PackageLowering(compiled.Plan, compiled.Evidence))
     |> Checked.bind (fun model ->
         writers.Resolve version
         |> Checked.bind (fun resolved ->

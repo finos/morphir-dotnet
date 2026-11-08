@@ -234,39 +234,3 @@ module internal Lowering =
                     $"The type '{entity.DisplayName}' is not a record, union or type abbreviation."
                 |> Diagnostic.at at
             ]
-
-    /// <summary>Lowers one planned module. Values come with task 3.6.</summary>
-    let lowerModule
-        (builder:
-            IIrBuilder<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition, 'Module, 'Package>)
-        (plan: FrontendPlan)
-        (planned: PlannedModule)
-        : Checked<'Module> =
-        planned.Types
-        |> Checked.traverse (fun plannedType ->
-            lowerTypeDefinition builder plan plannedType
-            |> Checked.map (fun definition -> {
-                Name = plannedType.Name
-                Access = plannedType.Access
-                Documentation = plannedType.Documentation
-                Definition = definition
-                Location = plannedType.Location
-            })
-        )
-        |> Checked.bind (fun types -> builder.Module(planned.Plan, types, []))
-
-    /// <summary>Lowers the whole planned package with one builder.</summary>
-    let lowerPackage
-        (builder:
-            IIrBuilder<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition, 'Module, 'Package>)
-        (plan: FrontendPlan)
-        : Checked<'Package> =
-        plan.Modules
-        |> Checked.traverse (lowerModule builder plan)
-        |> Checked.bind (fun modules -> builder.Package(plan.Package, modules))
-
-/// <summary>The lowering of a planned package as a builder program, for any registered IR family.</summary>
-[<Sealed>]
-type internal PackageLowering(plan: FrontendPlan) =
-    interface IBuilderProgram with
-        member _.Run(builder) = Lowering.lowerPackage builder plan
