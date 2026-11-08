@@ -262,7 +262,8 @@ let tests =
                 "separate document paths"
         }
 
-        test "the references are the runtime framework and the host FSharp.Core only" {
+        test
+            "the references are the runtime framework, the host FSharp.Core and the Morphir attributes only" {
             let evidence = passed (analyze [ rates ])
             let options = evidence.Original.Results.ProjectContext.ProjectOptions
 
@@ -273,6 +274,7 @@ let tests =
 
             Expect.contains references "System.Runtime.dll" "framework"
             Expect.contains references "FSharp.Core.dll" "FSharp.Core"
+            Expect.contains references "Morphir.FSharp.Annotations.dll" "the Morphir attributes"
 
             for name in [ "Expecto.dll"; "FSharp.Compiler.Service.dll"; "Morphir.Compilation.dll" ] do
                 Expect.isFalse
@@ -284,6 +286,7 @@ let tests =
             let identity = CompilerEdge.identity.Force()
             Expect.stringContains identity "FSharp.Compiler.Service 43.12.403" "compiler service"
             Expect.stringContains identity "FSharp.Core 10.1.403" "core"
+            Expect.stringContains identity "Morphir.FSharp.Annotations" "annotations"
             Expect.stringContains identity ".NET" "runtime"
 
             Expect.stringContains

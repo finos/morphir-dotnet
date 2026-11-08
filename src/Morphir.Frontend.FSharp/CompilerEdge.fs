@@ -63,7 +63,7 @@ type internal CheckedProject =
 /// <summary>
 /// The hermetic F# compiler service edge (FSF-5). The project options are made in memory from the ordered
 /// documents; the frontend never reads a project file. The references are the hosting runtime's framework
-/// assemblies and the FSharp.Core that the host loaded. Sources reach the compiler through an in-memory
+/// assemblies, the FSharp.Core that the host loaded, and the Morphir F# annotations. Sources reach the compiler through an in-memory
 /// document source under a virtual root, so no host path reaches a range, a message or a model.
 /// </summary>
 [<RequireQualifiedAccess>]
@@ -114,8 +114,9 @@ module internal CompilerEdge =
         lazy
             (let compiler = version typeof<FSharpChecker>.Assembly
              let core = version typeof<unit>.Assembly
+             let annotations = version typeof<Morphir.MorphirNameAttribute>.Assembly
 
-             $"FSharp.Compiler.Service {compiler}; FSharp.Core {core}; {RuntimeInformation.FrameworkDescription}; evidence {EvidenceRevision}")
+             $"FSharp.Compiler.Service {compiler}; FSharp.Core {core}; Morphir.FSharp.Annotations {annotations}; {RuntimeInformation.FrameworkDescription}; evidence {EvidenceRevision}")
 
     let private references =
         lazy
@@ -144,7 +145,11 @@ module internal CompilerEdge =
                  )
                  |> Array.sortWith (fun left right -> String.CompareOrdinal(left, right))
 
-             Array.append framework [| typeof<unit>.Assembly.Location |])
+             // FSharp.Core and the Morphir attributes (MorphirNameAttribute) are the only non-framework references.
+             Array.append framework [|
+                 typeof<unit>.Assembly.Location
+                 typeof<Morphir.MorphirNameAttribute>.Assembly.Location
+             |])
 
     let private options = [|
         "--targetprofile:netcore"

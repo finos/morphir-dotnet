@@ -30,6 +30,9 @@
           "Morphir.Models": "[1.0.0, )"
         }
       },
+      "morphir.fsharp.annotations": {
+        "type": "Project"
+      },
       "morphir.models": {
         "type": "Project",
         "dependencies": {
