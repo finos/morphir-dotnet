@@ -14,6 +14,7 @@
   <ItemGroup>
     <!-- Testing frameworks -->
     <PackageReference Include="TUnit" />
+    <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
     <PackageReference Include="coverlet.collector" />
     
     <!-- Assertions and verification -->

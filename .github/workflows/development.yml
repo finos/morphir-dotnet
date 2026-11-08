@@ -88,9 +88,51 @@ jobs:
             - name: Build
               shell: bash
               run: ./build.sh --target Compile --configuration ${{ env.CONFIGURATION }}
+            # Green runs take 6 to 14 minutes on each OS (median about 10), so 30 minutes is about 2x the slowest
+            # and 3x the median. The TUnit assemblies also take a hang dump after 10 minutes with no test progress
+            # (TestHangTimeout); that names the running tests and stops them well before this limit.
+            # A detected hang gets one retry below. Any other failure, a timeout included, fails the job.
             - name: Run tests
+              id: tests
               shell: bash
+              timeout-minutes: 30
+              continue-on-error: true
               run: ./build.sh --target Test --configuration ${{ env.CONFIGURATION }}
+            - name: Upload test results
+              if: steps.tests.outcome != 'success'
+              uses: actions/upload-artifact@v6
+              with:
+                  name: test-results-${{ matrix.os }}-attempt-${{ github.run_attempt }}
+                  path: artifacts/test-results/
+                  if-no-files-found: ignore
+                  retention-days: 7
+            - name: Fail on a test failure
+              if: steps.tests.outcome != 'success' && steps.tests.outputs.hang != 'true'
+              shell: bash
+              run: |
+                  echo "::error title=Tests failed::Run tests failed without a detected hang, so it is not retried. See the Run tests step."
+                  exit 1
+            - name: Retry tests once after a hang
+              id: tests-retry
+              if: steps.tests.outcome != 'success' && steps.tests.outputs.hang == 'true'
+              shell: bash
+              timeout-minutes: 30
+              run: |
+                  echo "::warning title=Test hang retried::Run tests hung. This step runs the tests one more time. The hang report is in the job summary and in the test-results artifact."
+                  {
+                      echo "### Tests retried once after a hang"
+                      echo
+                      echo "The first attempt hung (see the hang report above and the \`test-results-${{ matrix.os }}-attempt-${{ github.run_attempt }}\` artifact). A pass of this retry does not fix the hang."
+                  } >> "$GITHUB_STEP_SUMMARY"
+                  ./build.sh --target Test --configuration ${{ env.CONFIGURATION }} --skip
+            - name: Upload test results of the retry
+              if: failure() && steps.tests-retry.outcome == 'failure'
+              uses: actions/upload-artifact@v6
+              with:
+                  name: test-results-${{ matrix.os }}-attempt-${{ github.run_attempt }}-retry
+                  path: artifacts/test-results/
+                  if-no-files-found: ignore
+                  retention-days: 7
             # The F# compiler does not run the trim analyzers, so only a Native AOT publish checks generated F# converters.
             # One OS is enough: the generated code does not depend on the platform.
             - name: Check generated JSON converters under Native AOT
