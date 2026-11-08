@@ -208,7 +208,7 @@ let tests =
             Expect.equal
                 (diagnostics
                  |> List.map (fun diagnostic -> diagnostic.LocationOrNull.Uri, codeOf diagnostic))
-                [ "A.fs", "fsharp.unsupported_match_shape"; "B.fs", "fsharp.compiler" ]
+                [ "A.fs", "fsharp.unsupported_list_pattern"; "B.fs", "fsharp.compiler" ]
                 "the refusal in A.fs before the warning in B.fs"
         }
 

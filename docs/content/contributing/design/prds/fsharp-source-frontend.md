@@ -47,7 +47,8 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Tool path, first delivery | Exact versions, checked diagnostics, native builders and writers | Implemented | Tasks 2.1–2.6: `Morphir.Compilation` (168 tests), classic and v4 writers checked against readers, schemas, the pinned v4 kit and upstream IR; docs in `docs/content/docs/api/compilation.md`; follow-ups #514, #515 |
 | Tool path, first delivery | Syntax-led match reconstruction and checked type-evidence proof | Implemented | Revised task 3.1; 34/34 standalone tests, including all eleven original probes |
 | Tool path, first delivery | Hermetic FCS edge and checked match evidence | Implemented | Task 3.2; `src/Morphir.Frontend.FSharp`, 39 focused tests in `Morphir.Frontend.FSharp.Tests` |
-| Tool path, first delivery | Admission catalog, planning and lowering | Planned | Tasks 3.3–3.8 |
+| Tool path, first delivery | Admission catalog | Implemented | Task 3.3; `Admission.fs`, 38 rules with examples, 62 admission tests |
+| Tool path, first delivery | Planning and lowering | Planned | Tasks 3.4–3.8 |
 | Tool path, first delivery | Generator round trip and coverage documentation | Planned | Tasks 3.9–3.10 |
 | Tool path, first delivery | Sources, configuration, CLI composition and streamed reports | Planned | Tasks 4.1–4.8 |
 | Tool path, first delivery | Compile records and generation from a prior compile | Planned | Tasks 5.1–5.5 |
