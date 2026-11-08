@@ -95,7 +95,10 @@ Attributes on a type, a case or a field override the context settings for that i
 | `JsonPropertyName` | Field | The System.Text.Json attribute, for one name |
 | `JsonParsedValue` | Type, abbreviation | A value that is written as text and read only through its parser |
 | `JsonIgnoreType` | Type | Leave the type out of the context |
-| `JsonDefaultValue` | Record field | Read this JSON literal through the generated field codec when the member is absent |
+| `JsonDefaultValue` | Record field | Use a string, Boolean or numeric literal when the member is absent |
+| `JsonDefaultEmpty` | Collection field | Use the empty collection when the member is absent |
+| `JsonDefaultValueProvider` | Record field | Call an accessible static method with no arguments when the member is absent |
+| `JsonDefaultJson` | Record field | Read an explicit JSON literal through the generated field codec when absent |
 | `JsonOmitEmpty` | Record collection field | Omit an empty collection on writing |
 | `JsonExtensionData` | Record map field | Capture unknown members and write them beside the named members. This is the System.Text.Json attribute |
 | `JsonVersionAlias` | Record version field | Normalize an exact legacy member/version pair to the current member and version |
@@ -133,13 +136,38 @@ These annotations opt into wire rules for a particular record field. Other field
 ```fsharp
 type Diagnostic =
     { Message: string
-      [<JsonDefaultValue("[]"); JsonOmitEmpty>]
+      [<JsonDefaultEmpty; JsonOmitEmpty>]
       Related: string list
-      [<JsonDefaultValue("false")>]
+      [<JsonDefaultValue(false)>]
       Retryable: bool }
 ```
 
-An absent `Related` reads as `[]`; an empty `Related` is omitted on writing. An absent `Retryable` reads as false and is still written. `JsonDefaultValue` takes one complete JSON value as a string literal. The generated codec reads it using the field's normal encoding, including parsed-value parsers and union settings. Malformed JSON fails generation; a default of the wrong type fails through that codec when used. Explicit null never selects the default. `JsonOmitEmpty` supports sequences and maps, and does not itself make a missing member optional.
+An absent `Related` reads as `[]`; an empty `Related` is omitted on writing. An absent `Retryable` reads as false and is still written. `JsonDefaultEmpty` supports sequences and maps, using their configured encoding. `JsonOmitEmpty` supports the same shapes and does not itself make a missing member optional.
+
+`JsonDefaultValue` takes an ordinary string, Boolean or numeric literal. Strings are values, without JSON escaping: `JsonDefaultValue("false")` means the string `"false"`, while `JsonDefaultValue(false)` means a Boolean. The generator checks primitive token kinds and numeric bounds, and the generated field codec reads the default using its normal encoding, including parsed-value parsers and union settings.
+
+For decimals and other values that cannot be attribute arguments, name a static provider method:
+
+```fsharp
+type PaymentDefaults =
+    static member Amount() : decimal = 12.50M
+
+type Payment =
+    { [<JsonDefaultValue("anonymous")>]
+      Name: string
+      [<JsonDefaultValue(3)>]
+      Retries: int
+      [<JsonDefaultValue(0.5)>]
+      Ratio: float
+      [<JsonDefaultValueProvider(typeof<PaymentDefaults>, nameof PaymentDefaults.Amount)>]
+      Amount: decimal }
+```
+
+The generator emits a direct method call, without reflection or build-time execution of the provider. The F# compiler checks accessibility, static invocation, arguments and the return type against the field. Use a non-generic provider type and a method callable with no arguments; return a new mutable collection on each call when records must not share it. Provider methods should be deterministic and have no side effects. They run once for each absent member and do not run for explicit values or null. Null results follow the field's null rules, and version and critical-path constraints are checked before returning the record. Providers supply typed values directly; they do not convert strings through a parser or JSON converter.
+
+`JsonDefaultJson("...")` is the explicit escape hatch for defaults expressed in JSON, such as `JsonDefaultJson("null")` on a field configured to accept null. It takes one complete JSON value, read through the generated field codec. Malformed JSON fails generation; codec-specific validation runs when the default is used. Declare only one default annotation per field. Explicit null never selects any default.
+
+These defaults apply to missing members while reading. They do not themselves omit values while writing. Like System.Text.Json, this generator does not interpret `System.ComponentModel.DefaultValueAttribute`. Constructor selection with `JsonConstructor` remains outside the current record and union scope; `JsonPropertyName` is supported as shown in the attribute table.
 
 ### Open objects
 
@@ -153,13 +181,13 @@ For a format whose version member changed its name, declare the exact legacy and
 type Claims =
     { [<JsonVersionAlias("statementVersion", "0.1.0-draft.1", "0.1.0-draft.2", CriticalMember = "critical")>]
       ClaimsVersion: string
-      [<JsonDefaultValue("[]"); JsonOmitEmpty; JsonKnownPaths("claimsVersion", "protocolVersions", "capabilities", "capabilities.frontend")>]
+      [<JsonDefaultEmpty; JsonOmitEmpty; JsonKnownPaths("claimsVersion", "protocolVersions", "capabilities", "capabilities.frontend")>]
       Critical: string list }
 ```
 
 With camel-case context naming, a reader accepts `statementVersion` only with draft.1 and `claimsVersion` only with draft.2. Both names together fail. Legacy input normalizes to draft.2 and its exact `statementVersion` critical path becomes `claimsVersion`. A legacy list naming `claimsVersion` fails. Writers require the current version and write only `claimsVersion`.
 
-`CriticalMember` is optional and names a JSON member, not an F# field. When set, it must name a string collection with `JsonKnownPaths` that allows the current version-member path and excludes the legacy path. The paths shown above illustrate a subset; declare every path your format understands. Known parents never permit unknown children. The version field can also be a `JsonParsedValue` type; its parser receives the normalized current text. If a version-alias field also declares `JsonDefaultValue`, that default must be a JSON string containing the exact current version. Legacy, unknown, null and non-string defaults fail generation. One version alias is allowed per record. These wire annotations apply to record fields.
+`CriticalMember` is optional and names a JSON member, not an F# field. When set, it must name a string collection with `JsonKnownPaths` that allows the current version-member path and excludes the legacy path. The paths shown above illustrate a subset; declare every path your format understands. Known parents never permit unknown children. The version field can also be a `JsonParsedValue` type; its parser receives the normalized current text. If a version-alias field declares a scalar or JSON-literal default, it must encode the exact current-version string. Legacy, unknown, null and non-string literal defaults fail generation. Provider results are checked against the current version at deserialization. One version alias is allowed per record. These wire annotations apply to record fields.
 
 ## Unions
 

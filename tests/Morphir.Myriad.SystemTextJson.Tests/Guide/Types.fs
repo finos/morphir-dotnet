@@ -35,13 +35,26 @@ type RequestId =
 
 type Diagnostic =
     { Message: string
-      [<JsonDefaultValue("[]"); JsonOmitEmpty>]
+      [<JsonDefaultEmpty; JsonOmitEmpty>]
       Related: string list
-      [<JsonDefaultValue("false")>]
+      [<JsonDefaultValue(false)>]
       Retryable: bool }
 
 type Claims =
     { [<JsonVersionAlias("statementVersion", "0.1.0-draft.1", "0.1.0-draft.2", CriticalMember = "critical")>]
       ClaimsVersion: string
-      [<JsonDefaultValue("[]"); JsonOmitEmpty; JsonKnownPaths("claimsVersion", "protocolVersions", "capabilities", "capabilities.frontend")>]
+      [<JsonDefaultEmpty; JsonOmitEmpty; JsonKnownPaths("claimsVersion", "protocolVersions", "capabilities", "capabilities.frontend")>]
       Critical: string list }
+
+type PaymentDefaults =
+    static member Amount() : decimal = 12.50M
+
+type Payment =
+    { [<JsonDefaultValue("anonymous")>]
+      Name: string
+      [<JsonDefaultValue(3)>]
+      Retries: int
+      [<JsonDefaultValue(0.5)>]
+      Ratio: float
+      [<JsonDefaultValueProvider(typeof<PaymentDefaults>, nameof PaymentDefaults.Amount)>]
+      Amount: decimal }

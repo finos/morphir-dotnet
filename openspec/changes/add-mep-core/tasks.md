@@ -6,11 +6,13 @@ Every behavior task follows red/green/refactor: write the failing test first. Gr
 
 These tasks land separately before the remaining MEP types. Keep codecs generated; the pinned contract's type documentation is the acceptance reference.
 
-- [x] 0.1 Add opt-in `JsonDefaultValue` JSON-literal defaults for missing record fields. Test false flags, empty collections and fieldless union defaults, malformed defaults, and explicit null remaining invalid for non-null fields. Unannotated fields remain required.
+- [x] 0.1 Add opt-in `JsonDefaultJson` JSON-literal defaults for missing record fields. Test false flags, empty collections and fieldless union defaults, malformed defaults, and explicit null remaining invalid for non-null fields. Unannotated fields remain required.
 - [x] 0.2 Add opt-in `JsonOmitEmpty` for collection fields. Test omission of empty collections, unchanged nonempty values, and round trips together with a missing-field default. Refuse unsupported field shapes at generation time.
 - [x] 0.3 Support `JsonExtensionData` on one string-keyed JsonElement map field. Test flattened unknown-member preservation, duplicate refusal, known-name collisions on write, empty default and invalid declarations.
 - [x] 0.4 Add generated versioned-alias migration and critical-path validation. Test the pinned claims draft.1 to draft.2 member and path migration, current canonical writes, mismatched name/version refusal, both names refused, and unknown critical paths refused. Keep protocol constants in annotated input rather than in the generator.
 - [x] 0.5 Document the annotations, run the compatibility and snapshot suites, package consumers, Native AOT/JIT equality and the full repository tests. Verify unchanged contexts retain their existing output.
+
+- [x] 0.6 Replace JSON-text scalar defaults with typed `JsonDefaultValue` literals, add `JsonDefaultEmpty` and `JsonDefaultValueProvider` for accessible static no-argument methods, and keep explicit `JsonDefaultJson` as the JSON-literal escape hatch. Verify strings, numeric bounds, decimal providers, fresh mutable defaults, explicit null, invalid declarations, provider signature compiler failures, canonical versions, packed consumers and JIT/Native AOT equality. Preserve `JsonPropertyName`; constructor-based model support remains deferred.
 
 ## 1. Tracking and project setup
 

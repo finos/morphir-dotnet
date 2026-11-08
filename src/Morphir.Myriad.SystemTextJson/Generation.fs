@@ -69,6 +69,33 @@ module Generation =
         | TypeRef.External _ -> true
         | _ -> false
 
+    /// Checks primitive token kinds and numeric bounds without running consumer code.
+    let rec private scalarDefaultFits (skippable: bool) (value: System.Text.Json.JsonElement) (target: TypeRef) =
+        let stringToken = value.ValueKind = System.Text.Json.JsonValueKind.String
+        let numberToken = value.ValueKind = System.Text.Json.JsonValueKind.Number
+        match target with
+        | TypeRef.Option inner | TypeRef.ValueOption inner when skippable -> scalarDefaultFits skippable value inner
+        | TypeRef.Primitive Primitive.JsonElement -> true
+        | TypeRef.Primitive Primitive.Bool -> value.ValueKind = System.Text.Json.JsonValueKind.True || value.ValueKind = System.Text.Json.JsonValueKind.False
+        | TypeRef.Primitive primitive when primitive.NumberTypeName.IsSome ->
+            numberToken &&
+                (match primitive with
+                 | Primitive.Byte -> value.TryGetByte() |> fst
+                 | Primitive.SByte -> value.TryGetSByte() |> fst
+                 | Primitive.Int16 -> value.TryGetInt16() |> fst
+                 | Primitive.UInt16 -> value.TryGetUInt16() |> fst
+                 | Primitive.Int32 -> value.TryGetInt32() |> fst
+                 | Primitive.UInt32 -> value.TryGetUInt32() |> fst
+                 | Primitive.Int64 -> value.TryGetInt64() |> fst
+                 | Primitive.UInt64 -> value.TryGetUInt64() |> fst
+                 | Primitive.Single -> let valid, number = value.TryGetSingle() in valid && System.Single.IsFinite number
+                 | Primitive.Double -> let valid, number = value.TryGetDouble() in valid && System.Double.IsFinite number
+                 | Primitive.Decimal -> value.TryGetDecimal() |> fst
+                 | _ -> false)
+        | TypeRef.Primitive _ | TypeRef.Parsed _ -> stringToken
+        | TypeRef.Sequence _ | TypeRef.Map _ | TypeRef.Tuple _ -> false
+        | _ -> true
+
     /// True when a JsonNumberHandling attribute on the field allows reading numbers from strings.
     let private readsNumbersFromStrings (attributes: AttributeUse list) =
         attributes
@@ -246,6 +273,17 @@ module Generation =
                 unsupported declaration location memberName reason
                 None
 
+        // Provider types in this input are resolved from the record's lexical scope, before
+        // considering the opens of the generated context. This also handles nested modules.
+        let providerTypeName (declaration: TypeDeclaration) (name: string) =
+            let rec find path =
+                let candidate = String.concat "." (path @ [ name ])
+                match source.Types |> List.tryFind (fun t -> String.concat "." (t.Path @ [ t.Name ]) = candidate) with
+                | Some provider -> provider.QualifiedName
+                | None when not path.IsEmpty -> find (List.take (path.Length - 1) path)
+                | None -> name
+            find declaration.Path
+
         let planned =
             included
             |> List.choose (fun declaration ->
@@ -335,18 +373,44 @@ module Generation =
                                         | _ -> unsupported declaration field.Location field.Name "JsonExtensionData needs Map<string, JsonElement> or IReadOnlyDictionary<string, JsonElement>."
                                         if rules.RefuseUnknownMembers then
                                             unsupported declaration field.Location field.Name "JsonExtensionData cannot be combined with UnknownMembers.Refuse."
-                                        if omitEmpty || hasAttribute "JsonDefaultValue" field.Attributes then
-                                            unsupported declaration field.Location field.Name "JsonExtensionData is already empty when absent and flattened on writing; do not combine it with JsonOmitEmpty or JsonDefaultValue."
+                                        if omitEmpty || field.Attributes |> List.exists (fun a -> List.contains a.Name [ "JsonDefaultValue"; "JsonDefaultJson"; "JsonDefaultEmpty"; "JsonDefaultValueProvider" ]) then
+                                            unsupported declaration field.Location field.Name "JsonExtensionData is already empty when absent and flattened on writing; do not combine it with JsonOmitEmpty or a missing-member default."
                                     if omitEmpty then
                                         match resolved with
                                         | TypeRef.Sequence _ | TypeRef.Map _ -> ()
                                         | _ -> unsupported declaration field.Location field.Name "JsonOmitEmpty applies only to a collection field."
-                                    let defaultJson =
-                                        match field.Attributes |> List.tryFind (fun a -> a.Name = "JsonDefaultValue") with
+                                    let defaultAttributes = field.Attributes |> List.filter (fun a -> List.contains a.Name [ "JsonDefaultValue"; "JsonDefaultJson"; "JsonDefaultEmpty"; "JsonDefaultValueProvider" ])
+                                    if defaultAttributes.Length > 1 then
+                                        unsupported declaration field.Location field.Name "Declare only one missing-member default."
+                                    let missingDefault =
+                                        match defaultAttributes |> List.tryHead with
                                         | None -> None
-                                        | Some attribute ->
+                                        | Some attribute when attribute.Name = "JsonDefaultValueProvider" ->
                                             match attribute.Positional, attribute.Named with
-                                            | [ AttributeValue.Text json ], [] ->
+                                            | [ AttributeValue.TypeOf provider; AttributeValue.Text methodName ], [] when System.Text.RegularExpressions.Regex.IsMatch(methodName, "^[A-Za-z_][A-Za-z0-9_']*$") ->
+                                                Some(DefaultValueSpec.Provider(providerTypeName declaration provider + ".``" + methodName + "``()"))
+                                            | _ ->
+                                                unsupported declaration field.Location field.Name "JsonDefaultValueProvider needs typeof<Provider> and a method name literal or nameof Provider.Method. The method must be accessible, static, take no arguments, and return the field type."
+                                                None
+                                        | Some attribute ->
+                                            let json =
+                                                match attribute.Name, attribute.Positional, attribute.Named with
+                                                | "JsonDefaultEmpty", [], [] ->
+                                                    match resolved with
+                                                    | TypeRef.Sequence _ -> Some "[]"
+                                                    | TypeRef.Map(_, key, _) -> Some(if Emit.mapAsObject settings.MapFormat key then "{}" else "[]")
+                                                    | _ ->
+                                                        unsupported declaration field.Location field.Name "JsonDefaultEmpty applies only to a collection field."
+                                                        None
+                                                | "JsonDefaultJson", [ AttributeValue.Text json ], [] -> Some json
+                                                | "JsonDefaultValue", [ AttributeValue.Text text ], [] -> Some("\"" + System.Text.Json.JsonEncodedText.Encode(text).ToString() + "\"")
+                                                | "JsonDefaultValue", [ AttributeValue.Bool value ], [] -> Some(if value then "true" else "false")
+                                                | "JsonDefaultValue", [ AttributeValue.Int value ], [] -> Some(value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                                                | "JsonDefaultValue", [ AttributeValue.Number value ], [] -> Some value
+                                                | _ ->
+                                                    unsupported declaration field.Location field.Name $"{attribute.Name} needs one literal value of its supported kind."
+                                                    None
+                                            json |> Option.bind (fun json ->
                                                 try
                                                     use document = System.Text.Json.JsonDocument.Parse json
                                                     let incompatibleVersion =
@@ -354,16 +418,16 @@ module Generation =
                                                             document.RootElement.ValueKind <> System.Text.Json.JsonValueKind.String
                                                             || not (System.String.Equals(document.RootElement.GetString(), alias.CurrentVersion, System.StringComparison.Ordinal)))
                                                     if incompatibleVersion then
-                                                        unsupported declaration field.Location field.Name "JsonDefaultValue on a JsonVersionAlias field must be a JSON string containing its exact current version."
+                                                        unsupported declaration field.Location field.Name $"{attribute.Name} on a JsonVersionAlias field must contain its exact current version string."
+                                                        None
+                                                    elif attribute.Name = "JsonDefaultValue" && not (scalarDefaultFits rules.SkipAbsentOptions document.RootElement resolved) then
+                                                        unsupported declaration field.Location field.Name "JsonDefaultValue has an incompatible scalar kind or numeric value outside the field's range; use a typed provider for non-scalar values."
                                                         None
                                                     else
-                                                        Some json
+                                                        Some(DefaultValueSpec.Json json)
                                                 with :? System.Text.Json.JsonException ->
-                                                    unsupported declaration field.Location field.Name "JsonDefaultValue must contain one complete JSON value."
-                                                    None
-                                            | _ ->
-                                                unsupported declaration field.Location field.Name "JsonDefaultValue needs one JSON string literal."
-                                                None
+                                                    unsupported declaration field.Location field.Name $"{attribute.Name} must contain one complete JSON value."
+                                                    None)
 
                                     {
                                         Name = name
@@ -373,7 +437,7 @@ module Generation =
                                         Skippable = rules.SkipAbsentOptions
                                         AllowNull = rules.AllowNullFields && acceptsNull resolved
                                         NumbersFromStrings = lenient
-                                        DefaultJson = defaultJson
+                                        Default = missingDefault
                                         OmitEmpty = omitEmpty
                                         ExtensionData = extensionData
                                         VersionAlias = versionAlias
@@ -411,7 +475,7 @@ module Generation =
                     | TypeShape.Union(cases, false) ->
                         for case in cases do
                             for field in case.Fields do
-                                if field.Attributes |> List.exists (fun a -> List.contains a.Name [ "JsonDefaultValue"; "JsonOmitEmpty"; "JsonExtensionData"; "JsonVersionAlias"; "JsonKnownPaths" ]) then
+                                if field.Attributes |> List.exists (fun a -> List.contains a.Name [ "JsonDefaultValue"; "JsonDefaultJson"; "JsonDefaultEmpty"; "JsonDefaultValueProvider"; "JsonOmitEmpty"; "JsonExtensionData"; "JsonVersionAlias"; "JsonKnownPaths" ]) then
                                     unsupported declaration field.Location field.Name "Wire member annotations apply only to record fields."
                         let rules =
                             match unionRules settings.Unions declaration.Attributes with
@@ -482,7 +546,7 @@ module Generation =
                                                 Skippable = settings.Records.SkipAbsentOptions
                                                 AllowNull = false
                                                 NumbersFromStrings = readsNumbersFromStrings field.Attributes
-                                                DefaultJson = None
+                                                Default = None
                                                 OmitEmpty = false
                                                 ExtensionData = false
                                                 VersionAlias = None

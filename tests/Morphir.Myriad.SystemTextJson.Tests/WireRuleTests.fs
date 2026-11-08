@@ -35,6 +35,114 @@ let tests =
                   (JsonSerializer.Serialize(value, WireJson.Default.Flags))
                   """{"cancellation":false}"""
                   "Flag is still written"
+          testCase "typed string defaults are JSON strings rather than JSON documents"
+          <| fun _ ->
+              let errors =
+                  generationErrors "type R = { [<JsonDefaultValue(\"anonymous\")>] Name: string }"
+
+              Expect.equal errors "" "An ordinary string literal is a valid scalar default"
+          testCase "scalar defaults reject incompatible primitive kinds and numeric bounds"
+          <| fun _ ->
+              for value, fieldType in
+                  [ "false", "int"
+                    "42", "string"
+                    "\"false\"", "bool"
+                    "256", "byte"
+                    "1.5", "int" ] do
+                  let errors =
+                      generationErrors $"type R = {{ [<JsonDefaultValue({value})>] Value: {fieldType} }}"
+
+                  Expect.stringContains errors "JsonDefaultValue" "The scalar default is checked against its field"
+          testCase "empty defaults require collections and default declarations cannot conflict"
+          <| fun _ ->
+              for source in
+                  [ "type R = { [<JsonDefaultEmpty>] Value: int }"
+                    "type R = { [<JsonDefaultValue(false); JsonDefaultJson(\"false\")>] Value: bool }"
+                    "type R = { [<JsonDefaultEmpty; JsonDefaultValueProvider(typeof<Defaults>, \"Create\")>] Value: int list }" ] do
+                  Expect.isNonEmpty (generationErrors source) "Invalid default declaration is refused"
+          testCase "provider calls use typeof and nameof without executing user code"
+          <| fun _ ->
+              let settings =
+                  ContextSettings.parse (Dictionary<string, string>(dict [ "Name", "AppJson"; "Namespace", "Sample" ]))
+                  |> Result.defaultWith (fun _ -> failwith "settings")
+
+              let source =
+                  "namespace Sample\ntype Defaults = static member Amount() : decimal = failwith \"never execute during generation\"\ntype R = { [<JsonDefaultValueProvider(typeof<Defaults>, nameof Defaults.Amount)>] Amount: decimal }"
+
+              match Generation.generate settings "Types.fs" source with
+              | Error errors -> failtestf "%A" errors
+              | Ok generated ->
+                  Expect.stringContains generated "Defaults.``Amount``()" "A direct statically checked call is emitted"
+          testCase "typed scalars preserve escaped strings, exact integer bounds and floating point values"
+          <| fun _ ->
+              let value = read WireJson.Default.ScalarDefaults "{}"
+              Expect.equal value.Name "a \"quoted\" name\nnext" "String value is escaped by generation"
+              Expect.equal value.Count -3 "Negative integer"
+              Expect.equal value.Minimum System.Int64.MinValue "Signed bound"
+              Expect.equal value.Maximum System.UInt64.MaxValue "Unsigned bound"
+              Expect.equal value.Ratio 0.5 "Double"
+              Expect.equal value.Single -0.25f "Single"
+              Expect.isTrue value.Enabled "Boolean literal"
+              let json = JsonSerializer.Serialize(value, WireJson.Default.ScalarDefaults)
+              Expect.equal (read WireJson.Default.ScalarDefaults json) value "Scalar defaults round trip"
+          testCase "empty defaults follow sequence and map encodings"
+          <| fun _ ->
+              let value = read WireJson.Default.EmptyDefaults "{}"
+              Expect.isEmpty value.Array "Array"
+              Expect.isEmpty value.Set "Set"
+              Expect.isEmpty value.Map "String-keyed map"
+              Expect.isEmpty value.Pairs "Non-string-keyed map"
+              Expect.equal value.Dictionary.Count 0 "Read-only dictionary"
+              let json = JsonSerializer.Serialize(value, WireJson.Default.EmptyDefaults)
+              let again = read WireJson.Default.EmptyDefaults json
+              Expect.equal again.Pairs value.Pairs "Pair-array map round trip"
+          testCase "providers return exact decimals and fresh mutable defaults"
+          <| fun _ ->
+              let first = read WireJson.Default.ProviderDefaults "{}"
+              let second = read WireJson.Default.ProviderDefaults "{}"
+              Expect.equal first.Amount 12.50M "Decimal needs no JSON text or double conversion"
+              first.Items.Add 2
+              Expect.sequenceEqual second.Items [ 1 ] "A new provider call creates an independent collection"
+              let json = JsonSerializer.Serialize(second, WireJson.Default.ProviderDefaults)
+              let again = read WireJson.Default.ProviderDefaults json
+              Expect.equal again.Amount second.Amount "Decimal round trip"
+          testCase "providers resolve in the record's declaring module"
+          <| fun _ ->
+              let value = read WireJson.Default.ScopedPayment "{}"
+              Expect.equal value.Amount 3.25M "Nested provider type is resolved from its lexical scope"
+          testCase "providers are called only for absent members"
+          <| fun _ ->
+              let value = read WireJson.Default.ExplicitProvider """{"value":7}"""
+              Expect.equal value.Value 7 "Explicit value never calls throwing provider"
+
+              Expect.throwsT<JsonException>
+                  (fun () -> read WireJson.Default.ExplicitProvider """{"value":null}""" |> ignore)
+                  "Explicit null is checked without calling the provider"
+
+              Expect.throwsT<System.InvalidOperationException>
+                  (fun () -> read WireJson.Default.ExplicitProvider "{}" |> ignore)
+                  "Absent member calls the provider"
+          testCase "provider results preserve version, critical path and null invariants"
+          <| fun _ ->
+              let plain = read WireJson.Default.CurrentProviderClaims "{}"
+              Expect.equal plain.ClaimsVersion "0.1.0-draft.2" "Canonical string provider"
+              let parsed = read WireJson.Default.ParsedProviderClaims "{}"
+              Expect.equal parsed.ClaimsVersion.Value plain.ClaimsVersion "Typed parsed-value provider"
+
+              Expect.throwsT<JsonException>
+                  (fun () -> read WireJson.Default.LegacyProviderClaims "{}" |> ignore)
+                  "Legacy version cannot bypass validation"
+
+              Expect.throwsT<JsonException>
+                  (fun () -> read WireJson.Default.InvalidPathProvider "{}" |> ignore)
+                  "Provider paths must be known"
+
+              Expect.throwsT<JsonException>
+                  (fun () -> read WireJson.Default.NullProvider "{}" |> ignore)
+                  "Null provider value is refused"
+
+              let nullable = read WireJson.Default.AllowedNullProvider "{}"
+              Expect.isNull (box nullable.Text) "Configured nullable field permits a null provider result"
           testCase "empty collections are omitted and missing fields use their own codecs"
           <| fun _ ->
               let value = read WireJson.Default.Diagnostic """{"message":"test"}"""
@@ -95,7 +203,7 @@ let tests =
           testCase "invalid wire declarations fail generation"
           <| fun _ ->
               for source, expected in
-                  [ "type R = { [<JsonDefaultValue(\"[\")>] A: bool }", "JsonDefaultValue"
+                  [ "type R = { [<JsonDefaultJson(\"[\")>] A: bool }", "JsonDefaultJson"
                     "type R = { [<JsonOmitEmpty>] A: int }", "collection"
                     "type R = { [<JsonExtensionData>] Extra: Map<int, string> }", "JsonElement"
                     "type R = { [<JsonExtensionData>] A: Map<string, System.Text.Json.JsonElement>; [<JsonExtensionData>] B: Map<string, System.Text.Json.JsonElement> }",
@@ -228,10 +336,10 @@ let tests =
                   let literal = JsonSerializer.Serialize json
 
                   let source =
-                      $"type R = {{ [<JsonVersionAlias(\"old\", \"1\", \"2\"); JsonDefaultValue({literal})>] Version: string }}"
+                      $"type R = {{ [<JsonVersionAlias(\"old\", \"1\", \"2\"); JsonDefaultJson({literal})>] Version: string }}"
 
                   let errors = generationErrors source
-                  Expect.stringContains errors "JsonDefaultValue" "The incompatible default is refused at generation"
+                  Expect.stringContains errors "JsonDefaultJson" "The incompatible default is refused at generation"
                   Expect.stringContains errors "current version" "The diagnostic explains the canonical invariant"
           testCase "current-version defaults round-trip for string and parsed version fields"
           <| fun _ ->

@@ -25,6 +25,7 @@
         <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Build\Morphir.Myriad.SystemTextJson.Build.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
         <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Annotations\Morphir.Myriad.SystemTextJson.Annotations.csproj" />
         <ProjectReference Include="..\..\src\Morphir.Extensions\Morphir.Extensions.fsproj" />
+        <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
     </ItemGroup>
 
     <ItemGroup>

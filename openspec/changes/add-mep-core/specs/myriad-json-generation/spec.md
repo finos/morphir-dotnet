@@ -31,11 +31,26 @@ Unknown members SHALL be ignored or refused as configured, or captured by an exp
 ## ADDED Requirements
 
 ### Requirement: Record fields can declare wire defaults
-A record field MAY opt into a JSON-literal default for an absent member. The default SHALL be read through the generated codec. An explicit null SHALL retain the field's null rules. Malformed JSON defaults SHALL fail generation. Unannotated fields SHALL remain required.
+A record field MAY declare a typed scalar, empty collection, static provider or explicit JSON-literal default for an absent member. Scalar and JSON defaults SHALL use the generated field codec. Explicit null SHALL retain the field's null rules. Conflicting declarations and malformed JSON defaults SHALL fail generation. Unannotated fields SHALL remain required.
+
+#### Scenario: Typed scalar defaults
+- **WHEN** string, boolean and numeric fields declare ordinary literal defaults
+- **THEN** absent members use their values without callers encoding JSON strings, and incompatible scalar kinds fail generation
 
 #### Scenario: Absent capability flag
 - **WHEN** a boolean field declares the default `false` and its JSON member is absent
 - **THEN** it reads as false, while a null member is refused
+
+### Requirement: Default providers are typed direct calls
+Provider calls SHALL be emitted directly and checked by the F# compiler against the field type, without reflection or build-time execution. Providers SHALL run once per absent member, never for explicit values or null. Results SHALL respect null, canonical-version and critical-path rules.
+
+#### Scenario: Decimal provider
+- **WHEN** a decimal field names an accessible static no-argument provider method using typeof and nameof
+- **THEN** an absent member calls the provider directly, and an incompatible return type or method signature fails compilation
+
+#### Scenario: Mutable default isolation
+- **WHEN** two absent collection members use a provider that creates a mutable collection
+- **THEN** their collections are distinct and mutations do not affect the other record
 
 ### Requirement: Empty collections can be omitted
 A collection field MAY opt into omission when empty. Nonempty collections SHALL retain their configured encoding. Unsupported shapes SHALL fail generation.
@@ -60,7 +75,7 @@ A record MAY declare a legacy alias and exact legacy/current versions. Readers S
 
 #### Scenario: Version-alias defaults are canonical
 - **WHEN** a version-alias field also declares a missing-member default
-- **THEN** generation accepts only a JSON string containing the exact current version, so an absent member cannot bypass the canonical-version invariant
+- **THEN** literal defaults are accepted only when they encode the exact current-version string, and provider results are checked at deserialization, so an absent member cannot bypass the canonical-version invariant
 
 #### Scenario: Unknown critical child
 - **WHEN** a critical list includes a child path not present in its exact allowlist

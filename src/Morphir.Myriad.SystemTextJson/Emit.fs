@@ -36,6 +36,12 @@ type internal VersionAliasSpec =
       CurrentVersion: string
       CriticalMember: string option }
 
+/// A missing-member default, emitted without reflection.
+[<RequireQualifiedAccess>]
+type internal DefaultValueSpec =
+    | Json of string
+    | Provider of string
+
 /// A record field after resolution.
 type internal PlannedField =
     {
@@ -52,8 +58,8 @@ type internal PlannedField =
         AllowNull: bool
         /// True when a reader also accepts the number of this field in a JSON string (JsonNumberHandling).
         NumbersFromStrings: bool
-        /// A JSON literal read by the generated field codec when the member is missing.
-        DefaultJson: string option
+        /// A literal read by the field codec or a direct typed provider call for an absent member.
+        Default: DefaultValueSpec option
         /// True when an empty collection is left out on writing.
         OmitEmpty: bool
         /// A synthetic string-keyed JsonElement map holding otherwise unknown object members.
@@ -546,12 +552,12 @@ module internal Emit =
 
         fields
         |> List.iteri (fun index field ->
-            match field.DefaultJson, field.Type with
+            match field.Default, field.Type with
             | _, TypeRef.Map(MapKind.Map, _, _) when field.ExtensionData ->
                 w.Line $"{local index} <- extensionMembers |> Seq.map (fun pair -> pair.Key, pair.Value) |> Map.ofSeq"
             | _, TypeRef.Map(MapKind.ReadOnlyDictionary, _, _) when field.ExtensionData ->
                 w.Line $"{local index} <- System.Collections.ObjectModel.ReadOnlyDictionary<string, JsonElement>(extensionMembers)"
-            | Some json, _ ->
+            | Some(DefaultValueSpec.Json json), _ ->
                 w.Line $"if not {seen index} then"
                 w.Indent(fun () ->
                     w.Line "let readDefault () ="
@@ -564,6 +570,16 @@ module internal Emit =
                         else
                             w.Line expression)
                     w.Line $"{local index} <- readDefault ()")
+            | Some(DefaultValueSpec.Provider call), _ ->
+                w.Line $"if not {seen index} then"
+                w.Indent(fun () ->
+                    w.Line $"{local index} <- {call}"
+                    match field.Type with
+                    | TypeRef.Option _ -> ()
+                    | _ when not field.AllowNull ->
+                        w.Line $"if System.Object.ReferenceEquals({local index}, null) then"
+                        w.Indent(fun () -> fail w $"The default provider for '{field.JsonName}' returned null.")
+                    | _ -> ())
             | None, TypeRef.Option _ -> w.Line $"if not {seen index} then {local index} <- None"
             | None, TypeRef.ValueOption _ -> w.Line $"if not {seen index} then {local index} <- ValueNone"
             | _ ->
@@ -573,6 +589,12 @@ module internal Emit =
         for index, field in List.indexed fields do
             match field.VersionAlias with
             | Some alias ->
+                let text =
+                    match field.Type with
+                    | TypeRef.Parsed _ -> $"{codec}.Text_{field.Type.Slug}({local index})"
+                    | _ -> local index
+                w.Line $"if {text} <> {literal alias.CurrentVersion} then"
+                w.Indent(fun () -> fail w $"The version member '{field.JsonName}' must use its current version.")
                 match alias.CriticalMember with
                 | Some name ->
                     let criticalIndex = fields |> List.findIndex (fun f -> f.JsonName = name)
@@ -1399,7 +1421,7 @@ module internal Emit =
                             Skippable = false
                             AllowNull = false
                             NumbersFromStrings = false
-                            DefaultJson = None
+                            Default = None
                             OmitEmpty = false
                             ExtensionData = false
                             VersionAlias = None
