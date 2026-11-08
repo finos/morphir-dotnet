@@ -71,3 +71,11 @@ type NullDefault =
 type OptionDefault =
     { [<JsonDefaultValue("42")>]
       Value: int option }
+
+type DefaultClaims =
+    { [<JsonVersionAlias("statementVersion", "0.1.0-draft.1", "0.1.0-draft.2"); JsonDefaultValue("\"0.1.0-draft.2\"")>]
+      ClaimsVersion: string }
+
+type DefaultParsedClaims =
+    { [<JsonVersionAlias("statementVersion", "0.1.0-draft.1", "0.1.0-draft.2"); JsonDefaultValue("\"0.1.0-draft.2\"")>]
+      ClaimsVersion: ClaimsVersion }

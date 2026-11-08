@@ -216,7 +216,38 @@ let tests =
           testCase "duplicate extension-member errors name the offending key"
           <| fun _ ->
               try
-                  read WireJson.Default.Capabilities """{"known":false,"future":1,"future":2}""" |> ignore
+                  read WireJson.Default.Capabilities """{"known":false,"future":1,"future":2}"""
+                  |> ignore
+
                   failtest "Expected a duplicate-member refusal"
               with :? JsonException as error ->
-                  Expect.stringContains error.Message "future" "The duplicate key is named" ]
+                  Expect.stringContains error.Message "future" "The duplicate key is named"
+          testCase "a version alias cannot default to a noncanonical version"
+          <| fun _ ->
+              for json in [ "\"1\""; "\"3\""; "null"; "2"; "false"; "[]" ] do
+                  let literal = JsonSerializer.Serialize json
+
+                  let source =
+                      $"type R = {{ [<JsonVersionAlias(\"old\", \"1\", \"2\"); JsonDefaultValue({literal})>] Version: string }}"
+
+                  let errors = generationErrors source
+                  Expect.stringContains errors "JsonDefaultValue" "The incompatible default is refused at generation"
+                  Expect.stringContains errors "current version" "The diagnostic explains the canonical invariant"
+          testCase "current-version defaults round-trip for string and parsed version fields"
+          <| fun _ ->
+              let expected = """{"claimsVersion":"0.1.0-draft.2"}"""
+              let plain = read WireJson.Default.DefaultClaims "{}"
+              Expect.equal plain.ClaimsVersion "0.1.0-draft.2" "Canonical string default"
+
+              Expect.equal
+                  (JsonSerializer.Serialize(plain, WireJson.Default.DefaultClaims))
+                  expected
+                  "String default writes canonically"
+
+              let parsed = read WireJson.Default.DefaultParsedClaims "{}"
+              Expect.equal parsed.ClaimsVersion.Value "0.1.0-draft.2" "Canonical default passes through its parser"
+
+              Expect.equal
+                  (JsonSerializer.Serialize(parsed, WireJson.Default.DefaultParsedClaims))
+                  expected
+                  "Parsed default writes canonically" ]

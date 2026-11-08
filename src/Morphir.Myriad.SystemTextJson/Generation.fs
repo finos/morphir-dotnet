@@ -349,7 +349,15 @@ module Generation =
                                             | [ AttributeValue.Text json ], [] ->
                                                 try
                                                     use document = System.Text.Json.JsonDocument.Parse json
-                                                    Some json
+                                                    let incompatibleVersion =
+                                                        versionAlias |> Option.exists (fun alias ->
+                                                            document.RootElement.ValueKind <> System.Text.Json.JsonValueKind.String
+                                                            || not (System.String.Equals(document.RootElement.GetString(), alias.CurrentVersion, System.StringComparison.Ordinal)))
+                                                    if incompatibleVersion then
+                                                        unsupported declaration field.Location field.Name "JsonDefaultValue on a JsonVersionAlias field must be a JSON string containing its exact current version."
+                                                        None
+                                                    else
+                                                        Some json
                                                 with :? System.Text.Json.JsonException ->
                                                     unsupported declaration field.Location field.Name "JsonDefaultValue must contain one complete JSON value."
                                                     None

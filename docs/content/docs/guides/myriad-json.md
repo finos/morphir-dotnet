@@ -159,7 +159,7 @@ type Claims =
 
 With camel-case context naming, a reader accepts `statementVersion` only with draft.1 and `claimsVersion` only with draft.2. Both names together fail. Legacy input normalizes to draft.2 and its exact `statementVersion` critical path becomes `claimsVersion`. A legacy list naming `claimsVersion` fails. Writers require the current version and write only `claimsVersion`.
 
-`CriticalMember` is optional and names a JSON member, not an F# field. When set, it must name a string collection with `JsonKnownPaths` that allows the current version-member path and excludes the legacy path. The paths shown above illustrate a subset; declare every path your format understands. Known parents never permit unknown children. The version field can also be a `JsonParsedValue` type; its parser receives the normalized current text. One version alias is allowed per record. These wire annotations apply to record fields.
+`CriticalMember` is optional and names a JSON member, not an F# field. When set, it must name a string collection with `JsonKnownPaths` that allows the current version-member path and excludes the legacy path. The paths shown above illustrate a subset; declare every path your format understands. Known parents never permit unknown children. The version field can also be a `JsonParsedValue` type; its parser receives the normalized current text. If a version-alias field also declares `JsonDefaultValue`, that default must be a JSON string containing the exact current version. Legacy, unknown, null and non-string defaults fail generation. One version alias is allowed per record. These wire annotations apply to record fields.
 
 ## Unions
 

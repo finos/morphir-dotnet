@@ -125,5 +125,9 @@ let main _ =
     probe "wire-default-option" WireRules.WireLegacy.Default.OptionDefault option
     let nullDefault = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.NullDefault :> JsonTypeInfo) |> unbox<WireRules.NullDefault>
     probe "wire-default-null" WireRules.WireJson.Default.NullDefault nullDefault
+    let defaultClaims = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.DefaultClaims :> JsonTypeInfo) |> unbox<WireRules.DefaultClaims>
+    probe "wire-default-current-version" WireRules.WireJson.Default.DefaultClaims defaultClaims
+    let defaultParsedClaims = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.DefaultParsedClaims :> JsonTypeInfo) |> unbox<WireRules.DefaultParsedClaims>
+    probe "wire-default-parsed-version" WireRules.WireJson.Default.DefaultParsedClaims defaultParsedClaims
 
     if failures = 0 then 0 else 1

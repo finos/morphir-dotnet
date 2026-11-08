@@ -58,6 +58,10 @@ A record MAY declare a legacy alias and exact legacy/current versions. Readers S
 - **WHEN** a claim set uses statementVersion draft.1 and lists statementVersion as critical
 - **THEN** it reads as claimsVersion draft.2 and writes the canonical current version and path
 
+#### Scenario: Version-alias defaults are canonical
+- **WHEN** a version-alias field also declares a missing-member default
+- **THEN** generation accepts only a JSON string containing the exact current version, so an absent member cannot bypass the canonical-version invariant
+
 #### Scenario: Unknown critical child
 - **WHEN** a critical list includes a child path not present in its exact allowlist
 - **THEN** the reader refuses it even if its parent is allowed
