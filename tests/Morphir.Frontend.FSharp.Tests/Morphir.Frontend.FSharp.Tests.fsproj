@@ -23,6 +23,7 @@
     <Compile Include="CompilerEdgeTests.fs" />
     <Compile Include="EvidenceTests.fs" />
     <Compile Include="AdmissionTests.fs" />
+    <Compile Include="PlanningTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
