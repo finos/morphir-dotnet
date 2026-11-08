@@ -119,7 +119,7 @@ svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
 <p>Alternative considered: let <code>add-fsharp-compile</code> build <code>Morphir.Mep</code> first and step 1 add to it. Rejected: the F# frontend path is large (53 tasks) and its MEP groups come last, so step 2 would wait for groups 1 to 6. The shared core has no frontend dependency.</p>
 
 <h3 id="mep-2">MEP-2. F# with generated JSON converters</h3>
-<p><code>Morphir.Mep</code> is F#, as the <code>add-fsharp-compile</code> design (its project table) and the "F# for the domain" decision say. System.Text.Json source generation does not run on F# code. So the JSON converters and the <code>MepJson</code> context come from the Myriad JSON generator of <a href="../add-myriad-json-codecs/proposal.md">add-myriad-json-codecs</a>, which this change depends on.</p>
+<p><code>Morphir.Mep</code> is F#, as the <code>add-fsharp-compile</code> design (its project table) and the "F# for the domain" decision say. System.Text.Json source generation does not run on F# code. So the JSON converters and the <code>MepJson</code> context come from the Myriad JSON generator of <a href="../archive/2026-11-07-add-myriad-json-codecs/proposal.md">add-myriad-json-codecs</a>, which this change depends on.</p>
 <ul>
 <li>The MEP types are F# records and unions with attributes. Most use the project defaults: camel-case members, skippable option fields (absent, never <code>null</code>), and string tags for fieldless unions such as <code>ExtensionType</code> (<code>"validator"</code>) and <code>DiagnosticSeverity</code>.</li>
 <li>Parsed values (protocol versions, extension ids, SHA-256 digests) use <code>JsonParsedValue</code>, so a reader never builds an invalid value (parse, don't validate).</li>

@@ -7,13 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-alpha.2] - 2026-11-07
+
 ### Added
+- `morphir extension list` (and `dotnet-morphir extension list`) lists the built-in extensions, the C# and F# generators, with their id, name, version, types, delivery and hosts, as a table or with `--json`. New package `Morphir.Extensions` with the extension registry domain ([#503](https://github.com/finos/morphir-dotnet/pull/503), [#492](https://github.com/finos/morphir-dotnet/issues/492))
 - `Morphir.Myriad.SystemTextJson`: a Myriad plugin that generates trim-safe and Native AOT-safe System.Text.Json converters and a `JsonSerializerContext` for F# records, unions and enums at build time. The union encodings, flags and presets give the same JSON as FSharp.SystemTextJson; parsed values, cases chosen by JSON token kind, exact numbers and member rules are added. See the Myriad JSON guide ([#511](https://github.com/finos/morphir-dotnet/issues/511))
 - `Morphir.Myriad.SystemTextJson.Annotations`: the attributes and options of the generator, for `netstandard2.0`, with no dependency ([#511](https://github.com/finos/morphir-dotnet/issues/511))
 - `Morphir.Myriad` is published to NuGet.org with each release; it was only packed into a local feed before ([#511](https://github.com/finos/morphir-dotnet/issues/511))
 
 ### Changed
 - The car rental example and the Morphir-to-F# article use `Morphir.Myriad` from NuGet.org with the release version in `MorphirMyriadVersion`, not a local feed ([#511](https://github.com/finos/morphir-dotnet/issues/511))
+
+### Fixed
+- `Morphir.Models` has F# nullness annotations, so C# callers see which values may be null ([#508](https://github.com/finos/morphir-dotnet/issues/508))
+- `morphir ir verify` accepts `"doc": null` on IR v3 modules, which the Morphir tools write ([#510](https://github.com/finos/morphir-dotnet/pull/510))
 
 ### Removed
 - The internal stub `json-codec` Myriad generator, which returned no code; use `Morphir.Myriad.SystemTextJson` ([#511](https://github.com/finos/morphir-dotnet/issues/511))
@@ -240,7 +247,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.1...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.2...HEAD
+[0.4.0-alpha.2]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.1...v0.4.0-alpha.2
 [0.4.0-alpha.1]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.2...v0.4.0-alpha.1
 [0.3.0-rc.2]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.1...v0.3.0-rc.2
 [0.3.0-rc.1]: https://github.com/finos/morphir-dotnet/compare/v0.2.0-alpha-010...v0.3.0-rc.1

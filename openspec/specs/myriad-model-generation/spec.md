@@ -4,6 +4,7 @@
 Let an F# project consume a Morphir model JSON file as build input through a discoverable Myriad plugin and compile the generated F# alongside handwritten application code.
 
 ## Requirements
+
 ### Requirement: Discoverable JSON generator
 
 The plugin SHALL expose a Myriad generator named `morphir-fsharp` that accepts `.json` inputs and an explicit module selector. It SHALL read the selected model and return F# for that module through the real Myriad host without requiring an F# marker file or source attributes. Missing or unknown module selectors SHALL fail explicitly.
@@ -139,3 +140,14 @@ The documentation SHALL provide a step-by-step tutorial for the full car rental 
 
 - **WHEN** a reader encounters a documented business-rule rejection, unsupported IR version or generation failure
 - **THEN** the tutorial distinguishes the error types and provides the expected diagnostic or result and the next corrective step
+
+### Requirement: The package is published with each release
+Each morphir-dotnet release SHALL publish the `Morphir.Myriad` package to NuGet.org with the release version, after the packages it depends on. The release SHALL validate the plugin package layout before it publishes. The getting-started article, the car rental example and its README SHALL use the published package and the release version, not a local feed.
+
+#### Scenario: Restore from NuGet.org
+- **WHEN** a release has published `Morphir.Myriad`, and a new F# project references it with the release version and a supported model
+- **THEN** the project restores the package from NuGet.org and builds the generated modules
+
+#### Scenario: Documentation uses the published package
+- **WHEN** a reader follows the getting-started article after a release
+- **THEN** the article asks for no local pack step and no local feed, and names the release version
