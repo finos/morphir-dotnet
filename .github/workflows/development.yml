@@ -59,6 +59,10 @@ jobs:
             matrix:
                 os: [ubuntu-latest, windows-latest, macOS-latest]
         runs-on: ${{ matrix.os }}
+        # TEMPORARY experiment for #524. Not for merge.
+        env:
+            MORPHIR_PROBE: ${{ matrix.os == 'ubuntu-latest' && 'hang' || matrix.os == 'macOS-latest' && 'hang-once' || 'fail' }}
+            TestHangTimeout: 4m
 
         steps:
             - uses: actions/checkout@v6.0.1
