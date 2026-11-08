@@ -527,6 +527,30 @@ let tests =
                 "collision"
         }
 
+        test "generic parameters whose Morphir names collide are refused" {
+            let diagnostics =
+                failed (
+                    plan [
+                        source "Pricing.fs" [
+                            "namespace Acme.CarRental"
+                            "module Pricing ="
+                            "    type Pair<'a, 'A> = { Left: 'a; Right: 'A }"
+                            "    let pick (left: 'b) (right: 'B) = (left, right)"
+                        ]
+                    ]
+                )
+
+            Expect.equal
+                (diagnostics
+                 |> List.map (fun diagnostic ->
+                     codeOf diagnostic, diagnostic.LocationOrNull.Range.Start.Line
+                 ))
+                [ "fsharp.name_collision", 2; "fsharp.name_collision", 3 ]
+                "the type and the value"
+
+            Expect.stringContains diagnostics[0].Message "'A" "names the parameter"
+        }
+
         test "a module-level tuple binding is refused" {
             let diagnostics =
                 failed (

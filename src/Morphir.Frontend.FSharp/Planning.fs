@@ -369,6 +369,41 @@ module internal Planning =
         | SynPat.Attrib(pat = inner) -> headIdentifier inner
         | _ -> None
 
+    /// <summary>
+    /// Reports generic parameters whose Morphir names collide, such as <c>'a</c> and <c>'A</c>. Morphir type
+    /// variables are names, so the two would become one variable.
+    /// </summary>
+    let private parameterCollisions
+        (document: CheckedDocument)
+        (owner: string)
+        (fallback: Location)
+        (declared: SynTyparDecls option)
+        (parameters: FSharpGenericParameter seq)
+        =
+        let ranges =
+            match declared with
+            | Some declarations ->
+                declarations.TyparDecls
+                |> List.map (fun (SynTyparDecl(typar = SynTypar(ident = ident))) ->
+                    ident.idText, ident.idRange
+                )
+            | None -> []
+
+        parameters
+        |> Seq.map (fun parameter ->
+            let location =
+                match
+                    ranges
+                    |> List.tryFind (fun (text, _) -> text = parameter.Name)
+                with
+                | Some(_, range) -> locate document range
+                | None -> fallback
+
+            Name.fromString parameter.Name, location, $"'{parameter.Name}"
+        )
+        |> List.ofSeq
+        |> collisions $"the type parameters of '{owner}'"
+
     type private ModuleResult = {
         Module: PlannedModule
         Names: (string * FQName) list
@@ -396,7 +431,8 @@ module internal Planning =
                 | SynModuleDecl.Types(typeDefns = definitions) ->
                     for definition in definitions do
                         let (SynTypeDefn(
-                            typeInfo = SynComponentInfo(longId = identifiers; xmlDoc = xmlDoc)
+                            typeInfo = SynComponentInfo(
+                                longId = identifiers; xmlDoc = xmlDoc; typeParams = typeParameters)
                             typeRepr = representation)) =
                             definition
 
@@ -428,6 +464,15 @@ module internal Planning =
                             )
                         | Ok name, Some entity ->
                             names.Add(PlanKeys.entity entity, fqName name)
+
+                            diagnostics.AddRange(
+                                parameterCollisions
+                                    document
+                                    ident.idText
+                                    (locate document ident.idRange)
+                                    typeParameters
+                                    entity.GenericParameters
+                            )
 
                             match representation with
                             | SynTypeDefnRepr.Simple(
@@ -560,6 +605,15 @@ module internal Planning =
                                 )
                             | Ok name, Some value ->
                                 names.Add(PlanKeys.value value, fqName name)
+
+                                diagnostics.AddRange(
+                                    parameterCollisions
+                                        document
+                                        value.DisplayNameCore
+                                        (locate document ident.idRange)
+                                        None
+                                        value.GenericParameters
+                                )
 
                                 yield {
                                     Name = name
