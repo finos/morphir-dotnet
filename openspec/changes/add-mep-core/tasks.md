@@ -68,7 +68,7 @@ Task 5.6 status (feat/mep-analyzers): the reviewer reports no finding for the gr
 
 - [x] 7.1 Write the validate payload proposal (design UP-1) as a document in `docs/content/contributing/design/` with the Smithy shapes, a transcript and model-transport cases for `validateModel`. Verify that the transcript messages round-trip through the codecs of group 2 extended in a test-only copy, and that the proposal adds no member outside the validator operation.
 - [x] 7.2 After maintainer approval, open the draft pull request in `finos/morphir` and record its URL and head commit in the PRD. Verify that the PRD's "Upstream validate payload" row links the pull request and names the commit.
-- [ ] 7.3 Update the PRD status table: MEP core, in-process validator contract and upstream payload rows, with links to this change and its evidence. Verify that each row names its completion evidence.
+- [x] 7.3 Update the PRD status table: MEP core, in-process validator contract and upstream payload rows, with links to this change and its evidence. Verify that each row names its completion evidence.
 
 The proposal document of task 7.1 is written: [`docs/content/contributing/design/proposals/mep-validate-model.md`](../../../docs/content/contributing/design/proposals/mep-validate-model.md), with the Smithy shapes, two transcripts and the model-transport cases model-0036 to model-0040. Its JSON blocks parse, the transcript carries case model-0036 unchanged, and the case digests agree with the fixture bytes. `ProposalTests` round-trips every message of both transcripts through a test-only copy of the group 2 codecs extended with the proposed items, and checks that `validator` is the only member name outside the pinned contract.
 
