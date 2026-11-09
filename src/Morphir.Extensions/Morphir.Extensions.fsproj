@@ -22,6 +22,7 @@ Parsed extension identities, capability claims and the extension catalog for mor
 
     <ItemGroup>
         <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
+        <ProjectReference Include="..\Morphir.Mep\Morphir.Mep.fsproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -33,6 +34,7 @@ Parsed extension identities, capability claims and the extension catalog for mor
         <Compile Include="TextValues.fs" />
         <Compile Include="FormatVersions.fs" />
         <Compile Include="Registry.fs" />
+        <Compile Include="Analyzers.fs" />
     </ItemGroup>
 
 </Project>
