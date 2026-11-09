@@ -174,6 +174,15 @@ public sealed class JsonOmitEmptyAttribute : Attribute
 }
 
 /// <summary>
+/// Omits a Boolean record field on writing when it equals its <see cref="JsonDefaultValueAttribute"/>. The field
+/// needs that default, so an absent member reads back as the same value.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = false)]
+public sealed class JsonOmitDefaultAttribute : Attribute
+{
+}
+
+/// <summary>
 /// Reads one legacy spelling of a record's version member and normalizes it to the current version.
 /// The current JSON member name comes from the field's normal naming rules.
 /// </summary>

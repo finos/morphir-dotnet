@@ -429,6 +429,16 @@ module Generation =
                                                     unsupported declaration field.Location field.Name $"{attribute.Name} must contain one complete JSON value."
                                                     None)
 
+                                    let omitDefault =
+                                        if hasAttribute "JsonOmitDefault" field.Attributes then
+                                            match resolved, missingDefault with
+                                            | TypeRef.Primitive Primitive.Bool, Some(DefaultValueSpec.Json("true" | "false" as literal)) -> Some literal
+                                            | _ ->
+                                                unsupported declaration field.Location field.Name "JsonOmitDefault needs a bool field with JsonDefaultValue(true) or JsonDefaultValue(false)."
+                                                None
+                                        else
+                                            None
+
                                     {
                                         Name = name
                                         JsonName = written
@@ -439,6 +449,7 @@ module Generation =
                                         NumbersFromStrings = lenient
                                         Default = missingDefault
                                         OmitEmpty = omitEmpty
+                                        OmitDefault = omitDefault
                                         ExtensionData = extensionData
                                         VersionAlias = versionAlias
                                         KnownPaths = knownPaths
@@ -475,7 +486,7 @@ module Generation =
                     | TypeShape.Union(cases, false) ->
                         for case in cases do
                             for field in case.Fields do
-                                if field.Attributes |> List.exists (fun a -> List.contains a.Name [ "JsonDefaultValue"; "JsonDefaultJson"; "JsonDefaultEmpty"; "JsonDefaultValueProvider"; "JsonOmitEmpty"; "JsonExtensionData"; "JsonVersionAlias"; "JsonKnownPaths" ]) then
+                                if field.Attributes |> List.exists (fun a -> List.contains a.Name [ "JsonDefaultValue"; "JsonDefaultJson"; "JsonDefaultEmpty"; "JsonDefaultValueProvider"; "JsonOmitEmpty"; "JsonOmitDefault"; "JsonExtensionData"; "JsonVersionAlias"; "JsonKnownPaths" ]) then
                                     unsupported declaration field.Location field.Name "Wire member annotations apply only to record fields."
                         let rules =
                             match unionRules settings.Unions declaration.Attributes with
@@ -548,6 +559,7 @@ module Generation =
                                                 NumbersFromStrings = readsNumbersFromStrings field.Attributes
                                                 Default = None
                                                 OmitEmpty = false
+                                                OmitDefault = None
                                                 ExtensionData = false
                                                 VersionAlias = None
                                                 KnownPaths = None

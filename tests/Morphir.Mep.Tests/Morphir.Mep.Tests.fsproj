@@ -20,7 +20,9 @@
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
     <ProjectReference Include="../Morphir.Mep.AotProbe/Morphir.Mep.AotProbe.csproj" PrivateAssets="all" />
     <None Include="../Fixtures/Mep/**" Link="Fixtures/Mep/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Include="Transcripts.fs" />
     <Compile Include="WireTests.fs" />
+    <Compile Include="TypesTests.fs" />
     <Compile Include="FramingTests.fs" />
     <Compile Include="ContractTests.fs" />
     <Compile Include="InteropTests.fs" />

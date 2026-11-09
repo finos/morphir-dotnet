@@ -200,11 +200,31 @@ let tests =
                   Expect.throwsT<JsonException>
                       (fun () -> JsonSerializer.Serialize(value, WireJson.Default.Capabilities) |> ignore)
                       "Reserved key refused"
+          testCase "a bool equal to its default is omitted and an absent bool reads as the default"
+          <| fun _ ->
+              let single = read WireJson.Default.Frontend """{"compile":true}"""
+              Expect.isFalse single.MultiDocument "Absent reads as the default"
+
+              Expect.equal
+                  (JsonSerializer.Serialize(single, WireJson.Default.Frontend))
+                  """{"compile":true}"""
+                  "The default value is not written"
+
+              let multiple = { single with MultiDocument = true }
+
+              Expect.equal
+                  (JsonSerializer.Serialize(multiple, WireJson.Default.Frontend))
+                  """{"compile":true,"multiDocument":true}"""
+                  "Another value is written"
+
+              Expect.equal (read WireJson.Default.Frontend """{"compile":true,"multiDocument":false}""") single "An explicit default is read"
           testCase "invalid wire declarations fail generation"
           <| fun _ ->
               for source, expected in
                   [ "type R = { [<JsonDefaultJson(\"[\")>] A: bool }", "JsonDefaultJson"
                     "type R = { [<JsonOmitEmpty>] A: int }", "collection"
+                    "type R = { [<JsonOmitDefault>] A: bool }", "JsonOmitDefault"
+                    "type R = { [<JsonDefaultValue(1); JsonOmitDefault>] A: int }", "JsonOmitDefault"
                     "type R = { [<JsonExtensionData>] Extra: Map<int, string> }", "JsonElement"
                     "type R = { [<JsonExtensionData>] A: Map<string, System.Text.Json.JsonElement>; [<JsonExtensionData>] B: Map<string, System.Text.Json.JsonElement> }",
                     "one JsonExtensionData" ] do
