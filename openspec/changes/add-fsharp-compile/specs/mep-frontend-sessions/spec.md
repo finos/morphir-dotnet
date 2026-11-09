@@ -81,11 +81,11 @@ Unsupported constructs and F# errors SHALL be failures with diagnostics. JSON-RP
 - **THEN** the response is a JSON-RPC result with `success: false`, no `model` member and an `fsharp.unsupported_mutable` diagnostic
 
 ### Requirement: Guest and in-process results are equivalent
-For the same documents, package and IR version, the IR decoded from the guest's model SHALL equal the in-process frontend's written IR byte for byte. The diagnostics SHALL be equal too.
+For the same documents, package and IR version, the IR decoded from the guest's model SHALL equal the in-process frontend's written IR byte for byte. The diagnostics SHALL be equal too. This applies to every request whose documents the guest's claims admit. The F# guest claims `.fs` only, so the host SHALL refuse a request with a `.fsi` signature file before dispatch; the in-process frontend refuses the same request with `fsharp.unsupported_signature_file`.
 
 #### Scenario: Parity
 - **WHEN** the shared F# compile corpus runs in process and through the guest for every IR version
-- **THEN** the IR bytes and the diagnostic lists are equal for every case
+- **THEN** the IR bytes and the diagnostic lists are equal for every case whose documents the guest claims, and a case with a `.fsi` document is refused before `compileModel` is sent
 
 ### Requirement: Hosts refuse requests the guest did not admit
 The host SHALL consult the initialized session capabilities on every run. Before dispatch, it SHALL refuse languages, multi-document requests, tuples and IR versions that the session does not admit, and the refusal SHALL name the extension and the capability. It SHALL NOT invent a tuple or a version the guest did not select.
@@ -106,4 +106,4 @@ The MEP host client SHALL run in the trimmed, Native AOT `morphir` executable wi
 
 #### Scenario: AOT executable compiles through the guest
 - **WHEN** the published AOT `morphir` executable compiles F# with `--extension` set to the guest executable
-- **THEN** the compile succeeds, and the IR equals the IR that `dotnet-morphir` produces in process
+- **THEN** the compile succeeds, and the IR equals the IR that `dotnet-morphir` produces in process, for every case whose documents the guest claims

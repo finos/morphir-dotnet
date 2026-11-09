@@ -136,7 +136,7 @@ The command SHALL return:
 - `2` for invocation, configuration, project-file, selection, protocol and I/O failures;
 - `130` for cancellation before publication.
 
-A run with only warnings SHALL succeed.
+A run with only warnings SHALL succeed. With `--target`, a failure in the generation stages SHALL give the exit code that `morphir generate` gives for the same failure, and the compiled IR SHALL stay published.
 
 #### Scenario: Source error
 - **WHEN** compilation fails only because of `fsharp.*` errors
@@ -158,10 +158,10 @@ With `--target <id>` and `--generate-output <dir>`, the command SHALL pass the c
 
 #### Scenario: Incompatible backend
 - **WHEN** `--ir-version 1 --target csharp` is requested and the C# backend does not accept that version
-- **THEN** the command fails before generation, naming the backend and capability, and leaves the generation output unchanged, while the compile output remains published
+- **THEN** the command fails before generation with the exit code of `generate` for that refusal, naming the backend and capability, and leaves the generation output unchanged, while the compile output remains published
 
 ### Requirement: Unimplemented options fail explicitly
-These SHALL be rejected with exit code 2 and a diagnostic naming the option and the reason: `--types-only`, Ion or YAML `ir.format`, `document-tree` layout, Specs or Application output, and incremental or baseline options. They SHALL NOT be ignored.
+These SHALL be rejected with exit code 2 and a diagnostic naming the option and the reason: `--types-only`, Ion or YAML `ir.format`, and `document-tree` layout. They SHALL NOT be ignored. This delivery has no option or key for Specs or Application output or for incremental or baseline compilation; an option or key for one of them that is added before the feature SHALL be rejected in the same way.
 
 #### Scenario: Document tree requested
 - **WHEN** the configuration sets `ir.layout = "document-tree"`

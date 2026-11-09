@@ -59,10 +59,13 @@ It does not restore, build or run targets, and it writes no output: no `obj/` or
 
 Both executables, `morphir` and `dotnet-morphir`, have this provider.
 
-The provider runs this command as a child process, with explicit arguments, no shell, and a deadline:
+The provider runs this command as a child process, with explicit arguments, no shell, and a deadline.
+It uses `DOTNET_HOST_PATH` when that is set, else `dotnet` on `PATH`:
 
 ```text
-dotnet msbuild <file> -getItem:Compile -getItem:ProjectReference -getItem:PackageReference -nologo
+dotnet msbuild <file> -getItem:Compile -getItem:ProjectReference -getItem:PackageReference
+  -getProperty:MSBuildProjectDirectory -getProperty:MSBuildExtensionsPath
+  -nologo -nodeReuse:false -maxCpuCount:1 -noAutoResponse -interactive:false
 ```
 
 with `MSBUILDDISABLENODEREUSE=1`, `DOTNET_CLI_TELEMETRY_OPTOUT=1`, `DOTNET_NOLOGO=1` and
@@ -81,6 +84,8 @@ way. Frontend selection, not the provider, then decides whether the language is 
 | `ProjectReference` | `msbuild.unsupported_project_reference` (exit code 2). |
 | `PackageReference` | The warning `msbuild.ignored_package_reference`, naming the package. Compilation continues. |
 | An evaluation error | `msbuild.evaluation_failed` (exit code 2), with the build tool's message. |
+| Evaluation that does not end before the deadline | `msbuild.deadline_exceeded` (exit code 2). The provider stops the build tool and its child processes. |
+| Evaluation output larger than the limit | `msbuild.output_limit_exceeded` (exit code 2). |
 
 Example:
 

@@ -576,9 +576,13 @@ I/O failure. See [compile]({{< relref "/docs/cli/compile" >}}).
 
 | Code | Cause | Fix |
 | --- | --- | --- |
-| `compile.frontend_unavailable` | No registered frontend reads the language. The AOT `morphir` has no F# frontend. | Use `dotnet-morphir`, which has a built-in F# frontend. |
+| `compile.frontend_unavailable` | No registered frontend reads the language. The AOT `morphir` has no built-in F# frontend. | Use `dotnet-morphir`, which has a built-in F# frontend, or configure the F# MEP guest with `--extension morphir-fsharp-frontend` or `[frontend.fsharp].extension`. |
 | `extension.unavailable` | The frontend extension did not start, or its session did not initialize. | Check the `--extension` or `[frontend.<language>].extension` value: a command on `PATH`, a path, or a `.dll`. Read the guest's stderr. |
 | `extension.not_admitted` | The agreed MEP session does not admit the request, for example its IR version or a file extension. | Request a version or documents that the message lists for the extension. |
+| `extension.tuple_unavailable` | The host and the extension agreed no `compileModel` tuple (profile `morphir-ir`, codec `morphir-json`). | Use an extension that serves JSON compile tuples for IR `4.0.0` or `3.0.0`. |
+| `morphir.unrepresentable` | The requested classic IR version cannot hold a value of the model: an integer outside the 64-bit range, or a character outside the Basic Multilingual Plane. Exit code 1. | Request IR version `4`. |
+| `compile.unknown_exposed_module` | `project.exposed_modules` names a module that the sources do not define. | Fix the module name, or remove it from `exposed_modules`. |
+| `msbuild.deadline_exceeded`, `msbuild.output_limit_exceeded` | Project evaluation did not end before the deadline, or wrote more output than the limit. | Check the project file for imports that run long or write much output. |
 | `extension.protocol_error` | The extension broke the MEP protocol, for example it wrote a log line to stdout. | Fix or update the extension. Logs go to stderr. |
 | `extension.timeout` | The extension did not answer before the deadline. | Check the guest's stderr, and run the compile again. |
 | `compile.unsupported_ir_version` | No writer declares the requested IR version, for example `4.1.0-draft.1`. | Use a declared version: `1`, `2`, `3`, `4` or `4.0.0`. |

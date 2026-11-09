@@ -1,6 +1,6 @@
 # F# source frontend and compile steel thread
 
-Status: In Progress
+Status: Implemented
 
 Tracking: [#499](https://github.com/finos/morphir-dotnet/issues/499). Planning review: [#495](https://github.com/finos/morphir-dotnet/pull/495).
 
@@ -62,7 +62,7 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | MEP path, second delivery | Pinned 0.2.0-draft.1 codec, envelopes and session core | Implemented | Tasks 7.1–7.4 on the add-mep-core core; compileModel request types, result sum, reserved options, RFC 8785 context digest, 64 MiB frames and compileModel tuple negotiation; 6 new contract entries and 9 tests |
 | MEP path, second delivery | Frontend-only F# guest and installable package | Implemented | Tasks 8.1–8.4; `morphir-fsharp-frontend` with JSON compileModel tuples for 4.0.0 and 3.0.0; 14 tests, including replay of the pinned transcripts against the guest process and a pack-install-describe check |
 | MEP path, second delivery | AOT host, classic wire profiles and transport parity | Implemented | Tasks 9.1–9.5: `Morphir.Compilation.Mep` (`MepFrontend`, AOT-safe), `MepFrontendExtensionConnector` in `CompilationScenario`, the classic path through `3.0.0` and `ClassicJson.readTypedDistribution`; the Native AOT `morphir` with the installed guest gives the library IR for 588 of 600 suite variants (the 8 others are the `.fsi` case, recorded in `conformance/deviations.md`). See [Default-CLI viability evidence, 2026-11-09](#default-cli-viability-evidence-2026-11-09) |
-| Integration | Coverage, examples, conformance reports and viability evidence | Planned | Tasks 10.1–10.3 |
+| Integration | Coverage, examples, conformance reports and viability evidence | Implemented | Tasks 10.1–10.3: coverage of the changed files 85.5% (with the baseline gaps of `Morphir.Tooling` and `Morphir.Mep` below), the MCK report of every adapter, the AOT size and compile time on each published RID, and a check of every spec scenario, documentation example and capability claim. See [Default-CLI viability evidence, 2026-11-09](#default-cli-viability-evidence-2026-11-09) and [Integration check, 2026-11-09](#integration-check-2026-11-09) |
 | Deferred | Project references, external dependency resolution and conditional defines | Deferred | Separate changes |
 | Deferred | Incremental compilation, types-only mode and P1 language constructs | Deferred | Separate changes |
 | Deferred | Ion, document-tree output, multi-target builds and backend guests | Deferred | Separate changes |
@@ -77,16 +77,15 @@ Writer evidence includes reader round trips, bundled-schema validation and
 structural comparisons against independently pinned upstream examples. Frontend
 evidence includes typed and located IR, refusal-catalog completeness, deterministic
 diagnostics, behavioral observations and IR → F# → IR checks. The same portable
-MCK suite runs through library, CLI and, in the second delivery, MEP adapters.
+MCK suite runs through the library, CLI and MEP adapters.
 
 The dotnet-tool milestone is complete only after task 6.4 passes. The AOT/MEP
 milestone is separate and requires task 9.4.
 
-**Milestone status, 2026-11-09:** the tool-path (dotnet-tool) milestone is
-complete: task 6.4 passes (see the evidence below). The AOT/MEP milestone is not
-complete; it needs task 9.4. Required test, format, coverage and
-documentation checks remain part of integration; a passing spike does not imply
-that either product milestone is complete.
+**Milestone status, 2026-11-09:** both milestones are complete. The tool-path
+(dotnet-tool) milestone completed with task 6.4, and the AOT/MEP milestone with
+task 9.4: the Native AOT `morphir` compiles the suite through the installed F#
+guest. The integration checks of group 10 pass (see the evidence below).
 
 ## Implementation notes
 
@@ -321,8 +320,36 @@ The documented differences from the Rust CLI are in
 guest kit, which needs a legacy `0.1` stage and a backend. The guest also does
 not claim `.fsi` signature files.
 
+### Integration check, 2026-11-09
+
+Task 10.3 checked every scenario of the six spec deltas against the tests, and
+every documented code, option, key, report member and command against the
+implementation. The check found no behavior that contradicts the docs. It
+changed these points:
+
+- The specs now state three limits that were implicit: the F# guest claims
+  `.fs` only, so a request with a `.fsi` document is refused before dispatch;
+  a failure in the `--target` generation stages has the exit code of
+  `generate`; and the two classic-range scenarios are about the classic
+  builder, because F# source cannot hold such literals.
+- The host now reports `extension.tuple_unavailable` when the agreed session
+  has no compile tuple, as the spec says; a linked subdirectory of a source
+  directory is refused, not skipped; the unused
+  `compile.extension_unavailable` code is gone.
+- New tests cover `ir.format = "ion"` and `"yaml"`, classic output from a
+  frontend without the v4 builder, a session that stays usable after a digest
+  mismatch, and the full Boolean short-circuit lowering.
+- The docs no longer call implemented parts "planned" or "second delivery",
+  and they list every extension, MSBuild and classic-range code.
+
+Coverage gap for maintainer review (task 10.1): the merged line coverage of
+`Morphir.Tooling` is 56.3% and of `Morphir.Mep` 62.3%, below the 80% target,
+because of code that this change does not touch. This change raises
+`Morphir.Tooling` from 47.2% on `main`, and the files that it adds or changes
+have 85.5% line coverage.
+
 ## Open questions
 
-- Confirm the guest package name during the second delivery, as recorded in the
-  design. This does not block the in-process frontend.
+- None open. The guest package name is `Morphir.Frontend.FSharp.Mep`, with the
+  command `morphir-fsharp-frontend` (task 8.4).
 

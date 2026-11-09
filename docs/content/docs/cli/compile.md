@@ -96,7 +96,7 @@ The command selects sources in this order:
 4. the files of `project.source_directory`.
 
 A directory gives its files in lexical order of their relative paths, with `/` separators. It gives only
-files whose extension a registered frontend claims (`.fs` and `.fsi` for F#). The command does not search
+files whose extension a registered frontend claims: `.fs` and `.fsi` for the in-process F# frontend, and `.fs` only for the F# MEP guest. The command does not search
 for project files, and it does not apply rules that belong to one language. F# compiles files in order, so
 use a project file or `--input` files when a file uses a module of another file.
 
@@ -155,7 +155,9 @@ The command checks the model envelope of the result (base64, length and SHA-256)
 It always ends the session with `shutdown` and `exit`, or stops the process tree after a deadline. The
 report names the frontend with its transport, for example
 `org.finos.morphir.fsharp-frontend (mep)`. For the same documents, the guest gives the same IR and the same
-diagnostics as the in-process frontend.
+diagnostics as the in-process frontend. A `.fsi` signature file is the exception: no frontend in the
+session claims it, so the command refuses the compile before it sends a request. Without `--language`, the
+refusal is `compile.language_required`.
 
 An extension failure is exit code 2 with one of these codes:
 
@@ -163,6 +165,7 @@ An extension failure is exit code 2 with one of these codes:
 | --- | --- |
 | `extension.unavailable` | The guest did not start, or the session did not initialize. |
 | `extension.not_admitted` | The agreed session does not admit the request, for example its IR version. |
+| `extension.tuple_unavailable` | The host and the guest agreed no `compileModel` tuple, so no request can be sent. |
 | `extension.protocol_error` | The guest broke the protocol, for example it wrote a log line to stdout. |
 | `extension.timeout` | The guest did not answer before the deadline. |
 

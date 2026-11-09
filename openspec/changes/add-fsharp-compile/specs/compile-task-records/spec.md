@@ -24,7 +24,7 @@ The member path SHALL be the member's declared path relative to the workspace ro
 A successful compile SHALL write a schema-1 record with these fields: `task` `compile`, `module`, `language`, `inputs`, `value`, `ir {path, layout, format, version}`, `installed` and `completedAt`. `value` SHALL list product paths relative to `.dest`. Unknown fields in an existing record SHALL be preserved on rewrite, except where a tombstone clears them.
 
 #### Scenario: Ecosystem reader accepts the record
-- **WHEN** a record written by `morphir compile` is compared with the pinned upstream record schema and examples
+- **WHEN** a record written by `morphir compile` is compared with the pinned upstream out-directory specification and its example record (`tests/Fixtures/MorphirOut/`)
 - **THEN** it has every required field with the upstream spelling, and its `ir.version` names the produced IR version
 
 ### Requirement: Failed runs leave tombstones

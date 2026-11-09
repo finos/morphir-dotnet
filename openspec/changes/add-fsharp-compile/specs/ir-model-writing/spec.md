@@ -72,11 +72,11 @@ A frontend SHALL lower its source once, against a contract that does not depend 
 When the requested family cannot hold a model element exactly, building SHALL fail with `morphir.unrepresentable`. The diagnostic SHALL name the element, its source location and the requested version, and no document SHALL be written. Nothing SHALL be rounded, dropped or renamed to make the model fit. Source locations, which classic IR has no place for, SHALL NOT count as model elements for this rule.
 
 #### Scenario: Integer outside the classic range
-- **WHEN** a source has an integer literal larger than the 64-bit range and IR version 3 is requested
+- **WHEN** a model given to the classic builder has an integer literal larger than the 64-bit range (F# source cannot write one, so a frontend that can, or a test, supplies it) and IR version 3 is requested
 - **THEN** the result is a `morphir.unrepresentable` error at that literal, with no document, and the same source succeeds with IR version 4
 
 #### Scenario: Supplementary character in a classic character literal
-- **WHEN** a source has a `char` literal outside the Basic Multilingual Plane and IR version 2 is requested
+- **WHEN** a model given to the classic builder has a character literal outside the Basic Multilingual Plane (an F# `char` is one UTF-16 unit and cannot hold one) and IR version 2 is requested
 - **THEN** the result is a `morphir.unrepresentable` error, with no document
 
 ### Requirement: Supplied input is not migrated

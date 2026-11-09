@@ -26,9 +26,8 @@ The frontend has two forms:
   such as the AOT `morphir` executable, start it as a process. See
   [Run the frontend as a MEP extension](#run-the-frontend-as-a-mep-extension).
 
-The `morphir compile` command is in the
-[`add-fsharp-compile`](https://github.com/finos/morphir-dotnet/issues/499)
-change.
+To compile F# from the command line, see
+[compile]({{< relref "/docs/cli/compile" >}}).
 
 ## Input
 
