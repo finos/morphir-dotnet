@@ -9,9 +9,8 @@ description: Compile source code to Morphir IR
 version, and publishes it under the out root. The dotnet tool `dotnet-morphir` has a built-in F# frontend.
 The AOT executable `morphir` has no built-in frontend.
 
-This page describes the first delivery: the in-process F# frontend of the dotnet tool. Frontend extensions
-through MEP 0.2.0-draft.1 (`--extension` and `[frontend.<language>].extension`) are the second delivery.
-In this build, a configured extension fails with `compile.extension_unavailable`.
+Both executables can also run a frontend as a MEP 0.2.0-draft.1 extension: a guest process that the
+command starts and that compiles the documents. See [Frontend extensions](#frontend-extensions).
 
 ## Synopsis
 
@@ -32,7 +31,7 @@ dotnet-morphir compile [--language <id>] [--input <file>... | --input <directory
 | `--ir-version` | IR format version: `1`, `2`, `3`, `4`, or a SemVer version such as `4.0.0`. Overrides `ir.format_version`. |
 | `--project` | A project directory, a workspace member path, or a project name. |
 | `--config` | An explicit configuration file. |
-| `--extension` | A frontend extension. Overrides `[frontend.<language>].extension`. Second delivery. |
+| `--extension` | A frontend extension: a command name, a path, or a `.dll`. Overrides `[frontend.<language>].extension`. |
 | `--json` | Write one JSON report to stdout. |
 | `--json-lines` | Write the compile events to stdout as JSON Lines, and end with the report. |
 | `--types-only` | Not implemented. The command refuses it with exit code 2. |
@@ -104,7 +103,63 @@ and names the frontend and the capability.
 
 - `dotnet-morphir` registers the in-process F# frontend `morphir-dotnet.fsharp`.
 - `morphir` has no F# frontend. A compile of F# fails with `compile.frontend_unavailable`.
-- A configured extension replaces the registered frontends for the run. This is the second delivery.
+- A configured extension replaces the registered frontends for the run. See [Frontend extensions](#frontend-extensions).
+
+## Frontend extensions
+
+A frontend extension is a guest process that speaks the Morphir Extension Protocol (MEP) `0.2.0-draft.1`
+over stdio and serves `morphir.frontend.compileModel`. The F# frontend is available as the guest
+`morphir-fsharp-frontend`. Install it as a dotnet tool. It needs the .NET runtime:
+
+```sh
+dotnet tool install --global Morphir.Frontend.FSharp.Mep
+```
+
+Select the extension with `--extension`, or with `[frontend.<language>].extension` in the project
+configuration. The option overrides the key.
+
+```sh
+morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --extension morphir-fsharp-frontend
+```
+
+```toml
+[frontend.fsharp]
+extension = "morphir-fsharp-frontend"
+```
+
+The command reads the value in this way:
+
+- A name without a directory is a command on `PATH`.
+- A relative path is relative to the invocation directory.
+- A path that ends in `.dll` runs on the `dotnet` host (`DOTNET_HOST_PATH` when it is set).
+
+The command starts the guest with explicit arguments and no shell, and passes the guest's stderr to its own
+stderr. It agrees the session with `initialize`, and it admits only the model tuples that both sides
+support. The F# guest claims the language `fsharp` with the file extension `.fs`, several documents in one
+request, and these tuples: profile `morphir-ir`, codec `morphir-json`, envelope `0.1.0-draft.1`, IR
+`4.0.0` and `3.0.0`. IR versions 1 and 2 have no tuple. For them, the command compiles at `3.0.0` and
+writes the classic model at the requested version. Before it sends a request, the command checks that the
+session admits the language, the file extension of each document, the number of documents and the IR
+version. The guest does not claim `.fsi` signature files.
+
+The command checks the model envelope of the result (base64, length and SHA-256) before it reads the IR.
+It always ends the session with `shutdown` and `exit`, or stops the process tree after a deadline. The
+report names the frontend with its transport, for example
+`org.finos.morphir.fsharp-frontend (mep)`. For the same documents, the guest gives the same IR and the same
+diagnostics as the in-process frontend.
+
+An extension failure is exit code 2 with one of these codes:
+
+| Code | Meaning |
+| --- | --- |
+| `extension.unavailable` | The guest did not start, or the session did not initialize. |
+| `extension.not_admitted` | The agreed session does not admit the request, for example its IR version. |
+| `extension.protocol_error` | The guest broke the protocol, for example it wrote a log line to stdout. |
+| `extension.timeout` | The guest did not answer before the deadline. |
+
+Upstream qualification: the MEP guest kit of `finos/morphir` still needs a legacy `0.1` stage, so the guest
+is not qualified with it yet. The guest is checked against the pinned `0.2.0-draft.1` contract and the
+conformance corpus. See the [F# frontend]({{< relref "/docs/frontends/fsharp" >}}).
 
 ## Output
 
