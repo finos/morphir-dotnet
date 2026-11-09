@@ -37,7 +37,7 @@ jobs:
             skip-git-release: ${{ steps.extract-version.outputs.skip-git-release }}
         steps:
             - name: Fetch Source Code
-              uses: actions/checkout@v6.0.1
+              uses: actions/checkout@v6.1.0
               with:
                   fetch-depth: 0
 
@@ -105,7 +105,7 @@ jobs:
         runs-on: ${{ matrix.os }}
         steps:
             - name: Fetch Source Code
-              uses: actions/checkout@v6.0.1
+              uses: actions/checkout@v6.1.0
               with:
                   fetch-depth: 0
 
@@ -167,7 +167,7 @@ jobs:
                   fi
 
             - name: Fetch Source Code
-              uses: actions/checkout@v6.0.1
+              uses: actions/checkout@v6.1.0
               with:
                   fetch-depth: 0
 
@@ -228,7 +228,7 @@ jobs:
             contents: write
         steps:
             - name: Fetch Source Code
-              uses: actions/checkout@v6.0.1
+              uses: actions/checkout@v6.1.0
               with:
                   fetch-depth: 0
 
