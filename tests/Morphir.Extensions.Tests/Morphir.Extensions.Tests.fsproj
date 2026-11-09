@@ -25,6 +25,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Extensions\Morphir.Extensions.fsproj" />
+        <None Include="../Fixtures/Mep/mep.ir.json" Link="Fixtures/Mep/mep.ir.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>
@@ -34,6 +35,7 @@
         <Compile Include="TextValueTests.fs" />
         <Compile Include="RegistryTests.fs" />
         <Compile Include="AnalyzerTests.fs" />
+        <Compile Include="MepMappingTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

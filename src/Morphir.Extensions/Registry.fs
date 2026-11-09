@@ -99,6 +99,15 @@ type ExtensionType =
         | Validator -> "validator"
         | Workspace -> "workspace"
 
+    /// <summary>The same type as the MEP wire type.</summary>
+    member this.ToMep() : Morphir.Mep.ExtensionType =
+        match this with
+        | Frontend -> Morphir.Mep.ExtensionType.Frontend
+        | Backend -> Morphir.Mep.ExtensionType.Backend
+        | Transform -> Morphir.Mep.ExtensionType.Transform
+        | Validator -> Morphir.Mep.ExtensionType.Validator
+        | Workspace -> Morphir.Mep.ExtensionType.Workspace
+
     /// <summary>The MEP wire value.</summary>
     override this.ToString() = this.WireValue
 
@@ -275,6 +284,64 @@ type ExtensionEntry =
     /// <summary>The capability summaries for a table cell, for example <c>validator (1, 2, 3)</c>.</summary>
     member this.CapabilitySummary =
         String.Join(", ", this.Capabilities |> Seq.map (fun capability -> capability.Summary))
+
+    /// <summary>
+    /// The MEP <c>ExtensionInfo</c> of the entry: the same id, name, version, description and types. An entry with no
+    /// description has no <c>description</c> member. The registry has no author, home page, license or SDK version.
+    /// </summary>
+    member this.ToMep() : Morphir.Mep.ExtensionInfo = {
+        Id = this.Identity.Id.Value
+        Name = this.Identity.Name.Value
+        Version = this.Identity.Version.ToString()
+        Description =
+            this.Identity.Description
+            |> Option.map (fun description -> description.Value)
+        Types = [|
+            for kind in this.Types -> kind.ToMep()
+        |]
+        Author = None
+        Homepage = None
+        License = None
+        MinSdkVersion = None
+    }
+
+    /// <summary>
+    /// The MEP capability claims of the entry, with only the claim kinds that the pinned contract defines. A backend
+    /// claim maps to <c>backend</c>. A validator claim stays out: MEP 0.2.0-draft.1 has no validator capability.
+    /// </summary>
+    member this.ToMepCapabilities() : Morphir.Mep.ExtensionCapabilities =
+        let backend =
+            this.Capabilities
+            |> Seq.tryPick (
+                function
+                | ExtensionCapability.Backend claim ->
+                    Some(
+                        {
+                            Targets = [|
+                                for target in claim.Targets -> target.Value
+                            |]
+                            IrVersions = [|
+                                for version in claim.IrVersions -> version.Text
+                            |]
+                            // Generation is the only backend operation in MEP, so a backend claim always generates.
+                            Generate = true
+                        }
+                        : Morphir.Mep.BackendCapability
+                    )
+                | ExtensionCapability.Validator _ -> None
+            )
+
+        {
+            Frontend = None
+            Backend = backend
+            Workspace = None
+            ModelTransport = None
+            Streaming = false
+            Incremental = false
+            Cancellation = false
+            Progress = false
+            Extra = Dictionary<string, System.Text.Json.JsonElement>()
+        }
 
     /// <summary>For C# callers, which cannot use <c>with</c> on an F# record: the same entry with other hosts.</summary>
     member this.WithHosts(hosts: HostAvailability) = { this with Hosts = hosts }
