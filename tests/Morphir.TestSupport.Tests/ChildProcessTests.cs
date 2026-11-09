@@ -150,7 +150,7 @@ public class ChildProcessTests
         var run = () => ChildProcess.ConverseAsync(Sleep(30), TimeSpan.FromSeconds(1), async (_, output, ct) =>
         {
             // The child writes nothing for 30 seconds: this read waits until the deadline.
-            await output.ReadAsync(new byte[1], ct);
+            await output.ReadExactlyAsync(new byte[1], ct);
         }, gate: new ProcessGate(4));
 
         var failure = await run.Should().ThrowAsync<ChildProcessTimeoutException>();
