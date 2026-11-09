@@ -164,6 +164,16 @@ let tests =
                 Expect.isTrue (pinned.Contains name) $"{name} is a contract member"
         }
 
+        test "C# callers read the MEP extension record without options" {
+            let info = backend.ToMep()
+            Expect.equal (MepRecords.DescriptionOrNull info) "Generates C#." "description"
+            Expect.isNull (MepRecords.DescriptionOrNull(validator.ToMep())) "no description"
+            Expect.isNull (MepRecords.AuthorOrNull info) "no author"
+            Expect.isNull (MepRecords.HomepageOrNull info) "no home page"
+            Expect.isNull (MepRecords.LicenseOrNull info) "no license"
+            Expect.isNull (MepRecords.MinSdkVersionOrNull info) "no SDK version"
+        }
+
         test "every extension type maps to the MEP type with the same wire value" {
             for kind in
                 [

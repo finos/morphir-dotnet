@@ -184,6 +184,24 @@ let tests =
             Expect.equal (List.ofSeq claim.IrVersionTexts) [ "2" ] "duplicates collapse"
         }
 
+        test "a validator claim parses IR version texts and refuses bad ones" {
+            match ValidatorClaim.Parse [ "3"; "1"; "4.0.0-rc.1" ] with
+            | Ok claim -> Expect.equal (List.ofSeq claim.IrVersionTexts) [ "1"; "3"; "4.0.0-rc.1" ] "parsed"
+            | Error failure -> failtest $"refused: {failure}"
+
+            Expect.isError (ValidatorClaim.Parse []) "no version"
+            Expect.isError (ValidatorClaim.Parse [ "3"; null ]) "null text"
+
+            match ValidatorClaim.Parse [ "3"; "three" ] with
+            | Error(ParseFailure.InvalidVersion(field, _)) -> Expect.equal field "IR version" "field"
+            | other -> failtest $"unexpected {other}"
+
+            let ok, claim, failure = ValidatorClaim.TryParse([ "2" ])
+            Expect.isTrue ok "C# parse"
+            Expect.equal (List.ofSeq claim.IrVersionTexts) [ "2" ] "C# claim"
+            Expect.isTrue (obj.ReferenceEquals(failure, null)) "no failure"
+        }
+
         test "TryCreate gives the catalog or the error" {
             let ok, catalog, error =
                 ExtensionCatalog.TryCreate(host, [ backend "morphir.csharp" ])

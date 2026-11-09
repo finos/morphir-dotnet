@@ -165,6 +165,43 @@ type ValidatorClaim =
             claim <- Unchecked.defaultof<_>
             false
 
+    /// <summary>
+    /// Parses untrusted IR version texts, in the spelling of the model readers. For F# callers. Fails with the first
+    /// text that is not a format version, or with <c>ParseFailure.Empty</c> when there is no text.
+    /// </summary>
+    static member Parse(texts: (string | null) seq) : Result<ValidatorClaim, ParseFailure> =
+        let parse (text: string | null) =
+            match text with
+            | null -> Error(ParseFailure.Empty "IR version")
+            | text ->
+                Versioning.parse text
+                |> Result.mapError (fun error -> ParseFailure.InvalidVersion("IR version", Text.versionError error))
+
+        let parsed = texts |> Seq.map parse |> List.ofSeq
+
+        match parsed |> List.tryPick (function Error failure -> Some failure | Ok _ -> None) with
+        | Some failure -> Error failure
+        | None ->
+            NonEmptySet.ofSeq "IR versions" (parsed |> List.choose (function Ok version -> Some version | Error _ -> None))
+            |> Result.map (fun set -> { IrVersions = set })
+
+    /// <summary>Parses untrusted IR version texts. For C# callers.</summary>
+    static member TryParse
+        (
+            texts: IEnumerable<string | null>,
+            [<Out; MaybeNullWhen(false)>] claim: byref<ValidatorClaim>,
+            [<Out; MaybeNullWhen(true)>] failure: byref<ParseFailure>
+        ) : bool =
+        match ValidatorClaim.Parse texts with
+        | Ok parsed ->
+            claim <- parsed
+            failure <- Unchecked.defaultof<_>
+            true
+        | Error refused ->
+            claim <- Unchecked.defaultof<_>
+            failure <- refused
+            false
+
     /// <summary>The IR versions.</summary>
     override this.ToString() =
         String.Join(", ", this.IrVersionTexts)

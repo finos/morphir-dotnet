@@ -231,6 +231,81 @@ let tests =
             Expect.isEmpty result.HostDiagnostics "an analyzer ran"
         }
 
+        test "an analyzer that returns a null diagnostic in its list fails" {
+            let broken = Fake("null-item.lint", fun () -> [| Unchecked.defaultof<Morphir.Mep.Diagnostic> |])
+
+            match outcomes (run [] [ broken ] classicModel) with
+            | [ ("null-item.lint", AnalyzerOutcome.Failed detail) ] ->
+                Expect.stringContains detail "null diagnostic" "detail"
+            | other -> failtest $"unexpected outcomes {other}"
+        }
+
+        test "an analyzer with no readable entry is a failure and the others still run" {
+            let throwing =
+                { new IModelAnalyzer with
+                    member _.Entry = raise (InvalidOperationException "no entry")
+                    member _.AnalyzeAsync(_, _) = Task.FromResult<IReadOnlyList<Morphir.Mep.Diagnostic>>([||])
+                }
+
+            let result =
+                AnalyzerRunner
+                    .RunAsync([ throwing; reporting "good.lint" [ "ok" ] :> IModelAnalyzer ], classicModel, [], CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult()
+
+            Expect.equal (outcomes result) [ "good.lint", AnalyzerOutcome.Ran ] "the other analyzer ran"
+            Expect.isTrue result.HasFailures "a failure"
+            Expect.isTrue result.HasErrors "an error"
+
+            match List.ofSeq result.HostDiagnostics with
+            | [ error ] -> Expect.equal error.Code (Some "analyzer-entry") "code"
+            | other -> failtest $"expected one host diagnostic, got {other}"
+        }
+
+        test "C# callers decide on an outcome with Match" {
+            let describe (outcome: AnalyzerOutcome) =
+                outcome.Match(
+                    Func<string>(fun () -> "ran"),
+                    Func<string, string>(fun detail -> $"failed {detail}"),
+                    Func<AnalyzerSkipReason, string>(fun reason -> $"skipped {reason.WireValue}")
+                )
+
+            Expect.equal (describe AnalyzerOutcome.Ran) "ran" "ran"
+            Expect.equal (describe (AnalyzerOutcome.Failed "x")) "failed x" "failed"
+            Expect.equal (describe (AnalyzerOutcome.NotRun AnalyzerSkipReason.TurnedOff)) "skipped turned-off" "not run"
+            Expect.equal (AnalyzerOutcome.NotRun AnalyzerSkipReason.TurnedOff).SkipReasonOrNull AnalyzerSkipReason.TurnedOff "reason"
+            Expect.isNull AnalyzerOutcome.Ran.SkipReasonOrNull "no reason"
+        }
+
+        test "C# callers read MEP diagnostics without options" {
+            let location: Morphir.Mep.SourceLocation = {
+                Uri = "file:///a.json"
+                Range = { Start = { Line = 0u; Character = 0u }; End = { Line = 0u; Character = 1u } }
+            }
+
+            let full = MepRecords.CreateDiagnostic(Morphir.Mep.DiagnosticSeverity.Error, "m", "c", location)
+            Expect.equal (MepRecords.CodeOrNull full) "c" "code"
+            Expect.equal (MepRecords.LocationOrNull full) location "location"
+            Expect.isFalse (MepRecords.DataOrNull full).HasValue "no data"
+            Expect.isTrue (MepRecords.IsError full.Severity) "error"
+
+            let bare = MepRecords.CreateDiagnostic(Morphir.Mep.DiagnosticSeverity.Hint, "m", null, null)
+            Expect.isNull (MepRecords.CodeOrNull bare) "no code"
+            Expect.isNull (MepRecords.LocationOrNull bare) "no location"
+            Expect.isFalse (MepRecords.IsError bare.Severity) "not an error"
+
+            Expect.equal
+                ([
+                    Morphir.Mep.DiagnosticSeverity.Error
+                    Morphir.Mep.DiagnosticSeverity.Warning
+                    Morphir.Mep.DiagnosticSeverity.Info
+                    Morphir.Mep.DiagnosticSeverity.Hint
+                 ]
+                 |> List.map MepRecords.WireValue)
+                [ "error"; "warning"; "info"; "hint" ]
+                "severity wire values"
+        }
+
         test "outcomes have wire values for the report" {
             Expect.equal AnalyzerOutcome.Ran.WireValue "ran" "ran"
             Expect.equal (AnalyzerOutcome.NotRun AnalyzerSkipReason.TurnedOff).WireValue "not-run" "not run"
