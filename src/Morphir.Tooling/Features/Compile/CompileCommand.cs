@@ -56,6 +56,14 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     private readonly Option<bool> _typesOnly = new("--types-only") { Description = "Not implemented; rejected" };
     private readonly Option<string?> _output = new("--output", "-o") { Description = "Install a copy of the IR in this directory. Files that an earlier install did not write stay unchanged" };
     private readonly Option<string?> _outDir = new("--out-dir") { Description = "Out root for the compile task; overrides MORPHIR_OUT_DIR and workspace.out_dir" };
+    private readonly Option<string?> _target = new("--target") { Description = "Generation target to run on the compiled IR, for example fsharp or csharp" };
+    private readonly Option<string?> _generateOutput = new("--generate-output") { Description = "Owned output directory of the generation; needed with --target" };
+    private readonly Option<string[]> _generateOptions = new("--option")
+    {
+        Description = "Backend KEY=VALUE option for --target, repeatable",
+        AllowMultipleArgumentsPerToken = false,
+        Arity = ArgumentArity.OneOrMore
+    };
 
     private readonly IServiceProvider _services;
 
@@ -65,6 +73,9 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
         _services = services;
         foreach (var option in new Option[] { _language, _extension, _input, _projectFile, _packageName, _config, _project, _irVersion, _json, _jsonLines, _typesOnly, _output, _outDir })
             Options.Add(option);
+        // CLI-2: compile can continue into generation.
+        foreach (var option in new Option[] { _target, _generateOutput, _generateOptions })
+            Options.Add(option);
         SetAction(async (result, ct) =>
         {
             var output = Output;
@@ -73,6 +84,11 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
             if (json && jsonLines)
                 return await RenderInvocationAsync(output, [Invalid("The options --json and --json-lines cannot be combined. Use one.")], Mode.JsonLines);
             var mode = jsonLines ? Mode.JsonLines : json ? Mode.Json : Mode.Human;
+            var context = Context;
+            var target = CompileTarget.Parse(result.GetValue(_target), result.GetValue(_generateOutput), result.GetValue(_generateOptions),
+                context.WorkingDirectory);
+            if (!target.TryGetValue(out var generation))
+                return await RenderInvocationAsync(output, target.Diagnostics, mode);
             var observer = mode switch
             {
                 Mode.JsonLines => (ICompileEventObserver)new JsonLinesObserver(new JsonLinesWriter(output.StandardOutput)),
@@ -81,7 +97,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
             };
             var mediator = services.GetRequiredService<IMediator>();
             var compiled = await mediator.InvokeAsync<CompileResult>(
-                new CompileCommandRequest(Bind(result), Context, observer), ct);
+                new CompileCommandRequest(Bind(result) with { Target = generation }, context, observer), ct);
             var report = CompileReport.From(compiled);
             await RenderAsync(output, report, mode, CancellationToken.None);
             return report.ExitCode;
@@ -159,8 +175,11 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
         var listed = report.Diagnostics.Length == 0
             ? ""
             : ": " + string.Join(", ", report.Diagnostics.Select(diagnostic => $"{diagnostic.Severity} {diagnostic.Code ?? "(no code)"}"));
+        var generated = report.Generation is { Backend: { } backend } generation && report.Success
+            ? $", generated {generation.Artifacts.Length} artifact(s) with {backend} to {generation.Output}"
+            : "";
         var outcome = report.Success
-            ? $"compile succeeded: {report.Modules.Length} module(s), IR version {report.IrVersion}, {report.Output}"
+            ? $"compile succeeded: {report.Modules.Length} module(s), IR version {report.IrVersion}, {report.Output}{generated}"
             : $"compile failed ({report.FailureKind}, exit code {report.ExitCode})";
         var total = report.Diagnostics.Length == 0 ? "no diagnostics" : string.Join(", ", counts);
         return $"{outcome}; {total}{listed}";

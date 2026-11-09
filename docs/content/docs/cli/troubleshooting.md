@@ -586,6 +586,9 @@ I/O failure. See [compile]({{< relref "/docs/cli/compile" >}}).
 | `compile.language_required` | No language is selected, and the sources do not select one. A `[frontend.<language>].project_file` is read only for the selected language. | Use `--language`, or set `frontend.language`. |
 | `compile.package_required` | No package name. | Use `--package-name`, or set `project.name`. |
 | `compile.unsupported_setting` | An option or setting that this build does not implement, for example `--types-only` or `ir.layout = "document-tree"`. | Remove it. The message names the option or the key and its file. |
+| `compile.invalid_arguments` naming `--target` or `--generate-output` | `--target` without `--generate-output`, `--target` more than one time, or `--generate-output` or `--option` without `--target`. | Give one `--target` with `--generate-output <directory>`. `-o` installs the IR; it is not the generation output. |
+| `incompatible-model` after a successful compile with `--target` | The backend of the target does not declare the IR version. The IR stays published. | Use an IR version that the message lists for the backend, or run `generate` later with another target. |
+| `compile.generation_unavailable` | `--target` in a build that registers no generation backends. | Use `dotnet-morphir` or `morphir`, which both register the F# and C# backends, or run `generate` on the published IR. |
 | `sources.conflicting_source_options` | `--project-file` and `--input` together. | Use one of them. |
 | `sources.project_file_as_input` | An `--input` file is a project file. | Use `--project-file`. |
 | `sources.unknown_project_file` | No project-file provider recognizes the file. | Name a supported project file. See [project-file sources]({{< relref "/docs/configuration/project-file-sources" >}}). |

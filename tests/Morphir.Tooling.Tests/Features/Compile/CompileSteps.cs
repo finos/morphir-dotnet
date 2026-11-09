@@ -57,6 +57,16 @@ public sealed class CompileSteps : IDisposable
 
     public CompileSteps(CliRun run) => _run = run;
 
+    private string? _targetReport;
+
+    /// <summary>The source options of "its input files" or "its project file".</summary>
+    private string Sources(string input) => input switch
+    {
+        "input" => $"--input \"{Path.Combine(_project, "src", "Rates.fs")}\" \"{Path.Combine(_project, "src", "Pricing.fs")}\"",
+        "project" => $"--project-file \"{Path.Combine(_project, ProjectFile)}\"",
+        _ => throw new ArgumentOutOfRangeException(nameof(input), input, "Use its input files or its project file.")
+    };
+
     private string OutRoot => Path.Combine(_project, ".morphir", "out");
     private string PublishedIr => Path.Combine(OutRoot, "compile.dest", "morphir-ir.json");
     private string Record => Path.Combine(OutRoot, "compile.json");
@@ -98,18 +108,25 @@ public sealed class CompileSteps : IDisposable
         return Run(_tool, $"generate --json --project \"{_project}\" --target fsharp --output \"{_run.GenerationOutput}\"");
     }
 
-    [When("I compile it with the dotnet tool with target {string}")]
-    public Task CompileWithTarget(string target) =>
-        Compile(_tool, $"--target {target} --generate-output \"{Path.Combine(_project, "with-target")}\"");
-
-    [When("I compile it with the dotnet tool and then generate F# from the compiled IR")]
-    public async Task CompileThenGenerate()
+    [When("I compile it with the dotnet tool from its {word} {word} with target {string}")]
+    public async Task CompileWithTarget(string input, string noun, string target)
     {
-        await Compile(_tool, "");
+        await Compile(_tool, $"{Sources(input)} --target {target} --generate-output \"{Path.Combine(_project, "with-target")}\"");
         _run.ShouldExitWithOneJsonReport(0);
-        await Run(_tool, $"generate --json --input \"{PublishedIr}\" --target fsharp --output \"{Path.Combine(_project, "two-step")}\"");
+        _targetReport = _run.Result!.StandardOutput;
+    }
+
+    [When("I compile it with the dotnet tool from its {word} {word} and then generate {string} from the compiled IR")]
+    public async Task CompileThenGenerate(string input, string noun, string target)
+    {
+        await Compile(_tool, Sources(input));
+        _run.ShouldExitWithOneJsonReport(0);
+        await Run(_tool, $"generate --json --input \"{PublishedIr}\" --target {target} --output \"{Path.Combine(_project, "two-step")}\"");
         _run.ShouldExitWithOneJsonReport(0);
     }
+
+    [When("I compile its input files with the dotnet tool and the options {string}")]
+    public Task CompileInputsWithOptions(string options) => Compile(_tool, $"{Sources("input")} {options}");
 
     [Then("compilation exits with {int} and one JSON report")]
     public void CompilationReport(int exitCode) => _run.ShouldExitWithOneJsonReport(exitCode);
@@ -158,6 +175,15 @@ public sealed class CompileSteps : IDisposable
         using var report = _run.Report();
         Path.GetFullPath(report.RootElement.GetProperty("input").GetString()!)
             .Should().Be(Path.GetFullPath(Path.Combine(OutRoot, "compile.dest", irPath)));
+    }
+
+    [Then("both reports name the same backend")]
+    public void SameBackend()
+    {
+        using var combined = JsonDocument.Parse(_targetReport!);
+        using var generated = _run.Report();
+        combined.RootElement.GetProperty("generation").GetProperty("backend").GetString()
+            .Should().NotBeNullOrEmpty().And.Be(generated.RootElement.GetProperty("backend").GetString());
     }
 
     [Then("both generated outputs have the same paths and bytes")]

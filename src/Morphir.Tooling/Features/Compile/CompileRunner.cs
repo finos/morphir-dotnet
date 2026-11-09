@@ -22,7 +22,8 @@ public interface ICompileRunner
 /// <summary>
 /// The compile pipeline at its orchestration edge. Each stage returns a <c>Checked</c> value (DIAG-1); the runner
 /// reports its diagnostics, grouped by document, when the stage completes, and stops at the first failed stage.
-/// The stages are settings, sources, capture, frontend (which builds the requested family), write and publish.
+/// The stages are settings, sources, capture, frontend (which builds the requested family), write and publish, and,
+/// with <c>--target</c>, generate and generatePublish (CLI-2).
 /// </summary>
 public sealed class CompileRunner(
     ICompileSettingsResolver settingsResolver,
@@ -32,6 +33,7 @@ public sealed class CompileRunner(
     ISourceCapture capture,
     ICompilePublisher publisher,
     IFrontendExtensionConnector extensions,
+    CompileGenerationStages? generation = null,
     ILogger<CompileRunner>? logger = null) : ICompileRunner
 {
     /// <summary>The writer options of the published IR.</summary>
@@ -108,9 +110,26 @@ public sealed class CompileRunner(
                 yield break;
             }
 
-            yield return new CompileEvent.Completed(new CompileConclusion.Succeeded(new CompileSuccess(
-                compiled.Frontend.Language.Value, compiled.Frontend.Label, settings.IrVersion.Value, sources,
-                [.. compiled.Package.Modules], published)), settings);
+            var success = new CompileSuccess(compiled.Frontend.Language.Value, compiled.Frontend.Label, settings.IrVersion.Value, sources,
+                [.. compiled.Package.Modules], published);
+            if (overrides.Target is not { } target)
+            {
+                yield return new CompileEvent.Completed(new CompileConclusion.Succeeded(success), settings);
+                yield break;
+            }
+            // CLI-2: the generation stages run after publication, on the exact bytes that were written.
+            if (generation is null)
+            {
+                yield return new CompileEvent.StageStarted(CompileStage.Generate);
+                var unavailable = Checked<CompileGeneration>.Fail([Error(CompileCodes.GenerationUnavailable,
+                    "This build registers no generation backends, so compile --target cannot run. Use morphir generate.")]);
+                foreach (var e in Report(CompileStage.Generate, new StageResult<CompileGeneration>(unavailable))) yield return e;
+                yield return new CompileEvent.Completed(new CompileConclusion.Failed(new CompileFailure(CompileFailureKind.Configuration,
+                    "This build registers no generation backends.")
+                { Sources = sources, Frontend = success.Frontend, Compiled = success }), settings);
+                yield break;
+            }
+            await foreach (var e in generation.RunAsync(target, success, settings, bytes, ct)) yield return e;
         }
         finally
         {

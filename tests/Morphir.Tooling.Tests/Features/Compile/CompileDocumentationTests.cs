@@ -12,7 +12,8 @@ namespace Morphir.Tooling.Tests.Features.Compile;
 
 /// <summary>
 /// Task 4.8: every command in docs/content/docs/cli/compile.md runs against the MCK corpus fixtures, and gives
-/// its documented output. <c>output</c> and <c>sources.root</c> show example paths, so they are not compared.
+/// its documented output. <c>output</c>, <c>sources.root</c> and <c>generation.output</c> show example paths, so
+/// they are not compared. Task 6.2 adds the <c>--target</c> example.
 /// </summary>
 public sealed partial class CompileDocumentationTests
 {
@@ -50,7 +51,8 @@ public sealed partial class CompileDocumentationTests
     [Test]
     public void ThePageDocumentsTheExpectedCommands() =>
         DocumentedCommands().Select(item => $"{item.Host} {item.Command.Split(' ').Last()}").Should().Equal(
-            "dotnet-morphir --json", "dotnet-morphir --json", "dotnet-morphir --json", "morphir --json", "dotnet-morphir --json-lines");
+            "dotnet-morphir --json", "dotnet-morphir --json", "dotnet-morphir --json", "dotnet-morphir --json", "morphir --json",
+            "dotnet-morphir --json-lines");
 
     [Test]
     public async Task EachDocumentedCommandGivesItsDocumentedOutput()
@@ -90,6 +92,7 @@ public sealed partial class CompileDocumentationTests
         {
             report.Remove("output");
             report["sources"]?.AsObject().Remove("root");
+            report["generation"]?.AsObject().Remove("output");
         }
         return node.ToJsonString();
     }

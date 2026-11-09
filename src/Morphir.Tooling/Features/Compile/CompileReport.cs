@@ -62,6 +62,31 @@ public sealed record CompileReportOrigin(
 }
 
 /// <summary>
+/// The generation of <c>compile --target</c>: the members of the <c>generate</c> report that describe the
+/// generation. On a failure, the backend is null when selection failed, and the lists are empty.
+/// </summary>
+public sealed record CompileReportGeneration(
+    string Target,
+    string? Backend,
+    string Output,
+    string? SourceVersion,
+    string? Family,
+    string? DistributionKind,
+    string? Representation,
+    string[] Artifacts,
+    string[] Written,
+    string[] Unchanged,
+    string[] Removed)
+{
+    /// <summary>The report shape of <paramref name="generation"/>.</summary>
+    public static CompileReportGeneration From(CompileGeneration generation) => generation.Result is { } result
+        ? new(result.Target, result.Backend, result.OutputDirectory, result.SourceVersion, result.Family, result.DistributionKind,
+            result.Representation, [.. result.Publication.Artifacts], [.. result.Publication.Written], [.. result.Publication.Unchanged],
+            [.. result.Publication.Removed])
+        : new(generation.Target, generation.Backend, generation.OutputDirectory, null, null, null, null, [], [], [], []);
+}
+
+/// <summary>
 /// The one JSON report of <c>morphir compile --json</c>, and the report of the last <c>--json-lines</c> record.
 /// Members are camelCase. <c>installed</c> lists the <c>-o</c> installations of this run.
 /// </summary>
@@ -79,6 +104,10 @@ public sealed record CompileReport(
     string? FailureKind,
     Dictionary<string, CompileReportOrigin>? Origins)
 {
+    /// <summary>The generation of <c>--target</c> (CLI-2). Left out of the JSON when no target was requested.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CompileReportGeneration? Generation { get; init; }
+
     /// <summary>The report of a folded compile result.</summary>
     public static CompileReport From(CompileResult result)
     {
@@ -89,10 +118,14 @@ public sealed record CompileReport(
         return result.Conclusion.Match(
             success => new CompileReport(true, 0, success.Language, success.Frontend, success.IrVersion.Text,
                 SourcesOf(success.Sources, result.Settings!.WorkingDirectory), [.. success.Modules], success.Publication.IrPath, [.. success.Publication.Installed],
-                diagnostics, null, origins),
+                diagnostics, null, origins)
+            { Generation = success.Generation is { } generation ? CompileReportGeneration.From(generation) : null },
+            // A failure in the generation stages keeps the published compile (CLI-2).
             failure => new CompileReport(false, failure.Kind.ExitCode(), language, failure.Frontend, irVersion,
-                failure.Sources is { } sources ? SourcesOf(sources, result.Settings!.WorkingDirectory) : null, [], null, [],
-                diagnostics, failure.Kind.WireValue(), origins));
+                failure.Sources is { } sources ? SourcesOf(sources, result.Settings!.WorkingDirectory) : null,
+                failure.Compiled is { } compiled ? [.. compiled.Modules] : [], failure.Compiled?.Publication.IrPath, [],
+                diagnostics, failure.Kind.WireValue(), origins)
+            { Generation = failure.Generation is { } generation ? CompileReportGeneration.From(generation) : null });
     }
 
     /// <summary>The report of an invocation that could not run, for example a parse error.</summary>
