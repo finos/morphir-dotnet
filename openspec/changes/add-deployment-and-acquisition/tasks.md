@@ -2,13 +2,13 @@
 
 This is the morphir-dotnet adoption of the approved finos/morphir change `add-deployment-and-acquisition`. Each checkbox keeps the approved number and wording. The indented notes under it say where the work lands in this repository: files and projects, the first failing test, the test project that carries it, and the narrowest command. The notes are planning detail and are not tracked.
 
-GitHub issue: **TODO (orchestrator): link the owning finos/morphir-dotnet issue here before any task is claimed.** The owning finos/morphir tracking is pending. Do not invent issue or Beads ids.
+GitHub issue: [finos/morphir-dotnet#558](https://github.com/finos/morphir-dotnet/issues/558). The owning finos/morphir issue is finos/morphir#1146, and the approved change is in finos/morphir#1147. The Beads link is still pending; do not invent a Beads id.
 
 Dependencies:
 
 - Group 1 (shared contracts and fixed examples) belongs to finos/morphir and is not tracked here. Groups 4, 5 and 6 need its `0.1.0-draft.1` contracts and fixed cases.
-- Groups 2 and 3 are independent of each other and can start now.
-- Group 4 needs the shared contracts from group 1 and the packaged fixtures from groups 2 and 3. Inside this repository it also needs the .NET extension installer (extension-model PRD step 3, issue #492) and an authenticated tool release metadata client. See the design's questions for review.
+- Tasks 2.1 to 2.4 and 3.1 can start now. Task 2.5 waits on group 1 task 1.2 (offering-specific tool ids and the catalog format). The shared-runner verification of 3.2 waits on 1.4 (the frozen F# package and expectations). Task 3.3 waits on 1.1 and 1.3 (the contracts and the signed test-only F# recipe).
+- Group 4 needs the shared contracts from group 1 and the packaged fixtures from groups 2 and 3. Inside this repository it also needs the .NET extension installer (extension-model PRD step 3, which has no tracking issue yet; #492 wires the existing handlers and is not step 3) and an authenticated tool release metadata client. See the design's questions for review.
 - Group 5 needs generation activation from group 4.
 - Group 6 integrates the previous groups.
 - Group 7 is a separate follow-up and is not part of this change.
@@ -22,11 +22,11 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 ## 2. Four .NET offerings and managed composition, morphir-dotnet
 
 - [ ] 2.1 Extract the current tool's F#-enabled managed composition so self-contained, framework-dependent and tool entry points share it while the AOT entry point excludes FCS. Start with command/capability parity cases, verify AOT dependency and warning checks, and document the composition boundary beside the existing entry-point guidance.
-  - Files: `src/Morphir/Program.cs`, `src/Morphir/Morphir.csproj`, `src/Morphir/ILLink.Descriptors.xml`, `src/Morphir.Tool/Program.cs`, `src/Morphir.Tool/FSharpFrontendScenario.cs`, `src/Morphir.Tool/Morphir.Tool.csproj`, `Morphir.slnx`, `build/Build.cs` (`LibraryPackages`).
-  - First move `CreateApp`, `Run` and the `--version` path into a shared composition library, and `FSharpFrontendScenario` into a managed composition library (design COMP-1). Then add the managed `morphir` entry point. Each entry point keeps its own generated `VersionInfo`.
-  - First failing test: in `tests/Morphir.Tests/Hosts/HostFrontendCompositionTests.cs`, a parity case that the managed `morphir` entry point registers the in-process F# frontend and the same command tree as `dotnet-morphir`, and a closure case that the managed entry point contains FCS while `Morphir.Program` still does not.
+  - Files: `src/Morphir/Program.cs`, `src/Morphir.Tooling` (new `MorphirApplication.cs`), `src/Morphir.Tool/Program.cs`, `src/Morphir.Tool/FSharpFrontendScenario.cs`, `src/Morphir.Tool/Morphir.Tool.csproj`, `Morphir.slnx`, `build/Build.Testing.cs` (test project list).
+  - Move the bodies of `CreateApp`, `Run`, `info` and the `--version` path into `Morphir.Tooling` (`MorphirApplication`), and `FSharpFrontendScenario` into a managed composition library (design COMP-1). `Morphir.Program` stays in `src/Morphir` with the same public signatures and delegates, so the `Morphir` package keeps its API. Then add the managed `morphir` entry point; it and `Morphir.Tool` reference the libraries. Each entry point keeps its own generated `VersionInfo`.
+  - First failing tests: in `tests/Morphir.Tests/Hosts/HostFrontendCompositionTests.cs`, the managed composition registers the in-process F# frontend and its closure contains FCS while `Morphir.Program` and `Morphir.Tooling` do not. The managed entry point's own cases (same frontends and command tree as `dotnet-morphir`) need a separate test project, because it and `src/Morphir` both build `morphir.dll`.
   - Command: build `tests/Morphir.Tests/Morphir.Tests.csproj`, then `dotnet exec tests/Morphir.Tests/bin/Release/net10.0/Morphir.Tests.dll --treenode-filter "/*/Morphir.Tests.Hosts/*/*"`.
-  - The public `Morphir.Program` type of the `Morphir` NuGet package moves. Get maintainer review for the API break.
+  - If keeping `Morphir.Program`'s public surface proves infeasible, stop and get maintainer review before moving the type, which would break the `Morphir` package's API.
   - Docs: `docs/contributing/aot-trimming-guide.md` and the comments in both `Program.cs` files that cite CLI-3.
 - [ ] 2.2 Consolidate `build/Build.Packaging.cs` and the existing publish scripts into maintained named release profiles for AOT, self-contained, framework-dependent and `Morphir.Tool`. Verify packaged artifact names and launch metadata are unique across release/profile/platform, and that existing tool invocation and package identity remain valid; document the exact publish commands.
   - Files: `build/Build.cs` (`PublishExecutable`, `PublishSingleFile`, `PublishSingleFileUntrimmed`), `build/Build.Packaging.cs` (`PackPlatformTarballs`), `build/Build.Publishing.cs` (`CreateGitHubRelease` and its release notes), `build/Helpers/PathHelper.cs`, `scripts/publish-single-file.cs`, `scripts/publish-single-file-untrimmed.cs`, `scripts/README.md`, `README.md`, `NUKE_MIGRATION.md`.
@@ -63,13 +63,13 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - Step 1: add `GenerateModelRequest`, `GenerateResult` and `Artifact` from the pinned contract (`tests/Fixtures/Mep/mep.ir.json`, finos/morphir `cde7722e`) to `src/Morphir.Mep/Wire.fs`. First failing test in `tests/Morphir.Mep.Tests/ContractTests.fs`. Command: build `tests/Morphir.Mep.Tests/Morphir.Mep.Tests.fsproj`, then `dotnet exec tests/Morphir.Mep.Tests/bin/Release/net10.0/Morphir.Mep.Tests.dll --filter-test-list "<contract list>"`.
   - Step 2: a new guest project beside `src/Morphir.Frontend.FSharp.Extension`, executable `morphir-fsharp-backend`, with its own version source and a matching Expecto test project modeled on `tests/Morphir.Frontend.FSharp.Extension.Tests`.
   - Step 3: a host-side MEP backend adapter in `src/Morphir.Tooling/Features/Generate/` with an explicit selection that never replaces `morphir.fsharp` as the default. Tests in `tests/Morphir.Tooling.Tests/Features/Generate/`.
-  - The shared runner here is `src/Morphir.Conformance`, which has no backend adapter yet. Coordinate the adapter with `establish-morphir-compatibility-kit`.
+  - The shared runner is finos/morphir's `morphir mck` (Rust, `crates/morphir-mck`), driven with an explicit `--adapter`. This repository supplies the .NET adapter. `src/Morphir.Conformance` has `cli`, `library` and `mep-guest` adapters and a local runner for the F# frontend suite. No `morphir mck` adapter exists here yet. Which of these carries tasks 3.2 and 6.1, and how this relates to `establish-morphir-compatibility-kit`, is review question 5 in the design.
   - Record in the extension-model PRD that this delivers step 4's generator for F#.
 - [ ] 3.3 Produce extension descriptors, archives and recipe bindings from the exact frontend/backend release artifacts. Verify the production extension installer can select and lock those artifacts, and record actual probe status without upgrading unchecked WASM records; document release/host compatibility and the independent version paths.
-  - Depends on the .NET extension installer (PRD step 3, #492). The descriptor format is the upstream release descriptor that the PRD's extension package archive section names.
+  - Depends on the .NET extension installer (PRD step 3, which has no tracking issue yet; #492 wires the existing handlers and is not step 3). The descriptor format is the upstream release descriptor that the PRD's extension package archive section names.
   - Record how the frontend guest's version is set. Today it follows the repository release.
 - [ ] 3.4 Implement F# readiness checks through the selected providers and generation-scoped configuration, distinguishing acquired/verified/capability-checked/workflow-qualified states. Verify a failed handshake or compile preserves the prior selection, and exercise both the built-in and external backend; document diagnostic states and separate SDK prerequisites for consumer builds.
-  - Reuse `MepFrontend.ConnectAsync` for the handshake and the conformance `cli` adapter for the fixed journey.
+  - Reuse `MepFrontend.ConnectAsync` for the handshake. The fixed journey runs through whichever runner and adapter review question 5 settles.
 
 ## 4. Standalone manager and acquisition lifecycle, morphir-dotnet
 
@@ -98,14 +98,14 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 ## 6. Acquired-release qualification, parent contracts plus morphir-dotnet receipts
 
 - [ ] 6.1 Exercise the fixed F# workflow through all four offerings from acquired artifacts, using clean no-runtime environments for standalone profiles and the declared runtime/SDK for managed tool installation. Verify equivalent IR and generated files, explicit external backend selection and actual provider identities; publish one consolidated support matrix and receipts.
-  - Drive each offering through the conformance `cli` adapter in `src/Morphir.Conformance`, from the release lane, not a new pull request job.
+  - Run from the release lane, not a new pull request job. The shared runner is finos/morphir's `morphir mck` (Rust, `crates/morphir-mck`), driven with an explicit `--adapter`. This repository supplies the .NET adapter. `src/Morphir.Conformance` has `cli`, `library` and `mep-guest` adapters and a local runner for the F# frontend suite. No `morphir mck` adapter exists here yet. Which of these carries tasks 3.2 and 6.1, and how this relates to `establish-morphir-compatibility-kit`, is review question 5 in the design.
 - [ ] 6.2 Exercise the multi-platform locked CI journey, offline rerun, failed probe/update, rollback, concurrent activation and PATH ownership cases. Verify each observes one complete generation and fixed results. Group qualification in existing appropriate suites or manual/release lanes rather than adding per-profile PR jobs; document the exact reproducible workflow.
 - [ ] 6.3 Validate the public bootstrap/download/tool installation instructions against candidate artifacts on all advertised platforms. Verify uninstall/repair and self-update recovery, full artifact sizes and provenance receipts. Keep unqualified combinations visibly pending; do not count source-build execution as consumer installation evidence.
   - Includes `scripts/install-*` and `docs/content/docs/getting-started/installation.md`, which today call the released managed builds native.
 
 ## 7. Join the separate WASM-host delivery, morphir-dotnet (separate follow-up, not part of this change)
 
-- Approved 7.1 (offering-specific WASM recipe and readiness checks for each claimed ABI) and 7.2 (link packaged host and runtime receipts to the bounded-generation work) wait for the separately tracked WASM-host change. A follow-up change adopts them, together with the "WASM readiness follows host qualification" requirement of the approved `toolset-setup` capability. This change does not complete them, and process F# qualification here does not establish WASM capability.
+- Approved 7.1 (offering-specific WASM recipe and readiness checks for each claimed ABI) and 7.2 (link packaged host and runtime receipts to the bounded-generation work) wait for the separately tracked WASM-host change. A follow-up change adopts them. This change does not complete them, and process F# qualification here does not establish WASM capability. The "WASM readiness follows host qualification" requirement is adopted here in `toolset-setup` as a refusal-only guard: installed WASM bytes are never readiness evidence, and until a WASM host exists every WASM selection reports not ready.
 
 ## Workflow follow-up
 

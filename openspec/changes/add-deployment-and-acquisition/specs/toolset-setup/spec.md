@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Makes language tools installable as a compatible toolset and explains whether a requested frontend and backend workflow is ready, independently of how its host was acquired. Adopted from the approved finos/morphir change `add-deployment-and-acquisition`, capability `extensions/toolset-setup`, which remains the source of truth. Its "WASM readiness follows host qualification" requirement is not adopted here; the follow-up that joins the separate WASM-host change adopts it.
+Makes language tools installable as a compatible toolset and explains whether a requested frontend and backend workflow is ready, independently of how its host was acquired. Adopted from the approved finos/morphir change `add-deployment-and-acquisition`, capability `extensions/toolset-setup`, which remains the source of truth. Its "WASM readiness follows host qualification" requirement is a refusal-only guard here: no WASM host exists yet, so it stays inert until the follow-up that joins the separate WASM-host change.
 
 ## ADDED Requirements
 
@@ -61,6 +61,14 @@ Setup SHALL distinguish acquired, integrity-verified, capability-checked and wor
 - **WHEN** the archive is valid but the host and frontend share no operation/model tuple
 - **THEN** setup reports installed but not ready and names the incompatible tuple
 - **AND** it does not activate the candidate as a qualified F# toolchain
+
+### Requirement: WASM readiness follows host qualification
+A recipe selecting a WASM extension SHALL name its required ABI and compatible host capability. Setup SHALL refuse a ready result when that ABI or operation is unavailable. Installed WASM bytes SHALL NOT be treated as evidence that the host's WASM engine or packaging is functional.
+
+#### Scenario: Extism guest before host support
+- **WHEN** a selected extension requires `extism-kernel-v1` and the selected host supports only `morphir-bytes-v1`
+- **THEN** setup names the missing ABI and reports not ready
+- **AND** it does not substitute another ABI based on the public runtime name `wasm`
 
 ### Requirement: Cross-offering qualification
 The F# preset SHALL be qualified through all four supported .NET offerings using acquired release artifacts in clean environments. Standalone offerings SHALL be tested without a system runtime; managed-runtime offerings SHALL be tested with their declared runtime. Results SHALL cover direct invocation, manager dispatch, offline rerun and explicit external backend selection.

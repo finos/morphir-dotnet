@@ -87,7 +87,7 @@ Manager JSON output SHALL use a versioned result contract and contain one result
 - **AND** no network request or active selection change occurs
 
 ### Requirement: Manager documents follow the shared contracts
-`morphirup` SHALL read and write toolset recipes, project requests, portable locks, installation receipts and manager results only in the `0.1.0-draft.1` contracts that finos/morphir defines, with exact draft matching. This repository SHALL NOT define members of those documents. Tool release metadata, MEP and IR versions SHALL keep their own version authorities.
+Adoption-specific, not part of the approved finos/morphir text. `morphirup` SHALL read and write toolset recipes, project requests, portable locks, installation receipts and manager results only in the `0.1.0-draft.1` contracts that finos/morphir defines, with exact draft matching. This repository SHALL NOT define members of those documents. Tool release metadata, MEP and IR versions SHALL keep their own version authorities.
 
 #### Scenario: Unsupported recipe draft
 - **WHEN** a manager that supports only `0.1.0-draft.1` reads a toolset recipe with `0.1.0-draft.2`

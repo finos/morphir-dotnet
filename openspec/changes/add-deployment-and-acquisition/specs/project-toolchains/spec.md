@@ -31,13 +31,19 @@ Selection SHALL prefer an explicit CLI selector, then `MORPHIRUP_TOOLCHAIN`, the
 - **AND** it does not run the user default or acquire files implicitly
 
 ### Requirement: Exact portable locks
-Locks that `morphirup` writes and reads SHALL satisfy the "Exact portable locks" requirement of the approved finos/morphir `acquisition/project-toolchains` capability and its `0.1.0-draft.1` lock contract, which owns the lock members. This repository SHALL NOT add, rename or reinterpret lock members.
+A lock SHALL bind the request identity, repository identities, authenticated recipe digest, exact host and component versions, provider choices, protocol/model compatibility and per-platform artifact identities and digests. It SHALL contain no machine-specific absolute paths or credentials. Each recorded platform SHALL retain its complete dependency closure.
 
 #### Scenario: Colleague uses another platform
 - **WHEN** a Windows colleague restores a lock containing complete Windows and macOS resolutions
 - **THEN** restore chooses the locked Windows closure without resolving channels again
 - **AND** the resulting launch paths are local receipt data rather than edits to portable lock paths
 
+### Requirement: Lock members stay with the shared contract
+Adoption-specific, not part of the approved finos/morphir text. The finos/morphir `0.1.0-draft.1` lock contract owns the lock members. This repository SHALL NOT add, rename or reinterpret lock members.
+
+#### Scenario: A written lock uses only contract members
+- **WHEN** `morphirup` writes a lock and the lock is checked against the finos/morphir lock contract and its fixed examples
+- **THEN** it passes, and it holds no member that the contract does not define
 ### Requirement: Frozen restore
 `morphirup restore --locked` SHALL restore only the exact matching request and platform closure in the lock. A changed request, unsupported platform or absent resolution SHALL fail without updating the lock. Explicit setup or update SHALL be required to create or extend a resolution.
 
