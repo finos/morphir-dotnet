@@ -120,10 +120,20 @@ internal static class TaskInstaller
                 $"These outputs name the same file on the target filesystem: {string.Join(", ", collisions)}.");
 
         var owned = previous.Select(path => path.Value).ToHashSet(comparer);
-        var conflicts = produced.Where(path => !owned.Contains(path) && Exists(Path.Combine(target, path))).ToArray();
+        var conflicts = produced.SelectMany(Blocking).Distinct(comparer).Order(StringComparer.Ordinal).ToArray();
         if (conflicts.Length > 0)
             return Refuse("install.foreign_content",
                 $"The -o target {target} already contains files that Morphir did not write: {string.Join(", ", conflicts)}. Move them, or choose a different -o target.");
+
+        // Foreign content that blocks an output: a file at the output's path, or a file in place of a directory
+        // on the way to it. Every ancestor is checked before anything is removed. An owned file in place of a
+        // directory is stale, and the install removes it before it copies.
+        IEnumerable<string> Blocking(string path)
+        {
+            foreach (var directory in DirectoriesAbove(path))
+                if (!owned.Contains(directory) && IsNotDirectory(Path.Combine(target, directory))) yield return directory;
+            if (!owned.Contains(path) && Exists(Path.Combine(target, path))) yield return path;
+        }
 
         var files = produced.Select(path => VFileModule.ofDiskFile(path, RecordPath.Parse(path).Under(location.Dest)));
         var tree = VFileTreeModule.fromFiles(ListModule.OfSeq(files));
@@ -222,6 +232,16 @@ internal static class TaskInstaller
     }
 
     private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path) || new FileInfo(path).LinkTarget is not null;
+
+    /// <summary>True when something that is not a directory is at <paramref name="path"/>.</summary>
+    private static bool IsNotDirectory(string path) => Exists(path) && !Directory.Exists(path);
+
+    /// <summary>The directories on the way to <paramref name="relative"/>, outermost first: <c>a</c> and <c>a/b</c> for <c>a/b/c</c>.</summary>
+    private static IEnumerable<string> DirectoriesAbove(string relative)
+    {
+        for (var slash = relative.IndexOf('/'); slash > 0; slash = relative.IndexOf('/', slash + 1))
+            yield return relative[..slash];
+    }
 
     /// <summary>The first component below <paramref name="target"/> on the way to <paramref name="relative"/> that is a link.</summary>
     private static string? LinkBelow(string target, string relative)
