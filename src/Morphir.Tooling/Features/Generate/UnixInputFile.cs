@@ -38,6 +38,8 @@ internal static class UnixInputFile
         internal uint UserFlags;
     }
 
-    [DllImport("System.Native", EntryPoint = "SystemNative_LStat", SetLastError = true)]
+    // "libSystem.Native" is the name that the runtime itself uses. A single-file host links System.Native into the
+    // executable and resolves only that name; "System.Native" fails there with DllNotFoundException.
+    [DllImport("libSystem.Native", EntryPoint = "SystemNative_LStat", SetLastError = true)]
     private static extern int LStat([MarshalAs(UnmanagedType.LPUTF8Str)] string path, out FileStatus status);
 }
