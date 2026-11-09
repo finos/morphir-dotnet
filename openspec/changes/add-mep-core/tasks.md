@@ -43,7 +43,7 @@ Foundation delivery covers `ProtocolVersion`, `DescribeParams`, the generated co
 - [ ] 4.4 Write envelope creation and admission (design MT-1): canonical padded base64, exact decoded length, lowercase SHA-256, deterministic `revision`, and admission checks in the spec order with depth and node limits and critical paths. Verify every case of `model-transport.cases.json`, each bound on its own, and that no IR reader runs for a refused envelope.
 - [x] 4.5 Write the host session and the guest loop on a transport (design SES-2), and a test guest built only from `Morphir.Mep`. Verify a full in-memory session: describe, initialize, initialized, ping, info, capabilities, shutdown and exit, with the bytes checked against the transcripts.
 - [ ] 4.6 Add an AOT probe app under `tests/` that runs the full in-memory session, and add its publish to the AOT checks. Verify zero IL warnings with no suppression, the same messages as under JIT, and record the size added to the `morphir` binary in the PRD.
-- [ ] 4.7 Document `Morphir.Mep` for contributors: a README in the project (layers, how to add a method, the pin and how to update it) and a link from the PRD. Verify that the README's example compiles as a test.
+- [x] 4.7 Document `Morphir.Mep` for contributors: a README in the project (layers, how to add a method, the pin and how to update it) and a link from the PRD. Verify that the README's example compiles as a test.
 
 ## 5. Analyzer contract and the built-in type validator (model-analyzers, extension-registry)
 
