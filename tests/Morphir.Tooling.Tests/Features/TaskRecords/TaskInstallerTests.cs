@@ -123,6 +123,37 @@ public sealed class TaskInstallerTests : IDisposable
     }
 
     [Test]
+    public async Task AForeignFileInPlaceOfAnOutputDirectoryRemovesNothing()
+    {
+        (await CompileAndInstall(RecordWorkspace.SingleFileIr(), Dist, ("morphir-ir.json", "v1"))).ShouldSucceed();
+        // The user puts a file where the next install needs the directory morphir-ir.
+        await File.WriteAllTextAsync(Path.Combine(Dist, "morphir-ir"), "the user's file");
+        var before = TreeSnapshot.Of(Dist);
+
+        var failure = (await CompileAndInstall(TreeIr, Dist,
+            ("morphir-ir/manifest.json", "{}"), ("morphir-ir/Module.json", "{}"))).ShouldFail("install.foreign_content");
+
+        failure.Kind.Should().Be(GenerationFailureKind.Invocation);
+        failure.Diagnostics.Single().Message.Should().Contain(": morphir-ir.");
+        TreeSnapshot.Of(Dist).Should().Equal(before, "the stale owned file is not removed either");
+        Ledger(Dist).Should().Equal("morphir-ir.json");
+    }
+
+    [Test]
+    public async Task AnOwnedFileInPlaceOfAnOutputDirectoryIsReplaced()
+    {
+        // An earlier install wrote a file named morphir-ir; the next one needs a directory of that name.
+        (await CompileAndInstall(RecordWorkspace.SingleFileIr() with { Path = RecordPath.Parse("morphir-ir") }, Dist,
+            ("morphir-ir", "v1"))).ShouldSucceed();
+
+        var report = (await CompileAndInstall(TreeIr, Dist, ("morphir-ir/manifest.json", "{}"))).ShouldSucceed();
+
+        report.Removed.Should().Equal("morphir-ir");
+        File.ReadAllText(Path.Combine(Dist, "morphir-ir", "manifest.json")).Should().Be("{}");
+        Ledger(Dist).Should().Equal("morphir-ir/manifest.json");
+    }
+
+    [Test]
     public async Task AnInstallAfterAFailedCompileStillRecognizesItsOwnFiles()
     {
         (await CompileAndInstall(RecordWorkspace.SingleFileIr(), Dist, ("morphir-ir.json", "v1"))).ShouldSucceed();

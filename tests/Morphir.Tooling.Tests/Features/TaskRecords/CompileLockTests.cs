@@ -112,6 +112,46 @@ public sealed class CompileLockTests : IDisposable
         (await waiting.WaitAsync(Bound)).ShouldFail("cancelled");
     }
 
+    [Test]
+    public async Task ALockFileThatCannotBeOpenedFailsWithoutWaiting()
+    {
+        // A link to itself cannot be opened (ELOOP on Linux and macOS). That is an I/O failure, not a held lock.
+        var lockPath = _workspace.Out.Task(MemberPath.Root, TaskId.Compile).Lock;
+        Directory.CreateDirectory(Path.GetDirectoryName(lockPath)!);
+        try
+        {
+            File.CreateSymbolicLink(lockPath, lockPath);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return; // This host cannot create links (Windows without developer mode).
+        }
+
+        var compiling = _workspace.Store().BeginAsync(default).AsTask();
+        var reading = _workspace.Store().OpenCompletedAsync(default).AsTask();
+
+        (await compiling.WaitAsync(Bound)).ShouldFail("compile.lock_failed");
+        (await reading.WaitAsync(Bound)).ShouldFail("compile.lock_failed");
+        _workspace.Diagnostics.Lines.Should().BeEmpty("a failure that is not a held lock is not waited on");
+    }
+
+    [Test]
+    public async Task AHeldLockIsWaitedOnAndThenTaken()
+    {
+        var path = _workspace.PathOf("locks", "held.lock");
+        var diagnostics = new LineWriter();
+        using var held = await TaskLock.AcquireAsync(path, TaskLockMode.Exclusive, "this task", new LineWriter(), TimeSpan.FromMilliseconds(10), default);
+
+        var waiting = TaskLock.AcquireAsync(path, TaskLockMode.Shared, "this task", diagnostics, TimeSpan.FromMilliseconds(10), default).AsTask();
+        await diagnostics.FirstLine.WaitAsync(Bound);
+        waiting.IsCompleted.Should().BeFalse("a held lock is contention, so the run waits");
+
+        held.Dispose();
+        using var taken = await waiting.WaitAsync(Bound);
+        taken.Mode.Should().Be(TaskLockMode.Shared);
+        diagnostics.Lines.Should().Equal($"waiting for another Morphir run to finish this task ({path})");
+    }
+
     private async Task CompleteOnce()
     {
         using var run = (await _workspace.Store().BeginAsync(default)).ShouldSucceed();

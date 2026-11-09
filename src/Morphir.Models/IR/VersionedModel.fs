@@ -2,6 +2,8 @@ namespace Morphir.IR.Model
 
 open Morphir.IR
 
+open System.Diagnostics.CodeAnalysis
+open System.Runtime.InteropServices
 open System.Text.Json
 
 /// The declared version, kept separately from the semantic model family and physical format.
@@ -19,6 +21,39 @@ type SourceFormatVersion =
 
     /// The exact declaration. The default record text would format through reflection.
     override this.ToString() = this.Declared
+
+    static member private Read(text: string | null) : Result<SourceFormatVersion, Versioning.ParseError> =
+        match text with
+        | null -> Error(Versioning.ParseError.InvalidFormat "Version string cannot be empty")
+        | value ->
+            Versioning.parse value
+            |> Result.map (fun parsed -> { Declared = value; Parsed = parsed })
+
+    /// <summary>
+    /// For C# callers: parses a declared version as <c>SourceFormatVersion.parse</c> does. Exactly one of
+    /// <paramref name="result"/> and <paramref name="failure"/> is set.
+    /// </summary>
+    static member TryParse
+        (
+            text: string | null,
+            [<Out; MaybeNullWhen(false)>] result: byref<SourceFormatVersion>,
+            [<Out; MaybeNullWhen(true)>] failure: byref<Versioning.ParseError>
+        ) : bool =
+        match SourceFormatVersion.Read text with
+        | Ok version ->
+            result <- version
+            failure <- Unchecked.defaultof<_>
+            true
+        | Error error ->
+            result <- Unchecked.defaultof<_>
+            failure <- error
+            false
+
+    /// <summary>For a version literal in source code. Throws <see cref="System.ArgumentException"/> for malformed text.</summary>
+    static member Create(text: string) : SourceFormatVersion =
+        match SourceFormatVersion.Read text with
+        | Ok version -> version
+        | Error _ -> invalidArg (nameof text) $"'{text}' is not a format version."
 
 /// Source-version construction does not decide which versions a codec or backend supports.
 [<RequireQualifiedAccess>]

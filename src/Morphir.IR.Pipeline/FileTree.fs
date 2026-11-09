@@ -941,6 +941,34 @@ module VFileTree =
                 Result.Error (TreeWriteError.WriteFailed (root, ex))
 
     /// <summary>
+    /// For C# callers: checks the tree as <c>validatePublish</c> does and calls one function for each
+    /// outcome, so C# does not test the Result cases.
+    /// </summary>
+    /// <param name="options">Where and how the tree would be published</param>
+    /// <param name="tree">Tree to check</param>
+    /// <param name="valid">Called when the tree can be published</param>
+    /// <param name="invalid">Called with the reason the tree cannot be published</param>
+    [<CompiledName("MatchValidatePublish")>]
+    let matchValidatePublish (options: PublishOptions, tree: VFileTree, valid: Func<'R>, invalid: Func<TreeWriteError, 'R>) : 'R =
+        match validatePublish options tree with
+        | Result.Ok () -> valid.Invoke()
+        | Result.Error error -> invalid.Invoke error
+
+    /// <summary>
+    /// For C# callers: publishes the tree as <c>publish</c> does and calls one function for each outcome,
+    /// so C# does not test the Result cases.
+    /// </summary>
+    /// <param name="options">Where and how to publish</param>
+    /// <param name="tree">Tree to publish</param>
+    /// <param name="published">Called with what was written, unchanged and removed</param>
+    /// <param name="failed">Called with the reason publishing failed</param>
+    [<CompiledName("MatchPublish")>]
+    let matchPublish (options: PublishOptions, tree: VFileTree, published: Func<PublishResult, 'R>, failed: Func<TreeWriteError, 'R>) : 'R =
+        match publish options tree with
+        | Result.Ok result -> published.Invoke result
+        | Result.Error error -> failed.Invoke error
+
+    /// <summary>
     /// Publishes the tree's files under an output directory with no manifest. The root tree's path
     /// is not part of the output path. Directories are created only as needed for files. See
     /// <c>publish</c> for the guarantees.

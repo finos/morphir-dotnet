@@ -120,16 +120,26 @@ internal static class TaskInstaller
                 $"These outputs name the same file on the target filesystem: {string.Join(", ", collisions)}.");
 
         var owned = previous.Select(path => path.Value).ToHashSet(comparer);
-        var conflicts = produced.Where(path => !owned.Contains(path) && Exists(Path.Combine(target, path))).ToArray();
+        var conflicts = produced.SelectMany(Blocking).Distinct(comparer).Order(StringComparer.Ordinal).ToArray();
         if (conflicts.Length > 0)
             return Refuse("install.foreign_content",
                 $"The -o target {target} already contains files that Morphir did not write: {string.Join(", ", conflicts)}. Move them, or choose a different -o target.");
 
+        // Foreign content that blocks an output: a file at the output's path, or a file in place of a directory
+        // on the way to it. Every ancestor is checked before anything is removed. An owned file in place of a
+        // directory is stale, and the install removes it before it copies.
+        IEnumerable<string> Blocking(string path)
+        {
+            foreach (var directory in DirectoriesAbove(path))
+                if (!owned.Contains(directory) && IsNotDirectory(Path.Combine(target, directory))) yield return directory;
+            if (!owned.Contains(path) && Exists(Path.Combine(target, path))) yield return path;
+        }
+
         var files = produced.Select(path => VFileModule.ofDiskFile(path, RecordPath.Parse(path).Under(location.Dest)));
         var tree = VFileTreeModule.fromFiles(ListModule.OfSeq(files));
         var options = new PublishOptions(target, ManifestMode.NoManifest);
-        var validation = VFileTreeModule.validatePublish(options, tree);
-        if (validation.IsError) return Refuse("install.invalid_outputs", TreeWriteErrorModule.describe(validation.ErrorValue));
+        var invalid = VFileTreeModule.MatchValidatePublish<string?>(options, tree, () => null, TreeWriteErrorModule.describe);
+        if (invalid is not null) return Refuse("install.invalid_outputs", invalid);
 
         // Nothing can refuse the install after this point.
         Directory.CreateDirectory(target);
@@ -146,10 +156,10 @@ internal static class TaskInstaller
             }
         }
 
-        var published = VFileTreeModule.publish(options, tree);
-
         var ledger = produced.Select(RecordPath.Parse).ToImmutableArray();
-        if (published.IsError)
+        return VFileTreeModule.MatchPublish<Outcome<InstallReport>>(options, tree, Installed, CopyFailed);
+
+        Outcome<InstallReport> CopyFailed(TreeWriteError error)
         {
             // Remove what this run added; files that were already owned stay, and the ledger names what is on disk.
             var kept = previous.Where(path => !removed.Contains(path.Value, comparer) && File.Exists(path.Under(target))).Select(path => path.Value).ToList();
@@ -164,7 +174,7 @@ internal static class TaskInstaller
                         PruneEmptyParents(path, target);
                     }
                 }
-                catch (Exception error) when (TaskFailures.IsIo(error))
+                catch (Exception failure) when (TaskFailures.IsIo(failure))
                 {
                     kept.Add(added);
                 }
@@ -172,27 +182,29 @@ internal static class TaskInstaller
             RecordFile.Write(location.Record, WithLedger(record, previousKey, target,
                 kept.Distinct(comparer).Order(StringComparer.Ordinal).Select(RecordPath.Parse).ToImmutableArray()));
             return TaskFailures.Of<InstallReport>(GenerationFailureKind.Operational, "install.copy_failed",
-                "Install failed while it copied files: " + TreeWriteErrorModule.describe(published.ErrorValue), target);
+                "Install failed while it copied files: " + TreeWriteErrorModule.describe(error), target);
         }
 
-        try
+        Outcome<InstallReport> Installed(PublishResult result)
         {
-            RecordFile.Write(location.Record, WithLedger(record, previousKey, target, ledger));
-        }
-        catch (Exception error) when (TaskFailures.IsIo(error))
-        {
-            // Without a ledger the next install would see these files as foreign content, so take back what this run added.
-            foreach (var added in produced.Where(path => !owned.Contains(path)))
+            try
             {
-                try { File.Delete(Path.Combine(target, added)); }
-                catch (Exception cleanup) when (TaskFailures.IsIo(cleanup)) { }
+                RecordFile.Write(location.Record, WithLedger(record, previousKey, target, ledger));
             }
-            return TaskFailures.Io<InstallReport>("install.record_write_failed", "write", location.Record, error);
-        }
+            catch (Exception error) when (TaskFailures.IsIo(error))
+            {
+                // Without a ledger the next install would see these files as foreign content, so take back what this run added.
+                foreach (var added in produced.Where(path => !owned.Contains(path)))
+                {
+                    try { File.Delete(Path.Combine(target, added)); }
+                    catch (Exception cleanup) when (TaskFailures.IsIo(cleanup)) { }
+                }
+                return TaskFailures.Io<InstallReport>("install.record_write_failed", "write", location.Record, error);
+            }
 
-        var result = published.ResultValue;
-        return new Outcome<InstallReport>.Success(new InstallReport(target, [.. record.Value.Select(entry => entry.Value)],
-            [.. result.Written], [.. result.Unchanged], [.. removed]));
+            return new Outcome<InstallReport>.Success(new InstallReport(target, [.. record.Value.Select(entry => entry.Value)],
+                [.. result.Written], [.. result.Unchanged], [.. removed]));
+        }
     }
 
     private static TaskRecord WithLedger(TaskRecord record, string? previousKey, string target, ImmutableArray<RecordPath> files)
@@ -220,6 +232,16 @@ internal static class TaskInstaller
     }
 
     private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path) || new FileInfo(path).LinkTarget is not null;
+
+    /// <summary>True when something that is not a directory is at <paramref name="path"/>.</summary>
+    private static bool IsNotDirectory(string path) => Exists(path) && !Directory.Exists(path);
+
+    /// <summary>The directories on the way to <paramref name="relative"/>, outermost first: <c>a</c> and <c>a/b</c> for <c>a/b/c</c>.</summary>
+    private static IEnumerable<string> DirectoriesAbove(string relative)
+    {
+        for (var slash = relative.IndexOf('/'); slash > 0; slash = relative.IndexOf('/', slash + 1))
+            yield return relative[..slash];
+    }
 
     /// <summary>The first component below <paramref name="target"/> on the way to <paramref name="relative"/> that is a link.</summary>
     private static string? LinkBelow(string target, string relative)
