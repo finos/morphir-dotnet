@@ -337,6 +337,21 @@ type ExtensionInfo =
         MinSdkVersion: string option
     }
 
+    /// For C# callers: the description, or null when absent.
+    member this.DescriptionOrNull() : string | null = Option.toObj this.Description
+
+    /// For C# callers: the author, or null when absent.
+    member this.AuthorOrNull() : string | null = Option.toObj this.Author
+
+    /// For C# callers: the home page, or null when absent.
+    member this.HomepageOrNull() : string | null = Option.toObj this.Homepage
+
+    /// For C# callers: the license, or null when absent.
+    member this.LicenseOrNull() : string | null = Option.toObj this.License
+
+    /// For C# callers: the lowest SDK version, or null when absent.
+    member this.MinSdkVersionOrNull() : string | null = Option.toObj this.MinSdkVersion
+
     /// Stable text for diagnostics.
     override this.ToString() = $"{this.Id} {this.Version}"
 
@@ -381,6 +396,9 @@ type CapabilityClaimSet =
                          "requires.host")>]
         Critical: IReadOnlyList<string>
     }
+
+    /// For C# callers: the requirements on the host, or null when absent.
+    member this.RequiresOrNull() : ClaimsRequirements | null = Option.toObj this.Requires
 
     /// Stable text for diagnostics.
     override this.ToString() = $"Claims {this.ClaimsVersion} of {this.Extension}"
@@ -488,6 +506,9 @@ type InitializeParams =
         ModelTransport: ModelTransportSupport option
     }
 
+    /// For C# callers: the model-transport offer, or null when absent (legacy-only).
+    member this.ModelTransportOrNull() : ModelTransportSupport | null = Option.toObj this.ModelTransport
+
     /// Stable text for diagnostics.
     override this.ToString() = $"Initialize from {this.Host}"
 
@@ -590,6 +611,18 @@ type ExtensionCapabilities =
         Extra: IReadOnlyDictionary<string, System.Text.Json.JsonElement>
     }
 
+    /// For C# callers: the frontend capability, or null when absent.
+    member this.FrontendOrNull() : FrontendCapability | null = Option.toObj this.Frontend
+
+    /// For C# callers: the backend capability, or null when absent.
+    member this.BackendOrNull() : BackendCapability | null = Option.toObj this.Backend
+
+    /// For C# callers: the workspace capability, or null when absent.
+    member this.WorkspaceOrNull() : WorkspaceCapability | null = Option.toObj this.Workspace
+
+    /// For C# callers: the model-transport support, or null when absent (legacy-only).
+    member this.ModelTransportOrNull() : ModelTransportSupport | null = Option.toObj this.ModelTransport
+
     /// Stable text for diagnostics.
     override this.ToString() =
         $"Capabilities (model transport: {this.ModelTransport.IsSome})"
@@ -648,6 +681,9 @@ type ProgressParams =
         Percentage: int option
     }
 
+    /// For C# callers: the percentage, or no value when absent.
+    member this.PercentageOrNull() : Nullable<int> = Option.toNullable this.Percentage
+
     /// Stable text for diagnostics.
     override this.ToString() = $"Progress {this.Kind} of {this.RequestId}"
 
@@ -661,6 +697,9 @@ type RpcError =
         /// Structured data; left out when absent.
         Data: System.Text.Json.JsonElement option
     }
+
+    /// For C# callers: the structured data, or no value when absent.
+    member this.DataOrNull() : Nullable<System.Text.Json.JsonElement> = Option.toNullable this.Data
 
     /// Stable text for diagnostics.
     override this.ToString() = $"Error {this.Code}: {this.Message}"
@@ -749,6 +788,15 @@ type Diagnostic =
         /// Structured data that the extension owns; left out when absent.
         Data: System.Text.Json.JsonElement option
     }
+
+    /// For C# callers: the rule code, or null when absent.
+    member this.CodeOrNull() : string | null = Option.toObj this.Code
+
+    /// For C# callers: the location, or null when absent.
+    member this.LocationOrNull() : SourceLocation | null = Option.toObj this.Location
+
+    /// For C# callers: the structured data, or no value when absent.
+    member this.DataOrNull() : Nullable<System.Text.Json.JsonElement> = Option.toNullable this.Data
 
     /// Stable text for diagnostics.
     override this.ToString() =
@@ -943,10 +991,20 @@ type Method =
            Progress |]
 
     /// The method of a wire string, or None when MEP does not have it. The match is exact.
-    static member TryFind(wireValue: string | null) : Method option =
+    static member Find(wireValue: string | null) : Method option =
         match wireValue with
         | null -> None
         | text -> Method.All |> Seq.tryFind (fun method -> String.Equals(method.WireValue, text, StringComparison.Ordinal))
+
+    /// For C# callers: finds the method of a wire string, by exact match.
+    static member TryFind(wireValue: string | null, [<Out; MaybeNullWhen(false)>] result: byref<Method>) : bool =
+        match Method.Find wireValue with
+        | Some method ->
+            result <- method
+            true
+        | None ->
+            result <- Unchecked.defaultof<_>
+            false
 
     /// The JSON-RPC method string.
     override this.ToString() = this.WireValue

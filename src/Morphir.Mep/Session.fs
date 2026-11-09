@@ -42,7 +42,22 @@ type SessionState =
         | ShutDown _ -> "Shut down"
         | Exited -> "Exited"
 
+    /// For C# callers: one function for each state.
+    member this.Match<'R>
+        (
+            created: Func<'R>,
+            initialized: Func<NegotiatedSession, 'R>,
+            shutDown: Func<NegotiatedSession, 'R>,
+            exited: Func<'R>
+        ) : 'R =
+        match this with
+        | Created -> created.Invoke()
+        | Initialized session -> initialized.Invoke session
+        | ShutDown session -> shutDown.Invoke session
+        | Exited -> exited.Invoke()
+
 /// The pure lifecycle rules (design SES-1).
+[<RequireQualifiedAccess>]
 module Lifecycle =
     /// The only MEP version that morphir-dotnet speaks.
     let protocolVersion = ProtocolVersion.Create "0.2.0-draft.1"
@@ -130,7 +145,7 @@ module Lifecycle =
     /// Decides an inbound message for the receiver, or an outbound message for the sender: the same rules apply
     /// to both. A method that MEP does not have is admitted, so that the dispatcher answers -32601.
     let admit (state: SessionState) (wireMethod: string) (_kind: MethodKind) : Admission =
-        let method = Method.TryFind wireMethod
+        let method = Method.Find wireMethod
 
         match state, method with
         | SessionState.Exited, _ -> notInitialized

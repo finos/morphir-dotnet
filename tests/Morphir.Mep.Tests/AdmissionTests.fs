@@ -74,7 +74,7 @@ let run (case: JsonNode) =
     let hostProtocols =
         (hostOffer["protocolVersions"] |> nonNull).AsArray() |> Seq.map (text >> ProtocolVersion.Create) |> List.ofSeq
 
-    match Method.TryFind(text request["method"]) |> Option.bind ModelTransport.operationOf with
+    match Method.Find(text request["method"]) |> Option.bind ModelTransport.operationOf with
     | None ->
         // A legacy method: model transport does not apply, and the legacy request is unchanged.
         Expect.isTrue (List.contains guestProtocol hostProtocols) "The legacy version was offered"

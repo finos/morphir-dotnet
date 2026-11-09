@@ -4,6 +4,7 @@ namespace Morphir.Mep
 
 open System
 open System.Collections.Generic
+open System.Runtime.CompilerServices
 open System.Text
 open System.Text.Json
 
@@ -283,6 +284,16 @@ type ModelMember =
         | Null -> "null"
         | Present model -> model.ToString()
 
+    /// For C# callers: one function for each case.
+    member this.Match<'R>(absent: Func<'R>, isNull: Func<'R>, present: Func<MorphirModel, 'R>) : 'R =
+        match this with
+        | Absent -> absent.Invoke()
+        | Null -> isNull.Invoke()
+        | Present model -> present.Invoke model
+
+    /// For C# callers: a model member that holds an envelope.
+    static member PresentWith(model: MorphirModel) = Present model
+
 /// Information that a conversion to another tuple cannot keep.
 [<RequireQualifiedAccess>]
 type ConversionLoss =
@@ -320,6 +331,16 @@ type ConversionPlan =
         match this with
         | Unchanged tuple -> $"Unchanged ({tuple})"
         | Convert(target, losses) -> $"Convert to ({target}) with {losses.Count} losses"
+
+    /// For C# callers: one function for each case.
+    member this.Match<'R>
+        (
+            unchanged: Func<ModelTransportTuple, 'R>,
+            convert: Func<ModelTransportTuple, IReadOnlyList<ConversionLoss>, 'R>
+        ) : 'R =
+        match this with
+        | Unchanged tuple -> unchanged.Invoke tuple
+        | Convert(target, losses) -> convert.Invoke(target, losses)
 
 /// Why a model cannot reach an agreed tuple.
 [<RequireQualifiedAccess>]
@@ -1084,3 +1105,52 @@ module ModelTransport =
             | None, [] -> Error(ConversionRefusal.TupleUnavailable { Operation = operation })
             | None, (target, losses) :: _ when allowLoss -> Ok(ConversionPlan.Convert(target, losses))
             | None, (target, losses) :: _ -> Error(ConversionRefusal.LossyConversion(target, losses))
+
+/// For C# callers: the model-transport functions without F# options. C# passes the session capabilities, and an
+/// absent value is null.
+[<Extension; AbstractClass; Sealed>]
+type ModelTransportExtensions =
+    /// The agreed tuples of the session for an operation, in host order.
+    [<Extension>]
+    static member AgreedTuples(capabilities: ExtensionCapabilities, operation: ModelOperation) =
+        ModelTransport.agreedTuples capabilities.ModelTransport operation
+
+    /// The first agreed tuple for an operation, or extension.tuple_unavailable.
+    [<Extension>]
+    static member FirstTuple(capabilities: ExtensionCapabilities, operation: ModelOperation) =
+        ModelTransport.firstTuple capabilities.ModelTransport operation
+
+    /// Checks that a request tuple is an agreed tuple of the session.
+    [<Extension>]
+    static member CheckTuple(capabilities: ExtensionCapabilities, tuple: ModelTransportTuple) =
+        ModelTransport.checkTuple capabilities.ModelTransport tuple
+
+    /// Checks the output tuple of a compileModel request against the session and the options' IR version.
+    [<Extension>]
+    static member CheckCompileOutput
+        (
+            capabilities: ExtensionCapabilities,
+            output: ModelTransportTuple,
+            optionsIrVersion: SemanticVersion
+        ) =
+        ModelTransport.checkCompileOutput capabilities.ModelTransport output optionsIrVersion
+
+    /// Plans the conversion of an admitted model to an agreed tuple of the operation.
+    [<Extension>]
+    static member PlanConversion
+        (
+            capabilities: ExtensionCapabilities,
+            operation: ModelOperation,
+            source: AdmittedModel,
+            allowLoss: bool
+        ) =
+        ModelTransport.planConversion capabilities.ModelTransport operation source allowLoss
+
+    /// The model operation of a method, or null when the method is not a model method.
+    [<Extension>]
+    static member OperationOrNull(method: Method) : ModelOperation | null =
+        ModelTransport.operationOf method |> Option.toObj
+
+    /// Checks a compile outcome. The model is null when the compilation failed and sent no model.
+    static member CheckCompileOutcome(success: bool, model: ModelMember) : Result<MorphirModel | null, AdmissionFailure> =
+        ModelTransport.checkCompileOutcome success model |> Result.map Option.toObj

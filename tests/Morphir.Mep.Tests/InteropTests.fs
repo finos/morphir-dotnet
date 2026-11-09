@@ -99,4 +99,27 @@ let consumer =
             output
             "describe {\"protocolVersions\":[\"0.2.0-draft.1\"]}"
             "The C# consumer used the generated describe codec"
+
+        // The C# surface of #544: OrNull members, model-transport extensions, TryFind, C# handlers and Match members.
+        for line in
+            [ "csharp-info d - - - 0.4.0"
+              "csharp-optional 5 False"
+              "csharp-capabilities True 1"
+              "csharp-tuples 1 0"
+              "csharp-first-unavailable extension.tuple_unavailable"
+              "csharp-method morphir.ping True False"
+              "csharp-operation morphir.backend.generateModel"
+              """csharp-dispatch {"jsonrpc":"2.0","id":1,"result":{"protocolVersions":["0.2.0-draft.1"]}}"""
+              """csharp-dispatch {"jsonrpc":"2.0","id":2,"error":{"code":-32003,"message":"Validation could not run."}}"""
+              """csharp-dispatch {"jsonrpc":"2.0","id":3,"result":{"ok":true}}"""
+              """csharp-dispatch {"jsonrpc":"2.0","id":4,"error":{"code":-32014,"message":"Request is not allowed before initialization or after shutdown"}}"""
+              """csharp-dispatch {"jsonrpc":"2.0","id":5,"error":{"code":-32003,"message":"With data.","data":1}}"""
+              "csharp-dispatch none"
+              "csharp-refusal True"
+              "csharp-state created"
+              "csharp-end end-of-stream"
+              "csharp-failure invalid-result"
+              "csharp-diagnostic unsolicited null"
+              "csharp-member m" ] do
+            Expect.stringContains output line "C# surface line"
     }

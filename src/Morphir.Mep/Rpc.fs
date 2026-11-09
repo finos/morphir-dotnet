@@ -38,10 +38,23 @@ type MessageRefusal =
         Answer: bool
     }
 
+    /// For C# callers: the request id to echo, or null when the reader could not read it.
+    member this.IdOrNull() : RequestId | null = Option.toObj this.Id
+
     /// Stable text for diagnostics.
     override this.ToString() = this.Error.ToString()
 
+/// Thrown by a method handler to reply with this error object instead of a result. The dispatcher sends the
+/// error as it is; any other exception gives -32603 with no exception text.
+[<Sealed>]
+type RpcException(error: RpcError) =
+    inherit Exception(error.Message)
+
+    /// The error object of the reply.
+    member _.Error = error
+
 /// The error objects of the pinned error codes.
+[<RequireQualifiedAccess>]
 module RpcErrors =
     /// The standard message of a code. The -32014 and -32601 texts are those of the pinned transcripts.
     let message (code: ErrorCode) =
@@ -65,16 +78,25 @@ module RpcErrors =
         | other -> $"Error {int other}"
 
     /// The error with the standard message.
+    [<CompiledName "Create">]
     let create (code: ErrorCode) : RpcError =
         { Code = int code
           Message = message code
           Data = None }
 
     /// The error with a specific message.
+    [<CompiledName "WithMessage">]
     let withMessage (code: ErrorCode) (text: string) : RpcError =
         { Code = int code
           Message = text
           Data = None }
+
+    /// The error with a specific message and structured data. No data is the same as withMessage.
+    [<CompiledName "WithData">]
+    let withData (code: ErrorCode) (text: string) (data: Nullable<JsonElement>) : RpcError =
+        { Code = int code
+          Message = text
+          Data = Option.ofNullable data }
 
 /// Reads and writes JSON-RPC 2.0 messages. This is the only hand-written JSON of the MEP layer (design RPC-1).
 [<AbstractClass; Sealed>]
