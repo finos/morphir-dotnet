@@ -1,7 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 /// Helpers that drive the F# guest through its dispatcher with JSON-RPC text, as a host would.
-module Morphir.Frontend.FSharp.Mep.Tests.GuestSupport
+module Morphir.Frontend.FSharp.Extension.Tests.GuestSupport
 
 open System
 open System.IO
@@ -10,7 +10,7 @@ open System.Text.Json
 open System.Text.Json.Nodes
 open System.Threading
 open Expecto
-open Morphir.Frontend.FSharp.Mep
+open Morphir.Frontend.FSharp.Extension
 open Morphir.Mep
 
 let fixture name =

@@ -7,7 +7,7 @@ open System
 open System.Text
 open System.Threading
 open System.Threading.Tasks
-open Morphir.Frontend.FSharp.Mep
+open Morphir.Frontend.FSharp.Extension
 open Morphir.Mep
 
 /// A guest that selects only the 4.0.0 compileModel tuple. Its compileModel handler writes a line to stderr, so a

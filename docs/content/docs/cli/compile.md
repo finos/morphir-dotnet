@@ -121,7 +121,7 @@ over stdio and serves `morphir.frontend.compileModel`. The F# frontend is availa
 `morphir-fsharp-frontend`. Install it as a dotnet tool. It needs the .NET runtime:
 
 ```sh
-dotnet tool install --global Morphir.Frontend.FSharp.Mep
+dotnet tool install --global Morphir.Frontend.FSharp.Extension
 ```
 
 Select the extension with `--extension`, or with `[frontend.<language>].extension` in the project

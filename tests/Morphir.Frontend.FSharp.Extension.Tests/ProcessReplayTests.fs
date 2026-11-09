@@ -3,7 +3,7 @@
 /// Contract conformance of the guest as a separate process (task 8.3): the frontend messages of the pinned
 /// 0.2.0-draft.1 transcripts and the frontend cases of model-transport.cases.json, with F# documents and JSON
 /// tuples. Every reply is read with the codecs that the pinned contract test checks against mep.ir.json.
-module Morphir.Frontend.FSharp.Mep.Tests.ProcessReplayTests
+module Morphir.Frontend.FSharp.Extension.Tests.ProcessReplayTests
 
 open System
 open System.IO
@@ -14,8 +14,8 @@ open System.Text.RegularExpressions
 open System.Threading
 open System.Threading.Tasks
 open Expecto
-open Morphir.Frontend.FSharp.Mep
-open Morphir.Frontend.FSharp.Mep.Tests.GuestSupport
+open Morphir.Frontend.FSharp.Extension
+open Morphir.Frontend.FSharp.Extension.Tests.GuestSupport
 open Morphir.Mep
 open Morphir.TestSupport
 

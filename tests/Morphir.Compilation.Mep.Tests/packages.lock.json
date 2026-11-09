@@ -146,7 +146,7 @@
           "Morphir.FSharp.Annotations": "[1.0.0, )"
         }
       },
-      "morphir.frontend.fsharp.mep": {
+      "morphir.frontend.fsharp.extension": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
