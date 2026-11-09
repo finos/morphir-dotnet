@@ -23,6 +23,9 @@
     <Compile Include="Transcripts.fs" />
     <Compile Include="WireTests.fs" />
     <Compile Include="TypesTests.fs" />
+    <Compile Include="RpcTests.fs" />
+    <Compile Include="DispatcherTests.fs" />
+    <Compile Include="ConnectionTests.fs" />
     <Compile Include="FramingTests.fs" />
     <Compile Include="ContractTests.fs" />
     <Compile Include="InteropTests.fs" />
