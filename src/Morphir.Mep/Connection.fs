@@ -48,7 +48,7 @@ type ConnectionEnd =
 /// A JSON-RPC connection on a framed stream pair (design RPC-1): it dispatches inbound requests, matches inbound
 /// responses to the pending-request table, and sends and receives $/cancelRequest.
 [<Sealed>]
-type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: unit -> bool) =
+type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: Func<bool>) =
     let writeLock = new SemaphoreSlim(1, 1)
     let pending = ConcurrentDictionary<RequestId, TaskCompletionSource<Result<JsonElement, RpcError>>>()
     let inflight = ConcurrentDictionary<RequestId, CancellationTokenSource>()
@@ -129,7 +129,8 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: u
         | None -> report (ConnectionDiagnostic.UnsolicitedResponse id)
 
     /// A connection that runs until the stream ends or the framing fails.
-    new(input: Stream, output: Stream, dispatcher: Dispatcher) = Connection(input, output, dispatcher, (fun () -> false))
+    new(input: Stream, output: Stream, dispatcher: Dispatcher) =
+        Connection(input, output, dispatcher, Func<bool>(fun () -> false))
 
     /// The protocol diagnostics found so far.
     member _.Diagnostics: IReadOnlyList<ConnectionDiagnostic> = diagnostics.ToArray()
@@ -167,7 +168,7 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: u
                     | Ok(JsonRpcMessage.Request(id, _, _) as message) ->
                         running.Add(runRequest id message cancellation)
 
-                    if finished.IsNone && isDone () then
+                    if finished.IsNone && isDone.Invoke() then
                         finished <- Some ConnectionEnd.Stopped
 
             do! Task.WhenAll running

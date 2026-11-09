@@ -842,6 +842,12 @@ type MethodKind =
     | Request
     | Notification
 
+    /// Stable text for diagnostics.
+    override this.ToString() =
+        match this with
+        | Request -> "request"
+        | Notification -> "notification"
+
 /// A MEP method. The wire value is the JSON-RPC method string.
 [<RequireQualifiedAccess; JsonIgnoreType>]
 type Method =

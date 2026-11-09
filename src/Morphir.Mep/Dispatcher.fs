@@ -15,6 +15,9 @@ type MethodHandler
     internal (invoke: JsonElement option -> CancellationToken -> Task<Result<JsonElement, RpcError>>) =
     member internal _.Invoke(parameters, cancellation) = invoke parameters cancellation
 
+    /// Stable text for diagnostics.
+    override _.ToString() = "Method handler"
+
 /// What a gate decides for an inbound request or notification.
 [<RequireQualifiedAccess>]
 type Admission =
@@ -22,6 +25,12 @@ type Admission =
     | Proceed
     /// Reply to a request with this error; drop a notification.
     | Refuse of RpcError
+
+    /// Stable text for diagnostics.
+    override this.ToString() =
+        match this with
+        | Proceed -> "Proceed"
+        | Refuse error -> $"Refuse: {error}"
 
 /// Builds method handlers from typed functions.
 module Handlers =
@@ -94,16 +103,17 @@ module Handlers =
 
 /// Dispatches one message to a method table (design RPC-1). Streams and single messages use the same path.
 [<Sealed>]
-type Dispatcher(handlers: IReadOnlyDictionary<string, MethodHandler>, gate: string -> MethodKind -> Admission) =
+type Dispatcher(handlers: IReadOnlyDictionary<string, MethodHandler>, gate: Func<string, MethodKind, Admission>) =
     let failed (id: RequestId) (code: ErrorCode) =
         Some(JsonRpcMessage.ErrorResponse(Some id, RpcErrors.create code))
 
     /// A dispatcher that admits every message.
-    new(handlers: IReadOnlyDictionary<string, MethodHandler>) = Dispatcher(handlers, (fun _ _ -> Admission.Proceed))
+    new(handlers: IReadOnlyDictionary<string, MethodHandler>) =
+        Dispatcher(handlers, Func<string, MethodKind, Admission>(fun _ _ -> Admission.Proceed))
 
     /// True when the gate admits the method now.
     member _.Admits(method: string, kind: MethodKind) =
-        match gate method kind with
+        match gate.Invoke(method, kind) with
         | Admission.Proceed -> true
         | Admission.Refuse _ -> false
 
@@ -113,7 +123,7 @@ type Dispatcher(handlers: IReadOnlyDictionary<string, MethodHandler>, gate: stri
         | JsonRpcMessage.Response _
         | JsonRpcMessage.ErrorResponse _ -> Task.FromResult None
         | JsonRpcMessage.Notification(method, parameters) ->
-            match gate method MethodKind.Notification, handlers.TryGetValue method with
+            match gate.Invoke(method, MethodKind.Notification), handlers.TryGetValue method with
             | Admission.Proceed, (true, handler) ->
                 task {
                     try
@@ -126,7 +136,7 @@ type Dispatcher(handlers: IReadOnlyDictionary<string, MethodHandler>, gate: stri
                 }
             | _ -> Task.FromResult None
         | JsonRpcMessage.Request(id, method, parameters) ->
-            match gate method MethodKind.Request with
+            match gate.Invoke(method, MethodKind.Request) with
             | Admission.Refuse error -> Task.FromResult(Some(JsonRpcMessage.ErrorResponse(Some id, error)))
             | Admission.Proceed ->
                 match handlers.TryGetValue method with
@@ -146,14 +156,18 @@ type Dispatcher(handlers: IReadOnlyDictionary<string, MethodHandler>, gate: stri
                         | _ -> return failed id ErrorCode.InternalError
                     }
 
-    /// Handles one message as bytes, as the WASM runtime passes it. Returns the reply bytes, or none for a
+    /// Handles one message as bytes, as the WASM runtime passes it. Returns the reply bytes, or null for a
     /// notification or a response.
-    member this.DispatchAsync(message: ReadOnlyMemory<byte>, cancellation: CancellationToken) : Task<byte array option> =
+    member this.DispatchAsync(message: ReadOnlyMemory<byte>, cancellation: CancellationToken) : Task<byte array | null> =
         match JsonRpc.Read message with
-        | Error refusal when refusal.Answer -> Task.FromResult(Some(JsonRpc.Write(JsonRpc.Reply refusal)))
-        | Error _ -> Task.FromResult None
+        | Error refusal when refusal.Answer -> Task.FromResult<byte array | null>(JsonRpc.Write(JsonRpc.Reply refusal))
+        | Error _ -> Task.FromResult<byte array | null> null
         | Ok message ->
             task {
                 let! reply = this.DispatchMessageAsync(message, cancellation)
-                return reply |> Option.map JsonRpc.Write
+
+                return
+                    match reply with
+                    | Some reply -> JsonRpc.Write reply |> withNull
+                    | None -> null
             }

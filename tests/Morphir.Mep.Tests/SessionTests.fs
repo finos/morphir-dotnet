@@ -43,6 +43,7 @@ let private current (text: string) = text.Replace("\"0.1\"", "\"0.2.0-draft.1\""
 
 let private dispatch (guest: Guest) (text: string) =
     guest.Dispatcher.DispatchAsync(ReadOnlyMemory(Encoding.UTF8.GetBytes text), CancellationToken.None).Result
+    |> Option.ofObj
     |> Option.map (fun bytes -> JsonNode.Parse(bytes) |> nonNull)
 
 let private code (node: JsonNode) =

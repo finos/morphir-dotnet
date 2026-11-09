@@ -120,7 +120,7 @@ type Guest(definition: GuestDefinition) =
         methods :> IReadOnlyDictionary<_, _>
 
     let dispatcher =
-        Dispatcher(table, (fun method kind -> Lifecycle.admit state method kind))
+        Dispatcher(table, Func<string, MethodKind, Admission>(fun method kind -> Lifecycle.admit state method kind))
 
     /// The lifecycle state.
     member _.State = state
@@ -133,7 +133,7 @@ type Guest(definition: GuestDefinition) =
 
     /// Serves the session on a framed stream pair until exit, the end of the stream or a framing failure.
     member this.RunAsync(input: Stream, output: Stream, cancellation: CancellationToken) : Task<ConnectionEnd> =
-        Connection(input, output, dispatcher, (fun () -> this.IsDone)).RunAsync cancellation
+        Connection(input, output, dispatcher, Func<bool>(fun () -> this.IsDone)).RunAsync cancellation
 
 /// Why the host could not initialize a session.
 [<RequireQualifiedAccess>]
@@ -169,10 +169,11 @@ type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTran
                   Handlers.typedNotification MepJson.Default.ProgressParams (fun value ->
                       progress.Enqueue value
                       Task.CompletedTask) ],
-            (fun method kind -> Lifecycle.admit state method kind)
+            Func<string, MethodKind, Admission>(fun method kind -> Lifecycle.admit state method kind)
         )
 
-    let connection = Connection(input, output, inbound, (fun () -> state = SessionState.Exited))
+    let connection =
+        Connection(input, output, inbound, Func<bool>(fun () -> state = SessionState.Exited))
 
     let send (method: Method) (parameters: JsonElement option) (cancellation: CancellationToken) =
         match Lifecycle.admit state method.WireValue MethodKind.Request with

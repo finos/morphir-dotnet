@@ -31,6 +31,7 @@ let private dispatcher () =
 
 let private dispatch (target: Dispatcher) (json: string) =
     target.DispatchAsync(ReadOnlyMemory(Encoding.UTF8.GetBytes json), CancellationToken.None).Result
+    |> Option.ofObj
     |> Option.map Encoding.UTF8.GetString
 
 [<Tests>]
@@ -125,7 +126,7 @@ let tests =
               source.Cancel()
 
               Expect.equal
-                  (pending.Result |> Option.map Encoding.UTF8.GetString)
+                  (pending.Result |> Option.ofObj |> Option.map Encoding.UTF8.GetString)
                   (Some """{"jsonrpc":"2.0","id":18446744073709551615,"error":{"code":-32800,"message":"Request cancelled"}}""")
                   "Cancelled"
 

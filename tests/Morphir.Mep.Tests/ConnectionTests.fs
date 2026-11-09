@@ -101,6 +101,7 @@ let tests =
 
               let single =
                   dispatcher.DispatchAsync(ReadOnlyMemory(Encoding.UTF8.GetBytes request), CancellationToken.None).Result
+                  |> Option.ofObj
                   |> Option.map Encoding.UTF8.GetString
 
               Expect.equal (Some streamed) single "Byte-equal bodies"
