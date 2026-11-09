@@ -289,7 +289,7 @@ The report members are:
 | `success`, `exitCode` | The outcome. |
 | `language`, `frontend` | The language and the selected frontend, when known. |
 | `irVersion` | The requested IR version, exactly as written. |
-| `sources` | The project file (or null), the root, and the documents in compilation order. |
+| `sources` | The project file (or null), the root, and the documents in compilation order. The root and the project file are relative to the invocation directory when they are in it, else absolute. Each document is relative to the root, with `/` separators. |
 | `modules` | The compiled modules, in compilation order. |
 | `output` | The published IR path, or null. |
 | `installed` | The `-o` installations of the run. Empty in this build. |
@@ -299,7 +299,8 @@ The report members are:
 | `generation` | Only with `--target`: `target`, `backend` (null when selection failed), `output`, and the `generate` report members `sourceVersion`, `family`, `distributionKind`, `representation`, `artifacts`, `written`, `unchanged` and `removed`. |
 
 Diagnostics have the frontend (MEP) shape: `severity`, `code`, `message`, and optional `location` (a
-document `uri` and a zero-based `range` in UTF-16 code units), `related` and `data`.
+document `uri` and a zero-based `range` in UTF-16 code units), `related` and `data`. A location `uri` is
+relative to `sources.root`, as the documents are.
 
 ```bash
 $ dotnet-morphir compile --language fsharp --input broken/Pricing.fs --package-name acme/demo --json

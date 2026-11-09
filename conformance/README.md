@@ -26,6 +26,36 @@ of the case's IR version. A directory row gives the documents in ordinal path
 order. The adapter has no project-file provider, so a project-file row keeps the
 document order of the case; the `cli` adapter checks real project-file expansion.
 
+The `cli` adapter (`CliAdapter.create`) drives any `morphir` executable, for
+example `dotnet-morphir`, through `compile --json-lines`. It uses only the
+documented command line (`docs/content/docs/cli/compile.md`). For each case it
+writes a new project directory with a `morphir.toml` (`project.name` and
+`project.exposed_modules`) and the documents under `src/`, and it gives the
+sources by input kind: the files with `--input` in case order, the `src`
+directory with one `--input`, or an `.fsproj` whose `Compile` items keep the
+case order with `--project-file`. It reads the report of the one, last
+`completed` record and the IR file that `output` names, and it maps each
+diagnostic URI from `sources.root` back to the case document. It ignores
+unknown records and members. Tests give it a process runner that holds the
+shared `MORPHIR_TEST_MAX_PROCESSES` gate.
+
+The frontend tests check the adapter against a scripted fake executable that
+accepts only the documented options and changes everything that the
+documentation leaves open (unknown records and members, an absolute root above
+the documents, another IR path). They then run the complete suite through the
+`library` and `cli` adapters against `dotnet-morphir`, and a sample through
+`compile --target fsharp` and `compile --target csharp`:
+
+```console
+dotnet build Morphir.slnx
+dotnet run --project tests/Morphir.Frontend.FSharp.Tests --no-build -- --sequenced --filter "MCK cli adapter (tasks 6.3 and 6.4)"
+```
+
+Set `MORPHIR_MCK_REPORT_DIR` to a directory to keep the verdict reports
+(`library.json`, `cli.json`, `cli-target-fsharp.json` and
+`cli-target-csharp.json`). Set `MORPHIR_DOTNET_TOOL_CLI` to qualify a published
+`dotnet-morphir` executable instead of the solution build.
+
 The suite has one refusal case for each code of the F# admission catalog, grouped
 by construct family, and semantic cases. A semantic case has expected IR written
 by hand for each IR version under `suites/frontend-fsharp/expected/`, call

@@ -16,6 +16,7 @@
     <Compile Include="Runner.fs" />
     <Compile Include="Report.fs" />
     <Compile Include="FrontendAdapter.fs" />
+    <Compile Include="CliAdapter.fs" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />
