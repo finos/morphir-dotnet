@@ -56,7 +56,7 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Tool path, first delivery | Behavioral verdict and generator round trip | Implemented | Task 3.9; vocabulary 1.1 call step and value codecs 1 (morphir-elm `DataCodec` shape) and 2 (tagged objects), `Runner.runWith` with a `CallChecker`, the .NET checker through the F# backend and FSI; 50 scenarios, 600 cases and 33 call observations qualify; every successful case round-trips for versions 1–4 after three backend fixes and one frontend access fix |
 | Tool path, first delivery | Coverage documentation | Planned | Task 3.10 |
 | Tool path, first delivery | Sources, configuration, CLI composition and streamed reports | Planned | Tasks 4.1–4.8 |
-| Tool path, first delivery | Compile records and generation from a prior compile | Planned | Tasks 5.1–5.5 |
+| Tool path, first delivery | Compile records and generation from a prior compile | In Progress | Tasks 5.1–5.3: `CompileTaskStore`, `compile.lock` and `-o` installation in `src/Morphir.Tooling/Features/TaskRecords/`, 85 test cases against the pinned upstream record; tasks 5.4–5.5 connect the store to `compile` and `generate` |
 | Tool path, first delivery | In-memory generation and library/CLI qualification | Planned | Tasks 6.1–6.4 |
 | MEP path, second delivery | Pinned 0.2.0-draft.1 codec, envelopes and session core | Planned | Tasks 7.1–7.4 |
 | MEP path, second delivery | Frontend-only F# guest and installable package | Planned | Tasks 8.1–8.4 |
