@@ -23,5 +23,5 @@ alignment remains a separate task.
 The reflection syntax walker, single-file sandbox capture and exceptions are
 spike conveniences. Production needs explicit visitors, the hermetic multi-file
 edge, typed diagnostics and full binding/constraint/reference preservation checks.
-See [the findings](../../openspec/changes/add-fsharp-compile/spikes/syntax-led-reconstruction.md)
-for the validation boundary and the revised [FSF-2 decision](../../openspec/changes/add-fsharp-compile/design.html#fsf-2).
+See [the findings](../../openspec/changes/archive/2026-11-09-add-fsharp-compile/spikes/syntax-led-reconstruction.md)
+for the validation boundary and the revised [FSF-2 decision](../../openspec/changes/archive/2026-11-09-add-fsharp-compile/design.html#fsf-2).

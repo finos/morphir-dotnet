@@ -51,8 +51,8 @@ Status values:
 
 | Upstream command | Upstream purpose | morphir-dotnet | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `compile` | Compile source to IR | — | Planned | [add-fsharp-compile](../../../../../openspec/changes/add-fsharp-compile/proposal.md). It adds `--project-file`, streaming `--json-lines`, and `--target`/`--generate-output`. |
-| `generate` | Generate code from IR | `generate` (F#, C#) | Present | Reading input from a prior compile record is planned in add-fsharp-compile. Config-selected targets, `[codegen.<target>]` options and `--from-partial-compile` are missing. |
+| `compile` | Compile source to IR | `compile` (F# in `dotnet-morphir`; MEP frontends with `--extension` in both) | Present | [add-fsharp-compile](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/proposal.md). It has `--project-file`, streaming `--json-lines`, `--target`/`--generate-output`, task records and `--extension` for MEP frontends. |
+| `generate` | Generate code from IR | `generate` (F#, C#) | Present | Without `--input`, `generate` reads the IR of the most recent compile record (add-fsharp-compile). Config-selected targets, `[codegen.<target>]` options and `--from-partial-compile` are missing. |
 | `migrate` | Migrate IR between versions | — | Missing | morphir-dotnet `project migrate` and `workspace migrate` migrate configuration, not IR. |
 | `ir` | `ir migrate` | `ir verify` | Partial | `ir verify` (schema validation) exists. `ir migrate` is missing. |
 | `config` | `get`, `show`, `path` | `get`, `list`, `show`, `path`, `explain`, `set`, `unset` | Present | morphir-dotnet has more subcommands than upstream. |

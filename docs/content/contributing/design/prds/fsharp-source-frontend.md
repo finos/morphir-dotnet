@@ -11,10 +11,10 @@ The first delivery adds an in-process F# frontend to `dotnet-morphir compile`.
 It produces a requested IR version, reports unsupported constructs precisely,
 and supports both a later `generate` command and `compile --target`.
 
-The implementation follows the [OpenSpec proposal](../../../../../openspec/changes/add-fsharp-compile/proposal.md),
-[design](../../../../../openspec/changes/add-fsharp-compile/design.html),
-[capability specifications](../../../../../openspec/changes/add-fsharp-compile/specs/),
-and [task checklist](../../../../../openspec/changes/add-fsharp-compile/tasks.md).
+The implementation follows the [OpenSpec proposal](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/proposal.md),
+[design](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/design.html),
+[capability specifications](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/specs/),
+and [task checklist](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/tasks.md).
 Related work includes [#363](https://github.com/finos/morphir-dotnet/issues/363)
 and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 
@@ -107,7 +107,7 @@ guest. The integration checks of group 10 pass (see the evidence below).
   patterns have no exposed decision tree; other trees use the subject range;
   nested clause bodies can lose the source body's range. The planned join
   passes only the match-lambda probe. This original probe remains a historical failing reproduction; the revised task 3.1 is validated below.
-- [Findings and reproduction](../../../../../openspec/changes/add-fsharp-compile/spikes/match-range-join.md)
+- [Findings and reproduction](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/spikes/match-range-join.md)
   record all cases and the separate compiler-service/Core compatibility issue.
 - The current FCS 34.1.1 pin cannot read the bundled modern Core metadata. A
   local 43.12.403 probe checks every source, but its exact Core dependency
@@ -126,7 +126,7 @@ guest. The integration checks of group 10 pass (see the evidence below).
 - An identity-call result wrapper failed a real polymorphic counterexample.
   Replacing it with a nonexpansive match binding made that case pass. Signature
   preservation is a required production check, not an assumed property.
-- [Replacement findings and reproduction](../../../../../openspec/changes/add-fsharp-compile/spikes/syntax-led-reconstruction.md)
+- [Replacement findings and reproduction](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/spikes/syntax-led-reconstruction.md)
   describe the proof boundary. The spike uses a local exact FCS 43.12.403/Core
   10.1.403 pair without changing central pins. Task 3.2 still owns production
   compiler compatibility, full binding/constraint/reference verification and the
@@ -246,7 +246,7 @@ with all their rows.
 
 The reports are the deterministic output of `Report.toUtf8`. They are 1.9 MB
 (library) and 8.9 MB (cli) of JSON, mostly model JSON, so they are stored with
-gzip in `openspec/changes/add-fsharp-compile/evidence/mck-2026-11-09/`. The
+gzip in `openspec/changes/archive/2026-11-09-add-fsharp-compile/evidence/mck-2026-11-09/`. The
 SHA-256 values above are of the uncompressed reports. The implementation
 identity holds the commit and the assembly SHA-256, so another build gives other
 report bytes with the same verdicts.
@@ -268,7 +268,7 @@ through the `/var` link.
 This section collects the evidence of task 10.2 for the default-CLI decision.
 
 MCK verdict reports, one for each adapter. All reports are in
-`openspec/changes/add-fsharp-compile/evidence/mck-2026-11-09/`, compressed with
+`openspec/changes/archive/2026-11-09-add-fsharp-compile/evidence/mck-2026-11-09/`, compressed with
 gzip; the SHA-256 values are of the uncompressed reports.
 
 | Adapter | Implementation | Variants | Verdicts | Report |

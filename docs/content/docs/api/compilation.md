@@ -13,7 +13,7 @@ description: "Exact IR versions, checked diagnostics, native IR builders and IR 
 - the writers that turn a built model into JSON for one exact version;
 - the in-process compile contract that a frontend implements.
 
-The design is in the [add-fsharp-compile design](../../../../openspec/changes/add-fsharp-compile/design.html)
+The design is in the [add-fsharp-compile design](../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/design.html)
 (decisions VER-1, DIAG-1, MID-1, IRW-1 and FE-1).
 
 ## Format versions

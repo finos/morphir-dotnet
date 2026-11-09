@@ -377,4 +377,4 @@ This repository:
 - `src/Morphir.Tooling/Scenarios/ManagementScenario.cs`: the `extension` command stubs.
 - `src/Morphir.Configuration/Schema.fs`: the `extensions` configuration table.
 - `src/Morphir.Configuration.IO/MachineLocations.cs` and `ProjectSystem`: level discovery.
-- PR [#495](https://github.com/finos/morphir-dotnet/pull/495), `openspec/changes/add-fsharp-compile`: `Morphir.Mep`, the F# frontend deliveries and the selection rule.
+- PR [#495](https://github.com/finos/morphir-dotnet/pull/495), `openspec/changes/archive/2026-11-09-add-fsharp-compile`: `Morphir.Mep`, the F# frontend deliveries and the selection rule.
