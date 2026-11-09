@@ -120,6 +120,43 @@ public class ChildProcessTests
         strictDelete.Should().NotThrow();
     }
 
+    // A child that answers one line of stdin, so the caller must write, then read, then write again.
+    private static ProcessStartInfo Answer() =>
+        OperatingSystem.IsWindows()
+            ? ChildProcess.StartInfo("powershell.exe", "-NoProfile", "-Command",
+                "$line = [Console]::In.ReadLine(); [Console]::Out.WriteLine('got ' + $line); [Console]::Out.Flush(); $rest = [Console]::In.ReadToEnd(); [Console]::Out.WriteLine('rest ' + $rest.Trim())")
+            : ChildProcess.StartInfo("/bin/sh", "-c", "read line; echo \"got $line\"; rest=$(cat); echo \"rest $rest\"");
+
+    [Test]
+    public async Task Converse_WritesAfterReadingAReply_ThenReturnsTheRestOfStdout()
+    {
+        var result = await ChildProcess.ConverseAsync(Answer(), TimeSpan.FromMinutes(1), async (input, output, ct) =>
+        {
+            await input.WriteAsync("hello\n"u8.ToArray(), ct);
+            await input.FlushAsync(ct);
+            using var reader = new StreamReader(output, leaveOpen: true);
+            (await reader.ReadLineAsync(ct)).Should().Be("got hello", "the child answered before the second write");
+            await input.WriteAsync("world\n"u8.ToArray(), ct);
+            await input.FlushAsync(ct);
+        }, gate: new ProcessGate(4));
+
+        result.ExitCode.Should().Be(0, result.CombinedOutput);
+        result.StandardOutput.Trim().Should().Be("rest world", "stdin closes when the conversation ends");
+    }
+
+    [Test]
+    public async Task Converse_Timeout_KillsTheTreeWhileTheConversationWaits()
+    {
+        var run = () => ChildProcess.ConverseAsync(Sleep(30), TimeSpan.FromSeconds(1), async (_, output, ct) =>
+        {
+            // The child writes nothing for 30 seconds: this read waits until the deadline.
+            await output.ReadExactlyAsync(new byte[1], ct);
+        }, gate: new ProcessGate(4));
+
+        var failure = await run.Should().ThrowAsync<ChildProcessTimeoutException>();
+        failure.Which.ProcessExited.Should().BeTrue("the process tree is killed and awaited before the error surfaces");
+    }
+
     [Test]
     [Arguments("1", 12, 1)]
     [Arguments("3", 12, 3)]

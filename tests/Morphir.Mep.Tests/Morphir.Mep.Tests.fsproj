@@ -39,6 +39,7 @@
     <Compile Include="InteropTests.fs" />
     <Compile Include="ModelTransportTests.fs" />
     <Compile Include="AdmissionTests.fs" />
+    <Compile Include="CompileModelTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <Import Project="../../src/Morphir.Myriad.SystemTextJson/repository/Morphir.Myriad.SystemTextJson.Repository.targets" />
