@@ -203,7 +203,10 @@ type MepFrontend
     let refuse = refuseWith MepFrontendCodes.notAdmitted
 
     let read (tuple: ModelTransportTuple) (bytes: ReadOnlyMemory<byte>) : Result<FamilyModel, string> =
-        use document = JsonDocument.Parse bytes
+        // The envelope was admitted against the agreed depth limit, so the reader uses the same limit, not the
+        // JsonDocument default of 64.
+        let limits = agreed |> Option.map _.Limits |> Option.defaultValue offer.Limits
+        use document = JsonDocument.Parse(bytes, JsonDocumentOptions(MaxDepth = limits.MaxDepth))
 
         if tuple.IrVersion.Value = "4.0.0" then
             Morphir.Json.V4.V4Json.readDistribution document.RootElement

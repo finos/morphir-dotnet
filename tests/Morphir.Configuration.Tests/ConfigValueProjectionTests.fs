@@ -41,6 +41,24 @@ let tests =
           testCase "TryTextList reads the strings of an array and ignores other items"
           <| fun _ -> Expect.equal (every |> List.choose texts) [ [ "a"; "b" ] ] "only the array case is a list"
 
+          testCase "Every Try member marks its out value as possibly null when it returns false, for C# flow analysis"
+          <| fun _ ->
+              let members =
+                  typeof<ConfigValueProjections>.GetMethods()
+                  |> Array.filter (fun item -> item.Name.StartsWith "Try")
+
+              Expect.equal (members |> Array.map _.Name |> Array.sort) [| "TryText"; "TryTextList"; "TryVersionText" |] "members"
+
+              for item in members do
+                  let output = item.GetParameters() |> Array.find _.IsOut
+
+                  let attribute =
+                      output.GetCustomAttributes(typeof<System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute>, false)
+                      |> Array.tryHead
+                      |> Option.map (fun value -> (value :?> System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute).ReturnValue)
+
+                  Expect.equal attribute (Some false) $"{item.Name}: [MaybeNullWhen(false)] on {output.Name}"
+
           testCase "TablesWithKey names the child tables that hold the key, in ordinal order"
           <| fun _ ->
               let tables =

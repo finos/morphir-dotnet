@@ -80,7 +80,7 @@ let private suite =
          | Ok suite -> suite
          | Error issues -> failtest $"The corpus is valid: {issues}")
 
-let private request (version: Versioning.FormatVersion) (frontend: IFrontend) =
+let private requestWith (text: string) (version: Versioning.FormatVersion) (frontend: IFrontend) =
     let target =
         frontend.Capability.Outputs
         |> Seq.find (fun output -> FormatVersion.sameVersion output.Version version)
@@ -97,7 +97,7 @@ let private request (version: Versioning.FormatVersion) (frontend: IFrontend) =
             [ { Uri = "Pricing.fs"
                 LanguageId = LanguageId.Create "fsharp"
                 Version = 1UL
-                Text = "namespace Acme.Demo\nmodule Pricing =\n    let seats (n: int) : int = n + 1\n" } ],
+                Text = text } ],
             PackageName path,
             null,
             target,
@@ -106,6 +106,14 @@ let private request (version: Versioning.FormatVersion) (frontend: IFrontend) =
     with
     | Ok request -> request
     | Error failure -> failtest $"{failure}"
+
+let private request =
+    requestWith "namespace Acme.Demo\nmodule Pricing =\n    let seats (n: int) : int = n + 1\n"
+
+/// A value whose IR nests much deeper than 64 JSON containers: 40 nested additions.
+let private deepSource =
+    let expression = String.replicate 40 "(n + " + "n" + String.replicate 40 ")"
+    $"namespace Acme.Demo\nmodule Pricing =\n    let deep (n: int) : int = {expression}\n"
 
 [<Tests>]
 let tests =
@@ -182,6 +190,28 @@ let tests =
                   let local = compile FSharpFrontend.registration
                   Expect.sequenceEqual remote local "The classic version 2 bytes are equal"
                   Expect.stringStarts (Text.Encoding.UTF8.GetString remote) "{\"formatVersion\":2" "format version 2"
+              finally
+                  dispose frontend
+
+          testCase "A model nested deeper than 64 JSON containers is read with the agreed depth limit"
+          <| fun _ ->
+              let frontend = connect (guestOptions ())
+
+              try
+                  for version in [ Versioning.Classic 4; Versioning.Classic 3 ] do
+                      let compile (target: IFrontend) =
+                          match target.CompileAsync(requestWith deepSource version target, CancellationToken.None).GetAwaiter().GetResult() with
+                          | FrontendOutcome.Completed result ->
+                              match Checked.tryValue result with
+                              | Some compiled ->
+                                  let resolved = writers.Resolve version |> Checked.tryValue |> Option.get
+                                  resolved.Writer.Write(resolved.Target, WriteOptions.Compact, compiled.Model) |> Checked.tryValue |> Option.get
+                              | None -> failtest $"The source compiles: {result.Diagnostics}"
+                          | FrontendOutcome.Failed failure -> failtest failure.Message
+
+                      let remote = compile frontend
+                      let local = compile FSharpFrontend.registration
+                      Expect.sequenceEqual remote local $"IR {Versioning.version version}: the deep model is equal"
               finally
                   dispose frontend
 

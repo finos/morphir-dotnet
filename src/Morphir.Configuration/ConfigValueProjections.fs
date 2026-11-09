@@ -2,6 +2,7 @@ namespace Morphir.Configuration
 
 open System
 open System.Collections.Generic
+open System.Diagnostics.CodeAnalysis
 open System.Globalization
 open System.Runtime.InteropServices
 
@@ -13,7 +14,7 @@ open System.Runtime.InteropServices
 type ConfigValueProjections =
 
     /// <summary>The text of a string value. False for every other case.</summary>
-    static member TryText(value: ConfigValue, [<Out>] text: byref<string>) : bool =
+    static member TryText(value: ConfigValue, [<Out; MaybeNullWhen(false)>] text: byref<string>) : bool =
         match value with
         | ConfigValue.String item ->
             text <- item
@@ -34,7 +35,7 @@ type ConfigValueProjections =
     /// The text of a version setting: a string as written, or an integer in invariant culture (for example
     /// <c>format_version = 4</c>). False for every other case.
     /// </summary>
-    static member TryVersionText(value: ConfigValue, [<Out>] text: byref<string>) : bool =
+    static member TryVersionText(value: ConfigValue, [<Out; MaybeNullWhen(false)>] text: byref<string>) : bool =
         match value with
         | ConfigValue.String item ->
             text <- item
@@ -57,7 +58,7 @@ type ConfigValueProjections =
     /// The string items of an array value, in order; items of other kinds are not text and are left out. False when
     /// the value is not an array.
     /// </summary>
-    static member TryTextList(value: ConfigValue, [<Out>] items: byref<IReadOnlyList<string>>) : bool =
+    static member TryTextList(value: ConfigValue, [<Out; MaybeNullWhen(false)>] items: byref<IReadOnlyList<string>>) : bool =
         match value with
         | ConfigValue.Array values ->
             items <-
