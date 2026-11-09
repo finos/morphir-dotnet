@@ -160,14 +160,17 @@ irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-
 **Using .NET Tool (requires .NET SDK):**
 
 ```bash
-dotnet tool install -g Morphir
+dotnet tool install --global Morphir.Tool --prerelease
 ```
 
 **Verify Installation:**
 
 ```bash
-morphir --version
+morphir --version          # native executable
+dotnet-morphir --version   # .NET tool
 ```
+
+**Compile F# to Morphir IR:** follow the five-minute [Compile F# guide](https://finos.github.io/morphir-dotnet/docs/getting-started/compile-fsharp/).
 
 For detailed installation instructions and troubleshooting, see the [Installation Guide](https://finos.github.io/morphir-dotnet/getting-started/installation/).
 

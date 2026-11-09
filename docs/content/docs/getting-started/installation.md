@@ -14,18 +14,28 @@ description: "Install Morphir .NET on your system"
 
 ### Global Tool Installation
 
-Install Morphir as a global .NET tool:
+Install the Morphir CLI as a global .NET tool. The command is `dotnet-morphir`:
 
 ```bash
-dotnet tool install -g Morphir
+dotnet tool install --global Morphir.Tool --prerelease
+```
+
+### Native Executable
+
+The native executable `morphir` is one file and needs no .NET SDK. Download
+`morphir-linux-x64`, `morphir-linux-arm64`, `morphir-osx-arm64` or `morphir-win-x64.exe` from the
+[releases page](https://github.com/finos/morphir-dotnet/releases). To compile F# with it, also install the
+F# frontend extension:
+
+```bash
+dotnet tool install --global Morphir.Frontend.FSharp.Extension --prerelease
 ```
 
 ### Local Project Installation
 
-Add Morphir to your project:
+Add the Morphir libraries to your project:
 
 ```bash
-dotnet add package Morphir
 dotnet add package Morphir.Core
 ```
 
@@ -42,14 +52,16 @@ dotnet build
 Check that Morphir is installed correctly:
 
 ```bash
-morphir info
+dotnet-morphir --version
 ```
+
+Then follow [Compile F# to Morphir IR]({{< relref "/docs/getting-started/compile-fsharp" >}}).
 
 ## Troubleshooting
 
 ### Command Not Found
 
-If the `morphir` command is not found after installation:
+If the `dotnet-morphir` command is not found after installation:
 
 1. Ensure the .NET tools directory is in your PATH:
    ```bash

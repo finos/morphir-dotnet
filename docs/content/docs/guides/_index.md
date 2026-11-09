@@ -9,6 +9,11 @@ Generate model code with the [Myriad F# reference]({{< relref "/docs/guides/myri
 
 Explore our guides to learn how to use Morphir .NET effectively.
 
+## Tutorials
+
+- [Car rental pricing from F# to C#]({{< relref "/docs/guides/fsharp-pricing-tutorial" >}}) - Compile F# rules to Morphir IR, handle a refused construct, call the rules from C#, and check the IR in CI
+- [Compile F# with the native executable]({{< relref "/docs/guides/compile-with-native-morphir" >}}) - Use the AOT `morphir` with the F# frontend extension
+
 ## Available Guides
 
 - [Configuration]({{< relref "/guides/configuration" >}}) - Current support and the planned shared configuration/project system

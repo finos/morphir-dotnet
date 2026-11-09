@@ -1,0 +1,8 @@
+[project]
+name = "acme/car-rental"
+
+[frontend]
+language = "fsharp"
+
+[frontend.fsharp]
+project_file = "Acme.CarRental.fsproj"
