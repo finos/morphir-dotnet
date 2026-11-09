@@ -19,7 +19,8 @@ public enum TaskLockMode
 /// The lock is the operating system's file sharing: on Windows the share mode of the open handle, and on
 /// Linux and macOS the <c>flock</c> lock that .NET takes for <see cref="FileShare.None"/> (exclusive) and for
 /// a read-only handle with <see cref="FileShare.Read"/> (shared). A lock that is not free is tried again at a
-/// fixed interval. The first time that the lock is not free, one line goes to the diagnostics writer.
+/// fixed interval. The first time that the lock is not free, one line goes to the diagnostics writer. Any other
+/// failure to open the lock file is thrown at once and is never waited on.
 /// </remarks>
 public sealed class TaskLock : IDisposable
 {
@@ -77,16 +78,23 @@ public sealed class TaskLock : IDisposable
     }
 
     /// <summary>
-    /// True when the error says that another handle holds the lock. Windows reports a sharing or lock
-    /// violation. On Linux and macOS, .NET reports a held <c>flock</c> lock as a plain <see cref="IOException"/>.
+    /// True when the error says that another handle holds the lock, and false for every other I/O failure (for
+    /// example a full disk, too many open files, or a lock path that cannot be opened), which then reaches the
+    /// caller. Windows reports a held lock as a sharing or lock violation. On Linux and macOS, .NET takes a
+    /// non-blocking <c>flock</c> lock and reports a held one as a plain <see cref="IOException"/> whose
+    /// <see cref="Exception.HResult"/> is the raw errno <c>EWOULDBLOCK</c>: 11 on Linux, 35 on macOS and the BSDs.
     /// </summary>
     private static bool IsContention(IOException error)
     {
-        if (error is FileNotFoundException or DirectoryNotFoundException or PathTooLongException) return false;
-        if (!OperatingSystem.IsWindows()) return true;
-        const int SharingViolation = 32, LockViolation = 33;
-        var code = error.HResult & 0xFFFF;
-        return code is SharingViolation or LockViolation;
+        if (OperatingSystem.IsWindows())
+        {
+            const int SharingViolation = 32, LockViolation = 33;
+            var code = error.HResult & 0xFFFF;
+            return code is SharingViolation or LockViolation;
+        }
+        if (error.GetType() != typeof(IOException)) return false;
+        const int LinuxWouldBlock = 11, BsdWouldBlock = 35;
+        return error.HResult == (OperatingSystem.IsLinux() || OperatingSystem.IsAndroid() ? LinuxWouldBlock : BsdWouldBlock);
     }
 
     /// <summary>Releases the lock.</summary>
