@@ -133,12 +133,12 @@ jobs:
                   path: artifacts/test-results/
                   if-no-files-found: ignore
                   retention-days: 7
-            # The F# compiler does not run the trim analyzers, so only a Native AOT publish checks generated F# converters.
+            # The F# compiler does not run trim analyzers: publish both the generated converters and the MEP C# consumer closure.
             # One OS is enough: the generated code does not depend on the platform.
-            - name: Check generated JSON converters under Native AOT
+            - name: Check generated JSON and MEP under Native AOT
               if: matrix.os == 'ubuntu-latest'
               shell: bash
-              run: ./build.sh --target TestMyriadJsonAot --configuration ${{ env.CONFIGURATION }}
+              run: ./build.sh --target TestMyriadJsonAot TestMepAot --configuration ${{ env.CONFIGURATION }}
             - name: Pack packages for build testing
               shell: bash
               run: ./build.sh --target PackAll --configuration ${{ env.CONFIGURATION }}
