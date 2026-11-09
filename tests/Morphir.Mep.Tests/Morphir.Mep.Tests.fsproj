@@ -26,6 +26,8 @@
     <Compile Include="FramingTests.fs" />
     <Compile Include="ContractTests.fs" />
     <Compile Include="InteropTests.fs" />
+    <Compile Include="ModelTransportTests.fs" />
+    <Compile Include="AdmissionTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
