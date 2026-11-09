@@ -7,7 +7,7 @@ description: >
 
 # Proposal: the validateModel payload for MEP
 
-Status: Upstream as the draft pull request [finos/morphir#1139](https://github.com/finos/morphir/pull/1139) (head `155ce26f40e8caa917ed947d5c6d1be9928c3ee4`), opened by task 7.2 of [`add-mep-core`](https://github.com/finos/morphir-dotnet/blob/main/openspec/changes/archive/2026-11-09-add-mep-core/tasks.md).
+Status: Upstream as the pull request [finos/morphir#1139](https://github.com/finos/morphir/pull/1139), ready for review (head `5e0f8676ee63762bfed146b24e0037177f67778a`). The decisions VAL-1 to VAL-6 of 2026-11-09 answer the open questions of the first draft (see [Decisions](#decisions)). The pull request was opened by task 7.2 of [`add-mep-core`](https://github.com/finos/morphir-dotnet/blob/main/openspec/changes/archive/2026-11-09-add-mep-core/tasks.md).
 
 | Item | Value |
 | --- | --- |
@@ -18,14 +18,14 @@ Status: Upstream as the draft pull request [finos/morphir#1139](https://github.c
 
 ## Summary
 
-This proposal adds one model-tier method to MEP: `morphir.validator.validateModel`. The host sends one `MorphirModel` envelope and optional options. The extension returns a list of diagnostics. Negotiation, envelope admission and limits are the same as for `morphir.frontend.compileModel` and `morphir.backend.generateModel`.
+This proposal adds one model-tier method to MEP: `morphir.validator.validateModel`. The host sends one `MorphirModel` envelope, its selected `input` tuple and optional options. The extension returns a list of diagnostics. Negotiation, envelope admission and limits are the same as for `morphir.frontend.compileModel` and `morphir.backend.generateModel`.
 
 The proposal adds these contract items, and no others:
 
 - the model operation value `morphir.validator.validateModel`;
 - the method `morphir.validator.validateModel` (Gleam `Method` constructor `ValidateModel`);
 - the request `ValidateModelRequest` and the result `ValidateModelResult`;
-- the capability record `ValidatorCapability`, as the member `validator` of `ExtensionCapabilities`.
+- the capability record `ValidatorCapability`, as the member `validator` of `ExtensionCapabilities`, and its rule record `ValidatorRule`.
 
 The legacy method `morphir.validator.validate` stays reserved. This proposal does not define its payload.
 
@@ -52,18 +52,19 @@ The upstream implementations show the same gap:
 In scope:
 
 - the method, its request, its result and its errors;
-- the validator capability record and its place in the claim set and in the session;
+- the validator capability record, its rule list and its place in the claim set and in the session;
 - the model operation value, and the tuples, limits and admission that apply to it;
-- a transcript and model-transport cases.
+- the rule for which extensions a host offers a `validateModel` tuple to;
+- host conversion of a model before validation, without loss only;
+- transcripts and model-transport cases.
 
 Out of scope:
 
 - the payload of the legacy `morphir.validator.validate`;
 - the transform payload;
-- host conversion of a model before validation (see [open question 3](#open-questions));
-- a vocabulary of validation rules or options;
+- common validation options;
 - how a host merges the diagnostics of more than one validator;
-- how a diagnostic points to a model node (see [open question 4](#open-questions)).
+- how a diagnostic points to a model node (decision [VAL-4](#decisions), [finos/morphir#1144](https://github.com/finos/morphir/issues/1144)).
 
 ## Upstream conventions
 
@@ -98,10 +99,11 @@ This proposal follows these rules of the pinned contract and of the upstream imp
 
 | Member | Type | Rule |
 | --- | --- | --- |
-| `model` | `MorphirModel` | Required. Its tuple is the operation `morphir.validator.validateModel` with the `profile`, `payload.codec`, `envelopeVersion` and `irVersion` of the envelope. That tuple must be a session tuple. |
+| `model` | `MorphirModel` | Required. Its `profile`, `payload.codec`, `envelopeVersion` and `irVersion` must match `input`. |
+| `input` | `ModelTransportTuple` | Required. An admitted validateModel tuple of the session. Its `irVersion` must be in `validator.irVersions`. |
 | `options` | `JsonObject` | Read as empty when absent. The extension owns its members. An extension refuses a member that it does not know with `-32602`. |
 
-The request has no `input` member. The envelope names four members of the tuple, and the method names the operation. See [open question 1](#open-questions).
+`input` repeats four values of the envelope, as `GenerateModelRequest.input` does. With it, the upstream code paths that take the selected tuple from the request (`selected` in the Rust SDK, `retain_input` in the MoonBit guest, and the MoonBit host, which adds `input` to every request that is not a compile request) apply to `validateModel` with no change (decision VAL-1).
 
 The request has no `contextDigest` and no `requiredGuarantees`. A validator reads the model and reports. It needs no prerequisite from the host. An `evidence` entry in the envelope gets the usual admission and stays opaque.
 
@@ -115,11 +117,21 @@ The result has no success flag. The host decides the outcome from the severities
 
 ### The capability
 
-`ValidatorCapability` has one member:
+`ValidatorCapability` has two members:
 
 | Member | Type | Rule |
 | --- | --- | --- |
 | `irVersions` | `StringList` | Required. The semantic IR versions that the validator reads, with the same spelling and major-alias rule as `FrontendCapability.irVersions` and `BackendCapability.irVersions`. |
+| `rules` | `ValidatorRule` list | Left out when empty, and read as empty when absent. An empty list means that the validator does not list its rules. In one list, each rule `id` and each rule `code` is unique. |
+
+`ValidatorRule` has two members (decision VAL-5):
+
+| Member | Type | Rule |
+| --- | --- | --- |
+| `id` | `String` | Required. An absolute IRI (RFC 3987) that names the rule. Compare it as a plain string, with no normalization. The extension owns the IRI, and a host does not have to dereference it. |
+| `code` | `String` | Required and nonempty. The `Diagnostic.code` of each diagnostic that the rule reports. |
+
+A host maps a diagnostic to its rule IRI through the extension and the code. Diagnostics keep short codes. The IRI gives the rule an identity that does not depend on the extension or its location, and RDF and linked data can use it directly, as SHACL names a rule with `sh:sourceShape`. The member is in the first version of the record, because the MoonBit wire reader refuses unknown members, so a member that a later edit adds can break existing readers.
 
 `ExtensionCapabilities.validator` is left out when absent, as `frontend`, `backend` and `workspace` are. `validator` becomes a reserved name, so a writer refuses an `extra` member with that name.
 
@@ -141,7 +153,7 @@ extension        [validateModel/ion-binary]
 session support  []                             -> extension.tuple_unavailable
 ```
 
-A host offers a `validateModel` tuple only to an extension that claims one. See [Compatibility](#compatibility) for the reason.
+A host offers `validateModel` tuples only to an extension whose `morphir.extension.describe` result or recorded claims list at least one validateModel tuple in `capabilities.modelTransport`. A host that has neither offers no validateModel tuple. See [Compatibility](#compatibility) for the reason (decision VAL-2).
 
 ### Admission by the extension
 
@@ -150,7 +162,7 @@ The extension admits the request in the order of `model-transport.md` (lines 190
 1. The transport applies its outer frame limit.
 2. The extension checks the method conditions above. A failure is `-32013`.
 3. The extension reads the params. A shape that is not valid, or an unknown option, is `-32602`.
-4. The tuple of `model` must be a session tuple, and its `irVersion` must be in `validator.irVersions`. A tuple that is not in the session is `-32602`. An IR version that the validator does not read is `-32013`.
+4. `input` must be a session tuple with the operation `morphir.validator.validateModel`, the envelope of `model` must match `input`, and `input.irVersion` must be in `validator.irVersions`. A tuple that is not in the session, or an envelope that does not match `input`, is `-32602`. An IR version that the validator does not read is `-32013`.
 5. `modelId` and `revision` are not empty.
 6. The extension bounds the base64 text of all payloads (model and evidence) before it decodes, and checks the canonical form. It bounds the decoded bytes, checks the exact `decodedByteLength`, then checks `sha256`.
 7. The extension decodes the payload under the depth and node limits. It checks the profile, the envelope version, the IR version and a complete distribution.
@@ -167,7 +179,7 @@ Only an admitted model reaches the validator component.
 | The request comes before `morphir.initialize` or after `morphir.shutdown`. | `-32014` |
 | The session is not `0.2.0-draft.1`, has no `validator` capability, has no `validateModel` tuple, or the tuple IR version is not in `validator.irVersions`. | `-32013` |
 | The extension does not know the method (an older extension). | `-32601` |
-| The params have a bad shape, the tuple is not in the session, a bound, the length, the base64 form or the digest is wrong, a critical path is unknown, or an option is unknown. | `-32602` |
+| The params have a bad shape, the tuple is not in the session, the envelope does not match `input`, a bound, the length, the base64 form or the digest is wrong, a critical path is unknown, or an option is unknown. | `-32602` |
 | The validator cannot run, for example an internal failure or exhausted resources. | `-32003` |
 | The host cancelled the request, and the extension advertised `cancellation`. | `-32800` |
 
@@ -185,7 +197,13 @@ These items are host-defined:
 
 For example, `morphir validate` in morphir-dotnet runs every enabled analyzer, merges the diagnostics by extension id, and exits with 1 when one diagnostic has the severity `error` (`openspec/changes/archive/2026-11-09-add-mep-core/specs/model-analyzers/spec.md`).
 
-The host conversion rule for generation (`model-transport.md`, lines 287 to 405) applies only to `generateModel`. This proposal does not extend it.
+The host conversion rule for generation also applies to `validateModel`, with one difference: the host never sends a lossy conversion for validation, even when the user allows loss (decision VAL-3). A validator that does not see all of the model can miss a problem, or report a problem that the original model does not have.
+
+- When the host has the model in a tuple that the session does not agree, it converts the model to the first agreed validateModel tuple in host order that it can reach without loss. The request `input` is that tuple.
+- When only a lossy conversion is possible, the host refuses with its lossy-conversion error, not `extension.tuple_unavailable`, and sends no request. A permission to allow loss, for example `--allow-model-loss` in the MoonBit CLI, does not apply to validation.
+- The identity, evidence, report and before-dispatch rules of generation apply without change. A lossless conversion keeps the content of the model, so the diagnostics are also correct for the original model.
+
+Upstream states this rule in `spec/mep/model-transport.md`, section "Host conversion for validation".
 
 ### The legacy method stays reserved
 
@@ -206,22 +224,50 @@ namespace morphir.mep
 /// What a validator can check. `irVersions` lists the semantic IR versions
 /// that the validator reads. A `validateModel` tuple authorizes the method,
 /// and its `irVersion` must also be in `irVersions`.
+// GAP smithy-2qe.34.24: nothing checks that each rule `id` and each rule
+// `code` is unique in `rules`.
 structure ValidatorCapability {
     @required
     irVersions: StringList
+
+    /// The rules that the validator can report. Left out when empty. An
+    /// empty list means that the validator does not list its rules.
+    rules: ValidatorRuleList = []
 }
 
-/// Parameters of `morphir.validator.validateModel`. The tuple of `model` is
-/// the operation `morphir.validator.validateModel` with the `profile`,
-/// `payload.codec`, `envelopeVersion` and `irVersion` of the envelope. It
-/// must be an admitted session tuple. `options` belongs to the extension,
-/// and is read as empty when absent.
-// GAP smithy-2qe.34.24: nothing checks that the tuple of `model` is an
-// admitted session tuple, or that its `irVersion` is in
+/// One rule of a validator. `id` is an absolute IRI (RFC 3987) that names
+/// the rule, compared as a plain string. The extension owns the IRI. `code`
+/// is the `Diagnostic.code` of each diagnostic that the rule reports.
+structure ValidatorRule {
+    /// The pattern checks only that the IRI has a scheme. The model does not
+    /// check the rest of the RFC 3987 syntax.
+    @required
+    @pattern("^[A-Za-z][A-Za-z0-9+.\\-]*:.*$")
+    id: String
+
+    @required
+    code: NonEmptyString
+}
+
+@uniqueItems
+list ValidatorRuleList {
+    member: ValidatorRule
+}
+
+/// Parameters of `morphir.validator.validateModel`. `input` selects an
+/// admitted validateModel tuple, and the profile, codec, envelope version
+/// and IR version of `model` must match it. `options` belongs to the
+/// extension, and is read as empty when absent. A host never sends a lossy
+/// conversion of a model for validation.
+// GAP smithy-2qe.34.24: nothing checks that `input` is an admitted session
+// tuple, that `model` agrees with it, or that its `irVersion` is in
 // `validator.irVersions`.
 structure ValidateModelRequest {
     @required
     model: MorphirModel
+
+    @required
+    input: ModelTransportTuple
 
     options: JsonObject = {}
 }
@@ -258,7 +304,7 @@ operation ValidateModel {
 
 The doc comment of `Validate` becomes: "Validate Morphir IR. Legacy operation. The contract does not specify the payloads. `morphir.validator.validateModel` is the model-tier method."
 
-It changes `model/handshake.smithy`:
+It changes `model/handshake.smithy`. The doc comment of `InitializeParams.modelTransport` gets the offer rule: "A host offers `morphir.validator.validateModel` tuples only to an extension whose describe result or recorded claims list at least one validateModel tuple in `capabilities.modelTransport`."
 
 ```smithy
 /// What an extension can do.
@@ -304,12 +350,23 @@ pub type ModelOperation {
 }
 
 /// What a validator can check. ...
+/// Wire rules: `rules` is left out when empty, and an absent `rules` is read
+/// as empty.
 pub type ValidatorCapability {
-  ValidatorCapability(ir_versions: List(String))
+  ValidatorCapability(ir_versions: List(String), rules: List(ValidatorRule))
+}
+
+/// One rule of a validator. `id` is an absolute IRI (RFC 3987) ...
+pub type ValidatorRule {
+  ValidatorRule(id: String, code: String)
 }
 
 pub type ValidateModelRequest {
-  ValidateModelRequest(model: MorphirModel, options: Dict(String, Json))
+  ValidateModelRequest(
+    model: MorphirModel,
+    input: ModelTransportTuple,
+    options: Dict(String, Json),
+  )
 }
 
 pub type ValidateModelResult {
@@ -323,9 +380,11 @@ The wire mapping table in `spec/mep/README.md` changes:
 
 | Type | Exception |
 | --- | --- |
+| `InitializeParams` | Add: A host offers `morphir.validator.validateModel` tuples only to an extension whose describe result or recorded claims list at least one validateModel tuple; a host without either offers none. |
 | `ExtensionCapabilities` | Add `validator` to the members that are left out when absent, and to the reserved `extra` names. |
 | `ModelOperation` | Add the method string `morphir.validator.validateModel`. |
-| `ValidateModelRequest` | Absent `options` defaults to empty. The tuple of `model` must be a session tuple. |
+| `ValidatorCapability` | `rules` is left out when empty and read as empty when absent. An empty list means that the validator does not list its rules. Each rule `id` is an absolute IRI, compared as a plain string, and each rule `code` is non-empty; each rule `id` and `code` is unique in one list. |
+| `ValidateModelRequest` | Absent `options` defaults to empty. `input` must be an admitted validateModel tuple, and the model must match it. A host converts a model for validation only without loss; it never sends a lossy conversion, even when the user allows loss. |
 | `ValidateModelResult` | No success flag. A failure to run is a JSON-RPC error. |
 
 The README "Scope" section then lists "validate model payloads" as covered, and keeps "the legacy validate payload and the transform payload" as not covered.
@@ -345,16 +404,17 @@ complete: true
 
 The host reads the claims, then offers two validateModel tuples. It prefers
 Ion. The extension reads only JSON, so the session agrees on the JSON tuple.
-The validateModel request and result are MCK case model-0036. The model is
-the plain IR fixture `fixtures/plain-ir.json`. Every other message is
-constructed.
+The validator lists one rule. The warning in the result has the code of that
+rule, so the host maps the warning to the rule IRI. The validateModel request
+and result are MCK case model-0036. The model is the plain IR fixture
+`fixtures/plain-ir.json`. Every other message is constructed.
 
 ```jsonrpc host -> extension
 {"jsonrpc": "2.0", "id": "describe-1", "method": "morphir.extension.describe", "params": {"protocolVersions": ["0.2.0-draft.1"]}}
 ```
 
 ```jsonrpc extension -> host
-{"jsonrpc": "2.0", "id": "describe-1", "result": {"claimsVersion": "0.1.0-draft.2", "protocolVersions": ["0.2.0-draft.1"], "extension": {"id": "org.finos.morphir.example", "name": "Morphir example validator", "version": "1.0.0", "types": ["validator"]}, "capabilities": {"validator": {"irVersions": ["4.0.0"]}, "modelTransport": {"tuples": [{"operation": "morphir.validator.validateModel", "profile": "morphir-ir", "codec": "morphir-json", "envelopeVersion": "0.1.0-draft.1", "irVersion": "4.0.0"}], "limits": {"maxEncodedBytes": 8192, "maxDecodedBytes": 4096, "maxDepth": 64, "maxNodes": 256}}, "streaming": false, "incremental": false, "cancellation": false, "progress": false}}}
+{"jsonrpc": "2.0", "id": "describe-1", "result": {"claimsVersion": "0.1.0-draft.2", "protocolVersions": ["0.2.0-draft.1"], "extension": {"id": "org.finos.morphir.example", "name": "Morphir example validator", "version": "1.0.0", "types": ["validator"]}, "capabilities": {"validator": {"irVersions": ["4.0.0"], "rules": [{"id": "https://example.org/morphir/rules/empty-package", "code": "example.empty-package"}]}, "modelTransport": {"tuples": [{"operation": "morphir.validator.validateModel", "profile": "morphir-ir", "codec": "morphir-json", "envelopeVersion": "0.1.0-draft.1", "irVersion": "4.0.0"}], "limits": {"maxEncodedBytes": 8192, "maxDecodedBytes": 4096, "maxDepth": 64, "maxNodes": 256}}, "streaming": false, "incremental": false, "cancellation": false, "progress": false}}}
 ```
 
 ```jsonrpc host -> extension
@@ -362,7 +422,7 @@ constructed.
 ```
 
 ```jsonrpc extension -> host
-{"jsonrpc": "2.0", "id": 0, "result": {"protocolVersion": "0.2.0-draft.1", "extension": {"id": "org.finos.morphir.example", "name": "Morphir example validator", "version": "1.0.0", "types": ["validator"]}, "capabilities": {"validator": {"irVersions": ["4.0.0"]}, "modelTransport": {"tuples": [{"operation": "morphir.validator.validateModel", "profile": "morphir-ir", "codec": "morphir-json", "envelopeVersion": "0.1.0-draft.1", "irVersion": "4.0.0"}], "limits": {"maxEncodedBytes": 8192, "maxDecodedBytes": 4096, "maxDepth": 64, "maxNodes": 256}, "guarantees": []}, "streaming": false, "incremental": false, "cancellation": false, "progress": false}}}
+{"jsonrpc": "2.0", "id": 0, "result": {"protocolVersion": "0.2.0-draft.1", "extension": {"id": "org.finos.morphir.example", "name": "Morphir example validator", "version": "1.0.0", "types": ["validator"]}, "capabilities": {"validator": {"irVersions": ["4.0.0"], "rules": [{"id": "https://example.org/morphir/rules/empty-package", "code": "example.empty-package"}]}, "modelTransport": {"tuples": [{"operation": "morphir.validator.validateModel", "profile": "morphir-ir", "codec": "morphir-json", "envelopeVersion": "0.1.0-draft.1", "irVersion": "4.0.0"}], "limits": {"maxEncodedBytes": 8192, "maxDecodedBytes": 4096, "maxDepth": 64, "maxNodes": 256}, "guarantees": []}, "streaming": false, "incremental": false, "cancellation": false, "progress": false}}}
 ```
 
 ```jsonrpc host -> extension
@@ -372,7 +432,7 @@ constructed.
 MCK case model-0036, the request and its result with one warning:
 
 ```jsonrpc host -> extension
-{"jsonrpc": "2.0", "id": 1, "method": "morphir.validator.validateModel", "params": {"model": {"envelopeVersion": "0.1.0-draft.1", "modelId": "urn:morphir:mep:fixture:model", "revision": "fixture-revision-1", "irVersion": "4.0.0", "profile": "morphir-ir", "payload": {"codec": "morphir-json", "layout": "single-document", "decodedByteLength": 130, "sha256": "fd49ad8b0cab49216323beb969c08f91a888925dbb995838c57a05b48a80bb2f", "content": "eyJmb3JtYXRWZXJzaW9uIjoiNC4wLjAiLCJkaXN0cmlidXRpb24iOnsiTGlicmFyeSI6eyJwYWNrYWdlTmFtZSI6ImV4YW1wbGUvbWVwLWZpeHR1cmUiLCJkZXBlbmRlbmNpZXMiOnt9LCJkZWYiOnsibW9kdWxlcyI6e319fX19Cg=="}, "evidence": [], "critical": []}, "options": {}}}
+{"jsonrpc": "2.0", "id": 1, "method": "morphir.validator.validateModel", "params": {"model": {"envelopeVersion": "0.1.0-draft.1", "modelId": "urn:morphir:mep:fixture:model", "revision": "fixture-revision-1", "irVersion": "4.0.0", "profile": "morphir-ir", "payload": {"codec": "morphir-json", "layout": "single-document", "decodedByteLength": 130, "sha256": "fd49ad8b0cab49216323beb969c08f91a888925dbb995838c57a05b48a80bb2f", "content": "eyJmb3JtYXRWZXJzaW9uIjoiNC4wLjAiLCJkaXN0cmlidXRpb24iOnsiTGlicmFyeSI6eyJwYWNrYWdlTmFtZSI6ImV4YW1wbGUvbWVwLWZpeHR1cmUiLCJkZXBlbmRlbmNpZXMiOnt9LCJkZWYiOnsibW9kdWxlcyI6e319fX19Cg=="}, "evidence": [], "critical": []}, "input": {"operation": "morphir.validator.validateModel", "profile": "morphir-ir", "codec": "morphir-json", "envelopeVersion": "0.1.0-draft.1", "irVersion": "4.0.0"}, "options": {}}}
 ```
 
 ```jsonrpc extension -> host
@@ -401,7 +461,9 @@ complete: true
 ---
 # A validator that cannot run
 
-The extension admits the model, but the validator cannot run. It answers
+The host has the recorded claims of the extension, which list the
+validateModel tuple, so it offers that tuple without a describe step. The
+extension admits the model, but the validator cannot run. It answers
 with -32003 (ValidationError), not with a result. The session stays ready,
 so the host can shut it down. Every message is constructed.
 
@@ -418,7 +480,7 @@ so the host can shut it down. Every message is constructed.
 ```
 
 ```jsonrpc host -> extension
-{"jsonrpc": "2.0", "id": 1, "method": "morphir.validator.validateModel", "params": {"model": {"envelopeVersion": "0.1.0-draft.1", "modelId": "urn:morphir:mep:fixture:model", "revision": "fixture-revision-1", "irVersion": "4.0.0", "profile": "morphir-ir", "payload": {"codec": "morphir-json", "layout": "single-document", "decodedByteLength": 130, "sha256": "fd49ad8b0cab49216323beb969c08f91a888925dbb995838c57a05b48a80bb2f", "content": "eyJmb3JtYXRWZXJzaW9uIjoiNC4wLjAiLCJkaXN0cmlidXRpb24iOnsiTGlicmFyeSI6eyJwYWNrYWdlTmFtZSI6ImV4YW1wbGUvbWVwLWZpeHR1cmUiLCJkZXBlbmRlbmNpZXMiOnt9LCJkZWYiOnsibW9kdWxlcyI6e319fX19Cg=="}}}}
+{"jsonrpc": "2.0", "id": 1, "method": "morphir.validator.validateModel", "params": {"model": {"envelopeVersion": "0.1.0-draft.1", "modelId": "urn:morphir:mep:fixture:model", "revision": "fixture-revision-1", "irVersion": "4.0.0", "profile": "morphir-ir", "payload": {"codec": "morphir-json", "layout": "single-document", "decodedByteLength": 130, "sha256": "fd49ad8b0cab49216323beb969c08f91a888925dbb995838c57a05b48a80bb2f", "content": "eyJmb3JtYXRWZXJzaW9uIjoiNC4wLjAiLCJkaXN0cmlidXRpb24iOnsiTGlicmFyeSI6eyJwYWNrYWdlTmFtZSI6ImV4YW1wbGUvbWVwLWZpeHR1cmUiLCJkZXBlbmRlbmNpZXMiOnt9LCJkZWYiOnsibW9kdWxlcyI6e319fX19Cg=="}}, "input": {"operation": "morphir.validator.validateModel", "profile": "morphir-ir", "codec": "morphir-json", "envelopeVersion": "0.1.0-draft.1", "irVersion": "4.0.0"}}}
 ```
 
 ```jsonrpc extension -> host
@@ -442,12 +504,12 @@ The second transcript leaves out `evidence`, `critical` and `options`, which the
 
 | Transcript | Content | Result |
 | --- | --- | --- |
-| `session-validate-model.md` | a `0.2.0-draft.1` validator session with MCK case model-0036 | Valid |
+| `session-validate-model.md` | a `0.2.0-draft.1` validator session with one listed rule and MCK case model-0036 | Valid |
 | `validate-model-failure.md` | a validator that cannot run, then -32003 | Valid |
 
 ## Model-transport cases
 
-These cases use the format of `spec/mep/mck/model-transport.cases.json`, and continue its numbering. Upstream appends them to `cases`. The README case table gets the row `0036–0040 | validateModel tuples, protocol line and integrity`. As in the existing corpus, `hostOffer` and `guestSupport` are projections of the handshake, and `expected.code` is an observation label, not a JSON-RPC error number. In case model-0037, the host reports `extension.tuple_unavailable` and sends no request; the request shows what the host would have sent.
+These cases use the format of `spec/mep/mck/model-transport.cases.json`, and continue its numbering. Upstream appends them to `cases`. The README case table gets the row `0036–0041 | validateModel tuples, protocol line, integrity and the input tuple`. As in the existing corpus, `hostOffer` and `guestSupport` are projections of the handshake, and `expected.code` is an observation label, not a JSON-RPC error number. In case model-0037, the host reports `extension.tuple_unavailable` and sends no request; the request shows what the host would have sent. In case model-0041, both tuples are agreed, but the envelope does not match `input`.
 
 ```json
 {
@@ -496,7 +558,16 @@ These cases use the format of `spec/mep/mck/model-transport.cases.json`, and con
             "evidence": [],
             "critical": []
           },
-          "options": {}
+          "input": {
+            "operation": "morphir.validator.validateModel",
+            "profile": "morphir-ir",
+            "codec": "morphir-json",
+            "envelopeVersion": "0.1.0-draft.1",
+            "irVersion": "4.0.0"
+          },
+          "options": {
+
+          }
         }
       },
       "result": {"diagnostics": [{"severity": "warning", "code": "example.empty-package", "message": "Package example/mep-fixture has no module."}]},
@@ -543,7 +614,16 @@ These cases use the format of `spec/mep/mck/model-transport.cases.json`, and con
             "evidence": [],
             "critical": []
           },
-          "options": {}
+          "input": {
+            "operation": "morphir.validator.validateModel",
+            "profile": "morphir-ir",
+            "codec": "morphir-json",
+            "envelopeVersion": "0.1.0-draft.1",
+            "irVersion": "4.0.0"
+          },
+          "options": {
+
+          }
         }
       },
       "expected": {"admission": "reject", "code": "unsupported_tuple"}
@@ -589,7 +669,16 @@ These cases use the format of `spec/mep/mck/model-transport.cases.json`, and con
             "evidence": [],
             "critical": []
           },
-          "options": {}
+          "input": {
+            "operation": "morphir.validator.validateModel",
+            "profile": "morphir-ir",
+            "codec": "morphir-json",
+            "envelopeVersion": "0.1.0-draft.1",
+            "irVersion": "4.0.0"
+          },
+          "options": {
+
+          }
         }
       },
       "expected": {"admission": "reject", "code": "unsupported_tuple"}
@@ -635,7 +724,16 @@ These cases use the format of `spec/mep/mck/model-transport.cases.json`, and con
             "evidence": [],
             "critical": []
           },
-          "options": {}
+          "input": {
+            "operation": "morphir.validator.validateModel",
+            "profile": "morphir-ir",
+            "codec": "morphir-json",
+            "envelopeVersion": "0.1.0-draft.1",
+            "irVersion": "4.0.0"
+          },
+          "options": {
+
+          }
         }
       },
       "expected": {"admission": "reject", "code": "unsupported_protocol"}
@@ -681,10 +779,80 @@ These cases use the format of `spec/mep/mck/model-transport.cases.json`, and con
             "evidence": [],
             "critical": []
           },
-          "options": {}
+          "input": {
+            "operation": "morphir.validator.validateModel",
+            "profile": "morphir-ir",
+            "codec": "morphir-json",
+            "envelopeVersion": "0.1.0-draft.1",
+            "irVersion": "4.0.0"
+          },
+          "options": {
+
+          }
         }
       },
       "expected": {"admission": "reject", "code": "digest_mismatch"}
+    },
+    {
+      "id": "model-0041",
+      "kind": "negotiation",
+      "description": "The input tuple of validateModel must agree with the model envelope, even when both tuples are agreed.",
+      "hostOffer": {
+        "protocolVersions": ["0.2.0-draft.1", "0.1"],
+        "modelTransport": {
+          "tuples": [
+            {"operation": "morphir.validator.validateModel", "profile": "morphir-model", "codec": "ion-binary", "envelopeVersion": "0.1.0-draft.1", "irVersion": "4.0.0"},
+            {"operation": "morphir.validator.validateModel", "profile": "morphir-ir", "codec": "morphir-json", "envelopeVersion": "0.1.0-draft.1", "irVersion": "4.0.0"}
+          ],
+          "limits": {"maxEncodedBytes": 8192, "maxDecodedBytes": 4096, "maxDepth": 64, "maxNodes": 256},
+          "guarantees": ["urn:morphir:mep:fixture:checked"]
+        }
+      },
+      "guestSupport": {
+        "protocolVersion": "0.2.0-draft.1",
+        "modelTransport": {
+          "tuples": [
+            {"operation": "morphir.validator.validateModel", "profile": "morphir-model", "codec": "ion-binary", "envelopeVersion": "0.1.0-draft.1", "irVersion": "4.0.0"},
+            {"operation": "morphir.validator.validateModel", "profile": "morphir-ir", "codec": "morphir-json", "envelopeVersion": "0.1.0-draft.1", "irVersion": "4.0.0"}
+          ],
+          "limits": {"maxEncodedBytes": 8192, "maxDecodedBytes": 4096, "maxDepth": 64, "maxNodes": 256},
+          "guarantees": ["urn:morphir:mep:fixture:checked"]
+        }
+      },
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "morphir.validator.validateModel",
+        "params": {
+          "model": {
+            "envelopeVersion": "0.1.0-draft.1",
+            "modelId": "urn:morphir:mep:fixture:model",
+            "revision": "fixture-revision-1",
+            "irVersion": "4.0.0",
+            "profile": "morphir-model",
+            "payload": {
+              "codec": "ion-binary",
+              "layout": "single-document",
+              "decodedByteLength": 499,
+              "sha256": "49f87687c033a8ec39a7f42b93bb1c54b4856ceab0b05246d81ea0a8b27e10b1",
+              "content": "4AEA6u4Co4GD3gKeh74Cmo1tb3JwaGlyX21vZGVsgmlyjWZvcm1hdFZlcnNpb26MZGlzdHJpYnV0aW9uh0xpYnJhcnmLcGFja2FnZU5hbWWMZGVwZW5kZW5jaWVzg2RlZodtb2R1bGVzi2VucmljaG1lbnRzhW93bmVyhGRhdGGLc291cmNlX25hbWWLdGFyZ2V0X25hbWWMb3JpZ2luYWxOYW1linRhcmdldE5hbWWOj3NvdXJjZVByZWNpc2lvboRraW5khWludDY0hWV4YWN0hmFtb3VudIpmdXR1cmVGYWN0jpFmdXR1cmVfdm9jYWJ1bGFyeYdlbmFibGVkinByb3ZlbmFuY2WOjmZpeHR1cmVfb3JpZ2luiHByb2R1Y2VyhnNvdXJjZe4BxoGK3gHBi96pjIU0LjAuMI3en47enI+Ok2V4YW1wbGUvbWVwLWZpeHR1cmWQ0JHSktCTvuXe45SOqnVybjptb3JwaGlyOm1lcDpmaXh0dXJlOnVua25vd24tZW5yaWNobWVudJXus4KWl96umIdpc1JlYWR5mYhpc19yZWFkeZrcm3EcnScgAAAAAAABnlTEEtZEn+WBoNKhEaK+qu6ogaPepKSOlG1lcC1yZWZlcmVuY2UtY29ycHVzpYtmaXh0dXJlLm1idA=="
+            },
+            "evidence": [],
+            "critical": []
+          },
+          "input": {
+            "operation": "morphir.validator.validateModel",
+            "profile": "morphir-ir",
+            "codec": "morphir-json",
+            "envelopeVersion": "0.1.0-draft.1",
+            "irVersion": "4.0.0"
+          },
+          "options": {
+
+          }
+        }
+      },
+      "expected": {"admission": "reject", "code": "unsupported_tuple"}
     }
   ]
 }
@@ -698,20 +866,21 @@ The Smithy check compares each case with `spec/mep/smithy/mck-expectations.json`
   "model-0037": {"request": [], "note": "Valid. MEP refuses it at negotiation: the agreement for validateModel is empty, so the host sends no request. Not checked: smithy-2qe.34.24."},
   "model-0038": {"request": [], "note": "Valid. MEP refuses it at admission: the session has no validateModel tuple. Not checked: smithy-2qe.34.20."},
   "model-0039": {"request": [], "note": "Valid. MEP refuses it at admission: the session is not MEP 0.2.0-draft.1. Not checked: smithy-2qe.34.20."},
-  "model-0040": {"request": [], "note": "Valid. MEP refuses it at admission after decoding: digest mismatch. Out of scope for a message model."}
+  "model-0040": {"request": [], "note": "Valid. MEP refuses it at admission after decoding: digest mismatch. Out of scope for a message model."},
+  "model-0041": {"request": [], "note": "Valid. MEP refuses it at admission: the model envelope does not match the input tuple. Not checked: smithy-2qe.34.24."}
 }
 ```
 
 ## Compatibility
 
-The change is additive. It adds one method, one model operation value, one optional capability member and three shapes. No existing shape, method or wire value changes.
+The change is additive and edits `0.2.0-draft.1` in place, as finos/morphir#1101, #1115 and #1117 did. It adds one method, one model operation value, one optional capability member and four shapes. No existing shape, method or wire value changes.
 
 Existing extensions read an offered tuple strictly. Both upstream guests refuse an operation value that they do not know:
 
 - The MoonBit guest refuses the whole offer (`invalid_support`), so `morphir.initialize` fails with `-32602` "Invalid model transport offer" (`finos/morphir-moonbit`, `pkgs/morphir-moonbit/mep/model_transport.mbt`, lines 113 to 135; `session.mbt`, lines 222 to 232).
 - The Rust SDK `ModelOperation` is a closed enum, so `InitializeParams` does not parse, and `morphir.initialize` fails with `-32602` (`finos/morphir-rust`, `crates/morphir-extension-sdk/src/model/wire.rs`, lines 11 to 20; `src/lib.rs`, `dispatch_initialize_with_metadata`).
 
-Thus a host offers a `validateModel` tuple only to an extension that claims one, in its `morphir.extension.describe` result or in the recorded claims. The MoonBit host already offers the tuples of one operation for each session (`pkgs/morphir-host/worker/README.mbt.md`, "Probe, activate, call, close"). The other choice is a new reader rule: "A reader ignores an offered tuple whose operation it does not know." That rule changes existing readers. See [open question 2](#open-questions).
+Thus a host offers `validateModel` tuples only to an extension whose `morphir.extension.describe` result or recorded claims list at least one validateModel tuple (decision VAL-2). The MoonBit host already offers the tuples of one operation for each session (`pkgs/morphir-host/worker/README.mbt.md`, "Probe, activate, call, close"). The other choice is a new reader rule: "A reader ignores an offered tuple whose operation it does not know." That rule changes existing readers now, so the decision does not take it. A later change can still add it.
 
 An older host never offers a `validateModel` tuple. It reads `capabilities.validator` from a newer extension as an `extra` member, as the contract says, and ignores it.
 
@@ -723,23 +892,33 @@ The legacy `morphir.validator.validate` does not change.
 
 - **Define the legacy `morphir.validator.validate` payload**, as `{ir, options}` to `{valid, diagnostics}`, like the Rust SDK. Rejected. The legacy `0.1` line is frozen (`spec/mep/README.md`, "Versioning"). Its plain JSON IR has no bounds and no digest. New model operations need the new draft and bilateral transport admission.
 - **A success or `valid` flag in the result.** Rejected. It repeats the severities, and the two can disagree. The host decides from the severities, as morphir-dotnet `validate` does.
-- **An `input` tuple member, as in `GenerateModelRequest`.** Not chosen for now, because the envelope and the method give the same five values. See [open question 1](#open-questions).
+- **No `input` member, because the envelope and the method give the same five values.** Rejected (VAL-1). Each SDK then needs a separate admission path, and the MoonBit host needs a third branch. `generateModel` already accepts the same repetition.
+- **Publish `0.2.0-draft.2`.** Rejected (VAL-2). Drafts match exactly, so every peer must move at the same time, and draft.1 and draft.2 peers cannot connect.
+- **The full generation conversion rule, with loss that the user allows.** Rejected (VAL-3). The result of a lossy validation has no use.
+- **A diagnostic `code` that is the rule IRI.** Rejected (VAL-5). Codes become long in tables and editors, and validator codes look different from the codes of other roles.
+- **A common `options.rules` selector.** Rejected (VAL-5). The contract then owns part of `options`, and a host can remove the diagnostics of a rule that the user turned off.
 - **A `validate` boolean in `ValidatorCapability`, as `compile` and `generate`.** Rejected. Those booleans authorize only legacy methods, and a tuple authorizes a model method. The legacy validate has no defined payload to authorize.
 - **Validation diagnostics in the `compileModel` or `generateModel` result.** Rejected. That joins two roles. `validator` is its own extension type.
 - **Validation as a transform that returns the same model.** Rejected. A validator does not change the model, and the transform payload is not defined.
 
-## Open questions
+## Decisions
 
-1. **`input` member.** Should `ValidateModelRequest` carry `input: ModelTransportTuple`, as `GenerateModelRequest` does? For: one pattern for all model methods, and the upstream code paths (`selected` in Rust, `retain_input` in MoonBit) take a tuple from the request. Against: the member repeats the envelope.
-2. **Draft version and the offer rule.** Does upstream edit `0.2.0-draft.1` in place, or publish `0.2.0-draft.2`? Drafts match exactly. An in-place edit needs the offer rule in [Compatibility](#compatibility), or a new rule that readers ignore unknown operations. A new draft needs every peer to move. morphir-dotnet moves all its MEP parts together in both cases (PRD, "MEP version moves").
-3. **Host conversion for validation.** The host can have a model in a tuple outside the agreement. Can it convert the model before validation, as for `generateModel`? The diagnostics then refer to the converted model.
-4. **Model-node locations.** `Diagnostic.location` is a source URI and a range. A model validator often has no source. Does the contract define a way to name a model node, for example an FQName in `data`, or a URI scheme? This proposal does not.
-5. **Rule identity and options.** The Rust `Validator` trait has `validation_rules()`. Does `ValidatorCapability` list rule ids, and does the contract define common options? This proposal does not.
-6. **Generated IR.** `mise run spec:mep` stops now, because the Gleam frontend moved to `finos/morphir-gleam` (`spec/mep/README.md`, "Regenerate"; bead `morphir-sugs`). The upstream pull request needs a new `generated/mep.ir.json`. Who makes it, and with which tool?
+Damian Reeves decided the six open questions of the first draft on 2026-11-09. The upstream OpenSpec change `openspec/changes/add-mep-validate-model` (`design.html`, decisions VAL-1 to VAL-6) records them, with the alternatives.
+
+| Id | Question | Decision |
+| --- | --- | --- |
+| VAL-1 | Does the request carry `input`? | Yes, `input: ModelTransportTuple`, as in `GenerateModelRequest`. |
+| VAL-2 | Edit draft.1 in place, or publish draft.2? | Edit `0.2.0-draft.1` in place. A host offers validateModel tuples only to an extension whose describe result or recorded claims list at least one. |
+| VAL-3 | Can a host convert a model before validation? | Yes, without loss only. The host never sends a lossy conversion for validation, even when the user allows loss. |
+| VAL-4 | How does a diagnostic name a model node? | Out of scope. [finos/morphir#1144](https://github.com/finos/morphir/issues/1144) proposes an optional model-node IRI in `Diagnostic` for all methods. |
+| VAL-5 | Rule identity and common options? | `ValidatorCapability.rules` lists `ValidatorRule(id, code)`; `id` is an absolute IRI, `code` the diagnostic code. No common options. |
+| VAL-6 | Who regenerates `generated/mep.ir.json`, and how? | For now, a program that calls `GleamExtension.compile` of `morphir-gleam-binding` 0.4.0 (`a529add`) with `typesOnly: true` and IR 4. It gives a byte-identical IR for the unchanged contract on `main`. [finos/morphir-moonbit#325](https://github.com/finos/morphir-moonbit/issues/325) adds `--types-only` to `morphir extension compile`, for bead `morphir-sugs`. |
+
+Open: how an FQName becomes a model-node IRI. finos/morphir#1144 decides this.
 
 ## Follow-up in morphir-dotnet
 
-- Task 7.2 opens the upstream draft pull request after maintainer approval, and records its URL and commit in the PRD.
+- Task 7.2 opened the upstream pull request [finos/morphir#1139](https://github.com/finos/morphir/pull/1139). The PRD records its URL.
 - Steps 2a and 2b pin the upstream draft by commit.
 - Until upstream accepts a payload, `Morphir.Mep` has no `validateModel` type. Nothing on the wire in `add-mep-core` depends on this proposal (design UP-1).
 - The round-trip check of task 7.1 (transcript messages through the group 2 codecs, in a test-only copy) waits for task 2.3.
@@ -748,6 +927,6 @@ The legacy `morphir.validator.validate` does not change.
 
 | Repository | Commit | Files |
 | --- | --- | --- |
-| `finos/morphir` | `cde7722eb35987042a49dc646a846d693b0bd7f6` (pin); `ecb3c781c3cc334821588392cf81ee1346455090` (`main`, no `spec/mep` change) | `spec/mep/README.md`, `spec/mep/model-transport.md`, `spec/mep/smithy/README.md`, `spec/mep/smithy/model/*.smithy`, `spec/mep/smithy/transcripts/*`, `spec/mep/mck/README.md`, `spec/mep/mck/model-transport.cases.json`, `spec/mep/contract/src/mep.gleam` |
+| `finos/morphir` | `cde7722eb35987042a49dc646a846d693b0bd7f6` (pin); `ecb3c781c3cc334821588392cf81ee1346455090` (`main`, no `spec/mep` change); `5e0f8676ee63762bfed146b24e0037177f67778a` (head of #1139) | `spec/mep/README.md`, `spec/mep/model-transport.md`, `spec/mep/smithy/README.md`, `spec/mep/smithy/model/*.smithy`, `spec/mep/smithy/transcripts/*`, `spec/mep/mck/README.md`, `spec/mep/mck/model-transport.cases.json`, `spec/mep/contract/src/mep.gleam` |
 | `finos/morphir-rust` | `99c0b67637afcdae011cd7c9e93b9fd13bddd9cb` | `crates/morphir-extension-sdk/src/{lifecycle.rs, protocol.rs, lib.rs, types.rs, traits.rs, model/*.rs}`, `crates/morphir-host/src/{session_core.rs, jsonrpc.rs, negotiated.rs}`, `crates/morphir-host-native/src/process/frame.rs` |
 | `finos/morphir-moonbit` | `28271c61379523f28312f1989baed4f368722bcd` | `pkgs/morphir-moonbit/mep/{session.mbt, model_transport.mbt, model_input.mbt, model_budget.mbt, framing.mbt}`, `pkgs/morphir-host/worker/{session.mbt, README.mbt.md}` |

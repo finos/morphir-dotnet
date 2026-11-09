@@ -35,8 +35,14 @@ type ProposalSupport =
       [<JsonDefaultEmpty>]
       Guarantees: IReadOnlyList<string> }
 
-/// The proposed validator capability.
-type ValidatorCapability = { IrVersions: IReadOnlyList<string> }
+/// A rule of a validator: an absolute IRI and the diagnostic code that the rule reports (decision VAL-5).
+type ValidatorRule = { Id: string; Code: string }
+
+/// The proposed validator capability. Absent rules are read as empty.
+type ValidatorCapability =
+    { IrVersions: IReadOnlyList<string>
+      [<JsonDefaultEmpty>]
+      Rules: IReadOnlyList<ValidatorRule> }
 
 /// ExtensionCapabilities with the proposed validator member.
 type ProposalCapabilities =
@@ -66,9 +72,11 @@ type ProposalInitializeResult =
       Extension: JsonElement
       Capabilities: ProposalCapabilities }
 
-/// The proposed request. The model is read again with the Morphir.Mep MorphirModel codec.
+/// The proposed request, with the selected input tuple (decision VAL-1). The model is read again with the
+/// Morphir.Mep MorphirModel codec.
 type ValidateModelRequest =
     { Model: JsonElement
+      Input: ProposalTuple
       [<JsonDefaultEmpty>]
       Options: IReadOnlyDictionary<string, JsonElement> }
 
