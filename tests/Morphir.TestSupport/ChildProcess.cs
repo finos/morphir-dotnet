@@ -162,6 +162,62 @@ public static class ChildProcess
         }
     }
 
+    /// <summary>
+    /// Runs a child and holds a conversation with it: <paramref name="converse"/> gets the stdin and stdout streams
+    /// and the deadline token, so it can wait for a reply before it writes the next message. When it returns,
+    /// stdin closes; the result holds the stdout that the conversation did not read, and all of stderr. The gate,
+    /// the timeout and the process-tree cleanup are the same as for <see cref="RunAsync"/>.
+    /// </summary>
+    public static async Task<ChildProcessResult> ConverseAsync(
+        ProcessStartInfo startInfo,
+        TimeSpan timeout,
+        Func<Stream, Stream, CancellationToken, Task> converse,
+        CancellationToken cancellationToken = default,
+        ProcessGate? gate = null)
+    {
+        startInfo.UseShellExecute = false;
+        startInfo.CreateNoWindow = true;
+        startInfo.RedirectStandardOutput = true;
+        startInfo.RedirectStandardError = true;
+        startInfo.RedirectStandardInput = true;
+        var command = Describe(startInfo);
+        var ownGroup = StartInNewSession(startInfo);
+
+        using var slot = await (gate ?? ProcessGate.Shared).EnterAsync(cancellationToken).ConfigureAwait(false);
+        using var process = new Process { StartInfo = startInfo };
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(timeout);
+
+        process.Start();
+        var startedAt = DateTimeOffset.UtcNow;
+        var stderr = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        Task<string>? stdout = null;
+
+        try
+        {
+            await converse(process.StandardInput.BaseStream, process.StandardOutput.BaseStream, deadline.Token).ConfigureAwait(false);
+            process.StandardInput.Close();
+            stdout = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+            await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
+            await Task.WhenAll(stdout, stderr).WaitAsync(deadline.Token).ConfigureAwait(false);
+            return new ChildProcessResult(process.ExitCode, await stdout, await stderr, startedAt, DateTimeOffset.UtcNow);
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        {
+            var parentExited = await KillTreeAsync(process, ownGroup).ConfigureAwait(false);
+            var (output, outputClosed) = stdout is null ? (string.Empty, true) : await Completed(stdout).ConfigureAwait(false);
+            var (error, errorClosed) = await Completed(stderr).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new ChildProcessTimeoutException(command, timeout, parentExited && outputClosed && errorClosed, output, error);
+        }
+        catch
+        {
+            // The conversation failed (for example an assertion): stop the child before the error surfaces.
+            if (!process.HasExited) await KillTreeAsync(process, ownGroup).ConfigureAwait(false);
+            throw;
+        }
+    }
+
     /// <summary>On Linux, runs the command through setsid so it leads its own process group, with the same PID.</summary>
     private static bool StartInNewSession(ProcessStartInfo info)
     {
