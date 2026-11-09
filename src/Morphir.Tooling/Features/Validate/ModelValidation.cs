@@ -36,7 +36,7 @@ public sealed class ModelValidation(IModelLoader loader, AnalyzerRegistry analyz
             if (loaded is Outcome<LoadedModel>.Failure loadFailure) return ValidationReport.Failed(host, path, loadFailure.Error);
             var model = ((Outcome<LoadedModel>.Success)loaded).Value;
 
-            var ids = analyzers.Analyzers.Select(analyzer => analyzer.Entry.Identity.Id).ToArray();
+            var ids = AnalyzerRunner.Entries(analyzers.Analyzers).Select(entry => entry.Identity.Id).ToArray();
             var settings = configuration.TurnedOff(context.WorkingDirectory, ids, ct);
             if (settings is Outcome<IReadOnlyList<ExtensionId>>.Failure settingsFailure) return ValidationReport.Failed(host, path, settingsFailure.Error);
             var turnedOff = ((Outcome<IReadOnlyList<ExtensionId>>.Success)settings).Value;

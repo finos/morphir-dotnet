@@ -242,6 +242,33 @@ let tests =
             | other -> failtest $"unexpected outcomes {other}"
         }
 
+        test "Entries leaves out an analyzer whose entry is null or throws" {
+            let throwing =
+                { new IModelAnalyzer with
+                    member _.Entry = raise (InvalidOperationException "no entry")
+                    member _.AnalyzeAsync(_, _) = Task.FromResult<IReadOnlyList<Morphir.Mep.Diagnostic>>([||])
+                }
+
+            let empty =
+                { new IModelAnalyzer with
+                    member _.Entry = Unchecked.defaultof<_>
+                    member _.AnalyzeAsync(_, _) = Task.FromResult<IReadOnlyList<Morphir.Mep.Diagnostic>>([||])
+                }
+
+            let entries =
+                AnalyzerRunner.Entries([ throwing; empty; reporting "good.lint" [] :> IModelAnalyzer ])
+
+            Expect.equal (entries |> Seq.map (fun entry -> entry.Identity.Id.Value) |> List.ofSeq) [ "good.lint" ] "only the readable entry"
+        }
+
+        test "DistributionModel.Match gives C# one function for each case" {
+            let family (model: VersionedModel) =
+                model.Distribution.Match(Func<_, string>(fun _ -> "classic"), Func<_, string>(fun _ -> "v4"))
+
+            Expect.equal (family classicModel) "classic" "classic"
+            Expect.equal (family v4Model) "v4" "v4"
+        }
+
         test "an analyzer with no readable entry is a failure and the others still run" {
             let throwing =
                 { new IModelAnalyzer with
@@ -303,7 +330,7 @@ let tests =
                     Morphir.Mep.DiagnosticSeverity.Info
                     Morphir.Mep.DiagnosticSeverity.Hint
                  ]
-                 |> List.map MepRecords.WireValue)
+                 |> List.map _.WireValue)
                 [ "error"; "warning"; "info"; "hint" ]
                 "severity wire values"
         }

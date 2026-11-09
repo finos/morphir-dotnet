@@ -14,15 +14,6 @@ open Morphir.IR.Model
 /// </summary>
 [<Extension; AbstractClass; Sealed>]
 type MepRecords =
-    /// <summary>The wire value of a severity: <c>error</c>, <c>warning</c>, <c>info</c> or <c>hint</c>.</summary>
-    [<Extension>]
-    static member WireValue(severity: Morphir.Mep.DiagnosticSeverity) : string =
-        match severity with
-        | Morphir.Mep.DiagnosticSeverity.Error -> "error"
-        | Morphir.Mep.DiagnosticSeverity.Warning -> "warning"
-        | Morphir.Mep.DiagnosticSeverity.Info -> "info"
-        | Morphir.Mep.DiagnosticSeverity.Hint -> "hint"
-
     /// <summary>True when the severity is <c>error</c>. C# compares F# unions only with this member or <c>Equals</c>.</summary>
     [<Extension>]
     static member IsError(severity: Morphir.Mep.DiagnosticSeverity) : bool =
@@ -303,6 +294,13 @@ type AnalyzerRunner =
                 if obj.ReferenceEquals(entry, null) then None else Some entry
         with _ ->
             None
+
+    /// <summary>
+    /// The entries of the analyzers, in the given order, without an analyzer whose entry is null or throws. C# callers
+    /// use it instead of reading <c>Entry</c> directly; the runner reports such an analyzer as a host diagnostic.
+    /// </summary>
+    static member Entries(analyzers: IEnumerable<IModelAnalyzer>) : IReadOnlyList<ExtensionEntry> =
+        analyzers |> Seq.choose AnalyzerRunner.TryEntry |> Array.ofSeq :> IReadOnlyList<_>
 
     static member private Reads (model: VersionedModel) (entry: ExtensionEntry) =
         entry.Capabilities

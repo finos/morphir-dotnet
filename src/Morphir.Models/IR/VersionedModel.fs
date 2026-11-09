@@ -46,6 +46,12 @@ type DistributionModel =
     | Classic of Classic.Distribution.Distribution<JsonElement, JsonElement>
     | V4 of V4.Distribution
 
+    /// For C# callers, such as an in-process analyzer: one function for each case, so C# does not test the cases.
+    member this.Match<'R>(classic: System.Func<Classic.Distribution.Distribution<JsonElement, JsonElement>, 'R>, v4: System.Func<V4.Distribution, 'R>) : 'R =
+        match this with
+        | Classic distribution -> classic.Invoke distribution
+        | V4 distribution -> v4.Invoke distribution
+
 /// A typed distribution and the version declared by its source.
 type VersionedModel =
     {

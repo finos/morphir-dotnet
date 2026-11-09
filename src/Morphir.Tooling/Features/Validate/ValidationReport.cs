@@ -82,7 +82,7 @@ public sealed record ValidationDiagnostic(string Severity, string? Code, string 
     IReadOnlyList<ValidationRelated>? Related, JsonElement? Data, string? Extension)
 {
     internal static ValidationDiagnostic From(Morphir.Mep.Diagnostic diagnostic, string? extension) =>
-        new(diagnostic.Severity.WireValue(), diagnostic.CodeOrNull(), diagnostic.Message, ValidationLocation.From(diagnostic.LocationOrNull()),
+        new(diagnostic.Severity.WireValue, diagnostic.CodeOrNull(), diagnostic.Message, ValidationLocation.From(diagnostic.LocationOrNull()),
             diagnostic.Related.Count == 0 ? null
                 : diagnostic.Related.Select(related => new ValidationRelated(ValidationLocation.From(related.Location)!, related.Message)).ToArray(),
             diagnostic.DataOrNull(), extension);
