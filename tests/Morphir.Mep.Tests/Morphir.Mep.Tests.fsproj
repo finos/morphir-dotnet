@@ -17,13 +17,30 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.Mep/Morphir.Mep.fsproj" />
+    <ProjectReference Include="../../src/Morphir.Myriad.SystemTextJson/Morphir.Myriad.SystemTextJson.fsproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../src/Morphir.Myriad.SystemTextJson.Build/Morphir.Myriad.SystemTextJson.Build.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../src/Morphir.Myriad.SystemTextJson.Annotations/Morphir.Myriad.SystemTextJson.Annotations.csproj" />
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
     <ProjectReference Include="../Morphir.Mep.AotProbe/Morphir.Mep.AotProbe.csproj" PrivateAssets="all" />
     <None Include="../Fixtures/Mep/**" Link="Fixtures/Mep/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Include="Proposal/ValidateModelTypes.fs" />
+    <FSharpJsonContext Include="Proposal/ValidateModelTypes.fs" Name="ProposalJson" Namespace="Morphir.Mep.Tests.Proposal" Naming="CamelCase" SkippableOptionFields="Always" UnionEncoding="Default, UnwrapFieldlessTags" UnionTagNaming="CamelCase" />
+    <Compile Include="Transcripts.fs" />
     <Compile Include="WireTests.fs" />
+    <Compile Include="TypesTests.fs" />
+    <Compile Include="RpcTests.fs" />
+    <Compile Include="DispatcherTests.fs" />
+    <Compile Include="ConnectionTests.fs" />
+    <Compile Include="SessionTests.fs" />
+    <Compile Include="ReadmeTests.fs" />
+    <Compile Include="ProposalTests.fs" />
     <Compile Include="FramingTests.fs" />
     <Compile Include="ContractTests.fs" />
     <Compile Include="InteropTests.fs" />
+    <Compile Include="ModelTransportTests.fs" />
+    <Compile Include="AdmissionTests.fs" />
+    <Compile Include="CompileModelTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
+  <Import Project="../../src/Morphir.Myriad.SystemTextJson/repository/Morphir.Myriad.SystemTextJson.Repository.targets" />
 </Project>

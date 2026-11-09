@@ -452,6 +452,71 @@ let tests =
                 [ selected.Path ]
                 "selected cannot be optional"
         }
+        test "ir.format_version takes an integer or a SemVer string (VER-1)" {
+            let errorsFor value =
+                let identity = source "version.toml" SourceRole.RootPrimary DocumentFormat.Toml
+
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [
+                            supplied identity (obj [ "ir", obj [ "format_version", value ] ])
+                        ]
+                    }
+                |> fun result ->
+                    result.Diagnostics
+                    |> List.filter (fun d ->
+                        d.Severity = DiagnosticSeverity.Error
+                        && d.KeyPath = [ "ir"; "format_version" ]
+                    )
+
+            for value in
+                [
+                    ConfigValue.Integer 4L
+                    text "4.0.0"
+                    text "4.1.0-draft.1"
+                    text "4.1.0-draft.1+build.7"
+                ] do
+                Expect.isEmpty (errorsFor value) $"{value} is a format version"
+
+            for value in [ text "4"; text "four"; text "4.x"; ConfigValue.Boolean true ] do
+                Expect.isNonEmpty (errorsFor value) $"{value} is not a format version"
+        }
+        test "every frontend language table has project_file and extension (SRC-2)" {
+            let errorsFor language table =
+                let identity = source "frontend.toml" SourceRole.RootPrimary DocumentFormat.Toml
+
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [
+                            supplied identity (obj [ "frontend", obj [ language, table ] ])
+                        ]
+                    }
+                |> fun result ->
+                    result.Diagnostics
+                    |> List.filter (fun d -> d.Severity = DiagnosticSeverity.Error)
+
+            for language in [ "fsharp"; "csharp"; "elm"; "gleam" ] do
+                Expect.isEmpty
+                    (errorsFor
+                        language
+                        (obj [
+                            "project_file", text "src/Acme.CarRental.fsproj"
+                            "extension", text "morphir-frontend"
+                        ]))
+                    $"{language} accepts the shared keys"
+
+                Expect.isNonEmpty
+                    (errorsFor language (obj [ "project_file", ConfigValue.Integer 1L ]))
+                    $"{language} project_file is a string"
+
+                Expect.isNonEmpty
+                    (errorsFor language (obj [ "project_file", text "" ]))
+                    $"{language} project_file is not empty"
+
+                Expect.isNonEmpty
+                    (errorsFor language (obj [ "extension", text " padded " ]))
+                    $"{language} extension has no surrounding space"
+        }
         test "known values are validated at their winning source and position" {
             let identity = source "wrong.toml" SourceRole.RootPrimary DocumentFormat.Toml
 

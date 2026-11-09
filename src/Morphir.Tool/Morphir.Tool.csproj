@@ -24,6 +24,8 @@
         <ProjectReference Include="..\Morphir\Morphir.csproj" />
         <ProjectReference Include="..\Morphir.Core\Morphir.Core.csproj" />
         <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />
+        <!-- Only the dotnet tool references the F# frontend and so the F# compiler service (CLI-3). -->
+        <ProjectReference Include="..\Morphir.Frontend.FSharp\Morphir.Frontend.FSharp.fsproj" />
     </ItemGroup>
 
     <ItemGroup>

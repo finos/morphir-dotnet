@@ -38,6 +38,7 @@
         <Compile Include="BuilderMemberTests.fs" />
         <Compile Include="FrontendContractTests.fs" />
         <Compile Include="DocumentationExampleTests.fs" />
+        <Compile Include="TextParsingTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

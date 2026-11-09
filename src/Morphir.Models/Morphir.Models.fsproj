@@ -13,13 +13,12 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <IsTrimmable>true</IsTrimmable>
         <!-- C# callers read the nullable metadata that F# nullness writes. Without it, C# sees these types as oblivious. -->
         <Nullable>enable</Nullable>
-        <WarningsAsErrors>$(WarningsAsErrors);FS3261</WarningsAsErrors>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
-        <PackageReference Include="System.Text.Json" />
-        <PackageReference Include="FSharp.SystemTextJson" />
     </ItemGroup>
 
     <ItemGroup>
@@ -41,6 +40,7 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="IR/Classic/Module.fs" />
         <Compile Include="IR/Classic/Package.fs" />
         <Compile Include="IR/Classic/Distribution.fs" />
+        <Compile Include="IR/Classic/Attributes.fs" />
         <Compile Include="IR/Classic/DSL/Helpers.fs" />
         <Compile Include="IR/Classic/DSL/Types.fs" />
         <Compile Include="IR/Classic/DSL/Values.fs" />

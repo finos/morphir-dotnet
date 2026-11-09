@@ -19,6 +19,7 @@ public sealed record ExtensionListReport(string Host, IReadOnlyList<ExtensionLis
     private static ExtensionListEntry Entry(ExtensionEntry entry, MorphirHost host)
     {
         var backend = entry.BackendClaimOrNull;
+        var validator = entry.ValidatorClaimOrNull;
         return new ExtensionListEntry(
             entry.Identity.Id.Value,
             entry.Identity.Name.Value,
@@ -31,19 +32,28 @@ public sealed record ExtensionListReport(string Host, IReadOnlyList<ExtensionLis
             new ExtensionListCapabilities(backend is null
                 ? null
                 // Generation is the only backend operation in MEP, so a backend claim always generates.
-                : new ExtensionListBackend(backend.Targets.Select(target => target.Value).ToArray(), backend.IrVersions.Select(version => version.Text).ToArray(), true)));
+                : new ExtensionListBackend(backend.Targets.Select(target => target.Value).ToArray(), backend.IrVersions.Select(version => version.Text).ToArray(), true),
+                validator is null ? null : new ExtensionListValidator(validator.IrVersionTexts)),
+            entry.CapabilitySummary);
     }
 
     public string ToJson() => JsonSerializer.Serialize(this, ExtensionListJsonContext.Default.ExtensionListReport);
 }
 
 public sealed record ExtensionListEntry(string Id, string Name, string Version, string? Description, IReadOnlyList<string> Types,
-    string Delivery, IReadOnlyList<string> Hosts, bool Available, ExtensionListCapabilities Capabilities);
+    string Delivery, IReadOnlyList<string> Hosts, bool Available, ExtensionListCapabilities Capabilities,
+    [property: JsonIgnore] string CapabilitySummary);
 
-/// <summary>Capability claims under their MEP wire names.</summary>
-public sealed record ExtensionListCapabilities(ExtensionListBackend? Backend);
+/// <summary>
+/// Capability claims under their MEP wire names. <c>validator</c> is a morphir-dotnet report member: MEP
+/// 0.2.0-draft.1 has no validator capability, so it is never written into MEP messages.
+/// </summary>
+public sealed record ExtensionListCapabilities(ExtensionListBackend? Backend, ExtensionListValidator? Validator);
 
 public sealed record ExtensionListBackend(IReadOnlyList<string> Targets, IReadOnlyList<string> IrVersions, bool Generate);
+
+/// <summary>The IR versions that a validator reads, in the spelling of the model readers.</summary>
+public sealed record ExtensionListValidator(IReadOnlyList<string> IrVersions);
 
 public sealed record ExtensionListDiagnostic(string Code, string Message);
 

@@ -568,10 +568,47 @@ The CLI should create directories automatically. If this fails:
    morphir dist install <url> <version>
    ```
 
+## Compile failures
+
+Use `--json` and read `failureKind` and `diagnostics`, or `--json-lines` and read the last `completed`
+record. Exit code 1 is a source or model error; exit code 2 is an invocation, configuration, selection or
+I/O failure. See [compile]({{< relref "/docs/cli/compile" >}}).
+
+| Code | Cause | Fix |
+| --- | --- | --- |
+| `compile.frontend_unavailable` | No registered frontend reads the language. The AOT `morphir` has no built-in F# frontend. | Use `dotnet-morphir`, which has a built-in F# frontend, or configure the F# MEP guest with `--extension morphir-fsharp-frontend` or `[frontend.fsharp].extension`. |
+| `extension.unavailable` | The frontend extension did not start, or its session did not initialize. | Check the `--extension` or `[frontend.<language>].extension` value: a command on `PATH`, a path, or a `.dll`. Read the guest's stderr. |
+| `extension.not_admitted` | The agreed MEP session does not admit the request, for example its IR version or a file extension. | Request a version or documents that the message lists for the extension. |
+| `extension.tuple_unavailable` | The host and the extension agreed no `compileModel` tuple (profile `morphir-ir`, codec `morphir-json`). | Use an extension that serves JSON compile tuples for IR `4.0.0` or `3.0.0`. |
+| `morphir.unrepresentable` | The requested classic IR version cannot hold a value of the model: an integer outside the 64-bit range, or a character outside the Basic Multilingual Plane. Exit code 1. | Request IR version `4`. |
+| `compile.unknown_exposed_module` | `project.exposed_modules` names a module that the sources do not define. | Fix the module name, or remove it from `exposed_modules`. |
+| `msbuild.deadline_exceeded`, `msbuild.output_limit_exceeded` | Project evaluation did not end before the deadline, or wrote more output than the limit. | Check the project file for imports that run long or write much output. |
+| `extension.protocol_error` | The extension broke the MEP protocol, for example it wrote a log line to stdout. | Fix or update the extension. Logs go to stderr. |
+| `extension.timeout` | The extension did not answer before the deadline. | Check the guest's stderr, and run the compile again. |
+| `compile.unsupported_ir_version` | No writer declares the requested IR version, for example `4.1.0-draft.1`. | Use a declared version: `1`, `2`, `3`, `4` or `4.0.0`. |
+| `compile.ir_version_not_served` | The selected frontend does not produce the requested IR version. | Request a version that the message lists for the frontend. |
+| `compile.language_required` | No language is selected, and the sources do not select one. A `[frontend.<language>].project_file` is read only for the selected language. | Use `--language`, or set `frontend.language`. |
+| `compile.package_required` | No package name. | Use `--package-name`, or set `project.name`. |
+| `compile.unsupported_setting` | An option or setting that this build does not implement, for example `--types-only` or `ir.layout = "document-tree"`. | Remove it. The message names the option or the key and its file. |
+| `compile.invalid_arguments` naming `--target` or `--generate-output` | `--target` without `--generate-output`, `--target` more than one time, or `--generate-output` or `--option` without `--target`. | Give one `--target` with `--generate-output <directory>`. `-o` installs the IR; it is not the generation output. |
+| `incompatible-model` after a successful compile with `--target` | The backend of the target does not declare the IR version. The IR stays published. | Use an IR version that the message lists for the backend, or run `generate` later with another target. |
+| `compile.generation_unavailable` | `--target` in a build that registers no generation backends. | Use `dotnet-morphir` or `morphir`, which both register the F# and C# backends, or run `generate` on the published IR. |
+| `sources.conflicting_source_options` | `--project-file` and `--input` together. | Use one of them. |
+| `sources.project_file_as_input` | An `--input` file is a project file. | Use `--project-file`. |
+| `sources.unknown_project_file` | No project-file provider recognizes the file. | Name a supported project file. See [project-file sources]({{< relref "/docs/configuration/project-file-sources" >}}). |
+| `sources.no_documents` | The source directory has no file with an extension that the frontend claims. | Set `project.source_directory`, or use `--input`. |
+| `sources.unsupported_entry`, `sources.invalid_utf8` | A source, or a directory above it, is a link or a special file, or the source is not valid UTF-8. | Name the target file, or save the file as UTF-8. |
+| `install.foreign_content` | `-o` names a directory that has a file that an earlier install of this task did not write. The directory does not change. | Remove or move the file, or use another `-o` directory. |
+| `compile.record_missing` | `generate` without `--input` found no compile record, or the most recent compile failed. | Run `morphir compile` first, or give `--input`. |
+
+If F# reports that a module or value is not defined, check the source order. A directory gives files in
+lexical order, and F# compiles files in order. Use `--input` files in dependency order, or a project file.
+
 ## Generation failures
 
-`morphir generate` requires explicit input, target and output paths. It does not
-read `morphir.toml` or `morphir.yml`. Use exact target `fsharp` and Boolean option
+`morphir generate` requires explicit target and output paths. With `--input`, it
+does not read `morphir.toml` or `morphir.yml`. Without `--input`, it reads the IR
+of the most recent `morphir compile` of the project. Use exact target `fsharp` and Boolean option
 `--option optimize=false` to disable folding. Unknown options and quoted strings
 where Booleans are required return exit 2.
 

@@ -41,6 +41,40 @@ public sealed class GenerationHandlerTests : IDisposable
     }
 
     [Test]
+    public async Task GenerationStagesFromALoadedModelGiveTheSameResultAsTheHandler()
+    {
+        var input = GenerationInputFixtures.DailyRate(_root, "4.0.0", "text");
+        var loader = new GenerationModelLoader(new BoundedModelCapture());
+        var backends = new RegisteredBackendResolver([new FSharpGenerationBackend()]);
+        var viaHandler = await GenerateHandler.Handle(new(new(input, "fsharp", Path.Combine(_root, "handler")), new(_root)),
+            new CliGenerationSettingsResolver(), loader, backends, new GenerationPublisher(), default);
+
+        var resolution = await new CliGenerationSettingsResolver().ResolveAsync(new(input, "fsharp", Path.Combine(_root, "stages")), new(_root), default);
+        var settings = ((Outcome<GenerationSettings>.Success)resolution).Value;
+        var loaded = ((Outcome<LoadedModel>.Success)await loader.LoadAsync(settings.Input, settings.Limits, default)).Value;
+        var viaStages = await GenerationStages.RunFrom(loaded, settings, backends, new GenerationPublisher(), default);
+
+        var expected = ((Outcome<GenerationSuccess>.Success)viaHandler).Value;
+        var actual = ((Outcome<GenerationSuccess>.Success)viaStages).Value;
+        actual.Should().BeEquivalentTo(expected, options => options.Excluding(success => success.OutputDirectory).Excluding(success => success.Publication));
+        actual.Publication.Artifacts.Should().Equal(expected.Publication.Artifacts);
+        foreach (var path in expected.Publication.Artifacts)
+            File.ReadAllText(Path.Combine(actual.OutputDirectory, path)).Should().Be(File.ReadAllText(Path.Combine(expected.OutputDirectory, path)));
+    }
+
+    [Test]
+    public async Task GenerationStagesNameTheBackendInAFailure()
+    {
+        var input = GenerationInputFixtures.DailyRate(_root, "4.0.0", "text");
+        var resolution = await new CliGenerationSettingsResolver().ResolveAsync(
+            new(input, "fsharp", Path.Combine(_root, "stages")) { Options = ["no-such-option=1"] }, new(_root), default);
+        var settings = ((Outcome<GenerationSettings>.Success)resolution).Value;
+        var loaded = ((Outcome<LoadedModel>.Success)await new GenerationModelLoader(new BoundedModelCapture()).LoadAsync(settings.Input, settings.Limits, default)).Value;
+        var result = await GenerationStages.RunFrom(loaded, settings, new RegisteredBackendResolver([new FSharpGenerationBackend()]), new GenerationPublisher(), default);
+        ((Outcome<GenerationSuccess>.Failure)result).Error.Backend.Should().NotBeNull();
+    }
+
+    [Test]
     public async Task SemanticFailureNeverReachesPublication()
     {
         var input = Path.Combine(_root, "model.json"); File.WriteAllText(input, GenerateSteps.V4Model.Replace("5000", "2147483648"));

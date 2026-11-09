@@ -1,6 +1,6 @@
 # F# source frontend and compile steel thread
 
-Status: In Progress
+Status: Implemented
 
 Tracking: [#499](https://github.com/finos/morphir-dotnet/issues/499). Planning review: [#495](https://github.com/finos/morphir-dotnet/pull/495).
 
@@ -11,10 +11,10 @@ The first delivery adds an in-process F# frontend to `dotnet-morphir compile`.
 It produces a requested IR version, reports unsupported constructs precisely,
 and supports both a later `generate` command and `compile --target`.
 
-The implementation follows the [OpenSpec proposal](../../../../../openspec/changes/add-fsharp-compile/proposal.md),
-[design](../../../../../openspec/changes/add-fsharp-compile/design.html),
-[capability specifications](../../../../../openspec/changes/add-fsharp-compile/specs/),
-and [task checklist](../../../../../openspec/changes/add-fsharp-compile/tasks.md).
+The implementation follows the [OpenSpec proposal](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/proposal.md),
+[design](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/design.html),
+[capability specifications](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/specs/),
+and [task checklist](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/tasks.md).
 Related work includes [#363](https://github.com/finos/morphir-dotnet/issues/363)
 and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 
@@ -54,14 +54,15 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Tool path, first delivery | SDK mapping | Implemented | Task 3.7; `SdkMapping.fs`, 9 table tests (inventory, FSharp.Core and F# generator round trip) and 11 lowering tests |
 | Tool path, first delivery | Registration and corpus run | Implemented | Task 3.8; `FSharpFrontend.registration` over the FE-1 contract (`IFrontend`), the `library` adapter, 39 corpus scenarios (one refusal per catalog code and a semantic case with hand-written IR for versions 1–4), 468 cases qualify; behavioral verdict moved to task 3.9 |
 | Tool path, first delivery | Behavioral verdict and generator round trip | Implemented | Task 3.9; vocabulary 1.1 call step and value codecs 1 (morphir-elm `DataCodec` shape) and 2 (tagged objects), `Runner.runWith` with a `CallChecker`, the .NET checker through the F# backend and FSI; 50 scenarios, 600 cases and 33 call observations qualify; every successful case round-trips for versions 1–4 after three backend fixes and one frontend access fix |
-| Tool path, first delivery | Coverage documentation | Planned | Task 3.10 |
-| Tool path, first delivery | Sources, configuration, CLI composition and streamed reports | Planned | Tasks 4.1–4.8 |
-| Tool path, first delivery | Compile records and generation from a prior compile | Planned | Tasks 5.1–5.5 |
-| Tool path, first delivery | In-memory generation and library/CLI qualification | Planned | Tasks 6.1–6.4 |
-| MEP path, second delivery | Pinned 0.2.0-draft.1 codec, envelopes and session core | Planned | Tasks 7.1–7.4 |
-| MEP path, second delivery | Frontend-only F# guest and installable package | Planned | Tasks 8.1–8.4 |
-| MEP path, second delivery | AOT host, classic wire profiles and transport parity | Planned | Tasks 9.1–9.5 |
-| Integration | Coverage, examples, conformance reports and viability evidence | Planned | Tasks 10.1–10.3 |
+| Tool path, first delivery | Coverage documentation | Implemented | Task 3.10; `docs/content/docs/frontends/fsharp/coverage.md` generated from the admission catalog (38 codes, each with an example), a test that fails when the page differs from the catalog, and the F# frontend overview with Fable and Fantomas as prior art |
+| Tool path, first delivery | Sources, configuration, CLI composition and streamed reports | Implemented | Tasks 4.1–4.3 and 4.6–4.8: `morphir compile` in `src/Morphir.Tooling/Features/Compile/`, `FSharpFrontendScenario` only in `dotnet-morphir`, schema amendments for SemVer `ir.format_version` and the shared `project_file`/`extension` keys, the fold property over 600 corpus cases, JSON and JSON Lines reports, `docs/content/docs/cli/compile.md` and the project-file sources reference |
+| Tool path, first delivery | MSBuild project-file provider and shared bounded capture | Implemented | Tasks 4.4 and 4.5: `MsBuildProjectFileProvider` (evaluation only, through a bounded child process) and `SourceCapture` over the bounded capture core that `generate` also uses; 17 provider tests with real `.fsproj`/`.csproj` files, 6 process-runner tests, 11 source-capture tests; the 10 generate capture tests pass unchanged |
+| Tool path, first delivery | Compile records and generation from a prior compile | Implemented | Tasks 5.1–5.5: `CompileTaskStore`, `compile.lock` and `-o` installation in `src/Morphir.Tooling/Features/TaskRecords/`, 85 test cases against the pinned upstream record; `compile` publishes through the store (`-o`, `--out-dir`, `installed` in the report) with the MSBuild provider and the shared capture in both hosts; `RecordGenerationSettingsResolver` gives `generate` without `--input` the IR of the most recent compile and holds the shared lock until loading ends; 23 new tests, the project-file, record and tombstone acceptance scenarios, and the documented two-step example in `docs/content/docs/cli/generate.md` |
+| Tool path, first delivery | In-memory generation and library/CLI qualification | Implemented | Tasks 6.1–6.4: `GenerationStages.RunFrom`; `compile --target`/`--generate-output`/`--option` on the written bytes, with the generate and generatePublish stages; the MCK `cli` adapter, checked against a scripted fake executable; the complete suite (600 variants) qualifies `dotnet-morphir` through the `library` and `cli` adapters, and a sample through `compile --target`. See [Tool-path qualification, 2026-11-09](#tool-path-qualification-2026-11-09) |
+| MEP path, second delivery | Pinned 0.2.0-draft.1 codec, envelopes and session core | Implemented | Tasks 7.1–7.4 on the add-mep-core core; compileModel request types, result sum, reserved options, RFC 8785 context digest, 64 MiB frames and compileModel tuple negotiation; 6 new contract entries and 9 tests |
+| MEP path, second delivery | Frontend-only F# guest and installable package | Implemented | Tasks 8.1–8.4; `morphir-fsharp-frontend` with JSON compileModel tuples for 4.0.0 and 3.0.0; 14 tests, including replay of the pinned transcripts against the guest process and a pack-install-describe check |
+| MEP path, second delivery | AOT host, classic wire profiles and transport parity | Implemented | Tasks 9.1–9.5: `Morphir.Compilation.Mep` (`MepFrontend`, AOT-safe), `MepFrontendExtensionConnector` in `CompilationScenario`, the classic path through `3.0.0` and `ClassicJson.readTypedDistribution`; the Native AOT `morphir` with the installed guest gives the library IR for 588 of 600 suite variants (the 8 others are the `.fsi` case, recorded in `conformance/deviations.md`). See [Default-CLI viability evidence, 2026-11-09](#default-cli-viability-evidence-2026-11-09) |
+| Integration | Coverage, examples, conformance reports and viability evidence | Implemented | Tasks 10.1–10.3: coverage of the changed files 85.5% (with the baseline gaps of `Morphir.Tooling` and `Morphir.Mep` below), the MCK report of every adapter, the AOT size and compile time on each published RID, and a check of every spec scenario, documentation example and capability claim. See [Default-CLI viability evidence, 2026-11-09](#default-cli-viability-evidence-2026-11-09) and [Integration check, 2026-11-09](#integration-check-2026-11-09) |
 | Deferred | Project references, external dependency resolution and conditional defines | Deferred | Separate changes |
 | Deferred | Incremental compilation, types-only mode and P1 language constructs | Deferred | Separate changes |
 | Deferred | Ion, document-tree output, multi-target builds and backend guests | Deferred | Separate changes |
@@ -76,12 +77,15 @@ Writer evidence includes reader round trips, bundled-schema validation and
 structural comparisons against independently pinned upstream examples. Frontend
 evidence includes typed and located IR, refusal-catalog completeness, deterministic
 diagnostics, behavioral observations and IR → F# → IR checks. The same portable
-MCK suite runs through library, CLI and, in the second delivery, MEP adapters.
+MCK suite runs through the library, CLI and MEP adapters.
 
 The dotnet-tool milestone is complete only after task 6.4 passes. The AOT/MEP
-milestone is separate and requires task 9.4. Required test, format, coverage and
-documentation checks remain part of integration; a passing spike does not imply
-that either product milestone is complete.
+milestone is separate and requires task 9.4.
+
+**Milestone status, 2026-11-09:** both milestones are complete. The tool-path
+(dotnet-tool) milestone completed with task 6.4, and the AOT/MEP milestone with
+task 9.4: the Native AOT `morphir` compiles the suite through the installed F#
+guest. The integration checks of group 10 pass (see the evidence below).
 
 ## Implementation notes
 
@@ -103,7 +107,7 @@ that either product milestone is complete.
   patterns have no exposed decision tree; other trees use the subject range;
   nested clause bodies can lose the source body's range. The planned join
   passes only the match-lambda probe. This original probe remains a historical failing reproduction; the revised task 3.1 is validated below.
-- [Findings and reproduction](../../../../../openspec/changes/add-fsharp-compile/spikes/match-range-join.md)
+- [Findings and reproduction](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/spikes/match-range-join.md)
   record all cases and the separate compiler-service/Core compatibility issue.
 - The current FCS 34.1.1 pin cannot read the bundled modern Core metadata. A
   local 43.12.403 probe checks every source, but its exact Core dependency
@@ -122,7 +126,7 @@ that either product milestone is complete.
 - An identity-call result wrapper failed a real polymorphic counterexample.
   Replacing it with a nonexpansive match binding made that case pass. Signature
   preservation is a required production check, not an assumed property.
-- [Replacement findings and reproduction](../../../../../openspec/changes/add-fsharp-compile/spikes/syntax-led-reconstruction.md)
+- [Replacement findings and reproduction](../../../../../openspec/changes/archive/2026-11-09-add-fsharp-compile/spikes/syntax-led-reconstruction.md)
   describe the proof boundary. The spike uses a local exact FCS 43.12.403/Core
   10.1.403 pair without changing central pins. Task 3.2 still owns production
   compiler compatibility, full binding/constraint/reference verification and the
@@ -211,8 +215,147 @@ dotnet publish src/Morphir/Morphir.csproj -c Release -r osx-arm64 -p:PublishAot=
   with all twelve missing combinations and no qualification report. Expanded
   AOT/trim warnings add nothing beyond the existing CLI baseline.
 
+### Tool-path qualification, 2026-11-09
+
+Task 6.4 ran the complete MCK suite `frontend-fsharp` through the `library`
+adapter (the in-process frontend) and the `cli` adapter (`dotnet-morphir
+compile --json-lines`), and a sample through `compile --target`. Every kit
+verdict (structural, diagnostics and behavioral, with the .NET call checker)
+passes. The morphir-dotnet checks also pass: the IR of every successful CLI
+variant is structurally equal to the library IR, for every input kind, and the
+diagnostics of every failed variant are equal. The IR → F# → IR round trip of
+task 3.9 runs in the same test project and passes. MEP parity is part of group 9.
+
+- Build: commit `03d7942`, `dotnet-morphir` `0.4.0-alpha.2+03d7942b8e8e9736170a2907228ae872896bff51`,
+  macOS arm64, 18 cores, shared process gate of 9. The five adapter tests take
+  3 min 43 s.
+- Case set SHA-256: `48bd2accf4c217d442b8fb92f289272e7777ee4e327d8003005a667476c128f7`,
+  vocabulary 1.1, IR versions 1–4, input kinds files, directory and project file.
+
+| Report | Adapter | Implementation SHA-256 | Variants | Verdicts | Report SHA-256 |
+| --- | --- | --- | --- | --- | --- |
+| `library.json` | `library` | `04d3610e…c89e3` (`Morphir.Frontend.FSharp`) | 600 (50 cases) | 596 passed, 4 excluded, qualified | `ce48807d73ea55b09f710be7064e7fd1259db718c88b7af19a9ba7cabfbff7a6` |
+| `cli.json` | `cli` | `68625ebb…d60ec` (`dotnet-morphir`) | 600 (50 cases) | 596 passed, 4 excluded, qualified | `3794b6a090057f52dc66af0b439184402a660095a266e7ba148b9dfd3d8cf3ae` |
+| `cli-target-fsharp.json` | `cli --target fsharp` | `68625ebb…d60ec` | 192 (16 cases) | 192 passed, qualified | `f33f1d47a65b7ab3b34022b2b0fe105be060f94fe7be86125846826280972dbb` |
+| `cli-target-csharp.json` | `cli --target csharp` | `68625ebb…d60ec` | 192 (16 cases) | 192 passed, qualified | `fa971d04a2ff7b8cfac6f54d1e0744e504135e1d96ec0b96cc1320d6782136fe` |
+
+The 4 excluded variants are the directory rows of the `.fsi` case: ordinal
+order puts `Pricing.fs` before `Pricing.fsi`, and F# refuses that order. The
+`--target` sample is the first 12 semantic cases and the first 4 refusal cases,
+with all their rows.
+
+The reports are the deterministic output of `Report.toUtf8`. They are 1.9 MB
+(library) and 8.9 MB (cli) of JSON, mostly model JSON, so they are stored with
+gzip in `openspec/changes/archive/2026-11-09-add-fsharp-compile/evidence/mck-2026-11-09/`. The
+SHA-256 values above are of the uncompressed reports. The implementation
+identity holds the commit and the assembly SHA-256, so another build gives other
+report bytes with the same verdicts.
+
+Reproduce the reports:
+
+```console
+git checkout 03d7942
+dotnet build Morphir.slnx
+MORPHIR_MCK_COMPLETE=1 MORPHIR_MCK_REPORT_DIR=/tmp/mck-reports dotnet run --project tests/Morphir.Frontend.FSharp.Tests --no-build -- --sequenced --filter "MCK cli adapter (tasks 6.3 and 6.4)"
+```
+
+At `03d7942` the tests always run the complete suite. In later commits, without
+`MORPHIR_MCK_COMPLETE=1`, the `cli` tests run a sample with every input
+kind and IR version (4 cases for the suite, 2 for `--target`), because each
+variant starts a process and the complete suite takes about 25 minutes on a
+4-core CI runner.
+
+On macOS, set `TMPDIR` to its resolved path first
+(`TMPDIR=$(cd "$TMPDIR" && pwd -P)/`), because the model loader refuses a path
+through the `/var` link.
+
+### Default-CLI viability evidence, 2026-11-09
+
+This section collects the evidence of task 10.2 for the default-CLI decision.
+
+MCK verdict reports, one for each adapter. All reports are in
+`openspec/changes/archive/2026-11-09-add-fsharp-compile/evidence/mck-2026-11-09/`, compressed with
+gzip; the SHA-256 values are of the uncompressed reports.
+
+| Adapter | Implementation | Variants | Verdicts | Report |
+| --- | --- | --- | --- | --- |
+| `library` | `Morphir.Frontend.FSharp` in process | 600 | 596 passed, 4 excluded, qualified | `library.json`, see [Tool-path qualification](#tool-path-qualification-2026-11-09) |
+| `cli` | `dotnet-morphir compile` | 600 | 596 passed, 4 excluded, qualified | `cli.json` |
+| `cli --target fsharp`, `cli --target csharp` | `dotnet-morphir compile --target` | 192 each | 192 passed, qualified | `cli-target-fsharp.json`, `cli-target-csharp.json` |
+| `mep-guest` | `MepGuestAdapter` over the guest process | every case | IR bytes and diagnostics equal the `library` adapter; a `.fsi` case is refused before dispatch | `MepFrontendTests` (no report file) |
+| `cli` with `--extension` | Native AOT `morphir` with the installed `morphir-fsharp-frontend` | 600 | 588 passed with the library IR, 4 excluded, 8 refused (`frontend-fsharp-0081`, `.fsi`); not qualified because of the `.fsi` case | `cli-aot-mep.json`, SHA-256 `1fae5506a20f5db5a6eba8fb1ad52ee34398ffbd53628281e898d9c8b8fc9300` |
+
+Reproduce the AOT report on macOS arm64 (the other reports have the command in
+[Tool-path qualification](#tool-path-qualification-2026-11-09)):
+
+```console
+dotnet build Morphir.slnx
+dotnet publish src/Morphir/Morphir.csproj -c Release -r osx-arm64 -p:PublishAot=true -p:PublishTrimmed=true -o /tmp/morphir-aot
+dotnet pack src/Morphir.Frontend.FSharp.Mep -c Release -o /tmp/guest-pkg
+dotnet tool install Morphir.Frontend.FSharp.Mep --version <version> --tool-path /tmp/guest-tool --configfile <nuget.config with /tmp/guest-pkg>
+MORPHIR_AOT_CLI=/tmp/morphir-aot/morphir MORPHIR_FSHARP_GUEST=/tmp/guest-tool/morphir-fsharp-frontend MORPHIR_MCK_REPORT_DIR=/tmp/mck-reports \
+  dotnet run --project tests/Morphir.Frontend.FSharp.Tests --no-build -- --sequenced --filter-test-case "AOT morphir"
+```
+
+Native AOT single-file size and compile time on each published RID, from the
+manual AOT workflow with `test-suite: measure-compile` on commit `f287a2a`. The
+times are the median wall time of 11 runs of `morphir compile` for one F# file:
+without a frontend (the settings, sources and frontend-selection stages, which
+end with `compile.frontend_unavailable`), and with the installed F# guest
+(which includes the start of the framework-dependent guest process).
+
+| RID | Runner | Size | Compile without a frontend | Compile with the guest | Run |
+| --- | --- | --- | --- | --- | --- |
+| `linux-x64` | `ubuntu-latest` | 23,108,408 bytes (22.0 MiB) | 39 ms | 2089 ms | [42598228850](https://github.com/finos/morphir-dotnet/actions/runs/42598228850) |
+| `linux-arm64` | `ubuntu-24.04-arm` | 23,833,392 bytes (22.7 MiB) | 45 ms | 2574 ms | [42598232152](https://github.com/finos/morphir-dotnet/actions/runs/42598232152) |
+| `win-x64` | `windows-latest` | 27,385,344 bytes (26.1 MiB) | 130 ms | 3040 ms | [42598235473](https://github.com/finos/morphir-dotnet/actions/runs/42598235473) |
+| `osx-arm64` | `macos-latest` | 22,603,784 bytes (21.6 MiB) | 77 ms | 1478 ms | [42598238830](https://github.com/finos/morphir-dotnet/actions/runs/42598238830) |
+
+Reproduce a row on its platform with `scripts/measure-compile-aot.sh <rid>
+<guest-command>`, or run the "Manual AOT Testing" workflow with that RID and
+`test-suite: measure-compile`. The job summary prints the four values.
+
+Most of the time with the guest is the start of the .NET runtime and the F#
+compiler service in the guest process. The AOT host itself starts in less than
+150 ms on every RID.
+
+The documented differences from the Rust CLI are in
+[`conformance/deviations.md`](https://github.com/finos/morphir-dotnet/blob/main/conformance/deviations.md):
+`--json-lines` writes an event stream that ends with a `completed` record
+(Rust writes one report line), and the guest is not qualified with the upstream
+guest kit, which needs a legacy `0.1` stage and a backend. The guest also does
+not claim `.fsi` signature files.
+
+### Integration check, 2026-11-09
+
+Task 10.3 checked every scenario of the six spec deltas against the tests, and
+every documented code, option, key, report member and command against the
+implementation. The check found no behavior that contradicts the docs. It
+changed these points:
+
+- The specs now state three limits that were implicit: the F# guest claims
+  `.fs` only, so a request with a `.fsi` document is refused before dispatch;
+  a failure in the `--target` generation stages has the exit code of
+  `generate`; and the two classic-range scenarios are about the classic
+  builder, because F# source cannot hold such literals.
+- The host now reports `extension.tuple_unavailable` when the agreed session
+  has no compile tuple, as the spec says; a linked subdirectory of a source
+  directory is refused, not skipped; the unused
+  `compile.extension_unavailable` code is gone.
+- New tests cover `ir.format = "ion"` and `"yaml"`, classic output from a
+  frontend without the v4 builder, a session that stays usable after a digest
+  mismatch, and the full Boolean short-circuit lowering.
+- The docs no longer call implemented parts "planned" or "second delivery",
+  and they list every extension, MSBuild and classic-range code.
+
+Coverage gap for maintainer review (task 10.1): the merged line coverage of
+`Morphir.Tooling` is 56.3% and of `Morphir.Mep` 62.3%, below the 80% target,
+because of code that this change does not touch. This change raises
+`Morphir.Tooling` from 47.2% on `main`, and the files that it adds or changes
+have 85.5% line coverage.
+
 ## Open questions
 
-- Confirm the guest package name during the second delivery, as recorded in the
-  design. This does not block the in-process frontend.
+- None open. The guest package name is `Morphir.Frontend.FSharp.Mep`, with the
+  command `morphir-fsharp-frontend` (task 8.4).
 

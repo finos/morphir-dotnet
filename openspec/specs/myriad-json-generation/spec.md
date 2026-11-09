@@ -24,19 +24,19 @@ Generated code SHALL use no reflection, no `JsonSerializer` call without type in
 - **THEN** the publish has no IL warning, and the JSON output equals the JIT output byte for byte
 
 ### Requirement: Records follow the configured member rules
-A record SHALL be a JSON object with one member for each field, named by the field's `JsonName`, else by the context naming policy. A field that is not an option SHALL be required: an absent member or a `null` value SHALL fail. An option field SHALL be written as `null` or left out, as the skippable-option setting says.
+A record SHALL be a JSON object with members named by JsonName or the context naming policy. Non-option fields SHALL be required unless they declare a missing-member default or extension data. Explicit null SHALL retain configured null rules. Options SHALL be written as null or omitted as configured.
 
 #### Scenario: Missing required member
-- **WHEN** JSON for `Person` has no `name` member
-- **THEN** deserialization fails with a `JsonException` that names `name` and `Person`, with the path and position that System.Text.Json gives
+- **WHEN** JSON for Person has no unannotated name member
+- **THEN** deserialization fails with a JsonException naming name and Person
 
 #### Scenario: Failure inside a nested value
-- **WHEN** a member of a record inside another record has a value of the wrong kind
-- **THEN** the message names each member on the way to the failure, outer member first
+- **WHEN** a member of a nested record has the wrong kind
+- **THEN** the message names each member on the way to the failure
 
 #### Scenario: Skippable option
-- **WHEN** a context sets skippable option fields and a `Person` has `Nickname = None`
-- **THEN** the JSON has no `nickname` member, and JSON with no `nickname` member reads back as `None`
+- **WHEN** skippable options are enabled and Nickname is None
+- **THEN** nickname is omitted and an absent nickname reads as None
 
 ### Requirement: Union encodings match the shared vocabulary
 Unions SHALL support the base encodings `AdjacentTag`, `ExternalTag`, `InternalTag` and `Untagged`, the flags `NamedFields`, `UnwrapFieldlessTags`, `UnwrapSingleFieldCases`, `UnwrapSingleCaseUnions`, `UnwrapRecordCases`, `UnwrapOption`, `AllowUnorderedTag` and `UnionFieldNamesFromTypes`, case-insensitive tags, and the presets `Default`, `NewtonsoftLike`, `ThothLike` and `FSharpLuLike`, with the meanings that FSharp.SystemTextJson gives them.
@@ -78,15 +78,15 @@ Integer types SHALL read and write their full range with no floating-point step.
 - **THEN** the JSON has that exact number, and it reads back to the same value
 
 ### Requirement: Unknown and duplicate members follow the configured rule
-An unknown member SHALL be ignored or refused, as the context or type setting says. A duplicate member SHALL be refused by default. A refusal SHALL fail with a `JsonException` that names the member and the path.
+Unknown members SHALL be ignored or refused as configured, or captured by an explicitly declared extension-data field. Duplicate members, including aliases of the same field, SHALL be refused with a JsonException naming the member and carrying the path reported by System.Text.Json.
 
 #### Scenario: Refuse unknown members
-- **WHEN** a type sets unknown members to refuse, and the JSON has an extra member `extra`
-- **THEN** deserialization fails and names `extra`
+- **WHEN** a type sets unknown members to refuse and JSON has an extra member
+- **THEN** deserialization fails and names that member
 
 #### Scenario: Duplicate member
-- **WHEN** the JSON for a record has the member `name` twice
-- **THEN** deserialization fails and names `name`
+- **WHEN** a record's name member appears twice
+- **THEN** deserialization fails and names name
 
 ### Requirement: F# collections and options are supported
 Generated converters SHALL support `option`, `voption`, `list`, arrays, `Set`, `ResizeArray`, `IReadOnlyList`, `IReadOnlyCollection`, `Map` and `IReadOnlyDictionary`, tuples, and nesting of these. A map SHALL use the configured map format (`Object`, `ArrayOfPairs` or `ObjectOrArrayOfPairs`); an object map SHALL need a string or parsed-value key.
@@ -137,3 +137,68 @@ Each morphir-dotnet release SHALL publish the plugin package `Morphir.Myriad.Sys
 #### Scenario: Broken plugin package
 - **WHEN** the plugin package has no Myriad host or no build targets
 - **THEN** package validation fails, and the release publishes no package
+
+### Requirement: Record fields can declare wire defaults
+A record field MAY declare a typed scalar, empty collection, static provider or explicit JSON-literal default for an absent member. Scalar and JSON defaults SHALL use the generated field codec. Explicit null SHALL retain the field's null rules. Conflicting declarations and malformed JSON defaults SHALL fail generation. Unannotated fields SHALL remain required.
+
+#### Scenario: Typed scalar defaults
+- **WHEN** string, boolean and numeric fields declare ordinary literal defaults
+- **THEN** absent members use their values without callers encoding JSON strings, and incompatible scalar kinds fail generation
+
+#### Scenario: Absent capability flag
+- **WHEN** a boolean field declares the default `false` and its JSON member is absent
+- **THEN** it reads as false, while a null member is refused
+
+### Requirement: Default providers are typed direct calls
+Provider calls SHALL be emitted directly and checked by the F# compiler against the field type, without reflection or build-time execution. Providers SHALL run once per absent member, never for explicit values or null. Results SHALL respect null, canonical-version and critical-path rules.
+
+#### Scenario: Decimal provider
+- **WHEN** a decimal field names an accessible static no-argument provider method using typeof and nameof
+- **THEN** an absent member calls the provider directly, and an incompatible return type or method signature fails compilation
+
+#### Scenario: Mutable default isolation
+- **WHEN** two absent collection members use a provider that creates a mutable collection
+- **THEN** their collections are distinct and mutations do not affect the other record
+
+### Requirement: Empty collections can be omitted
+A collection field MAY opt into omission when empty. Nonempty collections SHALL retain their configured encoding. Unsupported shapes SHALL fail generation.
+
+#### Scenario: Optional diagnostic related information
+- **WHEN** a related-information list declares an empty default and empty omission
+- **THEN** an absent list reads as empty and an empty list is not written
+
+### Requirement: Booleans can be omitted when equal to their default
+A Boolean field with a missing-member default MAY opt into omission when its value equals that default. Another value SHALL be written. A field without a Boolean type or without a Boolean default SHALL fail generation.
+
+#### Scenario: Multi-document frontend capability
+- **WHEN** `multiDocument` declares the default false and default omission
+- **THEN** an absent member reads as false, false is not written, and true is written
+
+### Requirement: Extension data is preserved without a wrapper
+A record MAY have one extension-data field of a string-keyed JsonElement map type. Unknown members SHALL be captured and written beside named members. A repeated member or a write collision with a named member or its alias SHALL fail. An absent extension-data set SHALL be empty.
+
+#### Scenario: Future capability
+- **WHEN** a capability object includes an unknown nested member
+- **THEN** its JSON value survives a read/write cycle without an extra wrapper member
+
+### Requirement: Annotated version aliases migrate canonically
+A record MAY declare a legacy alias and exact legacy/current versions. Readers SHALL require a matching name/version pair, refuse both aliases together, and normalize legacy values and paths. Writers SHALL use the current member and version.
+
+#### Scenario: MEP claims migration
+- **WHEN** a claim set uses statementVersion draft.1 and lists statementVersion as critical
+- **THEN** it reads as claimsVersion draft.2 and writes the canonical current version and path
+
+#### Scenario: Version-alias defaults are canonical
+- **WHEN** a version-alias field also declares a missing-member default
+- **THEN** literal defaults are accepted only when they encode the exact current-version string, and provider results are checked at deserialization, so an absent member cannot bypass the canonical-version invariant
+
+#### Scenario: Unknown critical child
+- **WHEN** a critical list includes a child path not present in its exact allowlist
+- **THEN** the reader refuses it even if its parent is allowed
+
+### Requirement: Critical paths are checked exactly
+A critical-path field MAY declare an exact allowlist. Readers and writers SHALL refuse an unknown path. A legacy version alias SHALL refuse a critical path naming the current version member.
+
+#### Scenario: Current path on legacy input
+- **WHEN** a draft.1 statement lists claimsVersion as critical
+- **THEN** the reader refuses it instead of treating it as a migrated legacy path

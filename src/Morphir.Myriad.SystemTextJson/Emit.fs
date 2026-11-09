@@ -62,6 +62,8 @@ type internal PlannedField =
         Default: DefaultValueSpec option
         /// True when an empty collection is left out on writing.
         OmitEmpty: bool
+        /// The F# literal of a Boolean default that is left out on writing.
+        OmitDefault: string option
         /// A synthetic string-keyed JsonElement map holding otherwise unknown object members.
         ExtensionData: bool
         VersionAlias: VersionAliasSpec option
@@ -427,6 +429,9 @@ module internal Emit =
                     w.Line "pair.Value.WriteTo(writer)")
             elif field.OmitEmpty then
                 w.Line $"if System.Object.ReferenceEquals({value}, null) || not (Seq.isEmpty {value}) then"
+                w.Indent writeField
+            elif field.OmitDefault.IsSome then
+                w.Line $"if {value} <> {field.OmitDefault.Value} then"
                 w.Indent writeField
             else
                 writeField ())
@@ -1423,6 +1428,7 @@ module internal Emit =
                             NumbersFromStrings = false
                             Default = None
                             OmitEmpty = false
+                            OmitDefault = None
                             ExtensionData = false
                             VersionAlias = None
                             KnownPaths = None

@@ -25,6 +25,7 @@ type Shape =
 | `JsonDefaultValueProvider` | A direct call to an accessible static method with no arguments, returning the field's type. |
 | `JsonDefaultJson` | An explicit JSON-literal default read through the generated field codec. |
 | `JsonOmitEmpty` | Leave an empty record collection out on writing. |
+| `JsonOmitDefault` | Leave a Boolean record field out on writing when it equals its `JsonDefaultValue`. |
 | `JsonVersionAlias` | Read one exact legacy member/version pair and normalize it to the current form. |
 | `JsonKnownPaths` | Require every critical path in a string collection to match the exact allowlist. |
 

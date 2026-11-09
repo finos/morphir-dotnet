@@ -589,3 +589,77 @@ let manifestTests =
             Expect.stringContains mismatch "absent.fs" "missing"
         }
     ]
+
+[<Tests>]
+let csharpSurfaceTests =
+    testList "Publication for C# callers" [
+        test "MatchValidatePublish calls valid for a tree that can be published" {
+            withTempDir (fun temp ->
+                let root = Path.Combine(temp, "out")
+
+                let outcome =
+                    VFileTree.matchValidatePublish (
+                        plain root,
+                        treeOf [ "a.fs", "A" ],
+                        Func<string>(fun () -> "valid"),
+                        Func<TreeWriteError, string>(fun error -> "invalid: " + TreeWriteError.describe error)
+                    )
+
+                Expect.equal outcome "valid" "the valid function runs"
+                Expect.isFalse (Directory.Exists root) "validation writes nothing")
+        }
+
+        test "MatchValidatePublish calls invalid with the error for a tree that cannot be published" {
+            withTempDir (fun temp ->
+                let root = Path.Combine(temp, "out")
+
+                let outcome =
+                    VFileTree.matchValidatePublish (
+                        plain root,
+                        treeOf [ "../evil.fs", "E" ],
+                        Func<TreeWriteError option>(fun () -> None),
+                        Func<TreeWriteError, TreeWriteError option>(Some)
+                    )
+
+                Expect.equal
+                    outcome
+                    (Some (TreeWriteError.InvalidTree [ TreeWriteProblem.PathOutsideOutputDirectory "../evil.fs" ]))
+                    "the invalid function gets the error")
+        }
+
+        test "MatchPublish calls published with what was written" {
+            withTempDir (fun temp ->
+                let root = Path.Combine(temp, "out")
+
+                let outcome =
+                    VFileTree.matchPublish (
+                        plain root,
+                        treeOf [ "a.fs", "A" ],
+                        Func<PublishResult, string list>(fun result -> result.Written),
+                        Func<TreeWriteError, string list>(fun error -> failtestf "expected success, got %s" (TreeWriteError.describe error))
+                    )
+
+                Expect.equal outcome [ "a.fs" ] "the published function gets the result"
+                Expect.equal (filesUnder root) [ "a.fs" ] "the file is written")
+        }
+
+        test "MatchPublish calls failed with the error and writes nothing" {
+            withTempDir (fun temp ->
+                let root = Path.Combine(temp, "out")
+
+                let outcome =
+                    VFileTree.matchPublish (
+                        plain root,
+                        treeOf [ "good.fs", "G"; "../evil.fs", "E" ],
+                        Func<PublishResult, TreeWriteError option>(fun _ -> None),
+                        Func<TreeWriteError, TreeWriteError option>(Some)
+                    )
+
+                Expect.equal
+                    outcome
+                    (Some (TreeWriteError.InvalidTree [ TreeWriteProblem.PathOutsideOutputDirectory "../evil.fs" ]))
+                    "the failed function gets the error"
+
+                Expect.isFalse (Directory.Exists root) "nothing is written")
+        }
+    ]

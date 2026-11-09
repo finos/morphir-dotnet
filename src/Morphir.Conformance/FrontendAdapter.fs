@@ -189,3 +189,17 @@ module FrontendAdapter =
     /// </summary>
     let create identity (frontend: IFrontend) (writers: WriterRegistry) : Adapter =
         LibraryAdapter.create identity (observe frontend writers)
+
+/// <summary>
+/// The <c>mep-guest</c> adapter: the library path over a frontend that runs as a MEP 0.2.0-draft.1 guest process
+/// (for example a connected <c>MepFrontend</c>). It works with any stdio guest that serves compileModel. The caller
+/// owns the session and ends it after the run.
+/// </summary>
+[<RequireQualifiedAccess>]
+module MepGuestAdapter =
+
+    /// <summary>The <c>mep-guest</c> adapter over a connected MEP frontend and the host's writers.</summary>
+    let create identity (frontend: IFrontend) (writers: WriterRegistry) : Adapter = {
+        FrontendAdapter.create identity frontend writers with
+            Name = "mep-guest"
+    }

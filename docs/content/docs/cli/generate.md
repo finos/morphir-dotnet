@@ -6,28 +6,34 @@ description: Generate target artifacts from a Morphir model
 # Generate
 
 Generate target files from a decoded Morphir library. Targets `fsharp` and
-`csharp` support classic and v4 models. Input, target and output are explicit.
+`csharp` support classic and v4 models. Target and output are explicit. The
+input is an explicit `--input`, or else the IR of the most recent
+`morphir compile` of the project.
 
 ## Synopsis
 
 ```text
-morphir generate --input <file-or-directory> --target <fsharp|csharp> --output <directory>
+morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output <directory>
   [--input-format auto|json|ion] [--option KEY=VALUE ...] [--json]
+  [--project <path-or-name>] [--config <file>] [--out-dir <directory>]
 ```
 
 ## Options
 
 | Option | Meaning |
 | --- | --- |
-| `--input` | Required JSON/Ion model file or Ion tree directory |
+| `--input` | JSON/Ion model file or Ion tree directory. Without it, the IR of the most recent compile |
 | `--target` | Required exact registered target ID, `fsharp` or `csharp` |
 | `--output` | Required output directory with owned generated files |
 | `--input-format` | `auto` by default; `json` or `ion` constrains the reader |
 | `--option` | Repeatable backend option, described below |
 | `--json` | Write one structured report to stdout |
+| `--project` | Without `--input`: the project directory, workspace member path or project name |
+| `--config` | Without `--input`: an explicit configuration file of the project |
+| `--out-dir` | Without `--input`: the out root. Overrides `MORPHIR_OUT_DIR` and `workspace.out_dir` |
 
-Paths resolve against the invocation directory. No project configuration is
-required or discovered. Repeated option keys use the last value. Values parse
+Paths resolve against the invocation directory. With `--input`, no project
+configuration is required or discovered. Repeated option keys use the last value. Values parse
 as JSON first, so `optimize=false` is Boolean while `optimize='"false"'` is a
 string and is refused by this backend.
 
@@ -61,8 +67,8 @@ Integers use Int32, floats finite doubles, decimals exact .NET decimal values
 with retained scale up to 28, and characters one BMP scalar. Unsupported or
 lossy representations fail before publication.
 
-YAML model files, JSON/YAML trees and MEP envelopes are unsupported. Future
-`morphir.toml`/`morphir.yml` discovery and MEP admission are separate changes.
+YAML model files, JSON/YAML trees and MEP envelopes are unsupported. MEP
+admission is a separate change.
 Generation produces source files and their ownership manifest. It does not
 create an F# project or compile and execute the output.
 
@@ -73,6 +79,53 @@ located refusals remain those of the reusable C# library. Generation needs no
 compiler installation. A separate consumer chooses the matching numeric compiler
 profile and references the runtime package. The production Roslyn adapter remains
 deferred.
+
+## Input from a prior compile
+
+Without `--input`, `generate` reads the IR of the most recent successful
+`morphir compile` of the project. It finds the project and the out root in the
+same way as [compile]({{< relref "/docs/cli/compile" >}}): `--project` and
+`--config` select the project, and the out root is `--out-dir`, else
+`MORPHIR_OUT_DIR`, else the workspace `workspace.out_dir`, else `.morphir/out`
+under the workspace root. `generate` then reads the compile record
+`compile.json` and loads the IR that its `ir` descriptor names. The report gives
+that IR file as `input` and the recorded IR version as `sourceVersion`. An
+explicit `--input` never reads a record.
+
+If there is no compile record, or the most recent compile failed and left a
+tombstone, `generate` fails with `compile.record_missing` and exit code 2, tells
+you to run `morphir compile` first, and publishes nothing. If the IR file does
+not declare the version that the record names, it fails with
+`compile.record_version_mismatch`. An `--input-format` that is not the format of
+the compiled IR fails with `generate.input_format_conflict`.
+
+`generate` holds the shared lock `compile.lock` from when it reads the record
+until it has loaded the IR. While a compile of the same project runs, `generate`
+writes one waiting line to stderr, waits, and then reads the IR of that compile.
+A compile that starts while `generate` loads the IR waits for `generate`.
+
+With this `morphir.toml` in the project directory, and the sources `src/Rates.fs`
+and `src/Totals.fs` of the MCK corpus case `frontend-fsharp-0116`:
+
+```toml
+[project]
+name = "acme/demo"
+
+[frontend]
+language = "fsharp"
+```
+
+compile the project, then generate F# from the compiled IR. Run both commands in
+the project directory. The compile writes the path of the published IR to stdout,
+and `generate` writes the generated files:
+
+```bash
+$ dotnet-morphir compile
+/work/demo/.morphir/out/compile.dest/morphir-ir.json
+$ dotnet-morphir generate --target fsharp --output gen
+Rates.fs
+Totals.fs
+```
 
 ## Examples
 
@@ -157,7 +210,8 @@ reported filesystem problem.
 
 ## Common errors
 
-Missing settings require an explicit `--input`, `--target` and `--output`.
+Missing settings require an explicit `--target` and `--output`. Without
+`--input`, `generate` needs a prior `morphir compile` of the project.
 An unknown target lists registered target IDs. Invalid F# options require
 `optimize=true` or `optimize=false`. Codec diagnostics identify malformed models
 and tree members. Limit diagnostics describe the exceeded byte, node, depth,

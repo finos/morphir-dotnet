@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.Frontend.FSharp.Mep</RootNamespace>
+        <AssemblyName>morphir-fsharp-frontend</AssemblyName>
+        <Description>The F# frontend as a Morphir Extension Protocol 0.2.0-draft.1 guest: morphir.frontend.compileModel over stdio with Content-Length framing.</Description>
+        <PackageTags>$(PackageTags);morphir;fsharp;frontend;mep;dotnet-tool</PackageTags>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!-- A framework-dependent dotnet tool. FSharp.Compiler.Service is not trim-safe or AOT-safe. -->
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>morphir-fsharp-frontend</ToolCommandName>
+        <PackageId>Morphir.Frontend.FSharp.Mep</PackageId>
+        <RollForward>Major</RollForward>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Mep.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Mep\Morphir.Mep.fsproj" />
+        <ProjectReference Include="..\Morphir.Frontend.FSharp\Morphir.Frontend.FSharp.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="FSharpGuest.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+</Project>

@@ -11,7 +11,10 @@ The Morphir .NET CLI provides powerful command-line tools for working with Morph
 
 ## Available Commands
 
+- [morphir compile](./compile/) - Compile F# sources to Morphir IR (built into `dotnet-morphir`)
 - [morphir generate](./generate/) - Generate F# from classic or v4 JSON/Ion libraries
+- [morphir validate](./validate/) - Check a model with the built-in analyzers, such as the type validator
+- [morphir extension list](./management/#extension-list) - List the built-in generators and analyzers of this host
 
 ### IR Management
 
