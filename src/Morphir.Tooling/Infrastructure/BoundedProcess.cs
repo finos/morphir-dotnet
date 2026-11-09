@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Morphir.Tooling.Infrastructure;
@@ -31,9 +32,24 @@ internal abstract record ProcessRun
 /// the deadline, the budget or cancellation stops the process, its whole process tree is stopped and awaited
 /// before the call returns.
 /// </summary>
+/// <remarks>
+/// A descendant can outlive the direct child. On Linux the child starts under <c>setsid</c>, so it leads its
+/// own process group with the same process identity, and the whole group is stopped, orphans included. The
+/// group is also stopped after a normal exit, so no descendant remains. Windows reaches a descendant through
+/// its recorded parent. macOS has no <c>setsid</c>, so there an orphan that left the tree cannot be reached.
+/// </remarks>
 internal static class BoundedProcess
 {
     private static readonly TimeSpan KillWait = TimeSpan.FromSeconds(10);
+
+    private const int SigKill = 9;
+
+    private static readonly string? Setsid = OperatingSystem.IsLinux()
+        ? new[] { "/usr/bin/setsid", "/bin/setsid" }.FirstOrDefault(File.Exists)
+        : null;
+
+    [DllImport("libc", EntryPoint = "kill", SetLastError = true)]
+    private static extern int SendSignal(int pid, int signal);
 
     /// <summary>
     /// Runs <paramref name="startInfo"/> to completion. Cancellation stops the process tree and throws
@@ -47,6 +63,7 @@ internal static class BoundedProcess
         startInfo.RedirectStandardInput = true;
         startInfo.RedirectStandardOutput = true;
         startInfo.RedirectStandardError = true;
+        var ownGroup = StartInNewSession(startInfo);
 
         using var process = new Process { StartInfo = startInfo };
         try
@@ -71,13 +88,14 @@ internal static class BoundedProcess
         {
             // The pipes close only when the process and every descendant that holds them have ended.
             await completed.WaitAsync(stop.Token).ConfigureAwait(false);
+            if (ownGroup) SendSignal(-process.Id, SigKill); // A descendant that closed its pipes can remain.
             return new ProcessRun.Exited(process.ExitCode, await output, await error, process.Id);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
             // Observe the abandoned reads, so that their failures are not unobserved task exceptions.
             _ = completed.ContinueWith(static task => task.Exception, TaskScheduler.Default);
-            await StopTreeAsync(process).ConfigureAwait(false);
+            await StopTreeAsync(process, ownGroup).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
             return overflow.IsSet
                 ? new ProcessRun.OutputLimitExceeded(limits.MaxOutputBytes)
@@ -106,8 +124,37 @@ internal static class BoundedProcess
         return Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
     }
 
-    private static async Task StopTreeAsync(Process process)
+    /// <summary>On Linux, runs the command through <c>setsid</c>, so it leads its own process group.</summary>
+    private static bool StartInNewSession(ProcessStartInfo startInfo)
     {
+        if (Setsid is null) return false;
+        if (startInfo.FileName == Setsid) return true; // Already wrapped: the same start info ran before.
+        // Under setsid a missing executable fails only in exec. Resolve it first, so it still does not start.
+        var command = Resolve(startInfo.FileName);
+        if (command is null) return false;
+        startInfo.FileName = Setsid;
+        if (startInfo.ArgumentList.Count > 0 || string.IsNullOrEmpty(startInfo.Arguments))
+            startInfo.ArgumentList.Insert(0, command);
+        else
+            startInfo.Arguments = $"\"{command}\" {startInfo.Arguments}";
+        return true;
+    }
+
+    /// <summary>The executable as a path: as given when it has a directory, else the first match on PATH.</summary>
+    private static string? Resolve(string fileName)
+    {
+        if (fileName.Contains(Path.DirectorySeparatorChar))
+            return File.Exists(fileName) ? fileName : null;
+        return (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+            .Select(directory => Path.Combine(directory, fileName))
+            .FirstOrDefault(File.Exists);
+    }
+
+    private static async Task StopTreeAsync(Process process, bool ownGroup)
+    {
+        // The group outlives an exited leader, so this also reaches orphaned descendants.
+        if (ownGroup) SendSignal(-process.Id, SigKill);
         try
         {
             process.Kill(entireProcessTree: true);

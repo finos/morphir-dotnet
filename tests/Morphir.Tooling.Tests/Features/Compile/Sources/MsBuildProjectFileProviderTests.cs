@@ -94,7 +94,7 @@ public sealed class MsBuildProjectFileProviderTests : IDisposable
         result.Diagnostics.Should().BeEmpty("the SDK's implicit FSharp.Core reference is not the project's");
         selection.Root.Should().Be(Path.Combine(_root, "src"));
         selection.Documents.Should().Equal("Rates.fs", "Pricing/Rules.fs", "Pricing.fs");
-        selection.ProjectFileOrNull.Should().Be(projectFile);
+        selection.ProjectFileOrNull.Should().Be(Path.GetFullPath(projectFile), "the provider gives the absolute path in the platform form");
     }
 
     [Test]

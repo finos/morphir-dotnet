@@ -43,6 +43,26 @@ public sealed class BoundedProcessTests
     }
 
     [Test]
+    public async Task DeadlineStopsADescendantThatOutlivedItsParent()
+    {
+        // macOS has no setsid, so an orphan there cannot be reached (as for ChildProcess in TestSupport).
+        if (OperatingSystem.IsMacOS()) return;
+
+        var directory = Directory.CreateTempSubdirectory("morphir-orphan-").FullName;
+        var marker = Path.Combine(directory, "descendant-finished");
+        var startInfo = OperatingSystem.IsWindows()
+            ? new ProcessStartInfo("cmd.exe") { Arguments = $"/c start \"\" /b cmd /c \"ping -n 4 127.0.0.1 >nul & type nul > {marker}\"" }
+            : ChildProcess.StartInfo("/bin/sh", "-c", $"(sleep 3; touch '{marker}') & exit 0");
+
+        var run = await Run(startInfo, new(TimeSpan.FromSeconds(1), 1024 * 1024));
+
+        run.Should().BeOfType<ProcessRun.DeadlineExceeded>("the descendant holds the output pipes");
+        await Task.Delay(TimeSpan.FromSeconds(5));
+        File.Exists(marker).Should().BeFalse("the descendant was stopped with its process group");
+        TolerantDirectory.TryDelete(directory);
+    }
+
+    [Test]
     public async Task OutputBudgetStopsTheProcess()
     {
         var run = await Run(ChildProcess.StartInfo(Dotnet, "--info"), new(TimeSpan.FromMinutes(1), 16));
