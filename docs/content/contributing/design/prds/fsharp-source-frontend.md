@@ -59,8 +59,8 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Tool path, first delivery | MSBuild project-file provider and shared bounded capture | Implemented | Tasks 4.4 and 4.5: `MsBuildProjectFileProvider` (evaluation only, through a bounded child process) and `SourceCapture` over the bounded capture core that `generate` also uses; 17 provider tests with real `.fsproj`/`.csproj` files, 6 process-runner tests, 11 source-capture tests; the 10 generate capture tests pass unchanged |
 | Tool path, first delivery | Compile records and generation from a prior compile | In Progress | Tasks 5.1–5.3: `CompileTaskStore`, `compile.lock` and `-o` installation in `src/Morphir.Tooling/Features/TaskRecords/`, 85 test cases against the pinned upstream record; tasks 5.4–5.5 connect the store to `compile` and `generate` |
 | Tool path, first delivery | In-memory generation and library/CLI qualification | Planned | Tasks 6.1–6.4 |
-| MEP path, second delivery | Pinned 0.2.0-draft.1 codec, envelopes and session core | Planned | Tasks 7.1–7.4 |
-| MEP path, second delivery | Frontend-only F# guest and installable package | Planned | Tasks 8.1–8.4 |
+| MEP path, second delivery | Pinned 0.2.0-draft.1 codec, envelopes and session core | Implemented | Tasks 7.1–7.4 on the add-mep-core core; compileModel request types, result sum, reserved options, RFC 8785 context digest, 64 MiB frames and compileModel tuple negotiation; 6 new contract entries and 9 tests |
+| MEP path, second delivery | Frontend-only F# guest and installable package | Implemented | Tasks 8.1–8.4; `morphir-fsharp-frontend` with JSON compileModel tuples for 4.0.0 and 3.0.0; 14 tests, including replay of the pinned transcripts against the guest process and a pack-install-describe check |
 | MEP path, second delivery | AOT host, classic wire profiles and transport parity | Planned | Tasks 9.1–9.5 |
 | Integration | Coverage, examples, conformance reports and viability evidence | Planned | Tasks 10.1–10.3 |
 | Deferred | Project references, external dependency resolution and conditional defines | Deferred | Separate changes |

@@ -27,7 +27,8 @@ let private proposal =
 
 /// The jsonrpc messages of the proposal's transcripts.
 let private messages () =
-    Regex.Matches(File.ReadAllText proposal, "```jsonrpc (?:host -> extension|extension -> host)\n(.*?)\n```", RegexOptions.Singleline)
+    // A Windows checkout can have CRLF line endings in the Markdown.
+    Regex.Matches((File.ReadAllText proposal).ReplaceLineEndings "\n", "```jsonrpc (?:host -> extension|extension -> host)\n(.*?)\n```", RegexOptions.Singleline)
     |> Seq.map (fun m -> JsonNode.Parse(m.Groups[1].Value) |> nonNull)
     |> List.ofSeq
 

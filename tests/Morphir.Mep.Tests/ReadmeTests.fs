@@ -55,8 +55,12 @@ let tests =
         [ testCase "the README example is the compiled example"
           <| fun _ ->
               let root = Path.Combine(__SOURCE_DIRECTORY__, "..", "..")
-              let readme = File.ReadAllText(Path.Combine(root, "src", "Morphir.Mep", "README.md"))
-              let source = File.ReadAllText(Path.Combine(__SOURCE_DIRECTORY__, "ReadmeTests.fs"))
+              // A Windows checkout can have CRLF line endings in the Markdown and in the source.
+              let readme =
+                  File.ReadAllText(Path.Combine(root, "src", "Morphir.Mep", "README.md")).ReplaceLineEndings "\n"
+
+              let source =
+                  File.ReadAllText(Path.Combine(__SOURCE_DIRECTORY__, "ReadmeTests.fs")).ReplaceLineEndings "\n"
 
               Expect.equal
                   (block readme "```fsharp" "```")
