@@ -114,7 +114,7 @@ jobs:
                   <?xml version="1.0" encoding="utf-8"?>
                   <configuration><packageSources><clear /><add key="local" value="$guest_pkg" /><add key="nuget" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>
                   CONFIG
-                  version=$(ls "$guest_pkg"/Morphir.Frontend.FSharp.Extension.*.nupkg | head -1 | sed -E 's#.*/Morphir\.Frontend\.FSharp\.Mep\.(.*)\.nupkg#\1#')
+                  version=$(ls "$guest_pkg"/Morphir.Frontend.FSharp.Extension.*.nupkg | head -1 | sed -E 's#.*/Morphir\.Frontend\.FSharp\.Extension\.(.*)\.nupkg#\1#')
                   dotnet tool install Morphir.Frontend.FSharp.Extension --version "$version" --tool-path "$guest_tool" --configfile "$guest_pkg/nuget.config"
                   guest="$guest_tool/morphir-fsharp-frontend"
                   [ -f "$guest" ] || guest="$guest.exe"
