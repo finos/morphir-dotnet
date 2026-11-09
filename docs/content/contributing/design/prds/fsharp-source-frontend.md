@@ -61,7 +61,7 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Tool path, first delivery | In-memory generation and library/CLI qualification | Implemented | Tasks 6.1–6.4: `GenerationStages.RunFrom`; `compile --target`/`--generate-output`/`--option` on the written bytes, with the generate and generatePublish stages; the MCK `cli` adapter, checked against a scripted fake executable; the complete suite (600 variants) qualifies `dotnet-morphir` through the `library` and `cli` adapters, and a sample through `compile --target`. See [Tool-path qualification, 2026-11-09](#tool-path-qualification-2026-11-09) |
 | MEP path, second delivery | Pinned 0.2.0-draft.1 codec, envelopes and session core | Implemented | Tasks 7.1–7.4 on the add-mep-core core; compileModel request types, result sum, reserved options, RFC 8785 context digest, 64 MiB frames and compileModel tuple negotiation; 6 new contract entries and 9 tests |
 | MEP path, second delivery | Frontend-only F# guest and installable package | Implemented | Tasks 8.1–8.4; `morphir-fsharp-frontend` with JSON compileModel tuples for 4.0.0 and 3.0.0; 14 tests, including replay of the pinned transcripts against the guest process and a pack-install-describe check |
-| MEP path, second delivery | AOT host, classic wire profiles and transport parity | Planned | Tasks 9.1–9.5 |
+| MEP path, second delivery | AOT host, classic wire profiles and transport parity | Implemented | Tasks 9.1–9.5: `Morphir.Compilation.Mep` (`MepFrontend`, AOT-safe), `MepFrontendExtensionConnector` in `CompilationScenario`, the classic path through `3.0.0` and `ClassicJson.readTypedDistribution`; the Native AOT `morphir` with the installed guest gives the library IR for 588 of 600 suite variants (the 8 others are the `.fsi` case, recorded in `conformance/deviations.md`). See [Default-CLI viability evidence, 2026-11-09](#default-cli-viability-evidence-2026-11-09) |
 | Integration | Coverage, examples, conformance reports and viability evidence | Planned | Tasks 10.1–10.3 |
 | Deferred | Project references, external dependency resolution and conditional defines | Deferred | Separate changes |
 | Deferred | Incremental compilation, types-only mode and P1 language constructs | Deferred | Separate changes |
@@ -263,6 +263,63 @@ MORPHIR_MCK_REPORT_DIR=/tmp/mck-reports dotnet run --project tests/Morphir.Front
 On macOS, set `TMPDIR` to its resolved path first
 (`TMPDIR=$(cd "$TMPDIR" && pwd -P)/`), because the model loader refuses a path
 through the `/var` link.
+
+### Default-CLI viability evidence, 2026-11-09
+
+This section collects the evidence of task 10.2 for the default-CLI decision.
+
+MCK verdict reports, one for each adapter. All reports are in
+`openspec/changes/add-fsharp-compile/evidence/mck-2026-11-09/`, compressed with
+gzip; the SHA-256 values are of the uncompressed reports.
+
+| Adapter | Implementation | Variants | Verdicts | Report |
+| --- | --- | --- | --- | --- |
+| `library` | `Morphir.Frontend.FSharp` in process | 600 | 596 passed, 4 excluded, qualified | `library.json`, see [Tool-path qualification](#tool-path-qualification-2026-11-09) |
+| `cli` | `dotnet-morphir compile` | 600 | 596 passed, 4 excluded, qualified | `cli.json` |
+| `cli --target fsharp`, `cli --target csharp` | `dotnet-morphir compile --target` | 192 each | 192 passed, qualified | `cli-target-fsharp.json`, `cli-target-csharp.json` |
+| `mep-guest` | `MepGuestAdapter` over the guest process | every case | IR bytes and diagnostics equal the `library` adapter; a `.fsi` case is refused before dispatch | `MepFrontendTests` (no report file) |
+| `cli` with `--extension` | Native AOT `morphir` with the installed `morphir-fsharp-frontend` | 600 | 588 passed with the library IR, 4 excluded, 8 refused (`frontend-fsharp-0081`, `.fsi`); not qualified because of the `.fsi` case | `cli-aot-mep.json`, SHA-256 `1fae5506a20f5db5a6eba8fb1ad52ee34398ffbd53628281e898d9c8b8fc9300` |
+
+Reproduce the AOT report on macOS arm64 (the other reports have the command in
+[Tool-path qualification](#tool-path-qualification-2026-11-09)):
+
+```console
+dotnet build Morphir.slnx
+dotnet publish src/Morphir/Morphir.csproj -c Release -r osx-arm64 -p:PublishAot=true -p:PublishTrimmed=true -o /tmp/morphir-aot
+dotnet pack src/Morphir.Frontend.FSharp.Mep -c Release -o /tmp/guest-pkg
+dotnet tool install Morphir.Frontend.FSharp.Mep --version <version> --tool-path /tmp/guest-tool --configfile <nuget.config with /tmp/guest-pkg>
+MORPHIR_AOT_CLI=/tmp/morphir-aot/morphir MORPHIR_FSHARP_GUEST=/tmp/guest-tool/morphir-fsharp-frontend MORPHIR_MCK_REPORT_DIR=/tmp/mck-reports \
+  dotnet run --project tests/Morphir.Frontend.FSharp.Tests --no-build -- --sequenced --filter-test-case "AOT morphir"
+```
+
+Native AOT single-file size and compile time on each published RID, from the
+manual AOT workflow with `test-suite: measure-compile` on commit `f287a2a`. The
+times are the median wall time of 11 runs of `morphir compile` for one F# file:
+without a frontend (the settings, sources and frontend-selection stages, which
+end with `compile.frontend_unavailable`), and with the installed F# guest
+(which includes the start of the framework-dependent guest process).
+
+| RID | Runner | Size | Compile without a frontend | Compile with the guest | Run |
+| --- | --- | --- | --- | --- | --- |
+| `linux-x64` | `ubuntu-latest` | 23,108,408 bytes (22.0 MiB) | 39 ms | 2089 ms | [42598228850](https://github.com/finos/morphir-dotnet/actions/runs/42598228850) |
+| `linux-arm64` | `ubuntu-24.04-arm` | 23,833,392 bytes (22.7 MiB) | 45 ms | 2574 ms | [42598232152](https://github.com/finos/morphir-dotnet/actions/runs/42598232152) |
+| `win-x64` | `windows-latest` | 27,385,344 bytes (26.1 MiB) | 130 ms | 3040 ms | [42598235473](https://github.com/finos/morphir-dotnet/actions/runs/42598235473) |
+| `osx-arm64` | `macos-latest` | 22,603,784 bytes (21.6 MiB) | 77 ms | 1478 ms | [42598238830](https://github.com/finos/morphir-dotnet/actions/runs/42598238830) |
+
+Reproduce a row on its platform with `scripts/measure-compile-aot.sh <rid>
+<guest-command>`, or run the "Manual AOT Testing" workflow with that RID and
+`test-suite: measure-compile`. The job summary prints the four values.
+
+Most of the time with the guest is the start of the .NET runtime and the F#
+compiler service in the guest process. The AOT host itself starts in less than
+150 ms on every RID.
+
+The documented differences from the Rust CLI are in
+[`conformance/deviations.md`](https://github.com/finos/morphir-dotnet/blob/main/conformance/deviations.md):
+`--json-lines` writes an event stream that ends with a `completed` record
+(Rust writes one report line), and the guest is not qualified with the upstream
+guest kit, which needs a legacy `0.1` stage and a backend. The guest also does
+not claim `.fsi` signature files.
 
 ## Open questions
 
