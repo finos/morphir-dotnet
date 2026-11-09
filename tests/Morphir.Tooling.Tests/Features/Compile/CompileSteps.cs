@@ -77,6 +77,10 @@ public sealed class CompileSteps : IDisposable
     [When("I compile it with the dotnet tool at IR version {string}")]
     public Task CompileAtVersion(string version) => Compile(_tool, $"--ir-version {version}");
 
+    [When("I compile its input files with the dotnet tool at IR version {string}")]
+    public Task CompileInputsAtVersion(string version) =>
+        Compile(_tool, $"--input \"{Path.Combine(_project, "src", "Rates.fs")}\" \"{Path.Combine(_project, "src", "Pricing.fs")}\" --ir-version {version}");
+
     [When("I compile it with the dotnet tool using --project-file {string}")]
     public Task CompileWithProjectFile(string projectFile) =>
         Compile(_tool, $"--project-file \"{Path.Combine(_project, projectFile)}\"");

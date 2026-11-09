@@ -545,6 +545,13 @@
           "Morphir.Models": "[1.0.0, )"
         }
       },
+      "morphir.compilation": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.configuration": {
         "type": "Project",
         "dependencies": {
@@ -575,6 +582,18 @@
           "Morphir.Mep": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
+      },
+      "morphir.frontend.fsharp": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Compiler.Service": "[43.12.403, )",
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Compilation": "[1.0.0, )",
+          "Morphir.FSharp.Annotations": "[1.0.0, )"
+        }
+      },
+      "morphir.fsharp.annotations": {
+        "type": "Project"
       },
       "morphir.ion": {
         "type": "Project",
@@ -625,6 +644,7 @@
           "FluentValidation": "[11.12.0, )",
           "Morphir": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
+          "Morphir.Frontend.FSharp": "[1.0.0, )",
           "Morphir.Tooling": "[1.0.0, )",
           "Serilog": "[4.3.1, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
@@ -643,6 +663,7 @@
           "Morphir.Analyzers": "[1.0.0, )",
           "Morphir.CodeGeneration.CSharp": "[1.0.0, )",
           "Morphir.CodeGeneration.FSharp": "[1.0.0, )",
+          "Morphir.Compilation": "[1.0.0, )",
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Configuration.IO": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
@@ -710,6 +731,15 @@
         "contentHash": "TsN8h6XfeiR5EZ9CtJlsKF6oJzJ+x8rGvyaqYNM8/Zdy2zCEgptyKQmN8GKpCq8IZXDL6tu/S8oP69hRV8Oz1Q==",
         "dependencies": {
           "Foundatio.Mediator.Abstractions": "1.2.1"
+        }
+      },
+      "FSharp.Compiler.Service": {
+        "type": "CentralTransitive",
+        "requested": "[43.12.403, )",
+        "resolved": "43.12.403",
+        "contentHash": "L8nTnxAsjXY6Fjnap5AVHVptbc7QqkNftmQiO0ylAnXpJHMCqO2u2XxmXo2pw4NfAAwClCwnjbF6BMOU3gibMA==",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403]"
         }
       },
       "FSharp.Core": {

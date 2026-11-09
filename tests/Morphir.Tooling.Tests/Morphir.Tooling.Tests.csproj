@@ -34,6 +34,9 @@
     <ProjectReference Include="..\..\src\Morphir.Tooling\Morphir.Tooling.csproj" />
     <ProjectReference Include="..\..\src\Morphir.Testing\Morphir.Testing.fsproj" />
     <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
+    <!-- The in-process F# frontend and the MCK corpus, for the compile fold property and the tool path (task 4.6). -->
+    <ProjectReference Include="..\..\src\Morphir.Frontend.FSharp\Morphir.Frontend.FSharp.fsproj" />
+    <ProjectReference Include="..\..\src\Morphir.Conformance\Morphir.Conformance.fsproj" />
   </ItemGroup>
 
   <ItemGroup>

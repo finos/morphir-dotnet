@@ -12,7 +12,20 @@ public enum GenerationFailureKind { Semantic, Invocation, Operational, Cancelled
 public enum InputFormat { Auto, Json, Ion }
 public enum ModelRepresentation { Json, IonText, IonBinary, IonTree }
 
-public sealed record GenerationDiagnostic(string Code, string Message, string? Path = null, string? Location = null, string Severity = "error");
+/// <summary>A zero-based position: a line, and a character in UTF-16 code units, as in MEP and LSP.</summary>
+public sealed record DiagnosticPosition(int Line, int Character);
+
+/// <summary>A source range with an exclusive end.</summary>
+public sealed record DiagnosticRange(DiagnosticPosition Start, DiagnosticPosition End);
+
+/// <summary>
+/// A generation diagnostic. <paramref name="Range"/> is an optional, additive member: a source range in the
+/// document that <paramref name="Path"/> names. Reports leave it out when it is null, so existing reports keep
+/// their shape.
+/// </summary>
+public sealed record GenerationDiagnostic(string Code, string Message, string? Path = null, string? Location = null, string Severity = "error",
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    DiagnosticRange? Range = null);
 public sealed record GenerationFailure(GenerationFailureKind Kind, ImmutableArray<GenerationDiagnostic> Diagnostics)
 {
     public string? Backend { get; init; }

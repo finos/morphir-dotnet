@@ -29,6 +29,29 @@ public sealed class GenerationReportingTests
     }
 
     [Test]
+    public void ADiagnosticWithoutARangeKeepsTheExistingReportShape()
+    {
+        var report = GenerationReport.From(new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Semantic,
+            "example-rule", "A structured failure.", "model.json", "$")), new(Input: "model.json"));
+        using var json = JsonDocument.Parse(report.ToJson());
+        json.RootElement.GetProperty("diagnostics")[0].EnumerateObject().Select(member => member.Name)
+            .Should().Equal("code", "message", "path", "location", "severity");
+    }
+
+    [Test]
+    public void ADiagnosticRangeIsAnAdditiveOptionalMember()
+    {
+        var range = new DiagnosticRange(new DiagnosticPosition(11, 8), new DiagnosticPosition(11, 15));
+        var failure = new GenerationFailure(GenerationFailureKind.Semantic,
+            [new GenerationDiagnostic("fsharp.unsupported_mutable", "Mutable bindings are not supported.", "Pricing.fs", Range: range)]);
+        var report = GenerationReport.From(new Outcome<GenerationSuccess>.Failure(failure), new(Input: "model.json"));
+        using var json = JsonDocument.Parse(report.ToJson());
+        var diagnostic = json.RootElement.GetProperty("diagnostics")[0];
+        diagnostic.GetProperty("range").GetProperty("start").GetProperty("line").GetInt32().Should().Be(11);
+        diagnostic.GetProperty("range").GetProperty("end").GetProperty("character").GetInt32().Should().Be(15);
+    }
+
+    [Test]
     public async Task OperationalCliFailureReturnsTwoAndOneJsonDocument() =>
         await AssertOperationalFailureAsync(new CliTestHelper(), TimeSpan.FromSeconds(30));
 
