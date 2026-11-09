@@ -88,7 +88,7 @@ public sealed record IrDescriptor(RecordPath Path, IrLayout Layout, IrStorageFor
 {
     /// <summary>A descriptor for IR of the produced version, with the upstream spelling of that version.</summary>
     public static IrDescriptor Create(RecordPath path, IrLayout layout, IrStorageFormat format, Versioning.FormatVersion produced) =>
-        new(path, layout, format, SourceFormatVersionModule.parse(FormatVersion.CanonicalText(produced)).ResultValue);
+        new(path, layout, format, SourceFormatVersion.Create(FormatVersion.CanonicalText(produced)));
 
     /// <summary>The version as a record writes it, for example <c>v4</c> or <c>v4.1.0-draft.1</c>.</summary>
     public string Spelling => "v" + Version.Text;
@@ -98,9 +98,8 @@ public sealed record IrDescriptor(RecordPath Path, IrLayout Layout, IrStorageFor
     {
         version = null;
         if (text is not { Length: > 1 } || text[0] != 'v') return false;
-        var parsed = SourceFormatVersionModule.parse(text[1..]);
-        if (parsed.IsError) return false;
-        version = parsed.ResultValue;
+        if (!SourceFormatVersion.TryParse(text[1..], out var parsed, out _)) return false;
+        version = parsed;
         return true;
     }
 }

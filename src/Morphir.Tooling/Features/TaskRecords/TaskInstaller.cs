@@ -128,8 +128,8 @@ internal static class TaskInstaller
         var files = produced.Select(path => VFileModule.ofDiskFile(path, RecordPath.Parse(path).Under(location.Dest)));
         var tree = VFileTreeModule.fromFiles(ListModule.OfSeq(files));
         var options = new PublishOptions(target, ManifestMode.NoManifest);
-        var validation = VFileTreeModule.validatePublish(options, tree);
-        if (validation.IsError) return Refuse("install.invalid_outputs", TreeWriteErrorModule.describe(validation.ErrorValue));
+        var invalid = VFileTreeModule.MatchValidatePublish<string?>(options, tree, () => null, TreeWriteErrorModule.describe);
+        if (invalid is not null) return Refuse("install.invalid_outputs", invalid);
 
         // Nothing can refuse the install after this point.
         Directory.CreateDirectory(target);
@@ -146,10 +146,10 @@ internal static class TaskInstaller
             }
         }
 
-        var published = VFileTreeModule.publish(options, tree);
-
         var ledger = produced.Select(RecordPath.Parse).ToImmutableArray();
-        if (published.IsError)
+        return VFileTreeModule.MatchPublish<Outcome<InstallReport>>(options, tree, Installed, CopyFailed);
+
+        Outcome<InstallReport> CopyFailed(TreeWriteError error)
         {
             // Remove what this run added; files that were already owned stay, and the ledger names what is on disk.
             var kept = previous.Where(path => !removed.Contains(path.Value, comparer) && File.Exists(path.Under(target))).Select(path => path.Value).ToList();
@@ -164,7 +164,7 @@ internal static class TaskInstaller
                         PruneEmptyParents(path, target);
                     }
                 }
-                catch (Exception error) when (TaskFailures.IsIo(error))
+                catch (Exception failure) when (TaskFailures.IsIo(failure))
                 {
                     kept.Add(added);
                 }
@@ -172,27 +172,29 @@ internal static class TaskInstaller
             RecordFile.Write(location.Record, WithLedger(record, previousKey, target,
                 kept.Distinct(comparer).Order(StringComparer.Ordinal).Select(RecordPath.Parse).ToImmutableArray()));
             return TaskFailures.Of<InstallReport>(GenerationFailureKind.Operational, "install.copy_failed",
-                "Install failed while it copied files: " + TreeWriteErrorModule.describe(published.ErrorValue), target);
+                "Install failed while it copied files: " + TreeWriteErrorModule.describe(error), target);
         }
 
-        try
+        Outcome<InstallReport> Installed(PublishResult result)
         {
-            RecordFile.Write(location.Record, WithLedger(record, previousKey, target, ledger));
-        }
-        catch (Exception error) when (TaskFailures.IsIo(error))
-        {
-            // Without a ledger the next install would see these files as foreign content, so take back what this run added.
-            foreach (var added in produced.Where(path => !owned.Contains(path)))
+            try
             {
-                try { File.Delete(Path.Combine(target, added)); }
-                catch (Exception cleanup) when (TaskFailures.IsIo(cleanup)) { }
+                RecordFile.Write(location.Record, WithLedger(record, previousKey, target, ledger));
             }
-            return TaskFailures.Io<InstallReport>("install.record_write_failed", "write", location.Record, error);
-        }
+            catch (Exception error) when (TaskFailures.IsIo(error))
+            {
+                // Without a ledger the next install would see these files as foreign content, so take back what this run added.
+                foreach (var added in produced.Where(path => !owned.Contains(path)))
+                {
+                    try { File.Delete(Path.Combine(target, added)); }
+                    catch (Exception cleanup) when (TaskFailures.IsIo(cleanup)) { }
+                }
+                return TaskFailures.Io<InstallReport>("install.record_write_failed", "write", location.Record, error);
+            }
 
-        var result = published.ResultValue;
-        return new Outcome<InstallReport>.Success(new InstallReport(target, [.. record.Value.Select(entry => entry.Value)],
-            [.. result.Written], [.. result.Unchanged], [.. removed]));
+            return new Outcome<InstallReport>.Success(new InstallReport(target, [.. record.Value.Select(entry => entry.Value)],
+                [.. result.Written], [.. result.Unchanged], [.. removed]));
+        }
     }
 
     private static TaskRecord WithLedger(TaskRecord record, string? previousKey, string target, ImmutableArray<RecordPath> files)
