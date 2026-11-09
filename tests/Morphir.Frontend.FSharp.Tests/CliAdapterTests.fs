@@ -182,11 +182,31 @@ let private run adapter suite = task {
     return! Runner.runWith (Some GeneratedCalls.checker) suite adapter CancellationToken.None
 }
 
+/// <summary>
+/// True when <c>MORPHIR_MCK_COMPLETE=1</c>: the CLI tests then run every case of the suite, as for the PRD evidence.
+/// Otherwise they run a sample with every input kind and IR version, because each variant starts a process and the
+/// complete suite takes about 25 minutes on a 4-core CI runner.
+/// </summary>
+let private complete =
+    Environment.GetEnvironmentVariable "MORPHIR_MCK_COMPLETE" = "1"
+
+/// <summary>The suite, or with <see cref="complete"/> false, the first semantic and refusal cases of it.</summary>
+let private suiteOrSample semanticCount refusalCount (suite: CaseSet) =
+    if complete then
+        suite
+    else
+        let semantic = sample (fun case -> case.Expected.Success) semanticCount suite
+        let refusals = sample (fun case -> not case.Expected.Success) refusalCount suite
+
+        { suite with
+            Cases = semantic.Cases @ refusals.Cases
+        }
+
 let private semanticOrRefusal =
-    sample (fun case -> case.Expected.Success) 3 CorpusTests.suite.Value
+    sample (fun case -> case.Expected.Success) 2 CorpusTests.suite.Value
     |> fun semantic ->
         let refusals =
-            sample (fun case -> not case.Expected.Success) 3 CorpusTests.suite.Value
+            sample (fun case -> not case.Expected.Success) 1 CorpusTests.suite.Value
 
         { semantic with
             Cases =
@@ -297,9 +317,9 @@ let tests =
         }
 
         testTask
-            "The complete suite qualifies dotnet-morphir through the library and cli adapters, with equal IR" {
+            "The suite (complete with MORPHIR_MCK_COMPLETE=1) qualifies dotnet-morphir through the library and cli adapters, with equal IR" {
             use sandbox = TestSandbox.Create "morphir-mck-cli-"
-            let suite = CorpusTests.suite.Value
+            let suite = suiteOrSample 3 1 CorpusTests.suite.Value
             let options = optionsFor dotnetMorphir.Value sandbox []
 
             let! identity =
@@ -318,7 +338,7 @@ let tests =
             Expect.equal
                 (cli.Results
                  |> List.length)
-                600
+                (if complete then 600 else (suite.Cases |> List.length))
                 "every variant of the suite has a verdict"
 
             Expect.equal
@@ -356,15 +376,17 @@ let tests =
 
         testTask "A sample of the suite qualifies dotnet-morphir through compile --target" {
             use sandbox = TestSandbox.Create "morphir-mck-cli-target-"
-            let suite = sample (fun case -> case.Expected.Success) 12 CorpusTests.suite.Value
 
             let suite =
-                { suite with
-                    Cases =
-                        suite.Cases
-                        @ (sample (fun case -> not case.Expected.Success) 4 CorpusTests.suite.Value)
-                            .Cases
-                }
+                if complete then
+                    let semantic = sample (fun case -> case.Expected.Success) 12 CorpusTests.suite.Value
+                    let refusals = sample (fun case -> not case.Expected.Success) 4 CorpusTests.suite.Value
+
+                    { semantic with
+                        Cases = semantic.Cases @ refusals.Cases
+                    }
+                else
+                    suiteOrSample 1 1 CorpusTests.suite.Value
 
             for target in [ "fsharp"; "csharp" ] do
                 let options =

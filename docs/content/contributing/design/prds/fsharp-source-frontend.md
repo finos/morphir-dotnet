@@ -256,8 +256,14 @@ Reproduce the reports:
 ```console
 git checkout 03d7942
 dotnet build Morphir.slnx
-MORPHIR_MCK_REPORT_DIR=/tmp/mck-reports dotnet run --project tests/Morphir.Frontend.FSharp.Tests --no-build -- --sequenced --filter "MCK cli adapter (tasks 6.3 and 6.4)"
+MORPHIR_MCK_COMPLETE=1 MORPHIR_MCK_REPORT_DIR=/tmp/mck-reports dotnet run --project tests/Morphir.Frontend.FSharp.Tests --no-build -- --sequenced --filter "MCK cli adapter (tasks 6.3 and 6.4)"
 ```
+
+At `03d7942` the tests always run the complete suite. In later commits, without
+`MORPHIR_MCK_COMPLETE=1`, the `cli` tests run a sample with every input
+kind and IR version (4 cases for the suite, 2 for `--target`), because each
+variant starts a process and the complete suite takes about 25 minutes on a
+4-core CI runner.
 
 On macOS, set `TMPDIR` to its resolved path first
 (`TMPDIR=$(cd "$TMPDIR" && pwd -P)/`), because the model loader refuses a path
