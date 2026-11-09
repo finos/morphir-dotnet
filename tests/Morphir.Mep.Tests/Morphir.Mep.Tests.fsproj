@@ -26,6 +26,7 @@
     <Compile Include="RpcTests.fs" />
     <Compile Include="DispatcherTests.fs" />
     <Compile Include="ConnectionTests.fs" />
+    <Compile Include="SessionTests.fs" />
     <Compile Include="FramingTests.fs" />
     <Compile Include="ContractTests.fs" />
     <Compile Include="InteropTests.fs" />

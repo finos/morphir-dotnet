@@ -159,7 +159,8 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: u
                     | Ok(JsonRpcMessage.Response(id, result)) -> complete (Some id) (Ok result)
                     | Ok(JsonRpcMessage.ErrorResponse(id, error)) -> complete id (Error error)
                     | Ok(JsonRpcMessage.Notification(method, parameters)) when method = Method.CancelRequest.WireValue ->
-                        cancelInflight parameters
+                        if dispatcher.Admits(method, MethodKind.Notification) then
+                            cancelInflight parameters
                     | Ok(JsonRpcMessage.Notification _ as message) ->
                         let! _ = dispatcher.DispatchMessageAsync(message, cancellation)
                         ()

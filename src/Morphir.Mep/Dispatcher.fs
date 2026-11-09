@@ -101,6 +101,12 @@ type Dispatcher(handlers: IReadOnlyDictionary<string, MethodHandler>, gate: stri
     /// A dispatcher that admits every message.
     new(handlers: IReadOnlyDictionary<string, MethodHandler>) = Dispatcher(handlers, (fun _ _ -> Admission.Proceed))
 
+    /// True when the gate admits the method now.
+    member _.Admits(method: string, kind: MethodKind) =
+        match gate method kind with
+        | Admission.Proceed -> true
+        | Admission.Refuse _ -> false
+
     /// Handles one classified message. A request gets a reply message; a notification or a response gets none.
     member _.DispatchMessageAsync(message: JsonRpcMessage, cancellation: CancellationToken) : Task<JsonRpcMessage option> =
         match message with
