@@ -61,7 +61,7 @@ module Lifecycle =
         if offered |> Seq.contains protocolVersion then
             Ok protocolVersion
         else
-            let text = offered |> Seq.map string |> String.concat ", "
+            let text = offered |> Seq.map _.Value |> String.concat ", "
 
             // data has the same members as the upstream Rust guest sends.
             let data =

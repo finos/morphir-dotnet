@@ -118,7 +118,7 @@ type Dispatcher(handlers: IReadOnlyDictionary<string, MethodHandler>, gate: Func
         | Admission.Refuse _ -> false
 
     /// Handles one classified message. A request gets a reply message; a notification or a response gets none.
-    member _.DispatchMessageAsync(message: JsonRpcMessage, cancellation: CancellationToken) : Task<JsonRpcMessage option> =
+    member internal _.DispatchMessageAsync(message: JsonRpcMessage, cancellation: CancellationToken) : Task<JsonRpcMessage option> =
         match message with
         | JsonRpcMessage.Response _
         | JsonRpcMessage.ErrorResponse _ -> Task.FromResult None

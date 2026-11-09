@@ -16,7 +16,6 @@ let runSession (claims: CapabilityClaimSet) (capabilities: ExtensionCapabilities
         let guest =
             Guest(
                 { Claims = claims
-                  Extension = claims.Extension
                   Capabilities = capabilities
                   Methods = readOnlyDict [] }
             )
@@ -30,7 +29,7 @@ let runSession (claims: CapabilityClaimSet) (capabilities: ExtensionCapabilities
                 toHost.Reader.AsStream(),
                 toGuest.Writer.AsStream(),
                 { Kind = PeerKind.Cli; Name = "morphir"; Version = "0.4.0" },
-                None
+                null
             )
 
         let hostRun = host.RunAsync CancellationToken.None

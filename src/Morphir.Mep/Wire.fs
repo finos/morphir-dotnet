@@ -12,8 +12,11 @@ open Morphir.Myriad.SystemTextJson
 /// A refused protocol version, before it can enter a protocol message.
 [<RequireQualifiedAccess; JsonIgnoreType>]
 type ParseFailure =
+    /// Not a full SemVer protocol version and not the legacy 0.1.
     | InvalidProtocolVersion
+    /// Not a full SemVer version.
     | InvalidSemanticVersion
+    /// Not 64 lowercase hexadecimal digits.
     | InvalidSha256Digest
 
     /// Stable diagnostic text, without reflection.
@@ -230,7 +233,10 @@ type Sha256Digest =
 
 /// The complete describe params object, including when it has only this one member.
 type DescribeParams =
-    { ProtocolVersions: IReadOnlyList<ProtocolVersion> }
+    {
+        /// The MEP versions that the host offers.
+        ProtocolVersions: IReadOnlyList<ProtocolVersion>
+    }
 
     /// Stable text for diagnostics.
     override this.ToString() =
@@ -239,7 +245,9 @@ type DescribeParams =
 /// A JSON-RPC request id: an unsigned 64-bit number or a string. The reply writes the same token.
 [<RequireQualifiedAccess; JsonUnion(BaseEncoding = (JsonUnionEncoding.Untagged ||| JsonUnionEncoding.SelectByTokenKind))>]
 type RequestId =
+    /// A numeric id, 0 through 18446744073709551615.
     | Number of uint64
+    /// A string id; it can be empty.
     | Text of string
 
     /// Stable text for diagnostics.
@@ -282,7 +290,7 @@ type PeerKind =
         | Unspecified -> "unspecified"
 
     /// Reads a wire value. Every unknown value is Unspecified, as the contract says.
-    static member Parse(text: string) : Result<PeerKind, string> =
+    static member Parse(text: string | null) : Result<PeerKind, string> =
         match text with
         | "cli" -> Ok Cli
         | _ -> Ok Unspecified
@@ -399,10 +407,13 @@ type ModelCodec =
     | [<JsonName "morphir-json">] MorphirJson
 
     /// The wire value.
-    override this.ToString() =
+    member this.WireValue =
         match this with
         | IonBinary -> "ion-binary"
         | MorphirJson -> "morphir-json"
+
+    /// The wire value.
+    override this.ToString() = this.WireValue
 
 /// The payload layout. Wire value: single-document.
 [<RequireQualifiedAccess>]
@@ -410,7 +421,10 @@ type ModelLayout =
     | [<JsonName "single-document">] SingleDocument
 
     /// The wire value.
-    override _.ToString() = "single-document"
+    member _.WireValue = "single-document"
+
+    /// The wire value.
+    override this.ToString() = this.WireValue
 
 /// One supported combination of operation, profile, codec, envelope version and IR version.
 type ModelTransportTuple =
@@ -612,11 +626,14 @@ type ProgressKind =
     | End
 
     /// The wire value.
-    override this.ToString() =
+    member this.WireValue =
         match this with
         | Begin -> "begin"
         | Report -> "report"
         | End -> "end"
+
+    /// The wire value.
+    override this.ToString() = this.WireValue
 
 /// Parameters of morphir.progress, for an active request.
 type ProgressParams =
@@ -657,12 +674,15 @@ type DiagnosticSeverity =
     | Hint
 
     /// The wire value.
-    override this.ToString() =
+    member this.WireValue =
         match this with
         | Error -> "error"
         | Warning -> "warning"
         | Info -> "info"
         | Hint -> "hint"
+
+    /// The wire value.
+    override this.ToString() = this.WireValue
 
 /// A zero-based position. character counts UTF-16 code units from the start of the line, as in LSP.
 type SourcePosition =
@@ -842,11 +862,14 @@ type MethodKind =
     | Request
     | Notification
 
-    /// Stable text for diagnostics.
-    override this.ToString() =
+    /// The text of the contract's method table: request or notification.
+    member this.WireValue =
         match this with
         | Request -> "request"
         | Notification -> "notification"
+
+    /// The same text as WireValue.
+    override this.ToString() = this.WireValue
 
 /// A MEP method. The wire value is the JSON-RPC method string.
 [<RequireQualifiedAccess; JsonIgnoreType>]

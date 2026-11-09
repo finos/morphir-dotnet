@@ -9,15 +9,14 @@ open System.IO
 open System.Text.Json
 open System.Text.Json.Serialization.Metadata
 open System.Threading
+open System.Runtime.CompilerServices
 open System.Threading.Tasks
 
 /// What a guest is and what it serves.
 type GuestDefinition =
     {
-        /// The result of morphir.extension.describe.
+        /// The result of morphir.extension.describe. Its extension is the extension of every session.
         Claims: CapabilityClaimSet
-        /// Who the extension is.
-        Extension: ExtensionInfo
         /// What the extension supports. Its modelTransport is the guest support before negotiation.
         Capabilities: ExtensionCapabilities
         /// The extension methods, such as morphir.validator.validate. Lifecycle methods cannot be replaced.
@@ -25,7 +24,7 @@ type GuestDefinition =
     }
 
     /// Stable text for diagnostics.
-    override this.ToString() = $"Guest {this.Extension}"
+    override this.ToString() = $"Guest {this.Claims.Extension}"
 
 module private Results =
     let decode<'T when 'T: not null> (info: JsonTypeInfo<'T>) (element: JsonElement) : 'T option =
@@ -72,13 +71,13 @@ type Guest(definition: GuestDefinition) =
                     SessionState.Initialized
                         { ProtocolVersion = version
                           Host = parameters.Host
-                          Extension = definition.Extension
+                          Extension = definition.Claims.Extension
                           Capabilities = capabilities }
 
                 Task.FromResult(
                     Ok
                         { ProtocolVersion = version
-                          Extension = definition.Extension
+                          Extension = definition.Claims.Extension
                           Capabilities = capabilities }
                 ))
 
@@ -90,7 +89,7 @@ type Guest(definition: GuestDefinition) =
           Method.Initialized, Handlers.notification (fun _ -> Task.CompletedTask)
           Method.Ping, Handlers.constant Lifecycle.pingResult
           Method.Info,
-          Handlers.requestWithoutParams MepJson.Default.ExtensionInfo (fun _ -> Task.FromResult(Ok definition.Extension))
+          Handlers.requestWithoutParams MepJson.Default.ExtensionInfo (fun _ -> Task.FromResult(Ok definition.Claims.Extension))
           Method.Capabilities,
           Handlers.requestWithoutParams MepJson.Default.ExtensionCapabilities (fun _ ->
               match state with
@@ -158,7 +157,8 @@ type InitializeFailure =
 /// The host side of a session on a framed stream pair (design SES-2). The host applies the lifecycle rules before
 /// it sends, so it does not send a request that the guest must refuse.
 [<Sealed>]
-type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTransportSupport option) =
+type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTransportSupport | null) =
+    let offer = Option.ofObj offer
     let mutable state = SessionState.Created
     let progress = ConcurrentQueue<ProgressParams>()
 
@@ -179,6 +179,9 @@ type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTran
         match Lifecycle.admit state method.WireValue MethodKind.Request with
         | Admission.Refuse error -> Task.FromResult(Error error)
         | Admission.Proceed -> connection.RequestAsync(method.WireValue, parameters, cancellation)
+
+    /// A legacy-only host session: it offers no model transport.
+    new(input: Stream, output: Stream, host: PeerInfo) = HostSession(input, output, host, null)
 
     /// Starts reading the guest's messages. The task ends when the connection ends.
     member _.RunAsync(cancellation: CancellationToken) : Task<ConnectionEnd> = connection.RunAsync cancellation
@@ -228,7 +231,7 @@ type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTran
                         | Some offer, Some selection ->
                             ModelTransport.verifySelection offer selection
                             |> Result.map Some
-                            |> Result.mapError string
+                            |> Result.mapError _.ToString()
                         | None, Some _ ->
                             Error
                                 $"The extension {result.Extension} selected model transport, which the host did not offer."
@@ -249,13 +252,9 @@ type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTran
                         return Ok session
         }
 
-    /// Sends morphir.ping.
-    member _.PingAsync(cancellation: CancellationToken) : Task<Result<unit, RpcError>> =
-        task {
-            match! send Method.Ping None cancellation with
-            | Ok _ -> return Ok()
-            | Error error -> return Error error
-        }
+    /// Sends morphir.ping. The result is the guest's reply object.
+    member _.PingAsync(cancellation: CancellationToken) : Task<Result<JsonElement, RpcError>> =
+        send Method.Ping None cancellation
 
     /// Asks for the extension info.
     member _.InfoAsync(cancellation: CancellationToken) =
@@ -265,21 +264,20 @@ type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTran
     member _.CapabilitiesAsync(cancellation: CancellationToken) =
         Results.typed MepJson.Default.ExtensionCapabilities (send Method.Capabilities None cancellation)
 
-    /// Sends an extension method request, such as morphir.validator.validate, with raw params.
-    member _.RequestAsync(method: Method, parameters: JsonElement option, cancellation: CancellationToken) =
-        send method parameters cancellation
+    /// Sends an extension method request, such as morphir.validator.validate, with raw params or none.
+    member _.RequestAsync(method: Method, parameters: Nullable<JsonElement>, cancellation: CancellationToken) =
+        send method (Option.ofNullable parameters) cancellation
 
-    /// Sends morphir.shutdown. After it, only exit is allowed.
-    member _.ShutdownAsync(cancellation: CancellationToken) : Task<Result<unit, RpcError>> =
+    /// Sends morphir.shutdown. After it, only exit is allowed. The result is the guest's reply object.
+    member _.ShutdownAsync(cancellation: CancellationToken) : Task<Result<JsonElement, RpcError>> =
         task {
-            match! send Method.Shutdown None cancellation with
-            | Ok _ ->
-                match state with
-                | SessionState.Initialized session -> state <- SessionState.ShutDown session
-                | _ -> ()
+            let! reply = send Method.Shutdown None cancellation
 
-                return Ok()
-            | Error error -> return Error error
+            match reply, state with
+            | Ok _, SessionState.Initialized session -> state <- SessionState.ShutDown session
+            | _ -> ()
+
+            return reply
         }
 
     /// Sends morphir.exit and ends the session.
@@ -288,3 +286,13 @@ type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTran
             do! connection.NotifyAsync(Method.Exit.WireValue, None)
             state <- SessionState.Exited
         }
+
+/// Lets C# callers handle an F# Result without branching on its cases.
+[<Extension; AbstractClass; Sealed>]
+type ResultExtensions =
+    /// Calls ok with the value of a success, or error with the error of a failure.
+    [<Extension>]
+    static member Match(result: Result<'T, 'E>, ok: Func<'T, 'R>, error: Func<'E, 'R>) : 'R =
+        match result with
+        | Ok value -> ok.Invoke value
+        | Error failure -> error.Invoke failure

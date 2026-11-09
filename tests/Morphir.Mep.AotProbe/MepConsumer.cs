@@ -78,17 +78,16 @@ public static class MepConsumer
         JsonSerializer.Deserialize(json, info) ?? throw new InvalidOperationException($"No {typeof(T).Name}.");
 
     private static T Check<T, TError>(FSharpResult<T, TError> result, string step) =>
-        result.IsOk ? result.ResultValue : throw new InvalidOperationException($"{step} failed: {result.ErrorValue}");
+        result.Match(value => value, error => throw new InvalidOperationException($"{step} failed: {error}"));
 
     /// <summary>Runs describe, initialize, ping, info, capabilities, shutdown and exit over in-memory pipes.</summary>
     private static async Task RunSessionAsync(StringBuilder output, CancellationToken token)
     {
-        var extension = Decode(Extension, MepJson.Default.ExtensionInfo);
         var capabilities = Decode("""{"cancellation":true}""", MepJson.Default.ExtensionCapabilities);
         var claims = Decode(
             $$$"""{"claimsVersion":"0.1.0-draft.2","protocolVersions":["0.2.0-draft.1"],"extension":{{{Extension}}},"capabilities":{}}""",
             MepJson.Default.CapabilityClaimSet);
-        var guest = new Guest(new GuestDefinition(claims, extension, capabilities, new Dictionary<string, MethodHandler>()));
+        var guest = new Guest(new GuestDefinition(claims, capabilities, new Dictionary<string, MethodHandler>()));
 
         var toGuest = new Pipe();
         var toHost = new Pipe();
@@ -96,8 +95,7 @@ public static class MepConsumer
         var host = new HostSession(
             toHost.Reader.AsStream(),
             toGuest.Writer.AsStream(),
-            new PeerInfo(PeerKind.Cli, "morphir-probe", "0.0.0"),
-            FSharpOption<ModelTransportSupport>.None);
+            new PeerInfo(PeerKind.Cli, "morphir-probe", "0.0.0"));
         var hostRun = host.RunAsync(token);
 
         var described = Check(await host.DescribeAsync(token), "describe");
@@ -112,7 +110,7 @@ public static class MepConsumer
         output.AppendLine($"session-capabilities {JsonSerializer.Serialize(current, MepJson.Default.ExtensionCapabilities)}");
         Check(await host.ShutdownAsync(token), "shutdown");
         var late = await host.PingAsync(token);
-        output.AppendLine($"session-ping-after-shutdown {(late.IsError ? late.ErrorValue.Code : 0)}");
+        output.AppendLine($"session-ping-after-shutdown {late.Match(_ => 0, error => error.Code)}");
         await host.ExitAsync();
         output.AppendLine($"session-guest-end {await guestRun}");
         await toHost.Writer.CompleteAsync();

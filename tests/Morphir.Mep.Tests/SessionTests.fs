@@ -33,7 +33,6 @@ let private guestOf (result: JsonNode) =
 
     Guest(
         { Claims = claims
-          Extension = initialized.Extension
           Capabilities = initialized.Capabilities
           Methods = readOnlyDict [] }
     )
@@ -257,7 +256,7 @@ let tests =
               let initialize = decode MepJson.Default.InitializeParams expectedParams
 
               let host =
-                  HostSession(toHost.Reader.AsStream(), hostWrites, initialize.Host, initialize.ModelTransport)
+                  HostSession(toHost.Reader.AsStream(), hostWrites, initialize.Host, Option.toObj initialize.ModelTransport)
 
               let hostRun = host.RunAsync CancellationToken.None
               let wait (task: Task<'T>) = task.Wait(TimeSpan.FromSeconds 10.) |> ignore; task.Result
