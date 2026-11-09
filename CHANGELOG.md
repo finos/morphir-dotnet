@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `morphir-fsharp-backend`: the F# generator as a MEP `0.2.0-draft.1` guest, packaged as the framework-dependent dotnet tool `Morphir.CodeGeneration.FSharp.Extension` with the extension id `org.finos.morphir.fsharp-backend`. It serves `morphir.backend.generateModel` for the target `fsharp` with JSON model tuples for IR `4.0.0` and `3.0.0`, for hosts that have no built-in F# backend. The built-in `morphir.fsharp` stays the backend of `morphir generate`, which does not start the extension. Releases publish the package next to `Morphir.Tool`
+- `Morphir.Mep` backend messages: the pinned `generateModel` request, generate result and artifact types, and `GenerateModel.admit`, the guest check of a request
+
 ## [0.4.0-alpha.3] - 2026-11-09
 
 ### Added
