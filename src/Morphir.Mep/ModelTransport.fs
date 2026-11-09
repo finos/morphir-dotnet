@@ -542,16 +542,19 @@ module internal PayloadScan =
 
                     cursor.Position <- cursor.Position + 1
                     let size = cursor.Length(limit, low)
-                    wrapperEnd <- cursor.Position + size
 
-                    if wrapperEnd > limit then
+                    // Compare with the space left before adding, so that a large length cannot wrap the offset.
+                    if size > limit - cursor.Position then
                         fail "An annotation wrapper runs past its container."
 
-                    let annotationsLength = cursor.VarUInt wrapperEnd
-                    let annotationsEnd = cursor.Position + annotationsLength
+                    wrapperEnd <- cursor.Position + size
 
-                    if annotationsLength < 1 || annotationsEnd >= wrapperEnd then
+                    let annotationsLength = cursor.VarUInt wrapperEnd
+
+                    if annotationsLength < 1 || annotationsLength >= wrapperEnd - cursor.Position then
                         fail "An annotation wrapper has no annotations or no value."
+
+                    let annotationsEnd = cursor.Position + annotationsLength
 
                     firstAnnotation <- cursor.VarUInt annotationsEnd
 
@@ -592,10 +595,12 @@ module internal PayloadScan =
                         cursor.Length(valueLimit, low)
 
                 let valueStart = cursor.Position
-                let valueEnd = valueStart + bodyLength
 
-                if valueEnd > valueLimit then
+                // Compare with the space left before adding, so that a large length cannot wrap the offset.
+                if bodyLength > valueLimit - valueStart then
                     fail "A value runs past its container."
+
+                let valueEnd = valueStart + bodyLength
 
                 if annotated && valueEnd <> wrapperEnd then
                     fail "An annotation wrapper length does not match its value."
