@@ -59,6 +59,13 @@ A collection field MAY opt into omission when empty. Nonempty collections SHALL 
 - **WHEN** a related-information list declares an empty default and empty omission
 - **THEN** an absent list reads as empty and an empty list is not written
 
+### Requirement: Booleans can be omitted when equal to their default
+A Boolean field with a missing-member default MAY opt into omission when its value equals that default. Another value SHALL be written. A field without a Boolean type or without a Boolean default SHALL fail generation.
+
+#### Scenario: Multi-document frontend capability
+- **WHEN** `multiDocument` declares the default false and default omission
+- **THEN** an absent member reads as false, false is not written, and true is written
+
 ### Requirement: Extension data is preserved without a wrapper
 A record MAY have one extension-data field of a string-keyed JsonElement map type. Unknown members SHALL be captured and written beside named members. A repeated member or a write collision with a named member or its alias SHALL fail. An absent extension-data set SHALL be empty.
 

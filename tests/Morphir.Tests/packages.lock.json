@@ -519,6 +519,14 @@
           "System.CommandLine": "[2.0.14, )"
         }
       },
+      "morphir.analyzers": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Extensions": "[1.0.0, )",
+          "Morphir.IR.Pipeline.Plugins": "[1.0.0, )"
+        }
+      },
       "morphir.codegeneration.csharp": {
         "type": "Project",
         "dependencies": {
@@ -571,6 +579,7 @@
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
+          "Morphir.Mep": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
       },
@@ -597,12 +606,22 @@
           "Morphir.Models": "[1.0.0, )"
         }
       },
+      "morphir.mep": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Myriad.SystemTextJson.Annotations": "[1.0.0, )"
+        }
+      },
       "morphir.models": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
+      },
+      "morphir.myriad.systemtextjson.annotations": {
+        "type": "Project"
       },
       "morphir.testsupport": {
         "type": "Project"
@@ -628,6 +647,7 @@
           "Json.More.Net": "[2.2.0, )",
           "JsonSchema.Net": "[8.0.5, )",
           "Microsoft.Extensions.Hosting": "[10.0.14, )",
+          "Morphir.Analyzers": "[1.0.0, )",
           "Morphir.CodeGeneration.CSharp": "[1.0.0, )",
           "Morphir.CodeGeneration.FSharp": "[1.0.0, )",
           "Morphir.Compilation": "[1.0.0, )",

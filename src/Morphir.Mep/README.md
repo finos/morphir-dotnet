@@ -1,90 +1,113 @@
 # Morphir.Mep
 
-Shared protocol code for Morphir hosts and guests. Work is tracked by
+One implementation of the Morphir Extension Protocol (MEP) `0.2.0-draft.1` for
+morphir-dotnet hosts and guests: JSON-RPC 2.0 messages, `Content-Length` framing,
+the session lifecycle and the model transport. Work is tracked by
 [#512](https://github.com/finos/morphir-dotnet/issues/512) and
-[`add-mep-core`](../../openspec/changes/add-mep-core/proposal.md).
+[`add-mep-core`](../../openspec/changes/archive/2026-11-09-add-mep-core/proposal.md). The roadmap is the
+[Morphir extension model PRD](../../docs/content/contributing/design/prds/morphir-extension-model.md), step 1.
 
-## Current foundation
+## Layers
 
-- `Wire.fs` has parsed protocol versions and the first generated message,
-  `DescribeParams`. `MepJson` is generated from this file at build time by
-  `Morphir.Myriad.SystemTextJson`. There is no reflection serializer.
-- `Framing.fs` reads and writes `Content-Length` frames on a `Stream`. Hosts
-  and guests use the same code. Header blocks are bounded at 8192 bytes and
-  bodies at 64 MiB, before allocating a body. A framing failure is terminal
-  for the connection. Clean EOF between frames is a separate outcome.
-- Callers own streams, cancel operations through their tokens, and serialize
-  writes to each output stream. Framing never starts a process or logs to stdout.
+| Layer | File | What it does |
+| --- | --- | --- |
+| Wire types | `Wire.fs` | Records and unions of the pinned contract, with parsed values (`ProtocolVersion`, `SemanticVersion`, `Sha256Digest`, `RequestId`). `MepJson` is generated from this file at build time by `Morphir.Myriad.SystemTextJson`. There is no reflection serializer. |
+| Model transport | `ModelTransport.fs` | Tuple selection, the host check of a selection, envelope creation and admission. Pure functions. |
+| Message codec | `Rpc.fs` | Classifies a JSON-RPC message by its members (`JsonRpcMessage`), keeps params raw, and writes messages. This is the only hand-written JSON. |
+| Dispatcher | `Dispatcher.fs` | `DispatchAsync(bytes, ct)` returns the reply bytes, or none for a notification. A method table maps method names to typed handlers; a gate refuses a method before its handler runs. |
+| Framing | `Framing.fs` | `Content-Length` frames on a `Stream`: header blocks up to 8192 bytes, bodies up to 64 MiB, checked before the body is read. A refused frame ends the connection. |
+| Connection | `Connection.fs` | Reads frames, dispatches inbound requests concurrently, matches inbound responses to the pending-request table, and sends and receives `$/cancelRequest`. |
+| Session | `Session.fs` | The pure lifecycle rules (`Lifecycle.admit`) and version negotiation, shared by hosts and guests. |
+| Peers | `Peers.fs` | `Guest` (lifecycle methods, gate, extension methods) and `HostSession` (refuses to send what the guest must refuse). |
 
-The JSON-RPC dispatcher, connection, session lifecycle, model admission and
-remaining wire types are pending. The generator prerequisite landed in
-[#532](https://github.com/finos/morphir-dotnet/pull/532); this project uses the
-repository generator build. Session negotiation will decide which offered version
-is accepted. The wire codec can read full SemVer offers and the frozen legacy
-spelling `0.1` without deciding negotiation.
+The stream path (`Connection`) and the single-message path (`Dispatcher.DispatchAsync`)
+use the same dispatcher, so they give the same bytes. Starting a guest process is not
+in this project: a process host connects a `HostSession` to the child's streams.
 
-## Contract inputs
+## A guest and a host in memory
+
+This example is compiled by `tests/Morphir.Mep.Tests/ReadmeTests.fs`. Keep the two equal.
+
+```fsharp
+let runSession (claims: CapabilityClaimSet) (capabilities: ExtensionCapabilities) =
+    task {
+        let guest =
+            Guest(
+                { Claims = claims
+                  Capabilities = capabilities
+                  Methods = readOnlyDict [] }
+            )
+
+        let toGuest = Pipe()
+        let toHost = Pipe()
+        let guestRun = guest.RunAsync(toGuest.Reader.AsStream(), toHost.Writer.AsStream(), CancellationToken.None)
+
+        let host =
+            HostSession(
+                toHost.Reader.AsStream(),
+                toGuest.Writer.AsStream(),
+                { Kind = PeerKind.Cli; Name = "morphir"; Version = "0.4.0" },
+                null
+            )
+
+        let hostRun = host.RunAsync CancellationToken.None
+        let! session = host.InitializeAsync CancellationToken.None
+        let! ping = host.PingAsync CancellationToken.None
+        let! _ = host.ShutdownAsync CancellationToken.None
+        do! host.ExitAsync()
+        let! guestEnd = guestRun
+        toHost.Writer.Complete()
+        let! _ = hostRun
+        return session, ping, guestEnd
+    }
+```
+
+## Add a method
+
+1. Check that the pinned contract has the method and its params and result types. Do not
+   add a method, member or error code that the pin does not have; raise an upstream issue.
+2. Write a failing wire test, then add the types to `Wire.fs` with the attributes that the
+   contract's wire rules need. Add the type to the contract test (`ContractTests.fs`):
+   a complete sample, and the members that the contract text lets a reader default.
+3. Add the method to `Method` if it is new, and its capability to `Lifecycle.capability`
+   if the contract makes it depend on one (the guest replies `-32013` without it).
+4. Register a handler in the guest's `Methods` with `Handlers.request` (params bind as one
+   object through their codec; absent or mismatched params give `-32602`), and add a typed
+   call to `HostSession` if hosts send it.
+5. Add the method to the AOT probe (`tests/Morphir.Mep.AotProbe`) when it changes what
+   C# calls.
+
+## The pin
 
 [`tests/Fixtures/Mep`](../../tests/Fixtures/Mep/PROVENANCE.md) pins the upstream
-contract model, transcripts and model-transport corpus by commit and digest.
-Keep the fixtures unchanged. Update the pin as a separate reviewed change and
-run the contract tests when it changes. Wire rules are documented on the types
-inside `mep.ir.json`, including rules that differ from ordinary record JSON.
+contract model (`mep.ir.json`), the transcripts and the model-transport corpus by commit
+and digest. Do not edit the fixtures. To update the pin:
 
-New message types belong in `Wire.fs` or a separately declared generated
-context. Add a failing wire test before the type. Check missing and null
-members, optional-member omission and the pinned transcript examples, as well
-as the happy path. New transport behavior needs stream tests independent of
-child processes.
+1. Copy the new files from `finos/morphir` at one commit, and record the commit and the
+   SHA-256 digests in `PROVENANCE.md`.
+2. Run the tests. `ContractTests` fails for each renamed or added member, and the
+   transcript and corpus tests fail for each changed behavior.
+3. Change the types and rules in the same pull request. A new MEP version moves every MEP
+   part in morphir-dotnet together; drafts match only exactly.
+
+Where a transcript and the contract text disagree, the tests follow the contract text.
+The legacy transcripts initialize with `0.1`; the replays use `0.2.0-draft.1` instead.
 
 ## C# callers
 
-```csharp
-using System.Text.Json;
-using Morphir.Mep;
+The project is trimmable and AOT-compatible, with F# nullness metadata. Parsed values have
+`TryParse` and `Create`; `FrameRead` has `Match`. `tests/Morphir.Mep.AotProbe` is a C#
+consumer that runs the full session; `InteropTests` compiles C# examples and checks the
+nullable-flow diagnostics.
 
-var version = ProtocolVersion.Create("0.2.0-draft.1");
-var parameters = new DescribeParams([version]);
-var json = JsonSerializer.Serialize(parameters, MepJson.Default.DescribeParams);
-```
-
-`ProtocolVersion.TryParse` accepts nullable untrusted text and gives C# flow-aware
-result and failure outputs. `DescribeParams.ProtocolVersions` is exposed as an
-`IReadOnlyList<ProtocolVersion>`. For a stream, call
-`ContentLengthFraming.ReadAsync(stream, cancellationToken)` and handle all outcomes
-with `FrameRead.Match`. Stop the connection on a refusal; do not try to find a new
-frame boundary in the remaining bytes. Callers own and dispose their streams.
-
-## Run the foundation tests
+## Tests
 
 ```sh
 dotnet run --project tests/Morphir.Mep.Tests -- --summary
-```
-
-The suite includes a property test of arbitrary frame payloads and uses only
-in-memory streams. The repository's `./build.sh --target Test` includes it.
-
-`ContractTests` reads the describe constructor from the pinned IR and checks wire
-names and requiredness. A renamed member in a copy of the pin is rejected. The
-remaining wire-type inventory and transcript coverage are added with those types.
-The same C# consumer runs in the unit-test host on every CI platform.
-`InteropTests` also compiles unsafe C# examples and requires nullable-flow and
-read-only-indexer diagnostics. Its child build uses the shared test sandbox.
-
-```sh
 ./build.sh --target TestMepAot --configuration Release
 ```
 
-`tests/Morphir.Mep.AotProbe` is a C# consumer with reflection serialization disabled.
-It checks generated serialization, parser flow, framing, clean EOF and refusal
-through the public C# API. The target publishes its dependency closure with Native
-AOT, rejects new IL diagnostics and compares native output with JIT byte for byte.
-It uses the existing FSharp.Core summary baseline, as `TestMyriadJsonAot` does.
-Both probes run in the existing Linux AOT step of PR CI; the unit tests run on all
-three CI platforms. A full session AOT probe remains part of the later session slice.
-
-To collect module coverage, including the generated codec:
-
-```sh
-dotnet test tests/Morphir.Mep.Tests -c Release --settings tests/Morphir.Mep.Tests/coverage.runsettings --collect:"Code Coverage"
-```
+The first command runs the wire, contract, JSON-RPC, connection, session and
+model-transport tests on in-memory streams. The second publishes the probe with Native
+AOT, refuses IL diagnostics other than the FSharp.Core summary baseline, and compares
+the native output with JIT byte for byte. Both run in PR CI.

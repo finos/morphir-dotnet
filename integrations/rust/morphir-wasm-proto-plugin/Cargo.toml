@@ -11,7 +11,7 @@ authors = ["FINOS Morphir Contributors"]
 crate-type = ["cdylib"]
 
 [dependencies]
-proto_pdk = "0.32"
+proto_pdk = "0.36"
 extism-pdk = "1.0"
 
 [dev-dependencies]

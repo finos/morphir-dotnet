@@ -127,6 +127,22 @@
         "resolved": "0.11.4",
         "contentHash": "IC1h5g0NeJGHIUgzM1P82ld57knhP0IcQfrYITDPXlNpMYGUrsG5TxuaWTjaeqDNQMBDNZkB8L0rBnwsY6JHuQ=="
       },
+      "morphir.analyzers": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Extensions": "[1.0.0, )",
+          "Morphir.IR.Pipeline.Plugins": "[1.0.0, )"
+        }
+      },
+      "morphir.extensions": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Mep": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.ir.pipeline": {
         "type": "Project",
         "dependencies": {
@@ -141,12 +157,22 @@
           "Morphir.Models": "[1.0.0, )"
         }
       },
+      "morphir.mep": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Myriad.SystemTextJson.Annotations": "[1.0.0, )"
+        }
+      },
       "morphir.models": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
+      },
+      "morphir.myriad.systemtextjson.annotations": {
+        "type": "Project"
       },
       "FSharp.SystemTextJson": {
         "type": "CentralTransitive",

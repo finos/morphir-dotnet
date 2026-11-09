@@ -2,14 +2,14 @@
 
 ## Why
 
-Step 1 of the [Morphir extension model](../../../docs/content/contributing/design/prds/morphir-extension-model.md) PRD. External analyzers (step 2a, WASM; step 2b, process) and the MEP path of the F# frontend (`add-fsharp-compile`, groups 7 to 9) all need the same Morphir Extension Protocol (MEP) core in .NET. There is no MEP code in the repository yet, and the two plans must not make two copies of it. Analyzers also need a contract in process before they need one on the wire: the built-in `TypeValidator` can prove the analyzer shape now, with no runtime risk.
+Step 1 of the [Morphir extension model](../../../../docs/content/contributing/design/prds/morphir-extension-model.md) PRD. External analyzers (step 2a, WASM; step 2b, process) and the MEP path of the F# frontend (`add-fsharp-compile`, groups 7 to 9) all need the same Morphir Extension Protocol (MEP) core in .NET. There is no MEP code in the repository yet, and the two plans must not make two copies of it. Analyzers also need a contract in process before they need one on the wire: the built-in `TypeValidator` can prove the analyzer shape now, with no runtime risk.
 
 ## What Changes
 
 - Extend the Myriad JSON generator first with opt-in missing-member defaults, empty-collection omission, flattened extension data and versioned member/path migration. These additional wire rules were confirmed against the pinned contract and approved on 2026-11-08 UTC. Deliver this prerequisite separately from the protocol integration. The approved API follow-up uses typed scalar literals, empty-collection defaults and static default providers, with an explicitly named JSON-literal escape hatch.
 
 - Add `src/Morphir.Mep`, an F# project that is trimmable and AOT-compatible. It is the one MEP layer for every morphir-dotnet host, guest and frontend. It holds:
-  - our own JSON-RPC 2.0 layer on System.Text.Json (the [JSON-RPC spike](../../../docs/content/contributing/design/spikes/extension-model/jsonrpc.md) decision): messages, `u64`-or-string request ids, error replies, one dispatcher for single messages (`bytes -> bytes`), `Content-Length` framing with the upstream limits, a connection with a pending-request table, `$/cancelRequest` and notifications;
+  - our own JSON-RPC 2.0 layer on System.Text.Json (the [JSON-RPC spike](../../../../docs/content/contributing/design/spikes/extension-model/jsonrpc.md) decision): messages, `u64`-or-string request ids, error replies, one dispatcher for single messages (`bytes -> bytes`), `Content-Length` framing with the upstream limits, a connection with a pending-request table, `$/cancelRequest` and notifications;
   - the MEP `0.2.0-draft.1` session types and the lifecycle (`describe`, `initialize`, `initialized`, `info`, `capabilities`, `shutdown`, `exit`) as one pure state machine for hosts and guests;
   - the model transport: tuple negotiation and `MorphirModel` envelope admission (bounds, canonical base64, length, SHA-256, limits), shared by `compileModel` now and by `generateModel` and the validator later;
   - the MEP `Diagnostic` type.
@@ -36,7 +36,7 @@ Step 1 of the [Morphir extension model](../../../docs/content/contributing/desig
 
 ## Tracking
 
-- Roadmap: [Morphir extension model PRD](../../../docs/content/contributing/design/prds/morphir-extension-model.md), step 1. Step 0 landed in #503.
+- Roadmap: [Morphir extension model PRD](../../../../docs/content/contributing/design/prds/morphir-extension-model.md), step 1. Step 0 landed in #503.
 - Issue: [#512](https://github.com/finos/morphir-dotnet/issues/512). The F# frontend epic is #499.
 - Depends on: `add-myriad-json-codecs` (the Myriad JSON generator, [#511](https://github.com/finos/morphir-dotnet/issues/511)).
 - Related: `add-fsharp-compile` (#495) shares `Morphir.Mep`. #505 (MCK suite for step 0) waits for the compatibility kit.

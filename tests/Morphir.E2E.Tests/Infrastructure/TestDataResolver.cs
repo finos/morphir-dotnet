@@ -6,12 +6,15 @@ namespace Morphir.E2E.Tests.Infrastructure;
 public class TestDataResolver
 {
     private readonly string _testDataDirectory;
+    private readonly string _modelFixturesDirectory;
 
     public TestDataResolver()
     {
         var repositoryRoot = FindRepositoryRoot(AppContext.BaseDirectory);
         // Reference shared test data from Morphir.Tooling.Tests
         _testDataDirectory = Path.Combine(repositoryRoot, "tests", "Morphir.Tooling.Tests", "TestData");
+        // The shared Morphir model fixtures, such as the classic model with a type mismatch.
+        _modelFixturesDirectory = Path.Combine(repositoryRoot, "tests", "Fixtures", "MorphirIR");
 
         if (!Directory.Exists(_testDataDirectory))
         {
@@ -20,10 +23,15 @@ public class TestDataResolver
     }
 
     /// <summary>
-    /// Resolve a test data file path, replacing &lt;test-data&gt; placeholder
+    /// Resolve a test data file path, replacing the &lt;test-data&gt; and &lt;model-fixtures&gt; placeholders
     /// </summary>
     public string ResolvePath(string path)
     {
+        if (path.Contains("<model-fixtures>"))
+        {
+            path = path.Replace("<model-fixtures>", _modelFixturesDirectory);
+        }
+
         if (path.Contains("<test-data>"))
         {
             return path.Replace("<test-data>", _testDataDirectory);

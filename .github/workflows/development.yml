@@ -28,7 +28,7 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - uses: actions/checkout@v6.0.1
+            - uses: actions/checkout@v6.1.0
               with:
                   fetch-depth: 0
             - name: Setup .NET SDK
@@ -61,7 +61,7 @@ jobs:
         runs-on: ${{ matrix.os }}
 
         steps:
-            - uses: actions/checkout@v6.0.1
+            - uses: actions/checkout@v6.1.0
             - name: Configure physical test temporary directory
               shell: pwsh
               run: |
@@ -164,6 +164,6 @@ jobs:
         runs-on: ubuntu-latest
         needs: [lint, test, openspec]
         steps:
-            - uses: actions/checkout@v6.0.1
+            - uses: actions/checkout@v6.1.0
             - name: Aggregate of lint, and all tests
               run: echo "ci passed"

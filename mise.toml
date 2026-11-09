@@ -3,8 +3,8 @@
 
 [tools]
 dotnet = "10.0.403"
-"npm:@fission-ai/openspec" = "1.14.3"
-node = "24.14.1"
+"npm:@fission-ai/openspec" = "1.16.1"
+node = "24.22.2"
 
 [tools."github:moonrockz/mission-control"]
 version = "0.1.1"

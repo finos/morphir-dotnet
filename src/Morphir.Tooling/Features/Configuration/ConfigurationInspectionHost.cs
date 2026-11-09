@@ -17,11 +17,12 @@ public interface IConfigurationInspectionHost
 }
 
 /// <summary>Supplies native filesystem and process inputs to shared discovery and resolution.</summary>
-public sealed class NativeConfigurationInspectionHost : IConfigurationInspectionHost
+/// <param name="workingDirectory">The directory that discovery starts from; the process directory when null.</param>
+public sealed class NativeConfigurationInspectionHost(string? workingDirectory = null) : IConfigurationInspectionHost
 {
     public ResolutionDetails Load(ConfigurationInvocation invocation)
     {
-        var start = ProjectPath.normalize(System.Environment.CurrentDirectory);
+        var start = ProjectPath.normalize(workingDirectory ?? System.Environment.CurrentDirectory);
         var boundary = ProjectPath.normalize(Path.GetFullPath(invocation.Boundary ?? Path.GetPathRoot(start)!));
         // The Morphir home is excluded from discovery even when isolated.
         var tree = new FileSystemProjectTree(boundary,
