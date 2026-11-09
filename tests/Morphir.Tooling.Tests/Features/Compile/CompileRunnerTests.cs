@@ -131,14 +131,14 @@ public sealed class CompileRunnerTests
     }
 
     [Test]
-    public async Task WithoutATransportAConfiguredExtensionFailsBeforeSourceSelection()
+    public async Task AConfiguredExtensionThatCannotStartFailsBeforeSourceSelection()
     {
         using var workspace = Project();
-        var events = await CompileRunners.Events(CompileRunners.Create([FSharpFrontend.Registration]),
+        var events = await CompileRunners.Events(CompileRunners.Create([FSharpFrontend.Registration], extensions: new FailingExtensionConnector()),
             Inputs() with { Extension = "morphir-fsharp-frontend" }, workspace.Context());
         var result = CompileHandler.Fold(events);
         result.ExitCode.Should().Be(2);
-        CompileRunners.ErrorCodes(result).Should().Equal("compile.extension_unavailable");
+        CompileRunners.ErrorCodes(result).Should().Equal("extension.unavailable");
         result.Diagnostics.Single().Diagnostic.Message.Should().Contain("morphir-fsharp-frontend").And.Contain("--extension");
         events.OfType<CompileEvent.StageStarted>().Select(e => e.Stage).Should().Equal(CompileStage.Settings);
     }

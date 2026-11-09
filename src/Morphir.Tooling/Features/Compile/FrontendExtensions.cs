@@ -1,7 +1,6 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 using Morphir.Compilation;
-using Severity = Morphir.Compilation.DiagnosticSeverity;
 
 namespace Morphir.Tooling.Features.Compile;
 
@@ -21,14 +20,4 @@ public interface IFrontendExtensionConnector
 {
     /// <summary>Connects the extension. A failure names the extension and the reason.</summary>
     Task<Checked<IFrontend>> ConnectAsync(FrontendExtensionRequest request, CancellationToken ct);
-}
-
-/// <summary>The connector of a build that has no extension transport. Every request fails.</summary>
-public sealed class UnavailableFrontendExtensionConnector : IFrontendExtensionConnector
-{
-    /// <inheritdoc />
-    public Task<Checked<IFrontend>> ConnectAsync(FrontendExtensionRequest request, CancellationToken ct) =>
-        Task.FromResult(Checked<IFrontend>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.ExtensionUnavailable,
-            $"The frontend extension '{request.Extension.Value}' from {ProjectCompileSettingsResolver.Describe(request.Extension.Origin)} cannot be started: this build has no frontend extension transport. MEP frontend extensions arrive in a later delivery. The dotnet tool dotnet-morphir has a built-in F# frontend; remove the extension setting to use it.",
-            null)]));
 }
