@@ -28,6 +28,35 @@ let private receive (stream: Stream) =
     | FrameRead.Message body -> Encoding.UTF8.GetString body
     | other -> failtest $"Expected a frame, got {other}"
 
+/// A stream whose read waits until Fail is called, and then throws an I/O error.
+type private BrokenStream() =
+    inherit Stream()
+    let failed = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
+    member _.Fail() = failed.TrySetResult() |> ignore
+    override _.CanRead = true
+    override _.CanSeek = false
+    override _.CanWrite = false
+    override _.Length = raise (NotSupportedException())
+
+    override _.Position
+        with get () = raise (NotSupportedException())
+        and set _ = raise (NotSupportedException())
+
+    override _.Flush() = ()
+    override _.Read(_, _, _) = raise (IOException "The stream broke.")
+
+    override _.ReadAsync(_: Memory<byte>, _: CancellationToken) =
+        ValueTask<int>(
+            task {
+                do! failed.Task
+                return raise (IOException "The stream broke.")
+            }
+        )
+
+    override _.Seek(_, _) = raise (NotSupportedException())
+    override _.SetLength _ = raise (NotSupportedException())
+    override _.Write(_, _, _) = raise (NotSupportedException())
+
 /// A guest connection over two pipes, with a slow method that records its cancellation.
 let private guest (cancelled: TaskCompletionSource<unit>) =
     let toGuest = Wire()
@@ -125,6 +154,49 @@ let tests =
               match slow.Result with
               | Error error -> Expect.equal error.Code (int ErrorCode.RequestCancelled) "-32800"
               | Ok _ -> failtest "Expected the cancelled reply"
+
+          testCase "a disconnect cancels running handlers and ends the connection"
+          <| fun _ ->
+              let cancelled = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
+              let toGuest, _, _, run, _ = guest cancelled
+              send toGuest.Writer """{"jsonrpc":"2.0","id":1,"method":"test.slow"}"""
+              toGuest.Writer.Dispose()
+              Expect.isTrue (cancelled.Task.Wait(TimeSpan.FromSeconds 10.)) "The handler token cancels"
+              Expect.isTrue (run.Wait(TimeSpan.FromSeconds 10.)) "The connection ends"
+              Expect.equal run.Result ConnectionEnd.EndOfStream "End of stream"
+
+          testCase "cancelling the connection settles its pending requests"
+          <| fun _ ->
+              let fromGuest = Wire()
+              let toGuest = Wire()
+              let host = Connection(fromGuest.Reader, toGuest.Writer, Dispatcher(readOnlyDict []))
+              use source = new CancellationTokenSource()
+              let run = host.RunAsync source.Token
+              let pending = host.RequestAsync(Method.Ping.WireValue, None, CancellationToken.None)
+              receive toGuest.Reader |> ignore
+              source.Cancel()
+              Expect.isTrue (pending.Wait(TimeSpan.FromSeconds 10.)) "The pending request completes"
+              Expect.isError pending.Result "With an error, because no reply can come"
+
+              Expect.throwsT<AggregateException>
+                  (fun () -> run.Wait(TimeSpan.FromSeconds 10.) |> ignore)
+                  "The cancellation reaches the caller"
+
+          testCase "a read failure settles pending requests and reaches the caller"
+          <| fun _ ->
+              let toGuest = Wire()
+              let broken = new BrokenStream()
+              let host = Connection(broken, toGuest.Writer, Dispatcher(readOnlyDict []))
+              let pending = host.RequestAsync(Method.Ping.WireValue, None, CancellationToken.None)
+              receive toGuest.Reader |> ignore
+              let run = host.RunAsync CancellationToken.None
+              broken.Fail()
+              Expect.isTrue (pending.Wait(TimeSpan.FromSeconds 10.)) "The pending request completes"
+              Expect.isError pending.Result "With an error"
+
+              match Expect.throwsC (fun () -> run.Wait(TimeSpan.FromSeconds 10.) |> ignore) id with
+              | :? AggregateException as error -> Expect.isTrue (error.InnerException :? IOException) "The read failure"
+              | other -> failtest $"Unexpected {other}"
 
           testCase "a refused frame ends the connection with a diagnostic"
           <| fun _ ->
