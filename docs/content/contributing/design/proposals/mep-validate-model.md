@@ -7,7 +7,7 @@ description: >
 
 # Proposal: the validateModel payload for MEP
 
-Status: Draft for maintainer review. This proposal is not upstream yet. Task 7.2 of [`add-mep-core`](https://github.com/finos/morphir-dotnet/blob/main/openspec/changes/add-mep-core/tasks.md) opens the upstream draft pull request after approval.
+Status: Upstream as the draft pull request [finos/morphir#1139](https://github.com/finos/morphir/pull/1139) (head `155ce26f40e8caa917ed947d5c6d1be9928c3ee4`), opened by task 7.2 of [`add-mep-core`](https://github.com/finos/morphir-dotnet/blob/main/openspec/changes/add-mep-core/tasks.md).
 
 | Item | Value |
 | --- | --- |
