@@ -86,6 +86,8 @@ partial class Build : NukeBuild
     AbsolutePath MorphirToolingProject => SourceDirectory / "Morphir.Tooling" / "Morphir.Tooling.csproj";
     AbsolutePath MorphirProject => SourceDirectory / "Morphir" / "Morphir.csproj";
     AbsolutePath MorphirToolProject => SourceDirectory / "Morphir.Tool" / "Morphir.Tool.csproj";
+    /// <summary>The F# frontend MEP guest, packed as the dotnet tool morphir-fsharp-frontend.</summary>
+    AbsolutePath FSharpFrontendExtensionProject => SourceDirectory / "Morphir.Frontend.FSharp.Extension" / "Morphir.Frontend.FSharp.Extension.fsproj";
     AbsolutePath MorphirSDKProject => SourceDirectory / "Morphir.SDK" / "Morphir.SDK.fsproj";
     AbsolutePath MorphirSDKFSharpProject => SourceDirectory / "Morphir.SDK.FSharp" / "Morphir.SDK.FSharp.fsproj";
     AbsolutePath MorphirSDKCSharpProject => SourceDirectory / "Morphir.SDK.CSharp" / "Morphir.SDK.CSharp.csproj";

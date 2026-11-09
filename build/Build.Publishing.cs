@@ -48,8 +48,8 @@ partial class Build
         });
 
     /// <summary>
-    /// Publish the Morphir CLI tool package to NuGet.org
-    /// Publishes: Morphir.Tool (dotnet tool package)
+    /// Publish the Morphir CLI tool packages to NuGet.org
+    /// Publishes: Morphir.Tool and Morphir.Frontend.FSharp.Extension (dotnet tool packages)
     /// Requires: --api-key parameter
     /// Parameters: --nuget-source (default: https://api.nuget.org/v3/index.json)
     /// </summary>
@@ -79,6 +79,17 @@ partial class Build
             {
                 throw new Exception($"Morphir.Tool package not found in {OutputDir}");
             }
+
+            var extensionPackage = OutputDir.GlobFiles("Morphir.Frontend.FSharp.Extension.*.nupkg")
+                .FirstOrDefault()
+                ?? throw new Exception($"Morphir.Frontend.FSharp.Extension package not found in {OutputDir}");
+
+            Serilog.Log.Information($"Publishing Morphir.Frontend.FSharp.Extension tool: {extensionPackage}");
+            DotNetNuGetPush(s => s
+                .SetTargetPath(extensionPackage)
+                .SetSource(NuGetSource)
+                .SetApiKey(ApiKey)
+                .SetSkipDuplicate(true));
         });
 
     /// <summary>
