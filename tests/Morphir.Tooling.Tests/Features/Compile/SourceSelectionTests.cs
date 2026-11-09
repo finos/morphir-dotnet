@@ -192,4 +192,16 @@ public sealed class SourceSelectionTests
         Code(await Select(new(), Settings(workspace, new() { Inputs = ["lib", "B.fs"], PackageName = "acme/demo" })))
             .Should().Be("compile.invalid_setting");
     }
+
+    [Test]
+    public async Task InputFilesWithNoCommonRootHaveNoCommonDirectory()
+    {
+        // Windows: files on two drives share no directory. The search ends at each root and does not loop.
+        string[] files = OperatingSystem.IsWindows() ? [@"C:\src\A.fs", @"D:\shared\B.fs"] : ["/src/A.fs", "/shared/B.fs"];
+        var common = SourceSelector.CommonDirectory(files);
+        if (OperatingSystem.IsWindows()) common.Should().BeNull();
+        else common.Should().Be("/");
+        SourceSelector.CommonDirectory(new[] { "/w/a/A.fs", "/w/a/b/B.fs" }.Select(Path.GetFullPath)).Should().Be(Path.GetFullPath("/w/a"));
+        await Task.CompletedTask;
+    }
 }

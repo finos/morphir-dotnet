@@ -16,6 +16,7 @@
         <Compile Include="Merge.fs" />
         <Compile Include="CiDetection.fs" />
         <Compile Include="Documents.fs" />
+        <Compile Include="ConfigValueProjections.fs" />
         <Compile Include="Normalization.fs" />
         <Compile Include="Profiles.fs" />
         <Compile Include="EnvironmentMapping.fs" />
