@@ -112,6 +112,21 @@ partial class Build
                 .SetProperty("DebugType", "none")  // Don't include PDB files in tool package
                 .SetProperty("IncludeSymbols", "false"));
 
+            // The F# frontend extension: the MEP guest that the native morphir executable runs for F#.
+            Serilog.Log.Information("Packing Morphir.Frontend.FSharp.Extension as dotnet tool...");
+            DotNetPack(s => s
+                .SetProject(FSharpFrontendExtensionProject)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(OutputDir)
+                .SetProperty("DebugType", "none")
+                .SetProperty("IncludeSymbols", "false"));
+
+            var extensionPackagePath = OutputDir / $"Morphir.Frontend.FSharp.Extension.{versionString}.nupkg";
+            if (!File.Exists(extensionPackagePath))
+            {
+                throw new Exception($"Morphir.Frontend.FSharp.Extension package not found: {extensionPackagePath}");
+            }
+
             // Validate the tool package structure
             var toolPackagePath = PathHelper.GetToolPackagePath(versionString, OutputDir);
             if (File.Exists(toolPackagePath))

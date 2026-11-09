@@ -5,6 +5,8 @@ weight: 10
 description: "Get up and running with Morphir .NET"
 ---
 
+New here? [Compile F# to Morphir IR]({{< relref "/docs/getting-started/compile-fsharp" >}}) takes five minutes: write a rule in F#, compile it, and generate C# from it.
+
 For executable F# from a model JSON file, start with [Generate F# from Morphir]({{< relref "/docs/getting-started/morphir-to-fsharp" >}}).
 
 ## Installation
@@ -16,15 +18,16 @@ For executable F# from a model JSON file, start with [Generate F# from Morphir](
 
 ### Install Morphir CLI
 
-```bash
-dotnet tool install -g Morphir
-```
-
-### Verify Installation
+The dotnet tool `dotnet-morphir` has every command, including `compile` for F#:
 
 ```bash
-morphir --version
+dotnet tool install --global Morphir.Tool --prerelease
+dotnet-morphir --version
 ```
+
+The native executable `morphir` needs no .NET SDK. Download it from the
+[releases page](https://github.com/finos/morphir-dotnet/releases). To compile F# with it, see
+[compile F# with the native executable]({{< relref "/docs/guides/compile-with-native-morphir" >}}).
 
 ## Your First Project
 
