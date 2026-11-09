@@ -68,6 +68,8 @@ Foundation delivery covers `ProtocolVersion`, `DescribeParams`, the generated co
 - [ ] 7.2 After maintainer approval, open the draft pull request in `finos/morphir` and record its URL and head commit in the PRD. Verify that the PRD's "Upstream validate payload" row links the pull request and names the commit.
 - [ ] 7.3 Update the PRD status table: MEP core, in-process validator contract and upstream payload rows, with links to this change and its evidence. Verify that each row names its completion evidence.
 
+The proposal document of task 7.1 is written: [`docs/content/contributing/design/proposals/mep-validate-model.md`](../../../docs/content/contributing/design/proposals/mep-validate-model.md), with the Smithy shapes, two transcripts and the model-transport cases model-0036 to model-0040. Its JSON blocks parse, the transcript carries case model-0036 unchanged, and the case digests agree with the fixture bytes. Task 7.1 stays open: its round-trip check through the group 2 codecs waits for task 2.3.
+
 ## 8. Integration check
 
 - [ ] 8.1 Run `./build.sh --target Test`, `dotnet format --verify-no-changes`, the AOT publish of `morphir` and the E2E suite. Verify that all pass, and that the `morphir` binary size change is recorded in the PRD.
