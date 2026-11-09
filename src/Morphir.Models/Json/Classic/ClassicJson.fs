@@ -961,6 +961,14 @@ module internal ClassicJsonDecoder =
 
         version, package, packageDefinition true ctx (item "$" 3 distribution)
 
+/// <summary>A complete classic IR document with typed attributes, the form the classic writer writes.</summary>
+type TypedClassicDocument = {
+    /// <summary>The classic major version: 1, 2 or 3.</summary>
+    Version: int
+    /// <summary>The distribution. Type attributes are empty; each value attribute is the value's type.</summary>
+    Distribution: Distribution<unit, Type<unit>>
+}
+
 /// <summary>Reads complete classic IR JSON documents.</summary>
 [<RequireQualifiedAccess>]
 module ClassicJson =
@@ -994,3 +1002,26 @@ module ClassicJson =
                     Location = "$"
                     Message = "The document is nested too deeply to read."
                 }
+
+    /// <summary>
+    /// Reads a classic document into the typed form that <c>ClassicJsonWriter.writeTyped</c> writes: type
+    /// attributes become unit, and each value attribute is read as the value's type. With the classic writers,
+    /// a model read at one classic version can be written at another without a change of family.
+    /// </summary>
+    let readTypedDistribution (root: JsonElement) : Result<TypedClassicDocument, ClassicJsonError> =
+        readDistribution root
+        |> Result.bind (fun document ->
+            let context = { Version = document.Version; ForGeneration = false }
+
+            let valueType (attribute: JsonElement) =
+                Morphir.IR.Classic.Attributes.mapType ignore (ClassicJsonDecoder.typ context "$.attributes" attribute)
+
+            try
+                Result.Ok
+                    {
+                        Version = document.Version
+                        Distribution =
+                            Morphir.IR.Classic.Attributes.mapDistribution ignore valueType document.Distribution
+                    }
+            with ClassicJsonFailure error ->
+                Result.Error error)

@@ -41,6 +41,7 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="IR/Classic/Module.fs" />
         <Compile Include="IR/Classic/Package.fs" />
         <Compile Include="IR/Classic/Distribution.fs" />
+        <Compile Include="IR/Classic/Attributes.fs" />
         <Compile Include="IR/Classic/DSL/Helpers.fs" />
         <Compile Include="IR/Classic/DSL/Types.fs" />
         <Compile Include="IR/Classic/DSL/Values.fs" />
