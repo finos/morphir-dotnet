@@ -196,7 +196,7 @@ public sealed partial class MsBuildProjectFileProvider : IProjectFileProvider
 
         if (diagnostics.Any(diagnostic => diagnostic.IsError)) return Checked<SourceSelection>.Fail(diagnostics);
 
-        var root = Path.GetDirectoryName(projectFile)!;
+        var root = Path.GetDirectoryName(projectFile);
         if (SourceSelection.TryParse(root, documents, projectFile, out var selection, out var failure))
             return Checked<SourceSelection>.Of(selection, diagnostics);
 

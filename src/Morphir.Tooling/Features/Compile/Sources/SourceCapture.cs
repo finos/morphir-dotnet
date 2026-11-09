@@ -83,9 +83,10 @@ public sealed class SourceCapture
             ]);
 
         var capture = new BoundedCapture(captureLimits, _isRegularFile, ct);
-        var documents = ImmutableArray.CreateBuilder<CapturedDocument>(selection.Documents.Count);
+        var paths = selection.Documents;
+        var documents = ImmutableArray.CreateBuilder<CapturedDocument>(paths.Count);
         var diagnostics = new List<Diagnostic>();
-        foreach (var relative in selection.Documents)
+        foreach (var relative in paths)
         {
             try
             {
