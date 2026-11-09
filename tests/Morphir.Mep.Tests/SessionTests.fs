@@ -215,6 +215,11 @@ let tests =
               let second = dispatch guest (entries[0].Text.Replace("\"id\": 0", "\"id\": 9")) |> Option.get
               Expect.equal (code second) (Some -32600) "Second initialize fails"
 
+              Expect.equal
+                  (((second["error"] |> nonNull)["message"] |> nonNull).GetValue<string>())
+                  "Extension is already initialized"
+                  "The upstream guests' message"
+
               match guest.State with
               | SessionState.Initialized _ -> ()
               | other -> failtest $"Still initialized, not {other}"
@@ -224,7 +229,13 @@ let tests =
               let entries = read "session-model-transport.md"
               let guest = guestOf (entries[1].Node["result"] |> nonNull)
               let legacy = entries[0].Text.Replace("[\"0.2.0-draft.1\", \"0.1\"]", "[\"0.1\"]")
-              Expect.equal (dispatch guest legacy |> Option.get |> code) (Some -32011) "No common version"
+              let refused = dispatch guest legacy |> Option.get
+              Expect.equal (code refused) (Some -32011) "No common version"
+
+              Expect.equal
+                  (((refused["error"] |> nonNull)["data"] |> nonNull).ToJsonString())
+                  """{"hostVersions":["0.1"],"extensionVersions":["0.2.0-draft.1"]}"""
+                  "The versions of both peers, as the Rust guest sends them"
               Expect.equal guest.State SessionState.Created "Still uninitialized"
               Expect.isNone (dispatch guest entries[0].Text |> Option.get |> code) "Then initialize succeeds"
 

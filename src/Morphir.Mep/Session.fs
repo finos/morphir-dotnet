@@ -63,11 +63,35 @@ module Lifecycle =
         else
             let text = offered |> Seq.map string |> String.concat ", "
 
-            Error(
-                RpcErrors.withMessage
-                    ErrorCode.ProtocolVersionMismatch
-                    $"No common protocol version: the host offered [{text}] and the extension supports [{protocolVersion}]."
-            )
+            // data has the same members as the upstream Rust guest sends.
+            let data =
+                let buffer = System.Buffers.ArrayBufferWriter<byte>()
+
+                do
+                    use writer = new Utf8JsonWriter(buffer)
+                    writer.WriteStartObject()
+                    writer.WriteStartArray "hostVersions"
+
+                    for version in offered do
+                        writer.WriteStringValue version.Value
+
+                    writer.WriteEndArray()
+                    writer.WriteStartArray "extensionVersions"
+
+                    for version in protocolVersions do
+                        writer.WriteStringValue version.Value
+
+                    writer.WriteEndArray()
+                    writer.WriteEndObject()
+
+                use document = JsonDocument.Parse(buffer.WrittenMemory)
+                document.RootElement.Clone()
+
+            Error
+                { RpcErrors.withMessage
+                      ErrorCode.ProtocolVersionMismatch
+                      $"No common protocol version: the host offered [{text}] and the extension supports [{protocolVersion}]." with
+                    Data = Some data }
 
     let private hasTuple (capabilities: ExtensionCapabilities) (operation: ModelOperation) =
         capabilities.ModelTransport
@@ -115,7 +139,8 @@ module Lifecycle =
         | SessionState.Created, _
         | SessionState.ShutDown _, _ -> notInitialized
         | SessionState.Initialized _, Some Method.Initialize ->
-            Admission.Refuse(RpcErrors.withMessage ErrorCode.InvalidRequest "The session is already initialized.")
+            // The upstream Rust and MoonBit guests both answer -32600 with this message.
+            Admission.Refuse(RpcErrors.withMessage ErrorCode.InvalidRequest "Extension is already initialized")
         | SessionState.Initialized session, Some method ->
             match capability session method with
             | Some(_, true)
