@@ -206,6 +206,27 @@ let tests =
                 }
         ]
 
+        testList "SourceSelectionFailure.Match" [
+            for failure, expected in
+                [
+                    SourceSelectionFailure.EmptyRoot, "empty root"
+                    SourceSelectionFailure.NoDocuments, "no documents"
+                    SourceSelectionFailure.NotPortable "C:/A.fs", "not portable C:/A.fs"
+                    SourceSelectionFailure.Repeated "A.fs", "repeated A.fs"
+                ] do
+                test $"calls the function of {failure}" {
+                    let actual =
+                        failure.Match(
+                            (fun () -> "empty root"),
+                            (fun () -> "no documents"),
+                            (fun path -> $"not portable {path}"),
+                            (fun path -> $"repeated {path}")
+                        )
+
+                    Expect.equal actual expected "the case's function"
+                }
+        ]
+
         test "targets for 3 and 3.0.0 are equal and hash alike" {
             let classic = {
                 Family = ModelFamily.Classic
