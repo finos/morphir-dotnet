@@ -10,7 +10,7 @@
 | [Establish .NET SDK conformance](establish-dotnet-sdk-conformance.md) | In Progress | Cleanup pending | #462 and archive #463 landed; coordinator retains policy-blocked directory cleanup, #460 |
 | [Introduce F# SDK package](introduce-fsharp-sdk-package.md) | Implementation and archive landed | Cleanup pending | #469 and archive #472 landed; implementation worktree/artifacts removed; empty archive directory cleanup pending |
 | [CLI model generation](cli-model-generation.md) | Completed | Delivered | Repository review |
-| [Morphir extension model](morphir-extension-model.md) | In Progress | Step 1 | Generated MEP wire rules implemented for review; MEP core and validate follow (#512) |
+| [Morphir extension model](morphir-extension-model.md) | In Progress | Step 1 | Generated MEP wire rules implemented (#532); MEP core and validate follow (#512) |
 | [Morphir application architect skill](morphir-application-architect-skill.md) | Draft | Design | Skill proposal |
 | [morphir-dotnet as the default Morphir CLI](morphir-dotnet-default-cli.md) | Draft | Proof criteria | ADR 0001 proposed; first proof point is add-fsharp-compile |
 

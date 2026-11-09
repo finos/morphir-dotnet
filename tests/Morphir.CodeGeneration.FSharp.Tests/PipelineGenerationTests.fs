@@ -212,13 +212,23 @@ let optimizationTests =
             Expect.equal (diagnosticsOf tree).Head.Category "literal-range" "folding must not accept it"
         }
 
-        test "the unmapped SDK and should stay rejected with a literal first argument" {
+        test "an unmapped SDK operation should stay rejected with a literal first argument" {
+            // Basics.and is mapped since the F# frontend's SDK table (FSF-4); Basics.xor is not.
             let json =
-                F.model [ "rules", [], [ F.binding "total" [ "x", F.boolType ] F.boolType (F.op "and" yes x) ] ]
+                F.model [ "rules", [], [ F.binding "total" [ "x", F.boolType ] F.boolType (F.op "xor" yes x) ] ]
 
             let tree = VFile.ofText "m.json" json |> generate
 
             Expect.equal (diagnosticsOf tree).Head.Category "unsupported-sdk" "should not start generating"
+        }
+
+        test "the mapped SDK and is generated as the F# and operator" {
+            let json =
+                F.model [ "rules", [], [ F.binding "total" [ "x", F.boolType ] F.boolType (F.op "and" yes x) ] ]
+
+            let source = sourceOf (VFile.ofText "m.json" json |> generate)
+
+            Expect.stringContains source "&&" "Basics.and is written as (&&)"
         }
 
         test "an unsupported reference in a dead branch should stay rejected" {

@@ -35,9 +35,31 @@ module internal TargetSyntax =
         | "basics.greaterthanorequal" -> Some "(>=)"
         | "basics.compare" -> Some "Morphir.SDK.Basics.compare"
         | "basics.identity" -> Some "global.Microsoft.FSharp.Core.Operators.id"
+        | "basics.integerdivide" -> Some "(/)"
+        // Checked, as the SDK contract requires: negating Int32.MinValue is an overflow.
+        | "basics.negate" -> Some "global.Microsoft.FSharp.Core.Operators.Checked.(~-)"
+        | "basics.abs" -> Some "abs"
+        | "basics.min" -> Some "min"
+        | "basics.max" -> Some "max"
+        | "basics.and" -> Some "(&&)"
+        | "basics.or" -> Some "(||)"
+        | "basics.not" -> Some "not"
+        | "decimal.add" -> Some "(+)"
+        | "decimal.sub" -> Some "(-)"
+        | "decimal.mul" -> Some "(*)"
         | "list.map" -> Some "List.map"
+        | "list.singleton" -> Some "List.singleton"
+        | "list.append" -> Some "List.append"
+        | "list.length" -> Some "List.length"
+        | "list.head" -> Some "List.tryHead"
+        | "list.cons" -> Some "(fun head tail -> head :: tail)"
         | "maybe.map" -> Some "Option.map"
+        | "maybe.andthen" -> Some "Option.bind"
         | "result.map" -> Some "Result.map"
+        | "result.andthen" -> Some "Result.bind"
+        | "string.append" -> Some "(+)"
+        | "string.length" -> Some "String.length"
+        | "string.join" -> Some "String.concat"
         | _ -> None
 
     let stringLiteral (value: string) =
@@ -95,6 +117,7 @@ module internal TargetSyntax =
 
         match name, arguments with
         | "basics.int", [] -> Some "int"
+        | "int.int64", [] -> Some "int64"
         | "basics.float", [] -> Some "float"
         | "basics.bool", []
         | "bool.bool", [] -> Some "bool"
