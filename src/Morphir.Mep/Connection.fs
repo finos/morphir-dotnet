@@ -6,6 +6,7 @@ open System
 open System.Collections.Concurrent
 open System.Collections.Generic
 open System.IO
+open System.Runtime.ExceptionServices
 open System.Text.Json
 open System.Threading
 open System.Threading.Tasks
@@ -137,48 +138,67 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: F
 
     /// Reads frames until the stream ends, the session ends or a frame is refused. Inbound requests run
     /// concurrently, so that a cancel can reach them; a handler that changes the session completes synchronously.
+    /// On every exit, also a cancellation or a read failure, the connection cancels its running handlers, waits for
+    /// them, and settles each pending outbound request with an error; a cancellation or read failure then reaches
+    /// the caller.
     member _.RunAsync(cancellation: CancellationToken) : Task<ConnectionEnd> =
         task {
+            use lifetime = CancellationTokenSource.CreateLinkedTokenSource cancellation
             let running = ResizeArray<Task>()
             let mutable finished = None
+            let mutable failure: ExceptionDispatchInfo option = None
 
-            while finished.IsNone do
-                let! frame = ContentLengthFraming.ReadAsync(input, cancellation)
+            try
+                while finished.IsNone do
+                    let! frame = ContentLengthFraming.ReadAsync(input, cancellation)
 
-                match frame with
-                | FrameRead.EndOfStream -> finished <- Some ConnectionEnd.EndOfStream
-                | FrameRead.Refused failure ->
-                    report (ConnectionDiagnostic.FramingFailed failure)
-                    finished <- Some(ConnectionEnd.FramingFailed failure)
-                | FrameRead.Message body ->
-                    match JsonRpc.Read(ReadOnlyMemory body) with
-                    | Error refusal ->
-                        report (ConnectionDiagnostic.RefusedMessage refusal)
+                    match frame with
+                    | FrameRead.EndOfStream -> finished <- Some ConnectionEnd.EndOfStream
+                    | FrameRead.Refused failure ->
+                        report (ConnectionDiagnostic.FramingFailed failure)
+                        finished <- Some(ConnectionEnd.FramingFailed failure)
+                    | FrameRead.Message body ->
+                        match JsonRpc.Read(ReadOnlyMemory body) with
+                        | Error refusal ->
+                            report (ConnectionDiagnostic.RefusedMessage refusal)
 
-                        if refusal.Answer then
-                            do! write (JsonRpc.Reply refusal)
-                    | Ok(JsonRpcMessage.Response(id, result)) -> complete (Some id) (Ok result)
-                    | Ok(JsonRpcMessage.ErrorResponse(id, error)) -> complete id (Error error)
-                    | Ok(JsonRpcMessage.Notification(method, parameters)) when method = Method.CancelRequest.WireValue ->
-                        if dispatcher.Admits(method, MethodKind.Notification) then
-                            cancelInflight parameters
-                    | Ok(JsonRpcMessage.Notification _ as message) ->
-                        let! _ = dispatcher.DispatchMessageAsync(message, cancellation)
-                        ()
-                    | Ok(JsonRpcMessage.Request(id, _, _) as message) ->
-                        running.Add(runRequest id message cancellation)
+                            if refusal.Answer then
+                                do! write (JsonRpc.Reply refusal)
+                        | Ok(JsonRpcMessage.Response(id, result)) -> complete (Some id) (Ok result)
+                        | Ok(JsonRpcMessage.ErrorResponse(id, error)) -> complete id (Error error)
+                        | Ok(JsonRpcMessage.Notification(method, parameters)) when method = Method.CancelRequest.WireValue ->
+                            if dispatcher.Admits(method, MethodKind.Notification) then
+                                cancelInflight parameters
+                        | Ok(JsonRpcMessage.Notification _ as message) ->
+                            let! _ = dispatcher.DispatchMessageAsync(message, lifetime.Token)
+                            ()
+                        | Ok(JsonRpcMessage.Request(id, _, _) as message) ->
+                            running.Add(runRequest id message lifetime.Token)
 
-                    if finished.IsNone && isDone.Invoke() then
-                        finished <- Some ConnectionEnd.Stopped
+                        if finished.IsNone && isDone.Invoke() then
+                            finished <- Some ConnectionEnd.Stopped
+            with error ->
+                failure <- Some(ExceptionDispatchInfo.Capture error)
 
-            do! Task.WhenAll running
+            // No more replies can arrive: stop the running handlers before waiting for them.
+            lifetime.Cancel()
+
+            try
+                do! Task.WhenAll running
+            with _ ->
+                ()
 
             for KeyValue(id, waiter) in pending do
                 if pending.TryRemove(id) |> fst then
                     waiter.TrySetResult(Error(RpcErrors.withMessage ErrorCode.InternalError "The connection closed."))
                     |> ignore
 
-            return finished.Value
+            match failure, finished with
+            | Some error, _ ->
+                error.Throw()
+                return Unchecked.defaultof<_>
+            | None, Some ended -> return ended
+            | None, None -> return ConnectionEnd.Stopped
         }
 
     /// Sends a request and waits for its reply. Cancelling the token sends $/cancelRequest; the reply is then the

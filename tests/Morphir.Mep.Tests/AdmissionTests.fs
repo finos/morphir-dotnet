@@ -407,7 +407,11 @@ let tests =
                         [ [| 0x41uy |] // no version marker
                           [| 0xE0uy; 1uy; 0uy; 0xEAuy; 0xD5uy; 0x81uy |] // a struct longer than the payload
                           [| 0xE0uy; 1uy; 0uy; 0xEAuy; 0xF0uy |] // a reserved type
-                          [| 0xE0uy; 1uy; 0uy; 0xEAuy; 0x2Euy |] ] do // a length that never ends
+                          [| 0xE0uy; 1uy; 0uy; 0xEAuy; 0x2Euy |] // a length that never ends
+                          // A string length of Int32.MaxValue: the end offset must not wrap negative.
+                          [| 0xE0uy; 1uy; 0uy; 0xEAuy; 0x8Euy; 0x07uy; 0x7Fuy; 0x7Fuy; 0x7Fuy; 0xFFuy |]
+                          // An annotation wrapper length of Int32.MaxValue.
+                          [| 0xE0uy; 1uy; 0uy; 0xEAuy; 0xEEuy; 0x07uy; 0x7Fuy; 0x7Fuy; 0x7Fuy; 0xFFuy; 0x81uy; 0x84uy; 0x20uy |] ] do
                         let envelope = model ionTuple bytes
                         Expect.equal (code (ModelTransport.admit ionTuple wideLimits envelope)) "malformed_payload" "Refused"
 
