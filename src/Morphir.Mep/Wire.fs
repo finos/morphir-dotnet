@@ -861,8 +861,10 @@ type CompilePackage =
     /// Stable text for diagnostics.
     override this.ToString() = this.Name
 
-/// Options of a compilation. Members that the contract does not name are kept beside the named members.
-/// Use CompileModel.checkOptions before you write or accept options: the contract refuses some keys.
+/// Options of a morphir.frontend.compileModel compilation. Members that the contract does not name are kept beside
+/// the named members. Use CompileModel.checkOptions before you write or accept options: the contract refuses some
+/// keys. The pin shares this type with the legacy compile request, where irVersion can be "3". This record holds a
+/// SemanticVersion, so it is for compileModel only; do not use it for the legacy morphir.frontend.compile.
 type CompileOptions =
     {
         /// Compile only the type definitions. Always written.
