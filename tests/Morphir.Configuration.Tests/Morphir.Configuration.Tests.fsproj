@@ -35,6 +35,7 @@
         <Compile Include="InspectionTests.fs" />
         <Compile Include="EditingTests.fs" />
         <Compile Include="MigrationTests.fs" />
+        <Compile Include="ConfigValueProjectionTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

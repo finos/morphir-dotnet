@@ -70,7 +70,9 @@ public sealed class SourceSelector(ProjectFileProviderRegistry providers) : ISou
                     $"The input '{path}' is a project file. Use --project-file to compile the sources that it names.");
         }
 
-        var root = CommonDirectory(paths);
+        if (CommonDirectory(paths) is not { } root)
+            return Fail(CompileCodes.InvalidSetting,
+                "The --input files have no common directory (for example, they are on different drives). Put them under one directory.");
         return Selection(root, paths.Select(path => Relative(root, path)), null);
     }
 
@@ -115,12 +117,13 @@ public sealed class SourceSelector(ProjectFileProviderRegistry providers) : ISou
         }
     }
 
-    private static string CommonDirectory(IEnumerable<string> files)
+    /// <summary>The deepest directory that holds every file, or null when the files have no common root.</summary>
+    internal static string? CommonDirectory(IEnumerable<string> files)
     {
         var parents = files.Select(file => Path.GetDirectoryName(file)!).ToArray();
-        var common = parents[0];
+        string? common = parents[0];
         foreach (var parent in parents.Skip(1))
-            while (!IsWithin(common, parent)) common = Path.GetDirectoryName(common) ?? common;
+            while (common is not null && !IsWithin(common, parent)) common = Path.GetDirectoryName(common);
         return common;
     }
 

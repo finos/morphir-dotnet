@@ -252,29 +252,22 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             return new SettingOrigin.Configuration(origin.Value.Source.Path, key);
         }
 
+        // The union decisions are in F# (ConfigValueProjections), so C# does not test union cases.
         public Setting<string>? String(string key) =>
-            Find(key) is ConfigValue.String text ? new(text.Item, Origin(key)) : null;
+            Find(key) is { } value && ConfigValueProjections.TryText(value, out var text) ? new(text, Origin(key)) : null;
 
-        public Setting<string>? Version(string key) => Find(key) switch
-        {
-            ConfigValue.Integer integer => new(integer.Item.ToString(CultureInfo.InvariantCulture), Origin(key)),
-            ConfigValue.String text => new(text.Item, Origin(key)),
-            _ => null
-        };
+        public Setting<string>? Version(string key) =>
+            Find(key) is { } value && ConfigValueProjections.TryVersionText(value, out var text) ? new(text, Origin(key)) : null;
 
         public Setting<ImmutableArray<string>>? Strings(string key) =>
-            Find(key) is ConfigValue.Array items
-                ? new(items.Item.OfType<ConfigValue.String>().Select(item => item.Item).ToImmutableArray(), Origin(key))
+            Find(key) is { } value && ConfigValueProjections.TryTextList(value, out var items)
+                ? new([.. items], Origin(key))
                 : null;
 
         /// <summary>Every <c>frontend.&lt;language&gt;.project_file</c> key that is set.</summary>
         public ImmutableArray<string> ProjectFileKeys() =>
-            Find("frontend") is ConfigValue.Object tables
-                ? tables.Item
-                    .Where(pair => pair.Value is ConfigValue.Object table && table.Item.ContainsKey("project_file"))
-                    .Select(pair => $"frontend.{pair.Key}.project_file")
-                    .Order(StringComparer.Ordinal)
-                    .ToImmutableArray()
+            Find("frontend") is { } tables
+                ? [.. ConfigValueProjections.TablesWithKey(tables, "project_file").Select(language => $"frontend.{language}.project_file")]
                 : [];
 
         /// <summary>A path setting, relative to the directory of the file that set it, else to the base directory.</summary>
