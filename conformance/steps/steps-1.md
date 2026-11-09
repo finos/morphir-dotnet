@@ -13,7 +13,7 @@ selection tags are refused. Features must not name an adapter.
 
 The supported tags are `@suite:frontend-fsharp`, `@semantic`, `@refusal`,
 `@basis:hand-authored`, `@basis:spec-derived` and `@excluded`. Version 1.1 adds
-`@value-codec:1` and `@value-codec:2` (see [Value codecs](#value-codecs)).
+`@value-codec:<version>` (see [Value codecs](#value-codecs)).
 `@excluded` is valid only on Examples. Unknown eligibility metadata, including
 known-gap tags, is refused until that behavior is implemented by a later
 vocabulary version.
@@ -26,8 +26,8 @@ vocabulary version.
 | `compilation succeeds with no error diagnostics` | Exactly one outcome step. Success must be true, a JSON model must be present, and no error diagnostic is allowed. Non-error diagnostics are allowed by this step. |
 | `compilation fails with diagnostics:` | Exactly one outcome step. A `json` docstring holds the expected diagnostic array in the MEP shape. Success must be false, no model may be returned, and diagnostics must match severity, code, URI and range exactly, in document/position order. Messages are not compared. No extra diagnostic is allowed. |
 | `the IR equals "<path>"` | Adds a complete expected-IR sidecar, relative to the feature. The path may contain `<version>` and `<input>`. Comparison ignores JSON object-member order; arrays, strings, scalar kinds and number spellings remain exact. No other normalization is applied. |
-| `calling "<value>" with <arguments> returns <result>` | Version 1.1. Adds a call observation, for the behavioral verdict. `<value>` is a module name and a value name, such as `Pricing.seats` or `Rates.Daily.rate`. `<arguments>` is a JSON array with one element for each parameter (`[]` for a value without parameters). `<result>` is the expected JSON result. Both use the value codec of the call. An optional suffix ` using value codec <n>` selects the codec of this call only. A case can have more than one call. Calls need the successful outcome step. |
-| `calls use value codec <n>` | Version 1.1. Selects the value codec of every call in the scenario. At most one in a scenario, before the first call step. A scenario with this step needs call steps. |
+| `calling "<value>" with <arguments> returns <result>` | Version 1.1. Adds a call observation, for the behavioral verdict. `<value>` is a module name and a value name, such as `Pricing.seats` or `Rates.Daily.rate`. `<arguments>` is a JSON array with one element for each parameter (`[]` for a value without parameters). `<result>` is the expected JSON result. Both use the value codec of the call. An optional suffix ` using value codec <version>` selects the codec of this call only. A case can have more than one call. Calls need the successful outcome step. |
+| `calls use value codec <version>` | Version 1.1. Selects the value codec of every call in the scenario. At most one in a scenario, before the first call step. A scenario with this step needs call steps. |
 
 The Given/When/Then/And keywords are Gherkin syntax, not part of the step text.
 Other steps or argument shapes fail linting. The seed supports scenarios directly
@@ -66,18 +66,24 @@ two codecs:
 
 ### Selecting a codec
 
-The canonical selector is a tag on the feature: `@value-codec:1` or
+A codec version is a semantic version: value codec 1 is `1.0.0`, and value
+codec 2 is `2.0.0`. The short forms `1` and `2` mean the same versions. Build
+metadata has no effect. A runner refuses a version that it does not implement,
+pre-releases included, so it never reads a value in a codec that it does not
+know. A later minor version of a codec needs a runner that implements it.
+
+The canonical selector is a tag on the feature, such as `@value-codec:1.0.0` or
 `@value-codec:2`. The other selectors override it for a smaller part of the
 feature. From the most specific to the least specific:
 
-1. The suffix of a call step: `... returns ["large",4] using value codec 1`.
-2. The step `calls use value codec <n>` in the scenario.
-3. A `@value-codec:<n>` tag on the scenario.
-4. A `@value-codec:<n>` tag on the feature.
-5. The default, value codec 2.
+1. The suffix of a call step: `... returns ["large",4] using value codec 1.0.0`.
+2. The step `calls use value codec <version>` in the scenario.
+3. A `@value-codec:<version>` tag on the scenario.
+4. A `@value-codec:<version>` tag on the feature.
+5. The default, value codec 2.0.0.
 
 A feature or scenario has at most one codec tag. Codec tags are not valid on
-Examples. An unknown codec number is refused.
+Examples.
 
 ### Encodings
 

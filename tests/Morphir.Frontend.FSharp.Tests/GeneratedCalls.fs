@@ -145,7 +145,7 @@ let private consumer
     |> List.mapi (fun index call ->
         target package sources call.Value
         |> Result.map (fun name ->
-            $"CallCodec.check {index} {call.Codec.Version} {name} {literal call.Arguments} {literal call.Result}"
+            $"CallCodec.check {index} {call.Codec.Major} {name} {literal call.Arguments} {literal call.Result}"
         )
     )
     |> List.fold

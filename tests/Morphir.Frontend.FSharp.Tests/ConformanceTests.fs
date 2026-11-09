@@ -409,6 +409,62 @@ let tests =
                     "A call suffix overrides the codec step, and the result text excludes the suffix"
             )
         testCase
+            "A value codec version is a semantic version, and 1 and 2 are its short forms"
+            (fun () ->
+                for text, expected in
+                    [
+                        "1", Ok ValueCodec.ElmDataCodec
+                        "1.0.0", Ok ValueCodec.ElmDataCodec
+                        "2", Ok ValueCodec.TaggedObjects
+                        "2.0.0", Ok ValueCodec.TaggedObjects
+                        "2.0.0+build.5", Ok ValueCodec.TaggedObjects
+                    ] do
+                    Expect.equal (ValueCodec.Parse text) expected text
+
+                for text in
+                    [ "0"; "3"; "1.0"; "1.1.0"; "2.0.1"; "3.0.0"; "2.0.0-draft.1"; "two"; "" ] do
+                    match ValueCodec.Parse text with
+                    | Ok codec -> failtest $"Value codec {text} must be refused, got {codec}"
+                    | Error message ->
+                        Expect.stringContains message $"Value codec {text} is not supported" text
+
+                Expect.equal ValueCodec.ElmDataCodec.Version "1.0.0" "Codec 1 has version 1.0.0"
+                Expect.equal ValueCodec.TaggedObjects.Version "2.0.0" "Codec 2 has version 2.0.0"
+
+                let suite =
+                    readCalls (
+                        withCalls [
+                            "calls use value codec 2.0.0"
+                            "calling \"Pricing.size\" with [4] returns [\"large\",4] using value codec 1.0.0"
+                            "calling \"Pricing.size\" with [4] returns {\"Large\":4}"
+                        ]
+                        |> fun source -> source.Replace("@refusal", "@refusal @value-codec:1.0.0")
+                    )
+                    |> requireOk
+
+                Expect.equal
+                    (suite.Cases.Head.Calls
+                     |> List.map (fun call -> call.Result, call.Codec))
+                    [
+                        "[\"large\",4]", ValueCodec.ElmDataCodec
+                        "{\"Large\":4}", ValueCodec.TaggedObjects
+                    ]
+                    "The tag, the step and the suffix take the full version"
+
+                match
+                    readCalls (
+                        (withCalls [ "calling \"Pricing.size\" with [4] returns 4" ])
+                            .Replace("@refusal", "@refusal @value-codec:2.1.0")
+                    )
+                with
+                | Ok _ -> failtest "The runner has no value codec 2.1.0"
+                | Error issues ->
+                    Expect.exists
+                        issues
+                        (fun issue -> issue.Code = "mck.unsupported_tag")
+                        "A codec version that the runner does not have is refused"
+            )
+        testCase
             "Malformed value codec declarations are refused"
             (fun () ->
                 let call = "calling \"Pricing.size\" with [4] returns 4"

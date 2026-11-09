@@ -55,21 +55,43 @@ type ValueCodec =
     /// Value codec 2: a constructor is tagged by its TitleCase name, "Small" or {"Large": 4}.
     | TaggedObjects
 
-    /// The version number of the codec, as cases write it.
-    member this.Version =
+    /// The major version of the codec: 1 or 2.
+    member this.Major =
         match this with
         | ElmDataCodec -> 1
         | TaggedObjects -> 2
 
+    /// The semantic version of the codec: 1.0.0 or 2.0.0.
+    member this.Version = $"{this.Major}.0.0"
+
     /// The codec that applies when a case declares none.
     static member Default = TaggedObjects
 
-    /// Parses a codec version number, as cases write it.
+    /// Parses a codec version as cases write it: a semantic version such as 1.0.0, or its
+    /// short form 1. The runner implements codecs 1.0.0 and 2.0.0. It refuses other versions,
+    /// pre-releases included, so that it never reads a value in a codec it does not know. Build
+    /// metadata has no effect on the version.
     static member Parse(text: string) : Result<ValueCodec, string> =
-        match text with
-        | "1" -> Ok ElmDataCodec
-        | "2" -> Ok TaggedObjects
-        | _ -> Error $"Value codec {text} is not supported. The supported value codecs are 1 and 2"
+        let codec major =
+            match major with
+            | 1 -> Some ElmDataCodec
+            | 2 -> Some TaggedObjects
+            | _ -> None
+
+        match Morphir.IR.Versioning.parse text with
+        | Ok(Morphir.IR.Versioning.Classic major) -> codec major
+        | Ok(Morphir.IR.Versioning.SemVer {
+                                              Major = major
+                                              Minor = 0
+                                              Patch = 0
+                                              PreRelease = None
+                                          }) -> codec major
+        | _ -> None
+        |> function
+            | Some codec -> Ok codec
+            | None ->
+                Error
+                    $"Value codec {text} is not supported. The supported value codecs are 1.0.0 (short form 1) and 2.0.0 (short form 2)"
 
     override this.ToString() = $"value codec {this.Version}"
 

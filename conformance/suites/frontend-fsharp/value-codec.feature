@@ -53,8 +53,8 @@ Feature: Call values in value codec 1
       | project file | 3       |
       | project file | 4       |
 
-  @value-codec:2
-  Scenario Outline: frontend-fsharp-0121 A scenario tag selects value codec 2
+  @value-codec:2.0.0
+  Scenario Outline: frontend-fsharp-0121 A scenario tag selects value codec 2.0.0
     Given the F# package "acme/demo" exposing "Pricing"
     And the source "Pricing.fs":
       """fsharp
