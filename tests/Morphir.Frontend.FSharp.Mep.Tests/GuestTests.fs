@@ -200,6 +200,34 @@ module Pricing =
               | CompileModelResult.Compiled _ -> ()
               | failed -> failtest $"The session stays usable: {failed}"
 
+          testCase "A types-only request is refused, because the guest does not support it yet"
+          <| fun _ ->
+              let guest = initialized ()
+              let request = compileRequest "4.0.0" [ "Pricing.fs", pricing ] None
+
+              let typesOnly =
+                  { request with
+                      Options = { request.Options with TypesOnly = true } }
+
+              let reply = dispatch guest (compileMessage 1 typesOnly) |> Option.get
+              Expect.equal (text ((reply["error"] |> nonNull)["code"])) "-32602" "typesOnly is refused"
+              Expect.stringContains (text ((reply["error"] |> nonNull)["message"])) "typesOnly" "The message names it"
+
+          testCase "A model larger than the agreed limits is not returned as a success"
+          <| fun _ ->
+              let guest = FSharpGuest.registration ()
+
+              let small =
+                  (initialize [ jsonTuple "4.0.0" ])
+                      .Replace(hostLimits, """{"maxEncodedBytes":64,"maxDecodedBytes":48,"maxDepth":4096,"maxNodes":50000000}""")
+
+              let initialized = dispatch guest small |> Option.get
+              Expect.isNull initialized["error"] "initialize"
+              let reply = dispatch guest (compileMessage 1 (compileRequest "4.0.0" [ "Pricing.fs", pricing ] None)) |> Option.get
+              Expect.isNull reply["result"] "No result"
+              Expect.equal (text ((reply["error"] |> nonNull)["code"])) "-32603" "The guest reports that the model does not fit"
+              Expect.stringContains (text ((reply["error"] |> nonNull)["message"])) "limit" "The message names the limit"
+
           testCase "A host that agrees only 4.0.0 cannot get 3.0.0 from the guest"
           <| fun _ ->
               let guest = FSharpGuest.registration ()

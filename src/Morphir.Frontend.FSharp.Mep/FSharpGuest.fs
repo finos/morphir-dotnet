@@ -205,6 +205,9 @@ module FSharpGuest =
         task {
             match CompileModel.checkRequest agreed request with
             | Error failure -> return Error(invalidParams (failure.ToString()))
+            | Ok request when request.Options.TypesOnly ->
+                // A follow-up change adds typesOnly; until then the guest refuses it, and does not compile a full model.
+                return Error(invalidParams "The F# frontend does not support typesOnly compilation yet.")
             | Ok request ->
                 match toRequest frontend request with
                 | Error error -> return Error error
@@ -235,7 +238,19 @@ module FSharpGuest =
                                     (revision request.ContextDigest)
                                     (ReadOnlyMemory bytes)
                             with
-                            | Ok model -> return Ok(CompileModelResult.Compiled(model, diagnostics, modules))
+                            | Ok model ->
+                                // The model must fit the agreed limits, or the host must refuse it.
+                                let limits = agreed |> Option.map _.Limits |> Option.defaultValue support.Limits
+
+                                match ModelTransport.admit request.Output limits model with
+                                | Ok _ -> return Ok(CompileModelResult.Compiled(model, diagnostics, modules))
+                                | Error refused ->
+                                    return
+                                        Error(
+                                            RpcErrors.withMessage
+                                                ErrorCode.InternalError
+                                                $"The compiled model does not fit the agreed limit ({refused.Code}): {refused}"
+                                        )
                             | Error failure ->
                                 return Error(RpcErrors.withMessage ErrorCode.InternalError (failure.ToString()))
                         | None -> return Ok(CompileModelResult.Failed diagnostics)

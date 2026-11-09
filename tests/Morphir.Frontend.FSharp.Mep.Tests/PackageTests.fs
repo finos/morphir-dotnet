@@ -5,7 +5,6 @@
 module Morphir.Frontend.FSharp.Mep.Tests.PackageTests
 
 open System
-open System.Diagnostics
 open System.IO
 open System.Text
 open System.Text.Json.Nodes
@@ -35,11 +34,13 @@ let private host =
     | null -> "dotnet"
     | path -> path
 
-let private run (arguments: string list) (directory: string) =
+let private run (sandbox: TestSandbox) (arguments: string list) (directory: string) =
     let start = ChildProcess.StartInfo(host, Array.ofList arguments)
     start.WorkingDirectory <- directory
+    sandbox.Apply start
     let result = ChildProcess.RunAsync(start, TimeSpan.FromMinutes 5.0).GetAwaiter().GetResult()
-    Expect.equal result.ExitCode 0 $"dotnet {String.Join(' ', arguments)}: {result.CombinedOutput}"
+    let command = String.Join(' ', arguments)
+    Expect.equal result.ExitCode 0 $"dotnet {command}: {result.CombinedOutput}"
 
 [<Tests>]
 let tests =
@@ -48,94 +49,95 @@ let tests =
         "F# MEP guest package"
         [ testCase "dotnet pack gives a tool package, and the installed tool answers describe with its claims"
           <| fun _ ->
-              let root = Path.Combine(Path.GetTempPath(), "morphir-guest-pack-" + Guid.NewGuid().ToString("N"))
+              use sandbox = TestSandbox.Create "morphir-guest-pack-"
+              let root = sandbox.Work
               let feed = Path.Combine(root, "feed")
               let tools = Path.Combine(root, "tools")
               Directory.CreateDirectory feed |> ignore
 
-              try
-                  let project =
-                      Path.Combine(repository, "src", "Morphir.Frontend.FSharp.Mep", "Morphir.Frontend.FSharp.Mep.fsproj")
+              let project =
+                  Path.Combine(repository, "src", "Morphir.Frontend.FSharp.Mep", "Morphir.Frontend.FSharp.Mep.fsproj")
 
-                  run [ "pack"; project; "-c"; configuration; "--no-build"; "-o"; feed; "-nologo" ] repository
+              run sandbox [ "pack"; project; "-c"; configuration; "--no-build"; "-o"; feed; "-nologo" ] repository
 
-                  let package =
-                      Directory.GetFiles(feed, "Morphir.Frontend.FSharp.Mep.*.nupkg") |> Array.exactlyOne
+              let package =
+                  Directory.GetFiles(feed, "Morphir.Frontend.FSharp.Mep.*.nupkg") |> Array.exactlyOne
 
-                  let version =
-                      (Path.GetFileNameWithoutExtension package |> nonNull).Substring("Morphir.Frontend.FSharp.Mep.".Length)
+              let version =
+                  (Path.GetFileNameWithoutExtension package |> nonNull).Substring("Morphir.Frontend.FSharp.Mep.".Length)
 
-                  // The repository uses package source mapping, so the install reads a configuration with only the
-                  // local feed.
-                  let config = Path.Combine(root, "nuget.config")
+              // The repository uses package source mapping, so the install reads a configuration with only the
+              // local feed.
+              let config = Path.Combine(root, "nuget.config")
 
-                  File.WriteAllText(
-                      config,
-                      $"""<?xml version="1.0" encoding="utf-8"?>
+              File.WriteAllText(
+                  config,
+                  $"""<?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <packageSources>
-    <clear />
-    <add key="local" value="{feed}" />
+<clear />
+<add key="local" value="{feed}" />
   </packageSources>
 </configuration>
 """
-                  )
+              )
 
-                  run
-                      [ "tool"
-                        "install"
-                        "Morphir.Frontend.FSharp.Mep"
-                        "--tool-path"
-                        tools
-                        "--configfile"
-                        config
-                        "--version"
-                        version ]
-                      root
+              run
+                  sandbox
+                  [ "tool"
+                    "install"
+                    "Morphir.Frontend.FSharp.Mep"
+                    "--tool-path"
+                    tools
+                    "--configfile"
+                    config
+                    "--version"
+                    version ]
+                  root
 
-                  let executable =
-                      Path.Combine(tools, if OperatingSystem.IsWindows() then "morphir-fsharp-frontend.exe" else "morphir-fsharp-frontend")
+              let executable =
+                  Path.Combine(tools, if OperatingSystem.IsWindows() then "morphir-fsharp-frontend.exe" else "morphir-fsharp-frontend")
 
-                  let start = ProcessStartInfo(executable)
-                  start.RedirectStandardInput <- true
-                  start.RedirectStandardOutput <- true
-                  start.RedirectStandardError <- true
-                  start.UseShellExecute <- false
-                  use guest = Process.Start start |> nonNull
-                  let errors = guest.StandardError.ReadToEndAsync()
+              let describe =
+                  """{"jsonrpc":"2.0","id":1,"method":"morphir.extension.describe","params":{"protocolVersions":["0.2.0-draft.1"]}}"""
 
-                  let describe =
-                      """{"jsonrpc":"2.0","id":1,"method":"morphir.extension.describe","params":{"protocolVersions":["0.2.0-draft.1"]}}"""
+              let start = ChildProcess.StartInfo executable
+              start.WorkingDirectory <- root
+              start.StandardInputEncoding <- UTF8Encoding false
+              sandbox.Apply start
 
-                  ContentLengthFraming
-                      .WriteAsync(guest.StandardInput.BaseStream, ReadOnlyMemory(Encoding.UTF8.GetBytes describe), CancellationToken.None)
-                      .Wait()
+              // stdin closes after the frame, and the guest exits at the end of its input.
+              let result =
+                  ChildProcess
+                      .RunAsync(
+                          start,
+                          TimeSpan.FromMinutes 1.0,
+                          CancellationToken.None,
+                          null,
+                          $"Content-Length: {Encoding.UTF8.GetByteCount describe}\r\n\r\n{describe}"
+                      )
+                      .GetAwaiter()
+                      .GetResult()
 
-                  use timeout = new CancellationTokenSource(TimeSpan.FromMinutes 1.0)
+              Expect.equal result.ExitCode 0 $"The installed guest exits at the end of its input: {result.CombinedOutput}"
+              use output = new MemoryStream(Encoding.UTF8.GetBytes result.StandardOutput)
 
-                  let reply =
-                      match ContentLengthFraming.ReadAsync(guest.StandardOutput.BaseStream, timeout.Token).GetAwaiter().GetResult() with
-                      | FrameRead.Message body -> JsonNode.Parse(ReadOnlySpan body) |> nonNull
-                      | other -> failtest $"Expected a describe reply: {other}; stderr: {errors.Result}"
+              let reply =
+                  match ContentLengthFraming.ReadAsync(output, CancellationToken.None).GetAwaiter().GetResult() with
+                  | FrameRead.Message body -> JsonNode.Parse(ReadOnlySpan body) |> nonNull
+                  | other -> failtest $"Expected a describe reply: {other}; {result.CombinedOutput}"
 
-                  guest.StandardInput.Close()
+              let claims = reply["result"] |> nonNull
+              let claimsVersion = (claims["claimsVersion"] |> nonNull).ToJsonString()
+              Expect.equal claimsVersion "\"0.1.0-draft.2\"" "claims version"
 
-                  if not (guest.WaitForExit(TimeSpan.FromSeconds 30.0)) then
-                      guest.Kill true
-                      failtest "The installed guest did not exit at the end of its input"
+              let extensionVersion = ((claims["extension"] |> nonNull)["version"] |> nonNull).ToJsonString()
+              Expect.equal extensionVersion $"\"{version}\"" "The extension version is the package version"
 
-                  let claims = reply["result"] |> nonNull
-                  let claimsVersion = (claims["claimsVersion"] |> nonNull).ToJsonString()
-                  Expect.equal claimsVersion "\"0.1.0-draft.2\"" "claims version"
+              let tuples =
+                  ((claims["capabilities"] |> nonNull)["modelTransport"] |> nonNull)["tuples"]
 
-                  let extensionVersion = ((claims["extension"] |> nonNull)["version"] |> nonNull).ToJsonString()
-                  Expect.equal extensionVersion $"\"{version}\"" "The extension version is the package version"
+              Expect.isTrue
+                  (JsonNode.DeepEquals(tuples, JsonNode.Parse $"""[{jsonTuple "4.0.0"},{jsonTuple "3.0.0"}]"""))
+                  "The claimed compileModel tuples" ]
 
-                  let tuples =
-                      ((claims["capabilities"] |> nonNull)["modelTransport"] |> nonNull)["tuples"]
-
-                  Expect.isTrue
-                      (JsonNode.DeepEquals(tuples, JsonNode.Parse $"""[{jsonTuple "4.0.0"},{jsonTuple "3.0.0"}]"""))
-                      "The claimed compileModel tuples"
-              finally
-                  TolerantDirectory.TryDelete root |> ignore ]
