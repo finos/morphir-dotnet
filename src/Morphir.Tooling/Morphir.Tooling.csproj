@@ -57,6 +57,7 @@
     <ProjectReference Include="..\Morphir.Configuration\Morphir.Configuration.fsproj" />
     <ProjectReference Include="..\Morphir.Configuration.IO\Morphir.Configuration.IO.csproj" />
     <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
+    <!-- Versioning.FormatVersion spellings for task records (VER-1) -->
     <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
     <ProjectReference Include="..\Morphir.Extensions\Morphir.Extensions.fsproj" />
     <ProjectReference Include="..\Morphir.Analyzers\Morphir.Analyzers.fsproj" />
