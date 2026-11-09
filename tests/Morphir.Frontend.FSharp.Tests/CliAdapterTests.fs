@@ -387,4 +387,59 @@ let tests =
                 keep $"cli-target-{target}.json" report
                 expectQualified report
         }
+            // Task 9.4: the published Native AOT morphir with the installed MEP guest. Opt-in, because it needs a
+        // publish and an installed tool: set MORPHIR_AOT_CLI to the published executable and MORPHIR_FSHARP_GUEST to
+        // the installed morphir-fsharp-frontend command.
+        testTask "The complete suite through the cli adapter against the AOT morphir with the installed guest equals the library" {
+            match Environment.GetEnvironmentVariable "MORPHIR_AOT_CLI", Environment.GetEnvironmentVariable "MORPHIR_FSHARP_GUEST" with
+            | null, _
+            | "", _
+            | _, null
+            | _, "" -> skiptest "Set MORPHIR_AOT_CLI and MORPHIR_FSHARP_GUEST to run the AOT suite"
+            | executable, guest ->
+                use sandbox = TestSandbox.Create "morphir-mck-aot-"
+                let suite = CorpusTests.suite.Value
+                let morphir = Path.GetFullPath executable, [], Path.GetFullPath executable
+
+                let options =
+                    { optionsFor morphir sandbox [] with
+                        ExtraArguments = [ "--extension"; guest ]
+                    }
+
+                let! identity = CliAdapter.identify options (Path.GetFullPath executable) CancellationToken.None
+                let! aot = run (CliAdapter.create identity options) suite
+                let! library = run CorpusTests.adapter suite
+                keep "cli-aot-mep.json" aot
+
+                let signature (result: CaseResult) =
+                    result.Case.Input.Documents
+                    |> List.exists (fun document -> document.Uri.EndsWith ".fsi")
+
+                for aotResult, libraryResult in List.zip aot.Results library.Results do
+                    match aotResult.Verdict, libraryResult.Verdict with
+                    | Verdict.Excluded _, Verdict.Excluded _ -> ()
+                    | Verdict.Failed _, Verdict.Passed when signature aotResult ->
+                        // The guest claims .fs only, so no registered frontend selects the language of a .fsi
+                        // document, and the host refuses the compile before dispatch.
+                        let codes =
+                            aotResult.Observation
+                            |> Option.map (fun observation -> observation.Diagnostics |> List.map (fun diagnostic -> diagnostic.Code))
+                            |> Option.defaultValue []
+
+                        Expect.equal codes [ "compile.language_required" ] (describe aotResult)
+                    | Verdict.Passed, Verdict.Passed ->
+                        match aotResult.Observation, libraryResult.Observation with
+                        | Some { ModelJson = Some aotModel }, Some { ModelJson = Some libraryModel } ->
+                            match JsonComparison.firstDifference libraryModel aotModel with
+                            | Some difference -> failtest $"{describe aotResult}: the AOT IR differs from the library IR: {difference}"
+                            | None -> ()
+                        | Some aotObservation, Some libraryObservation ->
+                            Expect.equal aotObservation.Diagnostics libraryObservation.Diagnostics (describe aotResult)
+                        | _ -> ()
+                    | _ -> failtest $"{describe aotResult} / library: {libraryResult.Verdict}"
+
+                let refused = aot.Results |> List.filter signature |> List.filter (fun result -> result.Verdict.IsFailed)
+                let passed = aot.Results |> List.filter (fun result -> result.Verdict.IsPassed)
+                Expect.equal (passed.Length + refused.Length + (aot.Results |> List.filter (fun r -> r.Verdict.IsExcluded)).Length) aot.Results.Length "every variant is accounted for"
+        }
     ]
