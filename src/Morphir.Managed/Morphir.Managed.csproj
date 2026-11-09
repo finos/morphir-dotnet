@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The managed morphir executable (DEP-1): the same command layer as the AOT-compatible src/Morphir, with the
+      managed composition that adds the in-process F# frontend. It is JIT-only, never published with Native AOT or
+      trimming. Its assembly is also named morphir, so no project may reference both this project and src/Morphir.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AssemblyName>morphir</AssemblyName>
+        <RootNamespace>Morphir.Managed</RootNamespace>
+        <Description>The managed Morphir command line, with the in-process F# frontend</Description>
+        <!-- Release profiles and archives come with task 2.2; this project is not a package. -->
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />
+        <ProjectReference Include="..\Morphir.Tooling.Managed\Morphir.Tooling.Managed.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="System.CommandLine" />
+        <PackageReference Include="FluentValidation" />
+
+        <!-- Logging -->
+        <PackageReference Include="Serilog" />
+        <PackageReference Include="Serilog.Extensions.Hosting" />
+        <PackageReference Include="Serilog.Sinks.Console" />
+    </ItemGroup>
+
+    <!-- Generate version constant file at build time (same as the Morphir and Morphir.Tool projects) -->
+    <Target Name="GenerateVersionFile" BeforeTargets="CoreCompile">
+        <PropertyGroup>
+            <!-- Use AssemblyInformationalVersion if set, otherwise Version, otherwise default -->
+            <MorphirVersionString Condition="'$(InformationalVersion)' != ''">$(InformationalVersion)</MorphirVersionString>
+            <MorphirVersionString Condition="'$(MorphirVersionString)' == '' AND '$(Version)' != ''">$(Version)</MorphirVersionString>
+            <MorphirVersionString Condition="'$(MorphirVersionString)' == ''">0.0.0-dev</MorphirVersionString>
+        </PropertyGroup>
+        <ItemGroup>
+            <VersionFileLines Include="// &lt;auto-generated/&gt;" />
+            <VersionFileLines Include="namespace Morphir.Managed%3B" />
+            <VersionFileLines Include=" " />
+            <VersionFileLines Include="internal static class VersionInfo" />
+            <VersionFileLines Include="{" />
+            <VersionFileLines Include="    public const string Version = &quot;$(MorphirVersionString)&quot;%3B" />
+            <VersionFileLines Include="}" />
+            <VersionFileLines Include=" " />
+        </ItemGroup>
+        <WriteLinesToFile File="$(IntermediateOutputPath)VersionInfo.g.cs" Lines="@(VersionFileLines)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+        <ItemGroup>
+            <Compile Include="$(IntermediateOutputPath)VersionInfo.g.cs" />
+        </ItemGroup>
+    </Target>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Morphir.Managed.Tests" />
+    </ItemGroup>
+
+</Project>
