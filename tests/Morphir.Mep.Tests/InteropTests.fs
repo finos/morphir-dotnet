@@ -4,6 +4,7 @@ module Morphir.Mep.Tests.InteropTests
 
 open System
 open System.IO
+open System.Reflection
 open System.Text.RegularExpressions
 open Expecto
 open Morphir.Mep
@@ -57,13 +58,18 @@ static class BadFailure { static void Check(string? text) {
             "using Morphir.Mep; static class BadMutation { static void Check(DescribeParams p) { p.ProtocolVersions[0] = ProtocolVersion.Create(\"0.1\"); } }"
         )
 
+        let configuration =
+            Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyConfigurationAttribute>()
+            |> nonNull
+            |> _.Configuration
+
         let start =
             ChildProcess.StartInfo(
                 "dotnet",
                 "build",
                 "Consumer.csproj",
                 "-c",
-                "Release",
+                configuration,
                 "-p:BuildProjectReferences=false",
                 "--nologo"
             )
