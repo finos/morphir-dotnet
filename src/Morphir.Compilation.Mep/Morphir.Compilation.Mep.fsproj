@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.Compilation.Mep</RootNamespace>
+        <Description>The MEP 0.2.0-draft.1 frontend adapter: an IFrontend over a guest process that serves morphir.frontend.compileModel. Trim-safe and AOT-safe.</Description>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
+        <ProjectReference Include="..\Morphir.Mep\Morphir.Mep.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="MepFrontend.fs" />
+    </ItemGroup>
+
+</Project>

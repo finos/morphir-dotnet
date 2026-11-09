@@ -24,6 +24,18 @@ Primary sources:
 - [Framework JSON5 tests](https://github.com/moonrockz/moon-lander/blob/d6216c7469c045548cb15b3f9321857ac41d2cd0/pkgs/config/parsers/json5/README.mbt.md)
 - [MoonBit classic normalization](https://github.com/finos/morphir-moonbit/blob/10732eaf2f05b10ca6e94a78121e2753c814acd8/pkgs/morphir-engine/workspace/configuration.mbt)
 
+## Local schema amendments
+
+`morphir-config-v1.json` stays byte-identical to upstream. `scripts/configuration/generate-schema.py`
+applies these amendments to the parsed schema before it generates `src/Morphir.Configuration/Schema.fs`
+(change `add-fsharp-compile`, decisions VER-1 and SRC-2):
+
+- `ir.format_version` accepts an integer from 1 to 10, or a SemVer string with optional pre-release and
+  build parts, for example `"4.1.0-draft.1"`. The integer default stays 4.
+- The definition `frontendLanguage` has the members `extension` and `project_file`. Every
+  `[frontend.<language>]` table uses it, including `[frontend.elm]`. Upstream documents `extension` as
+  valid under any language table; `project_file` is the proposed shared key.
+
 ## Semantics and deliberate differences
 
 The corpus covers classic manifests and basic TOML, not JSON5 edge syntax, YAML,

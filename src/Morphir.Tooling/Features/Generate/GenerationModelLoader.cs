@@ -15,7 +15,16 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
     {
         var captured = await capture.CaptureAsync(input, limits, ct);
         if (captured is Outcome<RetainedInput>.Failure failed) return new Outcome<LoadedModel>.Failure(failed.Error);
-        var original = ((Outcome<RetainedInput>.Success)captured).Value;
+        return Decode(((Outcome<RetainedInput>.Success)captured).Value, input, limits, ct);
+    }
+
+    /// <summary>
+    /// Decodes an owned capture exactly as <see cref="LoadAsync"/> decodes the capture of <paramref name="input"/>.
+    /// <c>compile --target</c> gives it the bytes that the compile wrote (CLI-2), so the backend sees the same
+    /// <see cref="LoadedModel"/> as <c>generate --input</c> on the published file.
+    /// </summary>
+    public static Outcome<LoadedModel> Decode(RetainedInput original, ModelInput input, ModelReadLimits limits, CancellationToken ct)
+    {
         try
         {
             ct.ThrowIfCancellationRequested();

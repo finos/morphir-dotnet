@@ -11,4 +11,4 @@ code.
 
 | Language | Frontend | Status |
 | --- | --- | --- |
-| F# | [F# frontend](fsharp/) | Library API. The `morphir compile` command is planned. |
+| F# | [F# frontend](fsharp/) | In process in `dotnet-morphir compile`, and as the MEP guest `morphir-fsharp-frontend` for `morphir compile --extension`. See [compile]({{< relref "/docs/cli/compile" >}}). |

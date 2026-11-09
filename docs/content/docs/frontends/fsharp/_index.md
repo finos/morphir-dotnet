@@ -17,12 +17,17 @@ an example.
 
 ## Status
 
-The frontend is available through its library API:
-`Morphir.Frontend.FSharp.FSharpFrontend.registration` is an `IFrontend` from
-`Morphir.Compilation`. The `morphir compile` command and the frontend extension
-for other Morphir hosts are planned in the
-[`add-fsharp-compile`](https://github.com/finos/morphir-dotnet/issues/499)
-change.
+The frontend has two forms:
+
+- **In process.** `Morphir.Frontend.FSharp.FSharpFrontend.registration` is an
+  `IFrontend` from `Morphir.Compilation`. The `dotnet-morphir` tool uses it.
+- **MEP extension.** `morphir-fsharp-frontend` is a Morphir Extension Protocol
+  (MEP) `0.2.0-draft.1` guest. Hosts that cannot load the F# compiler service,
+  such as the AOT `morphir` executable, start it as a process. See
+  [Run the frontend as a MEP extension](#run-the-frontend-as-a-mep-extension).
+
+To compile F# from the command line, see
+[compile]({{< relref "/docs/cli/compile" >}}).
 
 ## Input
 
@@ -93,6 +98,62 @@ Warnings and information diagnostics come with a successful model.
 
 F# compiler errors have the code `fsharp.compiler`. Refused constructs have the
 codes in the [coverage reference](coverage/).
+
+## Run the frontend as a MEP extension
+
+Install the guest as a dotnet tool. It needs the .NET runtime.
+
+```sh
+dotnet tool install --global Morphir.Frontend.FSharp.Mep
+```
+
+The guest speaks only MEP `0.2.0-draft.1`, over stdio with `Content-Length`
+framing. It serves `morphir.frontend.compileModel` and claims:
+
+| Claim | Value |
+| --- | --- |
+| Claims version | `0.1.0-draft.2` |
+| Language | `fsharp`, with the file extension `.fs` |
+| Several documents in one request | yes (`multiDocument: true`) |
+| Legacy `morphir.frontend.compile` | no |
+| Incremental compilation | no |
+| Model tuples | `morphir.frontend.compileModel`, profile `morphir-ir`, codec `morphir-json`, envelope `0.1.0-draft.1`, IR `4.0.0` and `3.0.0` |
+
+Classic IR versions 1 and 2 have no tuple. For them, the host compiles at
+`3.0.0`, reads the classic model, and writes it at the requested version. The
+model does not change family. A host that agrees only `4.0.0` with a guest
+refuses a classic request before it sends one.
+
+To use the guest from the `morphir` executable, give its path with
+`--extension`, or set it in the project configuration:
+
+```sh
+morphir compile --extension "$(which morphir-fsharp-frontend)"
+```
+
+```toml
+[frontend.fsharp]
+extension = "morphir-fsharp-frontend"
+```
+
+The host starts the guest with explicit arguments and no shell, and passes the
+guest's stderr to its own stderr. Before it sends a request, it checks that the
+session admits the language, the number of documents and the IR version. It
+always ends the session with `shutdown` and `exit`, or stops the process after
+a deadline. Guest output on stdout that is not a frame fails the compile with
+`extension.protocol_error`.
+
+The model in a successful result is a verified envelope: canonical base64 of
+the IR JSON, its exact length and its SHA-256. The host checks them before it
+reads the IR. For the same documents, the IR and the diagnostics from the guest
+equal the in-process results; a test compares them for every case of the
+conformance corpus.
+
+Upstream qualification: the MEP guest kit of `finos/morphir`
+(`generic-json-library-v1`) still needs a legacy `0.1` stage and a backend, so
+the guest is not qualified with it yet. Its conformance comes from the pinned
+`0.2.0-draft.1` contract, the pinned session transcripts and the
+model-transport cases. See [deviations](https://github.com/finos/morphir-dotnet/blob/main/conformance/deviations.md).
 
 ## How the frontend is checked
 

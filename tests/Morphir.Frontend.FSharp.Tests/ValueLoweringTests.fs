@@ -598,6 +598,18 @@ let sdkTests =
                 "the division is evaluated only in the then branch"
 
             expectValue
+                (guarded["IfThenElse"]["condition"])
+                ("""{"Apply": {"function": {"Apply": {"function": @NE@, "argument": {"Variable": {"name": "x"}}}},
+                    "argument": {"Literal": {"literal": {"IntegerLiteral": 0}}}}}"""
+                    .Replace("@NE@", sdkRef "basics#not-equal"))
+                "the condition of x <> 0 && ... is x <> 0"
+
+            expectValue
+                (guarded["IfThenElse"]["else"])
+                """{"Literal": {"literal": {"BoolLiteral": false}}}"""
+                "the else branch of && is false"
+
+            expectValue
                 (body "either")
                 """{"IfThenElse": {"condition": {"Variable": {"name": "a"}},
                   "then": {"Literal": {"literal": {"BoolLiteral": true}}},

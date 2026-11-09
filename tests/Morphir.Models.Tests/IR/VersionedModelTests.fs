@@ -22,6 +22,26 @@ let tests =
                 match SourceFormatVersion.parse text with
                 | Ok version -> Expect.equal (string version) text "declared text"
                 | Error error -> failtest $"refused {text}: {error}"
+        testCase "TryParse gives C# callers the declared version and no failure"
+        <| fun () ->
+            for text in [ "3"; "3.0.0"; "4.1.0-draft.1" ] do
+                let parsed, version, failure = SourceFormatVersion.TryParse text
+                Expect.isTrue parsed $"parsed {text}"
+                Expect.equal version.Text text "declared text"
+                Expect.equal version.Version ((SourceFormatVersion.parse text |> ok).Version) "parsed version"
+                Expect.isTrue (obj.ReferenceEquals(failure, null)) "no failure"
+        testCase "TryParse gives C# callers a failure for null, empty and malformed text"
+        <| fun () ->
+            for text in [ null; ""; "v4"; "4.x" ] do
+                let parsed, version, failure = SourceFormatVersion.TryParse text
+                Expect.isFalse parsed $"refused {text}"
+                Expect.isTrue (obj.ReferenceEquals(version, null)) "no version"
+                Expect.isFalse (obj.ReferenceEquals(failure, null)) "a failure"
+        testCase "Create builds a literal version and throws for malformed text"
+        <| fun () ->
+            Expect.equal (SourceFormatVersion.Create "4").Text "4" "declared text"
+            Expect.equal (SourceFormatVersion.Create "4.1.0-draft.1").Version ((SourceFormatVersion.parse "4.1.0-draft.1" |> ok).Version) "parsed version"
+            Expect.throwsT<System.ArgumentException> (fun () -> SourceFormatVersion.Create "4.x" |> ignore) "malformed text"
         testCase "classic integer and semantic versions retain separate source context"
         <| fun () ->
             use document = JsonDocument.Parse classicJson

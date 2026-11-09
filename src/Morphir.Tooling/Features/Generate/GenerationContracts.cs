@@ -12,7 +12,20 @@ public enum GenerationFailureKind { Semantic, Invocation, Operational, Cancelled
 public enum InputFormat { Auto, Json, Ion }
 public enum ModelRepresentation { Json, IonText, IonBinary, IonTree }
 
-public sealed record GenerationDiagnostic(string Code, string Message, string? Path = null, string? Location = null, string Severity = "error");
+/// <summary>A zero-based position: a line, and a character in UTF-16 code units, as in MEP and LSP.</summary>
+public sealed record DiagnosticPosition(int Line, int Character);
+
+/// <summary>A source range with an exclusive end.</summary>
+public sealed record DiagnosticRange(DiagnosticPosition Start, DiagnosticPosition End);
+
+/// <summary>
+/// A generation diagnostic. <paramref name="Range"/> is an optional, additive member: a source range in the
+/// document that <paramref name="Path"/> names. Reports leave it out when it is null, so existing reports keep
+/// their shape.
+/// </summary>
+public sealed record GenerationDiagnostic(string Code, string Message, string? Path = null, string? Location = null, string Severity = "error",
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    DiagnosticRange? Range = null);
 public sealed record GenerationFailure(GenerationFailureKind Kind, ImmutableArray<GenerationDiagnostic> Diagnostics)
 {
     public string? Backend { get; init; }
@@ -53,9 +66,24 @@ public abstract record RequestedTarget
         _ => throw new UnreachableException()
     };
 }
-public sealed record InvocationContext(string WorkingDirectory);
+public sealed record InvocationContext(string WorkingDirectory)
+{
+    /// <summary>The environment of the invocation, or null for the environment of the current process.</summary>
+    public IReadOnlyDictionary<string, string>? Environment { get; init; }
+}
+
 public sealed record GenerateOverrides(string? Input = null, string? Target = null, string? Output = null,
-    string? InputFormat = null, IReadOnlyList<string>? Options = null);
+    string? InputFormat = null, IReadOnlyList<string>? Options = null)
+{
+    /// <summary><c>--project</c>: the project whose compile record gives the input when <c>--input</c> is absent.</summary>
+    public string? Project { get; init; }
+
+    /// <summary><c>--config</c>: an explicitly selected configuration file of that project.</summary>
+    public string? Config { get; init; }
+
+    /// <summary><c>--out-dir</c>: the out root that holds the compile record.</summary>
+    public string? OutDir { get; init; }
+}
 public sealed record ModelInput(string Path, InputFormat Format = InputFormat.Auto);
 
 public sealed record ModelReadLimits(long MaxBytes = 64 * 1024 * 1024, int MaxDepth = 128,
@@ -71,7 +99,34 @@ public static class GenerationDefaults
 
 public sealed record PublicationPolicy(string OutputDirectory, string ManifestName = GenerationDefaults.OwnershipManifest);
 public sealed record GenerationSettings(ModelInput Input, RequestedTarget Target, BackendOptions Options,
-    PublicationPolicy Publication, ModelReadLimits Limits);
+    PublicationPolicy Publication, ModelReadLimits Limits)
+{
+    /// <summary>
+    /// A hold on the input, or null. <c>generate</c> releases it when model loading ends, after it admits the
+    /// loaded model through it. The input of a prior compile holds the task's shared lock this way (REC-1).
+    /// </summary>
+    public ModelInputLease? InputLease { get; init; }
+}
+
+/// <summary>
+/// A hold on a model input from settings resolution until model loading ends. It can refuse or adjust the loaded
+/// model, for example to check the format version that a compile record names.
+/// </summary>
+public abstract class ModelInputLease : IDisposable
+{
+    /// <summary>Admits the loaded model. The default admits it unchanged.</summary>
+    public virtual Outcome<LoadedModel> Admit(LoadedModel model) => new Outcome<LoadedModel>.Success(model);
+
+    /// <summary>Releases the hold.</summary>
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Releases the hold.</summary>
+    protected abstract void Dispose(bool disposing);
+}
 
 /// <summary>Owns JSON values independently of their source document and the caller's dictionary.</summary>
 public sealed class BackendOptions

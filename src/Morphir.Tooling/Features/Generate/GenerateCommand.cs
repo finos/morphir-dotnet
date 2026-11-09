@@ -9,16 +9,20 @@ namespace Morphir.Tooling.Features.Generate;
 /// <summary>CLI binding and presentation only. Target selection belongs to registered providers.</summary>
 public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
 {
-    private readonly Option<string?> _input = new("--input") { Description = "Model file or Ion tree" };
+    private readonly Option<string?> _input = new("--input") { Description = "Model file or Ion tree. Without it, the IR of the most recent morphir compile of the project" };
     private readonly Option<string?> _target = new("--target") { Description = "Registered generation target" };
     private readonly Option<string?> _output = new("--output") { Description = "Owned output directory" };
     private readonly Option<string?> _format = new("--input-format") { Description = "auto, json or ion" };
     private readonly Option<string[]> _options = new("--option") { Description = "Backend KEY=VALUE option, repeatable", AllowMultipleArgumentsPerToken = false, Arity = ArgumentArity.OneOrMore };
     private readonly Option<bool> _json = new("--json") { Description = "Output one JSON report" };
+    private readonly Option<string?> _project = new("--project") { Description = "Project directory, workspace member path or project name, for input from a prior compile" };
+    private readonly Option<string?> _config = new("--config") { Description = "Explicit configuration file, for input from a prior compile" };
+    private readonly Option<string?> _outDir = new("--out-dir") { Description = "Out root that holds the compile record; overrides MORPHIR_OUT_DIR and workspace.out_dir" };
 
     public GenerateCommand(IServiceProvider services) : base("generate", "Generate artifacts from a Morphir model")
     {
         Options.Add(_input); Options.Add(_target); Options.Add(_output); Options.Add(_format); Options.Add(_options); Options.Add(_json);
+        Options.Add(_project); Options.Add(_config); Options.Add(_outDir);
         SetAction(async (result, ct) =>
         {
             var invocation = Bind(result);
@@ -29,7 +33,12 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
     }
 
     private GenerateOverrides Bind(ParseResult result) => new(result.GetValue(_input), result.GetValue(_target), result.GetValue(_output),
-        result.GetValue(_format), result.GetValue(_options));
+        result.GetValue(_format), result.GetValue(_options))
+    {
+        Project = result.GetValue(_project),
+        Config = result.GetValue(_config),
+        OutDir = result.GetValue(_outDir),
+    };
 
     public int HandleParseErrors(ParseResult result)
     {

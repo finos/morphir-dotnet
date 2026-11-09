@@ -72,6 +72,16 @@ public class GenerationBackendResolverTests
     }
 
     [Test]
+    public void AnIncompatibleModelNamesEachBackendOfTheTargetAndWhatItDeclares()
+    {
+        var provider = new FakeBackend("fsharp-provider", "fsharp");
+        var failure = (Outcome<IGenerationBackend>.Failure)new RegisteredBackendResolver([provider])
+            .Resolve(RequestedTarget.Parse("fsharp"), Model with { Family = ModelFamily.Classic, Version = SourceFormatVersionModule.parse("1").ResultValue });
+        failure.Error.Diagnostics[0].Message.Should().Be(
+            "Target 'fsharp' does not support Classic 1 Library. The backend fsharp-provider declares V4 4.0.0 Library.");
+    }
+
+    [Test]
     public void AmbiguityNamesBothProvidersAndInvokesNeither()
     {
         var first = new FakeBackend("first", "fsharp");

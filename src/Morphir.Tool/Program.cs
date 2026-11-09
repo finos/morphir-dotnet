@@ -1,5 +1,7 @@
-// Entry point for the Morphir.Tool dotnet tool package
-// Delegates all command processing to the Morphir namespace
+// Entry point for the Morphir.Tool dotnet tool package (CLI-3). It runs the shared composition of
+// Morphir.Program and adds its own: the in-process F# frontend. Only this project references
+// Morphir.Frontend.FSharp, so the AOT executable morphir never contains the F# compiler service.
+using Morphir.Tooling;
 
 namespace Morphir.Tool;
 
@@ -9,6 +11,11 @@ internal static class Program
     internal static Morphir.Extensions.HostIdentity Host =>
         new(Morphir.Extensions.MorphirHost.DotnetTool, Morphir.Extensions.ReleaseVersion.Create(VersionInfo.Version));
 
-    // Delegate to the shared composition in Morphir.Program, stating this host.
-    private static int Main(string[] args) => Morphir.Program.Run(args, Host);
+    /// <summary>The composition of the dotnet tool on top of the shared one.</summary>
+    internal static void Compose(MorphirCliBuilder builder) => builder.AddScenario<FSharpFrontendScenario>();
+
+    /// <summary>The application of the dotnet tool, for tests.</summary>
+    internal static MorphirCliApp CreateApp(string[] args) => Morphir.Program.CreateApp(args, Host, Compose);
+
+    private static int Main(string[] args) => Morphir.Program.Run(args, Host, Compose);
 }
