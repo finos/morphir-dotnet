@@ -1,5 +1,5 @@
 using System.Collections.Immutable;
-using Microsoft.FSharp.Collections;
+using System.Text.Json;
 using Morphir.Configuration;
 using Morphir.Extensions;
 using Morphir.Tooling.Features.Configuration;
@@ -15,8 +15,6 @@ namespace Morphir.Tooling.Features.Validate;
 /// <param name="environment">The command's environment snapshot: containment and machine locations come from it.</param>
 public sealed class LayeredAnalyzerConfiguration(IReadOnlyDictionary<string, string> environment) : IAnalyzerConfiguration
 {
-    private static readonly ConfigValue TurnedOffValue = ConfigValue.NewBoolean(false);
-
     public Outcome<IReadOnlyList<ExtensionId>> TurnedOff(string workingDirectory, IReadOnlyList<ExtensionId> analyzers, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -32,10 +30,14 @@ public sealed class LayeredAnalyzerConfiguration(IReadOnlyDictionary<string, str
             if (errors.Length > 0)
                 return new Outcome<IReadOnlyList<ExtensionId>>.Failure(new GenerationFailure(GenerationFailureKind.Invocation,
                     errors.Select(error => new GenerationDiagnostic(error.Code, error.Message, NullIfEmpty(error.Source.Path))).ToImmutableArray()));
-            var effective = detailed.Resolution.Effective;
-            // Compare with Equals: the value must be the boolean false. Any other value, or none, leaves the analyzer on.
+            // The JSON form of the effective tree, as morphir config show --json writes it.
+            var effective = ConfigurationReport.JsonValue(detailed.Resolution.Effective, "", []);
+            // Only the boolean false turns an analyzer off. Any other value, or none, leaves it on.
             var turnedOff = analyzers.Where(id =>
-                ConfigTree.tryFind(ListModule.OfSeq(["extensions", id.Value, "enabled"]), effective) is { } value && value.Value.Equals(TurnedOffValue));
+                effective.ValueKind == JsonValueKind.Object
+                && effective.TryGetProperty("extensions", out var extensions) && extensions.ValueKind == JsonValueKind.Object
+                && extensions.TryGetProperty(id.Value, out var extension) && extension.ValueKind == JsonValueKind.Object
+                && extension.TryGetProperty("enabled", out var enabled) && enabled.ValueKind == JsonValueKind.False);
             return new Outcome<IReadOnlyList<ExtensionId>>.Success(turnedOff.ToArray());
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)

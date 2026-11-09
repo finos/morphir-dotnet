@@ -42,7 +42,7 @@ public sealed class ModelValidation(IModelLoader loader, AnalyzerRegistry analyz
             var turnedOff = ((Outcome<IReadOnlyList<ExtensionId>>.Success)settings).Value;
 
             var result = await AnalyzerRunner.RunAsync(analyzers.Analyzers, model.Model, turnedOff, ct);
-            return ValidationReport.From(host, model.Original.SourcePath, model.Model, result);
+            return ValidationReport.From(host, model.Original.SourcePath, result);
         }
         catch (OperationCanceledException)
         {

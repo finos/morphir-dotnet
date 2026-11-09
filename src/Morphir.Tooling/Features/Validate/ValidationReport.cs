@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Morphir.Extensions;
-using Morphir.IR.Model;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Infrastructure;
 
@@ -9,14 +8,14 @@ namespace Morphir.Tooling.Features.Validate;
 
 /// <summary>
 /// The report of <c>morphir validate</c>: one JSON document with <c>--json</c>, or a table and a summary line. It is
-/// built only by <see cref="From(HostIdentity, string, VersionedModel, AnalysisResult)"/> and the failure factories,
+/// built only by <see cref="From(HostIdentity, string, AnalysisResult)"/> and the failure factories,
 /// which are the one place that turns typed values into text.
 /// </summary>
 public sealed record ValidationReport(string Host, bool Success, int ExitCode, string? Input, string? Family, string? FormatVersion,
     IReadOnlyList<ValidationAnalyzer> Analyzers, IReadOnlyList<ValidationDiagnostic> Diagnostics)
 {
     /// <summary>The report of an analysis. Exit code 2 when an analyzer failed, 1 for an error diagnostic, else 0.</summary>
-    public static ValidationReport From(HostIdentity host, string input, VersionedModel model, AnalysisResult result)
+    public static ValidationReport From(HostIdentity host, string input, AnalysisResult result)
     {
         var exitCode = result.HasFailures ? 2 : result.HasErrors ? 1 : 0;
         var diagnostics = result.HostDiagnostics.Select(diagnostic => ValidationDiagnostic.From(diagnostic, null))
@@ -25,7 +24,7 @@ public sealed record ValidationReport(string Host, bool Success, int ExitCode, s
         var analyzers = result.Runs
             .Select(run => new ValidationAnalyzer(run.Analyzer.Value, run.Outcome.WireValue, run.Outcome.ReasonOrNull, run.Outcome.DetailOrNull))
             .ToArray();
-        return new(host.Host.WireValue, exitCode == 0, exitCode, input, ModelLabels.Family(model.Family), model.SourceVersion.Text, analyzers, diagnostics);
+        return new(host.Host.WireValue, exitCode == 0, exitCode, input, result.Family, result.FormatVersion, analyzers, diagnostics);
     }
 
     /// <summary>A run that stopped before any analyzer ran, with one diagnostic.</summary>

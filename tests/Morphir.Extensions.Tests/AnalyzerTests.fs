@@ -214,6 +214,8 @@ let tests =
             | other -> failtest $"expected one info diagnostic, got {other}"
 
             Expect.isFalse result.HasErrors "info only"
+            Expect.equal result.Family "V4" "family label"
+            Expect.equal result.FormatVersion "4.0.0" "declared version"
             Expect.equal AnalyzerSkipReason.UnsupportedModel.WireValue "unsupported-model" "wire value"
         }
 

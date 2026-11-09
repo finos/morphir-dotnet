@@ -214,10 +214,14 @@ type AnalysisResult =
             version: SourceFormatVersion
         }
 
-    static member private FamilyText(family: ModelFamily) =
-        match family with
+    /// <summary>The model's family as the CLI writes it: <c>Classic</c> or <c>V4</c>.</summary>
+    member this.Family =
+        match this.family with
         | ModelFamily.Classic -> "Classic"
         | ModelFamily.V4 -> "V4"
+
+    /// <summary>The model's format version, in its declared spelling.</summary>
+    member this.FormatVersion = this.version.Text
 
     static member private HostDiagnostic(code: string, severity, message: string) : Morphir.Mep.Diagnostic = {
         Severity = severity
@@ -259,7 +263,7 @@ type AnalysisResult =
             AnalysisResult.HostDiagnostic(
                 "no-analyzer",
                 Morphir.Mep.DiagnosticSeverity.Info,
-                $"No enabled analyzer reads the {AnalysisResult.FamilyText this.family} family at format version {this.version.Text}."
+                $"No enabled analyzer reads the {this.Family} family at format version {this.FormatVersion}."
             )
     |]
 
