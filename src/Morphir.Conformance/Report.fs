@@ -31,11 +31,16 @@ module Report =
         writer.WriteStartObject()
         writer.WriteString("reportVersion", "0.1.0-draft.1")
         writer.WriteString("kitVersion", "0.1.0-draft.1")
-        writer.WriteString("vocabularyVersion", "1.0")
+        writer.WriteString("vocabularyVersion", report.VocabularyVersion)
         writer.WriteString("caseSetSha256", report.CaseSetSha256)
         writer.WriteString("runner", report.RunnerName)
         writer.WriteString("runnerVersion", report.RunnerVersion)
         writer.WriteString("adapter", report.Adapter)
+
+        match report.CallChecker with
+        | Some name -> writer.WriteString("callChecker", name)
+        | None -> ()
+
         writer.WriteStartObject("implementation")
         writer.WriteString("name", report.Implementation.Name)
         writer.WriteString("version", report.Implementation.Version)

@@ -29,7 +29,7 @@ let main args =
 
         let options = {
             Suite = "frontend-fsharp"
-            VocabularyVersion = "1.0"
+            VocabularyVersion = "1.1"
             IrVersions = [ "1"; "2"; "3"; "4" ]
             InputKinds = [ "files"; "directory"; "project file" ]
         }

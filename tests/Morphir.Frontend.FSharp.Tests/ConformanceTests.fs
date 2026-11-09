@@ -68,6 +68,56 @@ let private excluding reason =
     + reason
     + " |\n"
 
+/// The seed feature as a successful case with the given call steps.
+let private withCalls (steps: string list) =
+    System.Text.RegularExpressions.Regex.Replace(
+        feature,
+        "(?s)    Then compilation fails with diagnostics:.*?    Examples:",
+        "    Then compilation succeeds with no error diagnostics\n"
+        + (steps
+           |> List.map (fun step ->
+               "    And "
+               + step
+               + "\n"
+           )
+           |> String.concat "")
+        + "\n    Examples:"
+    )
+
+let private calls11 =
+    { options with
+        VocabularyVersion = "1.1"
+    }
+
+let private readCalls source =
+    Corpus.read calls11 [ artifact "suites/frontend-fsharp/calls.feature" source ]
+
+let private succeeding =
+    LibraryAdapter.create
+        {
+            Name = "calls-control"
+            Version = "1.0.0"
+            Sha256 = String.replicate 64 "c"
+        }
+        (fun _ _ ->
+            Task.FromResult(
+                Ok
+                    {
+                        Success = true
+                        ModelJson = Some "{}"
+                        Diagnostics = []
+                    }
+            )
+        )
+
+let private checking (result: Result<unit, string>) (seen: ResizeArray<CallExpectation list>) = {
+    Name = "test-checker"
+    Check =
+        fun _ _ calls _ ->
+            seen.Add calls
+            Task.FromResult result
+}
+
 [<Tests>]
 let tests =
     testList "Portable frontend conformance" [
@@ -203,6 +253,360 @@ let tests =
                          |> List.map (fun issue -> issue.Code))
                         "mck.implementation_in_feature"
                         "Cases are portable across adapters"
+            )
+        testCase
+            "Vocabulary 1.1 reads call steps exactly as written, and 1.0 refuses them"
+            (fun () ->
+                let source =
+                    withCalls [
+                        "calling \"Pricing.seats\" with [{\"plate\": \"AB-1\"}, 2] returns {\"Just\": 2}"
+                        "calling \"Rates.Daily.rate\" with [] returns \"1.10\""
+                    ]
+
+                let suite =
+                    readCalls source
+                    |> requireOk
+
+                Expect.equal
+                    suite.Cases.Head.Calls
+                    [
+                        {
+                            Value = "Pricing.seats"
+                            Arguments = "[{\"plate\": \"AB-1\"}, 2]"
+                            Result = "{\"Just\": 2}"
+                            Codec = ValueCodec.TaggedObjects
+                        }
+                        {
+                            Value = "Rates.Daily.rate"
+                            Arguments = "[]"
+                            Result = "\"1.10\""
+                            Codec = ValueCodec.TaggedObjects
+                        }
+                    ]
+                    "The value, the arguments and the result keep their text"
+
+                Expect.equal suite.VocabularyVersion "1.1" "The case set records its vocabulary"
+
+                match read source with
+                | Ok _ -> failtest "Vocabulary 1.0 has no call step"
+                | Error issues ->
+                    Expect.equal
+                        (issues
+                         |> List.filter (fun issue -> issue.Code = "mck.unknown_step")
+                         |> List.length)
+                        2
+                        "Both call steps are outside vocabulary 1.0"
+            )
+        testCase
+            "Malformed call steps are refused"
+            (fun () ->
+                for step in
+                    [
+                        "calling \"seats\" with [] returns 1"
+                        "calling \"Pricing.Seats\" with [] returns 1"
+                        "calling \"Pricing.seats\" with 2 returns 1"
+                        "calling \"Pricing.seats\" with [2] gives 1"
+                        "calling \"Pricing.seats\" with [2 returns 1"
+                        "calling \"Pricing.seats\" with [2] returns {"
+                        "calling \"Pricing.seats\" with [2] returns 1 2"
+                    ] do
+                    match readCalls (withCalls [ step ]) with
+                    | Ok _ -> failtest $"The step must be refused: {step}"
+                    | Error issues ->
+                        Expect.equal
+                            (issues
+                             |> List.map (fun issue -> issue.Code)
+                             |> List.distinct)
+                            [ "mck.invalid_case" ]
+                            step
+
+                let refusal =
+                    feature.Replace(
+                        "    Then compilation fails with diagnostics:",
+                        "    And calling \"Pricing.total\" with [] returns 0\n    Then compilation fails with diagnostics:"
+                    )
+
+                match readCalls refusal with
+                | Ok _ -> failtest "A failed compilation has no values to call"
+                | Error issues ->
+                    Expect.exists
+                        issues
+                        (fun issue ->
+                            issue.Message = "Call observations need a successful compilation"
+                        )
+                        "Calls need a successful outcome"
+            )
+        testCase
+            "The call suffix, the codec step, the scenario tag and the feature tag select the value codec"
+            (fun () ->
+                let codecs source =
+                    readCalls source
+                    |> requireOk
+                    |> fun suite ->
+                        suite.Cases.Head.Calls
+                        |> List.map (fun call -> call.Codec)
+
+                let call = "calling \"Pricing.size\" with [4] returns [\"large\",4]"
+
+                let featureTag codec (source: string) =
+                    source.Replace(
+                        "@suite:frontend-fsharp @refusal",
+                        $"@suite:frontend-fsharp @refusal @value-codec:{codec}"
+                    )
+
+                let scenarioTag codec (source: string) =
+                    source.Replace(
+                        "  Scenario Outline:",
+                        $"  @value-codec:{codec}\n  Scenario Outline:"
+                    )
+
+                Expect.equal
+                    (codecs (withCalls [ call ]))
+                    [ ValueCodec.TaggedObjects ]
+                    "Value codec 2 is the default"
+
+                Expect.equal
+                    (codecs (featureTag 1 (withCalls [ call ])))
+                    [ ValueCodec.ElmDataCodec ]
+                    "A feature tag applies to its scenarios"
+
+                Expect.equal
+                    (codecs (scenarioTag 2 (featureTag 1 (withCalls [ call ]))))
+                    [ ValueCodec.TaggedObjects ]
+                    "A scenario tag overrides the feature tag"
+
+                Expect.equal
+                    (codecs (scenarioTag 2 (withCalls [ "calls use value codec 1"; call ])))
+                    [ ValueCodec.ElmDataCodec ]
+                    "The codec step overrides the tags"
+
+                let suite =
+                    readCalls (
+                        withCalls [
+                            "calls use value codec 1"
+                            call
+                            "calling \"Pricing.size\" with [4] returns {\"Large\":4} using value codec 2"
+                        ]
+                    )
+                    |> requireOk
+
+                Expect.equal
+                    suite.Cases.Head.Calls
+                    [
+                        {
+                            Value = "Pricing.size"
+                            Arguments = "[4]"
+                            Result = "[\"large\",4]"
+                            Codec = ValueCodec.ElmDataCodec
+                        }
+                        {
+                            Value = "Pricing.size"
+                            Arguments = "[4]"
+                            Result = "{\"Large\":4}"
+                            Codec = ValueCodec.TaggedObjects
+                        }
+                    ]
+                    "A call suffix overrides the codec step, and the result text excludes the suffix"
+            )
+        testCase
+            "A value codec version is a semantic version, and 1 and 2 are its short forms"
+            (fun () ->
+                for text, expected in
+                    [
+                        "1", Ok ValueCodec.ElmDataCodec
+                        "1.0.0", Ok ValueCodec.ElmDataCodec
+                        "2", Ok ValueCodec.TaggedObjects
+                        "2.0.0", Ok ValueCodec.TaggedObjects
+                        "2.0.0+build.5", Ok ValueCodec.TaggedObjects
+                    ] do
+                    Expect.equal (ValueCodec.Parse text) expected text
+
+                for text in
+                    [ "0"; "3"; "1.0"; "1.1.0"; "2.0.1"; "3.0.0"; "2.0.0-draft.1"; "two"; "" ] do
+                    match ValueCodec.Parse text with
+                    | Ok codec -> failtest $"Value codec {text} must be refused, got {codec}"
+                    | Error message ->
+                        Expect.stringContains message $"Value codec {text} is not supported" text
+
+                Expect.equal ValueCodec.ElmDataCodec.Version "1.0.0" "Codec 1 has version 1.0.0"
+                Expect.equal ValueCodec.TaggedObjects.Version "2.0.0" "Codec 2 has version 2.0.0"
+
+                let suite =
+                    readCalls (
+                        withCalls [
+                            "calls use value codec 2.0.0"
+                            "calling \"Pricing.size\" with [4] returns [\"large\",4] using value codec 1.0.0"
+                            "calling \"Pricing.size\" with [4] returns {\"Large\":4}"
+                        ]
+                        |> fun source -> source.Replace("@refusal", "@refusal @value-codec:1.0.0")
+                    )
+                    |> requireOk
+
+                Expect.equal
+                    (suite.Cases.Head.Calls
+                     |> List.map (fun call -> call.Result, call.Codec))
+                    [
+                        "[\"large\",4]", ValueCodec.ElmDataCodec
+                        "{\"Large\":4}", ValueCodec.TaggedObjects
+                    ]
+                    "The tag, the step and the suffix take the full version"
+
+                match
+                    readCalls (
+                        (withCalls [ "calling \"Pricing.size\" with [4] returns 4" ])
+                            .Replace("@refusal", "@refusal @value-codec:2.1.0")
+                    )
+                with
+                | Ok _ -> failtest "The runner has no value codec 2.1.0"
+                | Error issues ->
+                    Expect.exists
+                        issues
+                        (fun issue -> issue.Code = "mck.unsupported_tag")
+                        "A codec version that the runner does not have is refused"
+            )
+        testCase
+            "Malformed value codec declarations are refused"
+            (fun () ->
+                let call = "calling \"Pricing.size\" with [4] returns 4"
+
+                let refused (expected: string) (source: string) =
+                    match readCalls source with
+                    | Ok _ -> failtest $"The declaration must be refused: {expected}"
+                    | Error issues ->
+                        Expect.exists
+                            issues
+                            (fun issue -> issue.Code = expected)
+                            (sprintf "Expected %s in %A" expected issues)
+
+                withCalls [ call ]
+                |> fun source -> source.Replace("@refusal", "@refusal @value-codec:3")
+                |> refused "mck.unsupported_tag"
+
+                withCalls [ call ]
+                |> fun source ->
+                    source.Replace("@refusal", "@refusal @value-codec:1 @value-codec:2")
+                |> refused "mck.invalid_case"
+
+                for steps in
+                    [
+                        [ call; "calls use value codec 1" ]
+                        [ "calls use value codec 1"; "calls use value codec 1"; call ]
+                        [ "calls use value codec 1" ]
+                        [ "calls use value codec 3"; call ]
+                        [
+                            call
+                            + " using value codec 0"
+                        ]
+                    ] do
+                    withCalls steps
+                    |> refused "mck.invalid_case"
+
+                match read (withCalls [ "calls use value codec 1" ]) with
+                | Ok _ -> failtest "Vocabulary 1.0 has no value codec step"
+                | Error issues ->
+                    Expect.exists
+                        issues
+                        (fun issue -> issue.Code = "mck.unknown_step")
+                        "The codec step is outside vocabulary 1.0"
+
+                match read (feature.Replace("@refusal", "@refusal @value-codec:2")) with
+                | Ok _ -> failtest "Vocabulary 1.0 has no value codec tag"
+                | Error issues ->
+                    Expect.exists
+                        issues
+                        (fun issue -> issue.Code = "mck.unsupported_tag")
+                        "The codec tag is outside vocabulary 1.0"
+            )
+        testCase
+            "The behavioral verdict comes from the call checker"
+            (fun () ->
+                let suite =
+                    readCalls (withCalls [ "calling \"Pricing.total\" with [1] returns 2" ])
+                    |> requireOk
+
+                let run checker =
+                    (Runner.runWith checker suite succeeding CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult()
+
+                let seen = ResizeArray()
+                let passing = run (Some(checking (Ok()) seen))
+                Expect.isTrue passing.Qualified "Every call holds"
+                Expect.equal seen.Count 12 "The checker sees every case variant"
+
+                Expect.equal
+                    seen[0]
+                    [
+                        {
+                            Value = "Pricing.total"
+                            Arguments = "[1]"
+                            Result = "2"
+                            Codec = ValueCodec.TaggedObjects
+                        }
+                    ]
+                    "The checker gets the calls of the case"
+
+                let json = Encoding.UTF8.GetString(Report.toUtf8 passing)
+
+                Expect.stringContains
+                    json
+                    "\"callChecker\":\"test-checker\""
+                    "The report names the checker"
+
+                Expect.stringContains
+                    json
+                    "\"vocabularyVersion\":\"1.1\""
+                    "The report names the vocabulary"
+
+                let failing = run (Some(checking (Error "returned 3") (ResizeArray())))
+                Expect.isFalse failing.Qualified "A wrong result fails"
+
+                Expect.equal
+                    failing.Results.Head.Verdict
+                    (Verdict.Failed "returned 3")
+                    "The difference is the verdict"
+
+                let unchecked = run None
+                Expect.isFalse unchecked.Qualified "Behavior that is not checked does not qualify"
+            )
+        testCase
+            "The call checker does not run when the structural verdict fails"
+            (fun () ->
+                let suite =
+                    readCalls (withCalls [ "calling \"Pricing.total\" with [1] returns 2" ])
+                    |> requireOk
+
+                let refusing =
+                    LibraryAdapter.create
+                        {
+                            Name = "refusing-control"
+                            Version = "1.0.0"
+                            Sha256 = String.replicate 64 "d"
+                        }
+                        (fun _ _ ->
+                            Task.FromResult(
+                                Ok
+                                    {
+                                        Success = false
+                                        ModelJson = None
+                                        Diagnostics = []
+                                    }
+                            )
+                        )
+
+                let seen = ResizeArray()
+
+                let report =
+                    (Runner.runWith
+                        (Some(checking (Ok()) seen))
+                        suite
+                        refusing
+                        CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult()
+
+                Expect.isFalse report.Qualified "The compilation fails"
+                Expect.equal seen.Count 0 "No call runs without a model"
             )
         testCase
             "Library observations are compared against case data and reports are deterministic"
@@ -597,7 +1001,11 @@ let tests =
                 ]
 
                 let shipped =
-                    Corpus.read options files
+                    Corpus.read
+                        { options with
+                            VocabularyVersion = "1.1"
+                        }
+                        files
                     |> requireOk
 
                 Expect.isTrue

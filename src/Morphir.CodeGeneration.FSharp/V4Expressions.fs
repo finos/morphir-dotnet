@@ -189,8 +189,12 @@ module internal V4Expressions =
             |> List.map fst
             |> Set.ofList
 
+        // A local gets a new name only when it would hide a module value that the
+        // definition refers to, including a recursive reference.
+        let mutable hidden = Set.empty
+
         let localName name =
-            if Set.contains name locals then
+            if Set.contains name hidden then
                 "__morphirLocal_"
                 + Emit.camel name
             else
@@ -570,6 +574,18 @@ module internal V4Expressions =
                     )
 
                 match head with
+                | Value.Reference(_, q) when
+                    Emit.sdk q
+                    && Emit.sdkName q = "list.cons"
+                    && arguments.Length = 2
+                    ->
+                    // A saturated cons is the F# operator, which the F# frontend reads back
+                    // as List.cons. A partial cons stays a lambda.
+                    "(("
+                    + rendered[0]
+                    + ") :: ("
+                    + rendered[1]
+                    + "))"
                 | Value.Constructor(_, q) when
                     snd (constructor q) > 1
                     && snd (constructor q) = arguments.Length
@@ -794,6 +810,7 @@ module internal V4Expressions =
             |> List.mapi (fun index name ->
                 let controlled = Map.find name definitions
                 let definition = controlled.Value.Value
+                hidden <- graph[name]
 
                 match definition.Body with
                 | ExpressionBody(output, body) ->

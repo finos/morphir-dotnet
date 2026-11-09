@@ -226,15 +226,10 @@ module internal V4Emit =
                                 let cases =
                                     cases
                                     |> List.map (fun (name, arguments) ->
-                                        "| "
-                                        + Emit.ident (Emit.pascal name)
-                                        + (if List.isEmpty arguments then
-                                               ""
-                                           else
-                                               " of "
-                                               + (arguments
-                                                  |> List.map (snd >> typ)
-                                                  |> String.concat " * "))
+                                        Emit.unionCase
+                                            name
+                                            (arguments
+                                             |> List.map (fun (argument, t) -> argument, typ t))
                                     )
                                     |> String.concat "\n    "
 

@@ -19,12 +19,13 @@ let private conformanceRoot =
 
 let private options = {
     Suite = "frontend-fsharp"
-    VocabularyVersion = "1.0"
+    VocabularyVersion = "1.1"
     IrVersions = [ "1"; "2"; "3"; "4" ]
     InputKinds = [ "files"; "directory"; "project file" ]
 }
 
-let private suite =
+/// The shipped corpus, read once.
+let suite =
     lazy
         (let artifacts = [
             for file in Directory.GetFiles(conformanceRoot, "*", SearchOption.AllDirectories) ->
@@ -64,10 +65,13 @@ let private identity =
 let private writers =
     WriterRegistry.Create [ ClassicIrWriter() :> IIrWriter; V4IrWriter() ]
 
-let private run () =
-    let adapter = FrontendAdapter.create identity FSharpFrontend.registration writers
+/// The library adapter that binds the in-process F# frontend.
+let adapter = FrontendAdapter.create identity FSharpFrontend.registration writers
 
-    (Runner.run suite.Value adapter CancellationToken.None).GetAwaiter().GetResult()
+let private run () =
+    (Runner.runWith (Some GeneratedCalls.checker) suite.Value adapter CancellationToken.None)
+        .GetAwaiter()
+        .GetResult()
 
 let private report = lazy (run ())
 
@@ -107,6 +111,19 @@ let tests =
                      |> String.concat "\n")
 
             Expect.isTrue report.Value.Qualified "The in-process F# frontend qualifies"
+
+            Expect.equal
+                report.Value.CallChecker
+                (Some GeneratedCalls.checker.Name)
+                "The behavioral verdict uses the .NET call checker"
+
+            Expect.isTrue
+                (report.Value.Results
+                 |> List.exists (fun result ->
+                     not result.Case.Calls.IsEmpty
+                     && result.Verdict = Verdict.Passed
+                 ))
+                "Call observations are checked"
 
             Expect.equal
                 (report.Value.Results

@@ -19,7 +19,7 @@ and Invoice =
 
 and PendingRentals =
     | NoPendingRentals
-    | PendingRental of CompletedRental * PendingRentals
+    | PendingRental of rental: CompletedRental * remaining: PendingRentals
 
 and RentalError =
     | ActiveRentalRequired
@@ -30,10 +30,10 @@ and RentalError =
     | Unavailable
 
 and RentalStatus =
-    | Active of int
-    | Completed of int * int
-    | Confirmed of int
-    | Invoiced of Invoice
+    | Active of rate: int
+    | Completed of rate: int * days: int
+    | Confirmed of rate: int
+    | Invoiced of invoice: Invoice
     | Unreserved
 
 and Vehicle =
