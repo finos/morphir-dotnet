@@ -15,7 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.Compilation.Mep/Morphir.Compilation.Mep.fsproj" />
-    <ProjectReference Include="../../src/Morphir.Frontend.FSharp.Mep/Morphir.Frontend.FSharp.Mep.fsproj" />
+    <ProjectReference Include="../../src/Morphir.Frontend.FSharp.Extension/Morphir.Frontend.FSharp.Extension.fsproj" />
     <ProjectReference Include="../../src/Morphir.Conformance/Morphir.Conformance.fsproj" />
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
   </ItemGroup>

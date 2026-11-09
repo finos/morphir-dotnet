@@ -104,7 +104,7 @@ codes in the [coverage reference](coverage/).
 Install the guest as a dotnet tool. It needs the .NET runtime.
 
 ```sh
-dotnet tool install --global Morphir.Frontend.FSharp.Mep
+dotnet tool install --global Morphir.Frontend.FSharp.Extension
 ```
 
 The guest speaks only MEP `0.2.0-draft.1`, over stdio with `Content-Length`

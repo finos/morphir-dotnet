@@ -14,7 +14,7 @@
     <PackageReference Include="YoloDev.Expecto.TestSdk" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Morphir.Frontend.FSharp.Mep/Morphir.Frontend.FSharp.Mep.fsproj" />
+    <ProjectReference Include="../../src/Morphir.Frontend.FSharp.Extension/Morphir.Frontend.FSharp.Extension.fsproj" />
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
     <None Include="../Fixtures/Mep/**" Link="Fixtures/Mep/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

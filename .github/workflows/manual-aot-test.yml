@@ -109,13 +109,13 @@ jobs:
               run: |
                   guest_pkg="$RUNNER_TEMP/guest-pkg"
                   guest_tool="$RUNNER_TEMP/guest-tool"
-                  dotnet pack src/Morphir.Frontend.FSharp.Mep -c Release -o "$guest_pkg"
+                  dotnet pack src/Morphir.Frontend.FSharp.Extension -c Release -o "$guest_pkg"
                   cat > "$guest_pkg/nuget.config" <<CONFIG
                   <?xml version="1.0" encoding="utf-8"?>
                   <configuration><packageSources><clear /><add key="local" value="$guest_pkg" /><add key="nuget" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>
                   CONFIG
-                  version=$(ls "$guest_pkg"/Morphir.Frontend.FSharp.Mep.*.nupkg | head -1 | sed -E 's#.*/Morphir\.Frontend\.FSharp\.Mep\.(.*)\.nupkg#\1#')
-                  dotnet tool install Morphir.Frontend.FSharp.Mep --version "$version" --tool-path "$guest_tool" --configfile "$guest_pkg/nuget.config"
+                  version=$(ls "$guest_pkg"/Morphir.Frontend.FSharp.Extension.*.nupkg | head -1 | sed -E 's#.*/Morphir\.Frontend\.FSharp\.Mep\.(.*)\.nupkg#\1#')
+                  dotnet tool install Morphir.Frontend.FSharp.Extension --version "$version" --tool-path "$guest_tool" --configfile "$guest_pkg/nuget.config"
                   guest="$guest_tool/morphir-fsharp-frontend"
                   [ -f "$guest" ] || guest="$guest.exe"
                   scripts/measure-compile-aot.sh ${{ github.event.inputs.platform }} "$guest" | tee -a "$GITHUB_STEP_SUMMARY"

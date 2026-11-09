@@ -1,6 +1,6 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
-module Morphir.Frontend.FSharp.Mep.Tests.Program
+module Morphir.Frontend.FSharp.Extension.Tests.Program
 
 open Expecto
 open Morphir.TestSupport

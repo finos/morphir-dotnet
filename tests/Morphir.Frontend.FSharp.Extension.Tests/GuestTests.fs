@@ -1,15 +1,15 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 /// The F# guest (add-fsharp-compile group 8): its claims, compile outcomes and envelopes.
-module Morphir.Frontend.FSharp.Mep.Tests.GuestTests
+module Morphir.Frontend.FSharp.Extension.Tests.GuestTests
 
 open System
 open System.Text
 open System.Text.Json
 open System.Text.Json.Nodes
 open Expecto
-open Morphir.Frontend.FSharp.Mep
-open Morphir.Frontend.FSharp.Mep.Tests.GuestSupport
+open Morphir.Frontend.FSharp.Extension
+open Morphir.Frontend.FSharp.Extension.Tests.GuestSupport
 open Morphir.Mep
 
 let private text (node: JsonNode | null) = (node |> nonNull).ToJsonString()

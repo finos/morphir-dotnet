@@ -495,8 +495,7 @@
       "morphir.models": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.1.403, )",
-          "FSharp.SystemTextJson": "[1.4.36, )"
+          "FSharp.Core": "[10.1.403, )"
         }
       },
       "morphir.myriad.systemtextjson.annotations": {
@@ -547,15 +546,6 @@
         "requested": "[10.1.403, )",
         "resolved": "10.1.403",
         "contentHash": "SpKxPt90eSC3pfSKGLnSyucXXKVWokv1KVMTy2uQG36seOgJg14qUxjlcaWjZNWgxJtG5MeH9WpI6PQg4OR4tA=="
-      },
-      "FSharp.SystemTextJson": {
-        "type": "CentralTransitive",
-        "requested": "[1.4.36, )",
-        "resolved": "1.4.36",
-        "contentHash": "1xLk0SBF1nedD74B77rcArjD2d+DeZwbNI7BVCAyKwIBERo1VoX8Mf4AtX0OV2L3ZeM/XS1b6BuhXCyoh0KBnw==",
-        "dependencies": {
-          "FSharp.Core": "4.7.0"
-        }
       },
       "Generator.Equals": {
         "type": "CentralTransitive",

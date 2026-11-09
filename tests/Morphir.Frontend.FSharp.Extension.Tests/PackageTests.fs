@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 /// The guest as a framework-dependent dotnet tool (task 8.4): dotnet pack gives an installable package, and the
 /// installed tool answers morphir.extension.describe with its claim set.
-module Morphir.Frontend.FSharp.Mep.Tests.PackageTests
+module Morphir.Frontend.FSharp.Extension.Tests.PackageTests
 
 open System
 open System.IO
@@ -10,7 +10,7 @@ open System.Text
 open System.Text.Json.Nodes
 open System.Threading
 open Expecto
-open Morphir.Frontend.FSharp.Mep.Tests.GuestSupport
+open Morphir.Frontend.FSharp.Extension.Tests.GuestSupport
 open Morphir.Mep
 open Morphir.TestSupport
 
@@ -56,15 +56,15 @@ let tests =
               Directory.CreateDirectory feed |> ignore
 
               let project =
-                  Path.Combine(repository, "src", "Morphir.Frontend.FSharp.Mep", "Morphir.Frontend.FSharp.Mep.fsproj")
+                  Path.Combine(repository, "src", "Morphir.Frontend.FSharp.Extension", "Morphir.Frontend.FSharp.Extension.fsproj")
 
               run sandbox [ "pack"; project; "-c"; configuration; "--no-build"; "-o"; feed; "-nologo" ] repository
 
               let package =
-                  Directory.GetFiles(feed, "Morphir.Frontend.FSharp.Mep.*.nupkg") |> Array.exactlyOne
+                  Directory.GetFiles(feed, "Morphir.Frontend.FSharp.Extension.*.nupkg") |> Array.exactlyOne
 
               let version =
-                  (Path.GetFileNameWithoutExtension package |> nonNull).Substring("Morphir.Frontend.FSharp.Mep.".Length)
+                  (Path.GetFileNameWithoutExtension package |> nonNull).Substring("Morphir.Frontend.FSharp.Extension.".Length)
 
               // The repository uses package source mapping, so the install reads a configuration with only the
               // local feed.
@@ -86,7 +86,7 @@ let tests =
                   sandbox
                   [ "tool"
                     "install"
-                    "Morphir.Frontend.FSharp.Mep"
+                    "Morphir.Frontend.FSharp.Extension"
                     "--tool-path"
                     tools
                     "--configfile"

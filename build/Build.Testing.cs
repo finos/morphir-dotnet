@@ -231,6 +231,8 @@ partial class Build
             "Morphir.Analyzers.Tests",
             "Morphir.Mep.Tests",
             "Morphir.Compilation.Tests",
+            "Morphir.Compilation.Mep.Tests",
+            "Morphir.Frontend.FSharp.Extension.Tests",
             "Morphir.Tests",
             "Morphir.CodeGeneration.FSharp.Tests",
             "Morphir.CodeGeneration.CSharp.Tests",

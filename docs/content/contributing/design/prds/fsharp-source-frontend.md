@@ -291,8 +291,8 @@ Reproduce the AOT report on macOS arm64 (the other reports have the command in
 ```console
 dotnet build Morphir.slnx
 dotnet publish src/Morphir/Morphir.csproj -c Release -r osx-arm64 -p:PublishAot=true -p:PublishTrimmed=true -o /tmp/morphir-aot
-dotnet pack src/Morphir.Frontend.FSharp.Mep -c Release -o /tmp/guest-pkg
-dotnet tool install Morphir.Frontend.FSharp.Mep --version <version> --tool-path /tmp/guest-tool --configfile <nuget.config with /tmp/guest-pkg>
+dotnet pack src/Morphir.Frontend.FSharp.Extension -c Release -o /tmp/guest-pkg
+dotnet tool install Morphir.Frontend.FSharp.Extension --version <version> --tool-path /tmp/guest-tool --configfile <nuget.config with /tmp/guest-pkg>
 MORPHIR_AOT_CLI=/tmp/morphir-aot/morphir MORPHIR_FSHARP_GUEST=/tmp/guest-tool/morphir-fsharp-frontend MORPHIR_MCK_REPORT_DIR=/tmp/mck-reports \
   dotnet run --project tests/Morphir.Frontend.FSharp.Tests --no-build -- --sequenced --filter-test-case "AOT morphir"
 ```
@@ -356,6 +356,6 @@ have 85.5% line coverage.
 
 ## Open questions
 
-- None open. The guest package name is `Morphir.Frontend.FSharp.Mep`, with the
+- None open. The guest package name is `Morphir.Frontend.FSharp.Extension`, with the
   command `morphir-fsharp-frontend` (task 8.4).
 
