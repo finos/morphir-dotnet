@@ -18,7 +18,7 @@ In this build, a configured extension fails with `compile.extension_unavailable`
 ```text
 dotnet-morphir compile [--language <id>] [--input <file>... | --input <directory> | --project-file <file>]
   [--package-name <name>] [--ir-version <version>] [--project <path-or-name>] [--config <file>]
-  [--extension <id-or-path>] [--json | --json-lines]
+  [--extension <id-or-path>] [-o <directory>] [--out-dir <directory>] [--json | --json-lines]
 ```
 
 ## Options
@@ -33,6 +33,8 @@ dotnet-morphir compile [--language <id>] [--input <file>... | --input <directory
 | `--project` | A project directory, a workspace member path, or a project name. |
 | `--config` | An explicit configuration file. |
 | `--extension` | A frontend extension. Overrides `[frontend.<language>].extension`. Second delivery. |
+| `--output`, `-o` | Install a copy of the IR in this directory after a successful compile. See [Output](#output). |
+| `--out-dir` | The out root. Overrides `MORPHIR_OUT_DIR` and `workspace.out_dir`. |
 | `--json` | Write one JSON report to stdout. |
 | `--json-lines` | Write the compile events to stdout as JSON Lines, and end with the report. |
 | `--types-only` | Not implemented. The command refuses it with exit code 2. |
@@ -108,10 +110,38 @@ and names the frontend and the capability.
 
 ## Output
 
-A successful compile publishes the IR to `<out root>/compile.dest/morphir-ir.json`. The out root is
-`workspace.out_dir`, by default `.morphir/out` under the project root, or under the invocation directory
-outside a project. A failed compile publishes no IR. Task records, `-o` installation and `generate` from a
-prior compile come with the task record store.
+A compile writes its IR to `<out root>/[<member path>/]compile.dest/morphir-ir.json` and its task record to
+`compile.json` beside that directory. These files use the out-directory contract of the Morphir ecosystem.
+The out root is the first of:
+
+1. `--out-dir`;
+2. `MORPHIR_OUT_DIR`, relative to the invocation directory;
+3. the workspace `workspace.out_dir`, relative to the workspace root;
+4. `.morphir/out` under the workspace root.
+
+Without a workspace, the project root is the workspace root, or the invocation directory outside a project.
+The member path is the directory of a workspace member relative to the workspace root, for example
+`packages/orders`.
+
+The record has schema `1`, task `compile`, the `language`, the project file in `inputs` (relative to the
+workspace root), `value`, the `ir` descriptor (`path`, `layout`, `format` and `version`, for example `v4`),
+the `installed` ledger and `completedAt`. `morphir generate` without `--input` reads the IR through this
+descriptor. See [Generate]({{< relref "/docs/cli/generate" >}}).
+
+When a compile starts, it clears `compile.dest` and replaces an earlier record with a tombstone. A
+successful compile then writes the full record. A failed compile publishes no IR and leaves the tombstone,
+which keeps the `installed` ledger. The compile holds the exclusive lock `compile.lock` until its record and
+its install are written. Another run that waits for the lock writes one line to stderr:
+
+```text
+waiting for another Morphir run to finish this task (<out root>/compile.lock)
+```
+
+`-o <directory>` installs a copy of the IR in the directory after a successful compile. It replaces only
+the files that an earlier install of this task wrote there, and it keeps all other files. If a file that it
+must write is already there and an earlier install did not write it, the command fails with
+`install.foreign_content` and exit code 2, and the directory does not change. The compile output in
+`compile.dest` stays published.
 
 ## Exit codes
 
@@ -194,7 +224,7 @@ The report members are:
 | `sources` | The project file (or null), the root, and the documents in compilation order. |
 | `modules` | The compiled modules, in compilation order. |
 | `output` | The published IR path, or null. |
-| `installed` | The `-o` installations of the run. Empty in this build. |
+| `installed` | The absolute files that the `-o` install of this run holds. Empty without `-o`. |
 | `diagnostics` | Every diagnostic of the run, ordered by stage, then document, then position. |
 | `failureKind` | `source`, `invocation`, `configuration`, `operational` or `cancelled`, or null. |
 | `origins` | Where each setting came from: `cli` with its `flag`, `configuration` with its `file` and `key`, or `default`. |

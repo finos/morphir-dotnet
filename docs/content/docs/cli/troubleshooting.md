@@ -587,15 +587,18 @@ I/O failure. See [compile]({{< relref "/docs/cli/compile" >}}).
 | `sources.project_file_as_input` | An `--input` file is a project file. | Use `--project-file`. |
 | `sources.unknown_project_file` | No project-file provider recognizes the file. | Name a supported project file. See [project-file sources]({{< relref "/docs/configuration/project-file-sources" >}}). |
 | `sources.no_documents` | The source directory has no file with an extension that the frontend claims. | Set `project.source_directory`, or use `--input`. |
-| `sources.linked`, `sources.invalid_encoding` | A source is a link or a special file, or it is not valid UTF-8. | Name the target file, or save the file as UTF-8. |
+| `sources.unsupported_entry`, `sources.invalid_utf8` | A source, or a directory above it, is a link or a special file, or the source is not valid UTF-8. | Name the target file, or save the file as UTF-8. |
+| `install.foreign_content` | `-o` names a directory that has a file that an earlier install of this task did not write. The directory does not change. | Remove or move the file, or use another `-o` directory. |
+| `compile.record_missing` | `generate` without `--input` found no compile record, or the most recent compile failed. | Run `morphir compile` first, or give `--input`. |
 
 If F# reports that a module or value is not defined, check the source order. A directory gives files in
 lexical order, and F# compiles files in order. Use `--input` files in dependency order, or a project file.
 
 ## Generation failures
 
-`morphir generate` requires explicit input, target and output paths. It does not
-read `morphir.toml` or `morphir.yml`. Use exact target `fsharp` and Boolean option
+`morphir generate` requires explicit target and output paths. With `--input`, it
+does not read `morphir.toml` or `morphir.yml`. Without `--input`, it reads the IR
+of the most recent `morphir compile` of the project. Use exact target `fsharp` and Boolean option
 `--option optimize=false` to disable folding. Unknown options and quoted strings
 where Booleans are required return exit 2.
 
