@@ -56,6 +56,29 @@ type MepFrontendOptions =
 
     override this.ToString() = $"Extension {this.Executable}"
 
+    /// <summary>
+    /// Options for C# callers: the executable and its arguments, the working directory (or null), where stderr goes,
+    /// and the host name and version that the session sends. The deadline is two minutes.
+    /// </summary>
+    static member Create
+        (
+            executable: string,
+            arguments: IEnumerable<string>,
+            workingDirectory: string | null,
+            stderr: TextWriter,
+            hostName: string,
+            hostVersion: string
+        ) : MepFrontendOptions =
+        { Executable = executable
+          Arguments = Array.ofSeq arguments
+          WorkingDirectory = workingDirectory
+          Deadline = TimeSpan.FromMinutes 2.0
+          Stderr = stderr
+          Host =
+            { Kind = PeerKind.Cli
+              Name = hostName
+              Version = hostVersion } }
+
 /// <summary>
 /// A frontend that runs as a MEP 0.2.0-draft.1 guest process. <c>ConnectAsync</c> starts the process and initializes
 /// the session; the capability then comes from the agreed session, and each compile checks it before dispatch.
@@ -324,6 +347,17 @@ type MepFrontend
                                 |> Option.defaultValue false }
 
                         return Ok(new MepFrontend(options, child, session, connection, negotiated, identity, capability, pump))
+        }
+
+    /// <summary>
+    /// Starts the extension and initializes a session, for C# callers: a passed result holds the frontend, and a
+    /// failed result holds the diagnostics of the failure. Dispose the frontend to end the session.
+    /// </summary>
+    static member ConnectCheckedAsync(options: MepFrontendOptions, cancellation: CancellationToken) : Task<Checked<IFrontend>> =
+        task {
+            match! MepFrontend.ConnectAsync(options, cancellation) with
+            | Ok frontend -> return Checked.pass (frontend :> IFrontend)
+            | Error failure -> return Checked.fail (List.ofSeq failure.Diagnostics)
         }
 
     interface IFrontend with

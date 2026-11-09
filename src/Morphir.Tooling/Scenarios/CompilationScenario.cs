@@ -30,8 +30,8 @@ public sealed class CompilationScenario : IMorphirCliScenario
             services.TryAddSingleton<ISourceSelector, SourceSelector>();
             services.TryAddSingleton<ISourceCapture, FileSourceCapture>();
             services.TryAddSingleton<ICompilePublisher, OutRootCompilePublisher>();
-            // The one extension seam (FE-2): a transport such as the MEP adapter replaces this registration.
-            services.TryAddSingleton<IFrontendExtensionConnector, UnavailableFrontendExtensionConnector>();
+            // The one extension seam (FE-2): a configured extension runs as a MEP 0.2.0-draft.1 guest process.
+            services.TryAddSingleton<IFrontendExtensionConnector, MepFrontendExtensionConnector>();
             services.TryAddSingleton<ICompileRunner, CompileRunner>();
         });
         builder.AddCommand((IServiceProvider services) => new CompileCommand(services));
