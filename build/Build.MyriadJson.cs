@@ -24,62 +24,71 @@ partial class Build
     /// </summary>
     Target TestMyriadJsonAot => _ => _
         .Description("Publish the Morphir.Myriad.SystemTextJson probe with Native AOT and compare it with JIT")
-        .Executes(() =>
+        .Executes(() => VerifyAotProbe(MyriadJsonAotProbeProject, "myriad-json-aot"));
+
+    Target TestMepAot => _ => _
+        .Description("Publish the MEP C# consumer with Native AOT and compare it with JIT")
+        .Executes(() => VerifyAotProbe(
+            TestsDirectory / "Morphir.Mep.AotProbe" / "Morphir.Mep.AotProbe.csproj", "mep-aot"));
+
+    /// <summary>Verifies a probe's runtime dependency closure, diagnostics and output on this machine.</summary>
+    void VerifyAotProbe(AbsolutePath project, string workName)
+    {
+        var name = Path.GetFileNameWithoutExtension(project);
+        var work = TemporaryDirectory / workName;
+        work.CreateOrCleanDirectory();
+        var rid = RuntimeInformation.RuntimeIdentifier;
+        var configuration = Configuration.ToString();
+
+        var (buildExit, buildLog) = Capture("dotnet", "build", project, "-c", configuration, "-nologo");
+        if (buildExit != 0)
         {
-            var work = TemporaryDirectory / "myriad-json-aot";
-            work.CreateOrCleanDirectory();
-            var rid = RuntimeInformation.RuntimeIdentifier;
-            var configuration = Configuration.ToString();
+            throw new Exception($"The probe did not build:{Environment.NewLine}{buildLog}");
+        }
 
-            var (buildExit, buildLog) = Capture("dotnet", "build", MyriadJsonAotProbeProject, "-c", configuration, "-nologo");
-            if (buildExit != 0)
-            {
-                throw new Exception($"The probe did not build:{Environment.NewLine}{buildLog}");
-            }
+        var jitDll = project.Parent / "bin" / configuration / "net10.0" / $"{name}.dll";
+        var (jitExit, jitOutput) = Capture("dotnet", "exec", jitDll);
+        if (jitExit != 0)
+        {
+            throw new Exception($"The probe failed under JIT:{Environment.NewLine}{jitOutput}");
+        }
 
-            var jitDll = MyriadJsonAotProbeProject.Parent / "bin" / configuration / "net10.0" / "Morphir.Myriad.SystemTextJson.AotProbe.dll";
-            var (jitExit, jitOutput) = Capture("dotnet", "exec", jitDll);
-            if (jitExit != 0)
-            {
-                throw new Exception($"The probe failed under JIT:{Environment.NewLine}{jitOutput}");
-            }
+        var output = work / "publish";
+        var (publishExit, publishLog) = Capture("dotnet", "publish", project, "-c", configuration, "-r", rid,
+            "-p:MorphirProbeAot=true", "-o", output, "-nologo");
+        File.WriteAllText(work / "publish.log", publishLog);
+        if (publishExit != 0)
+        {
+            throw new Exception($"The Native AOT publish of the probe failed. See {work / "publish.log"}.");
+        }
 
-            var output = work / "publish";
-            var (publishExit, publishLog) = Capture("dotnet", "publish", MyriadJsonAotProbeProject, "-c", configuration, "-r", rid,
-                "-p:MorphirProbeAot=true", "-o", output, "-nologo");
-            File.WriteAllText(work / "publish.log", publishLog);
-            if (publishExit != 0)
-            {
-                throw new Exception($"The Native AOT publish of the probe failed. See {work / "publish.log"}.");
-            }
+        var unexpected = publishLog.Split('\n')
+            .Where(line => line.Contains("warning IL") || line.Contains("error IL"))
+            .Where(line => !(line.Contains("FSharp.Core") && (line.Contains("IL2104") || line.Contains("IL3053"))))
+            .Distinct()
+            .ToArray();
+        if (unexpected.Length > 0)
+        {
+            throw new Exception($"The probe publish has IL warnings:{Environment.NewLine}{string.Join(Environment.NewLine, unexpected)}");
+        }
 
-            var unexpected = publishLog.Split('\n')
-                .Where(line => line.Contains("warning IL") || line.Contains("error IL"))
-                .Where(line => !(line.Contains("FSharp.Core") && (line.Contains("IL2104") || line.Contains("IL3053"))))
-                .Distinct()
-                .ToArray();
-            if (unexpected.Length > 0)
-            {
-                throw new Exception($"The probe publish has IL warnings:{Environment.NewLine}{string.Join(Environment.NewLine, unexpected)}");
-            }
+        var native = output / (OperatingSystem.IsWindows() ? $"{name}.exe" : name);
+        var (nativeExit, nativeOutput) = Capture(native);
+        if (nativeExit != 0)
+        {
+            throw new Exception($"The Native AOT probe failed:{Environment.NewLine}{nativeOutput}");
+        }
 
-            var native = output / (OperatingSystem.IsWindows() ? "Morphir.Myriad.SystemTextJson.AotProbe.exe" : "Morphir.Myriad.SystemTextJson.AotProbe");
-            var (nativeExit, nativeOutput) = Capture(native);
-            if (nativeExit != 0)
-            {
-                throw new Exception($"The Native AOT probe failed:{Environment.NewLine}{nativeOutput}");
-            }
+        if (nativeOutput != jitOutput)
+        {
+            File.WriteAllText(work / "jit.txt", jitOutput);
+            File.WriteAllText(work / "native.txt", nativeOutput);
+            throw new Exception($"The Native AOT output differs from the JIT output. Compare {work / "jit.txt"} and {work / "native.txt"}.");
+        }
 
-            if (nativeOutput != jitOutput)
-            {
-                File.WriteAllText(work / "jit.txt", jitOutput);
-                File.WriteAllText(work / "native.txt", nativeOutput);
-                throw new Exception($"The Native AOT output differs from the JIT output. Compare {work / "jit.txt"} and {work / "native.txt"}.");
-            }
-
-            Serilog.Log.Information("Morphir.Myriad.SystemTextJson AOT probe: {Lines} lines equal under JIT and Native AOT ({Rid}); binary size {Size:N0} bytes",
-                jitOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length, rid, new FileInfo(native).Length);
-        });
+        Serilog.Log.Information("{Project} AOT probe: {Lines} lines equal under JIT and Native AOT ({Rid}); binary size {Size:N0} bytes",
+            name, jitOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length, rid, new FileInfo(native).Length);
+    }
 
     /// <summary>Runs a command with no shell and returns its exit code and its stdout (stderr is appended).</summary>
     static (int ExitCode, string Output) Capture(string command, params string[] arguments)

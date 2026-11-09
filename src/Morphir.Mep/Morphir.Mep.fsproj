@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <IsAotCompatible>true</IsAotCompatible>
+    <Description>Shared Morphir Extension Protocol messages and transports</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <ProjectReference Include="../Morphir.Myriad.SystemTextJson/Morphir.Myriad.SystemTextJson.fsproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../Morphir.Myriad.SystemTextJson.Build/Morphir.Myriad.SystemTextJson.Build.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../Morphir.Myriad.SystemTextJson.Annotations/Morphir.Myriad.SystemTextJson.Annotations.csproj" />
+    <Compile Include="Wire.fs" />
+    <FSharpJsonContext Include="Wire.fs" Name="MepJson" Namespace="Morphir.Mep" Naming="CamelCase" SkippableOptionFields="Always" UnionEncoding="Default, UnwrapFieldlessTags" UnionTagNaming="CamelCase" />
+    <Compile Include="Framing.fs" />
+    <None Remove="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../README.md'))" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <Import Project="../Morphir.Myriad.SystemTextJson/repository/Morphir.Myriad.SystemTextJson.Repository.targets" />
+</Project>
