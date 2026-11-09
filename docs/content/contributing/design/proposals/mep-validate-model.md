@@ -7,14 +7,14 @@ description: >
 
 # Proposal: the validateModel payload for MEP
 
-Status: Upstream as the draft pull request [finos/morphir#1139](https://github.com/finos/morphir/pull/1139) (head `155ce26f40e8caa917ed947d5c6d1be9928c3ee4`), opened by task 7.2 of [`add-mep-core`](https://github.com/finos/morphir-dotnet/blob/main/openspec/changes/add-mep-core/tasks.md).
+Status: Upstream as the draft pull request [finos/morphir#1139](https://github.com/finos/morphir/pull/1139) (head `155ce26f40e8caa917ed947d5c6d1be9928c3ee4`), opened by task 7.2 of [`add-mep-core`](https://github.com/finos/morphir-dotnet/blob/main/openspec/changes/archive/2026-11-09-add-mep-core/tasks.md).
 
 | Item | Value |
 | --- | --- |
 | Upstream target | `spec/mep` in `finos/morphir` |
 | Contract base | MEP `0.2.0-draft.1`, pinned at `finos/morphir@cde7722eb35987042a49dc646a846d693b0bd7f6` (`tests/Fixtures/Mep/PROVENANCE.md`) |
 | Upstream check | On 2026-11-09, `finos/morphir` `main` (`ecb3c781`) has no change under `spec/mep` since the pin |
-| Source in this repository | Task 7.1 and design UP-1 of `openspec/changes/add-mep-core`; step 1 of the [Morphir extension model PRD](../prds/morphir-extension-model.md) |
+| Source in this repository | Task 7.1 and design UP-1 of `openspec/changes/archive/2026-11-09-add-mep-core`; step 1 of the [Morphir extension model PRD](../prds/morphir-extension-model.md) |
 
 ## Summary
 
@@ -183,7 +183,7 @@ These items are host-defined:
 - how the host attributes each diagnostic to its extension;
 - how the severities map to an outcome or an exit code.
 
-For example, `morphir validate` in morphir-dotnet runs every enabled analyzer, merges the diagnostics by extension id, and exits with 1 when one diagnostic has the severity `error` (`openspec/changes/add-mep-core/specs/model-analyzers/spec.md`).
+For example, `morphir validate` in morphir-dotnet runs every enabled analyzer, merges the diagnostics by extension id, and exits with 1 when one diagnostic has the severity `error` (`openspec/changes/archive/2026-11-09-add-mep-core/specs/model-analyzers/spec.md`).
 
 The host conversion rule for generation (`model-transport.md`, lines 287 to 405) applies only to `generateModel`. This proposal does not extend it.
 

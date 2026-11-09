@@ -70,11 +70,13 @@ Task 5.6 status: the reviewer reports no finding for the surface of groups 2 to 
 - [x] 7.2 After maintainer approval, open the draft pull request in `finos/morphir` and record its URL and head commit in the PRD. Verify that the PRD's "Upstream validate payload" row links the pull request and names the commit.
 - [x] 7.3 Update the PRD status table: MEP core, in-process validator contract and upstream payload rows, with links to this change and its evidence. Verify that each row names its completion evidence.
 
-The proposal document of task 7.1 is written: [`docs/content/contributing/design/proposals/mep-validate-model.md`](../../../docs/content/contributing/design/proposals/mep-validate-model.md), with the Smithy shapes, two transcripts and the model-transport cases model-0036 to model-0040. Its JSON blocks parse, the transcript carries case model-0036 unchanged, and the case digests agree with the fixture bytes. `ProposalTests` round-trips every message of both transcripts through a test-only copy of the group 2 codecs extended with the proposed items, and checks that `validator` is the only member name outside the pinned contract.
+The proposal document of task 7.1 is written: [`docs/content/contributing/design/proposals/mep-validate-model.md`](../../../../docs/content/contributing/design/proposals/mep-validate-model.md), with the Smithy shapes, two transcripts and the model-transport cases model-0036 to model-0040. Its JSON blocks parse, the transcript carries case model-0036 unchanged, and the case digests agree with the fixture bytes. `ProposalTests` round-trips every message of both transcripts through a test-only copy of the group 2 codecs extended with the proposed items, and checks that `validator` is the only member name outside the pinned contract.
 
 ## 8. Integration check
 
-- [ ] 8.1 Run `./build.sh --target Test`, `dotnet format --verify-no-changes`, the AOT publish of `morphir` and the E2E suite. Verify that all pass, and that the `morphir` binary size change is recorded in the PRD.
+- [x] 8.1 Run `./build.sh --target Test`, `dotnet format --verify-no-changes`, the AOT publish of `morphir` and the E2E suite. Verify that all pass, and that the `morphir` binary size change is recorded in the PRD.
+
+Task 8.1 status (2026-11-09, osx-arm64): `dotnet format --verify-no-changes` passes. `./build.sh --target Test` passes in every assembly except 2 "F# package migration" tests, which start mise and stop on this worktree's untrusted `mise.toml`; the PR CI test jobs run them. The Native AOT publish of `morphir` succeeds with no new IL warning (18,574,952 bytes), and the E2E suite passes against it (37 passed, 1 skipped). The PR CI run is the final check.
 
 ## Workflow follow-up
 

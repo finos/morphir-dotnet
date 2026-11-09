@@ -4,7 +4,7 @@ One implementation of the Morphir Extension Protocol (MEP) `0.2.0-draft.1` for
 morphir-dotnet hosts and guests: JSON-RPC 2.0 messages, `Content-Length` framing,
 the session lifecycle and the model transport. Work is tracked by
 [#512](https://github.com/finos/morphir-dotnet/issues/512) and
-[`add-mep-core`](../../openspec/changes/add-mep-core/proposal.md). The roadmap is the
+[`add-mep-core`](../../openspec/changes/archive/2026-11-09-add-mep-core/proposal.md). The roadmap is the
 [Morphir extension model PRD](../../docs/content/contributing/design/prds/morphir-extension-model.md), step 1.
 
 ## Layers

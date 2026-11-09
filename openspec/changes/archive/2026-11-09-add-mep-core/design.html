@@ -71,7 +71,7 @@ svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
 <ul>
 <li>There is no MEP code in the repository. The <code>add-fsharp-compile</code> change plans <code>src/Morphir.Mep</code> in its group 7 (DTOs, framing, envelopes), group 8 (the guest) and group 9 (the host client). None of it is written. Its branch <code>feat/fsharp-compile</code> has done groups 1.1 to 1.3 (fixtures and the conformance seed).</li>
 <li>The pinned upstream contract is on <code>main</code> in <code>tests/Fixtures/Mep/</code>, from <code>finos/morphir@cde7722eb</code>: <code>mep.ir.json</code> (56 types), three Smithy transcripts and <code>model-transport.cases.json</code>.</li>
-<li>The <a href="../../../docs/content/contributing/design/spikes/extension-model/jsonrpc.md">JSON-RPC spike</a> decided our own layer on System.Text.Json and listed the tests to keep.</li>
+<li>The <a href="../../../../docs/content/contributing/design/spikes/extension-model/jsonrpc.md">JSON-RPC spike</a> decided our own layer on System.Text.Json and listed the tests to keep.</li>
 <li>The registry domain is F# (<code>src/Morphir.Extensions</code>), with parsed types and closed unions. The CLI edge is C# (<code>src/Morphir.Tooling</code>). The <code>fsharp-csharp-interop</code> skill has the rules for the boundary.</li>
 <li><code>TypeValidator</code> (<code>src/Morphir.IR.Pipeline.Plugins/TypeValidator.fs</code>) checks a classic package and reports <code>VMessage</code> values with the rule id <code>type-mismatch</code>. No CLI command runs it now.</li>
 <li><code>morphir generate</code> reads a model through <code>GenerationModelLoader</code>, with bounded capture and the classic and V4 readers. Its exit codes are 0, 1, 2 and 130.</li>
@@ -119,7 +119,7 @@ svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
 <p>Alternative considered: let <code>add-fsharp-compile</code> build <code>Morphir.Mep</code> first and step 1 add to it. Rejected: the F# frontend path is large (53 tasks) and its MEP groups come last, so step 2 would wait for groups 1 to 6. The shared core has no frontend dependency.</p>
 
 <h3 id="mep-2">MEP-2. F# with generated JSON converters</h3>
-<p><code>Morphir.Mep</code> is F#, as the <code>add-fsharp-compile</code> design (its project table) and the "F# for the domain" decision say. System.Text.Json source generation does not run on F# code. So the JSON converters and the <code>MepJson</code> context come from the Myriad JSON generator of <a href="../archive/2026-11-07-add-myriad-json-codecs/proposal.md">add-myriad-json-codecs</a>, which this change depends on.</p>
+<p><code>Morphir.Mep</code> is F#, as the <code>add-fsharp-compile</code> design (its project table) and the "F# for the domain" decision say. System.Text.Json source generation does not run on F# code. So the JSON converters and the <code>MepJson</code> context come from the Myriad JSON generator of <a href="../2026-11-07-add-myriad-json-codecs/proposal.md">add-myriad-json-codecs</a>, which this change depends on.</p>
 <ul>
 <li>The MEP types are F# records and unions with attributes. Most use the project defaults: camel-case members, skippable option fields (absent, never <code>null</code>), and string tags for fieldless unions such as <code>ExtensionType</code> (<code>"validator"</code>) and <code>DiagnosticSeverity</code>.</li>
 <li>Parsed values (protocol versions, extension ids, SHA-256 digests) use <code>JsonParsedValue</code>, so a reader never builds an invalid value (parse, don't validate).</li>
