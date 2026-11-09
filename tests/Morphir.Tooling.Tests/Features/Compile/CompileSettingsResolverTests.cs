@@ -196,6 +196,19 @@ public sealed class CompileSettingsResolverTests
     }
 
     [Test]
+    [Arguments("yaml", "YAML IR is not implemented")]
+    [Arguments("ion", "Ion IR output is not implemented")]
+    public void AnUnimplementedIrFormatIsRefusedNamingTheKeyAndFile(string format, string reason)
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", $"[project]\nname = \"acme/demo\"\n\n[ir]\nformat = \"{format}\"\n");
+        var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
+        Codes(result).Should().Equal("compile.unsupported_setting");
+        result.Diagnostics.Single(d => d.IsError).Message.Should()
+            .Contain($"ir.format = \"{format}\"").And.Contain("morphir.toml").And.Contain(reason);
+    }
+
+    [Test]
     public void TypesOnlyIsRefused()
     {
         using var workspace = new CompileWorkspace();
