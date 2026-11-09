@@ -39,7 +39,7 @@ public sealed class ExtensionListCommand : Command
         stdout(json ? report.ToJson() : TerminalTable.Render(
             ["ID", "NAME", "VERSION", "TYPES", "DELIVERY", "HOSTS"],
             report.Extensions.Select(entry => (IReadOnlyList<string>)
-                [entry.Id, entry.Name, entry.Version, string.Join(", ", entry.Types), entry.Delivery, string.Join(", ", entry.Hosts)]),
+                [entry.Id, entry.Name, entry.Version, entry.CapabilitySummary, entry.Delivery, string.Join(", ", entry.Hosts)]),
             terminal));
         return 0;
     }

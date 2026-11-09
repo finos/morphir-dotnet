@@ -32,6 +32,26 @@ public sealed class ExecutableExtensionListSteps(ScenarioContext scenarioContext
         Document(Result).GetProperty("extensions").EnumerateArray().Select(entry => entry.GetProperty("id").GetString())
             .Should().Equal(ids.Split(", "));
 
+    private JsonElement Extension(string id) =>
+        Document(Result).GetProperty("extensions").EnumerateArray().Single(entry => entry.GetProperty("id").GetString() == id);
+
+    [Then("the extension \"(.*)\" should have the types \"(.*)\"")]
+    public void ThenTheExtensionShouldHaveTheTypes(string id, string types) =>
+        Extension(id).GetProperty("types").EnumerateArray().Select(type => type.GetString()).Should().Equal(types.Split(", "));
+
+    [Then("the extension \"(.*)\" should have the delivery \"(.*)\" and the hosts \"(.*)\"")]
+    public void ThenTheExtensionShouldHaveTheDeliveryAndTheHosts(string id, string delivery, string hosts)
+    {
+        var entry = Extension(id);
+        entry.GetProperty("delivery").GetString().Should().Be(delivery);
+        entry.GetProperty("hosts").EnumerateArray().Select(host => host.GetString()).Should().Equal(hosts.Split(", "));
+    }
+
+    [Then("the extension \"(.*)\" should claim the validator IR versions \"(.*)\"")]
+    public void ThenTheExtensionShouldClaimTheValidatorIrVersions(string id, string versions) =>
+        Extension(id).GetProperty("capabilities").GetProperty("validator").GetProperty("irVersions").EnumerateArray()
+            .Select(version => version.GetString()).Should().Equal(versions.Split(", "));
+
     [Then("every listed extension should be available in this host")]
     public void ThenEveryListedExtensionShouldBeAvailableInThisHost() =>
         Document(Result).GetProperty("extensions").EnumerateArray().Should().OnlyContain(entry => entry.GetProperty("available").GetBoolean());
