@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-task-output-logs: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; --accent: #0f766e; --warn: #b45309; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; --accent: #5eead4; --warn: #fbbf24; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; vertical-align: top; }
+svg { max-width: 100%; height: auto; color: var(--muted); }
+svg .box { fill: var(--panel); stroke: var(--line); }
+svg .hot { fill: var(--panel); stroke: var(--accent); stroke-width: 2; }
+svg .later { fill: none; stroke: var(--warn); stroke-dasharray: 5 4; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .small { fill: var(--muted); font-size: 11px; }
+svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-task-output-logs: design</h1>
+<p class="meta">OpenSpec change | 2026-11-09 | proposed</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a>, section Why. Facts that shape the approach:</p>
+<ul>
+<li>Both hosts (<code>morphir</code> and <code>dotnet-morphir</code>) build the CLI in <code>MorphirCli</code>. Serilog writes every log line to <code>Console.Error</code> through its console sink. Command output goes to <code>Console.Out</code> or to an injected writer, such as <code>ICompileOutput</code> for <code>compile</code>.</li>
+<li>The out root and the task location are known only after the settings stage: <code>CompileTaskLocator</code> resolves <code>--out-dir</code>, <code>MORPHIR_OUT_DIR</code>, <code>workspace.out_dir</code> and the member path.</li>
+<li><code>compile</code> holds <code>compile.lock</code> exclusively from the settings stage to the end of the run. <code>generate</code> holds <code>compile.lock</code> shared while it reads the IR, and has no lock of its own. <code>validate</code> resolves no out root today.</li>
+<li>Environment variables map to keys by the standard rule: <code>MORPHIR_WORKSPACE__TASK_LOGS</code> becomes <code>workspace.task_logs</code>. The pinned upstream schema has no such key, so <code>scripts/configuration/generate-schema.py</code> adds it, as it already adds <code>[frontend.&lt;language&gt;].project_file</code>.</li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> capture both streams with no change to what the streams receive; write the files for success, failure and cancellation; never leave a file that mixes two runs; keep the cost bounded.</p>
+<p><strong>Non-goals:</strong> log rotation or history of earlier runs; a log of the child processes (the MSBuild provider, MEP guests) beyond what the command itself prints; a <code>morphir</code> command that reads the files; a new command-line option (the setting is enough, per the request).</p>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="cap-1">CAP-1. Capture at the process edge with tee writers</h3>
+<p><code>MorphirCli</code> replaces <code>Console.Out</code> and <code>Console.Error</code>, before it configures logging, with tee writers. A tee writer writes through to the original stream at once, and also appends to a bounded in-memory buffer. Injected writers such as <code>ConsoleCompileOutput</code> use <code>Console.Out</code> and <code>Console.Error</code>, so they are captured too. Nothing that a command writes changes.</p>
+<p><em>Alternatives:</em> a Serilog file sink catches log lines but not the command output or the <code>--json</code> report. A wrapper per command misses log lines and output written outside the command.</p>
+
+<h3 id="cap-2">CAP-2. Buffer until the task location is known, then write once</h3>
+<p>The out root is not known when the process starts, so each tee keeps its bytes in memory, up to 16 MiB for each stream (the spec bound), and then counts the bytes that it leaves out. A task command reports its task location to a <code>TaskOutputLogs</code> service when its settings resolve. At the end of the run, also after a failure or a cancellation, the service writes each buffer to a temporary file beside the target and renames it over <code>&lt;task&gt;.stdout.log</code> and <code>&lt;task&gt;.stderr.log</code>. A run that never reports a location writes nothing.</p>
+<p><em>Alternative:</em> stream to the file as the run goes. That keeps the output of a process that is killed, but the location is not known at the start, a reader could see a half-written file, and two runs would need a lock for the whole run. The rename gives the "never mixes two runs" requirement with no new lock for <code>compile</code>.</p>
+
+<h3 id="cap-3">CAP-3. Locks: write under the task's exclusive lock</h3>
+<p><code>compile</code> writes the files before it releases <code>compile.lock</code>. <code>generate</code> and <code>validate</code> take their own exclusive lock, <code>generate/&lt;target&gt;.lock</code> and <code>validate.lock</code>, only for the short time of the write. The lock follows the out-directory rule that a task's files beside its record are written under <code>&lt;task&gt;.lock</code>.</p>
+
+<h3 id="cfg-1">CFG-1. One setting, the standard levers</h3>
+<p><code>workspace.task_logs</code>, boolean, default <code>true</code>, read through the existing layered resolution, so the project file, the user configuration and <code>MORPHIR_WORKSPACE__TASK_LOGS</code> all work with no new code path. A value that is not a boolean fails the settings stage with <code>compile.invalid_setting</code> (or the generate and validate equivalent), exit code 2, naming the key and its source.</p>
+<p><em>Alternative:</em> a short alias such as <code>MORPHIR_TASK_LOGS</code>. The out root has its own variable, <code>MORPHIR_OUT_DIR</code>, because the upstream specification defines it. No upstream text defines a log variable, so this change adds no alias.</p>
+
+<h3 id="cfg-2">CFG-2. Turned off means no write, no delete</h3>
+<p>With <code>task_logs = false</code>, a run writes no files and leaves earlier files. Deleting them would destroy evidence that a user may still need, and the files carry no run identity that a reader could confuse with a newer run, because the record beside them does.</p>
+
+<h3 id="fmt-1">FMT-1. File content</h3>
+<p>The files hold the stream bytes as written, UTF-8, with the console's line endings. A file that reaches the bound ends with one line: <code>[morphir: N more bytes not kept; the limit is 16 MiB]</code>. ANSI styling in human mode is kept, because the files hold what the stream received.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<ul>
+<li>[A killed process (SIGKILL, power loss) writes no log] &rarr; accepted for this change (<a href="#cap-2">CAP-2</a>). A later change can spill the buffer to a temporary file once the location is known.</li>
+<li>[Memory: up to 32 MiB of buffer] &rarr; bounded per stream; most runs write a few kilobytes.</li>
+<li>[The guest's stderr in a MEP compile is copied to the host's stderr] &rarr; it is captured as host stderr output, which is what the user saw.</li>
+<li>[Tests that capture <code>Console.Out</code> in process] &rarr; the tee writes through, so captured output is unchanged; tests with an injected writer are not affected.</li>
+</ul>
+
+<h2 id="migration">Migration plan</h2>
+<p>None. The files are new. Turning them off restores the current out-root contents exactly.</p>
+
+<h2 id="open-questions">Open questions</h2>
+<p>None that change what gets built. An upstream request to add the files to the shared out-directory specification is a workflow follow-up.</p>
+</main>
+</body>
+</html>
