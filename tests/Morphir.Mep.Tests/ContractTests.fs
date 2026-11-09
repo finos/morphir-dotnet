@@ -107,6 +107,21 @@ let private capabilities =
 let private evidence =
     $$"""{"guarantee":"urn:g","modelId":"m","modelRevision":"r","contextDigest":"{{digest}}","scope":"s","producer":"p","evidence":{{payload}}}"""
 
+let private morphirModel =
+    $$"""{"envelopeVersion":"0.1.0-draft.1","modelId":"m","revision":"r","irVersion":"4.0.0","profile":"p","payload":{{payload}}}"""
+
+let private sourceDocument =
+    """{"uri":"Pricing.fs","languageId":"fsharp","version":1,"text":"module Pricing"}"""
+
+let private sourceSet = $$"""{"root":"src","documents":[{{sourceDocument}}]}"""
+
+let private compilePackage = """{"name":"acme/demo","exposedModules":["Pricing"]}"""
+
+let private compileOptions = """{"typesOnly":false,"irVersion":"4.0.0"}"""
+
+let private compileModelDependency =
+    $$"""{"packageName":"acme/base","model":{{morphirModel}}}"""
+
 let private record typeName info sample =
     { TypeName = typeName
       SnakeCase = false
@@ -176,7 +191,18 @@ let private checkedTypes =
       record
           "model-guarantee-requirement"
           MepJson.Default.ModelGuaranteeRequirement
-          """{"guarantee":"urn:g","scope":"s"}""" ]
+          """{"guarantee":"urn:g","scope":"s"}"""
+      record "source-document" MepJson.Default.SourceDocument sourceDocument
+      record "source-set" MepJson.Default.SourceSet sourceSet
+      record "compile-package" MepJson.Default.CompilePackage compilePackage
+      { record "compile-options" MepJson.Default.CompileOptions compileOptions with
+          Flattened = [ "extra" ] }
+      record "compile-model-dependency" MepJson.Default.CompileModelDependency compileModelDependency
+      { record
+            "compile-model-request"
+            MepJson.Default.CompileModelRequest
+            $$"""{"languageId":"fsharp","sources":{{sourceSet}},"package":{{compilePackage}},"dependencies":[{{compileModelDependency}}],"options":{{compileOptions}},"contextDigest":"{{digest}}","output":{{tuple}}}""" with
+          Defaulted = [ "dependencies" ] } ]
 
 let private names (json: string) =
     match JsonNode.Parse json with
