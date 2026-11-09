@@ -49,8 +49,8 @@ let private check<'T when 'T: not null> (info: JsonTypeInfo<'T>) (node: JsonNode
 
             for KeyValue(name, child) in item do
                 match name, child with
-                | ("options" | "evidence" | "critical" | "guarantees" | "related"), (:? JsonObject as empty) when empty.Count = 0 -> ()
-                | ("options" | "evidence" | "critical" | "guarantees" | "related"), (:? JsonArray as empty) when empty.Count = 0 -> ()
+                | ("options" | "evidence" | "critical" | "guarantees" | "related" | "rules"), (:? JsonObject as empty) when empty.Count = 0 -> ()
+                | ("options" | "evidence" | "critical" | "guarantees" | "related" | "rules"), (:? JsonArray as empty) when empty.Count = 0 -> ()
                 | _ -> copy[name] <- normal child
 
             copy
@@ -144,6 +144,33 @@ let tests =
                       | _, _, Some error -> check MepJson.Default.RpcError error
                       | _ -> ()
 
+          testCase "each validateModel input tuple agrees with its model envelope"
+          <| fun _ ->
+              let requests =
+                  messages ()
+                  |> List.filter (fun message ->
+                      match Option.ofObj message["method"] with
+                      | Some method -> method.GetValue<string>() = "morphir.validator.validateModel"
+                      | None -> false)
+
+              Expect.isNonEmpty requests "The transcripts send validateModel"
+
+              for message in requests do
+                  let parameters = message["params"] |> nonNull
+                  let request = read ProposalJson.Default.ValidateModelRequest parameters
+                  let model = parameters["model"] |> nonNull
+                  let text (node: JsonNode | null) = (nonNull node).GetValue<string>()
+                  let payload = model["payload"] |> nonNull
+                  let profile = text model["profile"]
+                  let codec = text payload["codec"]
+                  let envelopeVersion = text model["envelopeVersion"]
+                  let irVersion = text model["irVersion"]
+                  Expect.equal request.Input.Operation ProposalOperation.ValidateModel "The input operation is the method"
+                  Expect.equal request.Input.Profile profile "Profile"
+                  Expect.equal request.Input.Codec codec "Codec"
+                  Expect.equal request.Input.EnvelopeVersion envelopeVersion "Envelope version"
+                  Expect.equal request.Input.IrVersion irVersion "IR version"
+
           testCase "the proposal adds no member outside the validator operation"
           <| fun _ ->
               let known =
@@ -152,4 +179,4 @@ let tests =
               let added =
                   messages () |> List.collect memberNames |> Set.ofList |> fun names -> names - known
 
-              Expect.equal added (set [ "validator" ]) "Only ExtensionCapabilities.validator is new" ]
+              Expect.equal added (set [ "validator"; "rules" ]) "Only ExtensionCapabilities.validator and ValidatorCapability.rules are new" ]
