@@ -28,6 +28,17 @@ let private backend (id: string) =
         }
     )
 
+let private formatVersion text =
+    match Morphir.IR.Versioning.parse text with
+    | Ok parsed -> parsed
+    | Error error -> failwith $"bad format version {text}: {error}"
+
+let private validator (id: string) =
+    ExtensionEntry.BuiltInValidator(
+        ExtensionIdentity.Create(ExtensionId.Create id, ExtensionName.Create $"{id} analyzer", host.Version, null),
+        ValidatorClaim.Create(formatVersion "1", formatVersion "2", formatVersion "3")
+    )
+
 let private catalogOf entries =
     match ExtensionCatalog.create host entries with
     | Ok catalog -> catalog
@@ -134,6 +145,43 @@ let tests =
 
                 Expect.stringContains diagnostics[0].Message "morphir.csharp" "names the first id"
                 Expect.stringContains diagnostics[1].Message "morphir.fsharp" "names the second id"
+        }
+
+        test "a validator entry derives its type from its validator claim" {
+            let entry = validator "morphir.type-validator"
+            Expect.equal (List.ofSeq entry.Types) [ ExtensionType.Validator ] "validator"
+            Expect.isNull entry.BackendClaimOrNull "no backend claim"
+
+            match entry.ValidatorClaimOrNull with
+            | null -> failtest "no validator claim"
+            | claim ->
+                Expect.equal (List.ofSeq claim.IrVersionTexts) [ "1"; "2"; "3" ] "classic versions in reader spelling"
+                Expect.isTrue (claim.Reads(formatVersion "3")) "reads 3"
+                Expect.isFalse (claim.Reads(formatVersion "4.0.0")) "does not read 4.0.0"
+
+            Expect.equal (string entry.Capabilities) "validator (1, 2, 3)" "capability text"
+            Expect.equal entry.CapabilitySummary "validator (1, 2, 3)" "capability summary"
+        }
+
+        test "a backend capability summary is its type" {
+            Expect.equal (backend "morphir.csharp").CapabilitySummary "backend" "backend summary"
+        }
+
+        test "a validator claim keeps semantic pre-release versions" {
+            let claim = ValidatorClaim.Create(formatVersion "4.0.0-rc.1")
+            Expect.equal (List.ofSeq claim.IrVersionTexts) [ "4.0.0-rc.1" ] "pre-release kept"
+        }
+
+        test "a validator claim with no IR version cannot be built" {
+            Expect.isError (ValidatorClaim.ofSeq []) "F# callers get an error"
+
+            let ok, claim = ValidatorClaim.TryCreate([])
+            Expect.isFalse ok "C# callers get false"
+            Expect.isTrue (obj.ReferenceEquals(claim, null)) "no claim"
+
+            let ok, claim = ValidatorClaim.TryCreate([ formatVersion "2"; formatVersion "2" ])
+            Expect.isTrue ok "one distinct version"
+            Expect.equal (List.ofSeq claim.IrVersionTexts) [ "2" ] "duplicates collapse"
         }
 
         test "TryCreate gives the catalog or the error" {
