@@ -568,6 +568,30 @@ The CLI should create directories automatically. If this fails:
    morphir dist install <url> <version>
    ```
 
+## Compile failures
+
+Use `--json` and read `failureKind` and `diagnostics`, or `--json-lines` and read the last `completed`
+record. Exit code 1 is a source or model error; exit code 2 is an invocation, configuration, selection or
+I/O failure. See [compile]({{< relref "/docs/cli/compile" >}}).
+
+| Code | Cause | Fix |
+| --- | --- | --- |
+| `compile.frontend_unavailable` | No registered frontend reads the language. The AOT `morphir` has no F# frontend. | Use `dotnet-morphir`, which has a built-in F# frontend. |
+| `compile.extension_unavailable` | A frontend extension is configured, and this build has no extension transport. | Remove `--extension` and `[frontend.<language>].extension`. MEP extensions are the second delivery. |
+| `compile.unsupported_ir_version` | No writer declares the requested IR version, for example `4.1.0-draft.1`. | Use a declared version: `1`, `2`, `3`, `4` or `4.0.0`. |
+| `compile.ir_version_not_served` | The selected frontend does not produce the requested IR version. | Request a version that the message lists for the frontend. |
+| `compile.language_required` | No language is selected, and the sources do not select one. A `[frontend.<language>].project_file` is read only for the selected language. | Use `--language`, or set `frontend.language`. |
+| `compile.package_required` | No package name. | Use `--package-name`, or set `project.name`. |
+| `compile.unsupported_setting` | An option or setting that this build does not implement, for example `--types-only` or `ir.layout = "document-tree"`. | Remove it. The message names the option or the key and its file. |
+| `sources.conflicting_source_options` | `--project-file` and `--input` together. | Use one of them. |
+| `sources.project_file_as_input` | An `--input` file is a project file. | Use `--project-file`. |
+| `sources.unknown_project_file` | No project-file provider recognizes the file. | Name a supported project file. See [project-file sources]({{< relref "/docs/configuration/project-file-sources" >}}). |
+| `sources.no_documents` | The source directory has no file with an extension that the frontend claims. | Set `project.source_directory`, or use `--input`. |
+| `sources.linked`, `sources.invalid_encoding` | A source is a link or a special file, or it is not valid UTF-8. | Name the target file, or save the file as UTF-8. |
+
+If F# reports that a module or value is not defined, check the source order. A directory gives files in
+lexical order, and F# compiles files in order. Use `--input` files in dependency order, or a project file.
+
 ## Generation failures
 
 `morphir generate` requires explicit input, target and output paths. It does not

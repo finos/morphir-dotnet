@@ -312,6 +312,7 @@ public interface ICompileRunner
 <li>A callback sink. This is an effect inside the stages, cannot be composed, and gives no back-pressure.</li>
 </ul>
 
+<p><em>Implementation note (task 4.6):</em> the runner checks the writer version and the frontend availability in the settings stage, because they need no source. <code>Completed</code> carries a <code>CompileConclusion</code> without diagnostics, and <code>CompileHandler.Fold</code> is the only place that collects them, so the report cannot drift from the stream. The compile result is <code>CompileResult</code>, not the generation <code>Outcome&lt;T&gt;</code>, because <code>GenerationDiagnostic</code> has no <code>data</code> or related locations. A corpus-wide property compares the fold with the batch composition of the same frontend outcome and writer for all 600 cases.</p>
 <h3 id="strm-2">STRM-2. <code>--json-lines</code> is the event stream as newline-delimited JSON</h3>
 <p><code>--json-lines</code> writes the STRM-1 events to stdout, one compact UTF-8 JSON object per line, ending each line with <code>\n</code>. Each line is flushed when its event occurs. Logs stay on stderr. Each record has an <code>event</code> member; the other members are camelCase, like the report.</p>
 <pre><code class="language-json">{"event":"stageStarted","stage":"sources"}
@@ -339,6 +340,7 @@ public interface ICompileRunner
 <li>JSON-RPC notifications on stdout. That needs a protocol for a command-line output format, and MEP has none for diagnostics.</li>
 </ul>
 
+<p><em>Implementation note (task 4.7):</em> <code>JsonLinesWriter</code> writes records from <code>CompileJsonLinesContext</code> and flushes each line; the command writes the <code>completed</code> record from the folded report. Both JSON contexts use relaxed escaping. A failed report keeps <code>sources</code> and <code>frontend</code> when the run got that far. <code>GenerationDiagnostic</code> has the additive <code>Range</code>, left out of JSON when null, so generation reports keep their shape. The CLI reference (task 4.8) documents the record format and the difference from the Rust CLI, and a test runs each documented command.</p>
 <h3 id="ver-1">VER-1. Format versions are always <code>Versioning.FormatVersion</code></h3>
 <p>No contract, registry key, setting or report field holds a format version as an <code>int</code>. These all carry <code>Versioning.FormatVersion</code>, and <code>SourceFormatVersion</code> where the declared spelling matters:</p>
 <ul>
@@ -449,6 +451,7 @@ type IIrBuilder&lt;'Type, 'Pattern, 'Value, 'Package&gt; =
 <li>A hand-written XML reader. It cannot evaluate conditions, imports or SDK defaults.</li>
 </ul>
 
+<p><em>Implementation note (task 4.3):</em> <code>SourceSelector</code> reads a directory with the extensions that the registered frontends advertise for the selected language (or for every language), so a project file in a source directory never reaches a frontend. Input files are relative to their common directory. <code>--input</code> takes files or exactly one directory. When no language is selected and the directory has no claimed document, the selection fails with <code>compile.language_required</code> and names the unread <code>project_file</code> keys.</p>
 <h3 id="src-2">SRC-2. The configuration key is <code>[frontend.&lt;language&gt;].project_file</code></h3>
 <p>Every language table accepts the same key, <code>project_file</code>, and the command reads it from the selected language's table. A project file belongs to a language's toolchain (MSBuild, Gleam, Python packaging), so the per-language tables that upstream already uses (<code>[frontend.elm] extension</code>) are the right place. One key name and one provider registry keep the mechanism neutral.</p>
 <p>The schema defines <code>project_file</code> once, as a per-language table member. It is not repeated for each language. The upstream request is a shared key convention for <code>[frontend.&lt;language&gt;]</code> tables, not a change to project identity.</p>
@@ -458,6 +461,7 @@ type IIrBuilder&lt;'Type, 'Pattern, 'Value, 'Package&gt; =
 <li>A language-specific key name such as <code>[frontend.fsharp] project</code> needs resolver code for each language and breaks neutrality.</li>
 </ul>
 
+<p><em>Implementation note (task 4.2):</em> the pinned upstream schema stays byte-identical. The schema generator applies two recorded amendments: <code>ir.format_version</code> is an integer or a SemVer string, and the definition <code>frontendLanguage</code> (<code>extension</code>, <code>project_file</code>) is the type of every <code>[frontend.&lt;language&gt;]</code> table. <code>ProjectCompileSettingsResolver</code> records a <code>SettingOrigin</code> for each setting and gives a closed <code>SourceRequest</code> (<code>ProjectFile</code>, <code>Inputs</code>, <code>SourceDirectory</code>). The upstream default <code>frontend.language = "scheme"</code> is not a selection. Discovery does not follow links, so the resolver gives it real paths.</p>
 <h3 id="fe-1">FE-1. The in-process compile contract has the semantics of MEP 0.2 <code>compileModel</code></h3>
 <p>The in-process contract is a typed F# model of the latest MEP compile concepts: source set, package, options, context digest, output target, the success/failure result sum, frontend capability and diagnostics. It adds no concept that MEP lacks. Because of this, the MEP adapter is a pure codec, and diagnostics are in the MEP shape (zero-based UTF-16 ranges) in every path.</p>
 <pre><code class="language-fsharp">type SourceDocument = { Uri: string; LanguageId: string; Version: uint64; Text: string }
@@ -495,6 +499,7 @@ type Frontend =
 </ul>
 <p>An explicit <code>--extension</code> or <code>[frontend.&lt;language&gt;].extension</code> creates and selects a MEP registration. With no extension configured, the in-process registration wins when it exists. Every refusal names the frontend and the capability.</p>
 
+<p><em>Implementation note (task 4.6):</em> <code>FrontendResolver</code> also has <code>CheckAvailable</code>, which the settings stage calls, so a missing frontend fails before any project file is evaluated, and <code>ClaimedExtensions</code> for source selection. An unserved IR version fails with <code>compile.ir_version_not_served</code>. A configured extension goes to the one <code>IFrontendExtensionConnector</code> in the settings stage, and the run then resolves only over that frontend (<code>IFrontendResolver.Only</code>); the runner disposes a frontend that is <code>IAsyncDisposable</code>. The default connector fails with <code>compile.extension_unavailable</code>. The MEP adapter of group 8 replaces only that registration in <code>CompilationScenario</code>; the runner and the handler do not change.</p>
 <h3 id="fsf-1">FSF-1. The F# frontend is an effect edge followed by pure stages</h3>
 <pre><code class="language-console">documents ─▶ FcsCheck (effect: FCS, isolated)          ─▶ CheckedProject | fsharp.compiler errors
          ─▶ Admission (pure, syntax tree + rule catalog) ─▶ unit           | fsharp.unsupported_* errors (all of them)
@@ -596,6 +601,7 @@ type Frontend =
 <h3 id="cli-3">CLI-3. The dotnet tool gets its own composition root</h3>
 <p><code>Morphir.Program</code> exposes <code>CreateApp(string[] args, Action&lt;MorphirCliBuilder&gt; extend)</code>. <code>Morphir.Tool</code> adds <code>FSharpFrontendScenario</code>, and only <code>Morphir.Tool.csproj</code> references <code>Morphir.Frontend.FSharp</code>. Both hosts register the MSBuild project-file provider.</p>
 
+<p><em>Implementation note (task 4.1):</em> <code>Morphir.Program.CreateApp(args, host, extend)</code> keeps the host identity parameter and takes the host composition as an optional third parameter. <code>Main</code> passes <code>NativeComposition</code>, which registers a <code>FrontendHint</code> data record for <code>fsharp</code>, so the frontend-unavailable message names <code>dotnet-morphir</code> without a language rule in the command. <code>Morphir.Tool</code> passes <code>FSharpFrontendScenario</code>, which adds <code>FSharpFrontend.Registration</code> with <code>TryAddEnumerable</code>. A host test walks the referenced-assembly closure of <code>morphir</code> and refuses <code>FSharp.Compiler.Service</code> and <code>Morphir.Frontend.FSharp</code>.</p>
 <h3 id="rec-1">REC-1. Task records match the upstream out-directory contract</h3>
 <p><code>CompileTaskStore</code> implements the upstream rules for:</p>
 <ul>
