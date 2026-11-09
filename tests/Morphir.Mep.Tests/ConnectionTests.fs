@@ -84,7 +84,10 @@ let private guest (cancelled: TaskCompletionSource<unit>) =
 
 [<Tests>]
 let tests =
-    testList
+    Transcripts.ensureThreads.Force()
+
+    testSequenced
+    <| testList
         "MEP connection"
         [ for id in [ "18446744073709551615"; "\"req-abc\""; "\"\""; "0" ] do
               testCase $"a cancelled request with id {id} gets -32800 and its handler token cancels"
@@ -155,15 +158,71 @@ let tests =
               | Error error -> Expect.equal error.Code (int ErrorCode.RequestCancelled) "-32800"
               | Ok _ -> failtest "Expected the cancelled reply"
 
-          testCase "a disconnect cancels running handlers and ends the connection"
+          testCase "at the end of the stream running handlers finish and their replies are written"
+          <| fun _ ->
+              let toGuest = Wire()
+              let toHost = Wire()
+              let release = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
+
+              let dispatcher =
+                  Dispatcher(
+                      readOnlyDict
+                          [ "test.compile",
+                            Handlers.raw (fun _ _ ->
+                                task {
+                                    do! release.Task
+                                    return Ok(JsonRpc.Constant """{"done":true}""")
+                                }) ]
+                  )
+
+              let run = Connection(toGuest.Reader, toHost.Writer, dispatcher).RunAsync CancellationToken.None
+              send toGuest.Writer """{"jsonrpc":"2.0","id":1,"method":"test.compile"}"""
+              toGuest.Writer.Dispose()
+              Expect.isFalse (run.Wait(TimeSpan.FromMilliseconds 200.)) "The connection waits for the running handler"
+              release.SetResult()
+              Expect.equal (receive toHost.Reader) """{"jsonrpc":"2.0","id":1,"result":{"done":true}}""" "The reply is written"
+              Expect.isTrue (run.Wait(TimeSpan.FromSeconds 10.)) "The connection ends"
+              Expect.equal run.Result ConnectionEnd.EndOfStream "End of stream"
+
+          testCase "cancelling the token stops a connection that waits for a handler at the end of the stream"
+          <| fun _ ->
+              let cancelled = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
+              let toGuest = Wire()
+              let toHost = Wire()
+
+              let dispatcher =
+                  Dispatcher(
+                      readOnlyDict
+                          [ "test.slow",
+                            Handlers.raw (fun _ token ->
+                                task {
+                                    use _ = token.Register(fun () -> cancelled.TrySetResult() |> ignore)
+                                    do! Task.Delay(Timeout.Infinite, token)
+                                    return Ok(JsonRpc.Constant "{}")
+                                }) ]
+                  )
+
+              use source = new CancellationTokenSource()
+              let run = Connection(toGuest.Reader, toHost.Writer, dispatcher).RunAsync source.Token
+              send toGuest.Writer """{"jsonrpc":"2.0","id":1,"method":"test.slow"}"""
+              toGuest.Writer.Dispose()
+              Expect.isFalse (run.Wait(TimeSpan.FromMilliseconds 200.)) "The connection waits for the running handler"
+              source.Cancel()
+              Expect.isTrue (cancelled.Task.Wait(TimeSpan.FromSeconds 10.)) "The handler token cancels"
+              Expect.isTrue (run.Wait(TimeSpan.FromSeconds 10.)) "The connection ends"
+              Expect.equal run.Result ConnectionEnd.EndOfStream "End of stream"
+
+          testCase "a framing failure cancels running handlers and ends the connection"
           <| fun _ ->
               let cancelled = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
               let toGuest, _, _, run, _ = guest cancelled
               send toGuest.Writer """{"jsonrpc":"2.0","id":1,"method":"test.slow"}"""
-              toGuest.Writer.Dispose()
+              let bytes = Encoding.ASCII.GetBytes "log line\r\n\r\n"
+              toGuest.Writer.Write(bytes, 0, bytes.Length)
+              toGuest.Writer.Flush()
               Expect.isTrue (cancelled.Task.Wait(TimeSpan.FromSeconds 10.)) "The handler token cancels"
               Expect.isTrue (run.Wait(TimeSpan.FromSeconds 10.)) "The connection ends"
-              Expect.equal run.Result ConnectionEnd.EndOfStream "End of stream"
+              Expect.equal run.Result (ConnectionEnd.FramingFailed FramingFailure.NotFramed) "Not framed"
 
           testCase "cancelling the connection settles its pending requests"
           <| fun _ ->

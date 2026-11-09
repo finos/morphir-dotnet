@@ -9,7 +9,9 @@ open System.Text.Json.Serialization.Metadata
 open System.Threading
 open System.Threading.Tasks
 
-/// A method handler bound to its params and result codecs. Build one with the Handlers module.
+/// A method handler bound to its params and result codecs. F# callers build one with the Handlers module; C# callers
+/// use the static members Request, RequestWithoutParams, Constant and Notification. A handler throws RpcException to
+/// reply with an error object.
 [<Sealed>]
 type MethodHandler
     internal (invoke: JsonElement option -> CancellationToken -> Task<Result<JsonElement, RpcError>>) =
@@ -32,7 +34,11 @@ type Admission =
         | Proceed -> "Proceed"
         | Refuse error -> $"Refuse: {error}"
 
-/// Builds method handlers from typed functions.
+    /// For C# callers: an admission that refuses with this error.
+    static member RefuseWith(error: RpcError) = Refuse error
+
+/// Builds method handlers from typed functions. C# callers use the static members of MethodHandler.
+[<RequireQualifiedAccess>]
 module Handlers =
     let private bind<'P when 'P: not null> (info: JsonTypeInfo<'P>) (parameters: JsonElement option) =
         match parameters with
@@ -91,15 +97,46 @@ module Handlers =
             })
 
     /// A notification whose params bind through a codec. Absent or mismatched params drop the notification.
-    let typedNotification<'P when 'P: not null> (paramsInfo: JsonTypeInfo<'P>) (handle: 'P -> Task) =
-        MethodHandler(fun parameters _ ->
+    let typedNotification<'P when 'P: not null> (paramsInfo: JsonTypeInfo<'P>) (handle: 'P -> CancellationToken -> Task) =
+        MethodHandler(fun parameters cancellation ->
             match bind paramsInfo parameters with
             | None -> Task.FromResult invalidParams
             | Some value ->
                 task {
-                    do! handle value
+                    do! handle value cancellation
                     return Ok(JsonRpc.Constant "null")
                 })
+
+/// The C# factories of method handlers. A handler replies with an error object by throwing RpcException.
+type MethodHandler with
+
+    /// A request whose params object binds through its codec as one value. Absent or mismatched params give -32602.
+    static member Request<'P, 'R when 'P: not null>
+        (
+            paramsInfo: JsonTypeInfo<'P>,
+            resultInfo: JsonTypeInfo<'R>,
+            handle: Func<'P, CancellationToken, Task<'R>>
+        ) =
+        Handlers.request paramsInfo resultInfo (fun value cancellation ->
+            task {
+                let! result = handle.Invoke(value, cancellation)
+                return Ok result
+            })
+
+    /// A request that takes no params. Params, when present, are ignored.
+    static member RequestWithoutParams<'R>(resultInfo: JsonTypeInfo<'R>, handle: Func<CancellationToken, Task<'R>>) =
+        Handlers.requestWithoutParams resultInfo (fun cancellation ->
+            task {
+                let! result = handle.Invoke cancellation
+                return Ok result
+            })
+
+    /// A request that always returns the same JSON result, such as {"ok":true} for morphir.ping.
+    static member Constant(json: string) = Handlers.constant json
+
+    /// A notification whose params bind through a codec. Absent or mismatched params drop the notification.
+    static member Notification<'P when 'P: not null>(paramsInfo: JsonTypeInfo<'P>, handle: Func<'P, CancellationToken, Task>) =
+        Handlers.typedNotification paramsInfo (fun value cancellation -> handle.Invoke(value, cancellation))
 
 /// Dispatches one message to a method table (design RPC-1). Streams and single messages use the same path.
 [<Sealed>]
@@ -151,6 +188,7 @@ type Dispatcher(handlers: IReadOnlyDictionary<string, MethodHandler>, gate: Func
                                 | Ok value -> Some(JsonRpcMessage.Response(id, value))
                                 | Error error -> Some(JsonRpcMessage.ErrorResponse(Some id, error))
                         with
+                        | :? RpcException as error -> return Some(JsonRpcMessage.ErrorResponse(Some id, error.Error))
                         | :? OperationCanceledException when cancellation.IsCancellationRequested ->
                             return failed id ErrorCode.RequestCancelled
                         | _ -> return failed id ErrorCode.InternalError

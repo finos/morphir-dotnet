@@ -313,14 +313,14 @@ let tests =
             }
 
             let full = MepRecords.CreateDiagnostic(Morphir.Mep.DiagnosticSeverity.Error, "m", "c", location)
-            Expect.equal (MepRecords.CodeOrNull full) "c" "code"
-            Expect.equal (MepRecords.LocationOrNull full) location "location"
-            Expect.isFalse (MepRecords.DataOrNull full).HasValue "no data"
+            Expect.equal (full.CodeOrNull()) "c" "code"
+            Expect.equal (full.LocationOrNull()) location "location"
+            Expect.isFalse (full.DataOrNull()).HasValue "no data"
             Expect.isTrue (MepRecords.IsError full.Severity) "error"
 
             let bare = MepRecords.CreateDiagnostic(Morphir.Mep.DiagnosticSeverity.Hint, "m", null, null)
-            Expect.isNull (MepRecords.CodeOrNull bare) "no code"
-            Expect.isNull (MepRecords.LocationOrNull bare) "no location"
+            Expect.isNull (bare.CodeOrNull()) "no code"
+            Expect.isNull (bare.LocationOrNull()) "no location"
             Expect.isFalse (MepRecords.IsError bare.Severity) "not an error"
 
             Expect.equal

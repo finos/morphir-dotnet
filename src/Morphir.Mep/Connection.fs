@@ -29,6 +29,21 @@ type ConnectionDiagnostic =
         | RefusedMessage refusal -> $"A message was refused: {refusal}"
         | FramingFailed failure -> $"The stream framing failed: {failure}"
 
+    /// For C# callers: one function for each case. The id of an unsolicited response is null when it was absent.
+    member this.Match<'R>
+        (
+            unsolicitedResponse: Func<RequestId | null, 'R>,
+            refusedMessage: Func<MessageRefusal, 'R>,
+            framingFailed: Func<FramingFailure, 'R>
+        ) : 'R =
+        match this with
+        | UnsolicitedResponse id -> unsolicitedResponse.Invoke(Option.toObj id)
+        | RefusedMessage refusal -> refusedMessage.Invoke refusal
+        | FramingFailed failure -> framingFailed.Invoke failure
+
+    /// For C# callers: an unsolicited response with an id, or with no id when it is null.
+    static member UnsolicitedResponseWith(id: RequestId | null) = UnsolicitedResponse(Option.ofObj id)
+
 /// Why a connection stopped reading.
 [<RequireQualifiedAccess>]
 type ConnectionEnd =
@@ -45,6 +60,13 @@ type ConnectionEnd =
         | EndOfStream -> "End of stream"
         | Stopped -> "Stopped"
         | FramingFailed failure -> $"Framing failed: {failure}"
+
+    /// For C# callers: one function for each case.
+    member this.Match<'R>(endOfStream: Func<'R>, stopped: Func<'R>, framingFailed: Func<FramingFailure, 'R>) : 'R =
+        match this with
+        | EndOfStream -> endOfStream.Invoke()
+        | Stopped -> stopped.Invoke()
+        | FramingFailed failure -> framingFailed.Invoke failure
 
 /// A JSON-RPC connection on a framed stream pair (design RPC-1): it dispatches inbound requests, matches inbound
 /// responses to the pending-request table, and sends and receives $/cancelRequest.
@@ -138,9 +160,11 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: F
 
     /// Reads frames until the stream ends, the session ends or a frame is refused. Inbound requests run
     /// concurrently, so that a cancel can reach them; a handler that changes the session completes synchronously.
-    /// On every exit, also a cancellation or a read failure, the connection cancels its running handlers, waits for
-    /// them, and settles each pending outbound request with an error; a cancellation or read failure then reaches
-    /// the caller.
+    /// At the end of the stream or of the session, running handlers finish and their replies are written, as the
+    /// upstream guests answer every request before they exit. After a refused frame, a read failure or a
+    /// cancellation, the connection cancels its running handlers. Cancelling the token also stops a connection that
+    /// waits for its handlers. On every exit, each pending outbound request is settled with an error, and a
+    /// cancellation or read failure then reaches the caller.
     member _.RunAsync(cancellation: CancellationToken) : Task<ConnectionEnd> =
         task {
             use lifetime = CancellationTokenSource.CreateLinkedTokenSource cancellation
@@ -180,8 +204,11 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: F
             with error ->
                 failure <- Some(ExceptionDispatchInfo.Capture error)
 
-            // No more replies can arrive: stop the running handlers before waiting for them.
-            lifetime.Cancel()
+            // A refused frame, a read failure or a cancellation stops the running handlers. After a normal end they
+            // finish; the token is linked to the caller's token, so the caller can still stop them.
+            match failure, finished with
+            | None, Some(ConnectionEnd.EndOfStream | ConnectionEnd.Stopped) -> ()
+            | _ -> lifetime.Cancel()
 
             try
                 do! Task.WhenAll running
@@ -222,3 +249,11 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: F
     /// Sends a notification.
     member _.NotifyAsync(method: string, parameters: JsonElement option) : Task =
         write (JsonRpcMessage.Notification(method, parameters))
+
+    /// For C# callers: sends a request with params or none, and waits for its reply.
+    member this.RequestAsync(method: string, parameters: Nullable<JsonElement>, cancellation: CancellationToken) =
+        this.RequestAsync(method, Option.ofNullable parameters, cancellation)
+
+    /// For C# callers: sends a notification with params or none.
+    member this.NotifyAsync(method: string, parameters: Nullable<JsonElement>) : Task =
+        this.NotifyAsync(method, Option.ofNullable parameters)
