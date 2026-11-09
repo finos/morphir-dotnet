@@ -1,5 +1,14 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<!--
+  An application publish passes PublishAot, PublishTrimmed and PublishSingleFile as global properties, which also reach
+  this netstandard2.0 library through Morphir.Mep (for example dotnet publish src/Morphir -p:PublishAot=true). The SDK
+  refuses them for netstandard2.0 (NETSDK1207), so this library keeps them local and off. The application still
+  compiles and trims this assembly.
+-->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;PublishSingleFile">
   <PropertyGroup>
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishSingleFile>false</PublishSingleFile>
     <!-- netstandard2.0 and no package dependency, so any F# domain project can reference it. -->
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>latest</LangVersion>
