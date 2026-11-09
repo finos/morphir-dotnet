@@ -63,8 +63,8 @@ public static class CompileRunners
         IEnumerable<IProjectFileProvider>? providers = null, ICompilePublisher? publisher = null,
         IFrontendExtensionConnector? extensions = null) =>
         new(new ProjectCompileSettingsResolver(), Writers, new FrontendResolver(frontends, hints ?? []),
-            new SourceSelector(ProjectFileProviderRegistry.Create(providers ?? [])), new FileSourceCapture(),
-            publisher ?? new OutRootCompilePublisher(), extensions ?? new UnavailableFrontendExtensionConnector());
+            new SourceSelector(ProjectFileProviderRegistry.Create(providers ?? [])), new Morphir.Tooling.Features.Compile.Sources.SourceCapture(),
+            publisher ?? new TaskRecordCompilePublisher(new Morphir.Tooling.Features.TaskRecords.TaskStoreOptions { Diagnostics = TextWriter.Null }), extensions ?? new UnavailableFrontendExtensionConnector());
 
     /// <summary>Every event of one run.</summary>
     public static async Task<List<CompileEvent>> Events(ICompileRunner runner, CompileOverrides overrides, CompileContext context,

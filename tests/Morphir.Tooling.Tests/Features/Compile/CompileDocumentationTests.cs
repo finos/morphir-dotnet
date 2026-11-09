@@ -16,7 +16,7 @@ namespace Morphir.Tooling.Tests.Features.Compile;
 /// </summary>
 public sealed partial class CompileDocumentationTests
 {
-    private static string RepositoryRoot()
+    internal static string RepositoryRoot()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "Morphir.slnx"))) root = root.Parent;
@@ -37,7 +37,7 @@ public sealed partial class CompileDocumentationTests
     private static partial Regex BashBlock();
 
     /// <summary>The documents of one corpus case, by its id prefix.</summary>
-    private static IEnumerable<Morphir.Conformance.SourceDocument> CaseDocuments(string id)
+    internal static IEnumerable<Morphir.Conformance.SourceDocument> CaseDocuments(string id)
     {
         var root = Path.Combine(RepositoryRoot(), "conformance");
         var artifacts = Directory.GetFiles(root, "*", SearchOption.AllDirectories)

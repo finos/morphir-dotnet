@@ -1,60 +1,110 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using System.Collections.Immutable;
 using Morphir.Compilation;
+using Morphir.Tooling.Features.Generate;
+using Morphir.Tooling.Features.TaskRecords;
 using Severity = Morphir.Compilation.DiagnosticSeverity;
+using FormatVersion = Morphir.IR.Versioning.FormatVersion;
 
 namespace Morphir.Tooling.Features.Compile;
 
-/// <summary>Publishes the written IR of a successful compile.</summary>
+/// <summary>Starts the publication of one compile. The runner starts it when the settings are resolved.</summary>
 public interface ICompilePublisher
 {
-    /// <summary>Publishes <paramref name="ir"/>, the exact bytes that the writer wrote.</summary>
-    Task<Checked<PublishedCompile>> PublishAsync(CompileSettings settings, ReadOnlyMemory<byte> ir, CancellationToken ct);
+    /// <summary>
+    /// Starts a compile run: it takes the task's exclusive lock, replaces the earlier record with a tombstone
+    /// and clears <c>.dest</c>. Dispose the publication to release the lock.
+    /// </summary>
+    Task<Checked<ICompilePublication>> BeginAsync(CompileSettings settings, CancellationToken ct);
+}
+
+/// <summary>What a successful compile publishes.</summary>
+/// <param name="Language">The source language, for example <c>fsharp</c>.</param>
+/// <param name="IrVersion">The format version of the written IR.</param>
+/// <param name="ProjectFile">The absolute project file that supplied the sources, or null.</param>
+/// <param name="Ir">The exact bytes that the writer wrote.</param>
+public sealed record CompilePublishRequest(string Language, FormatVersion IrVersion, string? ProjectFile, ReadOnlyMemory<byte> Ir);
+
+/// <summary>A started compile run that holds the task's exclusive lock until it is disposed.</summary>
+public interface ICompilePublication : IDisposable
+{
+    /// <summary>Writes the IR and the completed record, then installs the IR to <c>-o</c> when it is set.</summary>
+    Task<Checked<PublishedCompile>> PublishAsync(CompilePublishRequest request, CancellationToken ct);
 }
 
 /// <summary>
-/// Writes the IR to <c>&lt;out root&gt;/compile.dest/morphir-ir.json</c> with a replace that other readers never
-/// see half done. The task record store (task records, <c>.dest</c> clearing, tombstones, locks and
-/// <c>-o</c> installation) replaces this publisher.
+/// Publishes through the compile task record store (REC-1): <c>&lt;out&gt;/[&lt;member&gt;/]compile.dest/morphir-ir.json</c>,
+/// the schema-1 record <c>compile.json</c> beside it, and the <c>-o</c> install through the <c>installed</c> ledger.
+/// The run holds <c>compile.lock</c> from <see cref="BeginAsync"/> until the publication is disposed, so a reader
+/// such as <c>generate</c> waits for the run and then reads its IR.
 /// </summary>
-public sealed class OutRootCompilePublisher : ICompilePublisher
+public sealed class TaskRecordCompilePublisher(TaskStoreOptions options) : ICompilePublisher
 {
-    /// <summary>The task directory of a compile under the out root.</summary>
-    public const string Destination = "compile.dest";
-
-    /// <summary>The file name of the published IR.</summary>
+    /// <summary>The file name of the published IR in <c>compile.dest</c>.</summary>
     public const string IrFile = "morphir-ir.json";
 
+    /// <summary>A publisher whose waiting line and warnings go to stderr.</summary>
+    public TaskRecordCompilePublisher() : this(new TaskStoreOptions()) { }
+
     /// <inheritdoc />
-    public async Task<Checked<PublishedCompile>> PublishAsync(CompileSettings settings, ReadOnlyMemory<byte> ir, CancellationToken ct)
+    public async Task<Checked<ICompilePublication>> BeginAsync(CompileSettings settings, CancellationToken ct)
     {
-        ct.ThrowIfCancellationRequested();
-        var directory = Path.Combine(settings.OutDirectory, Destination);
-        var target = Path.Combine(directory, IrFile);
-        var temporary = Path.Combine(directory, $".{IrFile}.{Guid.NewGuid():N}.tmp");
-        try
+        ArgumentNullException.ThrowIfNull(settings);
+        var place = new CompileTaskPlace(settings.OutRoot, settings.Member, settings.MorphirHome);
+        return await place.Store(options).BeginAsync(ct) switch
         {
-            Directory.CreateDirectory(directory);
-            await File.WriteAllBytesAsync(temporary, ir, ct);
-            File.Move(temporary, target, overwrite: true);
-            return Checked<PublishedCompile>.Pass(new PublishedCompile(target));
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        {
-            TryDelete(temporary);
-            return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
-                $"The IR could not be published to '{target}': {error.Message}", null)]);
-        }
-        catch (OperationCanceledException)
-        {
-            TryDelete(temporary);
-            throw;
-        }
+            Outcome<CompileTaskRun>.Success started => Checked<ICompilePublication>.Pass(new Publication(started.Value, settings)),
+            Outcome<CompileTaskRun>.Failure failed => Checked<ICompilePublication>.Fail(TaskDiagnostics.Of(failed.Error, ct)),
+            _ => throw new System.Diagnostics.UnreachableException(),
+        };
     }
 
-    private static void TryDelete(string path)
+    private sealed class Publication(CompileTaskRun run, CompileSettings settings) : ICompilePublication
     {
-        try { File.Delete(path); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        public async Task<Checked<PublishedCompile>> PublishAsync(CompilePublishRequest request, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            var target = Path.Combine(run.Dest, IrFile);
+            try
+            {
+                await File.WriteAllBytesAsync(target, request.Ir, ct);
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
+                    $"The IR could not be written to '{target}': {error.Message}", null)]);
+            }
+
+            var ir = IrDescriptor.Create(RecordPath.Parse(IrFile), IrLayout.SingleFile, IrStorageFormat.Json, request.IrVersion);
+            if (run.Complete(new CompileProduct(request.Language, ir, request.ProjectFile)) is Outcome<TaskRecord>.Failure recordFailure)
+                return Checked<PublishedCompile>.Fail(TaskDiagnostics.Of(recordFailure.Error, ct));
+
+            if (settings.Output is not { } output) return Checked<PublishedCompile>.Pass(new PublishedCompile(target, []));
+            return await run.InstallAsync(output.Value, ct) switch
+            {
+                Outcome<InstallReport>.Success installed => Checked<PublishedCompile>.Pass(new PublishedCompile(target,
+                    [.. installed.Value.Copied.Select(entry => Path.Combine(installed.Value.Target, entry.Replace('/', Path.DirectorySeparatorChar)))])),
+                Outcome<InstallReport>.Failure failed => Checked<PublishedCompile>.Fail(TaskDiagnostics.Of(failed.Error, ct)),
+                _ => throw new System.Diagnostics.UnreachableException(),
+            };
+        }
+
+        public void Dispose() => run.Dispose();
+    }
+}
+
+/// <summary>Turns task record failures into compile diagnostics.</summary>
+internal static class TaskDiagnostics
+{
+    /// <summary>
+    /// One error for each failure diagnostic. A cancelled failure throws <see cref="OperationCanceledException"/>, so the
+    /// runner reports it as a cancellation (exit code 130).
+    /// </summary>
+    public static ImmutableArray<Diagnostic> Of(GenerationFailure failure, CancellationToken ct)
+    {
+        if (failure.Kind == GenerationFailureKind.Cancelled) throw new OperationCanceledException(ct);
+        return [.. failure.Diagnostics.Select(diagnostic => Diagnostic.Create(Severity.Error,
+            DiagnosticCode.TryParse(diagnostic.Code, out var code, out _) ? code : CompileCodes.Failed, diagnostic.Message, null))];
     }
 }

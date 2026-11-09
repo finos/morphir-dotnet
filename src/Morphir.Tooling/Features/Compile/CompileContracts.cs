@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using Morphir.Compilation;
 using Morphir.IR.Model;
+using Morphir.Tooling.Features.TaskRecords;
 
 namespace Morphir.Tooling.Features.Compile;
 
@@ -134,6 +135,10 @@ public sealed record CompileOverrides
     public string? Extension { get; init; }
     /// <summary><c>--types-only</c>, which this build does not implement.</summary>
     public bool TypesOnly { get; init; }
+    /// <summary><c>-o/--output</c>: the directory that receives an installed copy of the IR.</summary>
+    public string? Output { get; init; }
+    /// <summary><c>--out-dir</c>: the out root, before <c>MORPHIR_OUT_DIR</c> and <c>workspace.out_dir</c>.</summary>
+    public string? OutDir { get; init; }
 }
 
 /// <summary>The directory and environment of one invocation.</summary>
@@ -195,8 +200,16 @@ public sealed record CompileSettings
     public ImmutableArray<string> UnreadProjectFileKeys { get; init; } = [];
     /// <summary>The project root, or null outside any project.</summary>
     public string? ProjectRoot { get; init; }
-    /// <summary>The absolute out root, for example <c>&lt;project&gt;/.morphir/out</c>.</summary>
-    public required string OutDirectory { get; init; }
+    /// <summary>The out root of the workspace (REC-1), for example <c>&lt;workspace&gt;/.morphir/out</c>.</summary>
+    public required OutRoot OutRoot { get; init; }
+    /// <summary>The member path of the project below the out root. The root member when there is no workspace.</summary>
+    public required MemberPath Member { get; init; }
+    /// <summary>The Morphir home, which holds the <c>-o</c> install locks, or null when it is not known.</summary>
+    public string? MorphirHome { get; init; }
+    /// <summary>The absolute <c>-o</c> target, or null when the IR is not installed.</summary>
+    public Setting<string>? Output { get; init; }
+    /// <summary>The absolute out root.</summary>
+    public string OutDirectory => OutRoot.Path;
     /// <summary>The invocation directory.</summary>
     public required string WorkingDirectory { get; init; }
 
@@ -209,6 +222,7 @@ public sealed record CompileSettings
         origins.Add(("irVersion", IrVersion.Origin));
         if (ExposedModules is { } exposed) origins.Add(("exposedModules", exposed.Origin));
         if (Extension is { } extension) origins.Add(("extension", extension.Origin));
+        if (Output is { } output) origins.Add(("output", output.Origin));
         switch (Sources)
         {
             case SourceRequest.ProjectFile file: origins.Add(("projectFile", file.Origin)); break;
@@ -227,11 +241,10 @@ public sealed record SelectedSources(SourceSelection Selection, string AbsoluteR
         Selection.Documents.Select(document => Path.GetFullPath(Path.Combine(AbsoluteRoot, document))).ToImmutableArray();
 }
 
-/// <summary>A captured document: its root-relative URI and its text.</summary>
-public sealed record CapturedDocument(string Uri, string Text);
-
 /// <summary>Where the written IR went.</summary>
-public sealed record PublishedCompile(string IrPath);
+/// <param name="IrPath">The absolute IR file in <c>compile.dest</c>.</param>
+/// <param name="Installed">The absolute files that the <c>-o</c> install of this run holds, or none.</param>
+public sealed record PublishedCompile(string IrPath, ImmutableArray<string> Installed);
 
 /// <summary>What a successful compile produced. Diagnostics travel on the events and the fold, not here.</summary>
 public sealed record CompileSuccess(string Language, string Frontend, SourceFormatVersion IrVersion,
@@ -346,12 +359,4 @@ public static class CompileCodes
     public static readonly DiagnosticCode NoDocuments = DiagnosticCode.Create("sources.no_documents");
     /// <summary>A document is outside the source root.</summary>
     public static readonly DiagnosticCode OutsideRoot = DiagnosticCode.Create("sources.outside_root");
-    /// <summary>A source is a link or a special file.</summary>
-    public static readonly DiagnosticCode LinkedSource = DiagnosticCode.Create("sources.linked");
-    /// <summary>A source is not valid UTF-8.</summary>
-    public static readonly DiagnosticCode InvalidEncoding = DiagnosticCode.Create("sources.invalid_encoding");
-    /// <summary>A source is larger than the capture limit.</summary>
-    public static readonly DiagnosticCode TooLarge = DiagnosticCode.Create("sources.too_large");
-    /// <summary>A source could not be read.</summary>
-    public static readonly DiagnosticCode ReadFailed = DiagnosticCode.Create("sources.read_failed");
 }

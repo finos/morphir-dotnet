@@ -209,7 +209,9 @@ public sealed class CompileSteps : IDisposable
         return report.RootElement.GetProperty("diagnostics").EnumerateArray()
             .Select(diagnostic => (
                 diagnostic.GetProperty("code").GetString()!,
-                diagnostic.TryGetProperty("location", out var location) ? location.GetProperty("uri").GetString() : null))
+                diagnostic.TryGetProperty("location", out var location) && location.ValueKind == JsonValueKind.Object
+                    ? location.GetProperty("uri").GetString()
+                    : null))
             .ToArray();
     }
 

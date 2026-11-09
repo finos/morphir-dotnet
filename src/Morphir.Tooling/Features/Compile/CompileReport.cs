@@ -88,7 +88,7 @@ public sealed record CompileReport(
         var irVersion = result.Settings?.IrVersion.Value.Text;
         return result.Conclusion.Match(
             success => new CompileReport(true, 0, success.Language, success.Frontend, success.IrVersion.Text,
-                SourcesOf(success.Sources, result.Settings!.WorkingDirectory), [.. success.Modules], success.Publication.IrPath, [],
+                SourcesOf(success.Sources, result.Settings!.WorkingDirectory), [.. success.Modules], success.Publication.IrPath, [.. success.Publication.Installed],
                 diagnostics, null, origins),
             failure => new CompileReport(false, failure.Kind.ExitCode(), language, failure.Frontend, irVersion,
                 failure.Sources is { } sources ? SourcesOf(sources, result.Settings!.WorkingDirectory) : null, [], null, [],

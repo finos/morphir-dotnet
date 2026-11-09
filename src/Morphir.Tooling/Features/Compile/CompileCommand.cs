@@ -54,6 +54,8 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     private readonly Option<bool> _json = new("--json") { Description = "Output one JSON report" };
     private readonly Option<bool> _jsonLines = new("--json-lines") { Description = "Output compile events as JSON Lines, ending with the report" };
     private readonly Option<bool> _typesOnly = new("--types-only") { Description = "Not implemented; rejected" };
+    private readonly Option<string?> _output = new("--output", "-o") { Description = "Install a copy of the IR in this directory. Files that an earlier install did not write stay unchanged" };
+    private readonly Option<string?> _outDir = new("--out-dir") { Description = "Out root for the compile task; overrides MORPHIR_OUT_DIR and workspace.out_dir" };
 
     private readonly IServiceProvider _services;
 
@@ -61,7 +63,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     public CompileCommand(IServiceProvider services) : base("compile", "Compile source code to Morphir IR")
     {
         _services = services;
-        foreach (var option in new Option[] { _language, _extension, _input, _projectFile, _packageName, _config, _project, _irVersion, _json, _jsonLines, _typesOnly })
+        foreach (var option in new Option[] { _language, _extension, _input, _projectFile, _packageName, _config, _project, _irVersion, _json, _jsonLines, _typesOnly, _output, _outDir })
             Options.Add(option);
         SetAction(async (result, ct) =>
         {
@@ -103,6 +105,8 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
         Project = result.GetValue(_project),
         IrVersion = result.GetValue(_irVersion),
         TypesOnly = result.GetValue(_typesOnly),
+        Output = result.GetValue(_output),
+        OutDir = result.GetValue(_outDir),
     };
 
     /// <inheritdoc />

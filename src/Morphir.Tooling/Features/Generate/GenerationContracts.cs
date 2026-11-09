@@ -66,9 +66,24 @@ public abstract record RequestedTarget
         _ => throw new UnreachableException()
     };
 }
-public sealed record InvocationContext(string WorkingDirectory);
+public sealed record InvocationContext(string WorkingDirectory)
+{
+    /// <summary>The environment of the invocation, or null for the environment of the current process.</summary>
+    public IReadOnlyDictionary<string, string>? Environment { get; init; }
+}
+
 public sealed record GenerateOverrides(string? Input = null, string? Target = null, string? Output = null,
-    string? InputFormat = null, IReadOnlyList<string>? Options = null);
+    string? InputFormat = null, IReadOnlyList<string>? Options = null)
+{
+    /// <summary><c>--project</c>: the project whose compile record gives the input when <c>--input</c> is absent.</summary>
+    public string? Project { get; init; }
+
+    /// <summary><c>--config</c>: an explicitly selected configuration file of that project.</summary>
+    public string? Config { get; init; }
+
+    /// <summary><c>--out-dir</c>: the out root that holds the compile record.</summary>
+    public string? OutDir { get; init; }
+}
 public sealed record ModelInput(string Path, InputFormat Format = InputFormat.Auto);
 
 public sealed record ModelReadLimits(long MaxBytes = 64 * 1024 * 1024, int MaxDepth = 128,
@@ -84,7 +99,34 @@ public static class GenerationDefaults
 
 public sealed record PublicationPolicy(string OutputDirectory, string ManifestName = GenerationDefaults.OwnershipManifest);
 public sealed record GenerationSettings(ModelInput Input, RequestedTarget Target, BackendOptions Options,
-    PublicationPolicy Publication, ModelReadLimits Limits);
+    PublicationPolicy Publication, ModelReadLimits Limits)
+{
+    /// <summary>
+    /// A hold on the input, or null. <c>generate</c> releases it when model loading ends, after it admits the
+    /// loaded model through it. The input of a prior compile holds the task's shared lock this way (REC-1).
+    /// </summary>
+    public ModelInputLease? InputLease { get; init; }
+}
+
+/// <summary>
+/// A hold on a model input from settings resolution until model loading ends. It can refuse or adjust the loaded
+/// model, for example to check the format version that a compile record names.
+/// </summary>
+public abstract class ModelInputLease : IDisposable
+{
+    /// <summary>Admits the loaded model. The default admits it unchanged.</summary>
+    public virtual Outcome<LoadedModel> Admit(LoadedModel model) => new Outcome<LoadedModel>.Success(model);
+
+    /// <summary>Releases the hold.</summary>
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Releases the hold.</summary>
+    protected abstract void Dispose(bool disposing);
+}
 
 /// <summary>Owns JSON values independently of their source document and the caller's dictionary.</summary>
 public sealed class BackendOptions
