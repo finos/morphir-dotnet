@@ -549,6 +549,13 @@
           "Morphir.Models": "[1.0.0, )"
         }
       },
+      "morphir.compilation": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.configuration": {
         "type": "Project",
         "dependencies": {
@@ -629,6 +636,7 @@
           "Microsoft.Extensions.Hosting": "[10.0.14, )",
           "Morphir.CodeGeneration.CSharp": "[1.0.0, )",
           "Morphir.CodeGeneration.FSharp": "[1.0.0, )",
+          "Morphir.Compilation": "[1.0.0, )",
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Configuration.IO": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
