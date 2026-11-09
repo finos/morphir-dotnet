@@ -39,7 +39,7 @@ public sealed class ConsoleCompileOutput : ICompileOutput
 public sealed class CompileCommand : Command, IMorphirParseErrorHandler
 {
     private readonly Option<string?> _language = new("--language", "-l") { Description = "Source language, for example fsharp" };
-    private readonly Option<string?> _extension = new("--extension") { Description = "Frontend extension; overrides [frontend.<language>].extension (not yet supported)" };
+    private readonly Option<string?> _extension = new("--extension") { Description = "Frontend extension; overrides [frontend.<language>].extension" };
     private readonly Option<string[]> _input = new("--input", "-i")
     {
         Description = "Source files in compilation order, or one directory",
