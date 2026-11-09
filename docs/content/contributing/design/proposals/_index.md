@@ -13,4 +13,4 @@ A proposal adds only what its upstream contract does not have. It follows the co
 
 | Proposal | Upstream target | Status |
 | --- | --- | --- |
-| [The validateModel payload for MEP](mep-validate-model.md) | `finos/morphir`, `spec/mep` | Upstream as [finos/morphir#1139](https://github.com/finos/morphir/pull/1139), ready for review; decisions VAL-1 to VAL-6 |
+| [The validateModel payload for MEP](mep-validate-model.md) | `finos/morphir`, `spec/mep` | Merged upstream: [finos/morphir#1139](https://github.com/finos/morphir/pull/1139) as `acc529aac`; decisions VAL-1 to VAL-6 |

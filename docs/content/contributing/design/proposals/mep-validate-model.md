@@ -7,7 +7,7 @@ description: >
 
 # Proposal: the validateModel payload for MEP
 
-Status: Upstream as the pull request [finos/morphir#1139](https://github.com/finos/morphir/pull/1139), ready for review (head `5e0f8676ee63762bfed146b24e0037177f67778a`). The decisions VAL-1 to VAL-6 of 2026-11-09 answer the open questions of the first draft (see [Decisions](#decisions)). The pull request was opened by task 7.2 of [`add-mep-core`](https://github.com/finos/morphir-dotnet/blob/main/openspec/changes/archive/2026-11-09-add-mep-core/tasks.md).
+Status: Merged upstream. The pull request [finos/morphir#1139](https://github.com/finos/morphir/pull/1139) (head `5e0f8676ee63762bfed146b24e0037177f67778a`) merged into `main` of `finos/morphir` as `acc529aaca20be76a9e0675dde2ffac7cf39eb2d` on 2026-11-09. The decisions VAL-1 to VAL-6 of 2026-11-09 answer the open questions of the first draft (see [Decisions](#decisions)). The pull request was opened by task 7.2 of [`add-mep-core`](https://github.com/finos/morphir-dotnet/blob/main/openspec/changes/archive/2026-11-09-add-mep-core/tasks.md).
 
 | Item | Value |
 | --- | --- |
@@ -927,6 +927,6 @@ Open: how an FQName becomes a model-node IRI. finos/morphir#1144 decides this.
 
 | Repository | Commit | Files |
 | --- | --- | --- |
-| `finos/morphir` | `cde7722eb35987042a49dc646a846d693b0bd7f6` (pin); `ecb3c781c3cc334821588392cf81ee1346455090` (`main`, no `spec/mep` change); `5e0f8676ee63762bfed146b24e0037177f67778a` (head of #1139) | `spec/mep/README.md`, `spec/mep/model-transport.md`, `spec/mep/smithy/README.md`, `spec/mep/smithy/model/*.smithy`, `spec/mep/smithy/transcripts/*`, `spec/mep/mck/README.md`, `spec/mep/mck/model-transport.cases.json`, `spec/mep/contract/src/mep.gleam` |
+| `finos/morphir` | `cde7722eb35987042a49dc646a846d693b0bd7f6` (pin); `ecb3c781c3cc334821588392cf81ee1346455090` (`main`, no `spec/mep` change); `5e0f8676ee63762bfed146b24e0037177f67778a` (head of #1139); `acc529aaca20be76a9e0675dde2ffac7cf39eb2d` (merge of #1139 into `main`) | `spec/mep/README.md`, `spec/mep/model-transport.md`, `spec/mep/smithy/README.md`, `spec/mep/smithy/model/*.smithy`, `spec/mep/smithy/transcripts/*`, `spec/mep/mck/README.md`, `spec/mep/mck/model-transport.cases.json`, `spec/mep/contract/src/mep.gleam` |
 | `finos/morphir-rust` | `99c0b67637afcdae011cd7c9e93b9fd13bddd9cb` | `crates/morphir-extension-sdk/src/{lifecycle.rs, protocol.rs, lib.rs, types.rs, traits.rs, model/*.rs}`, `crates/morphir-host/src/{session_core.rs, jsonrpc.rs, negotiated.rs}`, `crates/morphir-host-native/src/process/frame.rs` |
 | `finos/morphir-moonbit` | `28271c61379523f28312f1989baed4f368722bcd` | `pkgs/morphir-moonbit/mep/{session.mbt, model_transport.mbt, model_input.mbt, model_budget.mbt, framing.mbt}`, `pkgs/morphir-host/worker/{session.mbt, README.mbt.md}` |
