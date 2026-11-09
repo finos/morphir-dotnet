@@ -126,7 +126,10 @@ type private Recording(inner: Stream) =
 
 [<Tests>]
 let tests =
-    testList
+    Transcripts.ensureThreads.Force()
+
+    testSequenced
+    <| testList
         "MEP session"
         [ testCase "requests before initialization get -32014; describe and initialize are allowed"
           <| fun _ ->

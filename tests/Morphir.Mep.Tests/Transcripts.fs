@@ -60,3 +60,11 @@ let read name =
 /// The three pinned transcripts.
 let all =
     [ "session-model-transport.md"; "lifecycle-violations.md"; "protocol-errors.md" ]
+
+/// The stream tests block on Wait and Result while handlers continue on the thread pool. With Expecto's parallel
+/// test lists on a slow runner, the pool can run out of threads and delay a continuation past a test timeout.
+/// The stream test lists call this before they run, and run their own tests one at a time.
+let ensureThreads =
+    lazy
+        (let workers, ports = System.Threading.ThreadPool.GetMinThreads()
+         System.Threading.ThreadPool.SetMinThreads(max workers 64, max ports 64) |> ignore)

@@ -84,7 +84,10 @@ let private guest (cancelled: TaskCompletionSource<unit>) =
 
 [<Tests>]
 let tests =
-    testList
+    Transcripts.ensureThreads.Force()
+
+    testSequenced
+    <| testList
         "MEP connection"
         [ for id in [ "18446744073709551615"; "\"req-abc\""; "\"\""; "0" ] do
               testCase $"a cancelled request with id {id} gets -32800 and its handler token cancels"
