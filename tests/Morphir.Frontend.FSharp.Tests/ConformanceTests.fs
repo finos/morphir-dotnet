@@ -274,11 +274,13 @@ let tests =
                             Value = "Pricing.seats"
                             Arguments = "[{\"plate\": \"AB-1\"}, 2]"
                             Result = "{\"Just\": 2}"
+                            Codec = ValueCodec.TaggedObjects
                         }
                         {
                             Value = "Rates.Daily.rate"
                             Arguments = "[]"
                             Result = "\"1.10\""
+                            Codec = ValueCodec.TaggedObjects
                         }
                     ]
                     "The value, the arguments and the result keep their text"
@@ -335,6 +337,131 @@ let tests =
                         "Calls need a successful outcome"
             )
         testCase
+            "The call suffix, the codec step, the scenario tag and the feature tag select the value codec"
+            (fun () ->
+                let codecs source =
+                    readCalls source
+                    |> requireOk
+                    |> fun suite ->
+                        suite.Cases.Head.Calls
+                        |> List.map (fun call -> call.Codec)
+
+                let call = "calling \"Pricing.size\" with [4] returns [\"large\",4]"
+
+                let featureTag codec (source: string) =
+                    source.Replace(
+                        "@suite:frontend-fsharp @refusal",
+                        $"@suite:frontend-fsharp @refusal @value-codec:{codec}"
+                    )
+
+                let scenarioTag codec (source: string) =
+                    source.Replace(
+                        "  Scenario Outline:",
+                        $"  @value-codec:{codec}\n  Scenario Outline:"
+                    )
+
+                Expect.equal
+                    (codecs (withCalls [ call ]))
+                    [ ValueCodec.TaggedObjects ]
+                    "Value codec 2 is the default"
+
+                Expect.equal
+                    (codecs (featureTag 1 (withCalls [ call ])))
+                    [ ValueCodec.ElmDataCodec ]
+                    "A feature tag applies to its scenarios"
+
+                Expect.equal
+                    (codecs (scenarioTag 2 (featureTag 1 (withCalls [ call ]))))
+                    [ ValueCodec.TaggedObjects ]
+                    "A scenario tag overrides the feature tag"
+
+                Expect.equal
+                    (codecs (scenarioTag 2 (withCalls [ "calls use value codec 1"; call ])))
+                    [ ValueCodec.ElmDataCodec ]
+                    "The codec step overrides the tags"
+
+                let suite =
+                    readCalls (
+                        withCalls [
+                            "calls use value codec 1"
+                            call
+                            "calling \"Pricing.size\" with [4] returns {\"Large\":4} using value codec 2"
+                        ]
+                    )
+                    |> requireOk
+
+                Expect.equal
+                    suite.Cases.Head.Calls
+                    [
+                        {
+                            Value = "Pricing.size"
+                            Arguments = "[4]"
+                            Result = "[\"large\",4]"
+                            Codec = ValueCodec.ElmDataCodec
+                        }
+                        {
+                            Value = "Pricing.size"
+                            Arguments = "[4]"
+                            Result = "{\"Large\":4}"
+                            Codec = ValueCodec.TaggedObjects
+                        }
+                    ]
+                    "A call suffix overrides the codec step, and the result text excludes the suffix"
+            )
+        testCase
+            "Malformed value codec declarations are refused"
+            (fun () ->
+                let call = "calling \"Pricing.size\" with [4] returns 4"
+
+                let refused (expected: string) (source: string) =
+                    match readCalls source with
+                    | Ok _ -> failtest $"The declaration must be refused: {expected}"
+                    | Error issues ->
+                        Expect.exists
+                            issues
+                            (fun issue -> issue.Code = expected)
+                            (sprintf "Expected %s in %A" expected issues)
+
+                withCalls [ call ]
+                |> fun source -> source.Replace("@refusal", "@refusal @value-codec:3")
+                |> refused "mck.unsupported_tag"
+
+                withCalls [ call ]
+                |> fun source ->
+                    source.Replace("@refusal", "@refusal @value-codec:1 @value-codec:2")
+                |> refused "mck.invalid_case"
+
+                for steps in
+                    [
+                        [ call; "calls use value codec 1" ]
+                        [ "calls use value codec 1"; "calls use value codec 1"; call ]
+                        [ "calls use value codec 1" ]
+                        [ "calls use value codec 3"; call ]
+                        [
+                            call
+                            + " using value codec 0"
+                        ]
+                    ] do
+                    withCalls steps
+                    |> refused "mck.invalid_case"
+
+                match read (withCalls [ "calls use value codec 1" ]) with
+                | Ok _ -> failtest "Vocabulary 1.0 has no value codec step"
+                | Error issues ->
+                    Expect.exists
+                        issues
+                        (fun issue -> issue.Code = "mck.unknown_step")
+                        "The codec step is outside vocabulary 1.0"
+
+                match read (feature.Replace("@refusal", "@refusal @value-codec:2")) with
+                | Ok _ -> failtest "Vocabulary 1.0 has no value codec tag"
+                | Error issues ->
+                    Expect.exists
+                        issues
+                        (fun issue -> issue.Code = "mck.unsupported_tag")
+                        "The codec tag is outside vocabulary 1.0"
+            )
+        testCase
             "The behavioral verdict comes from the call checker"
             (fun () ->
                 let suite =
@@ -358,6 +485,7 @@ let tests =
                             Value = "Pricing.total"
                             Arguments = "[1]"
                             Result = "2"
+                            Codec = ValueCodec.TaggedObjects
                         }
                     ]
                     "The checker gets the calls of the case"

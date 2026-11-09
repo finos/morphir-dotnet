@@ -45,13 +45,42 @@ type ExpectedOutcome = {
     ModelJson: string option
 }
 
+/// The JSON encoding of the values in a call observation. A case selects it with the
+/// @value-codec:N tag, the value codec step or the suffix of a call step.
+[<RequireQualifiedAccess>]
+type ValueCodec =
+    /// Value codec 1: the shape of the morphir-elm DataCodec, as in morphir-tests.json. A
+    /// constructor is an array with its camelCase name first, and Maybe is null or the value.
+    | ElmDataCodec
+    /// Value codec 2: a constructor is tagged by its TitleCase name, "Small" or {"Large": 4}.
+    | TaggedObjects
+
+    /// The version number of the codec, as cases write it.
+    member this.Version =
+        match this with
+        | ElmDataCodec -> 1
+        | TaggedObjects -> 2
+
+    /// The codec that applies when a case declares none.
+    static member Default = TaggedObjects
+
+    /// Parses a codec version number, as cases write it.
+    static member Parse(text: string) : Result<ValueCodec, string> =
+        match text with
+        | "1" -> Ok ElmDataCodec
+        | "2" -> Ok TaggedObjects
+        | _ -> Error $"Value codec {text} is not supported. The supported value codecs are 1 and 2"
+
+    override this.ToString() = $"value codec {this.Version}"
+
 /// One call observation of a case: the value that is called, its arguments as a JSON array
-/// (one element for each parameter) and the expected result. JSON texts are kept exactly as
-/// the case writes them.
+/// (one element for each parameter), the expected result and the value codec of both JSON
+/// texts. JSON texts are kept exactly as the case writes them.
 type CallExpectation = {
     Value: string
     Arguments: string
     Result: string
+    Codec: ValueCodec
 }
 
 type ConformanceCase = {

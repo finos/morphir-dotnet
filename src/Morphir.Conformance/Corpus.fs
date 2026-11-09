@@ -64,14 +64,28 @@ module Corpus =
         "^compilation succeeds with no error diagnostics$"
         "^the IR equals \"([^\"]+)\"$"
         "^calling \"([^\"]+)\" with (.+)$"
+        "^calls use value codec (.*)$"
     ]
 
     /// The vocabulary versions that this runner reads. Version 1.1 adds the call step.
     let private vocabularies = [ "1.0"; "1.1" ]
 
-    /// Splits a call step into the called value, the argument array and the result. The JSON
-    /// texts are kept exactly as written.
-    let private callStep (text: string) : Result<CallExpectation, string> =
+    /// The value codec that a feature or scenario tag declares, or None.
+    let private taggedCodec (values: Tag seq) =
+        values
+        |> Seq.tryPick (fun tag ->
+            if tag.Name.StartsWith("@value-codec:", System.StringComparison.Ordinal) then
+                match ValueCodec.Parse(tag.Name.Substring "@value-codec:".Length) with
+                | Ok codec -> Some codec
+                | Error _ -> None
+            else
+                None
+        )
+
+    /// Splits a call step into the called value, the argument array, the result and the
+    /// value codec. A suffix "using value codec N" selects the codec of the call; otherwise
+    /// the codec is the given one. The JSON texts are kept exactly as written.
+    let private callStep (codec: ValueCodec) (text: string) : Result<CallExpectation, string> =
         let matched = Regex.Match(text, stepPatterns[6])
 
         if not matched.Success then
@@ -114,15 +128,24 @@ module Corpus =
                     if not (rest.StartsWith(separator, System.StringComparison.Ordinal)) then
                         Error "A call step ends with returns and the expected JSON result"
                     else
-                        let result = rest.Substring separator.Length
+                        let returned = rest.Substring separator.Length
+                        let suffix = Regex.Match(returned, "^(.*) using value codec (.*)$")
+
+                        let result, selected =
+                            if suffix.Success then
+                                suffix.Groups[1].Value, ValueCodec.Parse suffix.Groups[2].Value
+                            else
+                                returned, Ok codec
+
                         use document = JsonDocument.Parse result
 
-                        Ok
-                            {
-                                Value = matched.Groups[1].Value
-                                Arguments = Encoding.UTF8.GetString(bytes, 0, length)
-                                Result = result
-                            }
+                        selected
+                        |> Result.map (fun selected -> {
+                            Value = matched.Groups[1].Value
+                            Arguments = Encoding.UTF8.GetString(bytes, 0, length)
+                            Result = result
+                            Codec = selected
+                        })
             with :? JsonException as error ->
                 Error(
                     "Invalid JSON in the call step: "
@@ -178,6 +201,15 @@ module Corpus =
                 then
                     invalid tag.Location.Line "@excluded is only valid on Examples"
                 elif
+                    tag.Name.StartsWith("@value-codec:", System.StringComparison.Ordinal)
+                    && options.VocabularyVersion
+                       <> "1.0"
+                    && not allowExcluded
+                then
+                    match ValueCodec.Parse(tag.Name.Substring "@value-codec:".Length) with
+                    | Ok _ -> ()
+                    | Error message -> add "mck.unsupported_tag" tag.Location.Line message
+                elif
                     not (
                         tag.Name = "@suite:"
                                    + options.Suite
@@ -196,11 +228,22 @@ module Corpus =
                         ("Tag is outside the seed vocabulary: "
                          + tag.Name)
 
+        let codecTags (line: int) (values: Tag seq) =
+            if
+                values
+                |> Seq.filter (fun tag ->
+                    tag.Name.StartsWith("@value-codec:", System.StringComparison.Ordinal)
+                )
+                |> Seq.length > 1
+            then
+                invalid line "A feature or scenario declares at most one value codec"
+
         if isNull document.Feature then
             invalid 1 "A feature is required"
         else
             let feature = document.Feature
             tags false feature.Tags
+            codecTags feature.Location.Line feature.Tags
 
             if
                 not (
@@ -223,6 +266,7 @@ module Corpus =
                 match child with
                 | :? Scenario as scenario ->
                     tags false scenario.Tags
+                    codecTags scenario.Location.Line scenario.Tags
 
                     if
                         not (
@@ -248,13 +292,15 @@ module Corpus =
                             invalid step.Location.Line "This step does not take an argument"
 
                         let call = Regex.IsMatch(step.Text, stepPatterns[6])
+                        let codec = Regex.Match(step.Text, stepPatterns[7])
 
                         if
                             not (
                                 stepPatterns
                                 |> List.exists (fun pattern -> Regex.IsMatch(step.Text, pattern))
                             )
-                            || (call
+                            || ((call
+                                 || codec.Success)
                                 && options.VocabularyVersion = "1.0")
                         then
                             add
@@ -265,7 +311,11 @@ module Corpus =
                                  + ": "
                                  + step.Text)
                         elif call then
-                            match callStep step.Text with
+                            match callStep ValueCodec.Default step.Text with
+                            | Ok _ -> ()
+                            | Error message -> invalid step.Location.Line message
+                        elif codec.Success then
+                            match ValueCodec.Parse codec.Groups[1].Value with
                             | Ok _ -> ()
                             | Error message -> invalid step.Location.Line message
 
@@ -335,6 +385,27 @@ module Corpus =
                         invalid
                             scenario.Location.Line
                             "A case needs exactly one compilation outcome"
+
+                    let callIndex =
+                        steps
+                        |> List.tryFindIndex (fun step -> Regex.IsMatch(step.Text, stepPatterns[6]))
+
+                    match
+                        steps
+                        |> List.indexed
+                        |> List.filter (fun (_, step) -> Regex.IsMatch(step.Text, stepPatterns[7]))
+                    with
+                    | [] -> ()
+                    | [ index, step ] ->
+                        match callIndex with
+                        | Some first when index < first -> ()
+                        | Some _ ->
+                            invalid
+                                step.Location.Line
+                                "The value codec step comes before the call steps"
+                        | None -> invalid step.Location.Line "The value codec step needs call steps"
+                    | _ ->
+                        invalid scenario.Location.Line "A scenario has at most one value codec step"
 
                     if
                         not (matching stepPatterns[6]).IsEmpty
@@ -536,9 +607,24 @@ module Corpus =
                                                 }
                                     ]
 
+                                    let codec =
+                                        steps
+                                        |> List.tryPick (fun step ->
+                                            let declared = Regex.Match(step.Text, stepPatterns[7])
+
+                                            if declared.Success then
+                                                ValueCodec.Parse declared.Groups[1].Value
+                                                |> Result.toOption
+                                            else
+                                                None
+                                        )
+                                        |> Option.orElse (taggedCodec scenario.Tags)
+                                        |> Option.orElse (taggedCodec document.Feature.Tags)
+                                        |> Option.defaultValue ValueCodec.Default
+
                                     let calls = [
                                         for step in steps do
-                                            match callStep step.Text with
+                                            match callStep codec step.Text with
                                             | Ok call -> yield call
                                             | Error _ -> ()
                                     ]

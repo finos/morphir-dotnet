@@ -5,7 +5,7 @@ Kit. Cases and expectations are product data, independent of the implementation
 under test. Do not record or regenerate expectations from compiler output.
 
 - [Vocabulary 1.1](steps/steps-1.md) defines every supported step and the
-  value encoding of call observations.
+  value codecs of call observations.
 - [F# frontend suite](suites/frontend-fsharp/) covers four IR versions and three
   source input kinds.
 - [Deviations](deviations.md) records the upstream compatibility decisions.
