@@ -351,14 +351,22 @@ module internal Planning =
         |> List.filter (fun symbolUse -> symbolUse.IsFromDefinition)
         |> List.map (fun symbolUse -> symbolUse.Symbol)
 
-    let private accessOf (accessibility: FSharpAccessibility) =
-        if
-            accessibility.IsPrivate
-            || accessibility.IsInternal
-        then
-            Access.Private
-        else
-            Access.Public
+    /// <summary>
+    /// The access of a declaration from its own <c>private</c> or <c>internal</c> keyword. The checked
+    /// symbol is not used, because its accessibility also includes the accessibility of the enclosing
+    /// module: a public value in an <c>internal</c> module is public in its private module.
+    /// </summary>
+    let private declaredAccess (access: SynAccess option) =
+        if isPrivate access then Access.Private else Access.Public
+
+    let rec private headAccess (pattern: SynPat) =
+        match pattern with
+        | SynPat.Named(accessibility = access)
+        | SynPat.LongIdent(accessibility = access) -> access
+        | SynPat.Paren(pat = inner)
+        | SynPat.Typed(pat = inner)
+        | SynPat.Attrib(pat = inner) -> headAccess inner
+        | _ -> None
 
     let rec private headIdentifier (pattern: SynPat) =
         match pattern with
@@ -432,7 +440,10 @@ module internal Planning =
                     for definition in definitions do
                         let (SynTypeDefn(
                             typeInfo = SynComponentInfo(
-                                longId = identifiers; xmlDoc = xmlDoc; typeParams = typeParameters)
+                                longId = identifiers
+                                xmlDoc = xmlDoc
+                                typeParams = typeParameters
+                                accessibility = typeAccess)
                             typeRepr = representation)) =
                             definition
 
@@ -553,7 +564,7 @@ module internal Planning =
 
                             yield {
                                 Name = name
-                                Access = accessOf entity.Accessibility
+                                Access = declaredAccess typeAccess
                                 Documentation = documentation xmlDoc
                                 Location = locate document ident.idRange
                                 Syntax = definition
@@ -617,7 +628,7 @@ module internal Planning =
 
                                 yield {
                                     Name = name
-                                    Access = accessOf value.Accessibility
+                                    Access = declaredAccess (headAccess head)
                                     Documentation = documentation xmlDoc
                                     Location = locate document ident.idRange
                                     Syntax = binding

@@ -3,6 +3,7 @@
 namespace Morphir.Conformance
 
 open System.Threading
+open System.Threading.Tasks
 open System.Text.Json
 
 module LibraryAdapter =
@@ -73,57 +74,94 @@ module Runner =
                         )
                 | None, _ -> Passed
 
-    let run (suite: CaseSet) (adapter: Adapter) (cancellationToken: CancellationToken) = task {
-        let results = ResizeArray<CaseResult>()
+    /// Runs every case through the adapter. A case with call observations also gets the
+    /// behavioral verdict from the checker. Without a checker, such a case fails, because its
+    /// behavior was not checked.
+    let runWith
+        (checker: CallChecker option)
+        (suite: CaseSet)
+        (adapter: Adapter)
+        (cancellationToken: CancellationToken)
+        =
+        task {
+            let results = ResizeArray<CaseResult>()
 
-        for case in suite.Cases do
-            cancellationToken.ThrowIfCancellationRequested()
+            for case in suite.Cases do
+                cancellationToken.ThrowIfCancellationRequested()
 
-            match case.Exclusion with
-            | Some reason ->
-                results.Add
-                    {
-                        Case = case
-                        Observation = None
-                        Verdict = Excluded reason
-                    }
-            | None ->
-                let! observation = adapter.Observe case.Input cancellationToken
-
-                match observation with
-                | Error error ->
+                match case.Exclusion with
+                | Some reason ->
                     results.Add
                         {
                             Case = case
-                            Observation = error.Partial
-                            Verdict = Failed error.Message
+                            Observation = None
+                            Verdict = Excluded reason
                         }
-                | Ok actual ->
-                    results.Add
-                        {
-                            Case = case
-                            Observation = Some actual
-                            Verdict = compare case.Expected actual
-                        }
+                | None ->
+                    let! observation = adapter.Observe case.Input cancellationToken
 
-        let results = Seq.toList results
-        let runner = typeof<CaseSet>.Assembly.GetName()
+                    match observation with
+                    | Error error ->
+                        results.Add
+                            {
+                                Case = case
+                                Observation = error.Partial
+                                Verdict = Failed error.Message
+                            }
+                    | Ok actual ->
+                        let structural = compare case.Expected actual
 
-        return {
-            RunnerName = runner.Name
-            RunnerVersion = runner.Version.ToString()
-            CaseSetSha256 = suite.Sha256
-            Implementation = adapter.Identity
-            Adapter = adapter.Name
-            Results = results
-            Qualified =
-                (results
-                 |> List.exists (fun result -> result.Verdict = Passed))
-                && (results
-                    |> List.forall (fun result ->
-                        match result.Verdict with
-                        | Failed _ -> false
-                        | _ -> true
-                    ))
+                        let! verdict =
+                            match structural, actual.ModelJson, checker with
+                            | Passed, Some model, Some checker when not case.Calls.IsEmpty -> task {
+                                let! checkedCalls =
+                                    checker.Check case.Input model case.Calls cancellationToken
+
+                                return
+                                    match checkedCalls with
+                                    | Ok() -> Passed
+                                    | Error difference -> Failed difference
+                              }
+                            | Passed, _, None when not case.Calls.IsEmpty ->
+                                Task.FromResult(
+                                    Failed
+                                        "The case has call observations, and this run has no call checker"
+                                )
+                            | verdict, _, _ -> Task.FromResult verdict
+
+                        results.Add
+                            {
+                                Case = case
+                                Observation = Some actual
+                                Verdict = verdict
+                            }
+
+            let results = Seq.toList results
+            let runner = typeof<CaseSet>.Assembly.GetName()
+
+            return {
+                RunnerName = runner.Name
+                RunnerVersion = runner.Version.ToString()
+                CaseSetSha256 = suite.Sha256
+                Implementation = adapter.Identity
+                Adapter = adapter.Name
+                VocabularyVersion = suite.VocabularyVersion
+                CallChecker =
+                    checker
+                    |> Option.map (fun checker -> checker.Name)
+                Results = results
+                Qualified =
+                    (results
+                     |> List.exists (fun result -> result.Verdict = Passed))
+                    && (results
+                        |> List.forall (fun result ->
+                            match result.Verdict with
+                            | Failed _ -> false
+                            | _ -> true
+                        ))
+            }
         }
-    }
+
+    /// Runs every case through the adapter, with no call checker.
+    let run suite adapter cancellationToken =
+        runWith None suite adapter cancellationToken

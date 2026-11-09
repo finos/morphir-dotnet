@@ -225,6 +225,44 @@ let tests =
             Expect.equal result.Modules.Head.Plan.Access Access.Private "private module"
         }
 
+        test "an internal module is private, and its declarations keep their own access" {
+            let result =
+                passed (
+                    plan [
+                        source "Rates.fs" [
+                            "namespace Acme.CarRental"
+                            "module internal Rates ="
+                            "    type Band = { Days: int }"
+                            "    type internal Code = { Text: string }"
+                            "    let daily = 42"
+                            "    let weekly (days: int) = days * daily"
+                            "    let internal secret = 1"
+                            "    let private hidden (days: int) = days"
+                        ]
+                    ]
+                )
+
+            let rates = find result [ [ "rates" ] ]
+            Expect.equal rates.Plan.Access Access.Private "internal module"
+
+            Expect.equal
+                (rates.Types
+                 |> List.map (fun planned -> words planned.Name, planned.Access))
+                [ [ "band" ], Access.Public; [ "code" ], Access.Private ]
+                "type access"
+
+            Expect.equal
+                (rates.Values
+                 |> List.map (fun value -> words value.Name, value.Access))
+                [
+                    [ "daily" ], Access.Public
+                    [ "weekly" ], Access.Public
+                    [ "secret" ], Access.Private
+                    [ "hidden" ], Access.Private
+                ]
+                "value access"
+        }
+
         test "nested modules have nested paths, in document and source order" {
             let result =
                 passed (

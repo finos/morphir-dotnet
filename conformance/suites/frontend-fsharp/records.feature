@@ -17,6 +17,7 @@ Feature: Compile a record type and a field access
     When it is compiled from <input> with IR version <version>
     Then compilation succeeds with no error diagnostics
     And the IR equals "expected/0100/ir-<version>.json"
+    And calling "Pricing.seats" with [{"plate":"AB-1","seats":2}] returns 2
 
     Examples:
       | input        | version |

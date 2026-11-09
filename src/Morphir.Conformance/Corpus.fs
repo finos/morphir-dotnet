@@ -63,7 +63,71 @@ module Corpus =
         "^compilation fails with diagnostics:$"
         "^compilation succeeds with no error diagnostics$"
         "^the IR equals \"([^\"]+)\"$"
+        "^calling \"([^\"]+)\" with (.+)$"
     ]
+
+    /// The vocabulary versions that this runner reads. Version 1.1 adds the call step.
+    let private vocabularies = [ "1.0"; "1.1" ]
+
+    /// Splits a call step into the called value, the argument array and the result. The JSON
+    /// texts are kept exactly as written.
+    let private callStep (text: string) : Result<CallExpectation, string> =
+        let matched = Regex.Match(text, stepPatterns[6])
+
+        if not matched.Success then
+            Error "This is not a call step"
+        elif
+            not (
+                Regex.IsMatch(
+                    matched.Groups[1].Value,
+                    "^[A-Z][A-Za-z0-9]*(\\.[A-Z][A-Za-z0-9]*)*\\.[a-z][A-Za-z0-9]*$"
+                )
+            )
+        then
+            Error "A called value is a module name and a value name, for example Pricing.seats"
+        else
+            let bytes = Encoding.UTF8.GetBytes matched.Groups[2].Value
+
+            try
+                let mutable reader = Utf8JsonReader(System.ReadOnlySpan bytes)
+
+                if
+                    not (reader.Read())
+                    || reader.TokenType
+                       <> JsonTokenType.StartArray
+                then
+                    Error "The call arguments are a JSON array, one element for each parameter"
+                else
+                    reader.Skip()
+                    let length = int reader.BytesConsumed
+
+                    let rest =
+                        Encoding.UTF8.GetString(
+                            bytes,
+                            length,
+                            bytes.Length
+                            - length
+                        )
+
+                    let separator = " returns "
+
+                    if not (rest.StartsWith(separator, System.StringComparison.Ordinal)) then
+                        Error "A call step ends with returns and the expected JSON result"
+                    else
+                        let result = rest.Substring separator.Length
+                        use document = JsonDocument.Parse result
+
+                        Ok
+                            {
+                                Value = matched.Groups[1].Value
+                                Arguments = Encoding.UTF8.GetString(bytes, 0, length)
+                                Result = result
+                            }
+            with :? JsonException as error ->
+                Error(
+                    "Invalid JSON in the call step: "
+                    + error.Message
+                )
 
     let private portablePath (path: string) =
         not (System.String.IsNullOrWhiteSpace path)
@@ -183,17 +247,27 @@ module Corpus =
                         then
                             invalid step.Location.Line "This step does not take an argument"
 
+                        let call = Regex.IsMatch(step.Text, stepPatterns[6])
+
                         if
                             not (
                                 stepPatterns
                                 |> List.exists (fun pattern -> Regex.IsMatch(step.Text, pattern))
                             )
+                            || (call
+                                && options.VocabularyVersion = "1.0")
                         then
                             add
                                 "mck.unknown_step"
                                 step.Location.Line
-                                ("Step is not in vocabulary 1.0: "
+                                ("Step is not in vocabulary "
+                                 + options.VocabularyVersion
+                                 + ": "
                                  + step.Text)
+                        elif call then
+                            match callStep step.Text with
+                            | Ok _ -> ()
+                            | Error message -> invalid step.Location.Line message
 
                     let matching pattern =
                         steps
@@ -261,6 +335,17 @@ module Corpus =
                         invalid
                             scenario.Location.Line
                             "A case needs exactly one compilation outcome"
+
+                    if
+                        not (matching stepPatterns[6]).IsEmpty
+                        && outcomes
+                           |> List.exists (fun step ->
+                               step.Text = "compilation fails with diagnostics:"
+                           )
+                    then
+                        invalid
+                            scenario.Location.Line
+                            "Call observations need a successful compilation"
 
                     for step in outcomes do
                         if step.Text = "compilation fails with diagnostics:" then
@@ -451,6 +536,13 @@ module Corpus =
                                                 }
                                     ]
 
+                                    let calls = [
+                                        for step in steps do
+                                            match callStep step.Text with
+                                            | Ok call -> yield call
+                                            | Error _ -> ()
+                                    ]
+
                                     let failure =
                                         steps
                                         |> List.tryFind (fun step ->
@@ -596,6 +688,7 @@ module Corpus =
                                                     InputKind = fields["input"]
                                                     IrVersion = fields["version"]
                                                 }
+                                                Calls = calls
                                                 Exclusion = if excluded then reason else None
                                             }
                                 | _ -> ()
@@ -670,6 +763,7 @@ module Corpus =
                 {
                     Cases = cases
                     Sha256 = digest artifacts
+                    VocabularyVersion = options.VocabularyVersion
                 }
         else
             Error(Seq.toList issues)
@@ -692,17 +786,16 @@ module Corpus =
                     }
         ]
 
-        if
-            options.VocabularyVersion
-            <> "1.0"
-        then
+        if not (List.contains options.VocabularyVersion vocabularies) then
             Error [
                 {
                     Code = "mck.vocabulary_version"
                     Path = ""
                     Line = 0
                     Message =
-                        "Runner implements vocabulary 1.0; requested "
+                        "Runner implements vocabularies "
+                        + String.concat ", " vocabularies
+                        + "; requested "
                         + options.VocabularyVersion
                 }
             ]

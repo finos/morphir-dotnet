@@ -187,6 +187,13 @@
           "FSharp.SystemTextJson": "[1.4.36, )"
         }
       },
+      "morphir.testing": {
+        "type": "Project",
+        "dependencies": {
+          "Expecto": "[10.2.3, )",
+          "FSharp.Core": "[10.1.403, )"
+        }
+      },
       "morphir.testsupport": {
         "type": "Project"
       },

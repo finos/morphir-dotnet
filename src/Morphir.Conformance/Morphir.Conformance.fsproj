@@ -18,6 +18,9 @@
     <Compile Include="FrontendAdapter.fs" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
   </ItemGroup>
 </Project>

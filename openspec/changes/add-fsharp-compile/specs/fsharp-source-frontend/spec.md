@@ -179,6 +179,10 @@ A module SHALL be public when the exposed-module list is absent or names it, and
 - **WHEN** modules `Pricing` and `Rates` are compiled with exposed modules `["Pricing"]`
 - **THEN** `Pricing` is public, `Rates` is private, and a `private` value inside `Pricing` is private
 
+#### Scenario: Internal module
+- **WHEN** `module internal Rates` declares a value without an access keyword and an `internal` value
+- **THEN** `Rates` is private, the first value is public and the `internal` value is private, because a declaration takes its access from its own keyword and not from its module
+
 ### Requirement: Values carry inferred types and source locations
 Every lowered value and pattern node SHALL carry its F# inferred type as a Morphir type. In IR v4, every node SHALL also carry the source range from which it was lowered. Classic IR has no place for source ranges. Generic F# types SHALL become Morphir type variables with stable names.
 

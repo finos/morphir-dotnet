@@ -45,18 +45,29 @@ type ExpectedOutcome = {
     ModelJson: string option
 }
 
+/// One call observation of a case: the value that is called, its arguments as a JSON array
+/// (one element for each parameter) and the expected result. JSON texts are kept exactly as
+/// the case writes them.
+type CallExpectation = {
+    Value: string
+    Arguments: string
+    Result: string
+}
+
 type ConformanceCase = {
     Id: string
     File: string
     Line: int
     Input: CompileInput
     Expected: ExpectedOutcome
+    Calls: CallExpectation list
     Exclusion: string option
 }
 
 type CaseSet = {
     Cases: ConformanceCase list
     Sha256: string
+    VocabularyVersion: string
 }
 
 type ImplementationIdentity = {
@@ -85,6 +96,19 @@ type Adapter = {
             -> System.Threading.Tasks.Task<Result<CompileObservation, ObservationFailure>>
 }
 
+/// Checks the call observations of a case against a compiled model, for the behavioral verdict.
+/// Check gets the compile input, the model JSON and the calls of one case variant, and
+/// returns the first difference as an error.
+type CallChecker = {
+    Name: string
+    Check:
+        CompileInput
+            -> string
+            -> CallExpectation list
+            -> System.Threading.CancellationToken
+            -> System.Threading.Tasks.Task<Result<unit, string>>
+}
+
 type Verdict =
     | Passed
     | Failed of difference: string
@@ -102,6 +126,8 @@ type RunReport = {
     CaseSetSha256: string
     Implementation: ImplementationIdentity
     Adapter: string
+    VocabularyVersion: string
+    CallChecker: string option
     Results: CaseResult list
     Qualified: bool
 }

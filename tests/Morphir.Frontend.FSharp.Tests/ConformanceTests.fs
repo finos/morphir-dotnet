@@ -68,6 +68,56 @@ let private excluding reason =
     + reason
     + " |\n"
 
+/// The seed feature as a successful case with the given call steps.
+let private withCalls (steps: string list) =
+    System.Text.RegularExpressions.Regex.Replace(
+        feature,
+        "(?s)    Then compilation fails with diagnostics:.*?    Examples:",
+        "    Then compilation succeeds with no error diagnostics\n"
+        + (steps
+           |> List.map (fun step ->
+               "    And "
+               + step
+               + "\n"
+           )
+           |> String.concat "")
+        + "\n    Examples:"
+    )
+
+let private calls11 =
+    { options with
+        VocabularyVersion = "1.1"
+    }
+
+let private readCalls source =
+    Corpus.read calls11 [ artifact "suites/frontend-fsharp/calls.feature" source ]
+
+let private succeeding =
+    LibraryAdapter.create
+        {
+            Name = "calls-control"
+            Version = "1.0.0"
+            Sha256 = String.replicate 64 "c"
+        }
+        (fun _ _ ->
+            Task.FromResult(
+                Ok
+                    {
+                        Success = true
+                        ModelJson = Some "{}"
+                        Diagnostics = []
+                    }
+            )
+        )
+
+let private checking (result: Result<unit, string>) (seen: ResizeArray<CallExpectation list>) = {
+    Name = "test-checker"
+    Check =
+        fun _ _ calls _ ->
+            seen.Add calls
+            Task.FromResult result
+}
+
 [<Tests>]
 let tests =
     testList "Portable frontend conformance" [
@@ -203,6 +253,176 @@ let tests =
                          |> List.map (fun issue -> issue.Code))
                         "mck.implementation_in_feature"
                         "Cases are portable across adapters"
+            )
+        testCase
+            "Vocabulary 1.1 reads call steps exactly as written, and 1.0 refuses them"
+            (fun () ->
+                let source =
+                    withCalls [
+                        "calling \"Pricing.seats\" with [{\"plate\": \"AB-1\"}, 2] returns {\"Just\": 2}"
+                        "calling \"Rates.Daily.rate\" with [] returns \"1.10\""
+                    ]
+
+                let suite =
+                    readCalls source
+                    |> requireOk
+
+                Expect.equal
+                    suite.Cases.Head.Calls
+                    [
+                        {
+                            Value = "Pricing.seats"
+                            Arguments = "[{\"plate\": \"AB-1\"}, 2]"
+                            Result = "{\"Just\": 2}"
+                        }
+                        {
+                            Value = "Rates.Daily.rate"
+                            Arguments = "[]"
+                            Result = "\"1.10\""
+                        }
+                    ]
+                    "The value, the arguments and the result keep their text"
+
+                Expect.equal suite.VocabularyVersion "1.1" "The case set records its vocabulary"
+
+                match read source with
+                | Ok _ -> failtest "Vocabulary 1.0 has no call step"
+                | Error issues ->
+                    Expect.equal
+                        (issues
+                         |> List.filter (fun issue -> issue.Code = "mck.unknown_step")
+                         |> List.length)
+                        2
+                        "Both call steps are outside vocabulary 1.0"
+            )
+        testCase
+            "Malformed call steps are refused"
+            (fun () ->
+                for step in
+                    [
+                        "calling \"seats\" with [] returns 1"
+                        "calling \"Pricing.Seats\" with [] returns 1"
+                        "calling \"Pricing.seats\" with 2 returns 1"
+                        "calling \"Pricing.seats\" with [2] gives 1"
+                        "calling \"Pricing.seats\" with [2 returns 1"
+                        "calling \"Pricing.seats\" with [2] returns {"
+                        "calling \"Pricing.seats\" with [2] returns 1 2"
+                    ] do
+                    match readCalls (withCalls [ step ]) with
+                    | Ok _ -> failtest $"The step must be refused: {step}"
+                    | Error issues ->
+                        Expect.equal
+                            (issues
+                             |> List.map (fun issue -> issue.Code)
+                             |> List.distinct)
+                            [ "mck.invalid_case" ]
+                            step
+
+                let refusal =
+                    feature.Replace(
+                        "    Then compilation fails with diagnostics:",
+                        "    And calling \"Pricing.total\" with [] returns 0\n    Then compilation fails with diagnostics:"
+                    )
+
+                match readCalls refusal with
+                | Ok _ -> failtest "A failed compilation has no values to call"
+                | Error issues ->
+                    Expect.exists
+                        issues
+                        (fun issue ->
+                            issue.Message = "Call observations need a successful compilation"
+                        )
+                        "Calls need a successful outcome"
+            )
+        testCase
+            "The behavioral verdict comes from the call checker"
+            (fun () ->
+                let suite =
+                    readCalls (withCalls [ "calling \"Pricing.total\" with [1] returns 2" ])
+                    |> requireOk
+
+                let run checker =
+                    (Runner.runWith checker suite succeeding CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult()
+
+                let seen = ResizeArray()
+                let passing = run (Some(checking (Ok()) seen))
+                Expect.isTrue passing.Qualified "Every call holds"
+                Expect.equal seen.Count 12 "The checker sees every case variant"
+
+                Expect.equal
+                    seen[0]
+                    [
+                        {
+                            Value = "Pricing.total"
+                            Arguments = "[1]"
+                            Result = "2"
+                        }
+                    ]
+                    "The checker gets the calls of the case"
+
+                let json = Encoding.UTF8.GetString(Report.toUtf8 passing)
+
+                Expect.stringContains
+                    json
+                    "\"callChecker\":\"test-checker\""
+                    "The report names the checker"
+
+                Expect.stringContains
+                    json
+                    "\"vocabularyVersion\":\"1.1\""
+                    "The report names the vocabulary"
+
+                let failing = run (Some(checking (Error "returned 3") (ResizeArray())))
+                Expect.isFalse failing.Qualified "A wrong result fails"
+
+                Expect.equal
+                    failing.Results.Head.Verdict
+                    (Verdict.Failed "returned 3")
+                    "The difference is the verdict"
+
+                let unchecked = run None
+                Expect.isFalse unchecked.Qualified "Behavior that is not checked does not qualify"
+            )
+        testCase
+            "The call checker does not run when the structural verdict fails"
+            (fun () ->
+                let suite =
+                    readCalls (withCalls [ "calling \"Pricing.total\" with [1] returns 2" ])
+                    |> requireOk
+
+                let refusing =
+                    LibraryAdapter.create
+                        {
+                            Name = "refusing-control"
+                            Version = "1.0.0"
+                            Sha256 = String.replicate 64 "d"
+                        }
+                        (fun _ _ ->
+                            Task.FromResult(
+                                Ok
+                                    {
+                                        Success = false
+                                        ModelJson = None
+                                        Diagnostics = []
+                                    }
+                            )
+                        )
+
+                let seen = ResizeArray()
+
+                let report =
+                    (Runner.runWith
+                        (Some(checking (Ok()) seen))
+                        suite
+                        refusing
+                        CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult()
+
+                Expect.isFalse report.Qualified "The compilation fails"
+                Expect.equal seen.Count 0 "No call runs without a model"
             )
         testCase
             "Library observations are compared against case data and reports are deterministic"
@@ -597,7 +817,11 @@ let tests =
                 ]
 
                 let shipped =
-                    Corpus.read options files
+                    Corpus.read
+                        { options with
+                            VocabularyVersion = "1.1"
+                        }
+                        files
                     |> requireOk
 
                 Expect.isTrue

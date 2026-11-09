@@ -160,6 +160,42 @@ module internal Emit =
         else
             text
 
+    /// The F# declaration of one union case. Each field takes the name of its constructor
+    /// argument, so the argument names stay in the source. Names that are not distinct cannot
+    /// be F# field names, so those fields are positional.
+    let unionCase name (arguments: (Name * string) list) =
+        let names =
+            arguments
+            |> List.map (
+                fst
+                >> camel
+            )
+
+        let named =
+            names
+            |> List.forall (fun field ->
+                field
+                <> ""
+            )
+            && (List.distinct names).Length = names.Length
+
+        "| "
+        + ident (pascal name)
+        + (if List.isEmpty arguments then
+               ""
+           else
+               " of "
+               + (List.zip names arguments
+                  |> List.map (fun (field, (_, emitted)) ->
+                      if named then
+                          ident field
+                          + ": "
+                          + emitted
+                      else
+                          emitted
+                  )
+                  |> String.concat " * "))
+
     let namesOfPath (Path names) =
         if List.isEmpty names then
             Decode.fail "invalid-name" "$" "Generation paths require at least one name."
@@ -333,9 +369,12 @@ module internal Emit =
                 let mutable dependencies = Set.empty
 
                 // IR references and lexical variables have separate identities.
-                // Keep locals away from module value names, including recursive ones.
+                // A local gets a new name only when it would hide a module value that the
+                // definition refers to, including a recursive reference.
+                let mutable hidden = Set.empty
+
                 let localIdent name =
-                    if Map.containsKey name controlled.Value.Values then
+                    if Set.contains name hidden then
                         "__morphirLocal_"
                         + camel name
                     else
@@ -801,6 +840,14 @@ module internal Emit =
                                 + " >= "
                                 + expr right
                                 + ")"
+                            | "list.cons" ->
+                                // A saturated cons is the F# operator, which the F# frontend
+                                // reads back as List.cons. A partial cons stays a lambda.
+                                "(("
+                                + renderedArguments[0]
+                                + ") :: ("
+                                + renderedArguments[1]
+                                + "))"
                             | _ ->
                                 "("
                                 + reference q
@@ -1057,15 +1104,10 @@ module internal Emit =
                                     cases.Value
                                     |> Map.toList
                                     |> List.map (fun (name, args) ->
-                                        "| "
-                                        + ident (pascal name)
-                                        + (if List.isEmpty args then
-                                               ""
-                                           else
-                                               " of "
-                                               + (args
-                                                  |> List.map (snd >> typ)
-                                                  |> String.concat " * "))
+                                        unionCase
+                                            name
+                                            (args
+                                             |> List.map (fun (argument, t) -> argument, typ t))
                                     )
                                     |> String.concat "\n"
 
@@ -1140,6 +1182,8 @@ module internal Emit =
                                 if not recursive then "let "
                                 elif i = 0 then "let rec "
                                 else "and "
+
+                            hidden <- valueGraph[name]
 
                             prefix
                             + (if access.Access = AccessControlled.Private then

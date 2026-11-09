@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Morphir.FSharp.Annotations`: `[<MorphirName("...")>]` sets the Morphir name of an F# value, type, union case, record field or module, in canonical Morphir name syntax, for example to name an operator. For `netstandard2.0`, with no dependency ([#499](https://github.com/finos/morphir-dotnet/issues/499))
 - The F# generator writes more Morphir SDK operations: `Basics.integerDivide`, `negate`, `abs`, `min`, `max`, `and`, `or` and `not`; `Decimal.add`, `sub` and `mul`; `List.singleton`, `append`, `length`, `head` and `cons`; `Maybe.andThen` and `Result.andThen`; `String.append`, `length` and `join`; and the `Int.Int64` type ([#499](https://github.com/finos/morphir-dotnet/issues/499))
 
+### Changed
+- The F# generator gives each union case field the name of its constructor argument (`Large of seats: int`), so the names stay in the generated F#. A case whose argument names repeat keeps positional fields ([#499](https://github.com/finos/morphir-dotnet/issues/499))
+- The F# generator renames a parameter or local value (`__morphirLocal_` prefix) only when it hides a module value that its definition uses. It renamed every local with the name of a module value before ([#499](https://github.com/finos/morphir-dotnet/issues/499))
+- The F# generator writes `List.cons` with two arguments as `head :: tail`, not as an applied lambda ([#499](https://github.com/finos/morphir-dotnet/issues/499))
+
 ### Fixed
 - Custom Myriad plugin scaffolds build and load with Myriad 0.85.0, using Fantomas syntax types and copied runtime dependencies. Myriad and its coupled code generation dependencies now have their own Renovate update group, including the bundled host pins.
 

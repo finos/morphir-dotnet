@@ -53,7 +53,8 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Tool path, first delivery | Value and pattern lowering | Implemented | Task 3.6; `ValueLowering.fs`, `TypedIndex.fs`, 12 tests through both builders |
 | Tool path, first delivery | SDK mapping | Implemented | Task 3.7; `SdkMapping.fs`, 9 table tests (inventory, FSharp.Core and F# generator round trip) and 11 lowering tests |
 | Tool path, first delivery | Registration and corpus run | Implemented | Task 3.8; `FSharpFrontend.registration` over the FE-1 contract (`IFrontend`), the `library` adapter, 39 corpus scenarios (one refusal per catalog code and a semantic case with hand-written IR for versions 1–4), 468 cases qualify; behavioral verdict moved to task 3.9 |
-| Tool path, first delivery | Behavioral verdict, generator round trip and coverage documentation | Planned | Tasks 3.9–3.10 |
+| Tool path, first delivery | Behavioral verdict and generator round trip | Implemented | Task 3.9; vocabulary 1.1 call step and value encoding, `Runner.runWith` with a `CallChecker`, the .NET checker through the F# backend and FSI; 46 scenarios, 552 cases and 19 call observations qualify; every successful case round-trips for versions 1–4 after three backend fixes and one frontend access fix |
+| Tool path, first delivery | Coverage documentation | Planned | Task 3.10 |
 | Tool path, first delivery | Sources, configuration, CLI composition and streamed reports | Planned | Tasks 4.1–4.8 |
 | Tool path, first delivery | Compile records and generation from a prior compile | Planned | Tasks 5.1–5.5 |
 | Tool path, first delivery | In-memory generation and library/CLI qualification | Planned | Tasks 6.1–6.4 |
@@ -169,10 +170,11 @@ that either product milestone is complete.
   `Morphir.Conformance` and executing the same test assembly.
 - This completes the task 1.3 seed, not frontend qualification. Task 3.8 binds
   the production in-process compiler through the `library` adapter. Every
-  semantic case has hand-written IR for every version, so the reader and schema
-  fallback is not used, and the classic writers order name-keyed lists by name.
-  Behavioral qualification moves to task 3.9, which builds the F# generation it
-  needs. CLI/MEP adapters and the full kit
+  semantic case of task 3.8 has hand-written IR for every version, and the
+  classic writers order name-keyed lists by name.
+  Task 3.9 adds behavioral qualification through F# generated from the compiled
+  IR. Its semantic cases without hand-written IR rely on the call checker and
+  the round trip to read each model with its version's reader. CLI/MEP adapters and the full kit
   manifest/profile/report-check features stay in their planned deliveries.
 
 ```console
