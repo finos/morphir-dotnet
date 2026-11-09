@@ -225,6 +225,50 @@ let tests =
 
               Expect.isFalse (stderr.ToString().Contains "compileModel was sent") "The host sent no compileModel"
 
+          testCase "A guest that selects no tuple from an Ion-only support gets no request, and the refusal is extension.tuple_unavailable"
+          <| fun _ ->
+              let frontend = connect (fakeOptions "ion-only")
+
+              try
+                  Expect.isEmpty (frontend :> IFrontend).Capability.Outputs "The empty agreement admits no output"
+
+                  let path =
+                      match CanonicalNames.parsePath "acme/demo" with
+                      | Ok path -> path
+                      | Error error -> failtest $"{error}"
+
+                  let v4 =
+                      match
+                          CompileRequest.Parse(
+                              LanguageId.Create "fsharp",
+                              null,
+                              [ { Uri = "Pricing.fs"
+                                  LanguageId = LanguageId.Create "fsharp"
+                                  Version = 1UL
+                                  Text = "namespace Acme.Demo\nmodule Pricing =\n    let seats (n: int) : int = n + 1\n" } ],
+                              PackageName path,
+                              null,
+                              { Family = Model.ModelFamily.V4; Version = Versioning.Classic 4 },
+                              ""
+                          )
+                      with
+                      | Ok request -> request
+                      | Error failure -> failtest $"{failure}"
+
+                  match (frontend :> IFrontend).CompileAsync(v4, CancellationToken.None).GetAwaiter().GetResult() with
+                  | FrontendOutcome.Failed failure ->
+                      Expect.stringContains failure.Message "org.finos.morphir.fsharp-frontend" "names the extension"
+
+                      Expect.equal
+                          (failure.Diagnostics |> Seq.map (fun diagnostic -> diagnostic.CodeOrNull |> string) |> List.ofSeq)
+                          [ "extension.tuple_unavailable" ]
+                          "the code"
+                  | completed -> failtest $"Expected a refusal before dispatch: {completed}"
+              finally
+                  dispose frontend
+
+              Expect.isFalse (stderr.ToString().Contains "ion-only compileModel was sent") "The host sent no compileModel"
+
           testCase "A guest that writes a log line to stdout fails the compile with a protocol diagnostic, and no process stays"
           <| fun _ ->
               let frontend = connect (fakeOptions "stdout-log")
