@@ -12,7 +12,8 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// </summary>
 public sealed class ExtensionsNullabilityContractTests
 {
-    private static readonly NullabilityInfoContext Nullability = new();
+    // NullabilityInfoContext is not thread-safe, and TUnit runs these tests in parallel: one context for each test.
+    private readonly NullabilityInfoContext Nullability = new();
 
     [Test]
     public void LiteralFactoriesRefuseNullAtCompileTime()
