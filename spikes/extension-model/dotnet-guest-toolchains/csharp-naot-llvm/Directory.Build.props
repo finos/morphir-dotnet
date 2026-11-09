@@ -2,5 +2,7 @@
   <!-- Stops the walk to the repository Directory.Build.props. Pins the NativeAOT-LLVM line. -->
   <PropertyGroup>
     <IlcLlvmVersion>10.0.0-rc.1.26357.1</IlcLlvmVersion>
+    <!-- Renovate supplies its own NuGet config file, bypassing this spike's NuGet.Config. -->
+    <RestoreAdditionalProjectSources>$(RestoreAdditionalProjectSources);https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-experimental/nuget/v3/index.json</RestoreAdditionalProjectSources>
   </PropertyGroup>
 </Project>

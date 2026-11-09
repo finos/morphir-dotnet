@@ -99,7 +99,7 @@
     <PackageVersion Include="Reqnroll.TUnit" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Serilog" Version="4.4.0" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
-    <PackageVersion Include="Shouldly.Json" Version="0.9.0" />
+    <PackageVersion Include="Shouldly.Json" Version="0.7.0" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="5.0.1" />
     <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />

@@ -135,6 +135,20 @@
       "allowedVersions": "/^10\\./"
     },
     {
+      "description": "Shouldly.Json minor releases can require major JSON library upgrades. Update the assertion helper and JSON libraries together, and review schema validation compatibility before merging.",
+      "matchDatasources": [
+        "nuget"
+      ],
+      "matchPackageNames": [
+        "Shouldly.Json",
+        "Json.More.Net",
+        "JsonPointer.Net",
+        "JsonSchema.Net"
+      ],
+      "groupName": "dotnet-json",
+      "separateMajorMinor": false
+    },
+    {
       "description": "Myriad's host, plugins and generator contract share Fantomas AST types. Fabulous.AST also requires an exact Fantomas.Core version. Update this code generation toolchain independently of general NuGet updates and review host/runtime compatibility before merging.",
       "matchDatasources": [
         "nuget"
