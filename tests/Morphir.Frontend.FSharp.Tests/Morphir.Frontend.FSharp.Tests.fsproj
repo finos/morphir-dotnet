@@ -16,7 +16,6 @@
     <ProjectReference Include="../../src/Morphir.Frontend.FSharp/Morphir.Frontend.FSharp.fsproj" />
     <!-- The SDK mapping tests check that the F# generator writes every entry back. -->
     <ProjectReference Include="../../src/Morphir.CodeGeneration.FSharp/Morphir.CodeGeneration.FSharp.fsproj" />
-    <ProjectReference Include="../../src/Morphir.Testing/Morphir.Testing.fsproj" />
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
   </ItemGroup>
   <ItemGroup>

@@ -29,13 +29,11 @@ module GenerationCompiler =
 
         attempt 5
 
-    /// Compiles the modules and the consumer code with FSI and runs them. Returns the trimmed
-    /// standard output, or an error with the compiler output when FSI fails or times out.
-    let tryExecuteWithReferences
+    let executeWithReferences
         (references: string list)
         (modules: (string * string) list)
         (code: string)
-        : Result<string, string> =
+        =
         let directory =
             Path.Combine(
                 Path.GetTempPath(),
@@ -114,30 +112,19 @@ module GenerationCompiler =
                 child.Kill(true)
 
                 if not (child.WaitForExit(5000)) then
-                    Error "compiler process tree did not terminate after timeout"
-                else
-                    Error "compiler timeout"
-            elif
+                    failtest "compiler process tree did not terminate after timeout"
+
+                failtest "compiler timeout"
+
+            Expect.equal
                 child.ExitCode
-                <> 0
-            then
-                Error(
-                    error.Result
-                    + "\n"
-                    + output.Result
-                )
-            else
-                Ok(output.Result.Trim())
+                0
+                (error.Result
+                 + "\n"
+                 + output.Result)
+
+            output.Result.Trim()
         finally
             deleteTolerantly directory
-
-    let executeWithReferences
-        (references: string list)
-        (modules: (string * string) list)
-        (code: string)
-        =
-        match tryExecuteWithReferences references modules code with
-        | Ok output -> output
-        | Error message -> failtest message
 
     let execute modules code = executeWithReferences [] modules code

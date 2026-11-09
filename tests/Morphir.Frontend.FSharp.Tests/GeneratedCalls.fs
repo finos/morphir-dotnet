@@ -14,7 +14,7 @@ open Morphir.CodeGeneration.FSharp
 open Morphir.Conformance
 open Morphir.IR
 open Morphir.IR.Model
-open Morphir.Testing
+open Morphir.TestSupport
 
 /// One generated F# module, in the dependency order of the manifest.
 type GeneratedSource = {
@@ -188,51 +188,103 @@ let private verdict (calls: CallExpectation list) (output: string) =
             | Some difference -> Error difference
             | None -> Ok()
 
+/// Runs the consumer script in FSI beside the modules, through the shared process runner and
+/// its concurrency gate. Returns standard output, or the FSI output as an error.
+let private fsi (modules: (string * string) list) (code: string) = task {
+    let directory =
+        Path.Combine(
+            Path.GetTempPath(),
+            "morphir-calls-"
+            + Guid.NewGuid().ToString("N")
+        )
+
+    Directory.CreateDirectory directory
+    |> ignore
+
+    try
+        try
+            let loads = [
+                for name, text in modules do
+                    let file = Path.Combine(directory, name)
+
+                    Directory.CreateDirectory(Path.GetDirectoryName file)
+                    |> ignore
+
+                    File.WriteAllText(file, text)
+
+                    yield
+                        "#load @\""
+                        + file
+                        + "\""
+            ]
+
+            let script = Path.Combine(directory, "consumer.fsx")
+
+            File.WriteAllText(
+                script,
+                String.concat
+                    "\n"
+                    (loads
+                     @ [ code ])
+            )
+
+            let host =
+                match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
+                | null -> "dotnet"
+                | host -> host
+
+            let start = ChildProcess.StartInfo(host, "fsi", "--warnaserror+", "--exec", script)
+            start.WorkingDirectory <- directory
+            let! result = ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0)
+
+            return
+                if result.ExitCode = 0 then
+                    Ok(result.StandardOutput.Trim())
+                else
+                    Error result.CombinedOutput
+        with :? ChildProcessTimeoutException as timeout ->
+            return Error timeout.Message
+    finally
+        TolerantDirectory.TryDelete directory
+        |> ignore
+}
+
 /// Runs FSI once for each distinct generated source and call list. Every input kind of one IR
 /// family gives the same F#, so most case variants reuse an earlier run.
-let private runs = ConcurrentDictionary<string, Lazy<Result<string, string>>>()
+let private runs =
+    ConcurrentDictionary<string, Lazy<Task<Result<string, string>>>>()
 
 /// The call checker that the .NET runner uses for the behavioral verdict.
 let checker: CallChecker = {
     Name = "morphir-dotnet F# backend + FSI"
     Check =
-        fun input model calls cancellationToken ->
-            Task.Run(
-                (fun () ->
-                    generate input.IrVersion model
-                    |> Result.bind (fun sources ->
-                        consumer input.Package sources calls
-                        |> Result.bind (fun code ->
-                            let modules =
-                                ("CallCodec.fsx", codec)
-                                :: [ for source in sources -> source.File, source.Source ]
-
-                            let key =
-                                String.concat "\u0000" [
-                                    for name, text in modules do
-                                        name
-                                        text
-                                    code
-                                ]
-
-                            runs
-                                .GetOrAdd(
-                                    key,
-                                    fun _ ->
-                                        lazy
-                                            (GenerationCompiler.tryExecuteWithReferences
-                                                []
-                                                modules
-                                                code)
-                                )
-                                .Value
-                            |> Result.mapError (fun error ->
-                                $"FSI could not run the generated F#: {error}"
-                            )
-                            |> Result.bind (verdict calls)
-                        )
+        fun input model calls _ -> task {
+            match
+                generate input.IrVersion model
+                |> Result.bind (fun sources ->
+                    consumer input.Package sources calls
+                    |> Result.map (fun code ->
+                        ("CallCodec.fsx", codec)
+                        :: [ for source in sources -> source.File, source.Source ],
+                        code
                     )
-                ),
-                cancellationToken
-            )
+                )
+            with
+            | Error message -> return Error message
+            | Ok(modules, code) ->
+                let key =
+                    String.concat "\u0000" [
+                        for name, text in modules do
+                            name
+                            text
+                        code
+                    ]
+
+                let! output = runs.GetOrAdd(key, (fun _ -> lazy (fsi modules code))).Value
+
+                return
+                    output
+                    |> Result.mapError (fun error -> $"FSI could not run the generated F#: {error}")
+                    |> Result.bind (verdict calls)
+        }
 }
