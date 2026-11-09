@@ -13,9 +13,9 @@
       },
       "Ionide.KeepAChangelog.Tasks": {
         "type": "Direct",
-        "requested": "[0.3.3, )",
-        "resolved": "0.3.3",
-        "contentHash": "ADFNczSi+DBaO/UpvkkFAX8wLrm0Mk1AsXzOhrPFWA87M2iJDZwFjpQWKaQDAGVFbOCqlfL4q2QHYtz0ivQb1Q=="
+        "requested": "[0.4.0, )",
+        "resolved": "0.4.0",
+        "contentHash": "uMqvbhnXYIbsn8zsFaBpNskl7A5gKP0EFRyEzGicmJiOSn/au5FWhi8P1/tBFbbyfrPap9d+N3scboVk/VQ6ZQ=="
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",

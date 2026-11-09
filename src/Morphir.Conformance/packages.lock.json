@@ -10,18 +10,18 @@
       },
       "Gherkin": {
         "type": "Direct",
-        "requested": "[35.0.0, )",
-        "resolved": "35.0.0",
-        "contentHash": "ha+QNevQsXEESbzazUceHTCtKOjoBTBa8kLFdKpu6vSEbb3UMt3a55RG78tIoU/C4qzIqX3jQxaIdIcYGO+IWQ==",
+        "requested": "[35.1.0, )",
+        "resolved": "35.1.0",
+        "contentHash": "2eHlz7CQ7uNUsFTveswt9W7p50tN0lpBHeaz4XJ9+/nMGErOkd7fgzjXtzgrkCWQCqF9US8O3tBd81aIP603nA==",
         "dependencies": {
           "Cucumber.Messages": "29.0.1"
         }
       },
       "Ionide.KeepAChangelog.Tasks": {
         "type": "Direct",
-        "requested": "[0.3.3, )",
-        "resolved": "0.3.3",
-        "contentHash": "ADFNczSi+DBaO/UpvkkFAX8wLrm0Mk1AsXzOhrPFWA87M2iJDZwFjpQWKaQDAGVFbOCqlfL4q2QHYtz0ivQb1Q=="
+        "requested": "[0.4.0, )",
+        "resolved": "0.4.0",
+        "contentHash": "uMqvbhnXYIbsn8zsFaBpNskl7A5gKP0EFRyEzGicmJiOSn/au5FWhi8P1/tBFbbyfrPap9d+N3scboVk/VQ6ZQ=="
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
@@ -44,17 +44,7 @@
       "morphir.models": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.1.403, )",
-          "FSharp.SystemTextJson": "[1.4.36, )"
-        }
-      },
-      "FSharp.SystemTextJson": {
-        "type": "CentralTransitive",
-        "requested": "[1.4.36, )",
-        "resolved": "1.4.36",
-        "contentHash": "1xLk0SBF1nedD74B77rcArjD2d+DeZwbNI7BVCAyKwIBERo1VoX8Mf4AtX0OV2L3ZeM/XS1b6BuhXCyoh0KBnw==",
-        "dependencies": {
-          "FSharp.Core": "4.7.0"
+          "FSharp.Core": "[10.1.403, )"
         }
       }
     }
