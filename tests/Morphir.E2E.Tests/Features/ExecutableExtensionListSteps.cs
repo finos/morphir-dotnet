@@ -9,7 +9,8 @@ namespace Morphir.E2E.Tests.Features;
 [Binding]
 public sealed class ExecutableExtensionListSteps(ScenarioContext scenarioContext)
 {
-    private const string OtherResultKey = "OtherHostExecutionResult";
+    /// <summary>The scenario key for the result of the same command in the other host.</summary>
+    internal const string OtherResultKey = "OtherHostExecutionResult";
 
     private ExecutableExecutionResult Result =>
         SharedSteps.Last(scenarioContext) ?? throw new InvalidOperationException("No command has run in this scenario.");
@@ -32,6 +33,26 @@ public sealed class ExecutableExtensionListSteps(ScenarioContext scenarioContext
         Document(Result).GetProperty("extensions").EnumerateArray().Select(entry => entry.GetProperty("id").GetString())
             .Should().Equal(ids.Split(", "));
 
+    private JsonElement Extension(string id) =>
+        Document(Result).GetProperty("extensions").EnumerateArray().Single(entry => entry.GetProperty("id").GetString() == id);
+
+    [Then("the extension \"(.*)\" should have the types \"(.*)\"")]
+    public void ThenTheExtensionShouldHaveTheTypes(string id, string types) =>
+        Extension(id).GetProperty("types").EnumerateArray().Select(type => type.GetString()).Should().Equal(types.Split(", "));
+
+    [Then("the extension \"(.*)\" should have the delivery \"(.*)\" and the hosts \"(.*)\"")]
+    public void ThenTheExtensionShouldHaveTheDeliveryAndTheHosts(string id, string delivery, string hosts)
+    {
+        var entry = Extension(id);
+        entry.GetProperty("delivery").GetString().Should().Be(delivery);
+        entry.GetProperty("hosts").EnumerateArray().Select(host => host.GetString()).Should().Equal(hosts.Split(", "));
+    }
+
+    [Then("the extension \"(.*)\" should claim the validator IR versions \"(.*)\"")]
+    public void ThenTheExtensionShouldClaimTheValidatorIrVersions(string id, string versions) =>
+        Extension(id).GetProperty("capabilities").GetProperty("validator").GetProperty("irVersions").EnumerateArray()
+            .Select(version => version.GetString()).Should().Equal(versions.Split(", "));
+
     [Then("every listed extension should be available in this host")]
     public void ThenEveryListedExtensionShouldBeAvailableInThisHost() =>
         Document(Result).GetProperty("extensions").EnumerateArray().Should().OnlyContain(entry => entry.GetProperty("available").GetBoolean());
@@ -42,7 +63,7 @@ public sealed class ExecutableExtensionListSteps(ScenarioContext scenarioContext
         var locator = new ExecutableLocator();
         var other = ExecutableLocator.CurrentType == "tool" ? locator.GetNativeHostPath() : locator.GetToolPath();
         other.Should().NotBeNull("the other host must be built: build src/Morphir.Tool, or publish or build morphir");
-        scenarioContext[OtherResultKey] = await new ExecutableRunner(other!).ExecuteCommandAsync(command);
+        scenarioContext[OtherResultKey] = await new ExecutableRunner(other!).ExecuteCommandAsync(new TestDataResolver().ResolvePath(command));
     }
 
     [Then("the extensions available in both hosts should be equal in both results")]

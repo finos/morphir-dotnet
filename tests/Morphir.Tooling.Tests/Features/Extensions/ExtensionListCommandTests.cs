@@ -3,6 +3,7 @@ using FluentAssertions;
 using Morphir.Extensions;
 using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.Generate;
+using Morphir.Tooling.Features.Validate;
 using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
@@ -19,6 +20,10 @@ public sealed class ExtensionListCommandTests
 
     private static ExtensionRegistry Registry(HostIdentity host, params IExtensionSource[] extra) =>
         new([new BackendExtensionSource([new FSharpGenerationBackend(), new CSharpGenerationBackend()], host), .. extra], host);
+
+    /// <summary>The composition of both hosts: the generation backends and the built-in analyzers.</summary>
+    private static ExtensionRegistry HostRegistry(HostIdentity host) =>
+        Registry(host, new AnalyzerExtensionSource(new AnalyzerRegistry(host)));
 
     private static ExtensionEntry ToolOnly() => ExtensionEntry.BuiltInBackend(
             ExtensionIdentity.Create(ExtensionId.Create("acme.tool-only"), ExtensionName.Create("Tool only"), Native.Version, null),
@@ -61,14 +66,56 @@ public sealed class ExtensionListCommandTests
     [Test]
     public void TextOutputMatchesTheDocumentation()
     {
-        var (_, lines, _) = Run(Registry(Native), json: false);
+        var (_, lines, _) = Run(HostRegistry(Native), json: false);
         string.Join('\n', lines).Should().Be(
-            "╭────────────────┬──────────────┬─────────┬─────────┬──────────┬─────────────────────────╮\n" +
-            "│ ID             │ NAME         │ VERSION │ TYPES   │ DELIVERY │ HOSTS                   │\n" +
-            "├────────────────┼──────────────┼─────────┼─────────┼──────────┼─────────────────────────┤\n" +
-            "│ morphir.csharp │ C# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │\n" +
-            "│ morphir.fsharp │ F# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │\n" +
-            "╰────────────────┴──────────────┴─────────┴─────────┴──────────┴─────────────────────────╯");
+            "╭────────────────────────┬────────────────┬─────────┬─────────────────────┬──────────┬─────────────────────────╮\n" +
+            "│ ID                     │ NAME           │ VERSION │ TYPES               │ DELIVERY │ HOSTS                   │\n" +
+            "├────────────────────────┼────────────────┼─────────┼─────────────────────┼──────────┼─────────────────────────┤\n" +
+            "│ morphir.csharp         │ C# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │\n" +
+            "│ morphir.fsharp         │ F# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │\n" +
+            "│ morphir.type-validator │ Type validator │ 0.4.0   │ validator (1, 2, 3) │ built-in │ morphir, dotnet-morphir │\n" +
+            "╰────────────────────────┴────────────────┴─────────┴─────────────────────┴──────────┴─────────────────────────╯");
+    }
+
+    [Test]
+    public void TheTypeValidatorRowShowsItsValidatorClaim()
+    {
+        var (_, lines, _) = Run(HostRegistry(Native), json: false);
+        var rows = string.Join('\n', lines).Split('\n').Where(row => row.StartsWith('│')).ToArray();
+        rows.Should().HaveCount(4);
+        rows[3].Should().MatchRegex(@"^│ morphir\.type-validator\s+│ Type validator\s+│ 0\.4\.0\s+│ validator \(1, 2, 3\)\s+│ built-in\s+│ morphir, dotnet-morphir\s+│$");
+    }
+
+    [Test]
+    public void JsonOutputHasTheTypeValidatorWithItsValidatorClaim()
+    {
+        var (exit, lines, _) = Run(HostRegistry(Native), json: true);
+        exit.Should().Be(0);
+        using var document = JsonDocument.Parse(string.Join('\n', lines));
+        var extensions = document.RootElement.GetProperty("extensions");
+        extensions.EnumerateArray().Select(entry => entry.GetProperty("id").GetString())
+            .Should().Equal("morphir.csharp", "morphir.fsharp", "morphir.type-validator");
+        var validator = extensions[2];
+        validator.GetProperty("types").EnumerateArray().Select(type => type.GetString()).Should().Equal("validator");
+        validator.GetProperty("delivery").GetString().Should().Be("built-in");
+        validator.GetProperty("hosts").EnumerateArray().Select(host => host.GetString()).Should().Equal("morphir", "dotnet-morphir");
+        var capabilities = validator.GetProperty("capabilities");
+        capabilities.TryGetProperty("backend", out _).Should().BeFalse();
+        capabilities.GetProperty("validator").GetProperty("irVersions").EnumerateArray().Select(version => version.GetString())
+            .Should().Equal("1", "2", "3");
+    }
+
+    [Test]
+    public void BothHostsListTheSameEntriesApartFromTheHost()
+    {
+        var tool = new HostIdentity(MorphirHost.DotnetTool, Native.Version);
+        var (_, native, _) = Run(HostRegistry(Native), json: true);
+        var (_, dotnet, _) = Run(HostRegistry(tool), json: true);
+        using var first = JsonDocument.Parse(string.Join('\n', native));
+        using var second = JsonDocument.Parse(string.Join('\n', dotnet));
+        first.RootElement.GetProperty("host").GetString().Should().Be("morphir");
+        second.RootElement.GetProperty("host").GetString().Should().Be("dotnet-morphir");
+        first.RootElement.GetProperty("extensions").GetRawText().Should().Be(second.RootElement.GetProperty("extensions").GetRawText());
     }
 
     [Test]

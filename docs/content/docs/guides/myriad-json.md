@@ -100,6 +100,7 @@ Attributes on a type, a case or a field override the context settings for that i
 | `JsonDefaultValueProvider` | Record field | Call an accessible static method with no arguments when the member is absent |
 | `JsonDefaultJson` | Record field | Read an explicit JSON literal through the generated field codec when absent |
 | `JsonOmitEmpty` | Record collection field | Omit an empty collection on writing |
+| `JsonOmitDefault` | Record `bool` field with `JsonDefaultValue` | Omit the value on writing when it equals the default |
 | `JsonExtensionData` | Record map field | Capture unknown members and write them beside the named members. This is the System.Text.Json attribute |
 | `JsonVersionAlias` | Record version field | Normalize an exact legacy member/version pair to the current member and version |
 | `JsonKnownPaths` | Record string collection | Accept only the declared exact critical paths |
@@ -142,7 +143,7 @@ type Diagnostic =
       Retryable: bool }
 ```
 
-An absent `Related` reads as `[]`; an empty `Related` is omitted on writing. An absent `Retryable` reads as false and is still written. `JsonDefaultEmpty` supports sequences and maps, using their configured encoding. `JsonOmitEmpty` supports the same shapes and does not itself make a missing member optional.
+An absent `Related` reads as `[]`; an empty `Related` is omitted on writing. An absent `Retryable` reads as false and is still written. `JsonDefaultEmpty` supports sequences and maps, using their configured encoding. `JsonOmitEmpty` supports the same shapes and does not itself make a missing member optional. To leave out a Boolean that equals its default, as for a flag that is written only when true, add `JsonOmitDefault` beside `JsonDefaultValue`.
 
 `JsonDefaultValue` takes an ordinary string, Boolean or numeric literal. Strings are values, without JSON escaping: `JsonDefaultValue("false")` means the string `"false"`, while `JsonDefaultValue(false)` means a Boolean. The generator checks primitive token kinds and numeric bounds, and the generated field codec reads the default using its normal encoding, including parsed-value parsers and union settings.
 

@@ -225,19 +225,22 @@ morphir extension which <name> [--platform <rid>]                               
 
 ### extension list
 
-List the extensions that this host knows. Today these are the built-in generators of `morphir generate`.
+List the extensions that this host knows. Today these are the built-in generators of `morphir generate` and the
+built-in analyzers of [`morphir validate`](validate.md).
 
 ```bash
 $ morphir extension list
-╭────────────────┬──────────────┬─────────┬─────────┬──────────┬─────────────────────────╮
-│ ID             │ NAME         │ VERSION │ TYPES   │ DELIVERY │ HOSTS                   │
-├────────────────┼──────────────┼─────────┼─────────┼──────────┼─────────────────────────┤
-│ morphir.csharp │ C# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │
-│ morphir.fsharp │ F# generator │ 0.4.0   │ backend │ built-in │ morphir, dotnet-morphir │
-╰────────────────┴──────────────┴─────────┴─────────┴──────────┴─────────────────────────╯
+╭────────────────────────┬────────────────┬─────────┬─────────────────────┬──────────┬─────────────────────────╮
+│ ID                     │ NAME           │ VERSION │ TYPES               │ DELIVERY │ HOSTS                   │
+├────────────────────────┼────────────────┼─────────┼─────────────────────┼──────────┼─────────────────────────┤
+│ morphir.csharp         │ C# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │
+│ morphir.fsharp         │ F# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │
+│ morphir.type-validator │ Type validator │ 0.4.0   │ validator (1, 2, 3) │ built-in │ morphir, dotnet-morphir │
+╰────────────────────────┴────────────────┴─────────┴─────────────────────┴──────────┴─────────────────────────╯
 ```
 
 The rows are sorted by id. The version of a built-in is the version of the host, including any build metadata.
+The `TYPES` column shows each type. For a validator, the IR versions that it reads follow in parentheses.
 
 In a terminal the table has styled borders and headers and fits the terminal width. When stdout is redirected, or
 `NO_COLOR` is set, the table has no ANSI codes. The table is for people: scripts use `--json`.
@@ -265,10 +268,25 @@ With `--json`:
       "capabilities": {
         "backend": { "targets": ["csharp"], "irVersions": ["1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0"], "generate": true }
       }
+    },
+    {
+      "id": "morphir.type-validator",
+      "name": "Type validator",
+      "version": "0.4.0",
+      "description": "Reports definite type mismatches in classic models.",
+      "types": ["validator"],
+      "delivery": "built-in",
+      "hosts": ["morphir", "dotnet-morphir"],
+      "available": true,
+      "capabilities": {
+        "validator": { "irVersions": ["1", "2", "3"] }
+      }
     }
   ]
 }
 ```
+
+The example leaves out the `morphir.fsharp` entry.
 
 | Field | Meaning |
 | --- | --- |
@@ -281,6 +299,7 @@ With `--json`:
 | `hosts` | The hosts that the extension runs in. |
 | `available` | `true` when the extension runs in this host. An extension for the other host is listed with `false`. |
 | `capabilities.backend` | The MEP backend claim: targets, IR versions in their declared spelling, and `generate`. |
+| `capabilities.validator` | The IR versions that a validator reads, in the spelling of the model readers. This is a morphir-dotnet report member: MEP `0.2.0-draft.1` has no validator capability, so hosts do not write it into MEP messages. |
 
 Logs and diagnostics go to stderr, so `morphir extension list --json | jq` works. If two extensions have the same id,
 the command exits with code 2 and names each duplicate id (`extension.duplicate_id`). With `--json`, the document then

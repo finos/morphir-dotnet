@@ -25,6 +25,8 @@
         <ProjectReference Include="..\..\src\Morphir.IR.Pipeline.Plugins\Morphir.IR.Pipeline.Plugins.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.IR.Pipeline\Morphir.IR.Pipeline.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.Models\Morphir.Models.fsproj" />
+        <!-- The type validator tests also check that the built-in analyzer gives the same diagnostics. -->
+        <ProjectReference Include="..\..\src\Morphir.Analyzers\Morphir.Analyzers.fsproj" />
     </ItemGroup>
 
     <ItemGroup>

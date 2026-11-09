@@ -22,6 +22,11 @@ type Diagnostic =
       [<JsonDefaultValue("unspecified")>]
       Kind: PeerKind }
 
+type Frontend =
+    { Compile: bool
+      [<JsonDefaultValue(false); JsonOmitDefault>]
+      MultiDocument: bool }
+
 type Capabilities =
     { [<JsonName("known", "legacyKnown")>]
       Known: bool

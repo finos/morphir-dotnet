@@ -4,6 +4,7 @@ open System
 open System.Collections.Generic
 open System.Diagnostics.CodeAnalysis
 open System.Runtime.InteropServices
+open Morphir.IR
 open Morphir.IR.Model
 
 /// <summary>A Morphir host. C# builds one with the generated properties <c>MorphirHost.Native</c> and <c>MorphirHost.DotnetTool</c>.</summary>
@@ -98,6 +99,15 @@ type ExtensionType =
         | Validator -> "validator"
         | Workspace -> "workspace"
 
+    /// <summary>The same type as the MEP wire type.</summary>
+    member this.ToMep() : Morphir.Mep.ExtensionType =
+        match this with
+        | Frontend -> Morphir.Mep.ExtensionType.Frontend
+        | Backend -> Morphir.Mep.ExtensionType.Backend
+        | Transform -> Morphir.Mep.ExtensionType.Transform
+        | Validator -> Morphir.Mep.ExtensionType.Validator
+        | Workspace -> Morphir.Mep.ExtensionType.Workspace
+
     /// <summary>The MEP wire value.</summary>
     override this.ToString() = this.WireValue
 
@@ -114,21 +124,125 @@ type BackendClaim =
     override this.ToString() =
         $"targets {this.Targets}; IR versions {this.IrVersions}"
 
+/// <summary>
+/// What a validator reads: at least one IR format version, in the spelling of the model readers (<c>3</c>,
+/// <c>4.0.0</c>). This is a morphir-dotnet report member; MEP has no validator capability yet.
+/// </summary>
+/// <remarks>F# callers use <c>ValidatorClaim.ofSeq</c>; C# callers use <c>Create</c> or <c>TryCreate</c>.</remarks>
+type ValidatorClaim =
+    {
+        /// <summary>The IR format versions that the validator reads. Never an integer: SemVer pre-releases are allowed.</summary>
+        IrVersions: NonEmptySet<Versioning.FormatVersion>
+    }
+
+    /// <summary>The IR versions as the model readers write them, in order.</summary>
+    member this.IrVersionTexts: IReadOnlyList<string> = [|
+        for version in this.IrVersions -> Versioning.version version
+    |]
+
+    /// <summary>True when the validator reads models of this format version.</summary>
+    member this.Reads(version: Versioning.FormatVersion) = this.IrVersions.Contains version
+
+    /// <summary>For C# callers and literals: a claim of the first version and the other versions.</summary>
+    static member Create
+        (
+            first: Versioning.FormatVersion,
+            [<ParamArray>] rest: Versioning.FormatVersion array
+        ) : ValidatorClaim =
+        { IrVersions = NonEmptySet.create first rest }
+
+    /// <summary>For C# callers: a claim of the versions, or false when there is no version.</summary>
+    static member TryCreate
+        (
+            versions: IEnumerable<Versioning.FormatVersion>,
+            [<Out; MaybeNullWhen(false)>] claim: byref<ValidatorClaim>
+        ) : bool =
+        match NonEmptySet.ofSeq "IR versions" versions with
+        | Ok set ->
+            claim <- { IrVersions = set }
+            true
+        | Error _ ->
+            claim <- Unchecked.defaultof<_>
+            false
+
+    /// <summary>
+    /// Parses untrusted IR version texts, in the spelling of the model readers. For F# callers. Fails with the first
+    /// text that is not a format version, or with <c>ParseFailure.Empty</c> when there is no text.
+    /// </summary>
+    static member Parse(texts: (string | null) seq) : Result<ValidatorClaim, ParseFailure> =
+        let parse (text: string | null) =
+            match text with
+            | null -> Error(ParseFailure.Empty "IR version")
+            | text ->
+                Versioning.parse text
+                |> Result.mapError (fun error -> ParseFailure.InvalidVersion("IR version", Text.versionError error))
+
+        let parsed = texts |> Seq.map parse |> List.ofSeq
+
+        match parsed |> List.tryPick (function Error failure -> Some failure | Ok _ -> None) with
+        | Some failure -> Error failure
+        | None ->
+            NonEmptySet.ofSeq "IR versions" (parsed |> List.choose (function Ok version -> Some version | Error _ -> None))
+            |> Result.map (fun set -> { IrVersions = set })
+
+    /// <summary>Parses untrusted IR version texts. For C# callers.</summary>
+    static member TryParse
+        (
+            texts: IEnumerable<string | null>,
+            [<Out; MaybeNullWhen(false)>] claim: byref<ValidatorClaim>,
+            [<Out; MaybeNullWhen(true)>] failure: byref<ParseFailure>
+        ) : bool =
+        match ValidatorClaim.Parse texts with
+        | Ok parsed ->
+            claim <- parsed
+            failure <- Unchecked.defaultof<_>
+            true
+        | Error refused ->
+            claim <- Unchecked.defaultof<_>
+            failure <- refused
+            false
+
+    /// <summary>The IR versions.</summary>
+    override this.ToString() =
+        String.Join(", ", this.IrVersionTexts)
+
+/// <summary>F# functions for <c>ValidatorClaim</c>.</summary>
+[<RequireQualifiedAccess>]
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module ValidatorClaim =
+    /// <summary>A claim of the versions, or <c>ParseFailure.Empty</c> when there is no version.</summary>
+    let ofSeq (versions: Versioning.FormatVersion seq) : Result<ValidatorClaim, ParseFailure> =
+        NonEmptySet.ofSeq "IR versions" versions
+        |> Result.map (fun set -> { IrVersions = set })
+
 /// <summary>A capability that an extension claims. Each case fixes the extension type it implies.</summary>
 [<RequireQualifiedAccess>]
 type ExtensionCapability =
     /// <summary>A backend that generates artifacts.</summary>
     | Backend of BackendClaim
+    /// <summary>A validator that reads a model and reports diagnostics.</summary>
+    | Validator of ValidatorClaim
 
     /// <summary>The extension type that this capability implies.</summary>
     member this.Type =
         match this with
         | Backend _ -> ExtensionType.Backend
+        | Validator _ -> ExtensionType.Validator
+
+    /// <summary>
+    /// The short text for a table cell: the type, and for a validator the IR versions it reads, for example
+    /// <c>validator (1, 2, 3)</c>.
+    /// </summary>
+    member this.Summary =
+        match this with
+        | Backend _ -> ExtensionType.Backend.WireValue
+        | Validator claim -> $"{ExtensionType.Validator.WireValue} ({claim})"
 
     /// <summary>The capability and its claim.</summary>
     override this.ToString() =
         match this with
         | Backend claim -> $"backend ({claim})"
+        | Validator claim -> $"validator ({claim})"
 
 /// <summary>Who an extension is, in the shape of the MEP <c>ExtensionInfo</c> record.</summary>
 type ExtensionIdentity =
@@ -190,8 +304,81 @@ type ExtensionEntry =
         |> Seq.tryPick (
             function
             | ExtensionCapability.Backend claim -> Some claim
+            | ExtensionCapability.Validator _ -> None
         )
         |> Option.toObj
+
+    /// <summary>For C# callers: the validator claim, or null when the extension is not a validator.</summary>
+    member this.ValidatorClaimOrNull =
+        this.Capabilities
+        |> Seq.tryPick (
+            function
+            | ExtensionCapability.Validator claim -> Some claim
+            | ExtensionCapability.Backend _ -> None
+        )
+        |> Option.toObj
+
+    /// <summary>The capability summaries for a table cell, for example <c>validator (1, 2, 3)</c>.</summary>
+    member this.CapabilitySummary =
+        String.Join(", ", this.Capabilities |> Seq.map (fun capability -> capability.Summary))
+
+    /// <summary>
+    /// The MEP <c>ExtensionInfo</c> of the entry: the same id, name, version, description and types. An entry with no
+    /// description has no <c>description</c> member. The registry has no author, home page, license or SDK version.
+    /// </summary>
+    member this.ToMep() : Morphir.Mep.ExtensionInfo = {
+        Id = this.Identity.Id.Value
+        Name = this.Identity.Name.Value
+        Version = this.Identity.Version.ToString()
+        Description =
+            this.Identity.Description
+            |> Option.map (fun description -> description.Value)
+        Types = [|
+            for kind in this.Types -> kind.ToMep()
+        |]
+        Author = None
+        Homepage = None
+        License = None
+        MinSdkVersion = None
+    }
+
+    /// <summary>
+    /// The MEP capability claims of the entry, with only the claim kinds that the pinned contract defines. A backend
+    /// claim maps to <c>backend</c>. A validator claim stays out: MEP 0.2.0-draft.1 has no validator capability.
+    /// </summary>
+    member this.ToMepCapabilities() : Morphir.Mep.ExtensionCapabilities =
+        let backend =
+            this.Capabilities
+            |> Seq.tryPick (
+                function
+                | ExtensionCapability.Backend claim ->
+                    Some(
+                        {
+                            Targets = [|
+                                for target in claim.Targets -> target.Value
+                            |]
+                            IrVersions = [|
+                                for version in claim.IrVersions -> version.Text
+                            |]
+                            // Generation is the only backend operation in MEP, so a backend claim always generates.
+                            Generate = true
+                        }
+                        : Morphir.Mep.BackendCapability
+                    )
+                | ExtensionCapability.Validator _ -> None
+            )
+
+        {
+            Frontend = None
+            Backend = backend
+            Workspace = None
+            ModelTransport = None
+            Streaming = false
+            Incremental = false
+            Cancellation = false
+            Progress = false
+            Extra = Dictionary<string, System.Text.Json.JsonElement>()
+        }
 
     /// <summary>For C# callers, which cannot use <c>with</c> on an F# record: the same entry with other hosts.</summary>
     member this.WithHosts(hosts: HostAvailability) = { this with Hosts = hosts }
@@ -207,6 +394,19 @@ type ExtensionEntry =
             Delivery = ExtensionDelivery.BuiltIn
             Hosts = HostAvailability.AllHosts
             Capabilities = NonEmptySet.create (ExtensionCapability.Backend claim) []
+        }
+
+    /// <summary>A built-in validator that runs in both hosts. Its type comes from the claim.</summary>
+    static member BuiltInValidator
+        (
+            identity: ExtensionIdentity,
+            claim: ValidatorClaim
+        ) : ExtensionEntry =
+        {
+            Identity = identity
+            Delivery = ExtensionDelivery.BuiltIn
+            Hosts = HostAvailability.AllHosts
+            Capabilities = NonEmptySet.create (ExtensionCapability.Validator claim) []
         }
 
     /// <summary>The identity, delivery and hosts.</summary>
