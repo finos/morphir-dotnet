@@ -20,9 +20,10 @@ open Morphir.Mep
 open Morphir.TestSupport
 
 /// Runs the guest as a separate process through the shared test harness (the process gate, a deadline and
-/// process-tree cleanup) inside a test sandbox. The host messages go to stdin as Content-Length frames, the guest
-/// reads them in order, and stdin closes after the last one. The result is the reply frames in order and the exit
-/// code.
+/// process-tree cleanup) inside a test sandbox. The host messages go to stdin as Content-Length frames, in order.
+/// Like a host, the exchange waits for the replies to all earlier requests before it sends morphir.shutdown or
+/// morphir.exit: the guest cancels the requests that still run when the session ends. Stdin closes after the last
+/// message. The result is the reply frames in order and the exit code.
 let internal exchange (messages: string list) : JsonNode list * int =
     let host =
         match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
@@ -36,23 +37,85 @@ let internal exchange (messages: string list) : JsonNode list * int =
     start.StandardOutputEncoding <- UTF8Encoding false
     sandbox.Apply start
 
-    let input =
-        messages
-        |> List.map (fun message -> $"Content-Length: {Encoding.UTF8.GetByteCount message}\r\n\r\n{message}")
-        |> String.concat ""
+    let replies = ResizeArray<JsonNode>()
+
+    let refused failure (output: string) =
+        failtest $"The guest wrote output that is not a frame ({failure}): {output}"
+
+    let converse (input: Stream) (output: Stream) (cancellation: CancellationToken) : Task =
+        task {
+            let pending = Collections.Generic.HashSet<string>()
+
+            let idOf (node: JsonNode | null) =
+                match node with
+                | null -> None
+                | node ->
+                    match node["id"] with
+                    | null -> None
+                    | id -> Some(id.ToJsonString())
+
+            let methodOf (node: JsonNode | null) =
+                match node with
+                | null -> None
+                | node ->
+                    match node["method"] with
+                    | null -> None
+                    | method -> Some(method.ToJsonString().Trim '"')
+
+            // Reads one reply frame; false at the end of stdout.
+            let readReply () =
+                task {
+                    match! ContentLengthFraming.ReadAsync(output, cancellation) with
+                    | FrameRead.Message body ->
+                        let node = JsonNode.Parse(ReadOnlySpan body) |> nonNull
+                        replies.Add node
+                        idOf node |> Option.iter (pending.Remove >> ignore)
+                        return true
+                    | FrameRead.EndOfStream -> return false
+                    | FrameRead.Refused failure -> return refused failure "(stdout during the exchange)"
+                }
+
+            for message in messages do
+                let node =
+                    try
+                        JsonNode.Parse message
+                    with :? JsonException ->
+                        null
+
+                match methodOf node with
+                | Some "morphir.shutdown"
+                | Some "morphir.exit" ->
+                    let mutable open' = true
+
+                    while open' && pending.Count > 0 do
+                        let! more = readReply ()
+                        open' <- more
+                | _ -> ()
+
+                let frame = Encoding.UTF8.GetBytes $"Content-Length: {Encoding.UTF8.GetByteCount message}\r\n\r\n{message}"
+                do! input.WriteAsync(ReadOnlyMemory frame, cancellation)
+                do! input.FlushAsync cancellation
+
+                match methodOf node, idOf node with
+                | Some _, Some id -> pending.Add id |> ignore
+                | _ -> ()
+        }
 
     let result =
-        ChildProcess.RunAsync(start, TimeSpan.FromMinutes 3.0, CancellationToken.None, null, input).GetAwaiter().GetResult()
+        ChildProcess
+            .ConverseAsync(start, TimeSpan.FromMinutes 3.0, Func<_, _, _, _> converse, CancellationToken.None, null)
+            .GetAwaiter()
+            .GetResult()
 
-    use output = new MemoryStream(Encoding.UTF8.GetBytes result.StandardOutput)
+    use rest = new MemoryStream(Encoding.UTF8.GetBytes result.StandardOutput)
 
     let rec frames acc =
-        match ContentLengthFraming.ReadAsync(output, CancellationToken.None).GetAwaiter().GetResult() with
+        match ContentLengthFraming.ReadAsync(rest, CancellationToken.None).GetAwaiter().GetResult() with
         | FrameRead.Message body -> frames ((JsonNode.Parse(ReadOnlySpan body) |> nonNull) :: acc)
         | FrameRead.EndOfStream -> List.rev acc
-        | FrameRead.Refused failure -> failtest $"The guest wrote output that is not a frame ({failure}): {result.CombinedOutput}"
+        | FrameRead.Refused failure -> refused failure result.CombinedOutput
 
-    frames [], result.ExitCode
+    List.ofSeq replies @ frames [], result.ExitCode
 
 type private Direction =
     | HostToExtension
