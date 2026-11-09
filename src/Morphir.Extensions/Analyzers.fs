@@ -19,39 +19,6 @@ type MepRecords =
     static member IsError(severity: Morphir.Mep.DiagnosticSeverity) : bool =
         severity = Morphir.Mep.DiagnosticSeverity.Error
 
-    /// <summary>The rule code, or null when there is none.</summary>
-    [<Extension>]
-    static member CodeOrNull(diagnostic: Morphir.Mep.Diagnostic) : string | null = Option.toObj diagnostic.Code
-
-    /// <summary>The location, or null when there is none.</summary>
-    [<Extension>]
-    static member LocationOrNull(diagnostic: Morphir.Mep.Diagnostic) : Morphir.Mep.SourceLocation | null =
-        Option.toObj diagnostic.Location
-
-    /// <summary>The structured data, or null when there is none.</summary>
-    [<Extension>]
-    static member DataOrNull(diagnostic: Morphir.Mep.Diagnostic) : Nullable<JsonElement> = Option.toNullable diagnostic.Data
-
-    /// <summary>The description, or null when there is none.</summary>
-    [<Extension>]
-    static member DescriptionOrNull(info: Morphir.Mep.ExtensionInfo) : string | null = Option.toObj info.Description
-
-    /// <summary>The author, or null when there is none.</summary>
-    [<Extension>]
-    static member AuthorOrNull(info: Morphir.Mep.ExtensionInfo) : string | null = Option.toObj info.Author
-
-    /// <summary>The home page, or null when there is none.</summary>
-    [<Extension>]
-    static member HomepageOrNull(info: Morphir.Mep.ExtensionInfo) : string | null = Option.toObj info.Homepage
-
-    /// <summary>The license, or null when there is none.</summary>
-    [<Extension>]
-    static member LicenseOrNull(info: Morphir.Mep.ExtensionInfo) : string | null = Option.toObj info.License
-
-    /// <summary>The lowest SDK version, or null when there is none.</summary>
-    [<Extension>]
-    static member MinSdkVersionOrNull(info: Morphir.Mep.ExtensionInfo) : string | null = Option.toObj info.MinSdkVersion
-
     /// <summary>For C# callers: a diagnostic with an optional code and location, no related information and no data.</summary>
     static member CreateDiagnostic
         (

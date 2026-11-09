@@ -154,6 +154,20 @@ type InitializeFailure =
         | UnexpectedVersion version -> $"The extension chose the protocol version {version}, which the host did not offer."
         | SelectionRefused reason -> reason
 
+    /// For C# callers: one function for each case.
+    member this.Match<'R>
+        (
+            refused: Func<RpcError, 'R>,
+            invalidResult: Func<'R>,
+            unexpectedVersion: Func<ProtocolVersion, 'R>,
+            selectionRefused: Func<string, 'R>
+        ) : 'R =
+        match this with
+        | Refused error -> refused.Invoke error
+        | InvalidResult -> invalidResult.Invoke()
+        | UnexpectedVersion version -> unexpectedVersion.Invoke version
+        | SelectionRefused reason -> selectionRefused.Invoke reason
+
 /// The host side of a session on a framed stream pair (design SES-2). The host applies the lifecycle rules before
 /// it sends, so it does not send a request that the guest must refuse.
 [<Sealed>]
@@ -166,7 +180,7 @@ type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTran
         Dispatcher(
             readOnlyDict
                 [ Method.Progress.WireValue,
-                  Handlers.typedNotification MepJson.Default.ProgressParams (fun value ->
+                  Handlers.typedNotification MepJson.Default.ProgressParams (fun value _ ->
                       progress.Enqueue value
                       Task.CompletedTask) ],
             Func<string, MethodKind, Admission>(fun method kind -> Lifecycle.admit state method kind)
