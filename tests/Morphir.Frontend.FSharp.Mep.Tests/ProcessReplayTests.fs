@@ -6,7 +6,6 @@
 module Morphir.Frontend.FSharp.Mep.Tests.ProcessReplayTests
 
 open System
-open System.Diagnostics
 open System.IO
 open System.Text
 open System.Text.Json
@@ -18,55 +17,42 @@ open Expecto
 open Morphir.Frontend.FSharp.Mep
 open Morphir.Frontend.FSharp.Mep.Tests.GuestSupport
 open Morphir.Mep
+open Morphir.TestSupport
 
-/// The guest executable, started with explicit arguments and no shell.
-type private GuestProcess() =
+/// Runs the guest as a separate process through the shared test harness (the process gate, a deadline and
+/// process-tree cleanup) inside a test sandbox. The host messages go to stdin as Content-Length frames, the guest
+/// reads them in order, and stdin closes after the last one. The result is the reply frames in order and the exit
+/// code.
+let internal exchange (messages: string list) : JsonNode list * int =
     let host =
         match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
         | null -> "dotnet"
         | path -> path
 
-    let start =
-        let info = ProcessStartInfo(host)
-        info.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-frontend.dll"))
-        info.RedirectStandardInput <- true
-        info.RedirectStandardOutput <- true
-        info.RedirectStandardError <- true
-        info.UseShellExecute <- false
-        info
+    use sandbox = TestSandbox.Create "morphir-guest-"
+    let start = ChildProcess.StartInfo(host, Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-frontend.dll"))
+    start.WorkingDirectory <- sandbox.Work
+    start.StandardInputEncoding <- UTF8Encoding false
+    start.StandardOutputEncoding <- UTF8Encoding false
+    sandbox.Apply start
 
-    let child = Process.Start start |> nonNull
-    let errors = child.StandardError.ReadToEndAsync()
-    let input = child.StandardInput.BaseStream
-    let output = child.StandardOutput.BaseStream
+    let input =
+        messages
+        |> List.map (fun message -> $"Content-Length: {Encoding.UTF8.GetByteCount message}\r\n\r\n{message}")
+        |> String.concat ""
 
-    member _.Send(message: string) =
-        ContentLengthFraming.WriteAsync(input, ReadOnlyMemory(Encoding.UTF8.GetBytes message), CancellationToken.None).Wait()
+    let result =
+        ChildProcess.RunAsync(start, TimeSpan.FromMinutes 3.0, CancellationToken.None, null, input).GetAwaiter().GetResult()
 
-    member _.Receive() : JsonNode =
-        use timeout = new CancellationTokenSource(TimeSpan.FromMinutes 2.0)
+    use output = new MemoryStream(Encoding.UTF8.GetBytes result.StandardOutput)
 
-        match ContentLengthFraming.ReadAsync(output, timeout.Token).GetAwaiter().GetResult() with
-        | FrameRead.Message body -> JsonNode.Parse(ReadOnlySpan body) |> nonNull
-        | other -> failtest $"Expected a reply frame: {other}"
+    let rec frames acc =
+        match ContentLengthFraming.ReadAsync(output, CancellationToken.None).GetAwaiter().GetResult() with
+        | FrameRead.Message body -> frames ((JsonNode.Parse(ReadOnlySpan body) |> nonNull) :: acc)
+        | FrameRead.EndOfStream -> List.rev acc
+        | FrameRead.Refused failure -> failtest $"The guest wrote output that is not a frame ({failure}): {result.CombinedOutput}"
 
-    /// Ends the session: the process must exit after morphir.exit.
-    member _.WaitForExit() =
-        input.Close()
-
-        if not (child.WaitForExit(TimeSpan.FromSeconds 30.0)) then
-            child.Kill true
-            failtest "The guest did not exit after morphir.exit"
-
-        child.ExitCode, errors.Result
-
-    interface IDisposable with
-        member _.Dispose() =
-            if not child.HasExited then
-                child.Kill true
-                child.WaitForExit()
-
-            child.Dispose()
+    frames [], result.ExitCode
 
 type private Direction =
     | HostToExtension
@@ -177,51 +163,63 @@ let private checkResult (agreed: ModelTransportSupport option ref) (method: stri
 
 /// Replays the frontend messages of a pinned transcript against a new guest process.
 let private replay (name: string) =
-    use guest = new GuestProcess()
     let agreed = ref None
     let messages = transcript name
 
-    let replies =
+    let expectedReplies =
         messages
         |> List.choose (function
             | ExtensionToHost, text -> Some(JsonNode.Parse text |> nonNull)
             | _ -> None)
 
-    let mutable exited = false
+    let sent =
+        messages
+        |> List.choose (fun (direction, text) ->
+            let original = JsonNode.Parse text |> nonNull
 
-    for direction, text in messages do
-        let original = JsonNode.Parse text |> nonNull
+            match direction, methodOf original with
+            | HostToExtension, Some method when frontendSubset.Contains method -> Some(method, original)
+            | _ -> None)
 
-        match direction, methodOf original with
-        | HostToExtension, Some method when frontendSubset.Contains method ->
-            let message = toFSharp original
-            guest.Send(message.ToJsonString())
+    // The guest ends the session at morphir.exit and reads nothing after it.
+    let upToExit =
+        match sent |> List.tryFindIndex (fun (method, _) -> method = "morphir.exit") with
+        | Some index -> List.take (index + 1) sent
+        | None -> sent
 
-            match original["id"] with
-            | null -> exited <- exited || method = "morphir.exit"
-            | id ->
-                let reply = guest.Receive()
-                Expect.isTrue (JsonNode.DeepEquals(reply["id"], id)) $"{name} {method}: the same id"
-                Expect.equal ((reply["jsonrpc"] |> nonNull).ToJsonString()) "\"2.0\"" "jsonrpc 2.0"
+    let replies, exitCode =
+        exchange [ for _, original in upToExit -> (toFSharp original).ToJsonString() ]
 
-                let expected =
-                    replies |> List.tryFind (fun candidate -> JsonNode.DeepEquals(candidate["id"], id))
+    let requests = upToExit |> List.filter (fun (_, original) -> not (isNull original["id"]))
+    Expect.equal replies.Length requests.Length $"{name}: one reply for each request"
 
-                let expectedCode = expected |> Option.bind codeOf
+    // The guest can answer requests in another order than it got them, so replies are matched by id.
+    for method, original in requests do
+        let id = original["id"]
 
-                match codeOf reply, expectedCode with
-                | Some actual, Some wanted -> Expect.equal actual wanted $"{name} {method}: the error code"
-                | Some actual, None -> failtest $"{name} {method}: unexpected error {actual}: {reply}"
-                | None, Some wanted -> failtest $"{name} {method}: expected error {wanted}: {reply}"
-                | None, None ->
-                    match reply["result"] with
-                    | null -> failtest $"{name} {method}: a reply has a result or an error"
-                    | result -> checkResult agreed method result
-        | _ -> ()
+        let reply =
+            replies
+            |> List.tryFind (fun candidate -> JsonNode.DeepEquals(candidate["id"], id))
+            |> Option.defaultWith (fun () -> failtest $"{name} {method}: no reply with the id {id}")
 
-    if exited then
-        let code, _ = guest.WaitForExit()
-        Expect.equal code 0 $"{name}: the guest exits with code 0 after morphir.exit"
+        Expect.equal ((reply["jsonrpc"] |> nonNull).ToJsonString()) "\"2.0\"" "jsonrpc 2.0"
+
+        let expectedCode =
+            expectedReplies
+            |> List.tryFind (fun candidate -> JsonNode.DeepEquals(candidate["id"], id))
+            |> Option.bind codeOf
+
+        match codeOf reply, expectedCode with
+        | Some actual, Some wanted -> Expect.equal actual wanted $"{name} {method}: the error code"
+        | Some actual, None -> failtest $"{name} {method}: unexpected error {actual}: {reply}"
+        | None, Some wanted -> failtest $"{name} {method}: expected error {wanted}: {reply}"
+        | None, None ->
+            match reply["result"] with
+            | null -> failtest $"{name} {method}: a reply has a result or an error"
+            | result -> checkResult agreed method result
+
+    if upToExit |> List.exists (fun (method, _) -> method = "morphir.exit") then
+        Expect.equal exitCode 0 $"{name}: the guest exits with code 0 after morphir.exit"
 
 let private cases =
     JsonNode.Parse(File.ReadAllText(fixture "model-transport.cases.json")) |> nonNull
@@ -238,63 +236,79 @@ let tests =
 
           yield testCase "The request-side compileModel cases of model-transport.cases.json give their pinned verdicts"
           <| fun _ ->
-              use guest = new GuestProcess()
-              guest.Send(initialize [ jsonTuple "4.0.0"; jsonTuple "3.0.0" ])
-              Expect.isNone (codeOf (guest.Receive())) "initialize"
-              guest.Send """{"jsonrpc":"2.0","method":"morphir.initialized","params":{}}"""
+              let selected =
+                  [ for item in (cases["cases"] |> nonNull).AsArray() |> Seq.map nonNull do
+                        let code = ((item["expected"] |> nonNull)["code"] |> nonNull).GetValue<string>()
 
-              let mutable id = 10
+                        // Request-side cases whose verdict does not depend on the Ion profile. The compatibility
+                        // cases check Ion-to-JSON losses, which JSON tuples cannot have.
+                        match item["request"] with
+                        | NonNull request when
+                            methodOf request = Some "morphir.frontend.compileModel"
+                            && isNull item["result"]
+                            && (code = "accepted" || code = "ir_version_mismatch")
+                            ->
+                            yield item, request
+                        | _ -> () ]
 
-              for item in (cases["cases"] |> nonNull).AsArray() |> Seq.map nonNull do
-                  let request = item["request"]
-                  let result = item["result"]
+              Expect.isNonEmpty selected "The pin has request-side compileModel cases"
 
-                  let code = ((item["expected"] |> nonNull)["code"] |> nonNull).GetValue<string>()
+              let compiles =
+                  [ for index, (_, request) in List.indexed selected ->
+                        let parameters = request["params"] |> nonNull
+                        let options = (parameters["options"] |> nonNull)["irVersion"] |> nonNull
+                        let output = (parameters["output"] |> nonNull)["irVersion"] |> nonNull
+                        let fsharp = compileRequest (output.GetValue<string>()) [ "Pricing.fs", pricing ] None
 
-                  // Request-side cases whose verdict does not depend on the Ion profile. The compatibility cases
-                  // check Ion-to-JSON losses, which JSON tuples cannot have.
-                  match request with
-                  | NonNull request when
-                      methodOf request = Some "morphir.frontend.compileModel"
-                      && isNull result
-                      && (code = "accepted" || code = "ir_version_mismatch")
-                      ->
-                      // A request-side case: the guest admits or refuses the request itself.
-                      let parameters = request["params"] |> nonNull
-                      let options = (parameters["options"] |> nonNull)["irVersion"] |> nonNull
-                      let output = (parameters["output"] |> nonNull)["irVersion"] |> nonNull
-                      let fsharp = compileRequest (output.GetValue<string>()) [ "Pricing.fs", pricing ] None
+                        let sent =
+                            { fsharp with
+                                Options =
+                                    { fsharp.Options with
+                                        IrVersion = SemanticVersion.Create(options.GetValue<string>()) } }
 
-                      let sent =
-                          { fsharp with
-                              Options =
-                                  { fsharp.Options with
-                                      IrVersion = SemanticVersion.Create(options.GetValue<string>()) } }
+                        compileMessage (10 + index) sent ]
 
-                      id <- id + 1
-                      guest.Send(compileMessage id sent)
-                      let reply = guest.Receive()
-                      let caseId = (item["id"] |> nonNull).GetValue<string>()
+              let replies, exitCode =
+                  exchange (
+                      [ initialize [ jsonTuple "4.0.0"; jsonTuple "3.0.0" ]
+                        """{"jsonrpc":"2.0","method":"morphir.initialized","params":{}}""" ]
+                      @ compiles
+                      @ [ """{"jsonrpc":"2.0","id":99,"method":"morphir.shutdown"}"""
+                          """{"jsonrpc":"2.0","method":"morphir.exit"}""" ]
+                  )
 
-                      match ((item["expected"] |> nonNull)["admission"] |> nonNull).GetValue<string>() with
-                      | "accept" -> Expect.isNone (codeOf reply) $"{caseId} is accepted"
-                      | _ -> Expect.equal (codeOf reply) (Some -32602) $"{caseId} is refused with -32602"
-                  | _ -> ()
+              Expect.equal replies.Length (selected.Length + 2) "initialize, each compile and shutdown"
 
-              guest.Send """{"jsonrpc":"2.0","id":99,"method":"morphir.shutdown"}"""
-              Expect.isNone (codeOf (guest.Receive())) "shutdown"
-              guest.Send """{"jsonrpc":"2.0","method":"morphir.exit"}"""
-              Expect.equal (fst (guest.WaitForExit())) 0 "exit code"
+              let byId (id: int) =
+                  replies
+                  |> List.find (fun reply -> (reply["id"] |> nonNull).GetValue<int>() = id)
+
+              Expect.isNone (codeOf (byId 0)) "initialize"
+
+              for index, (item, _) in List.indexed selected do
+                  let reply = byId (10 + index)
+                  let caseId = (item["id"] |> nonNull).GetValue<string>()
+
+                  match ((item["expected"] |> nonNull)["admission"] |> nonNull).GetValue<string>() with
+                  | "accept" -> Expect.isNone (codeOf reply) $"{caseId} is accepted"
+                  | _ -> Expect.equal (codeOf reply) (Some -32602) $"{caseId} is refused with -32602"
+
+              Expect.isNone (codeOf (byId 99)) "shutdown"
+              Expect.equal exitCode 0 "exit code"
 
           yield testCase "The guest writes only frames to stdout, also when the frontend runs"
           <| fun _ ->
-              use guest = new GuestProcess()
-              guest.Send(initialize [ jsonTuple "4.0.0" ])
-              guest.Receive() |> ignore
-              guest.Send(compileMessage 1 (compileRequest "4.0.0" [ "Pricing.fs", pricing ] None))
-              let reply = guest.Receive()
-              Expect.isNone (codeOf reply) "compileModel"
-              guest.Send """{"jsonrpc":"2.0","id":2,"method":"morphir.shutdown"}"""
-              guest.Receive() |> ignore
-              guest.Send """{"jsonrpc":"2.0","method":"morphir.exit"}"""
-              Expect.equal (fst (guest.WaitForExit())) 0 "Every reply was a frame, and the guest exited cleanly" ]
+              let replies, exitCode =
+                  exchange
+                      [ initialize [ jsonTuple "4.0.0" ]
+                        compileMessage 1 (compileRequest "4.0.0" [ "Pricing.fs", pricing ] None)
+                        """{"jsonrpc":"2.0","id":2,"method":"morphir.shutdown"}"""
+                        """{"jsonrpc":"2.0","method":"morphir.exit"}""" ]
+
+              Expect.equal replies.Length 3 "Every reply is a frame"
+
+              let compile =
+                  replies |> List.find (fun reply -> (reply["id"] |> nonNull).GetValue<int>() = 1)
+
+              Expect.isNone (codeOf compile) "compileModel"
+              Expect.equal exitCode 0 "The guest exited cleanly" ]
