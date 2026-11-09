@@ -8,6 +8,7 @@ using Morphir.Compilation;
 using Morphir.Configuration;
 using Morphir.Configuration.IO;
 using Morphir.IR.Model;
+using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Infrastructure;
 using ConfigSeverity = Morphir.Configuration.DiagnosticSeverity;
 using Severity = Morphir.Compilation.DiagnosticSeverity;
@@ -23,7 +24,14 @@ public interface ICompileSettingsResolver
 
 /// <summary>The effective configuration of the selected project, as the settings resolver reads it.</summary>
 public sealed record LoadedCompileConfiguration(ConfigValue Effective, FSharpMap<FSharpList<string>, ValueOrigin> Origins,
-    string? ProjectRoot, string? WorkspaceOutDirectory, ImmutableArray<ConfigDiagnostic> Diagnostics);
+    string? ProjectRoot, string? WorkspaceOutDirectory, ImmutableArray<ConfigDiagnostic> Diagnostics)
+{
+    /// <summary>The root of the workspace that owns the project, or null when the project has no workspace.</summary>
+    public string? WorkspaceRoot { get; init; }
+
+    /// <summary>The Morphir home (<c>MORPHIR_HOME</c>, else <c>~/.morphir</c>), or null when it is not known.</summary>
+    public string? MorphirHome { get; init; }
+}
 
 /// <summary>Loads the configuration of the project that <c>--project</c> and <c>--config</c> select.</summary>
 public interface ICompileConfigurationLoader
@@ -65,7 +73,8 @@ public sealed class FileSystemCompileConfigurationLoader : ICompileConfiguration
         // An explicitly named project directory is authorized even outside the ambient discovery boundary.
         if (!ProjectPath.contains(ProjectPath.normalize(boundary), normalizedStart)) boundary = start;
         var machine = ProjectSystem.CaptureMachineLocations(context.Environment);
-        var tree = new FileSystemProjectTree(ProjectPath.normalize(boundary), ProjectSystem.MorphirHomeDirectory(machine, normalizedStart));
+        var home = ProjectSystem.MorphirHomeDirectory(machine, normalizedStart);
+        var tree = new FileSystemProjectTree(ProjectPath.normalize(boundary), home);
         var discovered = ProjectSystem.Discover(tree, normalizedStart, selector);
         var selected = discovered.Selection.Projects.Length == 1 ? discovered.Selection.Projects.Head : null;
         var defaults = DocumentDefaults.resolutionInput;
@@ -90,7 +99,12 @@ public sealed class FileSystemCompileConfigurationLoader : ICompileConfiguration
         var root = selected?.Path ?? (hasProject ? discovered.Discovery.Location : null);
         var workspaceOut = resolution.OwningWorkspace is { } workspace && workspace.Value.OutputDirectory is { } output
             ? output.Value : null;
-        return new(resolution.Effective, resolution.Origins, root is null ? null : Path.GetFullPath(root), workspaceOut, diagnostics);
+        var workspaceRoot = resolution.OwningWorkspace is { } owner ? Path.GetFullPath(owner.Value.Root) : null;
+        return new(resolution.Effective, resolution.Origins, root is null ? null : Path.GetFullPath(root), workspaceOut, diagnostics)
+        {
+            WorkspaceRoot = workspaceRoot,
+            MorphirHome = Path.GetFullPath(home, working),
+        };
     }
 
     private static ConfigDiagnostic ConfigFailure(string code, string message) =>
@@ -108,9 +122,6 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
 {
     /// <summary>The default IR format version.</summary>
     public const string DefaultIrVersion = "4";
-
-    /// <summary>The default out root, relative to the project root.</summary>
-    public const string DefaultOutDirectory = ".morphir/out";
 
     /// <summary>A resolver over the native file system.</summary>
     public ProjectCompileSettingsResolver() : this(new FileSystemCompileConfigurationLoader()) { }
@@ -209,11 +220,28 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             sources = new SourceRequest.SourceDirectory(config.Resolve(directory, baseDirectory), directory.Origin);
         }
 
-        var outDirectory = loaded.WorkspaceOutDirectory is { } workspaceOut
-            ? Path.GetFullPath(workspaceOut, baseDirectory)
-            : Path.GetFullPath(config.String("workspace.out_dir")?.Value ?? DefaultOutDirectory, baseDirectory);
+        // The task place (REC-1), the same for compile and for generate without --input.
+        CompileTaskPlace? place = null;
+        switch (CompileTaskLocator.Locate(loaded, context, overrides.OutDir))
+        {
+            case Outcome<CompileTaskPlace>.Success located:
+                place = located.Value;
+                break;
+            case Outcome<CompileTaskPlace>.Failure failed:
+                foreach (var diagnostic in failed.Error.Diagnostics)
+                    Error(DiagnosticCode.TryParse(diagnostic.Code, out var code, out _) ? code : CompileCodes.InvalidSetting, diagnostic.Message);
+                break;
+        }
 
-        if (errors.Count > 0 || package is null || version is null || sources is null)
+        // -o/--output: an installed copy of the IR, relative to the invocation directory.
+        Setting<string>? output = null;
+        if (overrides.Output is { } outputText)
+        {
+            if (string.IsNullOrWhiteSpace(outputText)) Error(CompileCodes.InvalidSetting, "The option -o/--output needs a directory.");
+            else output = new(Path.GetFullPath(outputText, working), new SettingOrigin.CommandLine("--output"));
+        }
+
+        if (errors.Count > 0 || package is null || version is null || sources is null || place is null)
             return Checked<CompileSettings>.Fail(warnings.Concat(errors));
 
         return Checked<CompileSettings>.Of(new CompileSettings
@@ -226,7 +254,10 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Sources = sources,
             UnreadProjectFileKeys = unread,
             ProjectRoot = loaded.ProjectRoot,
-            OutDirectory = outDirectory,
+            OutRoot = place.OutRoot,
+            Member = place.Member,
+            MorphirHome = place.MorphirHome,
+            Output = output,
             WorkingDirectory = working,
         }, warnings);
     }

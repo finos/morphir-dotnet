@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Morphir.Tooling.Features.Compile;
 using Morphir.Tooling.Features.Generate;
 
 namespace Morphir.Tooling.Scenarios;
@@ -11,7 +12,10 @@ public sealed class GenerationScenario : IMorphirCliScenario
     {
         builder.ConfigureServices(services =>
         {
-            services.TryAddSingleton<IGenerationSettingsResolver, CliGenerationSettingsResolver>();
+            // Without --input, generate reads the IR of the most recent compile (REC-1).
+            services.TryAddSingleton<IGenerationSettingsResolver>(provider => new RecordGenerationSettingsResolver(
+                new CliGenerationSettingsResolver(),
+                provider.GetService<ICompileConfigurationLoader>() ?? new FileSystemCompileConfigurationLoader()));
             services.TryAddSingleton<BoundedModelCapture>();
             services.TryAddSingleton<IModelLoader, GenerationModelLoader>();
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IGenerationBackend, FSharpGenerationBackend>());

@@ -57,9 +57,7 @@ The MSBuild provider recognizes MSBuild project files (`*.*proj`), for example `
 It reads the `Compile`, `ProjectReference` and `PackageReference` items through project evaluation only.
 It does not restore, build or run targets, and it writes no output: no `obj/` or `bin/` directory.
 
-> **Pending.** Task 4.4 of the change `add-fsharp-compile` implements this provider. Until it is in your
-> build, a project file fails with `sources.unknown_project_file`. The examples in this section are
-> pending until then.
+Both executables, `morphir` and `dotnet-morphir`, have this provider.
 
 The provider runs this command as a child process, with explicit arguments, no shell, and a deadline:
 
@@ -84,7 +82,7 @@ way. Frontend selection, not the provider, then decides whether the language is 
 | `PackageReference` | The warning `msbuild.ignored_package_reference`, naming the package. Compilation continues. |
 | An evaluation error | `msbuild.evaluation_failed` (exit code 2), with the build tool's message. |
 
-Example (pending task 4.4):
+Example:
 
 ```text
 dotnet-morphir compile --project-file src/Acme.CarRental.fsproj --package-name acme/car-rental --json

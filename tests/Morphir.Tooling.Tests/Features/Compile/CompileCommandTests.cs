@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Morphir.Compilation;
 using Morphir.Frontend.FSharp;
 using Morphir.Tooling.Features.Compile;
@@ -20,7 +21,7 @@ public sealed class CompileCommandTests
 
     private static readonly Diagnostic PackageWarning = Diagnostic.Create(DiagnosticSeverity.Warning,
         DiagnosticCode.Create("msbuild.ignored_package_reference"), "PackageReference Newtonsoft.Json is ignored.",
-        FileSourceCapture.DocumentLocation("Acme.CarRental.fsproj"));
+        Location.Create("Acme.CarRental.fsproj", Morphir.Compilation.Range.Create(Position.Create(0, 0), Position.Create(0, 0))));
 
     /// <summary>A project whose configured project file the fake provider expands to Rates.fs then Pricing.fs.</summary>
     private static (CompileWorkspace Workspace, FakeProjectFileProvider Provider) Project(string pricing = CompileRunnerTests.Pricing)
@@ -45,6 +46,8 @@ public sealed class CompileCommandTests
             .AddScenario<CompilationScenario>()
             .ConfigureServices(services =>
             {
+                // The fake providers replace the MSBuild provider that the scenario registers.
+                services.RemoveAll<IProjectFileProvider>();
                 services.AddSingleton<IFrontend>(frontend);
                 foreach (var provider in providers) services.AddSingleton(provider);
                 services.AddSingleton<ICompileOutput>(output);
@@ -58,6 +61,37 @@ public sealed class CompileCommandTests
     private static Task<Run> Compile((CompileWorkspace Workspace, FakeProjectFileProvider Provider) project, string arguments,
         IFrontend? frontend = null, CancellationTokenSource? cancellation = null) =>
         Compile(project.Workspace, [project.Provider], frontend ?? FSharpFrontend.Registration, arguments, cancellation);
+
+    [Test]
+    public async Task TheOutputOptionInstallsTheIrAndTheReportListsTheInstalledFile()
+    {
+        var project = Project();
+        using var _ = project.Workspace;
+        var target = project.Workspace.PathOf("dist");
+        var run = await Compile(project, $"--json -o {target}");
+        run.Exit.Should().Be(0, run.Output.Text);
+        using var report = JsonDocument.Parse(run.Output.Text);
+        report.RootElement.GetProperty("output").GetString().Should().Be(project.Workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json"));
+        report.RootElement.GetProperty("installed").EnumerateArray().Select(e => e.GetString())
+            .Should().Equal(Path.Combine(target, "morphir-ir.json"));
+        report.RootElement.GetProperty("origins").GetProperty("output").GetProperty("flag").GetString().Should().Be("--output");
+        File.Exists(Path.Combine(target, "morphir-ir.json")).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task AnInstallConflictFailsWithExitCodeTwoAndNamesTheForeignFile()
+    {
+        var project = Project();
+        using var _ = project.Workspace;
+        project.Workspace.Write("dist/morphir-ir.json", "foreign");
+        var run = await Compile(project, $"--json --output {project.Workspace.PathOf("dist")}");
+        run.Exit.Should().Be(2, run.Output.Text);
+        using var report = JsonDocument.Parse(run.Output.Text);
+        report.RootElement.GetProperty("installed").GetArrayLength().Should().Be(0);
+        report.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString())
+            .Should().Contain("install.foreign_content");
+        File.ReadAllText(project.Workspace.PathOf("dist/morphir-ir.json")).Should().Be("foreign");
+    }
 
     [Test]
     public async Task JsonModeWritesExactlyOneReportOnStdout()
@@ -284,6 +318,7 @@ public sealed class CompileCommandTests
             .ConfigureServices(services =>
             {
                 services.AddSingleton(frontend);
+                services.RemoveAll<IProjectFileProvider>();
                 services.AddSingleton<IProjectFileProvider>(project.Provider);
                 services.AddSingleton<ICompileOutput>(output);
                 services.AddSingleton(new CompileContextSource(() => project.Workspace.Context()));

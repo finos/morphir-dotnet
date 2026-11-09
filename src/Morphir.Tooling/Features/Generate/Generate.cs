@@ -20,7 +20,7 @@ public static class GenerateHandler
             var resolution = await settingsResolver.ResolveAsync(command.Overrides, command.Context, ct);
             if (resolution is Outcome<GenerationSettings>.Failure settingsFailure) return GenerationStages.Failed(settingsFailure.Error, null);
             var settings = ((Outcome<GenerationSettings>.Success)resolution).Value;
-            var loaded = await loader.LoadAsync(settings.Input, settings.Limits, ct);
+            var loaded = await LoadAsync(loader, settings, ct);
             if (loaded is Outcome<LoadedModel>.Failure loadFailure) return GenerationStages.Failed(loadFailure.Error, null);
             var model = ((Outcome<LoadedModel>.Success)loaded).Value;
             return await GenerationStages.RunFrom(model, settings, backendResolver, publisher, ct, logger);
@@ -30,6 +30,17 @@ public static class GenerateHandler
         {
             return GenerationStages.Unexpected(error, null, logger);
         }
+    }
+
+    /// <summary>
+    /// Loads the model while the settings' input lease is held, admits it through the lease, then releases the
+    /// lease. A compile record's shared lock is therefore held until loading ends, and no longer (REC-1).
+    /// </summary>
+    private static async ValueTask<Outcome<LoadedModel>> LoadAsync(IModelLoader loader, GenerationSettings settings, CancellationToken ct)
+    {
+        using var lease = settings.InputLease;
+        var loaded = await loader.LoadAsync(settings.Input, settings.Limits, ct);
+        return lease is not null && loaded is Outcome<LoadedModel>.Success success ? lease.Admit(success.Value) : loaded;
     }
 }
 

@@ -47,6 +47,13 @@ public static class SourceCaptureCodes
     public static readonly DiagnosticCode InvalidUtf8 = DiagnosticCode.Create("sources.invalid_utf8");
 }
 
+/// <summary>Reads the selected documents (the effect edge before the frontend).</summary>
+public interface ISourceCapture
+{
+    /// <summary>Reads every document of <paramref name="sources"/>, in order, as UTF-8 text.</summary>
+    Task<Checked<CapturedSources>> CaptureAsync(SelectedSources sources, CancellationToken ct);
+}
+
 /// <summary>
 /// Reads the documents of a <see cref="SourceSelection"/> through the shared bounded capture core: one byte
 /// budget for all documents, document and path-length budgets, and refusal of links and special entries (also
@@ -58,25 +65,47 @@ public static class SourceCaptureCodes
 /// problem. A budget overflow stops the capture. Each diagnostic has a location whose URI is the
 /// root-relative document path. Cancellation throws <see cref="OperationCanceledException"/>.
 /// </remarks>
-public sealed class SourceCapture
+public sealed class SourceCapture : ISourceCapture
 {
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     private readonly Func<string, bool> _isRegularFile;
+    private readonly SourceReadLimits _limits;
 
+    /// <summary>A capture with the default budgets.</summary>
     public SourceCapture() : this(UnixInputFile.IsRegular) { }
 
-    internal SourceCapture(Func<string, bool> isRegularFile) => _isRegularFile = isRegularFile;
+    /// <summary>A capture whose <see cref="ISourceCapture.CaptureAsync"/> uses <paramref name="limits"/>.</summary>
+    public SourceCapture(SourceReadLimits limits) : this(UnixInputFile.IsRegular, limits) { }
+
+    internal SourceCapture(Func<string, bool> isRegularFile, SourceReadLimits? limits = null)
+    {
+        _isRegularFile = isRegularFile;
+        _limits = limits ?? SourceReadLimits.Default;
+    }
+
+    /// <summary>Captures the documents of <paramref name="sources"/> below its absolute root, with this capture's budgets.</summary>
+    public Task<Checked<CapturedSources>> CaptureAsync(SelectedSources sources, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        return CaptureAsync(sources.Selection, sources.AbsoluteRoot, _limits, ct);
+    }
 
     /// <summary>Captures the documents of <paramref name="selection"/>.</summary>
-    public async Task<Checked<CapturedSources>> CaptureAsync(SourceSelection selection, SourceReadLimits limits,
+    public Task<Checked<CapturedSources>> CaptureAsync(SourceSelection selection, SourceReadLimits limits,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(selection);
+        return CaptureAsync(selection, selection.Root, limits, ct);
+    }
+
+    private async Task<Checked<CapturedSources>> CaptureAsync(SourceSelection selection, string root, SourceReadLimits limits,
+        CancellationToken ct)
+    {
         ArgumentNullException.ThrowIfNull(limits);
         ct.ThrowIfCancellationRequested();
         var captureLimits = new CaptureLimits(limits.MaxBytes, limits.MaxDocuments, limits.MaxPathLength);
-        if (captureLimits.Check(selection.Root) is not null)
+        if (captureLimits.Check(root) is not null)
             return Checked<CapturedSources>.Fail([
                 Diagnostic.Create(DiagnosticSeverity.Error, SourceCaptureCodes.InvalidLimits,
                     "Source budgets must all be positive.", null)
@@ -91,7 +120,7 @@ public sealed class SourceCapture
             try
             {
                 capture.CountEntry("The selection exceeds the document budget.");
-                var path = Path.Combine(selection.Root, relative.Replace('/', Path.DirectorySeparatorChar));
+                var path = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
                 var attributes = capture.Open(path, out var fullPath);
                 if (attributes.HasFlag(FileAttributes.Directory))
                 {

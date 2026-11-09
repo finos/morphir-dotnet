@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Morphir.Compilation;
+using Morphir.Tooling.Features.Compile.Sources;
 using Severity = Morphir.Compilation.DiagnosticSeverity;
 
 namespace Morphir.Tooling.Features.Compile;
@@ -41,6 +42,7 @@ public sealed class CompileRunner(
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         IFrontend? connected = null;
+        ICompilePublication? publication = null;
         try
         {
             // Settings, writer, and the frontends of this run: everything that needs no source.
@@ -56,6 +58,7 @@ public sealed class CompileRunner(
             }
             var (settings, writer, runFrontends) = resolved;
             connected = resolved.Extension;
+            publication = resolved.Publication;
 
             yield return new CompileEvent.StageStarted(CompileStage.Sources);
             var claimed = runFrontends.ClaimedExtensions(settings.Language?.Value);
@@ -96,9 +99,10 @@ public sealed class CompileRunner(
             }
 
             yield return new CompileEvent.StageStarted(CompileStage.Publish);
-            var publishRun = await Guard(CompileStage.Publish, () => publisher.PublishAsync(settings, bytes, ct), ct);
+            var publishRun = await Guard(CompileStage.Publish, () => publication.PublishAsync(new CompilePublishRequest(
+                compiled.Frontend.Language.Value, writer.Target.Version, sources.Selection.ProjectFileOrNull, bytes), ct), ct);
             foreach (var e in Report(CompileStage.Publish, publishRun)) yield return e;
-            if (!publishRun.Passed(out var publication))
+            if (!publishRun.Passed(out var published))
             {
                 yield return Failed(publishRun, CompileFailureKind.Operational, settings, sources, compiled.Frontend.Label);
                 yield break;
@@ -106,16 +110,19 @@ public sealed class CompileRunner(
 
             yield return new CompileEvent.Completed(new CompileConclusion.Succeeded(new CompileSuccess(
                 compiled.Frontend.Language.Value, compiled.Frontend.Label, settings.IrVersion.Value, sources,
-                [.. compiled.Package.Modules], publication)), settings);
+                [.. compiled.Package.Modules], published)), settings);
         }
         finally
         {
+            // The record and any install are written: release the task lock (REC-1).
+            publication?.Dispose();
             if (connected is IAsyncDisposable disposable) await disposable.DisposeAsync();
         }
     }
 
     /// <summary>The settings stage's result: the settings, the writer and the frontends of this run.</summary>
-    private sealed record ResolvedRun(CompileSettings Settings, ResolvedWriter Writer, IFrontendResolver Frontends, IFrontend? Extension)
+    private sealed record ResolvedRun(CompileSettings Settings, ResolvedWriter Writer, IFrontendResolver Frontends, IFrontend? Extension,
+        ICompilePublication Publication)
     {
         public void Deconstruct(out CompileSettings settings, out ResolvedWriter writer, out IFrontendResolver resolver) =>
             (settings, writer, resolver) = (Settings, Writer, Frontends);
@@ -138,25 +145,51 @@ public sealed class CompileRunner(
             var connection = await extensions.ConnectAsync(
                 new FrontendExtensionRequest(extension, value.Language?.Value, value.WorkingDirectory), ct);
             diagnostics.AddRange(connection.Diagnostics);
-            return connection.TryGetValue(out var frontend)
-                ? Checked<ResolvedRun>.Of(new ResolvedRun(value, resolvedWriter, frontends.Only(frontend), frontend), diagnostics)
-                : Checked<ResolvedRun>.Fail(diagnostics);
+            if (!connection.TryGetValue(out var frontend)) return Checked<ResolvedRun>.Fail(diagnostics);
+            ICompilePublication? started = null;
+            try
+            {
+                started = await BeginAsync(value, diagnostics, ct);
+            }
+            finally
+            {
+                // The run does not own the connected extension until the settings stage passes.
+                if (started is null && frontend is IAsyncDisposable disposable) await disposable.DisposeAsync();
+            }
+            return started is null
+                ? Checked<ResolvedRun>.Fail(diagnostics)
+                : Checked<ResolvedRun>.Of(new ResolvedRun(value, resolvedWriter, frontends.Only(frontend), frontend, started), diagnostics);
         }
 
         if (value.Language is { } language) diagnostics.AddRange(frontends.CheckAvailable(language.Value).Diagnostics);
-        return Checked<ResolvedRun>.Of(new ResolvedRun(value, resolvedWriter, frontends, null), diagnostics);
+        if (diagnostics.Any(diagnostic => diagnostic.IsError)) return Checked<ResolvedRun>.Fail(diagnostics);
+        var publication = await BeginAsync(value, diagnostics, ct);
+        return publication is null
+            ? Checked<ResolvedRun>.Fail(diagnostics)
+            : Checked<ResolvedRun>.Of(new ResolvedRun(value, resolvedWriter, frontends, null, publication), diagnostics);
+    }
+
+    /// <summary>
+    /// Starts the record run when everything that needs no source passed (REC-1): the task lock, the tombstone and
+    /// the cleared <c>.dest</c>. A compile that fails later leaves the tombstone. Null when the start failed.
+    /// </summary>
+    private async Task<ICompilePublication?> BeginAsync(CompileSettings settings, List<Diagnostic> diagnostics, CancellationToken ct)
+    {
+        var started = await publisher.BeginAsync(settings, ct);
+        diagnostics.AddRange(started.Diagnostics);
+        return started.TryGetValue(out var publication) ? publication : null;
     }
 
     private sealed record Compiled(ResolvedFrontend Frontend, CompiledPackage Package);
 
     private static async Task<StageResult<Compiled>> CompileAsync(IFrontendResolver resolver, CompileSettings settings, ResolvedWriter writer,
-        SelectedSources sources, ImmutableArray<CapturedDocument> documents, CancellationToken ct)
+        SelectedSources sources, CapturedSources captured, CancellationToken ct)
     {
         var resolution = resolver.Resolve(settings.Language?.Value, sources.Selection.Documents, writer.Target);
         if (!resolution.TryGetValue(out var frontend))
             return new(Checked<Compiled>.Fail(resolution.Diagnostics), CompileFailureKind.Configuration);
 
-        var request = documents.Select(document => new SourceDocument(document.Uri, frontend.Language, 0UL, document.Text));
+        var request = captured.Documents.Select(document => new SourceDocument(document.Path, frontend.Language, 0UL, document.Text));
         if (!CompileRequest.TryParse(frontend.Language, null, request, settings.Package.Value.Name,
                 settings.ExposedModules?.Value, writer.Target, "", out var compileRequest, out var invalid))
             return new(Checked<Compiled>.Fail([Error(CompileCodes.InvalidSetting, invalid.ToString())]), CompileFailureKind.Invocation, frontend.Label);

@@ -577,7 +577,10 @@ I/O failure. See [compile]({{< relref "/docs/cli/compile" >}}).
 | Code | Cause | Fix |
 | --- | --- | --- |
 | `compile.frontend_unavailable` | No registered frontend reads the language. The AOT `morphir` has no F# frontend. | Use `dotnet-morphir`, which has a built-in F# frontend. |
-| `compile.extension_unavailable` | A frontend extension is configured, and this build has no extension transport. | Remove `--extension` and `[frontend.<language>].extension`. MEP extensions are the second delivery. |
+| `extension.unavailable` | The frontend extension did not start, or its session did not initialize. | Check the `--extension` or `[frontend.<language>].extension` value: a command on `PATH`, a path, or a `.dll`. Read the guest's stderr. |
+| `extension.not_admitted` | The agreed MEP session does not admit the request, for example its IR version or a file extension. | Request a version or documents that the message lists for the extension. |
+| `extension.protocol_error` | The extension broke the MEP protocol, for example it wrote a log line to stdout. | Fix or update the extension. Logs go to stderr. |
+| `extension.timeout` | The extension did not answer before the deadline. | Check the guest's stderr, and run the compile again. |
 | `compile.unsupported_ir_version` | No writer declares the requested IR version, for example `4.1.0-draft.1`. | Use a declared version: `1`, `2`, `3`, `4` or `4.0.0`. |
 | `compile.ir_version_not_served` | The selected frontend does not produce the requested IR version. | Request a version that the message lists for the frontend. |
 | `compile.language_required` | No language is selected, and the sources do not select one. A `[frontend.<language>].project_file` is read only for the selected language. | Use `--language`, or set `frontend.language`. |
@@ -587,15 +590,18 @@ I/O failure. See [compile]({{< relref "/docs/cli/compile" >}}).
 | `sources.project_file_as_input` | An `--input` file is a project file. | Use `--project-file`. |
 | `sources.unknown_project_file` | No project-file provider recognizes the file. | Name a supported project file. See [project-file sources]({{< relref "/docs/configuration/project-file-sources" >}}). |
 | `sources.no_documents` | The source directory has no file with an extension that the frontend claims. | Set `project.source_directory`, or use `--input`. |
-| `sources.linked`, `sources.invalid_encoding` | A source is a link or a special file, or it is not valid UTF-8. | Name the target file, or save the file as UTF-8. |
+| `sources.unsupported_entry`, `sources.invalid_utf8` | A source, or a directory above it, is a link or a special file, or the source is not valid UTF-8. | Name the target file, or save the file as UTF-8. |
+| `install.foreign_content` | `-o` names a directory that has a file that an earlier install of this task did not write. The directory does not change. | Remove or move the file, or use another `-o` directory. |
+| `compile.record_missing` | `generate` without `--input` found no compile record, or the most recent compile failed. | Run `morphir compile` first, or give `--input`. |
 
 If F# reports that a module or value is not defined, check the source order. A directory gives files in
 lexical order, and F# compiles files in order. Use `--input` files in dependency order, or a project file.
 
 ## Generation failures
 
-`morphir generate` requires explicit input, target and output paths. It does not
-read `morphir.toml` or `morphir.yml`. Use exact target `fsharp` and Boolean option
+`morphir generate` requires explicit target and output paths. With `--input`, it
+does not read `morphir.toml` or `morphir.yml`. Without `--input`, it reads the IR
+of the most recent `morphir compile` of the project. Use exact target `fsharp` and Boolean option
 `--option optimize=false` to disable folding. Unknown options and quoted strings
 where Booleans are required return exit 2.
 
