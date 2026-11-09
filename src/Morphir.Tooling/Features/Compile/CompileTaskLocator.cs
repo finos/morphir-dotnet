@@ -61,8 +61,9 @@ public static class CompileTaskLocator
     private static string? ConfiguredOutDir(LoadedCompileConfiguration loaded)
     {
         var key = ListModule.OfSeq(new[] { "workspace", "out_dir" });
-        if (ConfigTree.tryFind(key, loaded.Effective) is not { Value: ConfigValue.String text }) return null;
+        if (ConfigTree.tryFind(key, loaded.Effective) is not { } found || !ConfigValueProjections.TryText(found.Value, out var text))
+            return null;
         var origin = MapModule.TryFind(key, loaded.Origins);
-        return origin is null || origin.Value.Source.Role == SourceRole.Defaults ? null : text.Item;
+        return origin is null || origin.Value.Source.Role == SourceRole.Defaults ? null : text;
     }
 }
