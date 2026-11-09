@@ -31,7 +31,9 @@
     <Compile Include="ValueLoweringTests.fs" />
     <Compile Include="SdkMappingTests.fs" />
     <Compile Include="RegistrationTests.fs" />
+    <Compile Include="GeneratedCalls.fs" />
     <Compile Include="CorpusTests.fs" />
+    <Compile Include="RoundTripTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>

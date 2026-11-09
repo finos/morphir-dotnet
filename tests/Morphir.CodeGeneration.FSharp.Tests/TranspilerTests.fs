@@ -627,6 +627,127 @@ let tests =
                     (execute modules "printfn \"%A\" Car.Rental.Metadata.item")
                     "Holder { value = 8 }"
                     "nominal nested record annotation"
+        testCase "union case fields keep the constructor argument names"
+        <| fun _ ->
+            let json =
+                F.model [
+                    "shapes",
+                    [
+                        F.customType "shape" [] [
+                            "circle", [ "radius", F.intType ]
+                            "box", [ "width", F.intType; "height", F.intType ]
+                            "pair", [ "side", F.intType; "side", F.intType ]
+                        ]
+                    ],
+                    [
+                        F.binding
+                            "unit"
+                            []
+                            (F.tRef (F.own "shapes" "shape") [])
+                            (F.apply (F.constructor (F.own "shapes" "box")) [
+                                F.integer 2
+                                F.integer 3
+                            ])
+                    ]
+                ]
+
+            match Transpiler.Generate("shapes.json", json) with
+            | Error errors -> failtestf "%A" errors
+            | Ok modules ->
+                let source = modules.Head.Source
+                Expect.stringContains source "Circle of radius: int" "one named field"
+                Expect.stringContains source "Box of width: int * height: int" "named fields"
+                Expect.stringContains source "Pair of int * int" "repeated names stay positional"
+
+                Expect.equal
+                    (execute modules "printfn \"%A\" Car.Rental.Shapes.unit")
+                    "Box (2, 3)"
+                    "construction is positional"
+        testCase "a saturated List.cons is the F# operator, and a partial one is a function"
+        <| fun _ ->
+            let prices = F.a [ box "List"; null; F.a [ F.integer 2; F.integer 3 ] ]
+            let cons = F.sdkReference "list" "cons"
+
+            let json =
+                F.model [
+                    "lists",
+                    [],
+                    [
+                        F.binding
+                            "full"
+                            []
+                            (F.listType F.intType)
+                            (F.apply cons [ F.integer 1; prices ])
+                        F.binding
+                            "partial"
+                            []
+                            (F.tFunction (F.listType F.intType) (F.listType F.intType))
+                            (F.apply cons [ F.integer 1 ])
+                    ]
+                ]
+
+            match Transpiler.Generate("lists.json", json) with
+            | Error errors -> failtestf "%A" errors
+            | Ok modules ->
+                Expect.stringContains modules.Head.Source "(1) :: ([ 2; 3 ])" "operator form"
+                Expect.stringContains modules.Head.Source "fun head tail" "partial application"
+
+                Expect.equal
+                    (execute
+                        modules
+                        "printfn \"%A %A\" Car.Rental.Lists.full (Car.Rental.Lists.partial [ 4 ])")
+                    "[1; 2; 3] [1; 4]"
+                    "both forms prepend"
+        testCase "a parameter keeps its name when its definition does not use the module value"
+        <| fun _ ->
+            let json =
+                F.model [
+                    "seating",
+                    [],
+                    [
+                        F.binding "seats" [] F.intType (F.integer 4)
+                        F.binding
+                            "next"
+                            [ "seats", F.intType ]
+                            F.intType
+                            (F.op "add" (F.variable "seats") (F.integer 1))
+                    ]
+                ]
+
+            match Transpiler.Generate("seating.json", json) with
+            | Error errors -> failtestf "%A" errors
+            | Ok modules ->
+                Expect.isFalse (modules.Head.Source.Contains "__morphirLocal_") "no new local name"
+
+                Expect.equal
+                    (execute modules "printfn \"%d\" (Car.Rental.Seating.next 2)")
+                    "3"
+                    "the parameter is read"
+        testCase "a parameter that hides a module value used by its definition gets a new name"
+        <| fun _ ->
+            let json =
+                F.model [
+                    "seating",
+                    [],
+                    [
+                        F.binding "seats" [] F.intType (F.integer 4)
+                        F.binding
+                            "total"
+                            [ "seats", F.intType ]
+                            F.intType
+                            (F.op "add" (F.variable "seats") (F.reference "seating" "seats"))
+                    ]
+                ]
+
+            match Transpiler.Generate("seating.json", json) with
+            | Error errors -> failtestf "%A" errors
+            | Ok modules ->
+                Expect.stringContains modules.Head.Source "__morphirLocal_seats" "new local name"
+
+                Expect.equal
+                    (execute modules "printfn \"%d\" (Car.Rental.Seating.total 2)")
+                    "6"
+                    "the parameter and the module value stay separate"
         testCase "known nominal record types propagate through containers and applications"
         <| fun _ ->
             let vehicle = F.tRef (F.own "expected" "vehicle") []
