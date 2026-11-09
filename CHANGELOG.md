@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-alpha.3] - 2026-11-09
+
 ### Added
 - Docs: [Compile F# to Morphir IR](https://finos.github.io/morphir-dotnet/docs/getting-started/compile-fsharp/), a five-minute start, and two tutorials: car rental pricing from F# to C#, and compiling F# with the native `morphir` executable. The finished example is in `examples/car-rental-pricing` ([#499](https://github.com/finos/morphir-dotnet/issues/499))
 - Releases publish the F# frontend extension `Morphir.Frontend.FSharp.Extension` (command `morphir-fsharp-frontend`) to NuGet next to `Morphir.Tool` ([#499](https://github.com/finos/morphir-dotnet/issues/499))
@@ -273,7 +275,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.2...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.3...HEAD
+[0.4.0-alpha.3]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.2...v0.4.0-alpha.3
 [0.4.0-alpha.2]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.1...v0.4.0-alpha.2
 [0.4.0-alpha.1]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.2...v0.4.0-alpha.1
 [0.3.0-rc.2]: https://github.com/finos/morphir-dotnet/compare/v0.3.0-rc.1...v0.3.0-rc.2
