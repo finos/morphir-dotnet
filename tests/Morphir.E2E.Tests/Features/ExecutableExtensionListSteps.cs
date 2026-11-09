@@ -9,7 +9,8 @@ namespace Morphir.E2E.Tests.Features;
 [Binding]
 public sealed class ExecutableExtensionListSteps(ScenarioContext scenarioContext)
 {
-    private const string OtherResultKey = "OtherHostExecutionResult";
+    /// <summary>The scenario key for the result of the same command in the other host.</summary>
+    internal const string OtherResultKey = "OtherHostExecutionResult";
 
     private ExecutableExecutionResult Result =>
         SharedSteps.Last(scenarioContext) ?? throw new InvalidOperationException("No command has run in this scenario.");
@@ -62,7 +63,7 @@ public sealed class ExecutableExtensionListSteps(ScenarioContext scenarioContext
         var locator = new ExecutableLocator();
         var other = ExecutableLocator.CurrentType == "tool" ? locator.GetNativeHostPath() : locator.GetToolPath();
         other.Should().NotBeNull("the other host must be built: build src/Morphir.Tool, or publish or build morphir");
-        scenarioContext[OtherResultKey] = await new ExecutableRunner(other!).ExecuteCommandAsync(command);
+        scenarioContext[OtherResultKey] = await new ExecutableRunner(other!).ExecuteCommandAsync(new TestDataResolver().ResolvePath(command));
     }
 
     [Then("the extensions available in both hosts should be equal in both results")]
