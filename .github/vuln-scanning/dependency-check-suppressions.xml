@@ -37,21 +37,25 @@
 
   <suppress until="2027-01-31">
     <notes><![CDATA[
-      Azure.Core 1.57.0 and System.ClientModel 1.13.0 are SDK infrastructure
+      Azure.Core 1.64.0 and System.ClientModel 1.16.0 are SDK infrastructure
       libraries, not Azure.Identity or Microsoft IdentityModel/MSAL. The assembly
       analyzer assigns unrelated Identity CPEs from shared Azure SDK metadata.
       Remove only those incorrect product identities for these exact packages.
       This covers the old Core 1.50.0 / ClientModel 1.8.0 matches for
       CVE-2023-36414, CVE-2023-36415, CVE-2024-29992 and CVE-2024-35255.
       Verified: NuGet dependency graph and the Azure SDK source projects below.
+      The PR #485 report matches CVE-2023-36415 through the JavaScript Identity
+      CPE range. These .NET assemblies are not the JavaScript Identity SDK;
+      the actual Azure.Identity dependency remains at the fixed version 1.17.1.
       Review owner: @DamianReeves; pending PR review.
-      Verification date: 2026-10-31; next quarterly review: 2027-01-31.
+      Verification date: 2026-11-09; next quarterly review: 2027-01-31.
       References:
-      https://github.com/Azure/azure-sdk-for-net/tree/main/sdk/core/Azure.Core
-      https://github.com/Azure/azure-sdk-for-net/tree/main/sdk/core/System.ClientModel
+      https://github.com/Azure/azure-sdk-for-net/blob/Azure.Core_1.64.0/sdk/core/Azure.Core/src/Azure.Core.csproj
+      https://github.com/Azure/azure-sdk-for-net/blob/System.ClientModel_1.16.0/sdk/core/System.ClientModel/src/System.ClientModel.csproj
+      https://msrc.microsoft.com/update-guide/vulnerability/CVE-2023-36415
       https://github.com/advisories/GHSA-5mfx-4wcx-rv27
     ]]></notes>
-    <packageUrl regex="true">^pkg:generic/(Azure\.Core@1\.57\.0|System\.ClientModel@1\.13\.0)$</packageUrl>
+    <packageUrl regex="true">^pkg:generic/(Azure\.Core@1\.64\.0|System\.ClientModel@1\.16\.0)$</packageUrl>
     <!-- Dependency-Check converts CPEs to 2.2 URI form before suppression matching. -->
     <cpe>cpe:/a:microsoft:azure_identity</cpe>
     <cpe>cpe:/a:microsoft:azure_identity_sdk</cpe>
@@ -65,16 +69,16 @@
       .NET libraries. Microsoft's October 2026 CVRF lists PyPI/crates.io fixes
       only. Dependency-Check conflates the language-specific CPEs.
       The separate real .NET vulnerability CVE-2026-85925 is NOT suppressed:
-      Certificates is upgraded to 4.9.1, Keys to 4.10.2 and Secrets to 4.11.1,
-      the fixed NuGet versions in Microsoft's CVRF.
+      Certificates 4.10.0, Keys 4.10.2 and Secrets 4.12.0 meet or exceed
+      the fixed NuGet versions in Microsoft's CVRF: 4.9.1, 4.10.1 and 4.11.1.
       Review owner: @DamianReeves; pending PR review.
-      Verification date: 2026-10-31; next quarterly review: 2027-01-31.
+      Verification date: 2026-11-09; next quarterly review: 2027-01-31.
       References:
       https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-85922
       https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-85925
       https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-Oct
     ]]></notes>
-    <packageUrl regex="true">^pkg:generic/Azure\.Security\.KeyVault\.(Certificates@4\.9\.1|Keys@4\.10\.2|Secrets@4\.11\.1)$</packageUrl>
+    <packageUrl regex="true">^pkg:generic/Azure\.Security\.KeyVault\.(Certificates@4\.10\.0|Keys@4\.10\.2|Secrets@4\.12\.0)$</packageUrl>
     <cve>CVE-2026-85922</cve>
   </suppress>
 
