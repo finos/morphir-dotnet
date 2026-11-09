@@ -11,6 +11,8 @@ type AttributeValue =
     | Text of string
     | Bool of bool
     | Int of int
+    /// An integer or finite floating-point literal, encoded as an invariant JSON number.
+    | Number of string
     /// A dotted name, such as <c>JsonNaming.CamelCase</c>, or names joined by <c>|||</c>.
     | Names of string list
     /// The type in <c>typeof&lt;T&gt;</c>, as written.

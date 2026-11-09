@@ -40,6 +40,15 @@ module Syntax =
         | SynExpr.Const(constant = SynConst.String(text = text)) -> AttributeValue.Text text
         | SynExpr.Const(constant = SynConst.Bool value) -> AttributeValue.Bool value
         | SynExpr.Const(constant = SynConst.Int32 value) -> AttributeValue.Int value
+        | SynExpr.Const(constant = SynConst.SByte value) -> AttributeValue.Number(value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        | SynExpr.Const(constant = SynConst.Byte value) -> AttributeValue.Number(value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        | SynExpr.Const(constant = SynConst.Int16 value) -> AttributeValue.Number(value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        | SynExpr.Const(constant = SynConst.UInt16 value) -> AttributeValue.Number(value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        | SynExpr.Const(constant = SynConst.UInt32 value) -> AttributeValue.Number(value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        | SynExpr.Const(constant = SynConst.Int64 value) -> AttributeValue.Number(value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        | SynExpr.Const(constant = SynConst.UInt64 value) -> AttributeValue.Number(value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        | SynExpr.Const(constant = SynConst.Single value) when System.Single.IsFinite value -> AttributeValue.Number(value.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+        | SynExpr.Const(constant = SynConst.Double value) when System.Double.IsFinite value -> AttributeValue.Number(value.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
         | SynExpr.Ident id -> AttributeValue.Names [ id.idText ]
         | SynExpr.LongIdent(longDotId = SynLongIdent(id = ids)) -> AttributeValue.Names [ String.concat "." (names ids) ]
         | SynExpr.App(isInfix = false; funcExpr = SynExpr.App(isInfix = true; funcExpr = op; argExpr = left); argExpr = right)
@@ -51,6 +60,10 @@ module Syntax =
             ->
             match attributeValue left, attributeValue right with
             | AttributeValue.Names l, AttributeValue.Names r -> AttributeValue.Names(l @ r)
+            | _ -> AttributeValue.Other
+        | SynExpr.App(funcExpr = SynExpr.Ident id; argExpr = argument) when id.idText = "nameof" ->
+            match attributeValue argument with
+            | AttributeValue.Names [ name ] -> AttributeValue.Text(name.Split('.') |> Array.last)
             | _ -> AttributeValue.Other
         | SynExpr.TypeApp(expr = SynExpr.Ident id; typeArgs = [ t ]) when id.idText = "typeof" ->
             match typeSyntax t with

@@ -162,6 +162,9 @@
       "morphir.myriad.systemtextjson.annotations": {
         "type": "Project"
       },
+      "morphir.testsupport": {
+        "type": "Project"
+      },
       "Fantomas.Core": {
         "type": "CentralTransitive",
         "requested": "[7.0.5, )",

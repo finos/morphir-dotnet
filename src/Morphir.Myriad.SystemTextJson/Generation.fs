@@ -69,6 +69,33 @@ module Generation =
         | TypeRef.External _ -> true
         | _ -> false
 
+    /// Checks primitive token kinds and numeric bounds without running consumer code.
+    let rec private scalarDefaultFits (skippable: bool) (value: System.Text.Json.JsonElement) (target: TypeRef) =
+        let stringToken = value.ValueKind = System.Text.Json.JsonValueKind.String
+        let numberToken = value.ValueKind = System.Text.Json.JsonValueKind.Number
+        match target with
+        | TypeRef.Option inner | TypeRef.ValueOption inner when skippable -> scalarDefaultFits skippable value inner
+        | TypeRef.Primitive Primitive.JsonElement -> true
+        | TypeRef.Primitive Primitive.Bool -> value.ValueKind = System.Text.Json.JsonValueKind.True || value.ValueKind = System.Text.Json.JsonValueKind.False
+        | TypeRef.Primitive primitive when primitive.NumberTypeName.IsSome ->
+            numberToken &&
+                (match primitive with
+                 | Primitive.Byte -> value.TryGetByte() |> fst
+                 | Primitive.SByte -> value.TryGetSByte() |> fst
+                 | Primitive.Int16 -> value.TryGetInt16() |> fst
+                 | Primitive.UInt16 -> value.TryGetUInt16() |> fst
+                 | Primitive.Int32 -> value.TryGetInt32() |> fst
+                 | Primitive.UInt32 -> value.TryGetUInt32() |> fst
+                 | Primitive.Int64 -> value.TryGetInt64() |> fst
+                 | Primitive.UInt64 -> value.TryGetUInt64() |> fst
+                 | Primitive.Single -> let valid, number = value.TryGetSingle() in valid && System.Single.IsFinite number
+                 | Primitive.Double -> let valid, number = value.TryGetDouble() in valid && System.Double.IsFinite number
+                 | Primitive.Decimal -> value.TryGetDecimal() |> fst
+                 | _ -> false)
+        | TypeRef.Primitive _ | TypeRef.Parsed _ -> stringToken
+        | TypeRef.Sequence _ | TypeRef.Map _ | TypeRef.Tuple _ -> false
+        | _ -> true
+
     /// True when a JsonNumberHandling attribute on the field allows reading numbers from strings.
     let private readsNumbersFromStrings (attributes: AttributeUse list) =
         attributes
@@ -246,6 +273,17 @@ module Generation =
                 unsupported declaration location memberName reason
                 None
 
+        // Provider types in this input are resolved from the record's lexical scope, before
+        // considering the opens of the generated context. This also handles nested modules.
+        let providerTypeName (declaration: TypeDeclaration) (name: string) =
+            let rec find path =
+                let candidate = String.concat "." (path @ [ name ])
+                match source.Types |> List.tryFind (fun t -> String.concat "." (t.Path @ [ t.Name ]) = candidate) with
+                | Some provider -> provider.QualifiedName
+                | None when not path.IsEmpty -> find (List.take (path.Length - 1) path)
+                | None -> name
+            find declaration.Path
+
         let planned =
             included
             |> List.choose (fun declaration ->
@@ -300,16 +338,132 @@ module Generation =
                                 |> Option.map (fun (resolved, lenient) ->
                                     let names = jsonNames field.Attributes
                                     let written = List.tryHead names |> Option.defaultValue (rules.Naming.Apply name)
+                                    let knownPaths =
+                                        match field.Attributes |> List.tryFind (fun a -> a.Name = "JsonKnownPaths") with
+                                        | None -> None
+                                        | Some attribute ->
+                                            let paths = attribute.Positional |> List.choose (function AttributeValue.Text path -> Some path | _ -> None)
+                                            match resolved with
+                                            | TypeRef.Sequence(_, TypeRef.Primitive Primitive.String) when attribute.Named.IsEmpty && paths.Length = attribute.Positional.Length ->
+                                                Some(List.distinct paths)
+                                            | _ ->
+                                                unsupported declaration field.Location field.Name "JsonKnownPaths needs string literal paths on a string collection."
+                                                None
+                                    let versionAlias =
+                                        match field.Attributes |> List.tryFind (fun a -> a.Name = "JsonVersionAlias") with
+                                        | None -> None
+                                        | Some attribute ->
+                                            let critical = attribute.Named |> List.tryPick (function "CriticalMember", AttributeValue.Text name -> Some name | _ -> None)
+                                            let validNamed = attribute.Named |> List.forall (function "CriticalMember", AttributeValue.Text name when name <> "" -> true | _ -> false)
+                                            let validType =
+                                                match resolved with
+                                                | TypeRef.Primitive Primitive.String | TypeRef.Parsed _ -> true
+                                                | _ -> false
+                                            match attribute.Positional with
+                                            | [ AttributeValue.Text legacy; AttributeValue.Text oldVersion; AttributeValue.Text currentVersion ] when validNamed && validType && legacy <> "" && legacy <> written && oldVersion <> "" && currentVersion <> "" && oldVersion <> currentVersion && names.Length <= 1 ->
+                                                Some { LegacyName = legacy; LegacyVersion = oldVersion; CurrentVersion = currentVersion; CriticalMember = critical }
+                                            | _ ->
+                                                unsupported declaration field.Location field.Name "JsonVersionAlias needs a string or parsed-value field, distinct nonempty legacy/current names and versions, and an optional CriticalMember name."
+                                                None
+                                    let omitEmpty = hasAttribute "JsonOmitEmpty" field.Attributes
+                                    let extensionData = hasAttribute "JsonExtensionData" field.Attributes
+                                    if extensionData then
+                                        match resolved with
+                                        | TypeRef.Map(_, TypeRef.Primitive Primitive.String, TypeRef.Primitive Primitive.JsonElement) -> ()
+                                        | _ -> unsupported declaration field.Location field.Name "JsonExtensionData needs Map<string, JsonElement> or IReadOnlyDictionary<string, JsonElement>."
+                                        if rules.RefuseUnknownMembers then
+                                            unsupported declaration field.Location field.Name "JsonExtensionData cannot be combined with UnknownMembers.Refuse."
+                                        if omitEmpty || field.Attributes |> List.exists (fun a -> List.contains a.Name [ "JsonDefaultValue"; "JsonDefaultJson"; "JsonDefaultEmpty"; "JsonDefaultValueProvider" ]) then
+                                            unsupported declaration field.Location field.Name "JsonExtensionData is already empty when absent and flattened on writing; do not combine it with JsonOmitEmpty or a missing-member default."
+                                    if omitEmpty then
+                                        match resolved with
+                                        | TypeRef.Sequence _ | TypeRef.Map _ -> ()
+                                        | _ -> unsupported declaration field.Location field.Name "JsonOmitEmpty applies only to a collection field."
+                                    let defaultAttributes = field.Attributes |> List.filter (fun a -> List.contains a.Name [ "JsonDefaultValue"; "JsonDefaultJson"; "JsonDefaultEmpty"; "JsonDefaultValueProvider" ])
+                                    if defaultAttributes.Length > 1 then
+                                        unsupported declaration field.Location field.Name "Declare only one missing-member default."
+                                    let missingDefault =
+                                        match defaultAttributes |> List.tryHead with
+                                        | None -> None
+                                        | Some attribute when attribute.Name = "JsonDefaultValueProvider" ->
+                                            match attribute.Positional, attribute.Named with
+                                            | [ AttributeValue.TypeOf provider; AttributeValue.Text methodName ], [] when System.Text.RegularExpressions.Regex.IsMatch(methodName, "^[A-Za-z_][A-Za-z0-9_']*$") ->
+                                                Some(DefaultValueSpec.Provider(providerTypeName declaration provider + ".``" + methodName + "``()"))
+                                            | _ ->
+                                                unsupported declaration field.Location field.Name "JsonDefaultValueProvider needs typeof<Provider> and a method name literal or nameof Provider.Method. The method must be accessible, static, take no arguments, and return the field type."
+                                                None
+                                        | Some attribute ->
+                                            let json =
+                                                match attribute.Name, attribute.Positional, attribute.Named with
+                                                | "JsonDefaultEmpty", [], [] ->
+                                                    match resolved with
+                                                    | TypeRef.Sequence _ -> Some "[]"
+                                                    | TypeRef.Map(_, key, _) -> Some(if Emit.mapAsObject settings.MapFormat key then "{}" else "[]")
+                                                    | _ ->
+                                                        unsupported declaration field.Location field.Name "JsonDefaultEmpty applies only to a collection field."
+                                                        None
+                                                | "JsonDefaultJson", [ AttributeValue.Text json ], [] -> Some json
+                                                | "JsonDefaultValue", [ AttributeValue.Text text ], [] -> Some("\"" + System.Text.Json.JsonEncodedText.Encode(text).ToString() + "\"")
+                                                | "JsonDefaultValue", [ AttributeValue.Bool value ], [] -> Some(if value then "true" else "false")
+                                                | "JsonDefaultValue", [ AttributeValue.Int value ], [] -> Some(value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                                                | "JsonDefaultValue", [ AttributeValue.Number value ], [] -> Some value
+                                                | _ ->
+                                                    unsupported declaration field.Location field.Name $"{attribute.Name} needs one literal value of its supported kind."
+                                                    None
+                                            json |> Option.bind (fun json ->
+                                                try
+                                                    use document = System.Text.Json.JsonDocument.Parse json
+                                                    let incompatibleVersion =
+                                                        versionAlias |> Option.exists (fun alias ->
+                                                            document.RootElement.ValueKind <> System.Text.Json.JsonValueKind.String
+                                                            || not (System.String.Equals(document.RootElement.GetString(), alias.CurrentVersion, System.StringComparison.Ordinal)))
+                                                    if incompatibleVersion then
+                                                        unsupported declaration field.Location field.Name $"{attribute.Name} on a JsonVersionAlias field must contain its exact current version string."
+                                                        None
+                                                    elif attribute.Name = "JsonDefaultValue" && not (scalarDefaultFits rules.SkipAbsentOptions document.RootElement resolved) then
+                                                        unsupported declaration field.Location field.Name "JsonDefaultValue has an incompatible scalar kind or numeric value outside the field's range; use a typed provider for non-scalar values."
+                                                        None
+                                                    else
+                                                        Some(DefaultValueSpec.Json json)
+                                                with :? System.Text.Json.JsonException ->
+                                                    unsupported declaration field.Location field.Name $"{attribute.Name} must contain one complete JSON value."
+                                                    None)
 
                                     {
                                         Name = name
                                         JsonName = written
-                                        ReadNames = (if names.IsEmpty then [ written ] else names)
+                                        ReadNames = (if names.IsEmpty then [ written ] else names) @ (versionAlias |> Option.map (fun alias -> [ alias.LegacyName ]) |> Option.defaultValue [])
                                         Type = resolved
                                         Skippable = rules.SkipAbsentOptions
                                         AllowNull = rules.AllowNullFields && acceptsNull resolved
                                         NumbersFromStrings = lenient
+                                        Default = missingDefault
+                                        OmitEmpty = omitEmpty
+                                        ExtensionData = extensionData
+                                        VersionAlias = versionAlias
+                                        KnownPaths = knownPaths
                                     }))
+
+                        if resolvedFields |> List.filter (fun field -> field.ExtensionData) |> List.length > 1 then
+                            unsupported declaration declaration.Location None "Only one JsonExtensionData field is allowed in a record."
+
+                        if resolvedFields |> List.filter (fun field -> field.VersionAlias.IsSome) |> List.length > 1 then
+                            unsupported declaration declaration.Location None "Only one JsonVersionAlias field is allowed in a record."
+
+                        for field in resolvedFields do
+                            match field.VersionAlias with
+                            | Some alias ->
+                                match alias.CriticalMember with
+                                | Some name ->
+                                    match resolvedFields |> List.tryFind (fun candidate -> candidate.JsonName = name) with
+                                    | Some critical when critical.KnownPaths |> Option.exists (fun paths -> List.contains field.JsonName paths && not (List.contains alias.LegacyName paths)) -> ()
+                                    | _ -> unsupported declaration declaration.Location (Some field.Name) "JsonVersionAlias.CriticalMember must name a JsonKnownPaths collection allowing the current version member, not its legacy name."
+                                | None -> ()
+                            | None -> ()
+
+                        for name, occurrences in resolvedFields |> List.filter (fun field -> not field.ExtensionData) |> List.collect (fun field -> field.ReadNames) |> List.countBy id do
+                            if occurrences > 1 then
+                                unsupported declaration declaration.Location None $"More than one record field or alias has the JSON name '{name}'."
 
                         if resolvedFields.Length = fields.Length then
                             Some { Declaration = declaration; Shape = PlannedShape.Record(resolvedFields, rules.RefuseUnknownMembers) }
@@ -319,6 +473,10 @@ module Generation =
                         unsupported declaration declaration.Location None "the union cases are private, so generated code cannot build them."
                         None
                     | TypeShape.Union(cases, false) ->
+                        for case in cases do
+                            for field in case.Fields do
+                                if field.Attributes |> List.exists (fun a -> List.contains a.Name [ "JsonDefaultValue"; "JsonDefaultJson"; "JsonDefaultEmpty"; "JsonDefaultValueProvider"; "JsonOmitEmpty"; "JsonExtensionData"; "JsonVersionAlias"; "JsonKnownPaths" ]) then
+                                    unsupported declaration field.Location field.Name "Wire member annotations apply only to record fields."
                         let rules =
                             match unionRules settings.Unions declaration.Attributes with
                             | Ok rules -> rules
@@ -388,6 +546,11 @@ module Generation =
                                                 Skippable = settings.Records.SkipAbsentOptions
                                                 AllowNull = false
                                                 NumbersFromStrings = readsNumbersFromStrings field.Attributes
+                                                Default = None
+                                                OmitEmpty = false
+                                                ExtensionData = false
+                                                VersionAlias = None
+                                                KnownPaths = None
                                             })
 
                             if fields |> List.forall Option.isSome then

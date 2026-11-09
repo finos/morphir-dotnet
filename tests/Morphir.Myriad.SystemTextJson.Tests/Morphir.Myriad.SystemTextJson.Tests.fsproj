@@ -25,6 +25,7 @@
         <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Build\Morphir.Myriad.SystemTextJson.Build.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
         <ProjectReference Include="..\..\src\Morphir.Myriad.SystemTextJson.Annotations\Morphir.Myriad.SystemTextJson.Annotations.csproj" />
         <ProjectReference Include="..\..\src\Morphir.Extensions\Morphir.Extensions.fsproj" />
+        <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -85,6 +86,9 @@
         <Compile Include="Contexts/SkippedOptions.fs" />
         <FSharpJsonContext Include="Contexts/SkippedOptions.fs" Name="SkippedJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.SkippedOptions" UnionEncoding="AdjacentTag" SkippableOptionFields="Always" />
         <Compile Include="Guide/Types.fs" />
+        <Compile Include="Contexts/WireRules.fs" />
+        <FSharpJsonContext Include="Contexts/WireRules.fs" Name="WireJson" Namespace="Morphir.Myriad.SystemTextJson.Tests.WireRules" Naming="CamelCase" SkippableOptionFields="Always" UnionEncoding="Default, UnwrapFieldlessTags" UnionTagNaming="CamelCase" />
+        <FSharpJsonContext Include="Contexts/WireRules.fs" Name="WireLegacy" Namespace="Morphir.Myriad.SystemTextJson.Tests.WireRules" Naming="CamelCase" SkippableOptionFields="Always" UnionEncoding="AdjacentTag, UnwrapFieldlessTags" UnionTagNaming="CamelCase" />
         <FSharpJsonContext Include="Guide/Types.fs" Name="AppJson" Namespace="Guide.Json" Naming="CamelCase" />
         <Compile Include="Guide/Usage.fs" />
         <Compile Include="Compatibility.fs" />
@@ -101,6 +105,7 @@
         <Compile Include="SnapshotTests.fs" />
         <Compile Include="GuideTests.fs" />
         <Compile Include="ReviewTests.fs" />
+        <Compile Include="WireRuleTests.fs" />
         <Compile Include="BuildTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>

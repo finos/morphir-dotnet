@@ -6,6 +6,7 @@ open System
 open System.Diagnostics
 open System.IO
 open Expecto
+open Morphir.TestSupport
 
 /// The repository root: the first parent folder of the test assembly that holds Morphir.slnx.
 let private repositoryRoot =
@@ -91,6 +92,47 @@ let tests =
                 Expect.stringContains output "error MSTJ0010: Page: generic types are not supported" "the MSBuild error"
             finally
                 Directory.Delete(folder, true)
+        }
+
+        testTask "the compiler checks default provider methods and return types" {
+            for methodSource, methodName, expected in
+                [ "static member Create() : string = \"wrong type\"", "Create", "decimal"
+                  "static member Create(value: int) : decimal = decimal value", "Create", "unit"
+                  "member _.Create() : decimal = 1M", "Create", "static"
+                  "static member private Create() : decimal = 1M", "Create", "accessible"
+                  "static member Other() : decimal = 1M", "Missing", "Missing" ] do
+                use sandbox = TestSandbox.Create("stj-provider-")
+
+                let source =
+                    $"namespace Fixture\nopen Morphir.Myriad.SystemTextJson\ntype Defaults() = {methodSource}\ntype Payment = {{ [<JsonDefaultValueProvider(typeof<Defaults>, \"{methodName}\")>] Amount: decimal }}\n"
+
+                File.WriteAllText(Path.Combine(sandbox.Work, "Types.fs"), source)
+
+                let item =
+                    """<FSharpJsonContext Include="Types.fs" Name="FixtureJson" Namespace="Fixture.Json" />"""
+
+                File.WriteAllText(Path.Combine(sandbox.Work, "Fixture.fsproj"), projectFile "Types.fs" item)
+
+                let start =
+                    ChildProcess.StartInfo(
+                        "dotnet",
+                        "build",
+                        "Fixture.fsproj",
+                        "-c",
+                        configuration,
+                        "-p:BuildProjectReferences=false",
+                        "-nologo"
+                    )
+
+                start.WorkingDirectory <- sandbox.Work
+                sandbox.Apply start
+                let! (result: ChildProcessResult) = ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0)
+                Expect.notEqual result.ExitCode 0 $"Invalid provider must fail compilation: {result.CombinedOutput}"
+
+                Expect.stringContains
+                    result.CombinedOutput
+                    expected
+                    "The compiler identifies the incompatible provider"
         }
 
         test "a valid context builds, and a repeat build does not rewrite the generated file" {

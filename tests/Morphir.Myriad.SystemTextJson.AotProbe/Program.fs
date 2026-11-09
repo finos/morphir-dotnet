@@ -111,4 +111,34 @@ let main _ =
 
     probe "converters" Converters.ConverterJson.Default.Labelled { Label = "hello"; Plain = "x"; Pair = { A = 1; B = 2 } }
 
+    let flags = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.Flags :> JsonTypeInfo) |> unbox<WireRules.Flags>
+    probe "wire-default-flags" WireRules.WireJson.Default.Flags flags
+    let diagnostic = JsonSerializer.Deserialize("""{"message":"test"}""", WireRules.WireJson.Default.Diagnostic :> JsonTypeInfo) |> unbox<WireRules.Diagnostic>
+    probe "wire-default-list-and-union" WireRules.WireJson.Default.Diagnostic diagnostic
+    let extra = JsonSerializer.Deserialize("""{"known":true,"future":{"items":[1,null,"x"]}}""", WireRules.WireJson.Default.Capabilities :> JsonTypeInfo) |> unbox<WireRules.Capabilities>
+    probe "wire-extension-data" WireRules.WireJson.Default.Capabilities extra
+    let claims = JsonSerializer.Deserialize("""{"statementVersion":"0.1.0-draft.1","critical":["statementVersion"]}""", WireRules.WireJson.Default.Claims :> JsonTypeInfo) |> unbox<WireRules.Claims>
+    probe "wire-migrated-claims" WireRules.WireJson.Default.Claims claims
+    let parsed = JsonSerializer.Deserialize("""{"statementVersion":"0.1.0-draft.1"}""", WireRules.WireJson.Default.ParsedClaims :> JsonTypeInfo) |> unbox<WireRules.ParsedClaims>
+    probe "wire-parsed-migration" WireRules.WireJson.Default.ParsedClaims parsed
+    let option = JsonSerializer.Deserialize("{}", WireRules.WireLegacy.Default.OptionDefault :> JsonTypeInfo) |> unbox<WireRules.OptionDefault>
+    probe "wire-default-option" WireRules.WireLegacy.Default.OptionDefault option
+    let nullDefault = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.NullDefault :> JsonTypeInfo) |> unbox<WireRules.NullDefault>
+    probe "wire-default-null" WireRules.WireJson.Default.NullDefault nullDefault
+    let defaultClaims = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.DefaultClaims :> JsonTypeInfo) |> unbox<WireRules.DefaultClaims>
+    probe "wire-default-current-version" WireRules.WireJson.Default.DefaultClaims defaultClaims
+    let defaultParsedClaims = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.DefaultParsedClaims :> JsonTypeInfo) |> unbox<WireRules.DefaultParsedClaims>
+    probe "wire-default-parsed-version" WireRules.WireJson.Default.DefaultParsedClaims defaultParsedClaims
+
+    let scalars = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.ScalarDefaults :> JsonTypeInfo) |> unbox<WireRules.ScalarDefaults>
+    probe "wire-typed-scalars" WireRules.WireJson.Default.ScalarDefaults scalars
+    let empty = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.EmptyDefaults :> JsonTypeInfo) |> unbox<WireRules.EmptyDefaults>
+    probe "wire-empty-collections" WireRules.WireJson.Default.EmptyDefaults empty
+    let providers = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.ProviderDefaults :> JsonTypeInfo) |> unbox<WireRules.ProviderDefaults>
+    probe "wire-decimal-and-collection-providers" WireRules.WireJson.Default.ProviderDefaults providers
+    let currentProvider = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.CurrentProviderClaims :> JsonTypeInfo) |> unbox<WireRules.CurrentProviderClaims>
+    probe "wire-current-provider" WireRules.WireJson.Default.CurrentProviderClaims currentProvider
+    let parsedProvider = JsonSerializer.Deserialize("{}", WireRules.WireJson.Default.ParsedProviderClaims :> JsonTypeInfo) |> unbox<WireRules.ParsedProviderClaims>
+    probe "wire-parsed-provider" WireRules.WireJson.Default.ParsedProviderClaims parsedProvider
+
     if failures = 0 then 0 else 1
