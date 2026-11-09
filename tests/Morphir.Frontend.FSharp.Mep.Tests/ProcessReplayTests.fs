@@ -74,7 +74,7 @@ type private Direction =
 
 /// The messages of a pinned transcript, in order.
 let private transcript name =
-    let text = File.ReadAllText(fixture name)
+    let text = File.ReadAllText(fixture name).ReplaceLineEndings "\n"
 
     [ for item in Regex.Matches(text, "```jsonrpc (host -> extension|extension -> host)\n(.*?)\n```", RegexOptions.Singleline) ->
           (if item.Groups[1].Value.StartsWith "host" then HostToExtension else ExtensionToHost), item.Groups[2].Value ]
