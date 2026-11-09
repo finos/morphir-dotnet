@@ -58,8 +58,8 @@ and [#368](https://github.com/finos/morphir-dotnet/issues/368).
 | Tool path, first delivery | Sources, configuration, CLI composition and streamed reports | Planned | Tasks 4.1–4.8 |
 | Tool path, first delivery | Compile records and generation from a prior compile | Planned | Tasks 5.1–5.5 |
 | Tool path, first delivery | In-memory generation and library/CLI qualification | Planned | Tasks 6.1–6.4 |
-| MEP path, second delivery | Pinned 0.2.0-draft.1 codec, envelopes and session core | Planned | Tasks 7.1–7.4 |
-| MEP path, second delivery | Frontend-only F# guest and installable package | Planned | Tasks 8.1–8.4 |
+| MEP path, second delivery | Pinned 0.2.0-draft.1 codec, envelopes and session core | Implemented | Tasks 7.1–7.4 on the add-mep-core core; compileModel request types, result sum, reserved options, RFC 8785 context digest, 64 MiB frames and compileModel tuple negotiation; 6 new contract entries and 9 tests |
+| MEP path, second delivery | Frontend-only F# guest and installable package | Implemented | Tasks 8.1–8.4; `morphir-fsharp-frontend` with JSON compileModel tuples for 4.0.0 and 3.0.0; 14 tests, including replay of the pinned transcripts against the guest process and a pack-install-describe check |
 | MEP path, second delivery | AOT host, classic wire profiles and transport parity | Planned | Tasks 9.1–9.5 |
 | Integration | Coverage, examples, conformance reports and viability evidence | Planned | Tasks 10.1–10.3 |
 | Deferred | Project references, external dependency resolution and conditional defines | Deferred | Separate changes |
