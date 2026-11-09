@@ -150,7 +150,8 @@
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
-          "Gherkin": "[35.0.0, )"
+          "Gherkin": "[35.0.0, )",
+          "Morphir.Compilation": "[1.0.0, )"
         }
       },
       "morphir.frontend.fsharp": {

@@ -185,7 +185,7 @@ module internal CompilerEdge =
     /// compiler caches for them, when disposed.
     /// </summary>
     [<Sealed>]
-    type Session(documents: SourceDocument list) =
+    type Session(documents: FSharpDocument list) =
         do
             if List.isEmpty documents then
                 invalidArg (nameof documents) "A compilation needs at least one document."
@@ -253,7 +253,7 @@ module internal CompilerEdge =
 
                 let documents =
                     List.mapi2
-                        (fun index (document: SourceDocument) text ->
+                        (fun index (document: FSharpDocument) text ->
                             let path = pathOf kind index document.Uri
                             sources[path] <- SourceText.ofString text
                             registered.Add path
@@ -361,7 +361,7 @@ module internal CompilerEdge =
     /// Orders diagnostics by document, then by position. A diagnostic with no location comes first. Ties
     /// keep a fixed order by severity, code and message, so the order never depends on the compiler.
     /// </summary>
-    let order (documents: SourceDocument list) (diagnostics: Diagnostic list) =
+    let order (documents: FSharpDocument list) (diagnostics: Diagnostic list) =
         let indexOf =
             documents
             |> List.mapi (fun index document -> document.Uri, index)

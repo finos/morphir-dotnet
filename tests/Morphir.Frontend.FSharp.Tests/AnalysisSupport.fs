@@ -9,7 +9,7 @@ open FSharp.Compiler.Symbols
 open Morphir.Compilation
 open Morphir.Frontend.FSharp.Analysis
 
-let document uri text : SourceDocument = { Uri = uri; Text = text }
+let document uri text : FSharpDocument = { Uri = uri; Text = text }
 
 let pricing text = document "Pricing.fs" text
 

@@ -10,10 +10,11 @@ description: "Exact IR versions, checked diagnostics, native IR builders and IR 
 - exact IR format versions;
 - diagnostics that travel on success and on failure;
 - the IR builder interface, which a frontend lowers against once;
-- the writers that turn a built model into JSON for one exact version.
+- the writers that turn a built model into JSON for one exact version;
+- the in-process compile contract that a frontend implements.
 
 The design is in the [add-fsharp-compile design](../../../../openspec/changes/add-fsharp-compile/design.html)
-(decisions VER-1, DIAG-1, MID-1 and IRW-1).
+(decisions VER-1, DIAG-1, MID-1, IRW-1 and FE-1).
 
 ## Format versions
 
@@ -93,6 +94,34 @@ The classic writer reads its rules from a `ClassicWireProfile`, a record of data
 | Module list | `[{"name": path, "def": module}]` | `[[path, module]]` | `[[path, module]]` |
 | Library tag | `library` | `Library` | `Library` |
 | Module without documentation | `doc` left out | `doc` left out | `"doc": null` |
+
+`WriteOptions` sets the layout (`Indented`) and the spelling of a type or value without documentation
+(`AbsentDocumentation`). `WriteOptions.Compact` is compact and uses `Omit`: the member is written without a
+documentation wrapper, which gives smaller output. `EmptyWrapper` writes `{"doc": "", "value": ...}`, as
+morphir-elm does, in all three classic versions. The reader accepts both forms. IR v4 always leaves out absent
+documentation. C# callers change one setting with `WithIndented` and `WithAbsentDocumentation`.
+
+## Frontends
+
+A frontend implements `IFrontend`. It has an identity, a transport and a `FrontendCapability`: the languages
+and file extensions it reads, the IR targets it produces, and whether one request can hold more than one
+document. `CompileAsync` takes a `CompileRequest` and returns a `FrontendOutcome`:
+
+| Outcome | Meaning | Exit code in the CLI |
+| --- | --- | --- |
+| `Completed` with a passed result | A `CompiledPackage`: the model in the requested family and the module names. Warnings, information and hints travel with it. | `0` |
+| `Completed` with a failed result | Source problems, each a diagnostic with a code and a range. | `1` |
+| `Failed` | An operational failure, such as a language or target that the frontend does not serve. It keeps the diagnostics gathered before it. | `2` |
+
+Only `CompileRequest.Parse`, `TryParse` and `Create` build a request. They refuse a missing language, a missing
+package name, an empty document list, a missing document, a document without a URI or text, a document in
+another language and a repeated URI. A language is a parsed `LanguageId`, for example `fsharp`: a lowercase
+letter, then lowercase letters, digits, `-`, `_` and `.`. The exposed modules are
+absent to expose every public module, or a list (which can be empty) to expose only those modules.
+
+The in-process F# frontend is `FSharpFrontend.registration` in `Morphir.Frontend.FSharp`. It produces every
+target for which a builder and a writer are registered: classic versions `1`, `2` and `3`, and `4`. The
+conformance runner's `FrontendAdapter.create` runs the Morphir Compatibility Kit against any `IFrontend`.
 
 ## Example
 

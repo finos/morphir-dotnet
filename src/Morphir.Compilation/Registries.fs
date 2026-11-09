@@ -100,18 +100,49 @@ type ComponentId =
         | Ok id -> id
         | Error error -> invalidArg (nameof literal) (error.ToString())
 
+/// <summary>How a classic writer spells a type or value that has no documentation.</summary>
+[<RequireQualifiedAccess>]
+type AbsentDocumentation =
+    /// <summary>Writes the member without a documentation wrapper. The output is smaller. This is the default.</summary>
+    | Omit
+    /// <summary>
+    /// Writes the member in a <c>{"doc": "", "value": ...}</c> wrapper, as morphir-elm does. A reader then sees
+    /// empty documentation. IR v4 always omits absent documentation.
+    /// </summary>
+    | EmptyWrapper
+
+    override this.ToString() =
+        match this with
+        | Omit -> "omit"
+        | EmptyWrapper -> "empty wrapper"
+
 /// <summary>How a writer lays out its JSON.</summary>
 type WriteOptions =
     {
         /// <summary>True for two-space indented output; false for compact output.</summary>
         Indented: bool
+        /// <summary>How a classic writer spells a type or value that has no documentation.</summary>
+        AbsentDocumentation: AbsentDocumentation
     }
 
-    /// <summary>Compact output.</summary>
-    static member Compact = { Indented = false }
+    /// <summary>Compact output that omits absent documentation.</summary>
+    static member Compact = {
+        Indented = false
+        AbsentDocumentation = AbsentDocumentation.Omit
+    }
+
+    /// <summary>The same options with <paramref name="indented"/> layout. For C# callers.</summary>
+    member this.WithIndented(indented: bool) = { this with Indented = indented }
+
+    /// <summary>The same options with another spelling of absent documentation. For C# callers.</summary>
+    member this.WithAbsentDocumentation(absent: AbsentDocumentation) =
+        { this with
+            AbsentDocumentation = absent
+        }
 
     override this.ToString() =
-        if this.Indented then "indented" else "compact"
+        let layout = if this.Indented then "indented" else "compact"
+        $"{layout}, absent documentation: {this.AbsentDocumentation}"
 
 /// <summary>Writes one IR family as JSON for the exact format versions it declares (VER-1).</summary>
 type IIrWriter =

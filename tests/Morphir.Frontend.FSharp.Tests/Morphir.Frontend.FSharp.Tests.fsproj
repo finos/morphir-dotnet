@@ -30,6 +30,8 @@
     <Compile Include="TypeLoweringTests.fs" />
     <Compile Include="ValueLoweringTests.fs" />
     <Compile Include="SdkMappingTests.fs" />
+    <Compile Include="RegistrationTests.fs" />
+    <Compile Include="CorpusTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>

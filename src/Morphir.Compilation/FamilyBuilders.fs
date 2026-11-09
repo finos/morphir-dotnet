@@ -62,6 +62,8 @@ type ClassicBuilder() =
         | Access.Public -> Classic.AccessControlled.Public
         | Access.Private -> Classic.AccessControlled.Private
 
+    // A member without documentation stays without it in the model. The writer decides how to spell it
+    // (WriteOptions.AbsentDocumentation).
     static let documented (doc: string option) (value: 'T) =
         match doc with
         | Some text -> Classic.Documented.WithDocumentation(text, value)

@@ -5,8 +5,8 @@ Kit. Cases and expectations are product data, independent of the implementation
 under test. Do not record or regenerate expectations from compiler output.
 
 - [Vocabulary 1.0](steps/steps-1.md) defines every supported step.
-- [F# refusal seed](suites/frontend-fsharp/mutable.feature) covers four IR
-  versions and three source input kinds.
+- [F# frontend suite](suites/frontend-fsharp/) covers four IR versions and three
+  source input kinds.
 - [Deviations](deviations.md) records the upstream compatibility decisions.
 - [Runner source](../src/Morphir.Conformance/) implements the official Gherkin
   reader, linter, matrix checks, comparison and deterministic JSON reports.
@@ -19,8 +19,20 @@ dotnet run --project tests/Morphir.Frontend.FSharp.Tests -- --sequenced
 
 The `library` adapter accepts an implementation identity and a function from
 compile input to an observation or operational failure. It receives no expected
-outcome. Frontend binding is added when the production compiler is available;
-these runner tests do not qualify an F# frontend.
+outcome. `FrontendAdapter.create` binds the adapter to any in-process frontend of
+the compile contract (`IFrontend`) and writes a successful model with the writer
+of the case's IR version. A directory row gives the documents in ordinal path
+order. The adapter has no project-file provider, so a project-file row keeps the
+document order of the case; the `cli` adapter checks real project-file expansion.
+
+The suite has one refusal case for each code of the F# admission catalog, grouped
+by construct family, and semantic cases whose expected IR is written by hand for
+each IR version under `suites/frontend-fsharp/expected/`. The in-process F#
+frontend runs the whole suite in the frontend tests:
+
+```console
+dotnet run --project tests/Morphir.Frontend.FSharp.Tests -- --sequenced --filter "F# corpus through the library adapter (MCK-1)"
+```
 
 Check the AOT boundary on macOS ARM64:
 
