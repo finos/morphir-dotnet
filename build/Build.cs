@@ -116,6 +116,7 @@ partial class Build : NukeBuild
         ("Morphir.Mep", SourceDirectory / "Morphir.Mep" / "Morphir.Mep.fsproj", true),
         ("Morphir.CodeGeneration.CSharp", MorphirCodeGenerationCSharpProject, true),
         ("Morphir.Extensions", SourceDirectory / "Morphir.Extensions" / "Morphir.Extensions.fsproj", true),
+        ("Morphir.Analyzers", SourceDirectory / "Morphir.Analyzers" / "Morphir.Analyzers.fsproj", true),
         ("Morphir.Tooling", MorphirToolingProject, true),
         ("Morphir", MorphirProject, true),
         ("Morphir.SDK.FSharp", MorphirSDKFSharpProject, true),

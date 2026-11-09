@@ -66,6 +66,13 @@ public class SharedSteps
             $"output should contain '{option1}' or '{option2}'");
     }
 
+    [Then(@"stdout should contain ""([^""]*)""$")]
+    public void ThenStdoutShouldContain(string expectedText)
+    {
+        ExecutionResult.Should().NotBeNull("command should have been executed");
+        ExecutionResult!.StandardOutput.Should().Contain(expectedText, $"stdout should contain '{expectedText}'");
+    }
+
     [Then(@"the output should contain ""([^""]*)""$")]
     public void ThenTheOutputShouldContain(string expectedText)
     {

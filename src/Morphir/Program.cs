@@ -55,6 +55,7 @@ public static class Program
             .AddScenario<IrToolingScenario>()
             .AddScenario<GenerationScenario>()
             .AddScenario<ManagementScenario>()
+            .AddScenario<ValidationScenario>()
             .AddScenario<ConfigurationScenario>()
             .AddScenario<ProjectScenario>()
             .AddScenario<WorkspaceScenario>()

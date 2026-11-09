@@ -38,6 +38,33 @@ let private package (value: ValueDefinition<unit, unit>) : Package.PackageDefini
 
     { Modules = Map.ofList [ ModulePath.modulePath (Path [ Name.fromString "Rules" ]), { Access = Public; Value = moduleDefinition } ] }
 
+/// The MEP diagnostic that design ANA-1 gives for a plugin message: the severity, the rule id as the code, and the IR
+/// node name before the message, because an IR node has no source position.
+let private expectedDiagnostic (message: VMessage) : Morphir.Mep.Diagnostic = {
+    Severity =
+        match message.Severity with
+        | Info -> Morphir.Mep.DiagnosticSeverity.Info
+        | Warning -> Morphir.Mep.DiagnosticSeverity.Warning
+        | Error
+        | Fatal -> Morphir.Mep.DiagnosticSeverity.Error
+    Code = message.RuleId
+    Message =
+        match message.Location with
+        | Some location -> location + ": " + message.Message
+        | None -> message.Message
+    Location = None
+    Related = [||]
+    Data = None
+}
+
+/// The built-in analyzer morphir.type-validator gives the same diagnostics as the plugin for the package.
+let private expectSameThroughAnalyzer (input: Package.PackageDefinition<unit, unit>) (messages: VMessage list) =
+    Expect.equal
+        (Morphir.Analyzers.TypeValidatorAnalyzer.AnalyzePackage(PackageName.packageNameFromString "My.App", input)
+         |> List.ofSeq)
+        (messages |> List.map expectedDiagnostic)
+        "the analyzer should give the same diagnostics as the pipeline plugin"
+
 /// The messages from validating one definition. The model should always be kept.
 let private validate (value: ValueDefinition<unit, unit>) =
     let plugin = TypeValidator.create ()
@@ -45,6 +72,7 @@ let private validate (value: ValueDefinition<unit, unit>) =
     let result, file = plugin.Transform input VFile.empty
 
     Expect.equal result (Some input) "validation should keep the model so later plugins can report more"
+    expectSameThroughAnalyzer input file.Messages
     file.Messages
 
 let private expectClean value = Expect.isEmpty (validate value) "should report nothing"
@@ -221,6 +249,7 @@ let packageTests =
             }
 
             let _, file = (TypeValidator.create ()).Transform input VFile.empty
+            expectSameThroughAnalyzer input file.Messages
 
             Expect.equal
                 (file.Messages |> List.map (fun message -> message.Location) |> List.sort)
