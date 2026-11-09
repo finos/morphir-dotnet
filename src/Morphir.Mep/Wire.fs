@@ -869,6 +869,99 @@ type MorphirModel =
     /// Stable text for diagnostics.
     override this.ToString() = $"Model {this.ModelId}@{this.Revision} IR {this.IrVersion}"
 
+/// A source document that a host sends to a frontend.
+type SourceDocument =
+    {
+        /// The document URI. Module names come from it, relative to the source root.
+        Uri: string
+        /// The language id of the document, such as fsharp.
+        LanguageId: string
+        /// The document version. It goes up each time the document changes.
+        Version: uint64
+        /// The complete document text.
+        Text: string
+    }
+
+    /// Stable text for diagnostics.
+    override this.ToString() = $"{this.Uri} v{this.Version}"
+
+/// The documents of one compilation, with the root that module names come from.
+type SourceSet =
+    {
+        /// The source root; left out when absent.
+        Root: string option
+        /// The documents, in compilation order.
+        Documents: IReadOnlyList<SourceDocument>
+    }
+
+    /// Stable text for diagnostics.
+    override this.ToString() = $"{this.Documents.Count} documents"
+
+/// The package that a compilation builds.
+type CompilePackage =
+    {
+        /// The package name, such as acme/demo.
+        Name: string
+        /// The exposed modules; left out when absent. An absent list exposes every module; an empty list exposes none.
+        ExposedModules: IReadOnlyList<string> option
+    }
+
+    /// Stable text for diagnostics.
+    override this.ToString() = this.Name
+
+/// Options of a morphir.frontend.compileModel compilation. Members that the contract does not name are kept beside
+/// the named members. Use CompileModel.checkOptions before you write or accept options: the contract refuses some
+/// keys. The pin shares this type with the legacy compile request, where irVersion can be "3". This record holds a
+/// SemanticVersion, so it is for compileModel only; do not use it for the legacy morphir.frontend.compile.
+type CompileOptions =
+    {
+        /// Compile only the type definitions. Always written.
+        TypesOnly: bool
+        /// The exact IR version. It must equal the IR version of the output tuple. Always written.
+        IrVersion: SemanticVersion
+        /// Other members, written beside the named members.
+        [<System.Text.Json.Serialization.JsonExtensionData>]
+        Extra: IReadOnlyDictionary<string, System.Text.Json.JsonElement>
+    }
+
+    /// Stable text for diagnostics.
+    override this.ToString() = $"IR {this.IrVersion}, types only {this.TypesOnly}"
+
+/// A complete dependency model. Its format must match the selected output tuple.
+type CompileModelDependency =
+    {
+        /// The package name of the dependency.
+        PackageName: string
+        /// The dependency model.
+        Model: MorphirModel
+    }
+
+    /// Stable text for diagnostics.
+    override this.ToString() = $"Dependency {this.PackageName}"
+
+/// Parameters of morphir.frontend.compileModel: a complete source-set compilation into one agreed output tuple.
+type CompileModelRequest =
+    {
+        /// The language id of the compilation.
+        LanguageId: string
+        /// The documents.
+        Sources: SourceSet
+        /// The package to build.
+        Package: CompilePackage
+        /// The dependency models. Read as empty when absent.
+        [<JsonDefaultEmpty>]
+        Dependencies: IReadOnlyList<CompileModelDependency>
+        /// The compile options.
+        Options: CompileOptions
+        /// The SHA-256 of the dependency and configuration context (see CompileModel.contextDigest).
+        ContextDigest: Sha256Digest
+        /// The selected output tuple. It must be a compileModel tuple of the session agreement.
+        Output: ModelTransportTuple
+    }
+
+    /// Stable text for diagnostics.
+    override this.ToString() = $"Compile {this.Package} ({this.LanguageId}) to {this.Output}"
+
 /// An error code of a JSON-RPC error object. The value is the wire integer.
 type ErrorCode =
     /// JSON-RPC: the bytes are not JSON.
