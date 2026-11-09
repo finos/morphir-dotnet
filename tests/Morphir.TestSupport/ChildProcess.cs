@@ -64,7 +64,11 @@ public sealed class ProcessGate
     public static int LimitFrom(string? value, int processorCount) =>
         int.TryParse(value, out var limit) && limit > 0 ? limit : Math.Max(2, processorCount / 2);
 
-    internal async Task<IDisposable> EnterAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Holds one slot until the result is disposed. Use it around code under test that starts its own child
+    /// process, so that the process counts against the same limit as <see cref="ChildProcess"/> calls.
+    /// </summary>
+    public async Task<IDisposable> EnterAsync(CancellationToken cancellationToken = default)
     {
         await _slots.WaitAsync(cancellationToken).ConfigureAwait(false);
         return new Slot(_slots);

@@ -277,6 +277,20 @@ type SourceSelectionFailure =
     /// <summary>A document path appears more than once.</summary>
     | Repeated of path: string
 
+    /// <summary>Calls the function of the case. For C# callers.</summary>
+    member this.Match<'R>
+        (
+            emptyRoot: Func<'R>,
+            noDocuments: Func<'R>,
+            notPortable: Func<string, 'R>,
+            repeated: Func<string, 'R>
+        ) : 'R =
+        match this with
+        | EmptyRoot -> emptyRoot.Invoke()
+        | NoDocuments -> noDocuments.Invoke()
+        | NotPortable path -> notPortable.Invoke path
+        | Repeated path -> repeated.Invoke path
+
     override this.ToString() =
         match this with
         | EmptyRoot -> "A source selection needs a root."
