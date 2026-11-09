@@ -58,7 +58,17 @@ let tests =
               let project =
                   Path.Combine(repository, "src", "Morphir.Frontend.FSharp.Extension", "Morphir.Frontend.FSharp.Extension.fsproj")
 
-              run sandbox [ "pack"; project; "-c"; configuration; "--no-build"; "-o"; feed; "-nologo" ] repository
+              // Pack at the version of the built guest. Without -p:Version, a `pack --no-build` can take another
+              // version than the build (on Windows CI the package was 1.0.0 while the guest reported the CHANGELOG
+              // version), and then the package and the extension version cannot be compared.
+              let builtVersion =
+                  let product =
+                      Diagnostics.FileVersionInfo.GetVersionInfo(Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-frontend.dll")).ProductVersion
+                      |> nonNull
+
+                  product.Split('+').[0]
+
+              run sandbox [ "pack"; project; "-c"; configuration; "--no-build"; "-o"; feed; "-nologo"; $"-p:Version={builtVersion}" ] repository
 
               let package =
                   Directory.GetFiles(feed, "Morphir.Frontend.FSharp.Extension.*.nupkg") |> Array.exactlyOne
