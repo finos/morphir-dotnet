@@ -92,12 +92,30 @@ Feature: Compile F# source to Morphir IR
     Then generation exits with 0 and one JSON report
     And the generation input is the IR named by the compile record
 
-  @ignore @pending:6.2
-  Scenario: Compile with a target equals compile followed by generate
-    Given an F# project whose morphir.toml names its project file
-    When I compile it with the dotnet tool with target "fsharp"
-    And I compile it with the dotnet tool and then generate F# from the compiled IR
+  Scenario Outline: Compile with a target equals compile followed by generate
+    Given an F# project <project>
+    When I compile it with the dotnet tool from <input> with target "<target>"
+    And I compile it with the dotnet tool from <input> and then generate "<target>" from the compiled IR
     Then both generated outputs have the same paths and bytes
+    And both reports name the same backend
+
+    Examples:
+      | project                                | input               | target |
+      | without a configured project file      | its input files     | fsharp |
+      | without a configured project file      | its input files     | csharp |
+      | whose morphir.toml names its project file | its project file | fsharp |
+      | whose morphir.toml names its project file | its project file | csharp |
+
+  Scenario Outline: Generation options that are not complete are refused before compilation
+    Given an F# project without a configured project file
+    When I compile its input files with the dotnet tool and the options "<options>"
+    Then compilation exits with 2 and one JSON report
+    And no IR is published
+
+    Examples:
+      | options                                                |
+      | --target fsharp --target csharp --generate-output gen  |
+      | --target fsharp                                        |
 
   @ignore @pending:5.3
   Scenario: A failed compile leaves a tombstone that keeps the install ledger

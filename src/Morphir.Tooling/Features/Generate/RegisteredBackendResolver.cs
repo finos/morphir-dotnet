@@ -28,11 +28,18 @@ public sealed class RegisteredBackendResolver(IEnumerable<IGenerationBackend> ba
         }
         return compatible.Length switch
         {
-            0 => Fail(GenerationFailureKind.Semantic, "incompatible-model", $"Target '{target.Text}' does not support {ModelLabels.Family(model.Family)} {model.Version.Text} {ModelLabels.Kind(model.Kind)}."),
+            0 => Fail(GenerationFailureKind.Semantic, "incompatible-model",
+                $"Target '{target.Text}' does not support {ModelLabels.Family(model.Family)} {model.Version.Text} {ModelLabels.Kind(model.Kind)}. {Declared(candidates)}"),
             1 => new Outcome<IGenerationBackend>.Success(compatible[0]),
             _ => Fail(GenerationFailureKind.Invocation, "ambiguous-backend", $"Multiple compatible providers for '{target.Text}': {string.Join(", ", compatible.Select(backend => backend.Descriptor.Id.Value).Order(StringComparer.Ordinal))}.")
         };
     }
+
+    /// <summary>Each backend of the target and the capabilities that it declares, so a refusal names both.</summary>
+    private static string Declared(IEnumerable<IGenerationBackend> candidates) => string.Join(" ", candidates
+        .OrderBy(backend => backend.Descriptor.Id.Value, StringComparer.Ordinal)
+        .Select(backend => $"The backend {backend.Descriptor.Id.Value} declares " + string.Join("; ", backend.Descriptor.Capabilities.Select(capability =>
+            $"{ModelLabels.Family(capability.Family)} {string.Join(", ", capability.Versions.Select(version => version.Text))} {ModelLabels.Kind(capability.Kind)}")) + "."));
 
     private static Outcome<IGenerationBackend> Fail(GenerationFailureKind kind, string code, string message) =>
         new Outcome<IGenerationBackend>.Failure(GenerationFailure.One(kind, code, message));

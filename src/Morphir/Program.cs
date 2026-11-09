@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Morphir.Compilation;
 using Morphir.Extensions;
 using Morphir.Tooling;
@@ -71,6 +72,9 @@ public static class Program
         var builder = MorphirCli
             .CreateBuilder(args, "Morphir command line")
             .ConfigureServices(services => services.AddSingleton(host))
+            // CLI-3: both hosts expand project files (*.*proj) through MSBuild evaluation.
+            .ConfigureServices(services => services.TryAddEnumerable(ServiceDescriptor.Singleton<Morphir.Compilation.IProjectFileProvider,
+                Tooling.Features.Compile.Sources.MsBuildProjectFileProvider>(_ => new Tooling.Features.Compile.Sources.MsBuildProjectFileProvider())))
             .AddScenario<IrToolingScenario>()
             .AddScenario<GenerationScenario>()
             .AddScenario<CompilationScenario>()

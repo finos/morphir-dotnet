@@ -24,6 +24,10 @@ public enum CompileStage
     Write,
     /// <summary>Publication of the written IR.</summary>
     Publish,
+    /// <summary>With <c>--target</c>: model loading from the written bytes, backend selection, option validation and generation (CLI-2).</summary>
+    Generate,
+    /// <summary>With <c>--target</c>: owned publication of the generated artifacts.</summary>
+    GeneratePublish,
 }
 
 /// <summary>Wire values of compile stages.</summary>
@@ -38,6 +42,8 @@ public static class CompileStages
         CompileStage.Frontend => "frontend",
         CompileStage.Write => "write",
         CompileStage.Publish => "publish",
+        CompileStage.Generate => "generate",
+        CompileStage.GeneratePublish => "generatePublish",
         _ => throw new UnreachableException()
     };
 }
@@ -134,6 +140,11 @@ public sealed record CompileOverrides
     public string? Extension { get; init; }
     /// <summary><c>--types-only</c>, which this build does not implement.</summary>
     public bool TypesOnly { get; init; }
+    /// <summary>
+    /// <c>--target</c>, <c>--generate-output</c> and <c>--option</c>, parsed by the command because they need no
+    /// configuration (CLI-2), or null when no target is requested.
+    /// </summary>
+    public CompileTarget? Target { get; init; }
 }
 
 /// <summary>The directory and environment of one invocation.</summary>
@@ -235,7 +246,11 @@ public sealed record PublishedCompile(string IrPath);
 
 /// <summary>What a successful compile produced. Diagnostics travel on the events and the fold, not here.</summary>
 public sealed record CompileSuccess(string Language, string Frontend, SourceFormatVersion IrVersion,
-    SelectedSources Sources, ImmutableArray<string> Modules, PublishedCompile Publication);
+    SelectedSources Sources, ImmutableArray<string> Modules, PublishedCompile Publication)
+{
+    /// <summary>The generation of <c>--target</c>, or null when no target was requested.</summary>
+    public CompileGeneration? Generation { get; init; }
+}
 
 /// <summary>A failed compile. Its diagnostics travel on the events and the fold.</summary>
 public sealed record CompileFailure(CompileFailureKind Kind, string Message)
@@ -245,6 +260,12 @@ public sealed record CompileFailure(CompileFailureKind Kind, string Message)
 
     /// <summary>The frontend label, when a frontend was selected.</summary>
     public string? Frontend { get; init; }
+
+    /// <summary>The published compile, when the run failed after publication (in the generation stages).</summary>
+    public CompileSuccess? Compiled { get; init; }
+
+    /// <summary>The generation of <c>--target</c>, when it started.</summary>
+    public CompileGeneration? Generation { get; init; }
 }
 
 /// <summary>The conclusion of a run, without diagnostics: a success or a failure.</summary>
@@ -333,6 +354,8 @@ public static class CompileCodes
     public static readonly DiagnosticCode InvalidArguments = DiagnosticCode.Create("compile.invalid_arguments");
     /// <summary>An unexpected failure.</summary>
     public static readonly DiagnosticCode Failed = DiagnosticCode.Create("compile.failed");
+    /// <summary><c>--target</c> was given, and this build registers no generation services.</summary>
+    public static readonly DiagnosticCode GenerationUnavailable = DiagnosticCode.Create("compile.generation_unavailable");
     /// <summary>The written IR could not be published.</summary>
     public static readonly DiagnosticCode PublishFailed = DiagnosticCode.Create("compile.publish_failed");
 

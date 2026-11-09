@@ -6,7 +6,8 @@ description: Compile source code to Morphir IR
 # Compile
 
 `compile` reads source documents, compiles them with a frontend, writes the IR in the requested format
-version, and publishes it under the out root. The dotnet tool `dotnet-morphir` has a built-in F# frontend.
+version, and publishes it under the out root. With `--target`, it then generates code from the IR that it
+wrote, as `generate` does. The dotnet tool `dotnet-morphir` has a built-in F# frontend.
 The AOT executable `morphir` has no built-in frontend.
 
 This page describes the first delivery: the in-process F# frontend of the dotnet tool. Frontend extensions
@@ -18,7 +19,8 @@ In this build, a configured extension fails with `compile.extension_unavailable`
 ```text
 dotnet-morphir compile [--language <id>] [--input <file>... | --input <directory> | --project-file <file>]
   [--package-name <name>] [--ir-version <version>] [--project <path-or-name>] [--config <file>]
-  [--extension <id-or-path>] [--json | --json-lines]
+  [--extension <id-or-path>] [--target <id> --generate-output <directory> [--option <key>=<value>]...]
+  [--json | --json-lines]
 ```
 
 ## Options
@@ -33,11 +35,16 @@ dotnet-morphir compile [--language <id>] [--input <file>... | --input <directory
 | `--project` | A project directory, a workspace member path, or a project name. |
 | `--config` | An explicit configuration file. |
 | `--extension` | A frontend extension. Overrides `[frontend.<language>].extension`. Second delivery. |
+| `--target` | A generation target, for example `fsharp` or `csharp`. Generate code from the compiled IR. See [Compile and generate](#compile-and-generate). |
+| `--generate-output` | The owned output directory of the generation. Necessary with `--target`. |
+| `--option` | A backend option `KEY=VALUE` for `--target`, as in `generate`. You can give it more than once. |
 | `--json` | Write one JSON report to stdout. |
 | `--json-lines` | Write the compile events to stdout as JSON Lines, and end with the report. |
 | `--types-only` | Not implemented. The command refuses it with exit code 2. |
 
-Do not use `--json` and `--json-lines` together. Do not use `--project-file` and `--input` together.
+Do not use `--json` and `--json-lines` together. Do not use `--project-file` and `--input` together. Give
+`--target` one time only, and always with `--generate-output`. `--generate-output` and `--option` need
+`--target`. The command refuses these errors with exit code 2 before it compiles.
 
 ## Settings
 
@@ -112,6 +119,97 @@ A successful compile publishes the IR to `<out root>/compile.dest/morphir-ir.jso
 `workspace.out_dir`, by default `.morphir/out` under the project root, or under the invocation directory
 outside a project. A failed compile publishes no IR. Task records, `-o` installation and `generate` from a
 prior compile come with the task record store.
+
+## Compile and generate
+
+With `--target <id> --generate-output <directory>`, a successful compile continues into generation in the
+same run. The command gives the exact IR bytes that it wrote to the model loader of `generate --input`, and
+then runs the generation stages of `generate`: backend selection, `--option` validation, generation and
+owned publication. The result is the same as these two commands:
+
+```text
+dotnet-morphir compile ...
+dotnet-morphir generate --input <out root>/compile.dest/morphir-ir.json --target <id> --output <directory>
+```
+
+Both give the same files with the same bytes, and both reports name the same backend. Classic IR versions
+(`1`, `2` and `3`) give a classic model, and the backend uses its classic path.
+
+- Generation does not run when the compile fails.
+- When generation fails, the compiled IR stays published. The report has `success: false`, the `output`
+  of the IR, the `modules`, and a `generation` member that names the target and, after backend selection,
+  the backend. A backend that does not accept the IR version fails before generation, names the backend
+  and the versions that it declares, and does not change the generation output.
+- A generation failure has the exit code of `generate`: `1` for a model that the backend cannot use, `2`
+  for an invocation, option or publication failure, `130` for cancellation.
+- `-o` installs the IR. It is not the generation output. A run with more than one target is not part of
+  this command.
+
+```bash
+$ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --target fsharp --generate-output generated --json
+{
+  "success": true,
+  "exitCode": 0,
+  "language": "fsharp",
+  "frontend": "morphir-dotnet.fsharp (in-process)",
+  "irVersion": "4",
+  "sources": {
+    "projectFile": null,
+    "root": "src",
+    "documents": [
+      "Rates.fs",
+      "Totals.fs"
+    ]
+  },
+  "modules": [
+    "Rates",
+    "Totals"
+  ],
+  "output": "/work/.morphir/out/compile.dest/morphir-ir.json",
+  "installed": [],
+  "diagnostics": [],
+  "failureKind": null,
+  "origins": {
+    "language": {
+      "kind": "cli",
+      "flag": "--language"
+    },
+    "packageName": {
+      "kind": "cli",
+      "flag": "--package-name"
+    },
+    "irVersion": {
+      "kind": "default"
+    },
+    "input": {
+      "kind": "cli",
+      "flag": "--input"
+    }
+  },
+  "generation": {
+    "target": "fsharp",
+    "backend": "morphir.fsharp",
+    "output": "/work/generated",
+    "sourceVersion": "4",
+    "family": "V4",
+    "distributionKind": "Library",
+    "representation": "Json",
+    "artifacts": [
+      "Rates.fs",
+      "Totals.fs"
+    ],
+    "written": [
+      "Rates.fs",
+      "Totals.fs"
+    ],
+    "unchanged": [],
+    "removed": []
+  }
+}
+```
+
+In human mode, the summary on stderr also names the backend, the number of generated artifacts and the
+generation output. Stdout still holds only the path of the published IR.
 
 ## Exit codes
 
@@ -198,6 +296,7 @@ The report members are:
 | `diagnostics` | Every diagnostic of the run, ordered by stage, then document, then position. |
 | `failureKind` | `source`, `invocation`, `configuration`, `operational` or `cancelled`, or null. |
 | `origins` | Where each setting came from: `cli` with its `flag`, `configuration` with its `file` and `key`, or `default`. |
+| `generation` | Only with `--target`: `target`, `backend` (null when selection failed), `output`, and the `generate` report members `sourceVersion`, `family`, `distributionKind`, `representation`, `artifacts`, `written`, `unchanged` and `removed`. |
 
 Diagnostics have the frontend (MEP) shape: `severity`, `code`, `message`, and optional `location` (a
 document `uri` and a zero-based `range` in UTF-16 code units), `related` and `data`.
@@ -363,7 +462,9 @@ stderr.
 | `completed` | `report` | The last line, exactly once. `report` is the report that `--json` writes. |
 
 The stages are `settings`, `sources`, `capture`, `frontend` (which builds the requested IR family),
-`write` and `publish`. A stage that does not run has no records. All `diagnostics` records together hold
+`write` and `publish`, and with `--target` also `generate` (model loading, backend selection, option
+validation and generation) and `generatePublish` (owned publication of the generated files). A stage that
+does not run has no records. All `diagnostics` records together hold
 the same diagnostics as the report. The records keep emission order; the report keeps stage, document and
 position order. A parse error, the `--json` and `--json-lines` conflict, and cancellation also end with
 one `completed` record. Ignore event types and members that you do not know: new ones can be added
