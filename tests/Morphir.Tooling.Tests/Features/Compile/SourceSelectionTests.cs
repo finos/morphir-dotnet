@@ -194,6 +194,29 @@ public sealed class SourceSelectionTests
     }
 
     [Test]
+    public async Task ALinkedDirectoryUnderTheSourceDirectoryIsRefusedAndNamed()
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n\n[frontend]\nlanguage = \"fsharp\"\n");
+        workspace.Write("src/a/One.fs", "");
+        workspace.Write("shared/Two.fs", "");
+        try
+        {
+            Directory.CreateSymbolicLink(workspace.PathOf("src/a/linked"), workspace.PathOf("shared"));
+        }
+        catch (Exception exception) when (OperatingSystem.IsWindows() && exception is UnauthorizedAccessException or IOException)
+        {
+            // Windows without developer mode cannot create a symbolic link; the refusal is not testable there.
+            return;
+        }
+
+        var result = await Select(new(), Settings(workspace, new()));
+
+        Code(result).Should().Be("sources.unsupported_entry");
+        result.Diagnostics.Single().Message.Should().Contain("a/linked");
+    }
+
+    [Test]
     public async Task InputFilesWithNoCommonRootHaveNoCommonDirectory()
     {
         // Windows: files on two drives share no directory. The search ends at each root and does not loop.

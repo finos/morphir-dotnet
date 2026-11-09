@@ -64,7 +64,7 @@ public static class CompileRunners
         IFrontendExtensionConnector? extensions = null) =>
         new(new ProjectCompileSettingsResolver(), Writers, new FrontendResolver(frontends, hints ?? []),
             new SourceSelector(ProjectFileProviderRegistry.Create(providers ?? [])), new Morphir.Tooling.Features.Compile.Sources.SourceCapture(),
-            publisher ?? new TaskRecordCompilePublisher(new Morphir.Tooling.Features.TaskRecords.TaskStoreOptions { Diagnostics = TextWriter.Null }), extensions ?? new UnavailableFrontendExtensionConnector());
+            publisher ?? new TaskRecordCompilePublisher(new Morphir.Tooling.Features.TaskRecords.TaskStoreOptions { Diagnostics = TextWriter.Null }), extensions ?? new FailingExtensionConnector());
 
     /// <summary>Every event of one run.</summary>
     public static async Task<List<CompileEvent>> Events(ICompileRunner runner, CompileOverrides overrides, CompileContext context,
@@ -78,6 +78,18 @@ public static class CompileRunners
     /// <summary>The codes of the error diagnostics of a result.</summary>
     public static string[] ErrorCodes(CompileResult result) =>
         [.. result.Diagnostics.Where(d => d.Diagnostic.IsError).Select(d => d.Diagnostic.CodeOrNull?.Value ?? "")];
+}
+
+/// <summary>
+/// A connector that cannot start any extension, as the real MEP connector fails for an executable that does not
+/// start. Every request fails with <c>extension.unavailable</c> and names the extension and its origin.
+/// </summary>
+public sealed class FailingExtensionConnector : IFrontendExtensionConnector
+{
+    public Task<Checked<IFrontend>> ConnectAsync(FrontendExtensionRequest request, CancellationToken ct) =>
+        Task.FromResult(Checked<IFrontend>.Fail([Diagnostic.Create(DiagnosticSeverity.Error, Morphir.Compilation.Mep.MepFrontendCodes.Unavailable,
+            $"The frontend extension '{request.Extension.Value}' from {ProjectCompileSettingsResolver.Describe(request.Extension.Origin)} cannot be started.",
+            null)]));
 }
 
 /// <summary>A connector that gives a fixed frontend, records its requests and records disposal.</summary>

@@ -33,6 +33,10 @@ module MepFrontendCodes =
     [<CompiledName("NotAdmitted")>]
     let notAdmitted = DiagnosticCode.Create "extension.not_admitted"
 
+    /// <summary>The session agreed no compileModel tuple, so the host sends no request.</summary>
+    [<CompiledName("TupleUnavailable")>]
+    let tupleUnavailable = DiagnosticCode.Create "extension.tuple_unavailable"
+
     /// <summary>The extension did not answer before the deadline.</summary>
     [<CompiledName("Timeout")>]
     let timeout = DiagnosticCode.Create "extension.timeout"
@@ -193,8 +197,10 @@ type MepFrontend
         agreed
         |> Option.bind (fun support -> support.Tuples |> Seq.tryFind (fun tuple -> tuple = jsonTuple version))
 
-    let refuse (message: string) =
-        Task.FromResult(FrontendOutcome.Failed(failure MepFrontendCodes.notAdmitted $"Extension {name}: {message}"))
+    let refuseWith code (message: string) =
+        Task.FromResult(FrontendOutcome.Failed(failure code $"Extension {name}: {message}"))
+
+    let refuse = refuseWith MepFrontendCodes.notAdmitted
 
     let read (tuple: ModelTransportTuple) (bytes: ReadOnlyMemory<byte>) : Result<FamilyModel, string> =
         use document = JsonDocument.Parse bytes
@@ -372,6 +378,8 @@ type MepFrontend
                 refuse $"the session does not admit the language {language}."
             elif request.Documents.Count > 1 && not capability.MultiDocument then
                 refuse "the session does not admit more than one document in a request (multiDocument is false)."
+            elif (ModelTransport.agreedTuples agreed ModelOperation.CompileModel).Count = 0 then
+                refuseWith MepFrontendCodes.tupleUnavailable "the session agreed no compileModel tuple, so the host sends no request."
             elif not (capability.Outputs |> Seq.exists (fun output -> output.Family = request.Output.Family && FormatVersion.sameVersion output.Version request.Output.Version)) then
                 let tuples =
                     agreed
@@ -381,7 +389,7 @@ type MepFrontend
                 refuse $"the session does not admit IR {request.Output.Version |> Versioning.version}. Agreed compileModel tuples: {tuples}."
             else
                 match tupleFor request.Output with
-                | None -> refuse "the session agreed no compileModel tuple for the requested IR version (extension.tuple_unavailable)."
+                | None -> refuse "the session agreed no compileModel tuple for the requested IR version."
                 | Some tuple ->
                     let (PackageName path) = request.Package
 

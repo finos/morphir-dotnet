@@ -30,6 +30,30 @@ let private onlyV4 () =
           Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
     )
 
+/// A guest that supports only an Ion compileModel tuple, so it selects none of the host's JSON tuples and the
+/// agreement is empty. Its compileModel handler writes a line to stderr, so a test can see whether the host sent a
+/// request.
+let private ionOnly () =
+    let support =
+        { FSharpGuest.support with
+            Tuples =
+                [| { FSharpGuest.tuple "4.0.0" with
+                       Profile = "morphir-model"
+                       Codec = ModelCodec.IonBinary } |] }
+
+    let handler =
+        Handlers.raw (fun _ _ ->
+            eprintfn "fake-guest: ion-only compileModel was sent"
+            Task.FromResult(Error(RpcErrors.create ErrorCode.InternalError)))
+
+    Guest(
+        { Claims = FSharpGuest.claims
+          Capabilities =
+            { FSharpGuest.capabilities with
+                ModelTransport = Some support }
+          Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
+    )
+
 /// A guest that writes a log line to stdout, outside a frame, when it gets compileModel.
 let private stdoutLog (output: IO.Stream) =
     let handler =
@@ -54,6 +78,7 @@ let run (scenario: string) =
     let guest =
         match scenario with
         | "only-v4" -> onlyV4 ()
+        | "ion-only" -> ionOnly ()
         | "stdout-log" -> stdoutLog output
         | other -> failwith $"Unknown fake guest scenario {other}"
 

@@ -130,15 +130,36 @@ public sealed class CompileRunnerTests
         extension.Disposed.Should().BeTrue("the run disposes a connected extension");
     }
 
+    /// <summary>
+    /// Spec scenario "Guest writes a log line to stdout": the MEP frontend gives an operational failure with
+    /// <c>extension.protocol_error</c> for non-framed guest output (MepFrontendTests, fake guest <c>stdout-log</c>,
+    /// in Morphir.Compilation.Mep.Tests). This test gives the run that outcome and checks exit code 2.
+    /// </summary>
     [Test]
-    public async Task WithoutATransportAConfiguredExtensionFailsBeforeSourceSelection()
+    public async Task AnExtensionProtocolFailureFailsTheRunWithExitCode2()
     {
         using var workspace = Project();
-        var events = await CompileRunners.Events(CompileRunners.Create([FSharpFrontend.Registration]),
+        var protocol = Diagnostic.Create(DiagnosticSeverity.Error, Morphir.Compilation.Mep.MepFrontendCodes.ProtocolError,
+            "Extension org.finos.morphir.fsharp-frontend: the output is not a valid frame.", null);
+        var broken = new FakeFrontend("org.finos.morphir.fsharp-frontend", FakeFrontend.FSharp(),
+            (_, _) => Task.FromResult(FrontendOutcome.Fail(new FrontendFailure(protocol.Message, [protocol]))), FrontendTransport.Mep);
+        var result = CompileHandler.Fold(await CompileRunners.Events(CompileRunners.Create([], extensions: new FakeExtensionConnector(broken)),
+            Inputs() with { Extension = "morphir-fsharp-frontend" }, workspace.Context()));
+        result.ExitCode.Should().Be(2);
+        ((CompileConclusion.Failed)result.Conclusion).Failure.Kind.Should().Be(CompileFailureKind.Operational);
+        CompileRunners.ErrorCodes(result).Should().Equal("extension.protocol_error", "compile.frontend_failed");
+        result.Diagnostics.Select(d => d.Diagnostic.Message).Should().Contain(message => message.Contains("org.finos.morphir.fsharp-frontend"));
+    }
+
+    [Test]
+    public async Task AConfiguredExtensionThatCannotStartFailsBeforeSourceSelection()
+    {
+        using var workspace = Project();
+        var events = await CompileRunners.Events(CompileRunners.Create([FSharpFrontend.Registration], extensions: new FailingExtensionConnector()),
             Inputs() with { Extension = "morphir-fsharp-frontend" }, workspace.Context());
         var result = CompileHandler.Fold(events);
         result.ExitCode.Should().Be(2);
-        CompileRunners.ErrorCodes(result).Should().Equal("compile.extension_unavailable");
+        CompileRunners.ErrorCodes(result).Should().Equal("extension.unavailable");
         result.Diagnostics.Single().Diagnostic.Message.Should().Contain("morphir-fsharp-frontend").And.Contain("--extension");
         events.OfType<CompileEvent.StageStarted>().Select(e => e.Stage).Should().Equal(CompileStage.Settings);
     }

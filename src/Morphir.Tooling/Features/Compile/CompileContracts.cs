@@ -355,8 +355,6 @@ public static class CompileCodes
     public static readonly DiagnosticCode FrontendUnavailable = DiagnosticCode.Create("compile.frontend_unavailable");
     /// <summary>The frontends that read the language do not produce the requested IR target.</summary>
     public static readonly DiagnosticCode IrVersionNotServed = DiagnosticCode.Create("compile.ir_version_not_served");
-    /// <summary>No connector can start the configured frontend extension.</summary>
-    public static readonly DiagnosticCode ExtensionUnavailable = DiagnosticCode.Create("compile.extension_unavailable");
     /// <summary>More than one registered frontend serves the request.</summary>
     public static readonly DiagnosticCode AmbiguousFrontend = DiagnosticCode.Create("compile.ambiguous_frontend");
     /// <summary>The frontend failed operationally.</summary>

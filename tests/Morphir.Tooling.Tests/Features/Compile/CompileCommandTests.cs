@@ -63,6 +63,14 @@ public sealed class CompileCommandTests
         Compile(project.Workspace, [project.Provider], frontend ?? FSharpFrontend.Registration, arguments, cancellation);
 
     [Test]
+    public void TheExtensionOptionHelpDoesNotSayItIsUnsupported()
+    {
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var extension = new CompileCommand(services).Options.Single(option => option.Name == "--extension");
+        extension.Description.Should().StartWith("Frontend extension").And.NotContain("not yet supported");
+    }
+
+    [Test]
     public async Task TheOutputOptionInstallsTheIrAndTheReportListsTheInstalledFile()
     {
         var project = Project();

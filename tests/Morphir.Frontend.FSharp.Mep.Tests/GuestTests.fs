@@ -149,10 +149,11 @@ module Pricing =
                       "The catalog diagnostic with its location"
               | compiled -> failtest $"Expected a failure: {compiled}"
 
-          testCase "A payload whose SHA-256 does not match is refused before the IR is decoded"
+          testCase "A payload whose SHA-256 does not match is refused with -32602 before the IR is decoded, and the session stays usable"
           <| fun _ ->
               let guest = initialized ()
-              let reply = dispatch guest (compileMessage 4 (compileRequest "4.0.0" [ "Pricing.fs", pricing ] None)) |> Option.get
+              let request = compileRequest "4.0.0" [ "Pricing.fs", pricing ] None
+              let reply = dispatch guest (compileMessage 4 request) |> Option.get
 
               match resultOf reply with
               | CompileModelResult.Compiled(model, _, _) ->
@@ -163,9 +164,17 @@ module Pricing =
                                   Sha256 = Sha256Digest.Create(String('0', 64)) } }
 
                   match ModelTransport.admit (FSharpGuest.tuple "4.0.0") FSharpGuest.limits tampered with
-                  | Error(AdmissionFailure.DigestMismatch _) -> ()
+                  | Error(AdmissionFailure.DigestMismatch _ as failure) ->
+                      Expect.equal failure.ErrorCode ErrorCode.InvalidParams "The refusal is -32602"
                   | other -> failtest $"Expected digest_mismatch: {other}"
               | failed -> failtest $"Expected a model: {failed}"
+
+              match resultOf (dispatch guest (compileMessage 5 request) |> Option.get) with
+              | CompileModelResult.Compiled(model, _, _) ->
+                  match ModelTransport.admit (FSharpGuest.tuple "4.0.0") FSharpGuest.limits model with
+                  | Ok _ -> ()
+                  | Error failure -> failtest $"The next model in the session is admitted: {failure}"
+              | failed -> failtest $"A valid compileModel after the refusal succeeds in the same session: {failed}"
 
           testCase "Requests that the session does not admit are -32602 or lifecycle errors, and the session stays usable"
           <| fun _ ->

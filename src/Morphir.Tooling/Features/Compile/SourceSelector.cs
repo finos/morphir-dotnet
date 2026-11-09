@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.Collections.Immutable;
 using Morphir.Compilation;
+using Morphir.Tooling.Features.Compile.Sources;
 using Severity = Morphir.Compilation.DiagnosticSeverity;
 
 namespace Morphir.Tooling.Features.Compile;
@@ -78,13 +79,20 @@ public sealed class SourceSelector(ProjectFileProviderRegistry providers) : ISou
 
     private static Checked<SelectedSources> SelectDirectory(CompileSettings settings, string directory, IReadOnlySet<string> claimed)
     {
-        var documents = Directory.Exists(directory)
-            ? Files(directory)
-                .Where(path => claimed.Contains(Path.GetExtension(path)))
-                .Select(path => Relative(directory, path))
-                .Order(StringComparer.Ordinal)
-                .ToArray()
-            : [];
+        var (files, links) = Directory.Exists(directory) ? Entries(directory) : ([], []);
+        if (links.Count > 0)
+        {
+            var linked = links.Select(link => Relative(directory, link)).Order(StringComparer.Ordinal).ToArray();
+            return Checked<SelectedSources>.Fail([.. linked.Select(entry => Diagnostic.Create(Severity.Error, SourceCaptureCodes.UnsupportedEntry,
+                $"The entry '{entry}' in the source directory '{directory}' is a linked directory. Links are not followed; move its sources into the directory or name them with --input.",
+                Location.Create(entry, Morphir.Compilation.Range.Create(Position.Create(0, 0), Position.Create(0, 0)))))]);
+        }
+
+        var documents = files
+            .Where(path => claimed.Contains(Path.GetExtension(path)))
+            .Select(path => Relative(directory, path))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
         if (documents.Length > 0) return Selection(directory, documents, null);
         if (settings.Language is null)
         {
@@ -104,17 +112,24 @@ public sealed class SourceSelector(ProjectFileProviderRegistry providers) : ISou
         return resolved.IsPassed || resolved.Diagnostics.Any(diagnostic => Equals(diagnostic.CodeOrNull, RegistryCodes.AmbiguousProjectFile));
     }
 
-    /// <summary>Every file under <paramref name="directory"/>. Links to directories are not followed.</summary>
-    private static IEnumerable<string> Files(string directory)
+    /// <summary>
+    /// Every file under <paramref name="directory"/>, and every linked directory under it. Links to directories
+    /// are not followed; the caller refuses them.
+    /// </summary>
+    private static (List<string> Files, List<string> Links) Entries(string directory)
     {
+        var files = new List<string>();
+        var links = new List<string>();
         var pending = new Stack<string>();
         pending.Push(directory);
         while (pending.TryPop(out var current))
         {
-            foreach (var file in Directory.EnumerateFiles(current)) yield return file;
+            files.AddRange(Directory.EnumerateFiles(current));
             foreach (var child in Directory.EnumerateDirectories(current))
                 if (new DirectoryInfo(child).LinkTarget is null) pending.Push(child);
+                else links.Add(child);
         }
+        return (files, links);
     }
 
     /// <summary>The deepest directory that holds every file, or null when the files have no common root.</summary>
