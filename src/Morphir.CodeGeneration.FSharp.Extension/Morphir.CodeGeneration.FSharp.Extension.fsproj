@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.CodeGeneration.FSharp.Extension</RootNamespace>
+        <AssemblyName>morphir-fsharp-backend</AssemblyName>
+        <Description>The F# backend as a Morphir Extension Protocol 0.2.0-draft.1 guest: morphir.backend.generateModel over stdio with Content-Length framing.</Description>
+        <PackageTags>$(PackageTags);morphir;fsharp;backend;mep;dotnet-tool</PackageTags>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <!-- Fabulous.AST asks for an exact Fantomas.Core version; the repository pins a later patch centrally, as
+             Morphir.Tooling does for the built-in backend. -->
+        <NoWarn>$(NoWarn);NU1608</NoWarn>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!-- A framework-dependent dotnet tool. Trimming and Native AOT are not verified for the generator and its
+             Fantomas and Fabulous.AST dependencies, so the guest makes no trim or AOT claim. -->
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>morphir-fsharp-backend</ToolCommandName>
+        <PackageId>Morphir.CodeGeneration.FSharp.Extension</PackageId>
+        <RollForward>Major</RollForward>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Morphir.CodeGeneration.FSharp.Extension.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Mep\Morphir.Mep.fsproj" />
+        <ProjectReference Include="..\Morphir.CodeGeneration.FSharp\Morphir.CodeGeneration.FSharp.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="FSharpGuest.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+</Project>

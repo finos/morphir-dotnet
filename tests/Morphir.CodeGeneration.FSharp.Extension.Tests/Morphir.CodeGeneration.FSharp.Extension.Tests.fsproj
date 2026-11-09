@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Fabulous.AST asks for an exact Fantomas.Core version; the repository pins a later patch centrally. -->
+    <NoWarn>$(NoWarn);NU1608</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Expecto" />
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="YoloDev.Expecto.TestSdk" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Morphir.CodeGeneration.FSharp.Extension/Morphir.CodeGeneration.FSharp.Extension.fsproj" />
+    <!-- The built-in backend and its loader, so the tests compare the guest with it through its public seams. -->
+    <ProjectReference Include="../../src/Morphir.Tooling/Morphir.Tooling.csproj" />
+    <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+    <None Include="../Fixtures/MorphirIR/**" Link="Fixtures/MorphirIR/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIon/pairs/v4-specs.json" Link="Fixtures/MorphirIon/pairs/v4-specs.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="GuestSupport.fs" />
+    <Compile Include="GuestTests.fs" />
+    <Compile Include="ProcessTests.fs" />
+    <Compile Include="PackageTests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+</Project>
