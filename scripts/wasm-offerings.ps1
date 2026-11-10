@@ -123,13 +123,14 @@ function Get-CetDiagnosis([string] $Offering, [object] $Installed) {
     if (Test-Path $copy) { Remove-Item -Recurse -Force $copy }
     Copy-Item -Recurse $Installed.Directory $copy
     $launch = Join-Path $copy ([System.IO.Path]::GetRelativePath($Installed.Directory, $Installed.Launch))
-    & $editbin /nologo /CETCOMPAT:NO $launch | Out-Null
+    $editbinOutput = @(& $editbin /nologo /CETCOMPAT:NO $launch 2>&1 | ForEach-Object { "$_" })
+    $editbinExitCode = $LASTEXITCODE
     $cleared = -not [bool](& $dumpbin /nologo /headers $launch | Select-String 'CET compatible')
     $report = Join-Path $results "$Rid-$Offering-cet-off-wasm-host-report.json"
     $run = Invoke-Json $launch @('mck', 'wasm-host', 'run', '--kit', $kit, '--host', $launch, '--offering', $Offering,
         '--platform', $Rid, '--engine', "wasmtime $wasmtime", '--report', $report) "$Offering-cet-off-corpus-run"
     Remove-Item -Recurse -Force $copy
-    [ordered]@{ launchMarkedCetCompatible = $marked; markCleared = $cleared; corpusExitCode = $run.ExitCode; corpusTotals = $run.Json.totals }
+    [ordered]@{ launchMarkedCetCompatible = $marked; editbinExitCode = $editbinExitCode; editbinOutput = $editbinOutput; markCleared = $cleared; corpusExitCode = $run.ExitCode; corpusTotals = $run.Json.totals }
 }
 
 function Install-Artifact([string] $Offering, [object] $Launch) {

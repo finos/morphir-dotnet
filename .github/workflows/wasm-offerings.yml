@@ -42,9 +42,9 @@ concurrency:
 
 env:
     # The platforms and offerings of a push run. A dispatch run takes its inputs instead.
-    PUSH_PLATFORMS: "win-x64"
-    PUSH_OFFERINGS: "native-aot,self-contained"
-    PUSH_DIAGNOSE_CET: "true"
+    PUSH_PLATFORMS: "linux-x64"
+    PUSH_OFFERINGS: "native-aot,self-contained,framework-dependent,dotnet-tool"
+    PUSH_DIAGNOSE_CET: "false"
 
 jobs:
     setup:
