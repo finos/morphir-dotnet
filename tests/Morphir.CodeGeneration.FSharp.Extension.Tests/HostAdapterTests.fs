@@ -206,6 +206,32 @@ let tests =
               finally
                   dispose backend
 
+          testCase "A model with no generateModel tuple for its family and version is refused, naming the host's offer and the agreed tuples"
+          <| fun _ ->
+              // A classic version 2 model: the host sends JSON IR only for IR 4.0.0 and 3.0.0, so no tuple carries it.
+              let rec root (directory: DirectoryInfo | null) =
+                  match directory with
+                  | null -> failtest "The repository root has no Morphir.slnx"
+                  | found when File.Exists(Path.Combine(found.FullName, "Morphir.slnx")) -> found.FullName
+                  | found -> root found.Parent
+
+              let model =
+                  load (Path.Combine(root (DirectoryInfo AppContext.BaseDirectory), "examples", "car-rental", "models", "car-rental-v2.json"))
+
+              let backend = connect (realGuest ())
+
+              try
+                  let failure = failureOf (generateWith backend model [])
+                  Expect.equal (codes failure) [ "extension.tuple_unavailable" ] "the code"
+                  let text = messages failure
+                  Expect.stringContains text "Classic 2" "names the model's family and version"
+                  Expect.stringContains text "The host offers" "names the host's offer"
+                  Expect.stringContains text "The session agreed" "names the tuples that the guest agreed"
+                  Expect.stringContains text "4.0.0" "the IR 4.0.0 tuple"
+                  Expect.stringContains text "3.0.0" "the IR 3.0.0 tuple"
+              finally
+                  dispose backend
+
           testCase "The guest runs with the environment that the options give, not the host's"
           <| fun _ ->
               let writer = new StringWriter()

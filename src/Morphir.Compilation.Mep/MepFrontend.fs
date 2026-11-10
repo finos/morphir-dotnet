@@ -195,9 +195,10 @@ type MepFrontend
     /// The tuple for a target: 4.0.0 for v4, and 3.0.0 for every classic version.
     let tupleFor (target: IrTarget) =
         let version =
+            // Exhaustive, so a new model family fails to compile until its tuple is decided.
             match target.Family with
             | Model.ModelFamily.V4 -> "4.0.0"
-            | _ -> "3.0.0"
+            | Model.ModelFamily.Classic -> "3.0.0"
 
         agreed
         |> Option.bind (fun support -> support.Tuples |> Seq.tryFind (fun tuple -> tuple = jsonTuple version))

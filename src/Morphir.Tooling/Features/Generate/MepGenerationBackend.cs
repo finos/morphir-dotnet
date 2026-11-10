@@ -58,11 +58,6 @@ public sealed record MepBackendOptions(string Executable, IReadOnlyList<string> 
 /// </remarks>
 public sealed class MepGenerationBackend : IExternalGenerationBackend
 {
-    private static readonly SemanticVersion Envelope = SemanticVersion.Create("0.1.0-draft.1");
-
-    /// <summary>The tuples the host can send: JSON IR, IR 4.0.0 first, then classic 3.0.0.</summary>
-    private static readonly ModelTransportTuple V4Tuple = JsonTuple("4.0.0");
-    private static readonly ModelTransportTuple ClassicTuple = JsonTuple("3.0.0");
 
     /// <summary>The default host limits, which fit in one 64 MiB frame, as the frontend adapter offers.</summary>
     public static ModelTransportLimits DefaultLimits { get; } = new(60 * 1024 * 1024, 45 * 1024 * 1024, 4096, 50_000_000);
@@ -96,7 +91,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     }
 
     /// <summary>The host offer: JSON IR, IR 4.0.0 first, then classic 3.0.0, with the given limits.</summary>
-    private static ModelTransportSupport OfferWith(ModelTransportLimits limits) => new([V4Tuple, ClassicTuple], limits, []);
+    private static ModelTransportSupport OfferWith(ModelTransportLimits limits) => new(MepGenerationTransport.Tuples, limits, []);
 
     /// <inheritdoc />
     public BackendDescriptor Descriptor { get; }
@@ -194,13 +189,13 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
             ? parsedDescription : null;
 
         var capabilities = new List<BackendCapability>();
-        if (agreed.Contains(V4Tuple))
+        if (agreed.Contains(MepGenerationTransport.V4Tuple))
         {
             // The guest's claims do not name distribution kinds; the guest decides each model.
             foreach (var kind in new[] { DistributionKind.Library, DistributionKind.Specs, DistributionKind.Application })
                 capabilities.Add(new(ModelFamily.V4, SourceFormatVersions.Create("4", "4.0.0"), kind));
         }
-        if (agreed.Contains(ClassicTuple))
+        if (agreed.Contains(MepGenerationTransport.ClassicTuple))
         {
             foreach (var kind in new[] { DistributionKind.Library, DistributionKind.Specs })
                 capabilities.Add(new(ModelFamily.Classic, SourceFormatVersions.Create("3", "3.0.0"), kind));
@@ -232,29 +227,39 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
             return Fail(GenerationFailureKind.Invocation, "invalid-backend-request", $"Extension {Identity}: the request does not contain this backend's options and target.");
 
         var model = request.Model;
-        var tuple = TupleFor(model.Descriptor);
-        if (tuple is null || !_agreed.Contains(tuple))
+        // The family decision is MepGenerationTransport's (F#, an exhaustive match on the family).
+        var label = $"{ModelLabels.Family(model.Model.Family)} {model.Model.SourceVersion.Text}";
+        var offered = $"The host offers: {Tuples(MepGenerationTransport.Tuples)}. The session agreed: {Tuples(_agreed)}.";
+        if (!MepGenerationTransport.TryTupleFor(model.Descriptor.Family, model.Descriptor.Version.Text, out var tuple))
             return Fail(GenerationFailureKind.Operational, "extension.tuple_unavailable",
-                $"Extension {Identity}: the model ({ModelLabels.Family(model.Model.Family)} {model.Model.SourceVersion.Text}) needs the generateModel tuple "
-                + $"{(tuple is null ? "of its IR version, which the host does not send" : tuple.ToString())}. Agreed tuples: {Tuples(_agreed)}.");
+                $"Extension {Identity}: the model ({label}) has no generateModel tuple: the host sends JSON IR only for IR 4.0.0 and 3.0.0. {offered}");
+        if (!_agreed.Contains(tuple))
+            return Fail(GenerationFailureKind.Operational, "extension.tuple_unavailable",
+                $"Extension {Identity}: the model ({label}) needs the generateModel tuple {tuple}, which the session did not agree. {offered}");
         if (model.Representation != ModelRepresentation.Json || model.Original is not RetainedInput.File file)
             return Fail(GenerationFailureKind.Operational, "extension.tuple_unavailable",
                 $"Extension {Identity}: the host sends JSON IR, and this model was read as {model.Representation}. Generate from a JSON model.");
 
         var bytes = file.Entry.Memory;
         if (bytes.Span.StartsWith(Utf8Bom)) bytes = bytes[Utf8Bom.Length..];
-        var envelope = ModelTransport.CreateDerivedEnvelope(tuple, "sha256:" + Sha256Digest.Compute(bytes.Span).Value, bytes);
-        if (envelope.IsError)
-            return Fail(GenerationFailureKind.Operational, "extension.protocol_error", $"Extension {Identity}: the model envelope cannot be made: {envelope.ErrorValue}");
-
-        // The host sends only what the session admits: the agreed encoded, decoded, depth and node limits.
-        var admitted = ModelTransport.Admit(tuple, _limits, envelope.ResultValue);
-        if (admitted.IsError)
-            return Fail(GenerationFailureKind.Invocation, "extension.not_admitted",
-                $"Extension {Identity}: the model is not sent, because it is over the limits that the session agreed ({admitted.ErrorValue.Code}): {admitted.ErrorValue}");
+        // The envelope, then its admission against the agreed encoded, decoded, depth and node limits: the host sends
+        // only what the session admits. Both are F# results, read through their Match extension.
+        MorphirModel? envelope = null;
+        var refusal = ModelTransport.CreateDerivedEnvelope(tuple, "sha256:" + Sha256Digest.Compute(bytes.Span).Value, bytes).Match<MorphirModel, EnvelopeFailure, Outcome<GenerationArtifacts>?>(
+            made => ModelTransport.Admit(tuple, _limits, made).Match<AdmittedModel, AdmissionFailure, Outcome<GenerationArtifacts>?>(
+                _ =>
+                {
+                    envelope = made;
+                    return null;
+                },
+                refused => Fail(GenerationFailureKind.Invocation, "extension.not_admitted",
+                    $"Extension {Identity}: the model is not sent, because it is over the limits that the session agreed ({refused.Code}): {refused}")),
+            failure => Fail(GenerationFailureKind.Operational, "extension.protocol_error", $"Extension {Identity}: the model envelope cannot be made: {failure}"));
+        if (refusal is not null || envelope is null)
+            return refusal ?? Fail(GenerationFailureKind.Operational, "extension.protocol_error", $"Extension {Identity}: the model envelope cannot be made.");
 
         var serialized = JsonSerializer.SerializeToUtf8Bytes(
-            new GenerateModelRequest(envelope.ResultValue, tuple, Descriptor.Target.Value, ContextDigest(Descriptor.Target, options.Values), [], options.Values),
+            new GenerateModelRequest(envelope, tuple, Descriptor.Target.Value, ContextDigest(Descriptor.Target, options.Values), [], options.Values),
             MepJson.Default.GenerateModelRequest);
         if (serialized.Length > ContentLengthFraming.MaxBodyBytes - FrameMargin)
             return Fail(GenerationFailureKind.Invocation, "extension.not_admitted",
@@ -387,17 +392,6 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         var conflict = files.FirstOrDefault(directories.Contains);
         return conflict is null ? null : (conflict, "the path is both a file and a directory of another path.");
     }
-
-    /// <summary>The agreed tuple that a model needs: IR 4.0.0 for a v4 model, 3.0.0 for a classic version 3 model.</summary>
-    private static ModelTransportTuple? TupleFor(ModelDescriptor model) => model.Version.Text switch
-    {
-        "4" or "4.0.0" when model.Family.IsV4 => V4Tuple,
-        "3" or "3.0.0" when model.Family.IsClassic => ClassicTuple,
-        _ => null
-    };
-
-    private static ModelTransportTuple JsonTuple(string irVersion) =>
-        new(ModelOperation.GenerateModel, "morphir-ir", ModelCodec.MorphirJson, Envelope, SemanticVersion.Create(irVersion));
 
     private static string Tuples(IEnumerable<ModelTransportTuple> tuples) =>
         tuples.Any() ? string.Join("; ", tuples.Select(tuple => tuple.ToString())) : "none";

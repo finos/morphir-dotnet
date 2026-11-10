@@ -24,6 +24,7 @@
     <ItemGroup>
         <Compile Include="MepGuestProcess.fs" />
         <Compile Include="MepFrontend.fs" />
+        <Compile Include="MepGenerationTransport.fs" />
     </ItemGroup>
 
 </Project>
