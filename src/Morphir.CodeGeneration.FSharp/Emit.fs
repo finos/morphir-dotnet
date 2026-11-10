@@ -259,14 +259,46 @@ module internal Emit =
         |> Fantomas.Core.CodeFormatter.FormatOakAsync
         |> Async.RunSynchronously
 
-    let format source =
+    /// What rendering does with the emitter's text: format it, or keep it.
+    [<RequireQualifiedAccess>]
+    type Formatting =
+        /// Fantomas formats the text.
+        | Applied
+        /// Formatting is off: the emitter's own text.
+        | Off
+        /// Formatting was asked for, but the runtime cannot run Fantomas (Native AOT): the emitter's own text.
+        | Unavailable
+
+        /// The value that the tree records: applied, off or unavailable.
+        member this.WireValue =
+            match this with
+            | Applied -> "applied"
+            | Off -> "off"
+            | Unavailable -> "unavailable"
+
+    /// What rendering does for the setting in this runtime. Fantomas needs dynamic generic reflection, so a
+    /// Native AOT host keeps the emitter's text.
+    let formattingFor (format: bool) =
+        if not format then
+            Formatting.Off
+        elif System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported then
+            Formatting.Applied
+        else
+            Formatting.Unavailable
+
+    /// The emitter's own text, with the unformatted rule: LF line endings only, and exactly one final LF.
+    let private unformatted (source: string) =
+        source.Replace("\r\n", "\n").Replace('\r', '\n').TrimEnd('\n')
+        + "\n"
+
+    /// Renders the emitter's complete F# source as the formatting decision says.
+    let render (formatting: Formatting) source =
         try
-            // The emitter already produces complete F# source. Fantomas requires dynamic generic
-            // reflection, so native hosts retain that source and validate it through the same corpus.
-            if System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported then
-                formatCore source
-            else
-                source
+            match formatting with
+            | Formatting.Applied -> formatCore source
+            | Formatting.Off -> unformatted source
+            // The default under Native AOT keeps the bytes that it wrote before formatting became a setting.
+            | Formatting.Unavailable -> source
         with error ->
             Decode.fail
                 "fsharp-generation"
@@ -274,7 +306,7 @@ module internal Emit =
                 ("F# rendering failed: "
                  + error.Message)
 
-    let generate (model: Decode.Model) =
+    let generate (formatting: Formatting) (model: Decode.Model) =
         packageNames model.Package
         |> ignore
 
@@ -1210,7 +1242,7 @@ module internal Emit =
                          @ valueDeclarations)
                     + "\n"
 
-                let formatted = format source
+                let formatted = render formatting source
 
                 path,
                 dependencies,

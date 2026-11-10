@@ -21,6 +21,7 @@ module internal V4Emit =
     let generate (options: GenerationOptions) (distribution: Distribution) : GeneratedModule list =
         V4Support.validate distribution
         V4Check.validate distribution
+        let formatting = Emit.formattingFor options.Format
 
         let distribution =
             if options.Optimize then
@@ -309,7 +310,7 @@ module internal V4Emit =
                     RelativePath =
                         moduleName.Replace('.', '/')
                         + ".fs"
-                    Source = Emit.format source
+                    Source = Emit.render formatting source
                 }
             )
 

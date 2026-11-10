@@ -46,7 +46,7 @@ public sealed class FSharpGenerationBackend : IGenerationBackend
 
         var context = VFileModule.fromPath(request.Model.Original.SourcePath);
         context = VFileModule.set(Transpiler.requiredSemantics, SetModule.OfSeq(request.Model.Descriptor.RequiredSemantics), context);
-        var tree = Transpiler.generateModelWith(new GenerationOptions(options.Optimize), request.Model.Model, context);
+        var tree = Transpiler.generateModelWith(new GenerationOptions(options.Optimize, true), request.Model.Model, context);
         var diagnostics = tree.Messages.Select(message => new GenerationDiagnostic(
             message.RuleId?.Value ?? "generation", message.Message, message.Path?.Value, message.Location?.Value,
             message.Severity.IsError || message.Severity.IsFatal ? "error" : message.Severity.IsWarning ? "warning" : "info")).ToImmutableArray();

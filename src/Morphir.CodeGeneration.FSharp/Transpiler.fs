@@ -13,6 +13,12 @@ module Transpiler =
     /// The generated modules in dependency order, stored as tree metadata.
     let manifest = Property.create<ManifestEntry list> "morphir.fsharp.manifest"
 
+    /// <summary>
+    /// Whether the files of the tree were formatted: <c>applied</c>, <c>off</c> (GenerationOptions.Format is false) or
+    /// <c>unavailable</c> (formatting was asked for, but the runtime cannot run Fantomas, as under Native AOT).
+    /// </summary>
+    let formatting = Property.create<string> "morphir.fsharp.formatting"
+
     /// Requirements supplied by admission/callers, separately from opaque IR extension data.
     let requiredSemantics =
         Property.create<Set<string>> "morphir.generation.required-semantics"
@@ -107,7 +113,7 @@ module Transpiler =
             with ExpectedFailure(rule, location, message) ->
                 invalid rule location message
 
-    let private artifacts (modules: GeneratedModule list) =
+    let private artifacts (rendered: Emit.Formatting) (modules: GeneratedModule list) =
         let tree =
             modules
             |> List.map (fun generated ->
@@ -121,6 +127,7 @@ module Transpiler =
             VFileTree.declaredOrder
             (modules
              |> List.map (fun generated -> generated.RelativePath))
+        |> VFileTree.set formatting rendered.WireValue
         |> VFileTree.set
             manifest
             (modules
@@ -130,9 +137,9 @@ module Transpiler =
              }))
 
     /// Emits one file per module, declaring dependency order separately from directory structure.
-    let private compile (model: Decode.Model) (_: VFile) : VFileTree =
+    let private compile (rendered: Emit.Formatting) (model: Decode.Model) (_: VFile) : VFileTree =
         try
-            artifacts (Emit.generate model)
+            artifacts rendered (Emit.generate rendered model)
         with ExpectedFailure(rule, location, message) ->
             VFileTree.empty
             |> VFileTree.report
@@ -188,21 +195,21 @@ module Transpiler =
                 Some model, checkedFile
             )
 
-    let private withoutOptimizer: MorphirProcessor<Decode.Model> = pipeline {
+    let private withoutOptimizer (rendered: Emit.Formatting) : MorphirProcessor<Decode.Model> = pipeline {
         parse (Parser.forFile parseModel)
         uses scopeValidator
         uses typeValidator
-        stringify compile
+        stringify (compile rendered)
     }
 
     // Folding only: other rewrites could delete code that emission would reject, which would change
     // which models are accepted.
-    let private processor: MorphirProcessor<Decode.Model> = pipeline {
+    let private processor (rendered: Emit.Formatting) : MorphirProcessor<Decode.Model> = pipeline {
         parse (Parser.forFile parseModel)
         uses scopeValidator
         uses typeValidator
         uses (onPackage (Optimizer.create Optimizer.foldingOnly))
-        stringify compile
+        stringify (compile rendered)
     }
 
     let private run (selected: MorphirProcessor<Decode.Model>) (input: VFile) : VFileTree =
@@ -228,7 +235,9 @@ module Transpiler =
     let generateWithOptions (options: GenerationOptions) (input: VFile) : VFileTree =
         match requirementsFailure input with
         | Some failure -> failure
-        | None -> run (if options.Optimize then processor else withoutOptimizer) input
+        | None ->
+            let rendered = Emit.formattingFor options.Format
+            run (if options.Optimize then processor rendered else withoutOptimizer rendered) input
 
     /// Generates with the existing optimization default.
     let generate (input: VFile) : VFileTree =
@@ -275,7 +284,8 @@ module Transpiler =
                     Definition = definition
                 }
 
-                let selected = if options.Optimize then processor else withoutOptimizer
+                let rendered = Emit.formattingFor options.Format
+                let selected = if options.Optimize then processor rendered else withoutOptimizer rendered
 
                 run
                     { selected with
@@ -291,7 +301,7 @@ module Transpiler =
             | "4"
             | "4.0.0" ->
                 try
-                    artifacts (V4Emit.generate options distribution)
+                    artifacts (Emit.formattingFor options.Format) (V4Emit.generate options distribution)
                 with ExpectedFailure(rule, location, message) ->
                     VFileTree.empty
                     |> VFileTree.report
@@ -310,4 +320,4 @@ module Transpiler =
 
     /// Generates with the optimizer on or off, so tests can compare behaviour.
     let internal generateWith (optimize: bool) (input: VFile) : VFileTree =
-        generateWithOptions { Optimize = optimize } input
+        generateWithOptions { GenerationOptions.Default with Optimize = optimize } input

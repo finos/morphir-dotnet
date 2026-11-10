@@ -5,10 +5,17 @@ type GenerationOptions =
     {
         /// Whether to run exact constant folding. Validation always runs.
         Optimize: bool
+        /// <summary>
+        /// Whether to format the source with Fantomas. True formats when the runtime can run Fantomas (not under
+        /// Native AOT, where the text stays unformatted and the tree records <c>unavailable</c>). False writes the
+        /// emitter's own text: LF line endings only and exactly one final LF, the same bytes on every OS, runtime
+        /// and culture.
+        /// </summary>
+        Format: bool
     }
 
-    /// Existing callers keep constant folding enabled.
-    static member Default = { Optimize = true }
+    /// Existing callers keep constant folding and formatting enabled.
+    static member Default = { Optimize = true; Format = true }
 
 /// One generated file in the manifest.
 type ManifestEntry = {
