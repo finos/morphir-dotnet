@@ -30,6 +30,7 @@
     <Compile Include="NormalizationTests.fs" />
     <Compile Include="CanonicalJsonTests.fs" />
     <Compile Include="GlobalizationTests.fs" />
+    <Compile Include="Sha256Tests.fs" />
     <Compile Include="PrimitiveTests.fs" />
     <Compile Include="PlanningTests.fs" />
     <Compile Include="WriterTests.fs" />

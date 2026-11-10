@@ -151,12 +151,38 @@ let tests =
             // The one disagreement: SemVer precedence ignores build metadata, so the range admits it.
             Expect.isFalse (onLine "0.2.0+build.1") "the page refuses build metadata"
             Expect.isTrue (inRange "0.2.0+build.1") "the range admits it")
-        testCase "versions have no length bound of their own, as on the pages" (fun () ->
-            // Semver for .NET refuses more than 1,024 characters by default; the pages, the schemas and the Rust
-            // reader set no bound, and a document's size bounds its versions.
-            let long = "0.2.0-" + String.replicate 1100 "a"
-            Expect.equal (SemVer.tryParse long |> Result.map _.Text) (Ok long) "a long prerelease is a version"
-            Expect.equal (ProtocolVersion.tryParse long |> Result.map _.Text) (Ok long) "and on the MEP 0.2 line")
+        testCase "a version is at most 256 characters with numeric identifiers of at most 15 digits (provisional)" (fun () ->
+            let accepted (text: string) = SemVer.tryParse text |> Result.map _.Text
+
+            // Up to the bound, a long prerelease is a version and on the MEP 0.2 line.
+            let longest = "0.2.0-" + String.replicate 250 "a"
+            Expect.equal longest.Length 256 "the longest version"
+            Expect.equal (accepted longest) (Ok longest) "256 characters"
+            Expect.equal (ProtocolVersion.tryParse longest |> Result.map _.Text) (Ok longest) "on the line"
+
+            for text in [ "999999999999999.0.0"; "0.999999999999999.0"; "1.0.0-999999999999999"; "1.0.0+1234567890123456789" ] do
+                Expect.equal (accepted text) (Ok text) text
+
+            // Past the bound: invalid_value as a version, and off the line as a MEP version.
+            let tooLong = longest + "a"
+
+            for text in
+                [ tooLong
+                  "1000000000000000.0.0"
+                  "0.0.1000000000000000"
+                  "1.0.0-alpha.1000000000000000"
+                  "1" + String.replicate 1_000_000 "0" + ".0.0" ] do
+                Expect.equal (accepted text) (Error ReaderCode.InvalidValue) (text.Substring(0, min 40 text.Length))
+
+            Expect.equal (ProtocolVersion.tryParse tooLong |> Result.map ignore) (Error ReaderCode.UnsupportedCase) "off the line"
+            Expect.equal (Comparator.tryParse (">=" + tooLong) |> Result.map ignore) (Error ReaderCode.InvalidValue) "a comparator")
+
+        testCase "a version of a million digits is refused before it is parsed" (fun () ->
+            // Semver holds major, minor and patch as BigInteger; parsing a million digits took about a minute.
+            let text = "1" + String.replicate 1_000_000 "0" + ".0.0"
+            let watch = Diagnostics.Stopwatch.StartNew()
+            Expect.equal (SemVer.tryParse text |> Result.map ignore) (Error ReaderCode.InvalidValue) "refused"
+            Expect.isLessThan watch.Elapsed.TotalSeconds 5.0 $"took {watch.Elapsed.TotalSeconds:F2} s")
         testCase "credential names match ASCII case-insensitively and nothing else" (fun () ->
             for name in [ "token"; "TOKEN"; "Authorization"; "APIKEY"; "Api_Key"; "cookie" ] do
                 Expect.isTrue (Reading.isCredential name) name

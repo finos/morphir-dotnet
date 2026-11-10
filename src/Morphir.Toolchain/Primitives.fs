@@ -148,12 +148,45 @@ type SemVer =
     override this.GetHashCode() = StringComparer.Ordinal.GetHashCode this.Text
 
 module SemVer =
-    /// <summary>A strict, canonical SemVer version. The Semver library refuses more than 1,024 characters by
-    /// default; the pages set no length bound, so none is applied here: a document's size bounds its versions.</summary>
+    /// <summary>The longest version text read: npm semver's MAX_LENGTH. Provisional, until the pages state a bound.</summary>
+    [<Literal>]
+    let MaxLength = 256
+
+    /// <summary>The most digits in a numeric identifier (major, minor, patch, or an all-digit prerelease identifier).
+    /// Every 15-digit number is a JavaScript safe integer and fits a signed 64-bit integer, so every reader can hold it
+    /// exactly. Provisional, until the pages state a bound.</summary>
+    [<Literal>]
+    let MaxDigits = 15
+
+    /// <summary>Whether text is within the provisional bounds, checked on the text before any parser runs: Semver
+    /// holds major, minor and patch as BigInteger, and parsing a million digits took about a minute. Build metadata
+    /// identifiers are not numeric and are bounded only by the length.</summary>
+    let withinBounds (text: string) =
+        if text.Length > MaxLength then
+            false
+        else
+            let core =
+                match text.IndexOf '+' with
+                | -1 -> text
+                | at -> text.Substring(0, at)
+
+            let identifiers =
+                match core.IndexOf '-' with
+                | -1 -> core.Split '.'
+                | at -> Array.append (core.Substring(0, at).Split '.') (core.Substring(at + 1).Split '.')
+
+            identifiers
+            |> Array.forall (fun identifier -> identifier.Length <= MaxDigits || not (identifier |> Seq.forall Char.IsAsciiDigit))
+
+    /// <summary>A strict, canonical SemVer version within the provisional bounds, or <c>invalid_value</c>.</summary>
     let tryParse (text: string) =
         let mutable version = Unchecked.defaultof<SemVersion>
 
-        if SemVersion.TryParse(text, SemVersionStyles.Strict, &version, Int32.MaxValue) && version.ToString() = text then
+        if
+            withinBounds text
+            && SemVersion.TryParse(text, SemVersionStyles.Strict, &version, MaxLength)
+            && version.ToString() = text
+        then
             Ok(SemVer version)
         else
             Error ReaderCode.InvalidValue
@@ -170,7 +203,7 @@ module ContractVersion =
     let check (text: string) =
         let mutable version = Unchecked.defaultof<SemVersion>
 
-        if not (SemVersion.TryParse(text, SemVersionStyles.Strict, &version)) then
+        if not (SemVer.withinBounds text && SemVersion.TryParse(text, SemVersionStyles.Strict, &version)) then
             Error ReaderCode.InvalidValue
         elif String.Equals(text, current, StringComparison.Ordinal) then
             Ok()

@@ -18,6 +18,7 @@
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="CsToml" />
         <PackageReference Include="Semver" />
+        <PackageReference Include="BouncyCastle.Cryptography" />
     </ItemGroup>
 
     <ItemGroup>

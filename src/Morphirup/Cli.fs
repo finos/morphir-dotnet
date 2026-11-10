@@ -217,6 +217,24 @@ let private segments (full: string) =
 
 let private pathOf (segments: string list) = Path.Combine(Array.ofList segments)
 
+/// <summary>Whether an entry exists at the path in any form: a file, a directory, a link (a dangling one too), or an
+/// entry whose directory cannot be listed. Discovery stops at it, and the reader then refuses anything that is not a
+/// readable regular file as <c>document_unavailable</c>, so an ancestor's request is never used in its place.</summary>
+let private present (path: string) =
+    let info = FileInfo path
+
+    if info.Exists || Directory.Exists path || not (isNull info.LinkTarget) then
+        true
+    else
+        let parent = nonNull (Path.GetDirectoryName path)
+
+        Directory.Exists parent
+        && (try
+                Directory.EnumerateFileSystemEntries(parent, nonNull (Path.GetFileName path)) |> Seq.isEmpty |> not
+            with
+            | :? UnauthorizedAccessException
+            | :? IOException -> true)
+
 /// <summary>Finds the project request by discovery (toolchain request page): from <c>--project</c>, or the working
 /// directory, up through its parents to the discovery boundary, <c>--boundary</c> or by default the root of the start
 /// path, as morphir's own configuration discovery does. The result is the request path, or why there is none.</summary>
@@ -243,7 +261,7 @@ let private discover (io: Io) (options: Options) : Result<string, string> =
         else
             boundarySegments
 
-    match Discovery.request boundarySegments startSegments (pathOf >> File.Exists) with
+    match Discovery.request boundarySegments startSegments (pathOf >> present) with
     | Some found -> Ok(pathOf found)
     | None when List.length startSegments < depth || List.take depth startSegments <> boundarySegments ->
         Error $"{start} is outside the discovery boundary {boundary}, so it has no project request"

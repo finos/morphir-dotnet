@@ -5,7 +5,6 @@ namespace Morphir.Toolchain
 open System
 open System.Buffers
 open System.IO
-open System.Security.Cryptography
 open System.Text
 open System.Text.Encodings.Web
 open System.Text.Json
@@ -321,6 +320,19 @@ module Canonical =
     /// The canonical bytes of a value.
     let bytes (value: Value) = bytesAt DocumentPath.root value
 
-/// SHA-256 of exact bytes as 64 lowercase hexadecimal digits.
+/// <summary>SHA-256 of exact bytes as 64 lowercase hexadecimal digits. The digest is BouncyCastle's managed
+/// <c>Sha256Digest</c>, used directly: .NET's SHA256 calls the platform's cryptography library, which on Linux is the
+/// machine's OpenSSL, and morphirup must run where there is none.</summary>
 module Digest =
-    let ofBytes (bytes: byte array) = SHA256.HashData bytes |> Convert.ToHexStringLower
+    /// The digest of several byte arrays one after another, as of their concatenation.
+    let ofParts (parts: byte array seq) =
+        let digest = Org.BouncyCastle.Crypto.Digests.Sha256Digest()
+
+        for part in parts do
+            digest.BlockUpdate(part, 0, part.Length)
+
+        let output = Array.zeroCreate<byte> (digest.GetDigestSize())
+        digest.DoFinal(output, 0) |> ignore
+        Convert.ToHexStringLower output
+
+    let ofBytes (bytes: byte array) = ofParts [ bytes ]
