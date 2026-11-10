@@ -143,8 +143,9 @@ application folder and the current directory, never applies.</li>
 <li><strong>Ctrl+C</strong> reaches every process of the console (Windows) or of the foreground process group (Unix), so the tool gets it
 directly. The CLI cancels its own default handling (<code>Console.CancelKeyPress</code>, <code>SIGINT</code>), waits, and exits with the
 tool's code, as <code>dotnet run</code> does.</li>
-<li><strong>SIGTERM</strong> on Linux and macOS is forwarded to the tool. If the tool has not exited after 10 seconds, its process tree is
-killed.</li>
+<li><strong>SIGTERM or SIGHUP</strong> on Linux and macOS stops the tool's process tree, and the CLI exits with 143. A forwarded
+SIGTERM would reach only the tool, and its children would be orphaned once it exited, so the tree is stopped while
+the CLI can still find it. A graceful stop is what Ctrl+C is for.</li>
 <li><strong>Windows.</strong> Before the tool starts, the CLI puts itself into a job object with
 <code>JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE</code>. The tool and everything it starts inherit the job, so there is no window
 between start and assignment. When the CLI process ends, even by <code>TerminateProcess</code>, its handle closes and Windows
@@ -157,8 +158,10 @@ is assigned.</p>
 
 <h3 id="mck-5">MCK-5. Exit code 127 for a missing tool</h3>
 <p>127 is the shell's "command not found". It does not collide with the codes a gate tool uses for its own results
-(0, 1, 2), so a CI job can tell "no tool" from "gate failed". The diagnostic names <code>morphir-mck</code>, the folders
-searched, <code>MORPHIR_MCK</code>, and that the tool is a separately installed, development-only tool from finos/morphir.</p>
+(0, 1, 2), so a CI job can tell "no tool" from "gate failed". A refused <code>MORPHIR_MCK</code> also exits with 127, and a
+resolved file that cannot be started exits with 126, the shell's "not executable". The diagnostic names
+<code>morphir-mck</code>, where it looked (<code>MORPHIR_MCK</code> and the absolute folders on PATH, not the current directory),
+and that the tool is a separately installed, development-only tool from finos/morphir.</p>
 
 <h3 id="mck-6">MCK-6. Test with a stub tool and the produced apphosts</h3>
 <ul>

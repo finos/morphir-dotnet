@@ -15,6 +15,7 @@ The Morphir .NET CLI provides powerful command-line tools for working with Morph
 - [morphir generate](./generate/) - Generate F# from classic or v4 JSON/Ion libraries
 - [morphir validate](./validate/) - Check a model with the built-in analyzers, such as the type validator
 - [morphir extension list](./management/#extension-list) - List the built-in generators and analyzers of this host
+- [morphir mck](./mck/) - Run the separately installed Morphir Compatibility Kit, `morphir-mck`, with the same arguments
 
 ### Toolchain manager
 
