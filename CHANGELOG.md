@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `MorphirApplication` in `Morphir.Tooling`: the shared command layer (the scenarios, `info` and `--version`) that every entry point runs. `Morphir.Program.Run` and `Morphir.Program.CreateApp` keep their signatures and delegate to it
+- A managed `morphir` entry point (`src/Morphir.Managed`) and the managed composition it shares with `dotnet-morphir` (`src/Morphir.Tooling.Managed`), which holds the in-process F# frontend. It is not packaged or released yet
+
+### Changed
+- `dotnet-morphir` runs the shared command layer with the managed composition and no longer references the AOT-compatible `morphir` project, so the tool package no longer contains `morphir.dll`. Its commands and its F# frontend are unchanged
+- Build: `src/Morphir.Managed` fails to build with `PublishAot` or `PublishTrimmed`, and a project whose references resolve two different `morphir.dll` assemblies (`src/Morphir` and `src/Morphir.Managed`) fails to build
+
 ## [0.4.0-alpha.3] - 2026-11-09
 
 ### Added

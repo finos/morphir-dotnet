@@ -4,7 +4,9 @@ using System.Reflection;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Morphir.Compilation;
+using Morphir.Extensions;
 using Morphir.Tooling;
+using Morphir.Tooling.Managed;
 
 namespace Morphir.Tests.Hosts;
 
@@ -58,6 +60,74 @@ public sealed class HostFrontendCompositionTests
         closure.Should().Contain("Morphir.Frontend.FSharp");
         closure.Should().Contain("FSharp.Compiler.Service");
     }
+
+    // DEP-1: one shared command layer, and one managed composition that the managed entry points share.
+
+    [Test]
+    public void TheManagedCompositionRegistersTheInProcessFSharpFrontend()
+    {
+        using var app = MorphirApplication.CreateApp([], Morphir.Tool.Program.Host, ManagedComposition.Compose);
+        var frontends = app.Services.GetServices<IFrontend>().ToArray();
+        frontends.Select(frontend => frontend.Identity.Value).Should().Equal("morphir-dotnet.fsharp");
+        frontends[0].Transport.Should().Be(FrontendTransport.InProcess);
+    }
+
+    // Each entry point's real composition, built with its own host. The AOT-compatible morphir and dotnet-morphir run
+    // the same commands; the expected differences are the host value and the F# frontend, and nothing else.
+
+    [Test]
+    public void TheNativeEntryPointHasTheCommandTreeOfTheTool() =>
+        Native().Commands.Should().Equal(Tool().Commands);
+
+    [Test]
+    public void TheNativeEntryPointDiffersFromTheToolOnlyInItsHostAndFrontend()
+    {
+        var native = Native();
+        var tool = Tool();
+
+        native.Host.Host.Should().Be(MorphirHost.Native);
+        tool.Host.Host.Should().Be(MorphirHost.DotnetTool);
+        native.Host.Version.Should().Be(tool.Host.Version);
+
+        var nativeOnly = native.Services.Except(tool.Services).ToList();
+        var toolOnly = tool.Services.Except(native.Services).ToList();
+        nativeOnly.Should().ContainSingle().Which.Should().StartWith($"Singleton {typeof(Morphir.Tooling.Features.Compile.FrontendHint).FullName} -> instance",
+            "the AOT-compatible composition adds only the hint that says where an F# frontend is");
+        toolOnly.Should().ContainSingle().Which.Should().StartWith($"Singleton {typeof(IFrontend).FullName} -> instance",
+            "the managed composition adds only the in-process F# frontend");
+        native.Services.Where(line => !nativeOnly.Contains(line)).Should().Equal(tool.Services.Where(line => !toolOnly.Contains(line)),
+            "the shared registrations come in the same order");
+    }
+
+    private static CompositionSnapshot Native() => CompositionSnapshot.Of(observe =>
+        Morphir.Program.CreateApp([], Morphir.Program.Host, builder =>
+        {
+            Morphir.Program.NativeComposition(builder);
+            observe(builder);
+        }));
+
+    private static CompositionSnapshot Tool() => CompositionSnapshot.Of(observe => Morphir.Tool.Program.CreateApp([], observe));
+    [Test]
+    public void TheAssemblyClosureOfTheManagedCompositionHasTheFSharpFrontend()
+    {
+        var closure = Closure(typeof(ManagedComposition).Assembly);
+        closure.Should().Contain("Morphir.Frontend.FSharp");
+        closure.Should().Contain("FSharp.Compiler.Service");
+    }
+
+    [Test]
+    public void TheAssemblyClosureOfTheSharedLayerHasNoFSharpCompilerService()
+    {
+        var closure = Closure(typeof(MorphirApplication).Assembly);
+        closure.Should().Contain("Morphir.Compilation", "the compile command is in the shared layer");
+        closure.Should().NotContain("FSharp.Compiler.Service");
+        closure.Should().NotContain("Morphir.Frontend.FSharp");
+        closure.Should().NotContain("Morphir.Tooling.Managed");
+    }
+
+    [Test]
+    public void TheAssemblyClosureOfMorphirHasNoManagedComposition() =>
+        Closure(typeof(Morphir.Program).Assembly).Should().NotContain("Morphir.Tooling.Managed");
 
     /// <summary>The names of every assembly that <paramref name="root"/> references, directly or indirectly.</summary>
     private static HashSet<string> Closure(System.Reflection.Assembly root)
