@@ -113,7 +113,7 @@ let private anchor () =
 /// the TUF client authenticates them: a refresh from the trusted root at the fixture's reference time.</summary>
 let authenticatedTargets (set: string) : Map<string, AuthenticatedTarget> =
     match TufClient.refresh TufFixture.referenceTime (anchor ()) (TufFixture.sourceOf (TufFixture.metadataSet set) []) with
-    | Ok(RefreshOutcome.Refreshed trusted) -> (Option.get trusted.Targets).Targets
+    | RefreshResult.Refreshed trusted -> (Option.get trusted.Targets).Targets
     | other -> failtestf "the %s metadata set does not refresh: %A" set other
 
 /// A JSON pointer into a role's signed object as member names.
@@ -312,9 +312,9 @@ let private trustTests () =
                   testCase name (fun () ->
                       let actual =
                           match TufClient.refresh TufFixture.referenceTime (anchor ()) (TufFixture.sourceOf (mutatedSet case) []) with
-                          | Ok(RefreshOutcome.Refreshed _) -> Valid
-                          | Ok other -> failtestf "%s paused: %A" name other
-                          | Error failure -> Refused(Code.name (TufFailure.code failure), "")
+                          | RefreshResult.Refreshed _ -> Valid
+                          | RefreshResult.Failed(failure, _) -> Refused(Code.name (TufFailure.code failure), "")
+                          | other -> failtestf "%s did not complete: %A" name other
 
                       Expect.equal actual (Manifest.expected name case) name)
           | "check-locked-generation", _ ->

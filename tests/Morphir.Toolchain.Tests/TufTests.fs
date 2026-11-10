@@ -238,17 +238,17 @@ let private anchor () =
 
 let private refresh (trusted: TufTrustedSet) (source: MetadataSource) = TufClient.refresh referenceTime trusted source
 
-let private refreshed (result: Result<RefreshOutcome, TufFailure>) =
+let private refreshed (result: RefreshResult) =
     match result with
-    | Ok(RefreshOutcome.Refreshed trusted) -> trusted
+    | RefreshResult.Refreshed trusted -> trusted
     | other -> failtestf "expected a completed refresh, got %A" other
 
-let private refused (result: Result<RefreshOutcome, TufFailure>) =
+let private refused (result: RefreshResult) =
     match result with
-    | Error failure -> failure
+    | RefreshResult.Failed(failure, _) -> failure
     | other -> failtestf "expected a refusal, got %A" other
 
-let private rotationRefused (result: Result<RefreshOutcome, TufFailure>) =
+let private rotationRefused (result: RefreshResult) =
     match refused result with
     | TufFailure.RootRotationInvalid _ -> ()
     | other -> failtestf "expected RootRotationInvalid, got %A" other
@@ -294,7 +294,7 @@ let workflowTests =
             let source = sourceOf (metadataSet "metadata") roots
 
             match refresh (anchor ()) source with
-            | Ok(RefreshOutcome.RootRotationPaused trusted) ->
+            | RefreshResult.RootRotationPaused trusted ->
                 Expect.equal trusted.Root.Version 33UL "32 accepted roots"
                 let again = refreshed (refresh trusted source)
                 Expect.equal again.Root.Version 34UL "the retry continues"
@@ -434,7 +434,7 @@ let spikeProfileTests =
 
         testCase "5 33 newer roots stop after 32 and ask to retry" (fun () ->
             match refresh (anchor ()) (sourceOf (metadataSet "metadata") [ for v in 2UL .. 34UL -> rootVersion v (rootKeys ()) 2 (rootKeys ()) ]) with
-            | Ok(RefreshOutcome.RootRotationPaused trusted) -> Expect.equal trusted.Root.Version 33UL "paused at v33"
+            | RefreshResult.RootRotationPaused trusted -> Expect.equal trusted.Root.Version 33UL "paused at v33"
             | other -> failtestf "expected a pause, got %A" other)
 
         testCase "6 timestamp v1 served after a persisted timestamp v2" (fun () ->
@@ -533,4 +533,44 @@ let reviewT1Tests =
 
         testCase "a root's expires" (fun () ->
             invalid TufRole.Root (TufMetadata.readRoot (JsonText.toBytes (setAt [ "signed"; "expires" ] (text "2999-01-01T00:00:00Z\n") (root ())))))
+    ]
+
+[<Tests>]
+let reviewAcceptedStateTests =
+    // Automated review of #581 (TufClient.fs line 155): a failure after a root was accepted must still hand back the
+    // newest accepted trust state, so a revocation of root keys is not lost (TUF 5.3.8 persists each accepted root).
+    let oldKeys () = keysOf "root"
+    let newKeys () = [ newTestKey "root-a"; newTestKey "root-b" ]
+
+    testList "a refresh that fails after accepting roots hands back the newest trust state" [
+        testCase "a timestamp that is unavailable after a rotation that revokes the old root keys" (fun () ->
+            // v2 meets the old threshold and its own, and trusts only the new root keys.
+            let v2 = rootVersion 2UL (newKeys ()) 2 (oldKeys () @ newKeys ())
+            let source = { sourceOf (metadataSet "metadata") [ v2 ] with Timestamp = fun () -> None }
+
+            match TufClient.refresh referenceTime (anchor ()) source with
+            | RefreshResult.Failed(TufFailure.Unavailable TufRole.Timestamp, trusted) ->
+                Expect.equal trusted.Root.Version 2UL "the accepted root"
+
+                // From that state, a version 3 signed only by the revoked keys is refused.
+                let v3 = rootVersion 3UL (oldKeys ()) 2 (oldKeys ())
+                let again = TufClient.refresh referenceTime trusted (sourceOf (metadataSet "metadata") [ v2; v3 ])
+
+                match again with
+                | RefreshResult.Failed(TufFailure.RootRotationInvalid(3UL, _), _) -> ()
+                | other -> failtestf "expected v3 by revoked keys to be refused, got %A" other
+            | other -> failtestf "expected a failure that carries root v2, got %A" other)
+
+        testCase "a rotation that fails part way keeps the roots accepted before it" (fun () ->
+            let v2 = rootVersion 2UL (oldKeys ()) 2 (oldKeys ())
+            let v3 = rootVersion 3UL (newKeys ()) 2 (newKeys ())
+
+            match TufClient.refresh referenceTime (anchor ()) (sourceOf (metadataSet "metadata") [ v2; v3 ]) with
+            | RefreshResult.Failed(TufFailure.RootRotationInvalid(3UL, _), trusted) -> Expect.equal trusted.Root.Version 2UL "v2 is kept"
+            | other -> failtestf "expected v3 to be refused with v2 kept, got %A" other)
+
+        testCase "the trust state names the newest root on every outcome" (fun () ->
+            let v2 = rootVersion 2UL (oldKeys ()) 2 (oldKeys ())
+            let completed = TufClient.refresh referenceTime (anchor ()) (sourceOf (metadataSet "metadata") [ v2 ])
+            Expect.equal completed.Trusted.Root.Version 2UL "a completed refresh")
     ]
