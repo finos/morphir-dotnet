@@ -49,6 +49,8 @@ public class MorphirupReleaseTests
         string Workflow(string name) => File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", name));
 
         // The morphir executables (block style) and the morphirup matrices (flow style) list the same platforms and runners.
+        // The runner's own glibc does not decide the Linux floor: morphirup-build.yml publishes the Linux executables in
+        // the pinned LinuxBuildImage on that runner (see TheLinuxExecutablesAreBuiltAtThePinnedGlibcFloor).
         var morphir = Regex.Matches(Workflow("deployment.yml"), @"^\s*- rid: (\S+)\s*\n\s*os: (\S+)\s*$", RegexOptions.Multiline)
             .Select(match => (match.Groups[1].Value, match.Groups[2].Value)).ToList();
         morphir.Select(pair => pair.Item1).Should().Equal(MorphirupRelease.Platforms);
@@ -58,6 +60,73 @@ public class MorphirupReleaseTests
                 .Select(match => (match.Groups[1].Value, match.Groups[2].Value)).ToList();
             morphirup.Should().Equal(morphir, $"{workflow} builds morphirup on the platforms and runners that morphir is released on");
         }
+    }
+
+    [Test]
+    public void TheLinuxExecutablesAreBuiltAtThePinnedGlibcFloor()
+    {
+        // A Native AOT executable needs the glibc of the machine that linked it, or newer. The morphir executables link on
+        // the runner (ubuntu-latest, glibc 2.39 today and higher when the label moves); morphirup links in an image pinned
+        // by digest, so its floor moves only with a commit here.
+        MorphirupRelease.GlibcFloor.Should().Be(new Version(2, 35), "Ubuntu 22.04 has glibc 2.35");
+        MorphirupRelease.LinuxBuildImage.Should().MatchRegex(@"^ubuntu:22\.04@sha256:[0-9a-f]{64}$");
+
+        var build = File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", "morphirup-build.yml"));
+        build.Should().Contain($"--morphirup-build-image {MorphirupRelease.LinuxBuildImage}", "the Linux publish runs in the pinned image");
+        build.Should().Contain($"debian:12-slim {MorphirupRelease.LinuxBuildImage}",
+            "the executable runs in Debian 12 and in the image at the floor itself, neither with .NET or libicu");
+    }
+
+    [Test]
+    public void TheHighestGlibcVersionComesFromTheVersionNeedsSection()
+    {
+        const string readelf = """
+            Version symbols section '.gnu.version' contains 6 entries:
+             Addr: 0x0000000000000a10  Offset: 0x000a10  Link: 5 (.dynsym)
+              000:   0 (*local*)       2 (GLIBC_2.2.5)   3 (GLIBC_2.34)    4 (GLIBC_2.99)
+
+            Version needs section '.gnu.version_r' contains 2 entries:
+             Addr: 0x0000000000000a28  Offset: 0x000a28  Link: 6 (.dynstr)
+              000000: Version: 1  File: libm.so.6  Cnt: 1
+              0x0010:   Name: GLIBC_2.29  Flags: none  Version: 5
+              0x0020: Version: 1  File: libc.so.6  Cnt: 4
+              0x0030:   Name: GLIBC_2.2.5  Flags: none  Version: 2
+              0x0040:   Name: GLIBC_2.34  Flags: none  Version: 3
+              0x0050:   Name: GLIBC_2.17  Flags: none  Version: 4
+              0x0060:   Name: GLIBC_PRIVATE  Flags: none  Version: 6
+            """;
+
+        // Only the needs section counts; the symbol table's names (GLIBC_2.99 here) are references into it.
+        MorphirupRelease.HighestGlibc(readelf).Should().Be((new Version(2, 34), "libc.so.6"));
+        MorphirupRelease.HighestGlibc("Version needs section '.gnu.version_r' contains 0 entries:").Should().BeNull();
+        MorphirupRelease.IsAboveFloor(new Version(2, 38)).Should().BeTrue();
+        MorphirupRelease.IsAboveFloor(new Version(2, 35)).Should().BeFalse();
+        MorphirupRelease.IsAboveFloor(new Version(2, 35, 0)).Should().BeFalse();
+        MorphirupRelease.IsAboveFloor(new Version(2, 2, 5)).Should().BeFalse();
+    }
+
+    [Test]
+    public void TheMinimumMacOsVersionComesFromTheBuildVersionCommand()
+    {
+        const string otool = """
+            Load command 8
+                  cmd LC_UUID
+              cmdsize 24
+            Load command 9
+                  cmd LC_BUILD_VERSION
+              cmdsize 32
+             platform 1
+                minos 12.0
+                  sdk 15.2
+               ntools 1
+            Load command 10
+                  cmd LC_SOURCE_VERSION
+              cmdsize 16
+              version 0.0
+            """;
+
+        MorphirupRelease.MacOsMinimum(otool).Should().Be("12.0");
+        MorphirupRelease.MacOsMinimum("Load command 0\n      cmd LC_SEGMENT_64\n").Should().BeNull();
     }
 
     [Test]

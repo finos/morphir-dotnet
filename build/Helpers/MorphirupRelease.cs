@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.Collections.Immutable;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Morphir.Build.Helpers;
 
@@ -135,6 +136,67 @@ public static class MorphirupRelease
 
         return environment;
     }
+
+    /// <summary>
+    /// The highest glibc the Linux executables may need: Ubuntu 22.04's. A Native AOT executable needs the glibc of the
+    /// machine that linked it, or newer, so the Linux publish runs in <see cref="LinuxBuildImage"/>, and the check reads
+    /// the versions the executable needs and refuses one above this floor.
+    /// </summary>
+    public static Version GlibcFloor { get; } = new(2, 35);
+
+    /// <summary>
+    /// The image the Linux executables are published in: Ubuntu 22.04 (glibc 2.35), pinned by the digest of its
+    /// multi-architecture index (linux/amd64 and linux/arm64), so the floor moves only with a commit.
+    /// </summary>
+    public const string LinuxBuildImage = "ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11";
+
+    /// <summary>
+    /// The highest <c>GLIBC_x.y</c> version in the version needs section (<c>.gnu.version_r</c>) of
+    /// <c>readelf --version-info --wide</c> output, with the library that defines it, or null when it needs none.
+    /// </summary>
+    public static (Version Version, string File)? HighestGlibc(string readelf)
+    {
+        (Version Version, string File)? highest = null;
+        var inNeeds = false;
+        var file = "";
+        foreach (var line in readelf.Split('\n'))
+        {
+            if (line.StartsWith("Version ", StringComparison.Ordinal))
+            {
+                inNeeds = line.StartsWith("Version needs section", StringComparison.Ordinal);
+                continue;
+            }
+
+            if (!inNeeds) continue;
+            var fileMatch = Regex.Match(line, @"\bFile:\s+(\S+)");
+            if (fileMatch.Success) file = fileMatch.Groups[1].Value;
+            var name = Regex.Match(line, @"\bName:\s+GLIBC_(\d+(?:\.\d+)+)\s");
+            if (name.Success && Version.TryParse(name.Groups[1].Value, out var version) && (highest is null || Normal(version) > Normal(highest.Value.Version)))
+                highest = (version, file);
+        }
+
+        return highest;
+    }
+
+    /// <summary>Whether a needed glibc version is above <see cref="GlibcFloor"/>.</summary>
+    public static bool IsAboveFloor(Version needed) => Normal(needed) > Normal(GlibcFloor);
+
+    /// <summary>The <c>minos</c> of the <c>LC_BUILD_VERSION</c> load command in <c>otool -l</c> output, or null.</summary>
+    public static string? MacOsMinimum(string otool)
+    {
+        var inBuildVersion = false;
+        foreach (var line in otool.Split('\n').Select(line => line.Trim()))
+        {
+            if (line.StartsWith("cmd ", StringComparison.Ordinal))
+                inBuildVersion = line == "cmd LC_BUILD_VERSION";
+            else if (inBuildVersion && line.StartsWith("minos ", StringComparison.Ordinal))
+                return line["minos ".Length..].Trim();
+        }
+
+        return null;
+    }
+
+    private static Version Normal(Version version) => new(version.Major, version.Minor, Math.Max(version.Build, 0));
 
     private static IEnumerable<string> Assets(string assets) =>
         Directory.GetFiles(assets)

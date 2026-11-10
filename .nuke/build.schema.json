@@ -174,9 +174,16 @@
           "type": "string",
           "description": "Local NuGet feed directory"
         },
-        "MorphirupContainer": {
+        "MorphirupBuildImage": {
           "type": "string",
-          "description": "Linux only: a container image with glibc and neither .NET nor libicu, in which CheckMorphirup also runs the executable"
+          "description": "Linux only: publish morphirup inside this image, with this machine's .NET SDK mounted, so the executable needs that image's glibc and no newer"
+        },
+        "MorphirupContainers": {
+          "type": "array",
+          "description": "Linux only: container images with glibc and neither .NET nor libicu, in which CheckMorphirup also runs the executable",
+          "items": {
+            "type": "string"
+          }
         },
         "MorphirupPlatforms": {
           "type": "array",

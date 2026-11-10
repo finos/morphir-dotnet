@@ -47,10 +47,10 @@ jobs:
               with:
                   global-json-file: global.json
 
-            # Native AOT on Linux links with clang and needs the zlib headers.
-            - name: Install the Native AOT prerequisites
+            # CheckMorphirup reads the glibc versions a Linux executable needs with readelf, from binutils.
+            - name: Install readelf
               if: runner.os == 'Linux'
-              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang zlib1g-dev
+              run: command -v readelf || { sudo apt-get update && sudo apt-get install -y --no-install-recommends binutils; }
 
             # The Native AOT link on Windows needs vswhere.exe, which the ILCompiler targets call by name.
             - name: Put vswhere on PATH
@@ -58,17 +58,24 @@ jobs:
               shell: bash
               run: echo "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer" >> "$GITHUB_PATH"
 
-            # On Linux the check also runs the executable in debian:12-slim, which has glibc (2.36) and neither .NET
-            # nor libicu, so a build that needs ICU fails here. CheckMorphirup verifies that the image has no libicu.
+            # A Native AOT executable needs the glibc of the machine that linked it, or newer. So on Linux the publish
+            # runs in Ubuntu 22.04 (glibc 2.35), pinned by digest (MorphirupRelease.LinuxBuildImage), not on the
+            # runner's own glibc, which moves with the ubuntu-latest label. The image gets clang and the zlib headers
+            # there. CheckMorphirup then refuses an executable that needs a glibc above 2.35 and runs it in
+            # debian:12-slim (glibc 2.36) and in the build image itself, the floor, after checking that neither image
+            # has .NET or libicu.
             - name: Build and check morphirup for ${{ inputs.rid }}
               shell: bash
               env:
-                  MORPHIRUP_CONTAINER: ${{ runner.os == 'Linux' && 'debian:12-slim' || '' }}
+                  MORPHIRUP_LINUX: ${{ runner.os == 'Linux' && 'true' || '' }}
               run: |
                   set -euo pipefail
-                  container=()
-                  if [ -n "$MORPHIRUP_CONTAINER" ]; then container=(--morphirup-container "$MORPHIRUP_CONTAINER"); fi
-                  ./build.sh --target PackMorphirup CheckMorphirup --rid "${{ inputs.rid }}" --configuration "${{ inputs.configuration }}" "${container[@]}"
+                  linux=()
+                  if [ -n "$MORPHIRUP_LINUX" ]; then
+                      linux=(--morphirup-build-image ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11
+                          --morphirup-containers debian:12-slim ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11)
+                  fi
+                  ./build.sh --target PackMorphirup CheckMorphirup --rid "${{ inputs.rid }}" --configuration "${{ inputs.configuration }}" ${linux[@]+"${linux[@]}"}
 
             - name: Upload the morphirup release assets
               uses: actions/upload-artifact@v6
