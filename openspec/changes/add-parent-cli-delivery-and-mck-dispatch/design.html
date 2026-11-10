@@ -243,6 +243,11 @@ a tool it is a diagnostic.</li>
 
 <h2 id="open-questions">Open questions</h2>
 <ul>
+<li><strong>The legacy alias.</strong> The adopted design keeps the <code>morphir-&lt;rid&gt;</code> assets as an explicit alias
+(REL-1 of <code>add-deployment-and-acquisition</code>). Here they are published only with
+<code>MORPHIR_DOTNET_CLI_PUBLICATION=enabled</code>, and <code>cli-offering.yml</code> builds only the four offerings. Whether
+the parent keeps the alias (it can run <code>PublishSingleFile</code>) is the parent's and the maintainer's decision.
+Nothing in this change depends on the answer.</li>
 <li><strong>When the job definitions are deleted.</strong> The variable-gated jobs can be removed once the parent has published a
 release. That is a follow-up change, not part of this one.</li>
 </ul>
