@@ -7,7 +7,7 @@ namespace Morphir.Extensions.Wasm;
 
 /// <summary>
 /// The one Wasmtime engine of the process (parent decision ENG-1), created on first need. It meters fuel and
-/// is interrupted by epochs, which a background timer advances every <see cref="EpochInterval"/>, so each
+/// is interrupted by epochs, which a background thread advances every <see cref="EpochInterval"/>, so each
 /// session store can carry an instruction budget and a call deadline. It is configured without threads,
 /// 64-bit memory and multiple memories, so a module with a shared, 64-bit or second memory fails validation
 /// and is refused with <c>extension.wasm_feature_unsupported</c> (parent decision CLS-1). Compiled modules are
@@ -21,7 +21,7 @@ public sealed class WasmEngine
     readonly ConcurrentDictionary<ModuleDigest, CompiledModule> modules = new();
     readonly Lazy<Engine> diagnostic = new(CreateDiagnosticEngine, LazyThreadSafetyMode.ExecutionAndPublication);
     readonly Lazy<CompiledModule> kernel;
-    readonly Timer epochTicker;
+    readonly Thread epochTicker;
 
     WasmEngine()
     {
@@ -32,13 +32,25 @@ public sealed class WasmEngine
             .WithMemory64(false)
             .WithMultiMemory(false));
         kernel = new(LoadKernel, LazyThreadSafetyMode.ExecutionAndPublication);
-        epochTicker = new Timer(_ => Engine.IncrementEpoch(), null, EpochInterval, EpochInterval);
+        // A thread of its own, not a thread-pool timer: the pool adds no thread while every processor is busy, and
+        // a guest that spins keeps one busy, so a pool timer can stop ticking exactly when a deadline is needed.
+        epochTicker = new Thread(AdvanceEpochs) { IsBackground = true, Name = "morphir-wasm-epoch" };
+        epochTicker.Start();
+    }
+
+    void AdvanceEpochs()
+    {
+        while (true)
+        {
+            Thread.Sleep(EpochInterval);
+            Engine.IncrementEpoch();
+        }
     }
 
     /// <summary>The engine of this process.</summary>
     public static WasmEngine Shared => SharedEngine.Value;
 
-    /// <summary>How often the background timer advances the engine's epoch: the resolution of a call deadline.</summary>
+    /// <summary>How often the background thread advances the engine's epoch: the resolution of a call deadline.</summary>
     public static TimeSpan EpochInterval { get; } = TimeSpan.FromMilliseconds(10);
 
     /// <summary>The Wasmtime engine.</summary>

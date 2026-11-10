@@ -202,6 +202,45 @@ public class BoundsTests
     }
 
     [Test]
+    public async Task The_deadline_holds_while_the_thread_pool_is_busy()
+    {
+        // A host whose thread pool is blocked must still stop the guest: the epoch may not wait for a pool thread.
+        // On a loaded CI runner a pool-driven epoch let a 500 ms deadline pass by seconds.
+        var deadline = TimeSpan.FromMilliseconds(300);
+        using var session = Open("extism-spin", SessionLimits.Default with { InstructionBudget = ulong.MaxValue, CallDeadline = deadline });
+        ThreadPool.GetMinThreads(out var workers, out _);
+        using var release = new ManualResetEventSlim();
+        // Every pool thread burns a processor, as it does when other calls run WASM. The pool adds no thread while
+        // the processors are saturated, so work queued to it, such as a timer callback, waits. The loops stop after
+        // five seconds at the latest, so a regression fails this test and does not hang it.
+        var busy = Stopwatch.StartNew();
+        for (var blocked = 0; blocked < workers * 2; blocked++)
+        {
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                while (!release.IsSet && busy.Elapsed < TimeSpan.FromSeconds(5))
+                {
+                }
+            });
+        }
+
+        GuestFailure failure;
+        var clock = Stopwatch.StartNew();
+        try
+        {
+            failure = Failed(session.CallHandle(Initialize));
+            clock.Stop();
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.CallDeadline);
+        await Assert.That(clock.Elapsed).IsLessThanOrEqualTo(deadline + CraftedCorpus.DeadlineMargin);
+    }
+
+    [Test]
     public async Task Cancellation_stops_a_spinning_guest_within_one_second()
     {
         // The contract's deadline and an unlimited budget: only cancellation can stop the call in time.
