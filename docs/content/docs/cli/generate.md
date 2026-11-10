@@ -35,8 +35,9 @@ morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output
 
 Paths resolve against the invocation directory. With `--input`, no project
 configuration is required. Without `--extension`, `generate` reads the project
-configuration only for `[codegen.<target>].extension`; a configuration error then
-fails the command with exit code 2, as it does for `compile`. Repeated option keys use the last value. Values parse
+configuration only for `[codegen.<target>].extension`. With `--project` or `--config`, a configuration
+error fails the command with exit code 2, as it does for `compile`. With neither, a discovered configuration
+that does not load is a warning on stderr, and the built-in backend runs. Repeated option keys use the last value. Values parse
 as JSON first, so `optimize=false` is Boolean while `optimize='"false"'` is a
 string and is refused by this backend.
 

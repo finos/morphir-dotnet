@@ -249,4 +249,56 @@ public sealed class GenerationExtensionSelectionTests
         error.Diagnostics.Single().Message.Should().Contain("built-in");
         stub.Generated.Should().BeFalse();
     }
+
+    /// <summary>A workspace whose discovered morphir.toml does not load, and a resolver that writes its warnings.</summary>
+    private static (CompileWorkspace Workspace, RecordGenerationSettingsResolver Resolver, StringWriter Warnings) Broken()
+    {
+        var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", "[project\nname = broken");
+        File.Copy(Path.Combine(GenerateSteps.RepositoryRoot(), "tests", "Fixtures", "MorphirIR", "daily-rate-v4.json"), workspace.PathOf("model.json"));
+        var warnings = new StringWriter();
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(), new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) }, warnings);
+        return (workspace, resolver, warnings);
+    }
+
+    [Test]
+    public async Task WithOnlyInputABrokenDiscoveredConfigurationIsAWarningAndTheBuiltInRuns()
+    {
+        var (workspace, resolver, warnings) = Broken();
+        using var _ = workspace;
+        var overrides = new GenerateOverrides(workspace.PathOf("model.json"), "fsharp", workspace.PathOf("gen"));
+
+        var resolved = await resolver.ResolveAsync(overrides, Invocation(workspace), default);
+        var settings = resolved.Should().BeOfType<Outcome<GenerationSettings>.Success>(resolved.ToString()).Subject.Value;
+        settings.Extension.Should().BeNull("the built-in backend runs");
+        warnings.ToString().Should().StartWith("warning:").And.Contain("morphir.toml").And.Contain("[codegen.fsharp].extension");
+    }
+
+    [Test]
+    public async Task WithProjectOrConfigABrokenConfigurationStillFails()
+    {
+        var (workspace, resolver, warnings) = Broken();
+        using var _ = workspace;
+        var model = workspace.PathOf("model.json");
+
+        foreach (var overrides in new[]
+                 {
+                     new GenerateOverrides(model, "fsharp", workspace.PathOf("gen")) { Project = workspace.Root },
+                     new GenerateOverrides(model, "fsharp", workspace.PathOf("gen")) { Config = workspace.PathOf("morphir.toml") },
+                 })
+        {
+            var resolved = await resolver.ResolveAsync(overrides, Invocation(workspace), default);
+            resolved.Should().BeOfType<Outcome<GenerationSettings>.Failure>("the user asked for this configuration");
+        }
+        warnings.ToString().Should().BeEmpty();
+    }
+
+    [Test]
+    public async Task WithOnlyInputALoadedConfigurationStillSelectsItsExtension()
+    {
+        using var workspace = Workspace("\n[codegen.fsharp]\nextension = \"configured-guest\"\n");
+        var overrides = new GenerateOverrides(workspace.PathOf("model.json"), "fsharp", workspace.PathOf("gen"));
+        (await Settings(workspace, overrides)).Extension!.Value.Should().Be("configured-guest");
+    }
 }

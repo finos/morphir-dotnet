@@ -18,13 +18,17 @@ namespace Morphir.Tooling.Features.Generate;
 /// <para>
 /// In both modes, when <c>--extension</c> is absent, it loads the project configuration as compile does and
 /// takes the backend extension from <c>[codegen.&lt;target&gt;].extension</c>. A configuration that fails to
-/// load fails with exit code 2, also with <c>--input</c>.
+/// load fails with exit code 2, except with <c>--input</c> and neither <c>--project</c> nor <c>--config</c>: then
+/// nothing asked for the configuration, and the failure is a warning on <paramref name="warnings"/> (stderr by
+/// default) while the built-in backend runs, as before configuration was read.
 /// </para>
 /// </summary>
 public sealed class RecordGenerationSettingsResolver(
-    IGenerationSettingsResolver inner, ICompileConfigurationLoader loader, TaskStoreOptions? options = null) : IGenerationSettingsResolver
+    IGenerationSettingsResolver inner, ICompileConfigurationLoader loader, TaskStoreOptions? options = null, TextWriter? warnings = null)
+    : IGenerationSettingsResolver
 {
     private readonly TaskStoreOptions _options = options ?? new TaskStoreOptions();
+    private readonly TextWriter _warnings = warnings ?? Console.Error;
 
     /// <inheritdoc />
     public async ValueTask<Outcome<GenerationSettings>> ResolveAsync(GenerateOverrides overrides, InvocationContext context, CancellationToken ct)
@@ -44,7 +48,19 @@ public sealed class RecordGenerationSettingsResolver(
             if (explicitSettings is not Outcome<GenerationSettings>.Success { Value: var settings } || settings.Extension is not null)
                 return explicitSettings;
             var configuration = Load(overrides, compileContext);
-            if (configuration is Outcome<LoadedCompileConfiguration>.Failure loadFailure) return Fail(loadFailure.Error);
+            if (configuration is Outcome<LoadedCompileConfiguration>.Failure loadFailure)
+            {
+                // Only --input, --target and --output were given: nothing asked for the configuration, so a broken or
+                // unrelated discovered one does not fail the command. It is a warning on stderr, never on stdout.
+                if (overrides.Project is null && overrides.Config is null)
+                {
+                    var key = settings.Target is RequestedTarget.Valid warnedTarget ? $"[codegen.{warnedTarget.Id.Value}].extension" : "[codegen.<target>].extension";
+                    _warnings.WriteLine($"warning: The project configuration was not loaded, so {key} was not read and the built-in backend runs: "
+                        + string.Join(" ", loadFailure.Error.Diagnostics.Select(diagnostic => diagnostic.Message)));
+                    return explicitSettings;
+                }
+                return Fail(loadFailure.Error);
+            }
             return WithConfiguredExtension(settings, ((Outcome<LoadedCompileConfiguration>.Success)configuration).Value);
         }
 
