@@ -90,7 +90,7 @@ Stderr carries the report. With `--json` each event is one line:
 | `started` | `abi`, `moduleSha256`, `buildIdentity`, `bounds` | The module has loaded. `bounds` has exactly `memoryCeiling`, `instructionBudget` and `callDeadline`, each `{"enforced": true}`: whether the bound is enforced, not its value. |
 | `output` | `output`; or `output` and `droppedBytes` | Guest output of the call that just ended: WASI stdout and stderr, Extism and Morphir log messages, refused HTTP requests. The newest 64 KiB of a call are reported, each message cut to 4 KiB, then one event with `droppedBytes` for the rest. |
 | `fault` | `fault.kind`, `fault.message` | The session failed. The kind is `trap`, `memory-limit`, `budget-exhausted`, `call-deadline` or `failure`. The message states the guest's memory size, the kernel's memory size and the ceiling. A fault has no code. |
-| `refused` | `error.code`, `error.message` | A refusal before any request: `extension.worker_runtime_mismatch`, `extension.abi_unsupported`, `extension.abi_mismatch` or `extension.wasm_feature_unsupported`. The message of a module refusal names the file and its SHA-256. |
+| `refused` | `error.code`, `error.message` | A refusal before any request: `extension.worker_runtime_mismatch`, `extension.runtime_unavailable`, `extension.abi_unsupported`, `extension.abi_mismatch` or `extension.wasm_feature_unsupported`. The message of a module refusal names the file and its SHA-256. |
 | `exited` | `exitCode` | Last, in every run that got past the arguments. |
 
 The envelope is `profile`, `contractVersion`, `command` and `sequence` (from 1), then `event`. A
@@ -108,6 +108,10 @@ example `morphir extension worker: serving extism-kernel-v1 module 013d...e11e`.
 
 A usage error serves nothing. With `--json` it is one `morphir/command-result` failure on stderr
 (`error.code` `usage`); without it, one text line on stderr.
+
+## A host without its WASM runtime
+
+When this executable cannot run WASM modules, the worker checks that after the arguments and the build identity and before it reads the module. It writes one `refused` event with `extension.runtime_unavailable`, whose message names the host, the platform and the reason, writes nothing on stdout and exits with 3. `--help` and the identity check never load the engine. The reasons are those of [morphir extension runtimes](../extension-runtimes/#reasons). The pinned profile contract lists no such refusal code; the code comes from this host's capability.
 
 ## Faults before started
 
