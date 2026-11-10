@@ -9,6 +9,7 @@ open System
 open System.IO.Pipelines
 open System.Text.Json
 open System.Threading
+open System.Threading.Tasks
 open Expecto
 open Morphir.CodeGeneration.FSharp.Extension
 open Morphir.CodeGeneration.FSharp.Extension.Tests.GuestSupport
@@ -175,4 +176,44 @@ let tests =
 
               match FSharpGuest.generate (Some offer) (generateRequest "4.0.0") cancelled.Token with
               | Error error -> Expect.equal error.Code (int ErrorCode.RequestCancelled) "-32800"
-              | Ok result -> failtest $"Expected a cancellation: {result}" ]
+              | Ok result -> failtest $"Expected a cancellation: {result}"
+
+          testCase "A generateModel admitted before morphir.shutdown is served with the tuples agreed when it was admitted"
+          <| fun _ ->
+              use scheduled = new ManualResetEventSlim false
+              use gate = new ManualResetEventSlim false
+
+              // The real generator, scheduled so that the scheduled work starts only when the test opens the gate.
+              let schedule (work: unit -> Result<GenerateResult, RpcError>) (cancellation: CancellationToken) =
+                  Task.Run(
+                      Func<_>(fun () ->
+                          scheduled.Set()
+                          gate.Wait(TimeSpan.FromSeconds 30.0) |> ignore
+                          work ()),
+                      cancellation
+                  )
+
+              let guest = FSharpGuest.createScheduled schedule FSharpGuest.generate
+
+              converse guest (fun host ->
+                  let generation = host.RequestAsync(Method.GenerateModel, Nullable(parameters ()), CancellationToken.None)
+
+                  try
+                      Expect.isTrue (scheduled.Wait wait) "The request is admitted and its work is scheduled"
+                      // The read loop handles shutdown, which moves the session to ShutDown, before the work starts.
+                      let shutdown = host.ShutdownAsync CancellationToken.None
+                      Expect.isTrue (shutdown.Wait wait) "shutdown is answered"
+                      Expect.isOk shutdown.Result "shutdown"
+                  finally
+                      gate.Set()
+
+                  Expect.isTrue (generation.Wait wait) "The generateModel reply arrives"
+
+                  match generation.Result with
+                  | Ok element ->
+                      match JsonSerializer.Deserialize(element, MepJson.Default.GenerateResult) with
+                      | null -> failtest "The result is null"
+                      | result ->
+                          Expect.isTrue result.Success $"The admitted request generates: {result}"
+                          Expect.isNonEmpty result.Artifacts "with its files"
+                  | Error error -> failtest $"An admitted request is served after shutdown, not refused: {error}") ]

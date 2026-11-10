@@ -294,8 +294,10 @@ module FSharpGuest =
                           Artifacts = files
                           Diagnostics = diagnostics })
 
-    /// A guest whose generateModel handler reads the agreed tuples of its session and calls serve.
-    let create
+    /// A guest whose generateModel handler reads the agreed tuples of its session and calls serve through
+    /// schedule. Tests use schedule to control when the scheduled work starts; create schedules with Task.Run.
+    let internal createScheduled
+        (schedule: (unit -> Result<GenerateResult, RpcError>) -> System.Threading.CancellationToken -> Task<Result<GenerateResult, RpcError>>)
         (serve: ModelTransportSupport option -> GenerateModelRequest -> System.Threading.CancellationToken -> Result<GenerateResult, RpcError>)
         : Guest =
         let mutable guest: Guest option = None
@@ -310,9 +312,13 @@ module FSharpGuest =
 
         let handler =
             Handlers.request MepJson.Default.GenerateModelRequest MepJson.Default.GenerateResult (fun request cancellation ->
-                // Off the connection's read loop: while it runs, the guest reads and answers other frames, and a
-                // $/cancelRequest reaches the token.
-                Task.Run((fun () -> serve (agreed ()) request cancellation), cancellation))
+                // The agreement of the session when the request is admitted. A shutdown that the read loop handles
+                // before the scheduled work starts must not change the tuples of an admitted request.
+                let admitted = agreed ()
+                // Off the connection's read loop: while it runs, the guest reads and answers other frames. The token
+                // is cancelled when the session is cancelled (for example Ctrl+C). The guest claims no cancellation
+                // capability, so a $/cancelRequest is not admitted and does not reach it.
+                schedule (fun () -> serve admitted request cancellation) cancellation)
 
         let created =
             Guest(
@@ -323,6 +329,12 @@ module FSharpGuest =
 
         guest <- Some created
         created
+
+    /// A guest whose generateModel handler reads the agreed tuples of its session and calls serve with Task.Run.
+    let create
+        (serve: ModelTransportSupport option -> GenerateModelRequest -> System.Threading.CancellationToken -> Result<GenerateResult, RpcError>)
+        : Guest =
+        createScheduled (fun work cancellation -> Task.Run(Func<_>(work), cancellation)) serve
 
     /// The guest over the generator.
     let registration () : Guest = create generate
