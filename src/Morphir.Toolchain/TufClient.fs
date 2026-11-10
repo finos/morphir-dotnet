@@ -25,14 +25,12 @@ module TufSignatures =
         && (try
                 Ed25519PublicKeyParameters(publicKey, 0)
                     .Verify(Ed25519.Algorithm.Ed25519, null, message, 0, message.Length, signature, 0)
-            with :? ArgumentException ->
+            with _ ->
+                // BouncyCastle refuses a key that is not a valid point with ArgumentException; any other exception
+                // fails closed too.
                 false)
 
-    /// <summary>Whether the role's threshold is met: the number of distinct public keys of the role, named by
-    /// distinct key ids, whose signature over the document's canonical <c>signed</c> bytes verifies. A signature by a
-    /// key the root does not list, or lists for another role, does not count. Two key ids naming one public key count
-    /// once (provisional: the profile does not say).</summary>
-    let thresholdMet (root: TufRoot) (role: TufRole) (document: TufDocument<'T>) =
+    let private thresholdOf (root: TufRoot) (role: TufRole) (document: TufDocument<'T>) =
         match root.Roles.TryFind role with
         | None -> false
         | Some keys ->
@@ -48,6 +46,17 @@ module TufSignatures =
                 |> List.distinct
 
             List.length verified >= keys.Threshold
+
+    /// <summary>Whether the role's threshold is met: the number of distinct public keys of the role, named by
+    /// distinct key ids, whose signature over the document's canonical <c>signed</c> bytes verifies. A signature by a
+    /// key the root does not list, or lists for another role, does not count. Two key ids naming one public key count
+    /// once (provisional: the profile does not say).</summary>
+    let thresholdMet (root: TufRoot) (role: TufRole) (document: TufDocument<'T>) =
+        try
+            thresholdOf root role document
+        with _ ->
+            // Fails closed: a defect never counts a signature.
+            false
 
 /// <summary>The trusted metadata a refresh starts from and returns: always a root, and the last trusted timestamp,
 /// snapshot and targets once a refresh has completed. A value in and a value out; keeping it durable is the
@@ -130,10 +139,19 @@ module TufClient =
         else
             Ok()
 
-    let private fetched (role: TufRole) (bytes: byte array option) =
-        match bytes with
-        | Some bytes -> Ok bytes
-        | None -> Error(TufFailure.Unavailable role)
+    /// <summary>Asks the caller's source for a file. A source that throws has failed to give it: the role is
+    /// unavailable, and the exception does not leave the refresh.</summary>
+    let private ask (role: TufRole) (call: unit -> byte array option) : Result<byte array option, TufFailure> =
+        try
+            Ok(call ())
+        with _ ->
+            Error(TufFailure.Unavailable role)
+
+    let private fetched (role: TufRole) (call: unit -> byte array option) =
+        match ask role call with
+        | Ok(Some bytes) -> Ok bytes
+        | Ok None -> Error(TufFailure.Unavailable role)
+        | Error failure -> Error failure
 
     /// <summary>Root rotation (5.3): from trusted version N, only N + 1, then one version at a time. Each new root
     /// must have the next version and meet the old root's threshold and its own. After 32 accepted roots, when another
@@ -142,10 +160,11 @@ module TufClient =
         let rec next (root: TufRoot) (accepted: int) =
             let version = root.Version + 1UL
 
-            match source.Root version with
-            | None -> Ok false
-            | Some _ when accepted = maxRootRotations -> Ok true
-            | Some bytes ->
+            match ask TufRole.Root (fun () -> source.Root version) with
+            | Error failure -> Error failure
+            | Ok None -> Ok false
+            | Ok(Some _) when accepted = maxRootRotations -> Ok true
+            | Ok(Some bytes) ->
                 match TufMetadata.readRoot bytes with
                 | Error(TufFailure.MetadataInvalid(_, reason)) -> Error(TufFailure.RootRotationInvalid(version, reason))
                 | Error failure -> Error failure
@@ -196,7 +215,7 @@ module TufClient =
                         return! Error(TufFailure.Expired TufRole.Root)
 
                     // 5.4: the timestamp.
-                    let! timestampBytes = fetched TufRole.Timestamp (source.Timestamp())
+                    let! timestampBytes = fetched TufRole.Timestamp source.Timestamp
                     let! timestamp = TufMetadata.readTimestamp timestampBytes
 
                     if not (TufSignatures.thresholdMet root TufRole.Timestamp timestamp) then
@@ -215,7 +234,7 @@ module TufClient =
 
                     // 5.5: the snapshot the timestamp names.
                     let snapshotMeta = timestamp.Signed.Snapshot
-                    let! snapshotBytes = fetched TufRole.Snapshot (source.Snapshot snapshotMeta.Version)
+                    let! snapshotBytes = fetched TufRole.Snapshot (fun () -> source.Snapshot snapshotMeta.Version)
 
                     if snapshotBytes.Length > TufMetadata.snapshotLimit then
                         return! Error(TufFailure.MetadataTooLarge(TufRole.Snapshot, TufMetadata.snapshotLimit))
@@ -242,7 +261,7 @@ module TufClient =
 
                     // 5.6: the targets the snapshot names.
                     let targetsMeta = snapshot.Signed.Targets
-                    let! targetsBytes = fetched TufRole.Targets (source.Targets targetsMeta.Version)
+                    let! targetsBytes = fetched TufRole.Targets (fun () -> source.Targets targetsMeta.Version)
 
                     if targetsBytes.Length > TufMetadata.targetsLimit then
                         return! Error(TufFailure.MetadataTooLarge(TufRole.Targets, TufMetadata.targetsLimit))
@@ -268,7 +287,15 @@ module TufClient =
                     return RefreshResult.Refreshed current.Value
             }
 
-        match steps () with
+        // The boundary: an exception inside the workflow, which is a defect, fails the refresh closed and still hands
+        // back the trust state accepted before it (review of #581, T1).
+        let outcome =
+            try
+                steps ()
+            with error ->
+                Error(TufFailure.Internal $"the refresh failed with {error.GetType().Name}, a defect")
+
+        match outcome with
         | Ok outcome -> outcome
         | Error failure -> RefreshResult.Failed(failure, current.Value)
 /// What a trust anchor is for.
@@ -307,7 +334,7 @@ module TrustAnchor =
               "c7bbb4edb1d3835582259412da5a09e50393b90ed506afb539a615bfee833317" ]
 
     /// The trusted set the anchor starts, and the repository identity.
-    let load (purpose: TrustAnchorPurpose) (bytes: byte array) : Result<TufTrustedSet * Sha256, TrustAnchorRefusal> =
+    let private loadOf (purpose: TrustAnchorPurpose) (bytes: byte array) : Result<TufTrustedSet * Sha256, TrustAnchorRefusal> =
         match TufMetadata.readRoot bytes with
         | Error failure -> Error(TrustAnchorRefusal.Unreadable failure)
         | Ok read when not (TufSignatures.thresholdMet read.Signed TufRole.Root read) ->
@@ -327,3 +354,9 @@ module TrustAnchor =
                       Targets = None },
                     TufMetadata.repositoryIdentity read
                 )
+
+    let load (purpose: TrustAnchorPurpose) (bytes: byte array) : Result<TufTrustedSet * Sha256, TrustAnchorRefusal> =
+        try
+            loadOf purpose bytes
+        with error ->
+            Error(TrustAnchorRefusal.Unreadable(TufFailure.Internal $"the anchor failed with {error.GetType().Name}, a defect"))

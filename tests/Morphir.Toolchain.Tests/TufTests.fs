@@ -574,3 +574,34 @@ let reviewAcceptedStateTests =
             let completed = TufClient.refresh referenceTime (anchor ()) (sourceOf (metadataSet "metadata") [ v2 ])
             Expect.equal completed.Trusted.Root.Version 2UL "a completed refresh")
     ]
+
+[<Tests>]
+let reviewTotalTests =
+    // Review of #581, T1: no exception leaves the client. Every public function of TufMetadata, TufSignatures,
+    // TufClient and TrustAnchor turns one into a typed failure at its boundary.
+    testList "T1 no exception leaves the TUF client" [
+        testCase "a source that throws is a failure that keeps the trust state" (fun () ->
+            let v2 = rootVersion 2UL (keysOf "root") 2 (keysOf "root")
+            let source = { sourceOf (metadataSet "metadata") [ v2 ] with Timestamp = fun () -> raise (IO.IOException "the network is down") }
+
+            match TufClient.refresh referenceTime (anchor ()) source with
+            | RefreshResult.Failed(TufFailure.Unavailable TufRole.Timestamp, trusted) -> Expect.equal trusted.Root.Version 2UL "root v2 is kept"
+            | other -> failtestf "expected the timestamp to be unavailable, got %A" other)
+
+        testCase "a trusted set built with a role whose key is missing is a failure, not an exception" (fun () ->
+            let trusted = anchor ()
+            // A caller-built root whose timestamp role names a key it does not list; rotation compares role keys.
+            let broken = { trusted.Root with Keys = trusted.Root.Keys |> Map.filter (fun id _ -> not (List.contains id trusted.Root.Roles[TufRole.Timestamp].KeyIds)) }
+            let v2 = rootVersion 2UL (keysOf "root") 2 (keysOf "root")
+
+            match TufClient.refresh referenceTime { trusted with Root = broken } (sourceOf (metadataSet "metadata") [ v2 ]) with
+            | RefreshResult.Failed(TufFailure.Internal _, kept) -> Expect.equal kept.Root.Version 1UL "the given root"
+            | other -> failtestf "expected an internal failure, got %A" other
+
+            Expect.equal (Code.name (TufFailure.code (TufFailure.Internal "reason"))) "metadata_signature_invalid" "fails closed")
+
+        testCase "the readers refuse the reviewer's inputs without an exception" (fun () ->
+            for read in [ TufMetadata.readRoot >> Result.map ignore; TufMetadata.readTimestamp >> Result.map ignore; TufMetadata.readSnapshot >> Result.map ignore; TufMetadata.readTargets >> Result.map ignore ] do
+                for bytes in [ [||]; Encoding.UTF8.GetBytes "null"; Encoding.UTF8.GetBytes """{"signed":{},"signatures":[{"keyid":"x","sig":"0"}]}""" ] do
+                    Expect.isError (read bytes) "refused")
+    ]

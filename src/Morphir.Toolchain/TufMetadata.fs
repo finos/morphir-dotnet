@@ -31,8 +31,11 @@ type TufFailure =
     | LinkMismatch of role: TufRole
     /// The targets metadata lists a target path that breaks the target path rules.
     | NonPortableTarget of target: string
-    /// The source has no file for a role the refresh needs.
+    /// The source has no file for a role the refresh needs, or failed to give one.
     | Unavailable of role: TufRole
+    /// A defect: an exception inside the client, turned into a failure at its boundary so the refresh fails closed.
+    /// The reason is for logs, never for matching.
+    | Internal of reason: string
 
 /// <summary>The stable code and role of each TUF failure, for a <c>trust-failure</c> diagnostic.</summary>
 module TufFailure =
@@ -43,7 +46,8 @@ module TufFailure =
         match failure with
         | TufFailure.MetadataInvalid _
         | TufFailure.MetadataTooLarge _
-        | TufFailure.SignatureInvalid _ -> Code.Trust TrustCode.MetadataSignatureInvalid
+        | TufFailure.SignatureInvalid _
+        | TufFailure.Internal _ -> Code.Trust TrustCode.MetadataSignatureInvalid
         | TufFailure.RootRotationInvalid _ -> Code.Trust TrustCode.MetadataRootRotationInvalid
         | TufFailure.Expired _ -> Code.Trust TrustCode.MetadataExpired
         | TufFailure.Rollback _ -> Code.Trust TrustCode.MetadataRollback
@@ -63,6 +67,7 @@ module TufFailure =
         | TufFailure.Unavailable role -> Some role
         | TufFailure.RootRotationInvalid _ -> Some TufRole.Root
         | TufFailure.NonPortableTarget _ -> Some TufRole.Targets
+        | TufFailure.Internal _ -> None
 
 /// A signature over a metadata document's canonical <c>signed</c> bytes.
 type TufSignature =
@@ -482,10 +487,18 @@ module TufMetadata =
                   Targets = Map.ofList targets }
         }
 
-    let readRoot (bytes: byte array) = document TufRole.Root rootContent bytes
-    let readTimestamp (bytes: byte array) = document TufRole.Timestamp timestampContent bytes
-    let readSnapshot (bytes: byte array) = document TufRole.Snapshot snapshotContent bytes
-    let readTargets (bytes: byte array) = document TufRole.Targets targetsContent bytes
+    /// <summary>A reader as a total function: an exception inside it, which is a defect, refuses the metadata
+    /// instead of leaving the reader (review of #581, T1).</summary>
+    let private total (role: TufRole) (read: (string * Value) list -> Reader<'T>) (bytes: byte array) : Reader<TufDocument<'T>> =
+        try
+            document role read bytes
+        with error ->
+            Error(TufFailure.MetadataInvalid(role, $"the reader failed with {error.GetType().Name}, a defect"))
+
+    let readRoot (bytes: byte array) = total TufRole.Root rootContent bytes
+    let readTimestamp (bytes: byte array) = total TufRole.Timestamp timestampContent bytes
+    let readSnapshot (bytes: byte array) = total TufRole.Snapshot snapshotContent bytes
+    let readTargets (bytes: byte array) = total TufRole.Targets targetsContent bytes
 
     /// <summary>The repository identity: the SHA-256 of the canonical JSON of the initial root's <c>signed</c>
     /// object. Signatures do not affect it.</summary>
