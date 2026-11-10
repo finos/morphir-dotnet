@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `morphir extension list --json` and `dotnet-morphir extension list --json` say which offering is running and what it needs from the machine: `deployment` (`native-aot`, `self-contained`, `framework-dependent` or `dotnet-tool`), set at build time by the named release profile and never inferred from how the process runs; `execution` (`native-aot` or `jit`); `platform` (the runtime identifier, left out for the portable tool package); and `prerequisites` (`runtime`, `sdk` with its `phase`, and `native`). A build that no named profile produced, such as `dotnet run`, a test host or the legacy `morphir-<rid>` single-file assets, leaves out `deployment`, `platform` and `prerequisites`. Each extension entry gains `deployments`, `prerequisites` and, when it is not available, a `reason`. The `host` member keeps its meaning as the command name ([#558](https://github.com/finos/morphir-dotnet/issues/558))
+- The built-in F# frontend is listed as `morphir-dotnet.fsharp`, available in the self-contained and framework-dependent `morphir` and in `dotnet-morphir`. The Native AOT `morphir` lists it as not available, with the reason; the registry and `compile` take the claim from the same declaration ([#558](https://github.com/finos/morphir-dotnet/issues/558))
+
+### Changed
+- In the Native AOT `morphir`, the hint of `compile.frontend_unavailable` for F# now names the offerings that have a built-in F# frontend and the process delivery `morphir-fsharp-frontend` ([#558](https://github.com/finos/morphir-dotnet/issues/558))
+
 ## [0.4.0-alpha.4] - 2026-11-10
 
 ### Added
