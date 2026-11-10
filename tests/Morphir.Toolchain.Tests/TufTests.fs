@@ -152,3 +152,65 @@ let readerTests =
                 // Not JSON at all: only the size is looked at.
                 Expect.equal (read (Array.create (limit + 1) (byte ' '))) (Error(TufFailure.MetadataTooLarge(role, limit))) $"{role}")
     ]
+
+[<Tests>]
+let signatureTests =
+    testList "TUF signatures" [
+        testCase "Ed25519 verifies RFC 8032 test vector 1 and refuses a changed message or signature" (fun () ->
+            let publicKey = Convert.FromHexString "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+
+            let signature =
+                Convert.FromHexString
+                    "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
+
+            Expect.isTrue (TufSignatures.verifyEd25519 publicKey [||] signature) "the empty message"
+            Expect.isFalse (TufSignatures.verifyEd25519 publicKey [| 0uy |] signature) "another message"
+            let changed = Array.copy signature
+            changed[0] <- changed[0] ^^^ 1uy
+            Expect.isFalse (TufSignatures.verifyEd25519 publicKey [||] changed) "another signature"
+            Expect.isFalse (TufSignatures.verifyEd25519 publicKey[..30] [||] signature) "a 31-byte key"
+            Expect.isFalse (TufSignatures.verifyEd25519 publicKey [||] signature[..62]) "a 63-byte signature"
+            Expect.isFalse (TufSignatures.verifyEd25519 (Array.create 32 0xFFuy) [||] signature) "a key that is not a point")
+
+        testCase "each fixture role meets its threshold with its own keys only" (fun () ->
+            let set = metadataSet "metadata"
+            let trusted = (TufMetadata.readRoot (canonical set.Root) |> expectOk "root").Signed
+            Expect.isTrue (TufSignatures.thresholdMet trusted TufRole.Root (TufMetadata.readRoot (canonical set.Root) |> expectOk "root")) "root"
+            Expect.isTrue (TufSignatures.thresholdMet trusted TufRole.Timestamp (TufMetadata.readTimestamp (canonical set.Timestamp) |> expectOk "timestamp")) "timestamp"
+            Expect.isTrue (TufSignatures.thresholdMet trusted TufRole.Snapshot (TufMetadata.readSnapshot (canonical set.Snapshot) |> expectOk "snapshot")) "snapshot"
+            Expect.isTrue (TufSignatures.thresholdMet trusted TufRole.Targets (TufMetadata.readTargets (canonical set.Targets) |> expectOk "targets")) "targets"
+
+            // The timestamp signed by the snapshot key: a valid signature, by a key of another role.
+            let bySnapshotKey = envelope (memberOf "signed" set.Timestamp) (keysOf "snapshot")
+            Expect.isFalse (TufSignatures.thresholdMet trusted TufRole.Timestamp (TufMetadata.readTimestamp (canonical bySnapshotKey) |> expectOk "timestamp")) "another role's key")
+
+        testCase "a signature over other content, or by an unknown key, does not count" (fun () ->
+            let set = metadataSet "metadata"
+            let trusted = (TufMetadata.readRoot (canonical set.Root) |> expectOk "root").Signed
+            let changed = setAt [ "signed"; "expires" ] (text "2998-01-01T00:00:00Z") set.Timestamp
+            Expect.isFalse (TufSignatures.thresholdMet trusted TufRole.Timestamp (TufMetadata.readTimestamp (canonical changed) |> expectOk "timestamp")) "changed content"
+
+            // An extra signature by a key the root does not list is ignored; the timestamp key's still counts.
+            let signed = memberOf "signed" set.Timestamp
+            let extra = Value.Object [ "signatures", Value.Array [ signatureOf (newTestKey "unknown") signed; signatureOf (keysOf "timestamp").Head signed ]; "signed", signed ]
+            Expect.isTrue (TufSignatures.thresholdMet trusted TufRole.Timestamp (TufMetadata.readTimestamp (canonical extra) |> expectOk "timestamp")) "ignored")
+
+        testCase "two key ids naming one public key count once" (fun () ->
+            // The readers refuse such a root, because a key id is the SHA-256 of its key; the verifier still counts
+            // distinct public keys, as well as distinct key ids.
+            let set = metadataSet "metadata"
+            let trusted = (TufMetadata.readRoot (canonical set.Root) |> expectOk "root").Signed
+            let timestampKey = (keysOf "timestamp").Head
+            let publicKey = trusted.Keys[timestampKey.KeyId]
+            let alias = String.replicate 64 "e"
+
+            let doubled =
+                { trusted with
+                    Keys = trusted.Keys.Add(alias, publicKey)
+                    Roles = trusted.Roles.Add(TufRole.Timestamp, { KeyIds = [ timestampKey.KeyId; alias ]; Threshold = 2 }) }
+
+            let signed = memberOf "signed" set.Timestamp
+            let aliasSignature = setAt [ "keyid" ] (text alias) (signatureOf timestampKey signed)
+            let twice = Value.Object [ "signatures", Value.Array [ signatureOf timestampKey signed; aliasSignature ]; "signed", signed ]
+            Expect.isFalse (TufSignatures.thresholdMet doubled TufRole.Timestamp (TufMetadata.readTimestamp (canonical twice) |> expectOk "timestamp")) "one key, two ids")
+    ]
