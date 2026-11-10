@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Configuration: a member of `[frontend]` that is not a table (for example `[frontend]` `note = "x"`) is no longer refused as an invalid language table. Only an object-valued member is a `[frontend.<language>]` table with `project_file` and `extension`; any other member stays unconstrained, as the upstream schema leaves it
+
 ## [0.4.0-alpha.4] - 2026-11-10
 
 ### Added
