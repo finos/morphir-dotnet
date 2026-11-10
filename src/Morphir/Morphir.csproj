@@ -37,6 +37,16 @@
             <Compile Include="$(IntermediateOutputPath)VersionInfo.g.cs" />
         </ItemGroup>
     </Target>
+    <!--
+      In the Native AOT publish, a call to a [RequiresDynamicCode] member that ILC keeps is an error (IL3050), not a
+      warning. The F# formatter (Fantomas, Emit.formatCore) is one: its call sits behind
+      RuntimeFeature.IsDynamicCodeSupported, which ILC folds to false, and if that guard goes, the publish fails instead
+      of shipping a 50 MB image that cannot format.
+    -->
+    <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+        <WarningsAsErrors>$(WarningsAsErrors);IL3050</WarningsAsErrors>
+    </PropertyGroup>
+
     <!-- AOT and trimming settings are set via command-line arguments during publish -->
     <!-- This prevents them from affecting dotnet run/build operations -->
     <!-- See justfile publish-executable task for publish-time settings -->

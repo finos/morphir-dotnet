@@ -245,6 +245,10 @@ module internal Emit =
         | FloatLiteral value -> TargetSyntax.floatLiteral value
         | DecimalLiteral value -> TargetSyntax.decimalLiteral value
 
+    /// Formats with Fantomas, which needs dynamic generic reflection. Native AOT cannot run it, so its only caller,
+    /// render, calls it behind RuntimeFeature.IsDynamicCodeSupported; ILC removes that branch. The attribute makes ILC
+    /// report IL3050 for any call it keeps, and the Native AOT publish of morphir treats IL3050 as an error.
+    [<System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Fantomas formats through dynamic generic reflection, which Native AOT cannot run. Call it only behind RuntimeFeature.IsDynamicCodeSupported.")>]
     let private formatCore source =
         let parsed =
             Fantomas.Core.CodeFormatter.ParseOakAsync(false, source)
