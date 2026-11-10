@@ -61,6 +61,8 @@ The command line has three entry points. All of them run the same command layer,
 | Managed `morphir` | `src/Morphir.Managed` | `morphir` | `ManagedComposition` in `src/Morphir.Tooling.Managed`: the in-process F# frontend | No, JIT only |
 | .NET tool | `src/Morphir.Tool` | `dotnet-morphir` | `ManagedComposition` | No, JIT only |
 
+The `morphir` downloads that releases ship today, `morphir-<rid>[.exe]` and `morphir-<rid>-v<version>.tar.gz`, are none of these three. The `PublishSingleFile` target builds them from `src/Morphir` as managed, trimmed (`TrimMode=partial`), self-contained single-file executables, so they have no F# frontend and are not Native AOT.
+
 The F# frontend uses FSharp.Compiler.Service, which is neither trim-safe nor AOT-safe. Only `src/Morphir.Tooling.Managed` references it. Keep these rules:
 
 - `src/Morphir` and `src/Morphir.Tooling` never reference `Morphir.Tooling.Managed`, `Morphir.Frontend.FSharp` or FSharp.Compiler.Service, directly or through another project.

@@ -92,7 +92,7 @@
     <Project Path="tests\Morphir.Models.Tests\Morphir.Models.Tests.fsproj" />
     <Project Path="tests\Morphir.Build.Tests\Morphir.Build.Tests.csproj" />
     <Project Path="tests\Morphir.Tests\Morphir.Tests.csproj" />
-    <Project Path="tests/Morphir.Managed.Tests/Morphir.Managed.Tests.csproj" />
+    <Project Path="tests\Morphir.Managed.Tests\Morphir.Managed.Tests.csproj" />
     <Project Path="tests\Morphir.Live.Tests\Morphir.Live.Tests.fsproj" />
     <Project Path="tests\Morphir.SDK.Tests\Morphir.SDK.Tests.fsproj" />
   </Folder>

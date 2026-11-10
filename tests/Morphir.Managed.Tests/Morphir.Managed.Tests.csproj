@@ -28,4 +28,9 @@
     <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- One snapshot helper for both host test projects. -->
+    <Compile Include="..\Morphir.Tests\Hosts\CompositionSnapshot.cs" Link="Hosts\CompositionSnapshot.cs" />
+  </ItemGroup>
+
 </Project>

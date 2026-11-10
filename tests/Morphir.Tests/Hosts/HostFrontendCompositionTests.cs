@@ -1,10 +1,10 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
-using System.CommandLine;
 using System.Reflection;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Morphir.Compilation;
+using Morphir.Extensions;
 using Morphir.Tooling;
 using Morphir.Tooling.Managed;
 
@@ -72,19 +72,41 @@ public sealed class HostFrontendCompositionTests
         frontends[0].Transport.Should().Be(FrontendTransport.InProcess);
     }
 
+    // Each entry point's real composition, built with its own host. The AOT-compatible morphir and dotnet-morphir run
+    // the same commands; the expected differences are the host value and the F# frontend, and nothing else.
+
     [Test]
-    public void TheToolCompositionIsTheManagedComposition()
+    public void TheNativeEntryPointHasTheCommandTreeOfTheTool() =>
+        Native().Commands.Should().Equal(Tool().Commands);
+
+    [Test]
+    public void TheNativeEntryPointDiffersFromTheToolOnlyInItsHostAndFrontend()
     {
-        using var tool = Morphir.Tool.Program.CreateApp([]);
-        using var managed = MorphirApplication.CreateApp([], Morphir.Tool.Program.Host, ManagedComposition.Compose);
-        Frontends(tool).Should().Equal(Frontends(managed));
-        CommandTree(Morphir.Tool.Program.Compose).Should().Equal(CommandTree(ManagedComposition.Compose));
+        var native = Native();
+        var tool = Tool();
+
+        native.Host.Host.Should().Be(MorphirHost.Native);
+        tool.Host.Host.Should().Be(MorphirHost.DotnetTool);
+        native.Host.Version.Should().Be(tool.Host.Version);
+
+        var nativeOnly = native.Services.Except(tool.Services).ToList();
+        var toolOnly = tool.Services.Except(native.Services).ToList();
+        nativeOnly.Should().ContainSingle().Which.Should().StartWith($"Singleton {typeof(Morphir.Tooling.Features.Compile.FrontendHint).FullName} -> instance",
+            "the AOT-compatible composition adds only the hint that says where an F# frontend is");
+        toolOnly.Should().ContainSingle().Which.Should().StartWith($"Singleton {typeof(IFrontend).FullName} -> instance",
+            "the managed composition adds only the in-process F# frontend");
+        native.Services.Where(line => !nativeOnly.Contains(line)).Should().Equal(tool.Services.Where(line => !toolOnly.Contains(line)),
+            "the shared registrations come in the same order");
     }
 
-    [Test]
-    public void TheNativeCompositionHasTheCommandTreeOfTheTool() =>
-        CommandTree(Morphir.Program.NativeComposition).Should().Equal(CommandTree(Morphir.Tool.Program.Compose));
+    private static CompositionSnapshot Native() => CompositionSnapshot.Of(observe =>
+        Morphir.Program.CreateApp([], Morphir.Program.Host, builder =>
+        {
+            Morphir.Program.NativeComposition(builder);
+            observe(builder);
+        }));
 
+    private static CompositionSnapshot Tool() => CompositionSnapshot.Of(observe => Morphir.Tool.Program.CreateApp([], observe));
     [Test]
     public void TheAssemblyClosureOfTheManagedCompositionHasTheFSharpFrontend()
     {
@@ -106,32 +128,6 @@ public sealed class HostFrontendCompositionTests
     [Test]
     public void TheAssemblyClosureOfMorphirHasNoManagedComposition() =>
         Closure(typeof(Morphir.Program).Assembly).Should().NotContain("Morphir.Tooling.Managed");
-
-    private static string[] Frontends(MorphirCliApp app) =>
-        [.. app.Services.GetServices<IFrontend>().Select(frontend => $"{frontend.Identity.Value} {frontend.Transport}")];
-
-    /// <summary>Every command path with its options and arguments, as a composition builds it.</summary>
-    private static List<string> CommandTree(Action<MorphirCliBuilder> compose)
-    {
-        RootCommand? root = null;
-        using var app = MorphirApplication.CreateApp([], Morphir.Program.Host, builder =>
-        {
-            compose(builder);
-            root = builder.RootCommand;
-        });
-        var lines = new List<string>();
-        Describe(root!, "morphir", lines);
-        return lines;
-    }
-
-    private static void Describe(Command command, string path, List<string> lines)
-    {
-        var options = command.Options.Select(option => option.Name).Order(StringComparer.Ordinal);
-        var arguments = command.Arguments.Select(argument => argument.Name);
-        lines.Add($"{path} [{string.Join(' ', options)}] ({string.Join(' ', arguments)})");
-        foreach (var subcommand in command.Subcommands.OrderBy(subcommand => subcommand.Name, StringComparer.Ordinal))
-            Describe(subcommand, $"{path} {subcommand.Name}", lines);
-    }
 
     /// <summary>The names of every assembly that <paramref name="root"/> references, directly or indirectly.</summary>
     private static HashSet<string> Closure(System.Reflection.Assembly root)

@@ -8,7 +8,7 @@ description: Compile source code to Morphir IR
 `compile` reads source documents, compiles them with a frontend, writes the IR in the requested format
 version, and publishes it under the out root. With `--target`, it then generates code from the IR that it
 wrote, as `generate` does. The dotnet tool `dotnet-morphir` has a built-in F# frontend.
-The AOT executable `morphir` has no built-in frontend.
+The Native AOT executable `morphir` has no built-in frontend. A managed `morphir` built from `src/Morphir.Managed` has the same in-process F# frontend as `dotnet-morphir`, but it is not published yet.
 
 Both executables can also run a frontend as a MEP 0.2.0-draft.1 extension: a guest process that the
 command starts and that compiles the documents. See [Frontend extensions](#frontend-extensions).
@@ -111,7 +111,8 @@ several documents. If no frontend matches, or more than one matches, the command
 and names the frontend and the capability.
 
 - `dotnet-morphir` registers the in-process F# frontend `morphir-dotnet.fsharp`.
-- `morphir` has no F# frontend. A compile of F# fails with `compile.frontend_unavailable`.
+- The Native AOT `morphir` has no F# frontend. A compile of F# fails with `compile.frontend_unavailable`.
+- The managed `morphir` built from `src/Morphir.Managed` registers the same in-process F# frontend as `dotnet-morphir`. It is not published yet.
 - A configured extension replaces the registered frontends for the run. See [Frontend extensions](#frontend-extensions).
 
 ## Frontend extensions
@@ -495,7 +496,7 @@ $ dotnet-morphir compile --language fsharp --input src/Rates.fs --package-name a
 }
 ```
 
-The AOT executable has no F# frontend:
+The Native AOT executable has no F# frontend:
 
 ```bash
 $ morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --json
