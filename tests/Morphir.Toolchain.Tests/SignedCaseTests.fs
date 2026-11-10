@@ -206,11 +206,11 @@ let private frozenTests () =
               Expect.equal recipe.Sha256.Text (str expected "recipeSha256") "the recipe bytes have that digest"
 
               let platforms = [ for p in expected.GetProperty("platforms").EnumerateArray() -> platformOf (nonNull (p.GetString())) ]
-              Expect.equal (lock.Platforms |> List.map fst) platforms "the lock records exactly these platforms"
+              Expect.equal (lock.Platforms.Items |> List.map fst) platforms "the lock records exactly these platforms"
 
               Expect.isTrue (expected.GetProperty("lockEqualsResolution").GetBoolean()) "the case asks for resolution equality"
 
-              for platform, closure in lock.Platforms do
+              for platform, closure in lock.Platforms.Items do
                   match Resolution.resolve recipe request platform with
                   | Ok resolved -> Expect.equal resolved.Closure closure $"the {Platform.name platform} closure is the resolution"
                   | Error failure -> failtestf "%s does not resolve: %A" (Platform.name platform) failure

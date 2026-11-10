@@ -40,10 +40,10 @@ let tests =
                 testCase $"'{path}'" (fun () ->
                     match ResultDocument.read (resultWithPath path) with
                     | Ok read ->
-                        let again = ResultDocument.read (ResultDocument.write read)
+                        let again = ResultDocument.read (ResultDocument.write read) |> Result.map _.Diagnostics
 
                         match again with
-                        | Ok { Diagnostics = [ { Detail = DiagnosticDetail.UnsupportedContract(_, _, written) } ] } ->
+                        | Ok [ { Detail = DiagnosticDetail.UnsupportedContract(_, _, written) } ] ->
                             Expect.equal (DocumentPath.render written) path "the path text"
                         | other -> failtestf "unexpected %A" other
                     | Error refusal -> failtestf "refused: %A" refusal)

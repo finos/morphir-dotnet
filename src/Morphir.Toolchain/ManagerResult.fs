@@ -216,7 +216,7 @@ type Diagnostic =
       Severity: Severity
       Message: NonBlankText
       /// A non-empty argument vector, such as <c>["dotnet", "tool", "update", "--global", "Morphir.Tool"]</c>.
-      Instruction: string list option }
+      Instruction: Argv option }
 
 /// Where a planned component comes from.
 [<RequireQualifiedAccess>]
@@ -233,6 +233,30 @@ type Probe =
     | InHost
     | ProcessWithUserRights
 
+/// The probe of a component that runs no acquired process.
+[<RequireQualifiedAccess>]
+type LocalProbe =
+    | None
+    | InHost
+
+/// <summary>A planned provider's delivery. A <c>process</c> or <c>dotnet-tool</c> provider's readiness probe runs
+/// acquired code with the user's rights, so its probe is fixed; any other delivery carries a probe that does not, so
+/// no plan can state another combination.</summary>
+[<RequireQualifiedAccess>]
+type PlannedDelivery =
+    | BuiltIn of probe: LocalProbe
+    | Process
+    | Wasm of probe: LocalProbe
+    | DotnetTool
+
+module PlannedDelivery =
+    let delivery (planned: PlannedDelivery) =
+        match planned with
+        | PlannedDelivery.BuiltIn _ -> Delivery.BuiltIn
+        | PlannedDelivery.Process -> Delivery.Process
+        | PlannedDelivery.Wasm _ -> Delivery.Wasm
+        | PlannedDelivery.DotnetTool -> Delivery.DotnetTool
+
 /// What setup would do for one component.
 type ComponentPlan =
     { Version: SemVer
@@ -240,14 +264,33 @@ type ComponentPlan =
       DownloadBytes: uint64
       InstalledBytes: uint64
       UpdateOwner: Ownership
-      Prerequisites: Prerequisite list
-      Probe: Probe }
+      Prerequisites: Prerequisite list }
 
-/// A planned component: the host, or a provider with its identity and delivery.
+/// A planned component: the host with its probe, or a provider with its identity and delivery.
 [<RequireQualifiedAccess>]
 type PlannedComponent =
-    | Host of implementation: Token * deployment: Token * plan: ComponentPlan
-    | Provider of operation: Operation * extensionId: ExtensionId * delivery: Delivery * plan: ComponentPlan
+    | Host of implementation: Token * deployment: Token * plan: ComponentPlan * probe: LocalProbe
+    | Provider of operation: Operation * extensionId: ExtensionId * delivery: PlannedDelivery * plan: ComponentPlan
+
+module PlannedComponent =
+    let private local (probe: LocalProbe) =
+        match probe with
+        | LocalProbe.None -> Probe.None
+        | LocalProbe.InHost -> Probe.InHost
+
+    /// The component's probe, as the plan states it.
+    let probe (planned: PlannedComponent) =
+        match planned with
+        | PlannedComponent.Host(_, _, _, probe)
+        | PlannedComponent.Provider(_, _, PlannedDelivery.BuiltIn probe, _)
+        | PlannedComponent.Provider(_, _, PlannedDelivery.Wasm probe, _) -> local probe
+        | PlannedComponent.Provider(_, _, PlannedDelivery.Process, _)
+        | PlannedComponent.Provider(_, _, PlannedDelivery.DotnetTool, _) -> Probe.ProcessWithUserRights
+
+    let plan (planned: PlannedComponent) =
+        match planned with
+        | PlannedComponent.Host(_, _, plan, _)
+        | PlannedComponent.Provider(_, _, _, plan) -> plan
 
 [<RequireQualifiedAccess>]
 type MetadataRefresh =
@@ -277,14 +320,22 @@ type Selection =
       Host: HostIdentity
       LockSha256: Sha256 option }
 
-/// <summary>A manager result, the one document <c>morphirup --json</c> writes to standard output.</summary>
+/// <summary>A manager result, the one document <c>morphirup --json</c> writes to standard output. Only
+/// <c>ResultDocument.create</c> and the reader make one, so its outcome always agrees with its diagnostics and its
+/// plan.</summary>
 type ManagerResult =
-    { Command: Command
-      Outcome: Outcome
-      Plan: DigestedPlan option
-      Selection: Selection option
-      Diagnostics: Diagnostic list }
+    private
+        { command: Command
+          outcome: Outcome
+          plan: DigestedPlan option
+          selection: Selection option
+          diagnostics: Diagnostic list }
 
+    member this.Command = this.command
+    member this.Outcome = this.outcome
+    member this.Plan = this.plan
+    member this.Selection = this.selection
+    member this.Diagnostics = this.diagnostics
 /// The manager result reader and writer (manager-result page).
 module ResultDocument =
     open Reading
@@ -372,7 +423,7 @@ module ResultDocument =
                     "instruction"
                     (fun i ->
                         array text i
-                        |> Result.bind (fun args -> if List.isEmpty args then refuse ReaderCode.InconsistentDocument i.Path else Ok args))
+                        |> Result.bind (fun args -> Argv.tryCreate args |> Result.mapError (fun code -> { Code = code; Path = i.Path })))
                     o
 
             let abiPath = n.Path.Child "abi"
@@ -539,30 +590,40 @@ module ResultDocument =
                   DownloadBytes = downloadBytes
                   InstalledBytes = installedBytes
                   UpdateOwner = updateOwner
-                  Prerequisites = prerequisites
-                  Probe = probe }
+                  Prerequisites = prerequisites }
 
             let inconsistent name = refuse ReaderCode.InconsistentDocument (n.Path.Child name)
+
+            // A process or dotnet-tool provider's readiness probe runs acquired code with the user's rights, and no
+            // other component's does.
+            let local () =
+                match probe with
+                | Probe.None -> Ok LocalProbe.None
+                | Probe.InHost -> Ok LocalProbe.InHost
+                | Probe.ProcessWithUserRights -> inconsistent "probe"
+
+            let userRights () =
+                match probe with
+                | Probe.ProcessWithUserRights -> Ok()
+                | Probe.None
+                | Probe.InHost -> inconsistent "probe"
 
             let! planned =
                 match on, delivery, extensionId with
                 | Component.Host _, Some _, _ -> inconsistent "delivery"
-                | Component.Host _, _, Some _ -> inconsistent "extensionId"
-                | Component.Host(implementation, deployment), None, None -> Ok(PlannedComponent.Host(implementation, deployment, plan))
+                | Component.Host _, None, Some _ -> inconsistent "extensionId"
+                | Component.Host(implementation, deployment), None, None ->
+                    local () |> Result.map (fun probe -> PlannedComponent.Host(implementation, deployment, plan, probe))
                 | Component.Provider _, None, _ -> inconsistent "delivery"
-                | Component.Provider _, _, None -> inconsistent "extensionId"
-                | Component.Provider operation, Some delivery, Some id -> Ok(PlannedComponent.Provider(operation, id, delivery, plan))
+                | Component.Provider _, Some _, None -> inconsistent "extensionId"
+                | Component.Provider operation, Some delivery, Some id ->
+                    let provider planned = PlannedComponent.Provider(operation, id, planned, plan)
 
-            // A process or dotnet-tool provider's readiness probe runs acquired code with the user's rights, and no
-            // other component's does.
-            let runsProcess =
-                match planned with
-                | PlannedComponent.Provider(_, _, (Delivery.Process | Delivery.DotnetTool), _) -> true
-                | _ -> false
-
-            if runsProcess <> (probe = Probe.ProcessWithUserRights) then
-                return! inconsistent "probe"
-
+                    match delivery with
+                    | Delivery.BuiltIn -> local () |> Result.map (PlannedDelivery.BuiltIn >> provider)
+                    | Delivery.Wasm -> local () |> Result.map (PlannedDelivery.Wasm >> provider)
+                    | Delivery.Process -> userRights () |> Result.map (fun () -> provider PlannedDelivery.Process)
+                    | Delivery.DotnetTool -> userRights () |> Result.map (fun () -> provider PlannedDelivery.DotnetTool)
             return planned
         }
 
@@ -662,11 +723,11 @@ module ResultDocument =
                 return! refuse ReaderCode.InconsistentDocument (o.Path.Child "outcome")
 
             return
-                { Command = command
-                  Outcome = outcome
-                  Plan = digested
-                  Selection = selection
-                  Diagnostics = diagnostics }
+                { command = command
+                  outcome = outcome
+                  plan = digested
+                  selection = selection
+                  diagnostics = diagnostics }
         }
 
     /// Reads the exact bytes of a manager result, including the plan digest check.
@@ -729,6 +790,8 @@ module ResultDocument =
         | ComponentSource.ExternalOwner -> Value.Object [ "kind", Value.String "external-owner" ]
 
     let private plannedValue (planned: PlannedComponent) =
+        let probe = PlannedComponent.probe planned
+
         let common (plan: ComponentPlan) =
             [ "source", sourceValue plan.Source
               "downloadBytes", Value.Number(string plan.DownloadBytes)
@@ -737,14 +800,14 @@ module ResultDocument =
               "prerequisites", Value.Array(plan.Prerequisites |> List.map prerequisiteValue)
               "probe",
               Value.String(
-                  match plan.Probe with
+                  match probe with
                   | Probe.None -> "none"
                   | Probe.InHost -> "in-host"
                   | Probe.ProcessWithUserRights -> "process-with-user-rights"
               ) ]
 
         match planned with
-        | PlannedComponent.Host(implementation, deployment, plan) ->
+        | PlannedComponent.Host(implementation, deployment, plan, _) ->
             Value.Object
                 [ "component", componentValue (Component.Host(implementation, deployment))
                   "version", Value.String plan.Version.Text
@@ -754,7 +817,7 @@ module ResultDocument =
                 [ "component", componentValue (Component.Provider operation)
                   "version", Value.String plan.Version.Text
                   "extensionId", Value.String extensionId.Text
-                  "delivery", Value.String(Delivery.name delivery)
+                  "delivery", Value.String(Delivery.name (PlannedDelivery.delivery delivery))
                   yield! common plan ]
 
     /// The plan as a document value, in the member order of the setup-plan fixture.
@@ -881,7 +944,7 @@ module ResultDocument =
               "message", Value.String diagnostic.Message.Text
               yield! detail
               match diagnostic.Instruction with
-              | Some args -> "instruction", Value.Array(args |> List.map Value.String)
+              | Some args -> "instruction", Value.Array(args.Items |> List.map Value.String)
               | None -> () ]
 
     /// The result as a document value.
@@ -929,10 +992,10 @@ module ResultDocument =
     let create command outcome plan selection diagnostics : Result<ManagerResult, string> =
         if outcomeIsConsistent outcome plan diagnostics then
             Ok
-                { Command = command
-                  Outcome = outcome
-                  Plan = plan
-                  Selection = selection
-                  Diagnostics = diagnostics }
+                { command = command
+                  outcome = outcome
+                  plan = plan
+                  selection = selection
+                  diagnostics = diagnostics }
         else
             Error "the outcome contradicts the diagnostics or the plan"

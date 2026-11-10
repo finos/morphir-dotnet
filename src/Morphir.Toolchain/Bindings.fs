@@ -175,7 +175,7 @@ module Bindings =
             match offering with
             | None -> return! mismatch (root.Child "host")
             | Some offering ->
-                for platform, closure in lock.Platforms do
+                for platform, closure in lock.Platforms.Items do
                     let at = (root.Child "platforms").Child(Platform.name platform)
 
                     let artifact = offering.Platforms |> List.tryFind (fst >> (=) platform) |> Option.map snd

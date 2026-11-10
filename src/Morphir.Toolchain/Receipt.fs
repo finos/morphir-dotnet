@@ -29,7 +29,9 @@ type Authentication =
     /// Not by the manager at all.
     | ExternalOwner
 
-type Launch = { Program: LocalPath; Args: string list }
+type Launch =
+    { Program: LocalPath
+      Args: LaunchArguments }
 
 type Installation =
     { Ownership: Ownership
@@ -330,12 +332,13 @@ module ReceiptDocument =
             let! o = asObject n
             let! program = required "program" (validated (LocalPath.tryParse (LocalPath.syntaxFor platform))) o
 
-            let argument (a: Node) =
-                text a
-                |> Result.bind (fun value ->
-                    if value.Contains '\000' then refuse ReaderCode.InvalidValue a.Path else Ok value)
+            let argsPath = n.Path.Child "args"
+            let! values = required "args" (array text) o
 
-            let! args = required "args" (array argument) o
+            let! args =
+                LaunchArguments.tryCreate values
+                |> Result.mapError (fun index -> { Code = ReaderCode.InvalidValue; Path = argsPath.At index })
+
             return { Program = program; Args = args }
         }
 
@@ -591,7 +594,7 @@ module ReceiptDocument =
     let private launchValue (launch: Launch) =
         Value.Object
             [ "program", Value.String launch.Program.Text
-              "args", Value.Array(launch.Args |> List.map Value.String) ]
+              "args", Value.Array(launch.Args.Items |> List.map Value.String) ]
 
     /// The receipt as a document value; readiness values are the derived ones.
     let value (receipt: Receipt) =

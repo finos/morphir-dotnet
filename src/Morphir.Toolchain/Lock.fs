@@ -31,6 +31,60 @@ type Closure =
     { Host: TargetBinding
       Providers: LockedProvider list }
 
+/// Why a set of closures cannot make a lock.
+[<RequireQualifiedAccess>]
+type ClosureProblem =
+    | NoPlatform
+    | RepeatedPlatform of platform: Platform
+    | NoProvider of platform: Platform
+    | RepeatedOperation of platform: Platform * index: int
+    /// Closures that cover different operations from each other.
+    | DifferentOperations
+
+/// <summary>A lock's closures: at least one, one per platform in platform table order, each with one provider per
+/// operation, all covering the same operations. Only <see cref="M:Morphir.Toolchain.ClosuresModule.tryCreate"/>
+/// makes one.</summary>
+type Closures =
+    private
+    | Closures of (Platform * Closure) list
+
+    member this.Items =
+        let (Closures items) = this
+        items
+
+module Closures =
+    let tryCreate (closures: (Platform * Closure) list) : Result<Closures, ClosureProblem> =
+        let ordered = closures |> List.sortBy (fst >> Platform.order)
+
+        let repeated (key: 'T -> 'K) (items: 'T list) =
+            items
+            |> List.indexed
+            |> List.tryFind (fun (index, item) -> items |> List.take index |> List.exists (fun earlier -> key earlier = key item))
+
+        result {
+            if List.isEmpty ordered then
+                return! Error ClosureProblem.NoPlatform
+
+            match repeated fst ordered with
+            | Some(_, (platform, _)) -> return! Error(ClosureProblem.RepeatedPlatform platform)
+            | None -> ()
+
+            for platform, closure in ordered do
+                if List.isEmpty closure.Providers then
+                    return! Error(ClosureProblem.NoProvider platform)
+
+                match repeated _.Operation closure.Providers with
+                | Some(index, _) -> return! Error(ClosureProblem.RepeatedOperation(platform, index))
+                | None -> ()
+
+            let operationSets = ordered |> List.map (fun (_, closure) -> closure.Providers |> List.map _.Operation |> set) |> List.distinct
+
+            if List.length operationSets > 1 then
+                return! Error ClosureProblem.DifferentOperations
+
+            return Closures ordered
+        }
+
 /// The exact host, the same on every platform.
 type HostIdentity =
     { Implementation: Token
@@ -50,14 +104,14 @@ type Lock =
       Recipe: RecipeReference
       Host: HostIdentity
       /// At least one closure, in platform table order.
-      Platforms: (Platform * Closure) list
+      Platforms: Closures
       /// The SHA-256 of the exact lock bytes, which a receipt binds. A lock built in memory has the digest of its
       /// written bytes.
       Identity: Sha256 }
 
 module Lock =
     let closure (platform: Platform) (lock: Lock) =
-        lock.Platforms |> List.tryFind (fst >> (=) platform) |> Option.map snd
+        lock.Platforms.Items |> List.tryFind (fst >> (=) platform) |> Option.map snd
 
 /// Shared reading and writing of locked providers, also used by receipts.
 module LockedProviderDocument =
@@ -303,14 +357,18 @@ module LockDocument =
             let platformsPath = o.Path.Child "platforms"
             let! platforms = required "platforms" (platformMap closure) o
 
-            if List.isEmpty platforms then
-                return! refuse ReaderCode.InconsistentDocument platformsPath
-
-            let operationSets =
-                platforms |> List.map (fun (_, closure) -> closure.Providers |> List.map _.Operation |> set) |> List.distinct
-
-            if List.length operationSets > 1 then
-                return! refuse ReaderCode.InconsistentDocument platformsPath
+            // Each closure was checked as it was read; what remains relates the closures to each other.
+            let! platforms =
+                Closures.tryCreate platforms
+                |> Result.mapError (fun problem ->
+                    match problem with
+                    | ClosureProblem.NoProvider platform ->
+                        { Code = ReaderCode.InconsistentDocument; Path = (platformsPath.Child(Platform.name platform)).Child "providers" }
+                    | ClosureProblem.RepeatedOperation(platform, index) ->
+                        { Code = ReaderCode.InconsistentDocument; Path = ((platformsPath.Child(Platform.name platform)).Child "providers").At index }
+                    | ClosureProblem.NoPlatform
+                    | ClosureProblem.RepeatedPlatform _
+                    | ClosureProblem.DifferentOperations -> { Code = ReaderCode.InconsistentDocument; Path = platformsPath })
 
             return
                 { RequestSha256 = requestSha256
@@ -345,7 +403,7 @@ module LockDocument =
                     "deployment", Value.String lock.Host.Deployment.Text ]
               "platforms",
               Value.Object
-                  [ for platform, closure in lock.Platforms ->
+                  [ for platform, closure in lock.Platforms.Items ->
                         Platform.name platform,
                         Value.Object
                             [ "hostTarget", Value.String closure.Host.Target.Text

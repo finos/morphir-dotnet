@@ -60,7 +60,7 @@ let fixturePlan (relative: string) =
 let prerequisiteNames (plan: Plan) =
     [ for planned in plan.Components ->
           match planned with
-          | PlannedComponent.Host(_, _, p)
+          | PlannedComponent.Host(_, _, p, _)
           | PlannedComponent.Provider(_, _, _, p) -> p.Prerequisites |> List.map _.Name.Text ]
 
 let planned request platform =
@@ -89,10 +89,13 @@ let tests =
         testCase "the approved request plans the Native AOT host, the process frontend and the built-in generator" (fun () ->
             let digested, _ = planned "request/approved.toml" Platform.WinArm64
 
+            let probes = digested.Plan.Components |> List.map PlannedComponent.probe
+            Expect.equal probes [ Probe.None; Probe.ProcessWithUserRights; Probe.InHost ] "the host is not probed; a process probe runs with the user's rights; a built-in is checked in the host"
+
             match digested.Plan.Components with
-            | [ PlannedComponent.Host(implementation, deployment, host)
-                PlannedComponent.Provider(Operation.Compile _, frontendId, Delivery.Process, frontend)
-                PlannedComponent.Provider(Operation.Generate _, generatorId, Delivery.BuiltIn, generator) ] ->
+            | [ PlannedComponent.Host(implementation, deployment, host, LocalProbe.None)
+                PlannedComponent.Provider(Operation.Compile _, frontendId, PlannedDelivery.Process, frontend)
+                PlannedComponent.Provider(Operation.Generate _, generatorId, PlannedDelivery.BuiltIn LocalProbe.InHost, generator) ] ->
                 Expect.equal (implementation.Text, deployment.Text) ("dotnet", "native-aot") "the host offering"
 
                 Expect.equal
@@ -102,9 +105,7 @@ let tests =
                      | _ -> failwith "unreachable")
                     "the win-arm64 host archive from the recipe's repository"
 
-                Expect.equal host.Probe Probe.None "the host is not probed by planning"
                 Expect.equal frontendId.Text "org.finos.morphir.fsharp-frontend" "the frontend"
-                Expect.equal frontend.Probe Probe.ProcessWithUserRights "a process probe runs with the user's rights"
 
                 match frontend.Source with
                 | ComponentSource.RecipeDigest(_, target, _) -> Expect.equal target.Text "extensions/fsharp-frontend/0.6.0/win-arm64.zip" "the frontend archive"
@@ -113,7 +114,6 @@ let tests =
                 Expect.equal generatorId.Text "morphir.fsharp" "the built-in generator"
                 Expect.equal generator.Source ComponentSource.BuiltIn "nothing is downloaded for a built-in"
                 Expect.equal (generator.DownloadBytes, generator.InstalledBytes) (0UL, 0UL) "a built-in has no bytes"
-                Expect.equal generator.Probe Probe.InHost "a built-in is checked in the host"
             | components -> failtestf "unexpected components %A" components)
 
         testCase "the plan digest is the SHA-256 of the plan's canonical bytes and reads back" (fun () ->
@@ -135,12 +135,12 @@ let tests =
             let digested, lock = planned "request/team-platforms-external-backend.toml" Platform.WinArm64
 
             match digested.Plan.Components |> List.last with
-            | PlannedComponent.Provider(Operation.Generate _, id, Delivery.Process, backend) ->
+            | PlannedComponent.Provider(Operation.Generate _, id, PlannedDelivery.Process, _) as backend ->
                 Expect.equal id.Text "morphir-fsharp-backend" "the external backend"
-                Expect.equal backend.Probe Probe.ProcessWithUserRights "a process backend probe"
+                Expect.equal (PlannedComponent.probe backend) Probe.ProcessWithUserRights "a process backend probe"
             | other -> failtestf "the generator is %A" other
 
-            Expect.equal (lock.Platforms |> List.map fst) [ Platform.WinX64; Platform.WinArm64; Platform.OsxArm64 ] "the request's platforms and this one")
+            Expect.equal (lock.Platforms.Items |> List.map fst) [ Platform.WinX64; Platform.WinArm64; Platform.OsxArm64 ] "the request's platforms and this one")
 
         testCase "a missing WASM ABI is reported and never substituted" (fun () ->
             let recipe = recipeAt "recipe/wasm-abi-alternatives.json"

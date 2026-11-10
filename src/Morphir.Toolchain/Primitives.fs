@@ -552,3 +552,33 @@ type Prerequisite =
       Name: NonBlankText
       /// The platforms a prerequisite is limited to; absent means every platform.
       Platforms: Platform list option }
+
+/// A non-empty argument vector, such as a diagnostic's instruction.
+type Argv =
+    private
+    | Argv of string list
+
+    member this.Items =
+        let (Argv items) = this
+        items
+
+module Argv =
+    /// The vector, or <c>inconsistent_document</c> when it is empty.
+    let tryCreate (items: string list) =
+        if List.isEmpty items then Error ReaderCode.InconsistentDocument else Ok(Argv items)
+
+/// A launch's fixed arguments; none contains NUL.
+type LaunchArguments =
+    private
+    | LaunchArguments of string list
+
+    member this.Items =
+        let (LaunchArguments items) = this
+        items
+
+module LaunchArguments =
+    /// The arguments, or the index of the first that contains NUL.
+    let tryCreate (items: string list) =
+        match items |> List.tryFindIndex (fun item -> item.Contains '\000') with
+        | Some index -> Error index
+        | None -> Ok(LaunchArguments items)

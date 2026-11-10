@@ -41,53 +41,48 @@ module Planning =
     let private on platform prerequisites =
         prerequisites |> List.filter (appliesOn platform)
 
-    let private plannedProvider (sizes: TargetPath -> ArtifactSize option) (selected: Selected) =
-        let sized (target: TargetPath) =
-            sizes target |> Option.map Ok |> Option.defaultValue (Error(PlanFailure.SizeUnknown target))
-
-        let provider (platform: Platform) (provider: RecipeProvider) delivery (bound: TargetBinding) probe =
-            sized bound.Target
-            |> Result.map (fun size ->
-                PlannedComponent.Provider(
-                    provider.Operation,
-                    provider.ExtensionId,
-                    delivery,
-                    { Version = provider.Version
-                      Source = ComponentSource.RecipeDigest(provider.Release.RepositoryId, bound.Target, bound.Sha256)
-                      DownloadBytes = size.DownloadBytes
-                      InstalledBytes = size.InstalledBytes
-                      UpdateOwner = Ownership.ManagerOwned
-                      Prerequisites = on platform provider.Prerequisites
-                      Probe = probe }
-                ))
-
-        fun (platform: Platform) ->
-            match selected with
-            | Selected.BuiltIn builtIn ->
+    /// The component for one selected provider, with the artifact its locked form binds on the platform.
+    let private plannedProvider (sizes: TargetPath -> ArtifactSize option) (platform: Platform) (selected: Selected, locked: LockedProvider) =
+        let downloaded (provider: RecipeProvider) (delivery: PlannedDelivery) (bound: TargetBinding) =
+            match sizes bound.Target with
+            | None -> Error(PlanFailure.SizeUnknown bound.Target)
+            | Some size ->
                 Ok(
                     PlannedComponent.Provider(
-                        builtIn.Operation,
-                        builtIn.ExtensionId,
-                        Delivery.BuiltIn,
-                        { Version = builtIn.Version
-                          Source = ComponentSource.BuiltIn
-                          DownloadBytes = 0UL
-                          InstalledBytes = 0UL
+                        provider.Operation,
+                        provider.ExtensionId,
+                        delivery,
+                        { Version = provider.Version
+                          Source = ComponentSource.RecipeDigest(provider.Release.RepositoryId, bound.Target, bound.Sha256)
+                          DownloadBytes = size.DownloadBytes
+                          InstalledBytes = size.InstalledBytes
                           UpdateOwner = Ownership.ManagerOwned
-                          Prerequisites = []
-                          Probe = Probe.InHost }
+                          Prerequisites = on platform provider.Prerequisites }
                     )
                 )
-            | Selected.Provider recipeProvider ->
-                match recipeProvider.Delivery with
-                | RecipeDelivery.Process platforms ->
-                    // Resolution selected this provider only because it has an artifact for the platform.
-                    let artifact = platforms |> List.find (fst >> (=) platform) |> snd
-                    provider platform recipeProvider Delivery.Process artifact Probe.ProcessWithUserRights
-                | RecipeDelivery.Wasm(_, artifact) -> provider platform recipeProvider Delivery.Wasm artifact Probe.InHost
-                | RecipeDelivery.DotnetTool package ->
-                    provider platform recipeProvider Delivery.DotnetTool { Target = package.Target; Sha256 = package.Sha256 } Probe.ProcessWithUserRights
 
+        match selected, locked.Delivery with
+        | Selected.BuiltIn builtIn, _ ->
+            Ok(
+                PlannedComponent.Provider(
+                    builtIn.Operation,
+                    builtIn.ExtensionId,
+                    PlannedDelivery.BuiltIn LocalProbe.InHost,
+                    { Version = builtIn.Version
+                      Source = ComponentSource.BuiltIn
+                      DownloadBytes = 0UL
+                      InstalledBytes = 0UL
+                      UpdateOwner = Ownership.ManagerOwned
+                      Prerequisites = [] }
+                )
+            )
+        | Selected.Provider provider, LockedDelivery.Process(_, artifact, _) -> downloaded provider PlannedDelivery.Process artifact
+        | Selected.Provider provider, LockedDelivery.Wasm(_, _, artifact, _) ->
+            downloaded provider (PlannedDelivery.Wasm LocalProbe.InHost) artifact
+        | Selected.Provider provider, LockedDelivery.DotnetTool(_, package, _) ->
+            downloaded provider PlannedDelivery.DotnetTool { Target = package.Target; Sha256 = package.Sha256 }
+        | Selected.Provider provider, LockedDelivery.BuiltIn _ ->
+            failwith $"unreachable: resolution locked the provider {provider.ExtensionId.Text} as a built-in"
     /// The plan for one platform and the lock setup would write, which records every platform of the request and the
     /// platform being set up.
     let plan (input: PlanRequest) : Result<DigestedPlan * Lock, PlanFailure> =
@@ -117,13 +112,13 @@ module Planning =
                       DownloadBytes = hostSize.DownloadBytes
                       InstalledBytes = hostSize.InstalledBytes
                       UpdateOwner = Ownership.ManagerOwned
-                      Prerequisites = on input.Platform offering.Prerequisites
-                      Probe = Probe.None }
+                      Prerequisites = on input.Platform offering.Prerequisites },
+                    LocalProbe.None
                 )
 
             let! providers =
-                current.Selected
-                |> Result.traverse (fun selected -> plannedProvider input.Sizes selected input.Platform)
+                List.zip current.Selected current.Closure.Providers
+                |> Result.traverse (plannedProvider input.Sizes input.Platform)
 
             let plan =
                 { Implementation = offering.Implementation

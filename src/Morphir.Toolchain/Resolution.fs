@@ -187,6 +187,16 @@ module Resolution =
             let! resolved = lockPlatforms request current |> Result.traverse (resolve recipe request)
             let offering = (List.head resolved).Offering
 
+            // One recipe resolved every platform, so its closures cover the same operations.
+            let! closures =
+                Closures.tryCreate (resolved |> List.map (fun r -> r.Platform, r.Closure))
+                |> Result.mapError (fun _ ->
+                    { Problem = ArtifactProblem.Unsupported
+                      Path = toolset
+                      Platform = current
+                      Component = Component.Host(request.Host.Implementation, request.Host.Deployment)
+                      Alternatives = [] })
+
             let lock =
                 { RequestSha256 = request.Identity
                   Recipe =
@@ -197,7 +207,7 @@ module Resolution =
                     { Implementation = offering.Implementation
                       Version = offering.Version
                       Deployment = offering.Deployment }
-                  Platforms = resolved |> List.map (fun r -> r.Platform, r.Closure)
+                  Platforms = closures
                   Identity = Sha256.ofBytes [||] }
 
             return { lock with Identity = Sha256.ofBytes (LockDocument.write lock) }, resolved
