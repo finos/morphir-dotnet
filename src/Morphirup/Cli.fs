@@ -280,22 +280,11 @@ let private discover (io: Io) (options: Options) : Result<string, string> =
 
     let startSegments = segments start
     let boundarySegments = segments boundary
-    let depth = List.length boundarySegments
+    let names = Discovery.currentPathCase
 
-    // Windows paths compare without case: take the boundary in the start's spelling when they agree.
-    let boundarySegments =
-        if
-            OperatingSystem.IsWindows()
-            && List.length startSegments >= depth
-            && List.forall2 (fun a b -> String.Equals(a, b, StringComparison.OrdinalIgnoreCase)) (List.take depth startSegments) boundarySegments
-        then
-            List.take depth startSegments
-        else
-            boundarySegments
-
-    match Discovery.request boundarySegments startSegments (pathOf >> present) with
+    match Discovery.requestIn names boundarySegments startSegments (pathOf >> present) with
     | Some found -> Ok(pathOf found)
-    | None when List.length startSegments < depth || List.take depth startSegments <> boundarySegments ->
+    | None when not (Discovery.within names boundarySegments startSegments) ->
         Error $"{start} is outside the discovery boundary {boundary}, so it has no project request"
     | None -> Error $"no .morphir/toolchain.toml was found in {start} or its parents up to the discovery boundary {boundary}"
 
