@@ -27,6 +27,8 @@ type TufFailure =
     | Expired of role: TufRole
     /// The metadata is older than the trusted metadata of its role.
     | Rollback of role: TufRole
+    /// The metadata has the trusted version of its role but other content: two documents under one version.
+    | VersionReused of role: TufRole
     /// The metadata is not the version, length or digest that its parent role names.
     | LinkMismatch of role: TufRole
     /// The targets metadata lists a target path that breaks the target path rules.
@@ -50,7 +52,8 @@ module TufFailure =
         | TufFailure.Internal _ -> Code.Trust TrustCode.MetadataSignatureInvalid
         | TufFailure.RootRotationInvalid _ -> Code.Trust TrustCode.MetadataRootRotationInvalid
         | TufFailure.Expired _ -> Code.Trust TrustCode.MetadataExpired
-        | TufFailure.Rollback _ -> Code.Trust TrustCode.MetadataRollback
+        | TufFailure.Rollback _
+        | TufFailure.VersionReused _ -> Code.Trust TrustCode.MetadataRollback
         | TufFailure.LinkMismatch _ -> Code.Trust TrustCode.MetadataLinkMismatch
         | TufFailure.NonPortableTarget _ -> Code.Reader ReaderCode.NonPortablePath
         | TufFailure.Unavailable _ -> Code.Trust TrustCode.RepositoryUnavailable
@@ -63,6 +66,7 @@ module TufFailure =
         | TufFailure.SignatureInvalid role
         | TufFailure.Expired role
         | TufFailure.Rollback role
+        | TufFailure.VersionReused role
         | TufFailure.LinkMismatch role
         | TufFailure.Unavailable role -> Some role
         | TufFailure.RootRotationInvalid _ -> Some TufRole.Root

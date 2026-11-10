@@ -138,6 +138,9 @@ type MetadataSource =
 type RefreshResult =
     /// Every role was verified; the trusted set holds the new root, timestamp, snapshot and targets.
     | Refreshed of trusted: TufTrustedSet
+    /// <summary>The timestamp is the trusted one, so the update cycle ends without an error (TUF 5.4.3.1). The trusted
+    /// set holds any root accepted before it; its timestamp, snapshot and targets are unchanged and unexpired.</summary>
+    | NothingNew of trusted: TufTrustedSet
     /// The refresh accepted 32 roots and more follow: the trusted set holds the newest accepted root, and the user is
     /// asked to retry, which continues from it. This is TUF's stop at the limit (5.3.3), handed back the same way as
     /// a failure.
@@ -149,6 +152,7 @@ type RefreshResult =
     member this.Trusted =
         match this with
         | Refreshed trusted
+        | NothingNew trusted
         | RootRotationPaused trusted
         | Failed(_, trusted) -> trusted
 
@@ -288,65 +292,97 @@ module TufClient =
                         return! Error(TufFailure.Rollback TufRole.Timestamp)
                     | _ -> ()
 
+                    // 5.4.3.1: a timestamp at the trusted version is discarded, and the update cycle ends. Another
+                    // timestamp under that version is two documents under one version, and is refused.
+                    let sameVersion =
+                        match current.Value.Timestamp with
+                        | Some old when timestamp.Signed.Version = old.Version -> Some old
+                        | _ -> None
+
+                    match sameVersion with
+                    | Some old when timestamp.Signed <> old -> return! Error(TufFailure.VersionReused TufRole.Timestamp)
+                    | _ -> ()
+
+                    // The expiry is checked even for the trusted timestamp: a frozen timestamp served for ever expires
+                    // with it.
                     if expired start timestamp.Signed.Expires then
                         return! Error(TufFailure.Expired TufRole.Timestamp)
 
                     // 5.4.5: the verified timestamp is trusted.
                     current.Value <- { current.Value with Timestamp = Some timestamp.Signed }
 
-                    // 5.5: the snapshot the timestamp names.
-                    let snapshotMeta = timestamp.Signed.Snapshot
-                    let! snapshotBytes = fetched TufRole.Snapshot (fun () -> source.Snapshot snapshotMeta.Version)
+                    // Nothing new only when the trusted snapshot and targets are the ones this timestamp names; after a
+                    // refresh that stopped before them, the workflow goes on.
+                    let unchanged =
+                        match sameVersion, current.Value.Snapshot, current.Value.Targets with
+                        | Some _, Some snapshot, Some targets ->
+                            snapshot.Version = timestamp.Signed.Snapshot.Version && targets.Version = snapshot.Targets.Version
+                        | _ -> false
 
-                    if snapshotBytes.Length > TufMetadata.snapshotLimit then
-                        return! Error(TufFailure.MetadataTooLarge(TufRole.Snapshot, TufMetadata.snapshotLimit))
+                    if unchanged then
+                        let snapshot, targets = Option.get current.Value.Snapshot, Option.get current.Value.Targets
 
-                    do! linked TufRole.Snapshot snapshotMeta snapshotBytes
-                    let! snapshot = TufMetadata.readSnapshot snapshotBytes
+                        if expired start snapshot.Expires then
+                            return! Error(TufFailure.Expired TufRole.Snapshot)
 
-                    if not (TufSignatures.thresholdMet root TufRole.Snapshot snapshot) then
-                        return! Error(TufFailure.SignatureInvalid TufRole.Snapshot)
+                        if expired start targets.Expires then
+                            return! Error(TufFailure.Expired TufRole.Targets)
 
-                    if snapshot.Signed.Version <> snapshotMeta.Version then
-                        return! Error(TufFailure.LinkMismatch TufRole.Snapshot)
+                        return RefreshResult.NothingNew current.Value
+                    else
+                        // 5.5: the snapshot the timestamp names.
+                        let snapshotMeta = timestamp.Signed.Snapshot
+                        let! snapshotBytes = fetched TufRole.Snapshot (fun () -> source.Snapshot snapshotMeta.Version)
 
-                    match current.Value.Snapshot with
-                    | Some old when snapshot.Signed.Targets.Version < old.Targets.Version ->
-                        return! Error(TufFailure.Rollback TufRole.Snapshot)
-                    | _ -> ()
+                        if snapshotBytes.Length > TufMetadata.snapshotLimit then
+                            return! Error(TufFailure.MetadataTooLarge(TufRole.Snapshot, TufMetadata.snapshotLimit))
 
-                    if expired start snapshot.Signed.Expires then
-                        return! Error(TufFailure.Expired TufRole.Snapshot)
+                        do! linked TufRole.Snapshot snapshotMeta snapshotBytes
+                        let! snapshot = TufMetadata.readSnapshot snapshotBytes
 
-                    // 5.5.7: the verified snapshot is trusted.
-                    current.Value <- { current.Value with Snapshot = Some snapshot.Signed }
+                        if not (TufSignatures.thresholdMet root TufRole.Snapshot snapshot) then
+                            return! Error(TufFailure.SignatureInvalid TufRole.Snapshot)
 
-                    // 5.6: the targets the snapshot names.
-                    let targetsMeta = snapshot.Signed.Targets
-                    let! targetsBytes = fetched TufRole.Targets (fun () -> source.Targets targetsMeta.Version)
+                        if snapshot.Signed.Version <> snapshotMeta.Version then
+                            return! Error(TufFailure.LinkMismatch TufRole.Snapshot)
 
-                    if targetsBytes.Length > TufMetadata.targetsLimit then
-                        return! Error(TufFailure.MetadataTooLarge(TufRole.Targets, TufMetadata.targetsLimit))
+                        match current.Value.Snapshot with
+                        | Some old when snapshot.Signed.Targets.Version < old.Targets.Version ->
+                            return! Error(TufFailure.Rollback TufRole.Snapshot)
+                        | _ -> ()
 
-                    do! linked TufRole.Targets targetsMeta targetsBytes
-                    let! targets = TufMetadata.readTargets targetsBytes
+                        if expired start snapshot.Signed.Expires then
+                            return! Error(TufFailure.Expired TufRole.Snapshot)
 
-                    if not (TufSignatures.thresholdMet root TufRole.Targets targets) then
-                        return! Error(TufFailure.SignatureInvalid TufRole.Targets)
+                        // 5.5.7: the verified snapshot is trusted.
+                        current.Value <- { current.Value with Snapshot = Some snapshot.Signed }
 
-                    if targets.Signed.Version <> targetsMeta.Version then
-                        return! Error(TufFailure.LinkMismatch TufRole.Targets)
+                        // 5.6: the targets the snapshot names.
+                        let targetsMeta = snapshot.Signed.Targets
+                        let! targetsBytes = fetched TufRole.Targets (fun () -> source.Targets targetsMeta.Version)
 
-                    match current.Value.Targets with
-                    | Some old when targets.Signed.Version < old.Version -> return! Error(TufFailure.Rollback TufRole.Targets)
-                    | _ -> ()
+                        if targetsBytes.Length > TufMetadata.targetsLimit then
+                            return! Error(TufFailure.MetadataTooLarge(TufRole.Targets, TufMetadata.targetsLimit))
 
-                    if expired start targets.Signed.Expires then
-                        return! Error(TufFailure.Expired TufRole.Targets)
+                        do! linked TufRole.Targets targetsMeta targetsBytes
+                        let! targets = TufMetadata.readTargets targetsBytes
 
-                    // 5.6.6: the verified targets are trusted.
-                    current.Value <- { current.Value with Targets = Some targets.Signed }
-                    return RefreshResult.Refreshed current.Value
+                        if not (TufSignatures.thresholdMet root TufRole.Targets targets) then
+                            return! Error(TufFailure.SignatureInvalid TufRole.Targets)
+
+                        if targets.Signed.Version <> targetsMeta.Version then
+                            return! Error(TufFailure.LinkMismatch TufRole.Targets)
+
+                        match current.Value.Targets with
+                        | Some old when targets.Signed.Version < old.Version -> return! Error(TufFailure.Rollback TufRole.Targets)
+                        | _ -> ()
+
+                        if expired start targets.Signed.Expires then
+                            return! Error(TufFailure.Expired TufRole.Targets)
+
+                        // 5.6.6: the verified targets are trusted.
+                        current.Value <- { current.Value with Targets = Some targets.Signed }
+                        return RefreshResult.Refreshed current.Value
             }
 
         // The boundary: an exception inside the workflow, which is a defect, fails the refresh closed and still hands

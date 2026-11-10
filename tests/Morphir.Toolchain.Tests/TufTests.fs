@@ -839,3 +839,41 @@ let reviewT5Tests =
             | Error(TrustAnchorRefusal.Unreadable(TufFailure.SignatureInvalid TufRole.Root)) -> ()
             | other -> failtestf "expected one of two signatures to be refused, got %A" other)
     ]
+
+[<Tests>]
+let reviewT6Tests =
+    // Review of #581, T6: TUF 5.4.3.1 discards a timestamp whose version equals the trusted one and ends the update
+    // cycle without an error.
+    let completed () = refreshed (refresh (anchor ()) (sourceOf (metadataSet "metadata") []))
+
+    testList "T6 an equal-version timestamp is nothing new" [
+        testCase "the same timestamp again ends the cycle with the trust state unchanged" (fun () ->
+            let trusted = completed ()
+
+            match refresh trusted (sourceOf (metadataSet "metadata") []) with
+            | RefreshResult.NothingNew kept -> Expect.equal kept trusted "unchanged"
+            | other -> failtestf "expected nothing new, got %A" other)
+
+        testCase "another timestamp under the same version is refused" (fun () ->
+            let set = metadataSet "metadata"
+            let fork = { set with Timestamp = resign "timestamp" (setAt [ "signed"; "expires" ] (text "2031-06-01T00:00:00Z") set.Timestamp) }
+
+            match refresh (completed ()) (sourceOf fork []) with
+            | RefreshResult.Failed(TufFailure.VersionReused TufRole.Timestamp, kept) -> Expect.equal kept (completed ()) "the trusted state is kept"
+            | other -> failtestf "expected the reused version to be refused, got %A" other
+
+            Expect.equal (Code.name (TufFailure.code (TufFailure.VersionReused TufRole.Timestamp))) "metadata_rollback" "its code")
+
+        testCase "nothing new is still refused once the trusted metadata has expired" (fun () ->
+            // A frozen timestamp served for ever: the same content, so it expires with the trusted one.
+            match TufClient.refresh (DateTimeOffset(2999, 1, 1, 0, 0, 0, TimeSpan.Zero)) (completed ()) (sourceOf (metadataSet "metadata") []) with
+            | RefreshResult.Failed(TufFailure.Expired _, _) -> ()
+            | other -> failtestf "expected the frozen metadata to have expired, got %A" other)
+
+        testCase "the same timestamp after a refresh that stopped before the snapshot goes on to the snapshot" (fun () ->
+            let partial = { completed () with Snapshot = None; Targets = None }
+
+            match refresh partial (sourceOf (metadataSet "metadata") []) with
+            | RefreshResult.Refreshed trusted -> Expect.isSome trusted.Targets "the targets are verified"
+            | other -> failtestf "expected the refresh to continue, got %A" other)
+    ]
