@@ -31,10 +31,30 @@ partial class Build
         .Executes(() => VerifyAotProbe(
             TestsDirectory / "Morphir.Mep.AotProbe" / "Morphir.Mep.AotProbe.csproj", "mep-aot"));
 
+    AbsolutePath MorphirupProbeDirectory => TestsDirectory / "Morphir.Toolchain.Tests" / "AotProbe";
+
+    /// <summary>
+    /// Publish the morphirup manager with Native AOT and run a plan-only setup under JIT and native. The probe recipe
+    /// holds a decomposed character and the run passes the digest the test suite records with --expect-plan, so a
+    /// build that does not normalize to NFC (for example one in invariant globalization mode) fails here.
+    /// </summary>
+    Target TestMorphirupAot => _ => _
+        .Description("Publish morphirup with Native AOT, run a plan-only setup and compare it with JIT")
+        .Executes(() => VerifyAotProbe(
+            SourceDirectory / "Morphirup" / "Morphirup.fsproj", "morphirup-aot", "morphirup",
+            "setup", "--plan", "--platform", "linux-x64",
+            "--request", MorphirupProbeDirectory / "toolchain.toml",
+            "--recipe", MorphirupProbeDirectory / "recipe.json",
+            "--repository-id", new string('b', 64),
+            "--artifact-sizes", MorphirupProbeDirectory / "artifact-sizes.json",
+            "--expect-plan", File.ReadAllText(MorphirupProbeDirectory / "plan-sha256.txt").Trim()));
+
+    void VerifyAotProbe(AbsolutePath project, string workName) =>
+        VerifyAotProbe(project, workName, Path.GetFileNameWithoutExtension(project));
+
     /// <summary>Verifies a probe's runtime dependency closure, diagnostics and output on this machine.</summary>
-    void VerifyAotProbe(AbsolutePath project, string workName)
+    void VerifyAotProbe(AbsolutePath project, string workName, string name, params string[] arguments)
     {
-        var name = Path.GetFileNameWithoutExtension(project);
         var work = TemporaryDirectory / workName;
         work.CreateOrCleanDirectory();
         var rid = RuntimeInformation.RuntimeIdentifier;
@@ -47,7 +67,7 @@ partial class Build
         }
 
         var jitDll = project.Parent / "bin" / configuration / "net10.0" / $"{name}.dll";
-        var (jitExit, jitOutput) = Capture("dotnet", "exec", jitDll);
+        var (jitExit, jitOutput) = Capture("dotnet", ["exec", jitDll, .. arguments]);
         if (jitExit != 0)
         {
             throw new Exception($"The probe failed under JIT:{Environment.NewLine}{jitOutput}");
@@ -73,7 +93,7 @@ partial class Build
         }
 
         var native = output / (OperatingSystem.IsWindows() ? $"{name}.exe" : name);
-        var (nativeExit, nativeOutput) = Capture(native);
+        var (nativeExit, nativeOutput) = Capture(native, arguments);
         if (nativeExit != 0)
         {
             throw new Exception($"The Native AOT probe failed:{Environment.NewLine}{nativeOutput}");
