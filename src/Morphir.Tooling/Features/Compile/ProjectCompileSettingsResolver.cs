@@ -195,7 +195,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         // A frontend extension: --extension, else [frontend.<language>].extension of the selected language.
         var extension = overrides.Extension is { } cliExtension
             ? new Setting<string>(cliExtension, new SettingOrigin.CommandLine("--extension"))
-            : language is null ? null : config.String($"frontend.{language.Value.Value}.extension".Split('.'));
+            : language is null ? null : config.String("frontend", language.Value.Value, "extension");
         if (extension is not null && string.IsNullOrWhiteSpace(extension.Value))
             Error(CompileCodes.InvalidSetting, $"The frontend extension from {Describe(extension.Origin)} is empty.");
 
@@ -214,7 +214,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             sources = new SourceRequest.ProjectFile(Path.GetFullPath(projectFile, working), new SettingOrigin.CommandLine("--project-file"));
         else if (overrides.Inputs.Count > 0)
             sources = new SourceRequest.Inputs(overrides.Inputs.Select(input => Path.GetFullPath(input, working)).ToImmutableArray());
-        else if (language is not null && config.String($"frontend.{language.Value.Value}.project_file".Split('.')) is { } configuredFile)
+        else if (language is not null && config.String("frontend", language.Value.Value, "project_file") is { } configuredFile)
             sources = new SourceRequest.ProjectFile(config.Resolve(configuredFile, baseDirectory), configuredFile.Origin);
         else
         {
@@ -306,10 +306,10 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
                 ? new([.. items], Origin(path))
                 : null;
 
-        /// <summary>Every <c>frontend.&lt;language&gt;.project_file</c> key that is set.</summary>
+        /// <summary>Every <c>frontend.&lt;language&gt;.project_file</c> key that is set, as TOML writes it (a dotted language is quoted).</summary>
         public ImmutableArray<string> ProjectFileKeys() =>
             Find(["frontend"]) is { } tables
-                ? [.. ConfigValueProjections.TablesWithKey(tables, "project_file").Select(language => $"frontend.{language}.project_file")]
+                ? [.. ConfigValueProjections.TablesWithKey(tables, "project_file").Select(language => ConfigValueProjections.KeyText(["frontend", language, "project_file"]))]
                 : [];
 
         /// <summary>A path setting, relative to the directory of the file that set it, else to the base directory.</summary>
