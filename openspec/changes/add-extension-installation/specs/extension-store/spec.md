@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Keeps installed extensions under Morphir Home in the upstream store, catalog and lock formats, so that a reader never sees partial state and the .NET and Rust CLIs share global installs. MEP `0.1` is not supported (maintainer decision, 9 November 2026), so a shared Morphir Home serves only readers that speak `0.2.0-draft.1`; this change does not protect readers that speak only `0.1`.
+Keeps installed extensions under Morphir Home in the upstream store, catalog and lock formats, so that a reader never sees partial state. The .NET host does not support MEP `0.1` (maintainer decision, 9 November 2026), but released Rust CLIs speak only `0.1`, so a shared catalog admits only entries every host that reads it can run, and a .NET global layer holds the rest.
 
 ## ADDED Requirements
 
@@ -51,12 +51,38 @@ The installer and the host SHALL refuse a store root, digest directory or stored
 - **WHEN** a digest directory in the store is a symbolic link to a directory outside Morphir Home
 - **THEN** an install or activation that uses it fails with `extension.path_escape` and writes nothing
 
+### Requirement: A shared catalog admits only entries every host that reads it can run
+A global install SHALL write an entry and lock into a shared catalog only when every host that reads that catalog can read and run the entry. For `catalog/extensions.json` that means its `mepVersions` holds a version the pinned reference reader supports (`0.1` at `c9f79da`) and its id has one segment. Otherwise the installer SHALL install into the .NET global layer and write no shared entry or lock (maintainer decision, Q-SHARED).
+
+#### Scenario: A guest that speaks only MEP 0.2
+- **WHEN** a user installs globally a process extension whose `mepVersions` is `["0.2.0-draft.1"]`
+- **THEN** the catalog and `locks/extensions/` are unchanged, the .NET global layer selects it, and the report says `layer` `dotnet-global` with the reason `mep-version`
+- **AND** a Rust `morphir extension list` on the same Morphir Home succeeds and does not list it
+
+#### Scenario: A guest that also speaks the reference reader's version
+- **WHEN** a user installs globally an extension whose `mepVersions` is `["0.1", "0.2.0-draft.1"]`
+- **THEN** the shared catalog and its lock hold the entry, the .NET host runs it over `0.2.0-draft.1`, and both CLIs list it
+
+#### Scenario: A dotted guest that speaks only MEP 0.2
+- **WHEN** a user installs globally `org.finos.morphir.fsharp-backend`, whose `mepVersions` is `["0.2.0-draft.1"]`
+- **THEN** no shared catalog changes, and the .NET global layer selects it with the reason `mep-version`
+
+### Requirement: The .NET global layer selects what no shared catalog can hold
+The installer SHALL keep the .NET global layer in `data/morphir-dotnet/extensions/global.json` below Morphir Home, mapping each id to one inventory record by digest, sorted by id, under the state lock. It ranks above the shared catalogs for .NET hosts. A global install SHALL refuse an id already selected in a shared catalog or in this layer with `extension.already_installed`.
+
+#### Scenario: Same id in the shared catalog
+- **WHEN** the Rust CLI installed `acme-backend` into the shared catalog and a user installs a 0.2-only `acme-backend` globally with the .NET host
+- **THEN** the install fails with `extension.already_installed` naming the shared catalog, and nothing is written
+
+#### Scenario: No shared file changes
+- **WHEN** an install writes the .NET global layer
+- **THEN** no file below `catalog/`, `locks/extensions/` or `locks/extensions-dotted/` changes
 ### Requirement: Dotted extensions follow the home layout of finos/morphir#1149
 Provisional pending finos/morphir#1149 and its question 8. With #1149's partition, the installer SHALL write a dotted extension only to `catalog/extensions-dotted.json` and `locks/extensions-dotted/`, which holds its locks and journals, under the one state lock. One operation SHALL change one partition. A host SHALL recover each directory's journals into its own catalog, list both catalogs together, and refuse a file holding an id of the wrong form, naming it.
 
 #### Scenario: A dotted install leaves the single-segment files alone
-- **WHEN** a user installs `org.finos.morphir.fsharp-backend` into a home that holds `acme-backend`
-- **THEN** the installer writes `catalog/extensions-dotted.json` and `locks/extensions-dotted/org.finos.morphir.fsharp-backend.json`
+- **WHEN** a user installs `acme.tools`, which every host that reads the dotted catalog can run, into a home that holds `acme-backend`
+- **THEN** the installer writes `catalog/extensions-dotted.json` and `locks/extensions-dotted/acme.tools.json`
 - **AND** `catalog/extensions.json` and every file in `locks/extensions/` keep their members and values
 
 #### Scenario: An id in the wrong partition
@@ -139,7 +165,7 @@ A host SHALL use a global entry only when its lock exists and agrees with it on 
 - **AND** no command starts that extension
 
 ### Requirement: One interprocess lock serializes extension state
-Every read and write of the catalog, shared locks and the .NET inventory SHALL hold an exclusive operating-system lock on `locks/extensions.state.lock` below Morphir Home, opened for read and write without truncation and taken as the reference implementation takes it, so that a .NET and a Rust process exclude each other (Q-LOCKPRIM, follows the reference).
+Every read and write of the shared catalogs and locks, the .NET global layer and the .NET inventory SHALL hold an exclusive operating-system lock on `locks/extensions.state.lock` below Morphir Home, opened for read and write without truncation and taken as the reference implementation takes it, so that a .NET and a Rust process exclude each other (Q-LOCKPRIM, follows the reference).
 
 #### Scenario: Another process holds the lock
 - **WHEN** a helper process holds the state lock with the reference implementation's primitive and a user runs `morphir extension install`
@@ -170,7 +196,7 @@ The installer SHALL change a global lock and the catalog together through the re
 - **THEN** the journal has `nextLock` `null`, and applying it deletes the lock and writes the catalog without the entry
 
 ### Requirement: Shared files are replaced atomically
-The installer SHALL write each catalog, lock, journal, inventory and pin file to a temporary file in the same directory, flush it, and rename it over the target, so that a reader sees the old or the new file and never a partial one.
+The installer SHALL write each catalog, lock, journal, .NET global layer, inventory and pin file to a temporary file in the same directory, flush it, and rename it over the target, so that a reader sees the old or the new file and never a partial one.
 
 #### Scenario: Reader during a write
 - **WHEN** a host reads the catalog while an install replaces it

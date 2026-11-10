@@ -109,7 +109,7 @@ The installer SHALL map the host's runtime identifier to the descriptor target t
 - **THEN** the install fails with `extension.no_matching_artifact` naming `linux-musl-x64`
 
 ### Requirement: Bytes are verified while they are staged
-The installer SHALL copy the selected artifact into a private directory below `tmp/` in Morphir Home, hashing while it copies, refuse more than 256 MiB, and compare the digest with the record. A mismatch SHALL stop the install before the store, catalog, locks, inventory or pins change. Later steps SHALL use only the staged copy.
+The installer SHALL copy the selected artifact into a private directory below `tmp/` in Morphir Home, hashing while it copies, refuse more than 256 MiB, and compare the digest with the record. A mismatch SHALL stop the install before the store, catalog, locks, .NET global layer, inventory or pins change. Later steps SHALL use only the staged copy.
 
 #### Scenario: Substituted artifact
 - **WHEN** the repository file for the selected artifact has bytes whose SHA-256 differs from the record
@@ -194,12 +194,16 @@ The installer SHALL refuse a release or claim set whose `requires.host` comparat
 - **THEN** the command fails with a usage error, exit code 2
 
 ### Requirement: Uninstall removes one selection
-`extension uninstall <id>`, and its alias `extension remove <id>`, SHALL remove the selection of `<id>` at the target level: at the global level the catalog entry and lock in one transaction; at another level the pin. An id not selected there SHALL fail with `extension.not_installed`.
+`extension uninstall <id>`, and its alias `extension remove <id>`, SHALL remove the selection of `<id>` at the target level: at the global level the shared catalog entry and lock in one transaction, or the .NET global layer's entry; at another level the pin. An id not selected there SHALL fail with `extension.not_installed`.
 
-#### Scenario: Global uninstall
-- **WHEN** a user runs `morphir extension uninstall acme-backend`
+#### Scenario: Global uninstall of a shared entry
+- **WHEN** a user runs `morphir extension uninstall acme-backend` and it is in the shared catalog
 - **THEN** the catalog entry and `locks/extensions/acme-backend.json` are removed together
 - **AND** a Rust CLI no longer lists it
+
+#### Scenario: Global uninstall from the .NET layer
+- **WHEN** `acme-backend` is selected by the .NET global layer
+- **THEN** uninstall removes that entry and changes no file below `catalog/` or `locks/`
 
 ### Requirement: Installation never uses the network
 No `extension` command SHALL download. An argument that is a URL SHALL be a usage error with exit code 2. `compile`, `generate` and `validate` SHALL NOT install an extension from a repository or a network.
@@ -248,7 +252,7 @@ When the release that an install reads has artifacts whose claim sets differ fro
 - **THEN** the install report on `linux-x64` names that member and `x86_64-pc-windows-msvc`
 
 ### Requirement: Info describes one installed extension
-`extension info <id>` SHALL report the selected record for `<id>`: level, version, runtime, platform, digest, store path, claims, `claimCheck`, `probeSource`, source and selection, and the levels it shadows.
+`extension info <id>` SHALL report the selected record for `<id>`: level, layer, version, runtime, platform, digest, store path, claims, `claimCheck`, `probeSource`, source and selection, and the levels it shadows.
 
 #### Scenario: Info as JSON
 - **WHEN** a user runs `morphir extension info acme-backend --json`
@@ -263,7 +267,7 @@ Provisional pending Q-COMMANDS and Q-DIAG. Every `extension` command SHALL write
 
 #### Scenario: JSON install
 - **WHEN** a user runs `morphir extension install --repository local-dev acme-backend --json`
-- **THEN** stdout parses as one JSON document with `operation` `install`, `extension`, `level`, `digest`, `storePath`, `source`, `authentication`, `integrity`, `claimCheck` and `diagnostics`
+- **THEN** stdout parses as one JSON document with `operation` `install`, `extension`, `level`, `layer`, `digest`, `storePath`, `source`, `authentication`, `integrity`, `claimCheck` and `diagnostics`
 - **AND** the waiting and probe notes are on stderr
 
 #### Scenario: Platform on install

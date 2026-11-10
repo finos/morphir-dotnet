@@ -184,11 +184,11 @@ The automatic pass SHALL write nothing on stdout. A staged file it cannot instal
 - **THEN** stdout holds only the compile report, stderr has a warning with `extension.unsafe_archive`, and the store is unchanged
 
 ### Requirement: Staged and file installs are representable upstream
-Provisional pending Q-PROVENANCE. For a global install from a file or staged folder, the installer SHALL write its entry and lock with `index.kind` `local-directory` naming a generated repository below `data/morphir-dotnet/extensions/repositories/`, whose history omits `platform` for WASM artifacts, and SHALL keep the true source in the .NET inventory. It SHALL NOT add that repository to the repositories file.
+Provisional pending Q-PROVENANCE. When a file or staged install enters the shared catalog, the installer SHALL write its entry and lock with `index.kind` `local-directory` naming a generated repository below `data/morphir-dotnet/extensions/repositories/`, whose history omits `platform` for WASM artifacts, and SHALL keep the true source in the .NET inventory. It SHALL NOT add that repository to the repositories file.
 
-#### Scenario: Reference readers read a staged install
-- **WHEN** a WASM package is installed from the global staged folder
-- **THEN** the reference catalog, lock and index readers read its entry, lock and generated history without a format error
+#### Scenario: Rust CLI reads a staged install
+- **WHEN** a WASM package whose `mepVersions` include `0.1` is installed from the global staged folder and the Rust CLI runs `morphir extension list`
+- **THEN** the Rust CLI lists the extension and reads its lock without error
 
 #### Scenario: Generated WASM history
 - **WHEN** the generated history for a WASM package is read with the reference index reader

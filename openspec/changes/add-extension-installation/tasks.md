@@ -8,7 +8,7 @@ No Beads id is recorded; do not invent one.
 
 Dependencies. The design groups its questions in two: those whose answer follows the reference implementation, which need no maintainer answer to start, and those that need the maintainer. A task waits only on the second group.
 
-- Can start now: group 1; 2.1 to 2.8; 3.1 to 3.5; 4.1 to 4.3; 5.1; 6.5 (shared catalog first).
+- Can start now: group 1; 2.1 to 2.9; 3.1 to 3.5; 4.1 to 4.3; 5.1; 6.5 (global layers first).
 - Waits on a maintainer answer:
   - 4.4 to 4.8 on Q-COMMANDS, Q-DIAG and Q-DEVPOLICY.
   - 5.2 on Q-ARCHIVE. 5.3 on Q-ARCHIVE, Q-MULTIFILE and Q-WINLAUNCH. 5.4 on Q-PROVENANCE.
@@ -35,8 +35,9 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 - [ ] 1.1 Record the maintainer's answer to each question in the design's "needs the maintainer" group beside the question, and change the specs and tasks where an answer differs from the recommendation; verify with `mise exec -- openspec validate add-extension-installation --strict` and `mise run openspec:verify`.
 - [ ] 1.2 Raise the upstream asks of the design's "Raised upstream" list in finos/morphir, and the PRD superset proposal; verify that each question in `design.html` links its issue or proposal.
   - The asks:
-    - the maintainer decision that MEP `0.1` is not supported (design MEP-1): say so in `protocol.md` and the extension README, and move the Rust host to `0.2.0-draft.1`, dropping `0.1`;
-    - review comments on finos/morphir#1149, listed in the design's Q-SHARED entry: question 8 under MEP-1's reasoning; letting a reader drop earlier transient drafts (DOC-1); equal members and values instead of byte identity for this installer; and a mixed-home check that needs a Rust host speaking `0.2.0-draft.1`;
+    - the maintainer decision that this host does not support MEP `0.1` (design MEP-1): say so in `protocol.md` and the extension README, and move the Rust host to `0.2.0-draft.1`;
+    - the shared catalog's legacy-reader rule for the Rust host: list or skip entries it cannot run instead of failing (SHARE-1);
+    - review comments on finos/morphir#1149, listed in the design's Q-SHARED entry: answer question 8 with the partition; new readers list and skip entries they cannot run; a host may drop earlier transient drafts (DOC-1); equal members and values instead of byte identity; and the mixed-home check;
     - the overlay, the level pins and the receipt launch path, for the toolchain contract;
     - the reference-only rules: Q-LOCKPRIM, Q-JOURNAL, Q-STRICTLOCK, Q-CATVER, Q-NUMBERS, Q-PLATFORM, Q-REQHOST, Q-PROBELIMITS, Q-GC and Q-FIXTURES;
     - target and package archives (Q-ARCHIVE), multi-file packages (Q-MULTIFILE), and a provenance kind (Q-PROVENANCE);
@@ -96,6 +97,13 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - the Rust-written repositories file from 2.7 reads, and writes back with the same members;
     - on Windows, `D:\ext-repo` and the Rust-written `\\?\D:\ext-repo` compare equal, and the .NET writer emits the verbatim form.
   - Command: `dotnet exec <inst> --filter-test-list "StateCodecs"`.
+- [ ] 2.9 Add the shared catalog admission rule as a pure function from an installed entry to `shared`, `shared-dotted` or `dotnet-global` with a reason (`mep-version`, `id-version`, `catalog-version`); verify the `Admission` tests pass.
+  - Record the reference reader's supported MEP versions (`["0.1"]` at `c9f79da`) as one constant with its source. Update it only when the submodule pin moves.
+  - First failing tests:
+    - `["0.2.0-draft.1"]` gives `dotnet-global` `mep-version`;
+    - `["0.1", "0.2.0-draft.1"]` gives `shared`;
+    - a dotted id gives `dotnet-global` `id-version` until #1149 lands; after 8.1 it gives `shared-dotted` when every reader of the dotted catalog can run it, and `dotnet-global` `mep-version` otherwise.
+  - Command: `dotnet exec <inst> --filter-test-list "Admission"`.
 ## 3. Shared state on disk
 
 - [ ] 3.1 Resolve Morphir Home and implement the state lock on `locks/extensions.state.lock` with the reference primitive (Q-LOCKPRIM), its waiting line and cancellation; verify the `StateLock` tests pass on Windows and on Linux or macOS.
@@ -120,22 +128,21 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - a staged file changed after its first hash fails with `extension.digest_mismatch` and nothing is published.
   - Command: `dotnet exec <inst> --filter-test-list "Store"`.
 - [ ] 3.4 Implement the .NET inventory below `data/morphir-dotnet/extensions/installed/`, its rebuild from a shared pair, and the ownership of .NET run copies below `tmp/extensions/`; verify the `Inventory` tests pass.
-  - The inventory backs level pins and overlays, and keeps the archive digest and the true source for global installs. If Q-LEVELS is answered against pins, only the last two remain.
+  - The inventory backs the .NET global layer, level pins and overlays, and keeps the archive digest and the true source. It is needed whatever Q-LEVELS decides.
   - First failing tests:
     - a second record for the same id and digest with other `args` replaces the first and warns;
     - a record rebuilt from a Rust-written pair has source kind `shared-catalog`;
     - the copy sweep removes a stale `morphir-dotnet-run-*` directory and leaves `morphir-extension-*` directories in place.
   - Command: `dotnet exec <inst> --filter-test-list "Inventory"`.
-- [ ] 3.5 Implement the commit path: the catalog entry and lock through the journal for a global install, or a pin at another level; read a shared catalog that holds entries this host cannot run. Verify the `Commit` tests and the format interoperability gate pass.
+- [ ] 3.5 Implement the commit path: admission (2.9), then either the shared pair through the journal or the .NET global layer `data/morphir-dotnet/extensions/global.json`, or a pin at another level; read a shared catalog that holds entries this host cannot run. Verify the `Commit` tests and the interoperability gate pass.
   - This is the first point where a catalog is written, so the interoperability check runs here and not only at the end.
   - First failing tests (`Commit`):
-    - a global install writes the entry and lock in one journal, and the pair agrees;
-    - a second global install of an id the catalog holds fails with `extension.already_installed`;
+    - a 0.2-only global install changes no file below `catalog/` or `locks/`;
+    - a second global install of an id that the shared catalog holds fails with `extension.already_installed`;
     - a Rust-written catalog holding a 0.1-only entry lists that entry as unavailable, saying that MEP `0.1` is not supported, and the others as usual.
-  - Format interoperability gate: a workflow job that builds the Rust CLI at the pinned finos/morphir revision and runs it as a separate executable. No .NET code links or calls Rust code.
-    - The job writes a Morphir Home with this task's code, then reads it with the pinned Rust readers: `morphir extension list` and `morphir extension uninstall`.
-    - The test entry's `mepVersions` lists a version the pinned Rust host supports, because this gate checks file formats and locking, not protocol use. The fixture says so.
-    - Known and accepted (design MEP-1): until the Rust host supports `0.2.0-draft.1`, a .NET global install of a real `0.2` guest makes the pinned Rust `extension list` fail. The gate records that expected failure as one named case, and the case flips to passing when the submodule pin moves to a Rust host that speaks `0.2.0-draft.1`.
+  - Interoperability gate: a workflow job that builds the Rust CLI at the pinned finos/morphir revision and runs it as a separate executable. No .NET code links or calls Rust code.
+    - The job writes a Morphir Home with this task's code, holding one admitted entry (`["0.1", "0.2.0-draft.1"]`) and one 0.2-only install. Then it runs `morphir extension list` and `morphir extension uninstall` with the Rust CLI.
+    - Red first: with admission switched off by a test seam, the Rust `extension list` fails with `NoCompatibleMepVersion`. With admission on, it succeeds and lists only the admitted entry.
   - Commands: `dotnet exec <inst> --filter-test-list "Commit"`; the gate's workflow file, under `.github/workflows/`, runs on pull requests that touch `src/Morphir.Extensions.Installation`.
 ## 4. Install from a named repository, and the commands
 
@@ -144,7 +151,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - Command: build `tests/Morphir.Tooling.Tests/Morphir.Tooling.Tests.csproj`, then `dotnet exec <tooling> --treenode-filter "/*/Morphir.Tooling.Tests.Features.Extensions/RepositoryCommandTests/*"`.
 - [ ] 4.2 Implement the pipeline without a probe; verify the `Pipeline` tests pass.
   - Steps: resolve, check repository containment, stage and hash, store, commit through 3.5, and report with `authentication` kind `local-developer` and `claimCheck` `unchecked`.
-  - First failing test: a repository artifact whose bytes differ from its record fails with `extension.digest_mismatch`, and nothing is written to the store, catalog, locks or inventory. A linked artifact fails with `extension.path_escape`.
+  - First failing test: a repository artifact whose bytes differ from its record fails with `extension.digest_mismatch`, and nothing is written to the store, catalog, locks, .NET global layer or inventory. A linked artifact fails with `extension.path_escape`.
   - Tests pass `MORPHIR_HOME` explicitly to a temporary directory; none reads the user's home.
   - Command: `dotnet exec <inst> --filter-test-list "Pipeline"`.
 - [ ] 4.3 Add the bounded describe probe, the session fallback on `-32601` and `-32014` only, and the environment filter, and record `claimCheck` from this install only; verify the `Probe` tests pass.
@@ -170,7 +177,8 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - `--platform` exits 2;
     - `--json` stdout parses as one document with the report members;
     - installing twice fails with `extension.already_installed`;
-    - a global uninstall removes the entry and lock in one journal and keeps the store object.
+    - a global uninstall of a shared entry removes the entry and lock in one journal and keeps the store object;
+    - an uninstall from the .NET global layer changes no shared file.
   - Command: `dotnet exec <tooling> --treenode-filter "/*/Morphir.Tooling.Tests.Features.Extensions/ExtensionInstallCommandTests/*"`.
 - [ ] 4.5 Wire `extension update` and `extension info`, including the platform-differences report; verify the command tests pass.
   - First failing tests, in `ExtensionUpdateCommandTests` and `ExtensionInfoCommandTests`:
@@ -223,9 +231,10 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 - [ ] 5.4 Install a package archive given as a file through the pipeline, with generated local repositories for entries that enter the shared catalog and WASM packages unchecked; verify the `PackageInstall` tests pass.
   - Waits on Q-PROVENANCE and 5.2.
   - First failing tests:
-    - a global install's lock has `index.kind` `local-directory`, naming a directory below `data/morphir-dotnet/extensions/repositories/`;
+    - an admitted install's shared lock has `index.kind` `local-directory`, naming a directory below `data/morphir-dotnet/extensions/repositories/`;
     - the generated WASM history omits `platform`;
-    - the repositories file is unchanged.
+    - the repositories file is unchanged;
+    - a 0.2-only package installs into the .NET global layer with no generated repository.
   - Command: `dotnet exec <inst> --filter-test-list "PackageInstall"`.
   - Docs: an "Install an extension" page under `docs/content/docs/cli/`, with both archive formats and the trust note for process guests.
 - [ ] 5.5 Add the staged folders, the `[extension_install] staged` setting, the automatic pass for WASM packages only, and `extension install --staged`; verify the configuration, staged-pass and E2E tests pass.
@@ -250,7 +259,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - a project pin of 0.2.0 over a global 0.1.0 selects 0.2.0 only inside the project;
     - a pin for a version not installed fails with `extension.not_installed` and does not fall back;
     - a pin with only `win-x64` fails on another platform with `extension.platform_not_pinned`;
-    - `MORPHIR_ISOLATED` omits the shared catalog and the system pin;
+    - `MORPHIR_ISOLATED` omits the .NET global layer, the shared catalog and the system pin;
     - a pin file listing one id twice fails with `extension.duplicate_id`, exit 1.
   - Command: `dotnet exec <inst> --filter-test-list "Layers"`.
 - [ ] 6.3 Add `extension use`, `extension which` and `extension list --local`, with pin writes under a lock keyed by the canonical pin path; verify the command tests pass.
@@ -269,7 +278,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - Command: `dotnet exec <inst> --filter-test-list "Overlay"`.
   - Docs: the overlay contract for `morphirup` in `src/Morphir.Extensions.Installation/README.md`.
 - [ ] 6.5 Activate offline: pair agreement, containment, mode and MEP version checks; hash the store object in the read that writes the private copy; launch with the filtered environment and an explicit working directory; check the session against the installed claims. Verify the `Activation` tests pass on Windows and Linux.
-  - Needs 3.5. It serves the shared catalog first; pins join after 6.2.
+  - Needs 3.5. It serves the global layers first; pins join after 6.2.
   - First failing tests:
     - a store object changed after install fails with `extension.digest_mismatch` and starts no process;
     - a test seam that changes the object mid-read fails the same way;
@@ -305,13 +314,13 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 ## 8. Dotted ids
 
 - [ ] 8.1 Read and write dotted ids at the drafts and in the home and repository layout that finos/morphir#1149 defines (its task 5.3); verify the `Identifiers`, `StateCodecs` and `Commit` tests gain #1149's shared cases, including its home-partition cases, and pass through `src/Morphir.Conformance`.
-  - Waits on #1149's approval and its question 8. With the partition: dotted extensions go to `catalog/extensions-dotted.json` and `locks/extensions-dotted/`, journals are recovered per directory, and a wrong-form id is refused per file. With one catalog: the catalog moves to `2.0.0-draft.3` when it first holds a dotted id, and this task shrinks to the codecs.
+  - Waits on #1149's approval and its question 8. Admission (2.9) still decides first: a dotted extension that a reader of its catalog cannot run goes to the .NET global layer, as every .NET guest that speaks only `0.2.0-draft.1` does today. With the partition, the dotted extensions that pass admission go to `catalog/extensions-dotted.json` and `locks/extensions-dotted/`, with journals recovered per directory and wrong-form ids refused per file. With one catalog, they go to the existing files, which move to `2.0.0-draft.3`.
 
 ## 9. Integration checks
 
 - [ ] 9.1 In the manual or release lane, on Windows x64 and Linux x64, extend the 3.5 gate to the full matrix at the pinned finos/morphir revision; record the outcome and the revisions in the pull request.
   - The matrix:
-    - once the pinned Rust host speaks `0.2.0-draft.1`, each CLI lists, activates and uninstalls what the other installed;
+    - each CLI lists, activates and uninstalls the admitted entries the other installed;
     - concurrent installs from both serialize on the state lock;
     - a journal left by either is applied by the other.
   - This runs the Rust CLI as a separate executable; no .NET code links or calls Rust code.
