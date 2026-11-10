@@ -18,11 +18,60 @@ the session lifecycle and the model transport. Work is tracked by
 | Framing | `Framing.fs` | `Content-Length` frames on a `Stream`: header blocks up to 8192 bytes, bodies up to 64 MiB, checked before the body is read. A refused frame ends the connection. |
 | Connection | `Connection.fs` | Reads frames, dispatches inbound requests concurrently, matches inbound responses to the pending-request table, and sends and receives `$/cancelRequest`. |
 | Session | `Session.fs` | The pure lifecycle rules (`Lifecycle.admit`) and version negotiation, shared by hosts and guests. |
+| Channel | `Channel.fs` | How a host session reaches its guest: a framed stream pair, or `ISingleMessageChannel` for a guest that takes one message per call. `SessionFailure` says why a single-message session ended. |
 | Peers | `Peers.fs` | `Guest` (lifecycle methods, gate, extension methods) and `HostSession` (refuses to send what the guest must refuse). |
 
-The stream path (`Connection`) and the single-message path (`Dispatcher.DispatchAsync`)
-use the same dispatcher, so they give the same bytes. Starting a guest process is not
-in this project: a process host connects a `HostSession` to the child's streams.
+On the guest side, the stream path (`Connection`) and the single-message path
+(`Dispatcher.DispatchAsync`) use the same dispatcher, so they give the same bytes. On the
+host side, `HostSession` holds a channel and applies the same lifecycle, version and
+model-transport rules on either. Starting a guest process is not in this project: a process
+host connects a `HostSession` to the child's streams.
+
+## Channels
+
+A host session sends a request and waits for its reply, and sends notifications. It does
+both through a channel ([CHAN-1](../../openspec/changes/add-wasm-extension-host/design.html#chan-1)).
+`HostSession` checks each request against the lifecycle state before it uses the channel, so
+a request refused on one channel is refused on the other with the same error, and the guest
+never receives it.
+
+| Channel | Constructor | What the guest is |
+| --- | --- | --- |
+| Framed stream pair | `HostSession(input, output, host, offer)` | A process with `Content-Length` frames on its standard streams. Requests run concurrently and are matched by id; a cancelled request sends `$/cancelRequest`; the guest can send `morphir.progress`. |
+| Single message | `HostSession(channel, host, offer)` | A guest that takes one whole message per call, such as the `handle` export of a WASM guest. The runtime implements `ISingleMessageChannel`; `tests/Morphir.Mep.AotProbe` has a C# implementation. |
+
+`ISingleMessageChannel` has two members. Both take the method name, the bytes of one
+complete UTF-8 JSON-RPC message with no `Content-Length` header, and a cancellation token.
+Both return the bytes of the message the guest returned, or `null` when it returned none.
+
+- `RequestAsync` calls the guest with a request.
+- `NotifyAsync` calls the guest with a notification, or withholds it when the guest's
+  runtime does not deliver notifications to that guest. A withheld notification does not
+  call the guest. `HostSession` always sends `morphir.initialized` and `morphir.exit`; the
+  runtime decides whether the guest receives them.
+
+The implementation passes bytes and does not check them. `HostSession` applies these rules
+to a single-message guest:
+
+- One call at a time. A request waits until no other call is inside the guest.
+- A request takes exactly one reply: the response or error response with the request's id.
+  No bytes, a response for another id, a request or notification (such as
+  `morphir.progress`), bytes that are not a JSON-RPC message, or a reply over
+  `ContentLengthFraming.MaxBodyBytes` fail the session.
+- A notification takes no reply. Bytes returned for one fail the session.
+- The host never sends `$/cancelRequest`. When a request's token is cancelled, the channel
+  stops the call and ends it with `OperationCanceledException`. The request ends with
+  `-32800` and the session ends.
+- An exception from the channel fails the session.
+- After the session fails, no message reaches the guest. `Failure` (C#: `FailureOrNull()`)
+  says why, as a `SessionFailure`. The request that failed gets `-32800` when it was cancelled
+  and `-32603` otherwise. Later requests get `-32603` without a call. A failure during
+  `InitializeAsync` gives `InitializeFailure.Refused` with that error. `RunAsync` ends with
+  `Stopped` at exit or failure.
+
+Which notifications a WASM guest accepts is read from its `morphir.initialize` result by
+the runtime, not by `HostSession`. The member that advertises it is not fixed in the
+contract yet ([NTFY-1](../../openspec/changes/add-wasm-extension-host/design.html#ntfy-1)).
 
 ## A guest and a host in memory
 
@@ -96,9 +145,10 @@ The legacy transcripts initialize with `0.1`; the replays use `0.2.0-draft.1` in
 ## C# callers
 
 The project is trimmable and AOT-compatible, with F# nullness metadata. Parsed values have
-`TryParse` and `Create`; `FrameRead` has `Match`. `tests/Morphir.Mep.AotProbe` is a C#
-consumer that runs the full session; `InteropTests` compiles C# examples and checks the
-nullable-flow diagnostics.
+`TryParse` and `Create`; `FrameRead` and `SessionFailure` have `Match`.
+`tests/Morphir.Mep.AotProbe` is a C# consumer that runs the full session on streams and on a
+C# `ISingleMessageChannel`; `InteropTests` and `ChannelTests` compile C# examples and check
+the nullable-flow diagnostics.
 
 ## Tests
 
@@ -107,7 +157,8 @@ dotnet run --project tests/Morphir.Mep.Tests -- --summary
 ./build.sh --target TestMepAot --configuration Release
 ```
 
-The first command runs the wire, contract, JSON-RPC, connection, session and
-model-transport tests on in-memory streams. The second publishes the probe with Native
+The first command runs the wire, contract, JSON-RPC, connection, session, channel and
+model-transport tests in memory. The channel tests use a fake single-message guest built on
+`Dispatcher.DispatchAsync`. The second publishes the probe with Native
 AOT, refuses IL diagnostics other than the FSharp.Core summary baseline, and compares
 the native output with JIT byte for byte. Both run in PR CI.

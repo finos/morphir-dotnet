@@ -168,43 +168,64 @@ type InitializeFailure =
         | UnexpectedVersion version -> unexpectedVersion.Invoke version
         | SelectionRefused reason -> selectionRefused.Invoke reason
 
-/// The host side of a session on a framed stream pair (design SES-2). The host applies the lifecycle rules before
-/// it sends, so it does not send a request that the guest must refuse.
+/// The host side of a session (design SES-2), on a framed stream pair or on a channel to a guest that takes one
+/// message per call (design CHAN-1). The host applies the lifecycle rules before it sends, so it does not send a
+/// request that the guest must refuse, and both channels refuse the same requests with the same error.
 [<Sealed>]
-type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTransportSupport | null) =
-    let offer = Option.ofObj offer
+type HostSession
+    private
+    (
+        connect: (unit -> SessionState) -> ConcurrentQueue<ProgressParams> -> IHostChannel,
+        host: PeerInfo,
+        offer: ModelTransportSupport option
+    ) =
     let mutable state = SessionState.Created
     let progress = ConcurrentQueue<ProgressParams>()
-
-    let inbound =
-        Dispatcher(
-            readOnlyDict
-                [ Method.Progress.WireValue,
-                  Handlers.typedNotification MepJson.Default.ProgressParams (fun value _ ->
-                      progress.Enqueue value
-                      Task.CompletedTask) ],
-            Func<string, MethodKind, Admission>(fun method kind -> Lifecycle.admit state method kind)
-        )
-
-    let connection =
-        Connection(input, output, inbound, Func<bool>(fun () -> state = SessionState.Exited))
+    let channel = connect (fun () -> state) progress
 
     let send (method: Method) (parameters: JsonElement option) (cancellation: CancellationToken) =
         match Lifecycle.admit state method.WireValue MethodKind.Request with
         | Admission.Refuse error -> Task.FromResult(Error error)
-        | Admission.Proceed -> connection.RequestAsync(method.WireValue, parameters, cancellation)
+        | Admission.Proceed -> channel.RequestAsync(method.WireValue, parameters, cancellation)
 
-    /// A legacy-only host session: it offers no model transport.
-    new(input: Stream, output: Stream, host: PeerInfo) = HostSession(input, output, host, null)
+    /// A host session on a framed stream pair: input carries the guest's frames and output the host's. offer is the
+    /// model-transport support the host offers, or null for none.
+    new(input: Stream, output: Stream, host: PeerInfo, offer: ModelTransportSupport | null) =
+        HostSession(HostChannels.ofStreams input output, host, Option.ofObj offer)
 
-    /// Starts reading the guest's messages. The task ends when the connection ends.
-    member _.RunAsync(cancellation: CancellationToken) : Task<ConnectionEnd> = connection.RunAsync cancellation
+    /// A legacy-only host session on a framed stream pair: it offers no model transport.
+    new(input: Stream, output: Stream, host: PeerInfo) =
+        HostSession(HostChannels.ofStreams input output, host, None)
+
+    /// A host session on a channel to a guest that takes one message per call, such as a WASM guest. offer is the
+    /// model-transport support the host offers, or null for none. The session passes one message per call, accepts
+    /// at most one message back, never sends $/cancelRequest, and ends at the first violation or cancellation
+    /// (see Failure).
+    new(channel: ISingleMessageChannel, host: PeerInfo, offer: ModelTransportSupport | null) =
+        HostSession(HostChannels.ofSingleMessage channel, host, Option.ofObj offer)
+
+    /// A legacy-only host session on a channel to a guest that takes one message per call: it offers no model
+    /// transport.
+    new(channel: ISingleMessageChannel, host: PeerInfo) =
+        HostSession(HostChannels.ofSingleMessage channel, host, None)
+
+    /// Starts reading the guest's messages. The task ends when the connection ends. On a single-message channel
+    /// there is nothing to read: the task ends with Stopped at exit or when the session fails, and requests do not
+    /// need it to run.
+    member _.RunAsync(cancellation: CancellationToken) : Task<ConnectionEnd> = channel.RunAsync cancellation
 
     /// The lifecycle state.
     member _.State = state
 
-    /// The protocol diagnostics of the connection.
-    member _.Diagnostics = connection.Diagnostics
+    /// The protocol diagnostics of the connection. A single-message channel reports its problems in Failure.
+    member _.Diagnostics = channel.Diagnostics
+
+    /// Why the session ended before exit: the guest broke a rule of its single-message channel, or a call to it was
+    /// cancelled. None on a framed stream pair, and while the session runs.
+    member _.Failure: SessionFailure option = channel.Failure
+
+    /// For C# callers: why the session ended before exit, or null. See Failure.
+    member _.FailureOrNull() : SessionFailure | null = Option.toObj channel.Failure
 
     /// The progress reports received from the guest, for requests of this session.
     member _.Progress: IReadOnlyCollection<ProgressParams> = progress.ToArray()
@@ -220,7 +241,8 @@ type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTran
         Results.typed MepJson.Default.CapabilityClaimSet (send Method.Describe (Some parameters) cancellation)
 
     /// Initializes the session: offers only 0.2.0-draft.1, checks the guest's choice and selection, and then sends
-    /// morphir.initialized.
+    /// morphir.initialized. When the session fails during either message, the result is Refused with the error that
+    /// the session gives, and Failure says why.
     member _.InitializeAsync(cancellation: CancellationToken) : Task<Result<NegotiatedSession, InitializeFailure>> =
         let parameters =
             JsonSerializer.SerializeToElement(
@@ -262,8 +284,10 @@ type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTran
                                     ModelTransport = transport } }
 
                         state <- SessionState.Initialized session
-                        do! connection.NotifyAsync(Method.Initialized.WireValue, None)
-                        return Ok session
+
+                        match! channel.NotifyAsync(Method.Initialized.WireValue, None, cancellation) with
+                        | Ok() -> return Ok session
+                        | Error error -> return Error(InitializeFailure.Refused error)
         }
 
     /// Sends morphir.ping. The result is the guest's reply object.
@@ -294,10 +318,10 @@ type HostSession(input: Stream, output: Stream, host: PeerInfo, offer: ModelTran
             return reply
         }
 
-    /// Sends morphir.exit and ends the session.
+    /// Sends morphir.exit and ends the session. A session that failed passes nothing to the guest.
     member _.ExitAsync() : Task =
         task {
-            do! connection.NotifyAsync(Method.Exit.WireValue, None)
+            let! _ = channel.NotifyAsync(Method.Exit.WireValue, None, CancellationToken.None)
             state <- SessionState.Exited
         }
 

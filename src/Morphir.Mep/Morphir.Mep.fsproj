@@ -24,6 +24,7 @@
     <Compile Include="Framing.fs" />
     <Compile Include="Connection.fs" />
     <Compile Include="Session.fs" />
+    <Compile Include="Channel.fs" />
     <Compile Include="Peers.fs" />
     <None Remove="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../README.md'))" />
     <None Include="README.md" Pack="true" PackagePath="/" />

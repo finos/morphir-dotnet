@@ -51,7 +51,7 @@ Parent tasks 1.1 to 1.4 and 1.6 belong to finos/morphir and are dependencies onl
   - Record: the `moonrockz/extism` version (`0.3.0` in finos/morphir-moonbit today), the kernel module's SHA-256, how the bytes were obtained, the publish log's warning count, the probe's output and the runner it ran on.
   - The Python module is downloaded and checked against its published digest. It is not committed.
   - Design: KPF-1, LAY-1.
-- [ ] 2.3 Add failing tests for a message-based host channel in `Morphir.Mep`, then implement it and move the stream framing behind it. Verify every existing process-guest test and replay passes unchanged, and that a fake single-message guest completes initialize, a request and shutdown.
+- [x] 2.3 Add failing tests for a message-based host channel in `Morphir.Mep`, then implement it and move the stream framing behind it. Verify every existing process-guest test and replay passes unchanged, and that a fake single-message guest completes initialize, a request and shutdown.
   - Files: `src/Morphir.Mep/Peers.fs`, `src/Morphir.Mep/Connection.fs`, a new channel file, `src/Morphir.Mep/README.md`.
   - First failing tests: in `tests/Morphir.Mep.Tests`, the scenarios of the `mep-protocol` delta, with a fake single-message guest built on `Dispatcher.DispatchAsync`. Keep the stream constructor of `HostSession`.
   - Republish `tests/Morphir.Mep.AotProbe` and confirm no new IL warning.
