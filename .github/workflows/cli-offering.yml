@@ -1,0 +1,197 @@
+name: "CLI offering"
+
+# Builds one offering of the Morphir CLI for one platform from one commit of morphir-dotnet, with the maintained
+# release profiles, starts the produced executable, and uploads the artifact. finos/morphir, which pins this
+# repository as ecosystem/morphir-dotnet and owns official CLI delivery, calls it at the pinned commit:
+#
+#   uses: finos/morphir-dotnet/.github/workflows/cli-offering.yml@<commit>
+#   with:
+#       ref: <the same commit>
+#       deployment: native-aot
+#       rid: linux-x64
+#       os: ubuntu-latest
+#
+# Publication is the caller's: this workflow uploads a workflow artifact and publishes nothing.
+# See docs/contributing/cli-build-interface.md.
+
+permissions:
+    contents: read
+
+on:
+    workflow_call:
+        inputs:
+            repository:
+                description: "The repository to build"
+                required: false
+                default: "finos/morphir-dotnet"
+                type: string
+            ref:
+                description: "The commit to build: a full commit SHA, normally the one the caller pins"
+                required: true
+                type: string
+            deployment:
+                description: "The offering: native-aot, self-contained, framework-dependent or dotnet-tool"
+                required: true
+                type: string
+            rid:
+                description: "The runtime identifier, for example linux-x64; empty for dotnet-tool"
+                required: false
+                default: ""
+                type: string
+            os:
+                description: "The runner label. native-aot needs a runner of the RID's operating system"
+                required: true
+                type: string
+            configuration:
+                description: "The build configuration"
+                required: false
+                default: "Release"
+                type: string
+        outputs:
+            artifact-name:
+                description: "The name of the uploaded workflow artifact"
+                value: ${{ jobs.build.outputs.artifact-name }}
+            artifact:
+                description: "The file name of the archive or tool package in the artifact"
+                value: ${{ jobs.build.outputs.artifact }}
+            sha256:
+                description: "The SHA-256 of that file, in lower-case hex"
+                value: ${{ jobs.build.outputs.sha256 }}
+            release:
+                description: "The release version the build stamped, from the CHANGELOG of that commit"
+                value: ${{ jobs.build.outputs.release }}
+
+jobs:
+    build:
+        runs-on: ${{ inputs.os }}
+        timeout-minutes: 60
+        outputs:
+            artifact-name: ${{ steps.qualify.outputs.artifact-name }}
+            artifact: ${{ steps.qualify.outputs.artifact }}
+            sha256: ${{ steps.qualify.outputs.sha256 }}
+            release: ${{ steps.qualify.outputs.release }}
+        defaults:
+            run:
+                working-directory: morphir-dotnet
+        steps:
+            # In a reusable workflow, actions/checkout checks out the caller's repository unless told otherwise.
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.1.0
+              with:
+                  repository: ${{ inputs.repository }}
+                  ref: ${{ inputs.ref }}
+                  path: morphir-dotnet
+                  fetch-depth: 0
+                  persist-credentials: false
+
+            - name: Check the inputs
+              shell: bash
+              env:
+                  DEPLOYMENT: ${{ inputs.deployment }}
+                  RID: ${{ inputs.rid }}
+              run: |
+                  set -euo pipefail
+                  case "$DEPLOYMENT" in
+                    native-aot|self-contained|framework-dependent)
+                      if [ -z "$RID" ]; then
+                        echo "::error::deployment $DEPLOYMENT needs a rid"
+                        exit 1
+                      fi ;;
+                    dotnet-tool)
+                      if [ -n "$RID" ]; then
+                        echo "::error::dotnet-tool is portable and takes no rid"
+                        exit 1
+                      fi ;;
+                    *)
+                      echo "::error::deployment must be native-aot, self-contained, framework-dependent or dotnet-tool; got '$DEPLOYMENT'"
+                      exit 1 ;;
+                  esac
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: morphir-dotnet/global.json
+
+            - name: Cache Nuget Packages
+              uses: actions/cache@v5
+              with:
+                  path: ~/.nuget/packages
+                  key: ${{ runner.os }}-nuget-${{ hashFiles('morphir-dotnet/**/packages.lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-nuget
+
+            - name: Restore dependencies
+              shell: bash
+              run: ./build.sh --target Restore
+
+            - name: Build and pack the offering
+              shell: bash
+              env:
+                  DEPLOYMENT: ${{ inputs.deployment }}
+                  RID: ${{ inputs.rid }}
+                  CONFIGURATION: ${{ inputs.configuration }}
+              run: |
+                  set -euo pipefail
+                  if [ -n "$RID" ]; then
+                    ./build.sh --target PackRelease --deployment "$DEPLOYMENT" --rid "$RID" --configuration "$CONFIGURATION"
+                  else
+                    ./build.sh --target PackRelease --deployment "$DEPLOYMENT" --configuration "$CONFIGURATION"
+                  fi
+
+            # The produced executable runs as a user runs it: the apphost or Native AOT file from the extracted archive,
+            # or the dotnet-morphir command of the installed tool package. Never dotnet exec of an assembly.
+            - name: Start the produced executable
+              id: qualify
+              shell: pwsh
+              env:
+                  DEPLOYMENT: ${{ inputs.deployment }}
+                  RID: ${{ inputs.rid }}
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  $release = Join-Path (Get-Location) 'artifacts/release'
+                  $launchFiles = @(Get-ChildItem -LiteralPath $release -Filter '*.build-launch.json')
+                  if ($launchFiles.Count -ne 1) { throw "Expected one launch metadata file in $release, found $($launchFiles.Count)." }
+                  $launch = Get-Content -LiteralPath $launchFiles[0].FullName -Raw | ConvertFrom-Json
+                  if ($launch.deployment -ne $env:DEPLOYMENT) { throw "The launch metadata is for $($launch.deployment), not $env:DEPLOYMENT." }
+                  $artifact = Join-Path $release $launch.artifact
+                  $sha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+                  if ($sha256 -ne $launch.sha256) { throw "$($launch.artifact) has SHA-256 $sha256, and its launch metadata says $($launch.sha256)." }
+
+                  # A folder whose path has a space, apart from the checkout.
+                  $qualify = Join-Path $env:RUNNER_TEMP 'qualify morphir'
+                  New-Item -ItemType Directory -Force -Path $qualify | Out-Null
+                  if ($launch.deployment -eq 'dotnet-tool') {
+                    $tools = Join-Path $qualify 'tools'
+                    dotnet tool install Morphir.Tool --tool-path $tools --add-source $release --version $launch.release
+                    if ($LASTEXITCODE -ne 0) { throw "dotnet tool install Morphir.Tool failed with exit code $LASTEXITCODE." }
+                    $executable = Join-Path $tools ($IsWindows ? 'dotnet-morphir.exe' : 'dotnet-morphir')
+                  } else {
+                    if ($launch.artifact.EndsWith('.zip')) { Expand-Archive -LiteralPath $artifact -DestinationPath $qualify }
+                    else { tar -xzf $artifact -C $qualify; if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE." } }
+                    $executable = Join-Path $qualify $launch.launchPath
+                  }
+
+                  $version = (& $executable --version | Out-String).Trim()
+                  if ($LASTEXITCODE -ne 0) { throw "$executable --version exited with $LASTEXITCODE." }
+                  if ($version -ne $launch.release) { throw "$executable --version printed '$version', not the release version $($launch.release)." }
+                  Write-Host "✓ $executable --version printed $version"
+
+                  "$sha256  $($launch.artifact)" | Set-Content -NoNewline -LiteralPath "$artifact.sha256"
+                  Add-Content -LiteralPath "$artifact.sha256" -Value ''
+                  $name = "morphir-dotnet-$($launch.deployment)-$(if ($env:RID) { $env:RID } else { 'any' })"
+                  "artifact-name=$name" >> $env:GITHUB_OUTPUT
+                  "artifact=$($launch.artifact)" >> $env:GITHUB_OUTPUT
+                  "sha256=$sha256" >> $env:GITHUB_OUTPUT
+                  "release=$($launch.release)" >> $env:GITHUB_OUTPUT
+
+            - name: Upload the offering
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ steps.qualify.outputs.artifact-name }}
+                  path: |
+                      morphir-dotnet/artifacts/release/${{ steps.qualify.outputs.artifact }}
+                      morphir-dotnet/artifacts/release/${{ steps.qualify.outputs.artifact }}.build-launch.json
+                      morphir-dotnet/artifacts/release/${{ steps.qualify.outputs.artifact }}.build-contents.json
+                      morphir-dotnet/artifacts/release/${{ steps.qualify.outputs.artifact }}.sha256
+                  if-no-files-found: error
+                  retention-days: 7
