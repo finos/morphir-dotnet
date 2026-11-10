@@ -87,10 +87,10 @@ module ToolReleaseDocument =
         let digits = (integer + fraction).TrimStart '0'
         let significant = digits.TrimEnd '0'
 
-        // The value is significant x 10^scale; it is 1 exactly when significant is "1" and scale is 0. A document is at
-        // most 1 MiB, so a scale of 0 needs an exponent of fewer than 8 digits.
-        not (integer.StartsWith '-')
-        && significant = "1"
+        // The value is significant x 10^scale; it is 1 exactly when significant is "1" and scale is 0. A minus sign
+        // stays in the digits, so a negative number is never "1". A document is at most 1 MiB, so a scale of 0 needs
+        // an exponent of fewer than 8 digits.
+        significant = "1"
         && magnitude.Length < 8
         && (let exponent = (if magnitude = "" then 0 else int magnitude) * (if negative then -1 else 1)
             exponent - fraction.Length + (digits.Length - significant.Length) = 0)
