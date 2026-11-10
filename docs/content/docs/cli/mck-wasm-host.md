@@ -89,7 +89,7 @@ stdout carries one JSON document: the command, `"experimental": true`, the exit 
 path and digest, and the totals by outcome. Progress and diagnostics go to stderr.
 
 ```json
-{"command":"mck wasm-host run","experimental":true,"exitCode":1,"report":"/work/.dev/wasm-host.json","reportSha256":"…","host":"/opt/morphir/bin/morphir","hostSha256":"…","totals":{"cases":58,"passed":56,"failed":2,"error":0,"refused":0,"notApplicable":0,"notEnforced":0},"qualificationNotice":"…"}
+{"command":"mck wasm-host run","experimental":true,"exitCode":1,"report":"/work/.dev/wasm-host.json","reportSha256":"…","host":"/opt/morphir/bin/morphir","hostSha256":"…","totals":{"cases":59,"passed":57,"failed":2,"error":0,"refused":0,"notApplicable":0,"notEnforced":0},"qualificationNotice":"…"}
 ```
 
 The report (`morphir/mck-wasm-host-report` `0.1.0-draft.2`) is indented JSON with a fixed member
