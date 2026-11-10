@@ -4,5 +4,24 @@
        Wolverine code generation has been moved to Nuke build targets to avoid circular build dependencies.
        See Build.Testing.cs GenerateWolverineCode target for the new implementation.
   -->
+
+  <!--
+    src/Morphir (AOT-compatible) and src/Morphir.Managed both build an assembly named morphir. A project whose resolved
+    project references hold both would keep whichever morphir.dll was copied last, so the build fails instead. The
+    reference assembly and the implementation of one project count once.
+  -->
+  <Target Name="MorphirRefuseTwoMorphirAssemblies" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <_MorphirAssemblyReference Include="@(_ResolvedProjectReferencePaths);@(ReferencePath)"
+                                 Condition="'%(Filename)%(Extension)' == 'morphir.dll'" />
+      <_MorphirAssemblyOrigin Include="%(_MorphirAssemblyReference.MSBuildSourceProjectFile)"
+                              Condition="'%(_MorphirAssemblyReference.MSBuildSourceProjectFile)' != ''" />
+      <_MorphirAssemblyOrigin Include="%(_MorphirAssemblyReference.FullPath)"
+                              Condition="'%(_MorphirAssemblyReference.MSBuildSourceProjectFile)' == ''" />
+      <_MorphirAssemblyDistinctOrigin Include="@(_MorphirAssemblyOrigin->Distinct())" />
+    </ItemGroup>
+    <Error Condition="@(_MorphirAssemblyDistinctOrigin->Count()) &gt; 1"
+           Text="$(MSBuildProjectName) resolves two different morphir.dll assemblies, from @(_MorphirAssemblyDistinctOrigin, ' and '). Reference either src/Morphir or src/Morphir.Managed, not both." />
+  </Target>
 </Project>
 

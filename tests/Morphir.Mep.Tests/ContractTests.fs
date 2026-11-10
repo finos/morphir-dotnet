@@ -122,6 +122,13 @@ let private compileOptions = """{"typesOnly":false,"irVersion":"4.0.0"}"""
 let private compileModelDependency =
     $$"""{"packageName":"acme/base","model":{{morphirModel}}}"""
 
+let private generateTuple =
+    """{"operation":"morphir.backend.generateModel","profile":"morphir-ir","codec":"morphir-json","envelopeVersion":"0.1.0-draft.1","irVersion":"4.0.0"}"""
+
+let private artifact = """{"path":"Car/Rental/Inventory.fs","content":"module X","binary":false}"""
+
+let private generateOptions = """{"optimize":false}"""
+
 let private record typeName info sample =
     { TypeName = typeName
       SnakeCase = false
@@ -202,7 +209,19 @@ let private checkedTypes =
             "compile-model-request"
             MepJson.Default.CompileModelRequest
             $$"""{"languageId":"fsharp","sources":{{sourceSet}},"package":{{compilePackage}},"dependencies":[{{compileModelDependency}}],"options":{{compileOptions}},"contextDigest":"{{digest}}","output":{{tuple}}}""" with
-          Defaulted = [ "dependencies" ] } ]
+          Defaulted = [ "dependencies" ] }
+      { record
+            "generate-model-request"
+            MepJson.Default.GenerateModelRequest
+            $$"""{"model":{{morphirModel}},"input":{{generateTuple}},"target":"fsharp","contextDigest":"{{digest}}","requiredGuarantees":[{"guarantee":"urn:g","scope":"s"}],"options":{{generateOptions}}}""" with
+          Defaulted = [ "requiredGuarantees"; "options" ] }
+      { record
+            "generate-result"
+            MepJson.Default.GenerateResult
+            $$"""{"success":true,"artifacts":[{{artifact}}],"diagnostics":[{"severity":"warning","message":"m"}]}""" with
+          Defaulted = [ "artifacts"; "diagnostics" ] }
+      { record "artifact" MepJson.Default.Artifact artifact with
+          Defaulted = [ "binary" ] } ]
 
 let private names (json: string) =
     match JsonNode.Parse json with

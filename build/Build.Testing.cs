@@ -29,6 +29,7 @@ partial class Build
         "Morphir.SDK.Conformance.Tests",
         "Morphir.SDK.CSharp.Tests",
         "Morphir.Tests",
+        "Morphir.Managed.Tests",
         "Morphir.Myriad.Integration.Tests",
     ];
 
@@ -235,7 +236,9 @@ partial class Build
             "Morphir.Compilation.Mep.Tests",
             "Morphir.Frontend.FSharp.Extension.Tests",
             "Morphir.Tests",
+            "Morphir.Managed.Tests",
             "Morphir.CodeGeneration.FSharp.Tests",
+            "Morphir.CodeGeneration.FSharp.Extension.Tests",
             "Morphir.CodeGeneration.CSharp.Tests",
             "Morphir.Ion.Tests",
             "Morphir.Myriad.Tests",
