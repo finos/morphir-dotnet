@@ -38,6 +38,25 @@ public class PackageStructureTests
     }
 
     [Test]
+    public async Task ToolPackage_HasTheManagedCompositionAndNotTheAotEntryPoint()
+    {
+        var package = TestFixture.FindLatestPackage("Morphir.Tool.*.nupkg");
+        package.Should().NotBeNull("Tool package should exist after build");
+
+        var entries = TestFixture.GetPackageEntries(package!);
+
+        // DEP-1: dotnet-morphir runs the shared command layer with the managed composition and its F# frontend.
+        foreach (var assembly in new[] { "Morphir.Tooling.Managed.dll", "Morphir.Frontend.FSharp.dll", "FSharp.Compiler.Service.dll" })
+            entries.Should().Contain($"tools/net10.0/any/{assembly}", $"the tool package ships {assembly}");
+
+        // It no longer references the AOT-compatible entry point, so it ships no morphir.dll.
+        entries.Should().NotContain(entry => string.Equals(Path.GetFileName(entry), "morphir.dll", StringComparison.OrdinalIgnoreCase),
+            "the tool package must not ship the AOT-compatible morphir.dll");
+
+        await Task.CompletedTask;
+    }
+
+    [Test]
     public async Task ToolPackage_HasCorrectToolSettings()
     {
         // Arrange

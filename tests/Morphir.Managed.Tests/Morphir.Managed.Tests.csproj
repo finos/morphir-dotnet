@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tests of the managed morphir entry point (src/Morphir.Managed). They live apart from Morphir.Tests because the
+    managed entry point and the AOT-compatible src/Morphir both build an assembly named morphir, and one output
+    folder cannot hold both.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Morphir.Managed.Tests</RootNamespace>
+    <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Morphir.Managed\Morphir.Managed.csproj" />
+    <ProjectReference Include="..\..\src\Morphir.Tool\Morphir.Tool.csproj" />
+    <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- One snapshot helper for both host test projects. -->
+    <Compile Include="..\Morphir.Tests\Hosts\CompositionSnapshot.cs" Link="Hosts\CompositionSnapshot.cs" />
+  </ItemGroup>
+
+</Project>
