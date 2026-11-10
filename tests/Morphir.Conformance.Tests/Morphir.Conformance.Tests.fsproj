@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.Conformance.Tests</RootNamespace>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <IsPackable>false</IsPackable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Morphir.Conformance\Morphir.Conformance.fsproj" />
+        <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Repository.fs" />
+        <Compile Include="CorpusJsonTests.fs" />
+        <Compile Include="GenerationTests.fs" />
+        <Compile Include="FeatureReaderTests.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+</Project>
