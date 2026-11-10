@@ -7,7 +7,7 @@ Installs, updates, removes and describes external extensions from local sources 
 ## ADDED Requirements
 
 ### Requirement: Install reads a named local repository
-`extension install --repository <name> <id>` SHALL resolve `<id>` from the repository `<name>` configured in `config/extensions/repositories.json` below Morphir Home, reading `extensions/<id>.jsonl` below its directory, or for a dotted id the `extensions-dotted/<id>.jsonl` that finos/morphir#1149 proposes. A disabled or unknown repository SHALL be refused with `extension.repository_unavailable`.
+`extension install --repository <name> <id>` SHALL resolve `<id>` from the repository `<name>` configured in `config/extensions/repositories.json` below Morphir Home, reading `extensions/<id>.jsonl` below its directory for every id, dotted or not, as finos/morphir#1149 (read at `123bbffc5`) proposes. A disabled or unknown repository SHALL be refused with `extension.repository_unavailable`.
 
 #### Scenario: Repository configured by the Rust CLI
 - **WHEN** the Rust CLI configured repository `local-dev` and a user runs `morphir extension install --repository local-dev acme-backend`
@@ -102,7 +102,7 @@ The installer SHALL refuse a history whose records name different ids, repeat a 
 - **THEN** a stable install selects 0.3.0, and `--version 0.2.0` fails with `extension.unsupported_contract_version`
 
 ### Requirement: The id rule is the rule of the contract version read
-The installer SHALL check an id with the rule of the document version it reads. For record and descriptor version `2.0.0-draft.2`, an id SHALL be one portable token of at most 238 characters that is not a Windows device name by the reference rule. Dotted ids SHALL be read only from the drafts that finos/morphir#1149 introduces, once that change is approved; this part is provisional.
+The installer SHALL check an id with the rule of the document version it reads. For record and descriptor version `2.0.0-draft.2`, an id SHALL be one portable token of at most 238 characters that is not a Windows device name by the reference rule. Dotted ids SHALL be read only at the drafts finos/morphir#1149 introduces for every id, once it is approved; this part is provisional on #1149 at `123bbffc5`.
 
 #### Scenario: Dotted id in a draft.2 descriptor
 - **WHEN** a version `2.0.0-draft.2` descriptor has `extensionId` `org.finos.morphir.fsharp-frontend`

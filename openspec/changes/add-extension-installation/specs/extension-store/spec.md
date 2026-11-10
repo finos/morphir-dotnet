@@ -51,17 +51,16 @@ The installer and the host SHALL refuse a store root, digest directory or stored
 - **WHEN** a digest directory in the store is a symbolic link to a directory outside Morphir Home
 - **THEN** an install or activation that uses it fails with `extension.path_escape` and writes nothing
 
-### Requirement: Dotted extensions follow the home layout of finos/morphir#1149
-Provisional pending finos/morphir#1149 and its question 8. With #1149's partition, the installer SHALL write a dotted extension only to `catalog/extensions-dotted.json` and `locks/extensions-dotted/`, which holds its locks and journals, under the one state lock. One operation SHALL change one partition. A host SHALL recover each directory's journals into its own catalog, list both catalogs together, and refuse a file holding an id of the wrong form, naming it.
+### Requirement: Every id shares one catalog at the drafts of finos/morphir#1149
+Provisional pending finos/morphir#1149, read at `123bbffc5`. Once it is approved, the installer SHALL record every extension, whatever the form of its id, in `catalog/extensions.json` and `locks/extensions/`, write the catalog at `2.0.0-draft.3` and every lock at `2.0.0-draft.1`, and read only those drafts. An earlier catalog SHALL be refused with `extension.unsupported_contract_version`, naming the file and the versions read, and nothing changed.
 
-#### Scenario: A dotted install leaves the single-segment files alone
-- **WHEN** a user installs `acme.tools`, which every host that reads the dotted catalog can run, into a home that holds `acme-backend`
-- **THEN** the installer writes `catalog/extensions-dotted.json` and `locks/extensions-dotted/acme.tools.json`
-- **AND** `catalog/extensions.json` and every file in `locks/extensions/` keep their members and values
+#### Scenario: A dotted install beside a single-segment one
+- **WHEN** a user installs `org.finos.morphir.fsharp-backend` into a home that holds `acme-backend`
+- **THEN** `catalog/extensions.json` lists both, in id order, and the new lock is `locks/extensions/org.finos.morphir.fsharp-backend.json`
 
-#### Scenario: An id in the wrong partition
-- **WHEN** `catalog/extensions.json` holds an entry for a dotted id
-- **THEN** the host refuses that catalog and names it, and still lists and runs the extensions in the dotted partition
+#### Scenario: A catalog at an earlier draft
+- **WHEN** the home's `catalog/extensions.json` is at `2.0.0-draft.2`
+- **THEN** the host refuses it, names the file and the versions it reads, and changes nothing
 ### Requirement: The catalog holds one active record per extension
 Every global install SHALL be recorded in `catalog/extensions.json` below Morphir Home, with `extensions` sorted by id, one entry per id, and the members the shared contract defines. `critical` and `requires` SHALL be written when the release has `requires.host`, with `critical` naming `requires.host`. An entry this host does not read, such as one converted from a version 1 record, SHALL be carried through unchanged when the catalog is rewritten.
 
@@ -82,7 +81,7 @@ Every global install SHALL be recorded in `catalog/extensions.json` below Morphi
 - **THEN** the catalog lists `alpha-frontend` before `zeta-backend`
 
 ### Requirement: The catalog schema version follows its entries
-The installer SHALL write catalog `schemaVersion` `"2.0.0-draft.2"` when any entry carries a supplied claim set, and `"1.0"` otherwise, as the reference implementation does (Q-CATVER, follows the reference).
+Until finos/morphir#1149 is approved, the installer SHALL write catalog `schemaVersion` `"2.0.0-draft.2"` when any entry carries a supplied claim set, and `"1.0"` otherwise, as the reference does (Q-CATVER). #1149 replaces this switch with `2.0.0-draft.3` for every catalog.
 
 #### Scenario: Only carried-through entries
 - **WHEN** every entry left in the catalog is a carried-through entry without a supplied claim set
@@ -108,7 +107,7 @@ For each catalog entry the installer SHALL write `locks/extensions/<id>.json` be
 - **THEN** its lock has `"platform": null`, `"args": []` and `"executable": false`
 
 ### Requirement: Only the current contract drafts are read
-The installer and the host SHALL read records, descriptors and catalog entries only at `2.0.0-draft.2` or the drafts finos/morphir#1149 adds, with claim sets at `0.1.0-draft.2`, and catalog and lock files at the versions the reference writes. They SHALL ignore unknown optional members and refuse an unknown `critical` path. Version 1 records, `2.0.0-draft.1` and claim set draft.1 SHALL NOT be read or converted (decision DOC-1).
+The installer and the host SHALL read records, descriptors and catalog entries only at the current draft, `2.0.0-draft.2` until finos/morphir#1149 replaces it, with claim sets at `0.1.0-draft.2`, and catalog and lock files at the versions current writers write. They SHALL ignore unknown optional members and refuse an unknown `critical` path. Version 1 records, `2.0.0-draft.1` and claim set draft.1 SHALL NOT be read or converted (decision DOC-1).
 
 #### Scenario: A newer optional member
 - **WHEN** the catalog written by another CLI has an entry member this host does not know and that `critical` does not list
@@ -155,7 +154,7 @@ Every read and write of the catalog, locks and the .NET inventory SHALL hold an 
 - **THEN** the command exits without changing any extension state
 
 ### Requirement: Lock and catalog change as one transaction
-The installer SHALL change a global lock and the catalog together through the reference journal `<id>.json.transaction` in its partition's lock directory, with `schemaVersion` 1, `nextLock` and `nextCatalog` as byte arrays or `null` for a deletion, and no other member. Each holder of the state lock SHALL first apply every journal it finds, whichever CLI wrote it, and then remove it (Q-JOURNAL, follows the reference).
+The installer SHALL change a global lock and the catalog together through the reference journal `locks/extensions/<id>.json.transaction`, with `schemaVersion` 1, `nextLock` and `nextCatalog` as byte arrays or `null` for a deletion, and no other member. Each holder of the state lock SHALL first apply every journal it finds, whichever CLI wrote it, and then remove it (Q-JOURNAL, follows the reference).
 
 #### Scenario: Interrupted install
 - **WHEN** an install is stopped after it wrote the new lock and before it wrote the catalog

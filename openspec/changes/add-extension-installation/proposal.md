@@ -19,7 +19,7 @@ This host does not support MEP `0.1` (maintainer decision, 9 November 2026): "we
 - **Later versions are added, not swapped.** As later versions of the line appear, the host keeps the earlier ones.
 - **This is an explicit exception.** The general rule is that a prerelease matches only exactly.
 
-The same day the maintainer decided to stop reading transient pre-1.0 document formats: "we are paying too much of a cost to support transient pre 1.0 contracts". This host reads index records, descriptors and catalog entries only at `2.0.0-draft.2` (and the drafts finos/morphir#1149 adds), with claim sets at `0.1.0-draft.2`. It does not read or convert version 1 records and descriptors, `2.0.0-draft.1` or claim set draft.1. A Rust-written catalog entry in those formats is listed as unavailable and carried through unchanged.
+The same day the maintainer decided to stop reading transient pre-1.0 document formats: "we are paying too much of a cost to support transient pre 1.0 contracts". This host reads index records, descriptors and catalog entries only at the current draft, `2.0.0-draft.2` until finos/morphir#1149 moves every document to `2.0.0-draft.3` (lock `2.0.0-draft.1`), with claim sets at `0.1.0-draft.2`. It does not read or convert version 1 records and descriptors, `2.0.0-draft.1` or claim set draft.1. A Rust-written catalog entry in those formats is listed as unavailable and carried through unchanged.
 
 Every global install goes to the shared catalog, `catalog/extensions.json`, so the current hosts (.NET now, MoonBit later) share what is installed. The maintainer accepted the cost on 9 November 2026: a released Rust CLI cannot list a Morphir Home the .NET host has installed into, because one catalog entry it cannot run fails every Rust `compile`, `generate` and `extension list`. "For now we are treating the rust cli as legacy." A user who needs the Rust CLI gives it its own `MORPHIR_HOME`.
 
@@ -78,7 +78,7 @@ The decision that mattered most, what may enter the shared catalog (Q-SHARED), i
 - Beads: no id is recorded. Do not invent one.
 - Parent contract: finos/morphir `docs/design/draft/extensions/distribution-and-acquisition.md` and the reference implementation `ecosystem/morphir-rust/crates/morphir-distribution`, read at finos/morphir `c247aad39` (submodule `c9f79da`). The toolchain pages were read at finos/morphir `efdbc34da`.
 - Approved change: finos/morphir `openspec/changes/add-deployment-and-acquisition/` (tasks 3.3, 3.4, 4.4). Its adoption in this repository is on main (`b8ebd12cd`).
-- Dotted ids: finos/morphir#1149, read at `6d58eec56`, which proposes a dotted home and repository partition (its task 5.3 is for this installer) and asks the partition question as its question 8. Toolchain contract pages: finos/morphir#1147 at `60d363059`.
+- Dotted ids: finos/morphir#1149, read at `123bbffc5` (the one-catalog rewrite, not yet reviewed). The maintainer chose one catalog: every id goes in `catalog/extensions.json`, `locks/extensions/` and a repository's `extensions/`, at new drafts, and its task 2.3 is for this installer. Toolchain contract pages: finos/morphir#1147 at `60d363059`.
 - Issues: #492 wires the existing handlers, which this change replaces for extensions; the design recommends closing #492 as superseded. #490 (`dist`) and #491 (`tool`) are not part of this change.
 
 ## Impact

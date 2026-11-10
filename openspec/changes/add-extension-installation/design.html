@@ -62,7 +62,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <li><a href="#failures">Failure and recovery paths</a></li>
 <li><a href="#mapping">Mapping the parent contract to this codebase</a></li>
 <li><a href="#decisions">Decisions</a> (including the maintainer decisions <a href="#q-shared">Q-SHARED: every global install goes to the shared catalog</a>, <a href="#mep-1">MEP-1: MEP 0.1 is not supported; the 0.2 line is</a> and <a href="#doc-1">DOC-1: only the current contract drafts are read</a>)</li>
-<li><a href="#questions">Questions</a>: <a href="#needs-maintainer">needs the maintainer</a>, <a href="#divergence">deliberate divergence</a>, <a href="#follows-reference">follows the reference</a>, <a href="#settled">settled</a>, <a href="#upstream">raised upstream</a></li>
+<li><a href="#questions">Questions</a>: <a href="#needs-maintainer">needs the maintainer</a>, <a href="#divergence">deliberate divergence</a>, <a href="#follows-reference">follows the reference</a>, <a href="#settled">settled</a>, <a href="#upstream">raised upstream</a>, <a href="#asks-1149">asks for #1149</a></li>
 <li><a href="#fsharp-frontend">The path to installing the F# frontend without .NET</a></li>
 <li><a href="#verifiable">What a .NET implementation can be verified against</a></li>
 <li><a href="#security">Security</a></li>
@@ -99,12 +99,15 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <li><span class="tag obs">Observed</span> The extension-model PRD (<code>docs/content/contributing/design/prds/morphir-extension-model.md</code>) plans step 3: the upstream store, catalog and global locks under <code>MORPHIR_HOME</code>, selection and lock files at four levels, <code>staged/</code> folders with <code>[extension_install] staged</code> (default <code>auto</code>), the extension package archive in zip and tar gzip, real <code>install</code>/<code>use</code>/<code>remove</code>/<code>which</code>, refusal to write dotted ids into shared files, and removal of <code>OsPaths</code>.</li>
 <li><span class="tag obs">Observed</span> Issues #490, #491 and #492 wire the existing <code>dist</code>, <code>tool</code> and <code>extension</code> handlers. #492 is not step 3 (see <a href="#cmd-2">CMD-2</a>).</li>
 <li><span class="tag obs">Observed</span> The approved finos/morphir change <code>add-deployment-and-acquisition</code> needs this installer in tasks 3.3, 3.4 and 4.4. Its adoption in this repository is on main (<code>b8ebd12cd</code>) and is still an active change. Its task 3.1 has landed (#569, <code>4b14b0d</code>): the self-contained F# frontend is published as a folder, not a single file, because the frontend needs file locations for its compiler references (FSF-1).</li>
-<li><span class="tag obs">Observed</span> finos/morphir#1149, at <code>6d58eec56</code>, proposes dotted ids in the descriptor. It uses new exact drafts for documents that name a dotted id: descriptor, index record and dotted catalog at <code>2.0.0-draft.3</code>, and a dotted lock at <code>2.0.0-draft.1</code>.
+<li><span class="tag obs">Observed</span> finos/morphir#1149 proposes dotted extension ids. Its rewrite at <code>123bbffc5</code> (committed, not yet pushed or reviewed) follows the maintainer's choice of one catalog:
   <ul>
-  <li>It no longer promotes the shared catalog. A home gets a dotted partition that older hosts never read: <code>catalog/extensions-dotted.json</code>, and <code>locks/extensions-dotted/</code> for the dotted locks and journals, under the existing state lock. A repository gets <code>extensions-dotted/</code> for dotted histories.</li>
-  <li>A new host recovers each directory's journals into its own catalog, lists both catalogs together, changes one partition per operation, and refuses a file holding an id of the wrong form.</li>
-  <li>Its task 5.3 is for this installer. Its question 8 asks whether a home gets that partition or one catalog that switches version home-wide. See <a href="#q-shared">Q-SHARED</a>.</li>
-  </ul></li>
+  <li>Every id, dotted or not, lives in <code>catalog/extensions.json</code>, <code>locks/extensions/</code> and a repository's <code>extensions/</code>.</li>
+  <li>Writers write descriptor, index record and catalog at <code>2.0.0-draft.3</code>, and every lock at <code>2.0.0-draft.1</code>, for every id.</li>
+  <li>Readers read only those drafts and refuse earlier ones by version, with no conversion.</li>
+  <li>Hosts that read only earlier versions, including the released Rust CLI, are not protected.</li>
+  <li>Its task 1.4 makes <code>distribution-and-acquisition.md</code> the authority for the members and values of those documents, the journal, the state lock and the paths, and says equal members and values conform. Its task 2.3 is for this installer.</li>
+  </ul>
+  The previous revision, <code>6d58eec56</code>, had a dotted partition (<code>extensions-dotted</code>); that is gone.</li>
 <li><span class="tag obs">Observed</span> The toolchain pages (finos/morphir#1147, at <code>60d363059</code> on <code>feat/morphirup-deployment-acquisition</code>) moved again:
   <ul>
   <li>One repository per binding check, with <code>repository_mismatch</code>, which is the manager's check.</li>
@@ -530,9 +533,9 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p><strong>Decision.</strong> On 9 November 2026 the maintainer decided to stop reading the older document formats, because "we are paying too much of a cost to support transient pre 1.0 contracts".</p>
 <p>What this host reads and writes:</p>
 <ul>
-<li>index records, release descriptors and catalog entries at exactly <code>2.0.0-draft.2</code>, plus the drafts finos/morphir#1149 adds for dotted ids;</li>
+<li>index records, release descriptors and catalog entries at the current draft: <code>2.0.0-draft.2</code> today, and <code>2.0.0-draft.3</code> for every id once finos/morphir#1149 is approved, which then also stops the reading of <code>2.0.0-draft.2</code>;</li>
 <li>claim sets at <code>0.1.0-draft.2</code>;</li>
-<li>catalog and lock files at the versions the reference writes today: catalog <code>"1.0"</code> or <code>"2.0.0-draft.2"</code> (<a href="#q-catver">Q-CATVER</a>), and lock <code>"1.0"</code>, the only lock version there is.</li>
+<li>catalog and lock files at the versions the reference writes today: catalog <code>"1.0"</code> or <code>"2.0.0-draft.2"</code> (<a href="#q-catver">Q-CATVER</a>), and lock <code>"1.0"</code>; once #1149 is approved, catalog <code>2.0.0-draft.3</code> and lock <code>2.0.0-draft.1</code> only.</li>
 </ul>
 <p>What it no longer reads, and never converts: version 1 index records and descriptors (integer <code>1</code> or <code>"1.0"</code>), records and descriptors at <code>2.0.0-draft.1</code>, and claim sets at <code>0.1.0-draft.1</code> (<code>statement</code>, <code>statementSource</code>). Those formats mostly carried MEP <code>0.1</code>-era extensions, which MEP-1 already leaves out.</p>
 <p>Where old documents still appear, and what happens:</p>
@@ -543,13 +546,12 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 </ul>
 <p>The cost removed: no draft.1 conversion, no mixed-draft detection, no version 1 descriptor or record codecs, and no converted-entry writer.</p>
 <h3 id="id-1">ID-1. The id rule is chosen by document version, and dotted ids follow finos/morphir#1149</h3>
-<p>The registry keeps its dotted rule for built-ins. The installer parses ids with the rule of the version it reads. At <code>2.0.0-draft.2</code>, an id is one token of at most 238 characters that is not a Windows device name by the reference rule (<code>domain/identity.rs:237-286</code>, which also refuses <code>CONIN$</code>, <code>CONOUT$</code> and superscript-digit forms).</p>
-<p>Dotted ids are read and written at #1149's drafts once it is approved: descriptor, index record and dotted catalog at <code>2.0.0-draft.3</code>, and a dotted lock at <code>2.0.0-draft.1</code>. #1149 also adds the device-name rule for the first segment, which morphir-dotnet adopts in its task 5.1. Where dotted entries live depends on #1149's question 8:</p>
+<p>The registry keeps its dotted rule for built-ins. The installer parses ids with the rule of the version it reads.</p>
 <ul>
-<li><strong>With the partition</strong> (as #1149 is written), they live in <code>catalog/extensions-dotted.json</code> and <code>locks/extensions-dotted/</code>, and histories in a repository's <code>extensions-dotted/</code>. The store spec says this, as a provisional requirement.</li>
-<li><strong>With one catalog</strong>, they live in the existing files, which move to <code>2.0.0-draft.3</code> when they first hold a dotted id.</li>
+<li><strong>Today,</strong> at <code>2.0.0-draft.2</code>, an id is one token of at most 238 characters that is not a Windows device name (<code>domain/identity.rs:237-286</code> is the evidence).</li>
+<li><strong>Once #1149 is approved</strong> (provisional, read at <code>123bbffc5</code>), every id, dotted or not, is read and written at its drafts: descriptor, index record and catalog at <code>2.0.0-draft.3</code>, and lock at <code>2.0.0-draft.1</code>. Every id lives in the one <code>catalog/extensions.json</code>, <code>locks/extensions/</code> and repository <code>extensions/</code>, and earlier drafts are refused by version. #1149 also adds the device-name rule for the first segment, which morphir-dotnet adopts in its task 2.1.</li>
 </ul>
-<p>Task 8.1 covers both answers.</p>
+<p>There are no separate dotted files or directories. Task 8.1 moves this installer to those drafts. Corrections from #1149's review may follow, which is why the requirements name the commit read.</p>
 <h2 id="questions">Questions</h2>
 <p>The first version of this page listed 25 questions with one status. They are now grouped by what they need.</p>
 <ul>
@@ -681,14 +683,14 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>On finos/morphir#1149 the maintainer added: "we want to focus on morphir-dotnet and morphir-moonbit hosts and only possibly invest in Rust once 1 or both of those 2 are functional. For now we are treating the rust cli as legacy".</p>
 <p><strong>What this removes:</strong> the admission rule, <code>data/morphir-dotnet/extensions/global.json</code> as an install destination, the layer's place in precedence, its uninstall and report details, task 2.9 and the Rust interoperability gate in task 3.5.</p>
 <p><strong>What stays:</strong> the .NET inventory (STORE-4). It is a different thing: it holds .NET-only facts that the catalog's and lock's closed member sets cannot carry, and every installed version for pins and overlays. It is never a place a global install is selected from. Also kept: listing a shared entry this host cannot run as unavailable instead of failing.</p>
-<p>For dotted ids, see <a href="#id-1">ID-1</a>.</p></details><details id="q-idrule"><summary>Q-IDRULE. Ids in shared files</summary><p>Settled by the maintainer's decision to allow dotted ids through finos/morphir#1149, and by ID-1. Dotted ids are read and written at #1149's drafts. Whether they live in a dotted partition or in the existing files is #1149's question 8 (see <a href="#q-shared">Q-SHARED</a>). Task 8.1 follows the answer.</p></details>
+<p>For dotted ids, see <a href="#id-1">ID-1</a>.</p></details><details id="q-idrule"><summary>Q-IDRULE. Ids in shared files</summary><p>Settled by the maintainer's decisions to allow dotted ids through finos/morphir#1149 and to keep them in one catalog, and by ID-1. Every id is read and written at #1149's drafts in the one catalog, lock directory and history directory (task 8.1, provisional on #1149 at <code>123bbffc5</code>).</p></details>
 <details id="q-autoprocess"><summary>Q-AUTOPROCESS. Does auto apply to process guests?</summary><p>No. It is a safe default, and written as a SHALL (ARC-2).</p></details>
 <details id="q-wasmdescribe"><summary>Q-WASMDESCRIBE. WASM install and describe</summary><p>Settled by the upstream decision that WASM installation does not probe. WASM packages install <code>unchecked</code>; a bare <code>.wasm</code> waits for PRD step 2a. The PRD is corrected in task 4.8.</p></details>
 <details id="q-descname"><summary>Q-DESCNAME. Descriptor and checksum file names</summary><p>Merged into <a href="#q-archive">Q-ARCHIVE</a>.</p></details>
 
 <h3 id="upstream">Raised upstream (task 1.2)</h3>
 <ul>
-<li>Review comments on #1149, as listed in <a href="#q-shared">Q-SHARED</a>: answer question 8 with the partition; new readers list and skip entries they cannot run; a host may drop earlier transient drafts; equal members and values instead of byte identity; and the mixed-home check.</li>
+<li>Review comments on #1149, listed below in <a href="#asks-1149">Asks for finos/morphir#1149</a>.</li>
 
 <li>The overlay, the level pins and the receipt's launch path (<code>launch.program</code> names the store path while the host runs a private copy), for <code>docs/spec/toolchain</code>.</li>
 <li>Target and package archives (Q-ARCHIVE), a multi-file package form (Q-MULTIFILE), and a provenance kind for staged and file installs (Q-PROVENANCE).</li>
@@ -698,6 +700,18 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>The maintainer decision MEP-1, that MEP <code>0.1</code> is not supported and the whole 0.2 line is (<code>&gt;=0.2.0-0</code>, <code>&lt;0.3.0</code>, an explicit exception to the exact-match rule for prereleases): say so in <code>protocol.md</code> and the extension README, and move the Rust host to the MEP 0.2 line.</li>
 </ul>
 
+<h3 id="asks-1149">Asks for finos/morphir#1149 (read at 123bbffc5)</h3>
+<p>This change follows #1149 and does not work around it. Each item is something its text leaves open or that this change needs stated:</p>
+<ol>
+<li><strong>A home that already holds an earlier catalog.</strong> #1149 says a current host refuses a <code>2.0.0-draft.2</code> <code>catalog/extensions.json</code> and changes nothing. So a .NET install into any home the Rust CLI has used is blocked until the user removes the file by hand. Say what a current host does: refuse with instructions to move the old catalog aside, or replace it in a transaction under the state lock.</li>
+<li><strong>Earlier locks and journals in <code>locks/extensions/</code>.</strong> State what a current host does with a <code>"1.0"</code> lock, and with a journal whose bytes are an earlier catalog or lock. The journal's bytes are applied without being parsed, so recovery could write an earlier-version file back.</li>
+<li><strong>Histories with earlier lines.</strong> A JSONL history is many records in one file. Say whether a reader refuses the whole file when one line is at an earlier version, or skips that line. This change takes part in the history checks with such a line's <code>schemaVersion</code>, <code>id</code> and <code>version</code>, and never selects it (DOC-1).</li>
+<li><strong>The repositories file.</strong> Task 1.4 lists the catalog, lock, journal, state lock and paths, but not <code>config/extensions/repositories.json</code> and <code>locks/extensions.repositories.lock</code>, which two installers sharing a home also share. Add them.</li>
+<li><strong>Open or closed member sets.</strong> State for each document whether unknown members are ignored or refused. The Rust lock and journal readers refuse them today, which is why this change keeps .NET-only facts in its own inventory (Q-STRICTLOCK).</li>
+<li><strong>Repository identity spelling.</strong> State how <code>index.identity</code> and repository paths are spelled, in particular whether the Windows verbatim form <code>\\?\</code> is used. This change writes ordinary canonical paths and compares the two forms as equal.</li>
+<li><strong>The state lock primitive.</strong> Name the operating-system lock (a whole-file exclusive lock) so the .NET and MoonBit hosts exclude each other (Q-LOCKPRIM).</li>
+</ol>
+<p>Already consistent, no ask: equal members and values conform (task 1.4); readers need not read earlier drafts (matches DOC-1); the catalog version switch (Q-CATVER) disappears, because every catalog is written at <code>2.0.0-draft.3</code>.</p>
 <h2 id="fsharp-frontend">The path to installing the F# frontend without .NET</h2>
 <p>At finos/morphir#1147 (<code>60d363059</code>), the managed offerings have the built-in F# frontend <code>morphir-dotnet.fsharp</code> in every <code>fsharp</code> recipe, so only the <code>native-aot</code> offering needs this installed process frontend. The recipe's question M2 recommends the same first delivery as Option A below: a single-file self-extracting frontend at the archive root, with the recipe and lock binding the archive digest. That matches Q-ARCHIVE (a): the toolchain lock binds the archive, and the extension lock binds the one file inside it.</p>
 <p>Two facts apply whatever is chosen:</p>
@@ -884,7 +898,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>finos/morphir <code>crates/morphir/src/commands/extension.rs</code>, <code>compile/prepare.rs</code> and <code>generate.rs</code> at <code>c247aad39</code>.</li>
 <li>finos/morphir <code>docs/spec/toolchain/</code> (<code>index.md</code>, <code>toolset-recipe.md</code>, <code>toolchain-lock.md</code>, <code>installation-receipt.md</code>) and <code>fixtures/0.1.0-draft.1/</code> at <code>efdbc34da</code>, and again (with <code>readiness-workflow.md</code> and <code>manager-result.md</code>) at <code>60d363059</code> on <code>feat/morphirup-deployment-acquisition</code> (finos/morphir#1147).</li>
 <li>finos/morphir <code>openspec/changes/add-deployment-and-acquisition/</code>, approved 9 November 2026; its adoption in this repository on main (<code>b8ebd12cd</code>).</li>
-<li>finos/morphir#1149, <code>openspec/changes/allow-dotted-extension-ids/</code> on <code>docs/openspec-allow-dotted-extension-ids</code>, read at <code>e00e4d988</code> and again at <code>6d58eec56</code>.</li>
+<li>finos/morphir#1149, <code>openspec/changes/allow-dotted-extension-ids/</code> read at <code>e00e4d988</code> and <code>6d58eec56</code> on <code>docs/openspec-allow-dotted-extension-ids</code>, and at <code>123bbffc5</code>, the one-catalog rewrite.</li>
 <li>This repository: <a href="proposal.md">proposal.md</a>, <a href="tasks.md">tasks.md</a>, specs <a href="specs/extension-installation/spec.md">extension-installation</a>, <a href="specs/extension-store/spec.md">extension-store</a>, <a href="specs/extension-package-archives/spec.md">extension-package-archives</a>, <a href="specs/extension-selection/spec.md">extension-selection</a>, <a href="specs/extension-registry/spec.md">extension-registry</a>; the extension-model PRD; issues #490, #491, #492, #558.</li>
 </ul>
 </main>

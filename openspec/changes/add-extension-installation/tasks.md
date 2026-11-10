@@ -18,7 +18,7 @@ Dependencies. The design groups its questions in two. One group follows today's 
 - Waits on other work:
   - 5.6 on PRD step 2a, a WASM runtime in this host.
   - 7.2 on the adoption change's group 4 and the separately evaluated TUF client.
-  - 8.1 on finos/morphir#1149 being approved and on the maintainer's answer to its question 8 (dotted partition or one catalog that switches version home-wide).
+  - 8.1 on finos/morphir#1149 being approved. The maintainer chose one catalog for it on 9 November 2026; this change follows its text at `123bbffc5`.
 - The adoption change (`openspec/changes/add-deployment-and-acquisition`, on main) consumes this one:
   - its task 3.3 needs 3.5, 5.2, 5.3 and 7.1, and the Q-MULTIFILE answer;
   - its 3.4 needs 6.5;
@@ -36,7 +36,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 - [ ] 1.2 Raise the upstream asks of the design's "Raised upstream" list in finos/morphir, and the PRD superset proposal; verify that each question in `design.html` links its issue or proposal.
   - The asks:
     - the maintainer decision MEP-1: MEP `0.1` is not supported, and the supported protocol is the whole 0.2 line (`>=0.2.0-0`, `<0.3.0`, under the npm and Cargo prerelease rule) as an explicit exception to the exact-match rule for prereleases. Say so in `protocol.md` and the extension README, and move the Rust host to the 0.2 line;
-    - review comments on finos/morphir#1149, listed in the design's Q-SHARED entry: answer question 8 with the partition; new readers list and skip entries they cannot run; a host may drop earlier transient drafts (DOC-1); equal members and values instead of byte identity; and the mixed-home check;
+    - the review comments on finos/morphir#1149 listed in the design's "Asks for finos/morphir#1149";
     - the overlay, the level pins and the receipt launch path, for the toolchain contract;
     - the rules that only the Rust source specifies today, to be written into the contract pages (finos/morphir#1149 task 1.4 covers the catalog, lock, journal, state lock and paths): Q-LOCKPRIM, Q-JOURNAL, Q-STRICTLOCK, Q-CATVER, Q-NUMBERS, Q-PLATFORM, Q-REQHOST, Q-PROBELIMITS, Q-GC and Q-FIXTURES, plus the repository identity spelling;
     - target and package archives (Q-ARCHIVE), multi-file packages (Q-MULTIFILE), and a provenance kind (Q-PROVENANCE);
@@ -311,8 +311,12 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 
 ## 8. Dotted ids
 
-- [ ] 8.1 Read and write dotted ids at the drafts and in the home and repository layout that finos/morphir#1149 defines (its task 5.3); verify the `Identifiers`, `StateCodecs` and `Commit` tests gain #1149's shared cases, including its home-partition cases, and pass through `src/Morphir.Conformance`.
-  - Waits on #1149's approval and its question 8. With the partition, the dotted extensions that pass admission go to `catalog/extensions-dotted.json` and `locks/extensions-dotted/`, with journals recovered per directory and wrong-form ids refused per file. With one catalog, they go to the existing files, which move to `2.0.0-draft.3`.
+- [ ] 8.1 Move every document to the drafts of finos/morphir#1149 (its task 2.3), for every id, dotted or not. Write descriptors, index records and the catalog at `2.0.0-draft.3` and locks at `2.0.0-draft.1`, in the one `catalog/extensions.json`, `locks/extensions/` and repository `extensions/`, and read only those drafts. Verify that the `Identifiers`, `StateCodecs` and `Commit` tests gain #1149's shared cases and pass through `src/Morphir.Conformance`.
+  - Waits on #1149's approval. It is provisional on #1149 at `123bbffc5`, because small corrections may follow its review.
+  - First failing tests:
+    - a home holding `acme-backend` and `org.finos.morphir.fsharp-backend` has one catalog listing both, and two locks in `locks/extensions/`;
+    - a `2.0.0-draft.2` catalog is refused with `extension.unsupported_contract_version`, naming the file and the versions read, and nothing changes;
+    - the catalog version switch of 2.7 (Q-CATVER) is gone: every catalog is written at `2.0.0-draft.3`.
 
 ## 9. Integration checks
 
