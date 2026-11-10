@@ -40,7 +40,7 @@ public sealed class ExecutableExtensionRuntimesTests
     }
 
     /// <summary>The version of the Wasmtime package that <c>Directory.Packages.props</c> pins.</summary>
-    static string PackageVersion()
+    internal static string PackageVersion()
     {
         var props = XDocument.Load(Path.Combine(WorkerCorpus.Fixtures, "..", "..", "..", "Directory.Packages.props"));
         return props.Descendants("PackageVersion").Single(element => (string?)element.Attribute("Include") == "Wasmtime").Attribute("Version")!.Value;

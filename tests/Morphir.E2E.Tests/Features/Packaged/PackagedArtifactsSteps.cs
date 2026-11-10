@@ -10,7 +10,7 @@ namespace Morphir.E2E.Tests.Features.Packaged;
 
 /// <summary>Steps of PackagedArtifacts.feature: the four offerings, run from their packaged release artifacts.</summary>
 [Binding]
-public sealed class PackagedArtifactsSteps(ScenarioContext scenario, IUnitTestRuntimeProvider runtime)
+public sealed partial class PackagedArtifactsSteps(ScenarioContext scenario, IUnitTestRuntimeProvider runtime)
 {
     private const string ResultKey = "PackagedRunResult";
     private const string AccessKey = "PackagedRunAccess";
@@ -18,7 +18,13 @@ public sealed class PackagedArtifactsSteps(ScenarioContext scenario, IUnitTestRu
     /// <summary>What the apphost returns when it finds no .NET: 0x80008083 on Windows; a Unix shell sees its low byte, 131.</summary>
     private static int FrameworkMissingExitCode => OperatingSystem.IsWindows() ? unchecked((int)0x80008083) : 0x83;
 
-    private static PackagedInstallation Installation => PackagedInstallation.For(ExecutableLocator.CurrentType);
+    /// <summary>
+    /// The installation the scenario runs: the shared installation of the artifact under test, or the scenario's own
+    /// second installation when it made one.
+    /// </summary>
+    private PackagedInstallation Installation => scenario.TryGetValue(InstallationKey, out PackagedInstallation own)
+        ? own
+        : PackagedInstallation.For(ExecutableLocator.CurrentType);
 
     private PackagedRunResult Result => scenario.TryGetValue(ResultKey, out PackagedRunResult result)
         ? result
