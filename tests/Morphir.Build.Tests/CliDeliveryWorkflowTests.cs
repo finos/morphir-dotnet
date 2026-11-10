@@ -100,8 +100,11 @@ public class CliDeliveryWorkflowTests
         steps.Should().Contain(step => Run(step).Contains("--target PackRelease", StringComparison.Ordinal));
         var qualify = steps.Single(step => Name(step) == "Start the produced executable");
         var script = qualify["run"].ToString();
-        script.Should().Contain("--version").And.Contain("launchPath").And.Contain("dotnet tool install Morphir.Tool")
-            .And.Contain("dotnet-morphir");
+        script.Should().Contain("--version").And.Contain("launchPath").And.Contain("dotnet-morphir");
+        // The tool package is installed only from the built bytes (ToolPackageInstallTests), never with --add-source,
+        // which races the configured feeds.
+        script.Should().Contain("./.github/scripts/install-tool-package.ps1 -Package $artifact").And.NotContain("--add-source")
+            .And.NotContain("dotnet tool install");
         script.Should().NotContain("dotnet exec");
         // The executable prints the release with its commit as build metadata (0.4.0-alpha.4+<sha>), and the launch
         // metadata names the release alone; the check compares the part before '+'.

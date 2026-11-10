@@ -66,8 +66,13 @@ The artifact holds the file, `<file>.build-launch.json`, `<file>.build-contents.
    when the publish folder contradicts the launch metadata, as described in the README.
 3. The file's SHA-256 matches its launch metadata.
 4. The produced executable starts. The archive is extracted into a folder whose path has a space, and its launch path
-   (`launchPath` in the launch metadata) runs with `--version`. For `dotnet-tool`, the package is installed with
-   `dotnet tool install Morphir.Tool --tool-path` and the installed `dotnet-morphir` runs. The output must be the
+   (`launchPath` in the launch metadata) runs with `--version`. For `dotnet-tool`,
+   `.github/scripts/install-tool-package.ps1` installs the package into a new tool path, and the installed
+   `dotnet-morphir` runs. The install reads only a new `nuget.config` that lists a feed holding nothing but the built
+   package, with new global-packages, HTTP and plugin caches, so the same id and version on nuget.org or in a machine
+   cache cannot be chosen. It then checks that the package in the tool store
+   (`.store/<id>/<version>/<id>/<version>/<id>.<version>.nupkg`) has the built package's SHA-256, and that every
+   extracted `tools/` file equals the built package's entry. The output must be the
    release version, which the executable prints with the commit as build metadata (`0.4.0-alpha.4+<sha>`); the part
    before `+` must equal the `release` of the launch metadata. The workflow never runs `dotnet exec` on an assembly, so the apphost or Native AOT file that users
    run is what starts.

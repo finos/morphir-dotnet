@@ -161,10 +161,10 @@ jobs:
                   $qualify = Join-Path $env:RUNNER_TEMP 'qualify morphir'
                   New-Item -ItemType Directory -Force -Path $qualify | Out-Null
                   if ($launch.deployment -eq 'dotnet-tool') {
-                    $tools = Join-Path $qualify 'tools'
-                    dotnet tool install Morphir.Tool --tool-path $tools --add-source $release --version $launch.release
-                    if ($LASTEXITCODE -ne 0) { throw "dotnet tool install Morphir.Tool failed with exit code $LASTEXITCODE." }
-                    $executable = Join-Path $tools ($IsWindows ? 'dotnet-morphir.exe' : 'dotnet-morphir')
+                    # Only the built package can be installed: its own feed and nuget.config, new NuGet caches, and a
+                    # check that the tool store holds the built bytes. A same id and version on nuget.org cannot win.
+                    $executable = (& ./.github/scripts/install-tool-package.ps1 -Package $artifact -ToolPath (Join-Path $qualify 'tools') -WorkDir (Join-Path $qualify 'nuget')) | Select-Object -Last 1
+                    if ((Split-Path -Leaf $executable) -notin 'dotnet-morphir', 'dotnet-morphir.exe') { throw "The installed command is $executable, not dotnet-morphir." }
                   } else {
                     if ($launch.artifact.EndsWith('.zip')) { Expand-Archive -LiteralPath $artifact -DestinationPath $qualify }
                     else { tar -xzf $artifact -C $qualify; if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE." } }
