@@ -8,7 +8,7 @@ No Beads id is recorded; do not invent one.
 
 Dependencies. The design groups its questions in two: those whose answer follows the reference implementation, which need no maintainer answer to start, and those that need the maintainer. A task waits only on the second group.
 
-- Can start now: group 1; 2.1 to 2.9; 3.1 to 3.5; 4.1 to 4.3; 5.1; 6.5 (global layers first).
+- Can start now: group 1; 2.1 to 2.10; 3.1 to 3.5; 4.1 to 4.3; 5.1; 6.5 (global layers first).
 - Waits on a maintainer answer:
   - 4.4 to 4.8 on Q-COMMANDS, Q-DIAG and Q-DEVPOLICY.
   - 5.2 on Q-ARCHIVE. 5.3 on Q-ARCHIVE, Q-MULTIFILE and Q-WINLAUNCH. 5.4 on Q-PROVENANCE.
@@ -35,7 +35,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 - [ ] 1.1 Record the maintainer's answer to each question in the design's "needs the maintainer" group beside the question, and change the specs and tasks where an answer differs from the recommendation; verify with `mise exec -- openspec validate add-extension-installation --strict` and `mise run openspec:verify`.
 - [ ] 1.2 Raise the upstream asks of the design's "Raised upstream" list in finos/morphir, and the PRD superset proposal; verify that each question in `design.html` links its issue or proposal.
   - The asks:
-    - the maintainer decision that this host does not support MEP `0.1` (design MEP-1): say so in `protocol.md` and the extension README, and move the Rust host to `0.2.0-draft.1`;
+    - the maintainer decision MEP-1: MEP `0.1` is not supported, and the supported protocol is the whole 0.2 line (`>=0.2.0-0`, `<0.3.0`, under the npm and Cargo prerelease rule) as an explicit exception to the exact-match rule for prereleases. Say so in `protocol.md` and the extension README, and move the Rust host to the 0.2 line;
     - the shared catalog's legacy-reader rule for the Rust host: list or skip entries it cannot run instead of failing (SHARE-1);
     - review comments on finos/morphir#1149, listed in the design's Q-SHARED entry: answer question 8 with the partition; new readers list and skip entries they cannot run; a host may drop earlier transient drafts (DOC-1); equal members and values instead of byte identity; and the mixed-home check;
     - the overlay, the level pins and the receipt launch path, for the toolchain contract;
@@ -104,6 +104,17 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - `["0.1", "0.2.0-draft.1"]` gives `shared`;
     - a dotted id gives `dotnet-global` `id-version` until #1149 lands; after 8.1 it gives `shared-dotted` when every reader of the dotted catalog can run it, and `dotnet-global` `mep-version` otherwise.
   - Command: `dotnet exec <inst> --filter-test-list "Admission"`.
+- [ ] 2.10 Add the supported MEP line and the implemented set: the comparators `>=0.2.0-0` and `<0.3.0` under the npm and Cargo prerelease rule, the implemented versions (today `0.2.0-draft.1`), and the runnable check with its two reasons; verify the `MepLine` tests pass.
+  - Library: the repository has no SemVer range library in product code. `Morphir.Models/IR/Versioning.fs` parses and prints versions but has no precedence or ranges, and `NuGet.Versioning` reaches only the build projects, transitively.
+    - Use the `Semver` NuGet package's `SemVersionRange` with its default options, which follow that prerelease rule, after the AOT probe from 2.1 shows no new warning.
+    - Do not use `NuGet.Versioning`. Its ranges compare by precedence alone, so `[0.2.0-0, 0.3.0)` would also admit `0.2.1-rc.1` and `0.3.0-draft.1` (Assumed; one test case pins it).
+    - If the package is not admitted, implement the two comparators and SemVer precedence over the in-house `SemanticVersion`.
+    - The test matrix below is the contract either way.
+  - First failing tests:
+    - `0.2.0-draft.1`, `0.2.0-rc.1`, `0.2.0` and `0.2.7` are in the line;
+    - `0.1`, `0.1.0`, `0.2.1-rc.1`, `0.3.0-draft.1` and `0.3.0` are not;
+    - an entry with `["0.2.0-draft.2"]` is unavailable as "not implemented yet", one with `["0.3.0"]` as "not supported", and one with `["0.1", "0.2.0-draft.1"]` is runnable over `0.2.0-draft.1`.
+  - Command: `dotnet exec <inst> --filter-test-list "MepLine"`.
 ## 3. Shared state on disk
 
 - [ ] 3.1 Resolve Morphir Home and implement the state lock on `locks/extensions.state.lock` with the reference primitive (Q-LOCKPRIM), its waiting line and cancellation; verify the `StateLock` tests pass on Windows and on Linux or macOS.

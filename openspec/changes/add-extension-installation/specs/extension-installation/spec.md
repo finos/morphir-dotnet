@@ -47,7 +47,7 @@ Install and update SHALL take `--channel <channel>` or `--version <semver>`, not
 - **THEN** a stable install selects `0.1.0`
 
 ### Requirement: Resolution picks the newest release this host can run
-Among releases matching the selection, the installer SHALL take the highest SemVer precedence whose artifacts speak an MEP version this host supports, skipping releases whose `requires.host` excludes this host. It SHALL refuse two matching artifacts for one platform, and SHALL name the platform when none matches.
+Among releases matching the selection, the installer SHALL take the highest SemVer precedence whose artifacts speak an MEP version this host implements, skipping releases whose `requires.host` excludes this host. It SHALL refuse two matching artifacts for one platform, and SHALL name the platform when none matches.
 
 #### Scenario: Newer release needs a newer host
 - **WHEN** release 0.3.0 requires `>=9.0.0` of the host and 0.2.0 has no requirement
@@ -61,6 +61,28 @@ Among releases matching the selection, the installer SHALL take the highest SemV
 - **WHEN** every matching release speaks only MEP `0.1`, which this host does not support
 - **THEN** the install fails with `extension.no_compatible_mep_version`, naming the versions the host supports and saying that MEP `0.1` is not supported
 
+### Requirement: The host supports the MEP 0.2 line
+The supported MEP versions SHALL be those the comparators `>=0.2.0-0` and `<0.3.0` match, where a prerelease matches only when a comparator names the same major, minor and patch with a prerelease: every prerelease of `0.2.0` and every final `0.2.x` (maintainer decision MEP-1). MEP `0.1` SHALL NOT be supported. A host SHALL implement only versions of this line, and SHALL keep each one it has implemented. Today it implements `0.2.0-draft.1`.
+
+#### Scenario: In the line
+- **WHEN** the supported line is evaluated for `0.2.0-draft.1`, `0.2.0-rc.1`, `0.2.0` and `0.2.7`
+- **THEN** each one is in the line
+
+#### Scenario: Outside the line
+- **WHEN** the supported line is evaluated for `0.1`, `0.1.0`, `0.2.1-rc.1`, `0.3.0-draft.1` and `0.3.0`
+- **THEN** none is in the line
+
+### Requirement: An entry runs only over a version this host implements
+An entry or index record SHALL be runnable only when its `mepVersions` holds, exactly, a version this host implements. A version of the 0.2 line that the host does not implement yet SHALL make it unavailable with `extension.no_compatible_mep_version` and a reason saying the version is not implemented yet. A version outside the line SHALL be named as not supported.
+
+#### Scenario: A later draft of the line
+- **WHEN** an installed entry's `mepVersions` is `["0.2.0-draft.2"]` and this host implements only `0.2.0-draft.1`
+- **THEN** `extension list` shows it unavailable with a reason saying MEP `0.2.0-draft.2` is not implemented by this host yet
+- **AND** a command that selects it fails with `extension.no_compatible_mep_version` and starts no process
+
+#### Scenario: Outside the line
+- **WHEN** an entry's `mepVersions` is `["0.3.0"]`
+- **THEN** it is unavailable with a reason saying MEP `0.3.0` is not supported
 ### Requirement: Repository paths stay inside the repository
 The installer SHALL canonicalize the history file and each artifact source path, and SHALL refuse one that resolves outside the repository directory, for example through a symbolic link or `..`, with `extension.path_escape`. A declared source path SHALL be relative, use `/`, and have at most 512 UTF-8 bytes and 240 UTF-16 code units.
 

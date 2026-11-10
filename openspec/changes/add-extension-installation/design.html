@@ -61,7 +61,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <li><a href="#journey">A worked journey</a></li>
 <li><a href="#failures">Failure and recovery paths</a></li>
 <li><a href="#mapping">Mapping the parent contract to this codebase</a></li>
-<li><a href="#decisions">Decisions</a> (including the maintainer decisions <a href="#share-1">SHARE-1: what may enter a shared catalog</a>, <a href="#mep-1">MEP-1: this host does not support MEP 0.1</a> and <a href="#doc-1">DOC-1: only the current contract drafts are read</a>)</li>
+<li><a href="#decisions">Decisions</a> (including the maintainer decisions <a href="#share-1">SHARE-1: what may enter a shared catalog</a>, <a href="#mep-1">MEP-1: MEP 0.1 is not supported; the 0.2 line is</a> and <a href="#doc-1">DOC-1: only the current contract drafts are read</a>)</li>
 <li><a href="#questions">Questions</a>: <a href="#needs-maintainer">needs the maintainer</a>, <a href="#divergence">deliberate divergence</a>, <a href="#follows-reference">follows the reference</a>, <a href="#settled">settled</a>, <a href="#upstream">raised upstream</a></li>
 <li><a href="#fsharp-frontend">The path to installing the F# frontend without .NET</a></li>
 <li><a href="#verifiable">What a .NET implementation can be verified against</a></li>
@@ -124,7 +124,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <thead><tr><th>Step</th><th>Evidence</th></tr></thead>
 <tbody>
 <tr><td><span class="tag obs">Observed</span> The Rust host supports only MEP <code>0.1</code>.</td><td><code>morphir-extension-sdk/src/protocol.rs:14,17</code>: <code>MEP_VERSION = "0.1"</code>, <code>SUPPORTED_MEP_VERSIONS = &amp;[MEP_VERSION]</code>. The SDK has the <code>0.2.0-draft.1</code> model draft (<code>model/negotiation.rs:8</code>), but the installed-state checks use only the supported list.</td></tr>
-<tr><td><span class="tag obs">Observed</span> The .NET host speaks only <code>0.2.0-draft.1</code>.</td><td><code>src/Morphir.Mep/Peers.fs:222</code>; the PRD says not to implement <code>0.1</code>.</td></tr>
+<tr><td><span class="tag obs">Observed</span> The .NET host speaks <code>0.2.0-draft.1</code>, the only version of the MEP 0.2 line that exists today.</td><td><code>src/Morphir.Mep/Peers.fs:222</code>; the PRD says not to implement <code>0.1</code>.</td></tr>
 <tr><td><span class="tag obs">Observed</span> Listing validates every catalog entry and stops at the first error.</td><td><code>morphir-distribution/src/state.rs:722-737</code> maps each entry through <code>validate_installed_pair</code> and collects into a <code>Result</code>.</td></tr>
 <tr><td><span class="tag obs">Observed</span> An entry without a supported MEP version is an error.</td><td><code>state.rs:782-791</code> returns <code>NoCompatibleMepVersion</code>.</td></tr>
 <tr><td><span class="tag obs">Observed</span> Every Rust command that needs extensions lists them first.</td><td>finos/morphir <code>crates/morphir/src/commands/compile/prepare.rs:248</code>, <code>generate.rs:207</code>, <code>extension.rs:153</code>.</td></tr>
@@ -525,15 +525,29 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li><strong>Revocation is the manager's job.</strong> A learned revocation of a recipe target is the manager's check before <code>run</code> launches a generation, and the installer does not learn revocations. Bytes the user installed globally outside a generation are not revoked by a recipe revocation, even when their digest is the same. The installer's docs say so.</li>
 </ul>
 <p>This is where the installer touches the TUF client: the client authenticates the targets and hands over bytes and a statement, and the installer rechecks the bound digests. The shared lock has no member for authentication, so this fact lives only in the manager's receipt and the .NET inventory.</p>
-<h3 id="mep-1">MEP-1. This host does not support MEP 0.1 (maintainer decision)</h3>
-<p><strong>Decision.</strong> On 9 November 2026 the maintainer decided to move forward on MEP <code>0.2.0-draft.1</code> and cut support for <code>0.1</code>: "we don't have users to support the cost of maintaining 2 versions". The maintainer then made the scope precise: "we can still have the global, we just have decided to cut support for MEP 0.1". The .NET global layer stays (<a href="#share-1">SHARE-1</a>).</p>
+<h3 id="mep-1">MEP-1. MEP 0.1 is not supported; the MEP 0.2 line is (maintainer decision)</h3>
+<p><strong>Decision.</strong> On 9 November 2026 the maintainer decided three things, in this order:</p>
+<ol>
+<li>To cut support for MEP <code>0.1</code>: "we don't have users to support the cost of maintaining 2 versions".</li>
+<li>The scope of that cut: "we can still have the global, we just have decided to cut support for MEP 0.1". The .NET global layer stays (<a href="#share-1">SHARE-1</a>).</li>
+<li>What is supported instead: "We should support 0.2.0 all prerelease and final 0.2.x releases".</li>
+</ol>
+<p>So MEP <code>0.1</code> is not supported, and the supported protocol is the whole 0.2 line: every prerelease of <code>0.2.0</code> and every final <code>0.2.x</code> release. Today the only version of that line that exists is <code>0.2.0-draft.1</code>. Nothing a host can speak changes yet. What changes is the policy: as later versions of the line appear, a host keeps the earlier ones instead of replacing one exact draft with the next.</p>
 <p><span class="tag obs">Observed</span> Upstream calls <code>0.1</code> "the frozen legacy protocol" (finos/morphir <code>docs/design/draft/extensions/protocol.md:878</code> on main at <code>04143a238</code>) and does not yet say it is deprecated. Recording the decision there is an upstream ask (task 1.2).</p>
 <p>What the decision means in this change:</p>
 <ul>
-<li><strong>One version in this host.</strong> This host and its guests speak only <code>0.2.0-draft.1</code>. Nothing here implements, bridges or tests <code>0.1</code>.</li>
+<li><strong>The supported line.</strong> The supported MEP versions are those the comparators <code>&gt;=0.2.0-0</code> and <code>&lt;0.3.0</code> match, under the prerelease rule of npm's <code>node-semver</code>, of Rust's <code>semver</code> crate used by the reference, and of the <code>Semver</code> NuGet package's <code>SemVersionRange</code>. That rule is: a prerelease version matches only when some comparator names the same major, minor and patch with a prerelease. Because <code>0.2.0-0</code> is the lowest prerelease of <code>0.2.0</code>, the pair matches exactly what the maintainer said, every prerelease of <code>0.2.0</code> and every final <code>0.2.x</code>, and nothing else:
+  <ul>
+  <li>in the line: <code>0.2.0-draft.1</code>, <code>0.2.0-rc.1</code>, <code>0.2.0</code> and <code>0.2.7</code>;</li>
+  <li>outside it: <code>0.1</code>, <code>0.1.0</code>, <code>0.2.1-rc.1</code>, <code>0.3.0-draft.1</code> and <code>0.3.0</code>.</li>
+  </ul></li>
+<li><strong>Supported is not the same as implemented.</strong> The host implements a set of exact versions inside the line: today <code>{0.2.0-draft.1}</code>. It never drops a version of the line it has implemented. A session still agrees on one exact version, and an entry is runnable only when its <code>mepVersions</code> holds a version the host implements. An entry that names only a version of the line the host does not implement yet, such as <code>0.2.0-draft.2</code>, is listed as unavailable because that version is not implemented yet. That is different from <code>0.1</code> or <code>0.3.0</code>, which are not supported at all. Both refusals use <code>extension.no_compatible_mep_version</code>, and the reason tells them apart.</li>
+<li><strong>An explicit exception.</strong> The general contract rule in finos/morphir's <code>protocol.md</code> ("Version numbers") and in this repository is that a prerelease matches only exactly, because drafts are refined in place and promise no compatibility with each other. That rule still decides what each session uses. MEP's 0.2 line has this explicit maintainer exception for what a host supports and keeps. The exception does not make two drafts compatible with each other.</li>
+<li><strong>Not DOC-1.</strong> DOC-1 drops the earlier transient drafts of the extension document formats, while MEP keeps every version of its 0.2 line: they are separate decisions about separate contracts.</li>
+<li><strong>Nothing implements 0.1.</strong> Nothing here implements, bridges or tests <code>0.1</code>.</li>
 <li><strong>No legacy code paths.</strong> The probe does not carry the reference's fallback for refusals that older guests signal only by message (PROBE-1). An extension that speaks only <code>0.1</code> is refused at install with <code>extension.no_compatible_mep_version</code>, and is listed as unavailable when the Rust CLI installed it. Both messages say that MEP <code>0.1</code> is not supported.</li>
 <li><strong>Released Rust CLIs are still not broken.</strong> Cutting <code>0.1</code> here does not mean writing entries they cannot run into the files they read. The admission rule keeps them working; that costs one constant and the .NET global layer.</li>
-<li><strong>The path out is upstream.</strong> The ask is for the Rust host to move to <code>0.2.0-draft.1</code>. When the pinned reader speaks it, the admission constant moves, and new <code>0.2</code> installs enter the shared catalog.</li>
+<li><strong>The path out is upstream.</strong> The ask is for the Rust host to move to the MEP 0.2 line. When the pinned reader speaks a version of it, the admission constant moves, and new <code>0.2</code> installs enter the shared catalog.</li>
 </ul>
 <p>A shared entry this host cannot run, for example one the Rust CLI installed, is listed as unavailable instead of failing the listing. That is robustness, not protocol support. <a href="#doc-1">DOC-1</a> applies the same "no transient compatibility" reasoning to old document formats.</p>
 <h3 id="doc-1">DOC-1. Only the current contract drafts are read (maintainer decision)</h3>
@@ -689,7 +703,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>#1149's writer rule puts <code>2.0.0-draft.3</code> only on documents that name a dotted id.</li>
 </ol>
 <p><strong>The one decision.</strong> The maintainer has already answered, for MEP versions, the question both documents ask: a Morphir home keeps released hosts working by putting what they cannot read where they never look. That is SHARE-1. Giving the same answer for ids means #1149's question 8 takes the partition, not one catalog that switches version home-wide, because the home-wide switch would make <code>catalog/extensions.json</code> unreadable to released hosts the first time it held a dotted id.</p>
-<p>One thing joins the two. Every dotted extension known today is a .NET guest that speaks only <code>0.2.0-draft.1</code>, and so is the Rust host that would read the dotted partition, until it moves. So #1149 should require its new readers to list an entry they cannot run as unavailable and keep going. That costs released hosts nothing, because they never read the new files. With that rule, the .NET dotted guests go to <code>catalog/extensions-dotted.json</code> and new Rust hosts can see them. Without it, admission sends them to the .NET global layer, where only .NET sees them.</p>
+<p>One thing joins the two. Every dotted extension known today is a .NET guest that speaks only versions of the MEP 0.2 line (today <code>0.2.0-draft.1</code>), while the Rust host that would read the dotted partition speaks only <code>0.1</code> until it moves. So #1149 should require its new readers to list an entry they cannot run as unavailable and keep going. That costs released hosts nothing, because they never read the new files. With that rule, the .NET dotted guests go to <code>catalog/extensions-dotted.json</code> and new Rust hosts can see them. Without it, admission sends them to the .NET global layer, where only .NET sees them.</p>
 <p>Recommendation: answer #1149's question 8 with the partition, and add that rule.</p>
 <p><strong>What #1149 needs to say so the two documents agree:</strong></p>
 <ol>
@@ -711,7 +725,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>The claim check after <code>update</code> (Q-CLAIMCHECK).</li>
 <li>The reference-only rules: Q-LOCKPRIM, Q-JOURNAL, Q-STRICTLOCK, Q-CATVER, Q-NUMBERS, Q-PLATFORM, Q-REQHOST, Q-PROBELIMITS, Q-GC, Q-FIXTURES.</li>
 <li>Stable codes (Q-DIAG), offered for both CLIs.</li>
-<li>The maintainer decision that MEP <code>0.1</code> is not supported (MEP-1): say so in <code>protocol.md</code> and the extension README, and move the Rust host to <code>0.2.0-draft.1</code>, dropping <code>0.1</code>.</li>
+<li>The maintainer decision MEP-1, that MEP <code>0.1</code> is not supported and the whole 0.2 line is (<code>&gt;=0.2.0-0</code>, <code>&lt;0.3.0</code>, an explicit exception to the exact-match rule for prereleases): say so in <code>protocol.md</code> and the extension README, and move the Rust host to the MEP 0.2 line.</li>
 </ul>
 
 <h2 id="fsharp-frontend">The path to installing the F# frontend without .NET</h2>
@@ -719,7 +733,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>Two facts apply whatever is chosen:</p>
 <ul>
 <li>The guest reports <code>org.finos.morphir.fsharp-frontend</code> (<code>src/Morphir.Frontend.FSharp.Extension/FSharpGuest.fs:61</code>). The probe compares <code>extension.id</code>, and dotted ids wait for #1149. So the frontend cannot be installed under any id today, even as one file, unless the maintainer accepts a temporary single-token id.</li>
-<li>It speaks only MEP <code>0.2.0-draft.1</code>, so a global install goes to the .NET global layer, or to the dotted partition if #1149 adds the list-and-skip rule, and never to <code>catalog/extensions.json</code>.</li>
+<li>It speaks only versions of the MEP 0.2 line (today <code>0.2.0-draft.1</code>), so a global install goes to the .NET global layer, or to the dotted partition if #1149 adds the list-and-skip rule, and never to <code>catalog/extensions.json</code>.</li>
 </ul>
 <p><span class="tag obs">Observed</span> Adoption task 3.1 has landed on main as a folder (#569, <code>4b14b0d</code>). <code>SelfContainedProcess.pubxml</code> publishes a self-contained folder with <code>PublishSingleFile</code> false, "because the compiler references are files of the folder". <code>CompilerEdge</code> now takes the framework references from the host's deps files, and it refuses a single-file bundle with <code>NoFileLocation</code> when <code>FSharp.Core</code> or the annotations have no file location. Both options below build on that.</p>
 

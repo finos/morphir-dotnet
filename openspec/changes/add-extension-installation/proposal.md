@@ -12,7 +12,13 @@ On 9 November 2026 the maintainer decided that the .NET installer is built insid
 
 A developer on Windows adds a local extension repository and installs a process backend from it. A second project pins a newer version of the same backend without changing the global selection, and a `morphirup` toolchain generation selects its own versions over the shared store. A teammate who clones a repository with an extension package archive in `.morphir/extensions/staged/` gets a clear message, and no code from the clone runs until they install it.
 
-This host does not support MEP `0.1` (maintainer decision, 9 November 2026): "we don't have users to support the cost of maintaining 2 versions". It and its guests speak only `0.2.0-draft.1`, and nothing here implements or bridges `0.1`. The maintainer made the scope precise: "we can still have the global, we just have decided to cut support for MEP 0.1". Released Rust CLIs, which speak only `0.1`, are still kept working on a shared Morphir Home.
+This host does not support MEP `0.1` (maintainer decision, 9 November 2026): "we don't have users to support the cost of maintaining 2 versions". The maintainer set the scope the same day ("we can still have the global, we just have decided to cut support for MEP 0.1"), and said what is supported instead: "We should support 0.2.0 all prerelease and final 0.2.x releases".
+
+- **The supported protocol is the whole 0.2 line.** That is every prerelease of `0.2.0` and every final `0.2.x`, written as the comparators `>=0.2.0-0` and `<0.3.0` under the npm and Cargo prerelease rule.
+- **What exists today.** The only version of that line is `0.2.0-draft.1`, and it is what this host implements.
+- **Later versions are added, not swapped.** As later versions of the line appear, the host keeps the earlier ones.
+- **This is an explicit exception.** The general rule is that a prerelease matches only exactly.
+- **Released Rust CLIs keep working.** They speak only `0.1`, and they still work on a shared Morphir Home.
 
 The same day the maintainer decided to stop reading transient pre-1.0 document formats: "we are paying too much of a cost to support transient pre 1.0 contracts". This host reads index records, descriptors and catalog entries only at `2.0.0-draft.2` (and the drafts finos/morphir#1149 adds), with claim sets at `0.1.0-draft.2`. It does not read or convert version 1 records and descriptors, `2.0.0-draft.1` or claim set draft.1. A Rust-written catalog entry in those formats is listed as unavailable and carried through unchanged.
 
