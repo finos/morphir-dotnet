@@ -48,6 +48,7 @@
         "PackTool",
         "Precommit",
         "PrepareRelease",
+        "ProbeMorphirNative",
         "PublishAll",
         "PublishExecutable",
         "PublishFSharpFrontendProcess",

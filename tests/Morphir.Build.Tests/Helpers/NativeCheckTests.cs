@@ -76,6 +76,13 @@ public class NativeCheckTests
         table.Should().Contain("| debian:12-slim | ion-tree | SHA-256 (Ion tree cut stem) | 134 (SIGABRT) | unknown | No usable version of libssl was found |");
         table.Should().Contain("| runner | ion-tree | SHA-256 (Ion tree cut stem) | 0 | yes |");
         table.Should().NotContain("more | text", "only the first line of standard error is kept, so a pipe cannot break the table");
+        // A log line on standard error is not the error: the first other line is shown.
+        NativeCheck.Table([NativeCheck.Outcome("runner", command, 1, false, "", "[07:54:17 INF] Foundatio.Mediator registered 3 handler(s).\nError: not a tree")])
+            .Should().Contain("| Error: not a tree |");
+        NativeCheck.Table([NativeCheck.Outcome("runner", command, 1, false, "", "\u001b[38;5;0007m[07:54:17 INF]\u001b[0m registered.\nError: not a tree")])
+            .Should().Contain("| Error: not a tree |", "a coloured log line is a log line too");
+        NativeCheck.Table([NativeCheck.Outcome("runner", command, 0, false, "{}", "[07:54:17 INF] Foundatio.Mediator registered 3 handler(s).\n")])
+            .Should().Contain("| 0 | yes |  |", "standard error that holds only progress shows nothing");
         NativeCheck.ExitText(139).Should().Be("139 (SIGSEGV)");
         NativeCheck.ExitText(133).Should().Be("133 (SIGTRAP)");
         NativeCheck.ExitText(2).Should().Be("2");
@@ -92,6 +99,23 @@ public class NativeCheckTests
         NativeCheck.Outcome("debian:12-slim", checkedCommand, 0, false, "1.2.3", "").Problem.Should().BeNull();
         NativeCheck.Outcome("debian:12-slim", reported, 139, false, "", "crash").Problem.Should().BeNull();
         NativeCheck.Outcome("runner", checkedCommand, -1, true, "", "").Problem.Should().Be("version in runner: timed out");
+    }
+
+    [Test]
+    public void TheMorphirProbeRunsOnlyOnItsOwnPullRequestOnTheReleasePlatformsAndNeverFailsIt()
+    {
+        string Workflow(string name) => File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", name));
+        var probe = Workflow("morphir-native-probe.yml");
+
+        probe.Should().Contain("if: github.head_ref == 'feat/legacy-names-carry-native-aot'", "other pull requests do not pay for four Native AOT builds");
+        probe.Should().Contain("continue-on-error: true", "report mode never fails the pull request");
+        probe.Should().Contain("--target ProbeMorphirNative").And.Contain("if: always()");
+
+        static List<(string, string)> Pairs(string text, string pattern) =>
+            [.. System.Text.RegularExpressions.Regex.Matches(text, pattern, System.Text.RegularExpressions.RegexOptions.Multiline)
+                .Select(match => (match.Groups[1].Value, match.Groups[2].Value))];
+        Pairs(probe, @"^\s*- \{ rid: (\S+), os: (\S+) \}\s*$").Should()
+            .Equal(Pairs(Workflow("deployment.yml"), @"^\s*- rid: (\S+)\s*\n\s*os: (\S+)\s*$"), "it probes the platforms and runners that morphir is released on");
     }
 
     [Test]

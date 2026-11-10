@@ -270,7 +270,10 @@ public static class NativeCheck
 
     private static string FirstLine(string text)
     {
-        var line = text.Replace("\r\n", "\n").Split('\n').Select(line => line.Trim()).FirstOrDefault(line => line.Length > 0) ?? "";
+        // Serilog's information, debug and verbose lines on standard error are progress, not the error.
+        var plain = Regex.Replace(text, @"\x1b\[[0-9;]*[A-Za-z]", "");
+        var lines = plain.Replace("\r\n", "\n").Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0).ToList();
+        var line = lines.FirstOrDefault(line => !Regex.IsMatch(line, @"^\[\d\d:\d\d:\d\d (VRB|DBG|INF)\]")) ?? "";
         return line.Length > 200 ? line[..200] + "…" : line;
     }
 

@@ -1,0 +1,68 @@
+name: "morphir native probe"
+
+# Report mode: what the Native AOT morphir needs from a machine, measured before the legacy morphir-{rid} names carry it
+# (design REL-1). It publishes src/Morphir with the native-aot release profile (on Linux inside the pinned ubuntu:22.04),
+# then runs one command for each native dependency on the runner and, on Linux, in debian:12-slim and ubuntu:22.04
+# with no .NET, libicu or OpenSSL. It records every outcome and never fails the pull request.
+#
+# It runs only on the pull request of feat/legacy-names-carry-native-aot, so other pull requests do not pay for a
+# 28 MB Native AOT build on four runners.
+
+on:
+    pull_request:
+
+permissions:
+    contents: read
+
+jobs:
+    probe:
+        if: github.head_ref == 'feat/legacy-names-carry-native-aot'
+        name: probe ${{ matrix.rid }}
+        continue-on-error: true
+        strategy:
+            fail-fast: false
+            matrix:
+                # The platforms and runners of the release workflow's build-executables matrix.
+                include:
+                    - { rid: linux-x64, os: ubuntu-latest }
+                    - { rid: linux-arm64, os: ubuntu-24.04-arm }
+                    - { rid: win-x64, os: windows-latest }
+                    - { rid: osx-arm64, os: macos-latest }
+        runs-on: ${{ matrix.os }}
+        timeout-minutes: 60
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.1.0
+              with:
+                  fetch-depth: 0
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+
+            - name: Install readelf
+              if: runner.os == 'Linux'
+              run: command -v readelf || { sudo apt-get update && sudo apt-get install -y --no-install-recommends binutils; }
+
+            # The Native AOT link on Windows needs vswhere.exe, which the ILCompiler targets call by name.
+            - name: Put vswhere on PATH
+              if: runner.os == 'Windows'
+              shell: bash
+              run: echo "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer" >> "$GITHUB_PATH"
+
+            - name: Probe the Native AOT morphir for ${{ matrix.rid }}
+              shell: bash
+              run: ./build.sh --target ProbeMorphirNative --rid "${{ matrix.rid }}"
+
+            - name: Upload the probe report
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: morphir-native-probe-${{ matrix.rid }}
+                  path: |
+                      ./artifacts/morphir-probe/${{ matrix.rid }}/probe.md
+                      ./artifacts/morphir-probe/${{ matrix.rid }}/publish.log
+                      ./artifacts/morphir-probe/${{ matrix.rid }}/outputs/
+                  if-no-files-found: warn
+                  retention-days: 14
