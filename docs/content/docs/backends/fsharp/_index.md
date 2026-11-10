@@ -15,7 +15,7 @@ The generator has two deliveries. Both run the same generator code.
 
 - **Built in.** `morphir.fsharp` is the backend of the `morphir` and
   `dotnet-morphir` hosts. It is the default: `morphir generate --target fsharp`
-  always uses it. It reads JSON and Ion models. The managed host
+  uses it when no backend extension is selected. It reads JSON and Ion models. The managed host
   `dotnet-morphir` formats the generated source with Fantomas. The Native AOT
   `morphir` cannot run Fantomas, so it writes the same declarations
   unformatted: its files differ from the extension's in formatting.
@@ -25,9 +25,20 @@ The generator has two deliveries. Both run the same generator code.
   built-in backend, for example a MoonBit host. See
   [Run the generator as a MEP extension](#run-the-generator-as-a-mep-extension).
 
-The morphir-dotnet hosts do not start the extension yet. `morphir generate`
-has no option that selects an external backend, so installing the extension
-does not change what `morphir generate` does.
+`morphir generate` runs the extension only when you select it, with
+`--extension` or `[codegen.fsharp].extension`; installing it changes nothing
+else. Every entry point (`morphir`, the managed `morphir` and `dotnet-morphir`)
+has the option:
+
+```sh
+morphir generate --input model.json --target fsharp --output gen --extension morphir-fsharp-backend
+```
+
+The host starts the guest, agrees the session, sends the model's JSON IR, and
+checks and publishes the files that the guest returns. The report names the
+extension by its own id, with `"backendTransport": "mep"` and its version. See
+[Backend extensions]({{< relref "/docs/cli/generate#backend-extensions" >}})
+for the configuration key, how the value is read, and the failure codes.
 
 ## Run the generator as a MEP extension
 
@@ -110,6 +121,13 @@ comparison with the Native AOT `morphir`, whose files are unformatted. Other
 tests check malformed params, a model nested just under the agreed `maxDepth`,
 generation beside a ping, and the path check. A further test packs and installs
 the tool and reads its claims.
+
+The host side, `MepGenerationBackend` in `Morphir.Tooling`, is checked against
+the real guest with the same comparison, and against scripted guests for each
+failure code. `morphir generate --extension` and `[codegen.fsharp].extension`
+are checked through the command line. Because the files come from the guest,
+the Native AOT `morphir` with `--extension` publishes the guest's formatted
+files, not the unformatted files of its built-in backend.
 
 The guest is not qualified with the shared compatibility runner of
 `finos/morphir` yet: its frozen expected F# files do not exist yet. See

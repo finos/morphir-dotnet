@@ -27,6 +27,7 @@
         "BuildE2ETests",
         "BuildProtoPlugin",
         "Check",
+        "CheckMorphirup",
         "CI",
         "CILint",
         "CITest",
@@ -37,9 +38,11 @@
         "DevWorkflow",
         "Format",
         "Lint",
+        "MorphirupChecksums",
         "PackageProtoPlugin",
         "PackAll",
         "PackLibs",
+        "PackMorphirup",
         "PackPlatformTarballs",
         "PackRelease",
         "PackTool",
@@ -62,6 +65,7 @@
         "TestBuild",
         "TestE2E",
         "TestMepAot",
+        "TestMorphirupAot",
         "TestMyriadJsonAot",
         "TestMyriadPackages",
         "TestProtoPlugin"
@@ -156,7 +160,7 @@
         },
         "ExecutableType": {
           "type": "string",
-          "description": "Executable type for E2E tests: aot, trimmed, untrimmed, or all"
+          "description": "Executable type for E2E tests: aot, trimmed, untrimmed, tool or all (those four); native-aot, self-contained, framework-dependent or dotnet-tool (a packaged release profile); or offerings (all four packaged)"
         },
         "ExtensionProcessesDir": {
           "type": "string",
@@ -169,6 +173,24 @@
         "LocalSource": {
           "type": "string",
           "description": "Local NuGet feed directory"
+        },
+        "MorphirupBuildImage": {
+          "type": "string",
+          "description": "Linux only: publish morphirup inside this image, with this machine's .NET SDK mounted, so the executable needs that image's glibc and no newer"
+        },
+        "MorphirupContainers": {
+          "type": "array",
+          "description": "Linux only: container images with glibc and neither .NET nor libicu, in which CheckMorphirup also runs the executable",
+          "items": {
+            "type": "string"
+          }
+        },
+        "MorphirupPlatforms": {
+          "type": "array",
+          "description": "The platforms whose morphirup assets MorphirupChecksums requires (default: every platform releases build)",
+          "items": {
+            "type": "string"
+          }
         },
         "NuGetSource": {
           "type": "string",
@@ -185,6 +207,10 @@
         "ProtoPluginDir": {
           "type": "string",
           "description": "Output directory for proto plugin WASM"
+        },
+        "ReleaseAssetsDir": {
+          "type": "string",
+          "description": "Folder for the morphirup release assets and their checksum file"
         },
         "ReleaseDir": {
           "type": "string",

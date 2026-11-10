@@ -65,7 +65,7 @@ partial class Build : NukeBuild
     [Parameter("Install tool globally (true) or locally (false)")]
     readonly bool Global = false;
 
-    [Parameter("Executable type for E2E tests: aot, trimmed, untrimmed, or all")]
+    [Parameter("Executable type for E2E tests: aot, trimmed, untrimmed, tool or all (those four); native-aot, self-contained, framework-dependent or dotnet-tool (a packaged release profile); or offerings (all four packaged)")]
     readonly string ExecutableType = "all";
 
     AbsolutePath SourceDirectory => RootDirectory / "src";

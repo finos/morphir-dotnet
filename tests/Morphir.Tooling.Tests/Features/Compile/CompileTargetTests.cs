@@ -233,6 +233,25 @@ public sealed class CompileTargetTests
     }
 
     [Test]
+    public async Task ACodegenExtensionThatCompileTargetIgnoresIsANoteOnStderrAndTheBuiltInRuns()
+    {
+        using var workspace = Project();
+        workspace.Write("morphir.toml",
+            "[project]\nname = \"acme/car-rental\"\nexposed_modules = [\"Pricing\"]\n\n[codegen.fsharp]\nextension = \"morphir-fsharp-backend\"\n");
+
+        var run = await Compile(workspace, $"{Inputs} --target fsharp --generate-output gen");
+        run.Exit.Should().Be(0, run.Output.Error);
+        run.Output.Error.Should().Contain("note:").And.Contain("[codegen.fsharp].extension").And.Contain("morphir generate");
+        run.Output.Text.Should().NotContain("note:", "notes go to stderr only");
+        run.Output.Text.Trim().Should().EndWith("morphir-ir.json");
+        run.Output.Error.Should().Contain("morphir.fsharp", "the built-in backend ran");
+
+        var json = await Compile(workspace, $"--json-lines {Inputs} --target fsharp --generate-output gen");
+        json.Output.Text.Should().NotContain("note:", "JSON output stays clean");
+        json.Output.Error.Should().Contain("[codegen.fsharp].extension");
+    }
+
+    [Test]
     public async Task HumanModeNamesTheGeneratedOutputInTheSummary()
     {
         using var workspace = Project();
