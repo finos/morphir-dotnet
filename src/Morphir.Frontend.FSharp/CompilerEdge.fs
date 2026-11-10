@@ -48,6 +48,8 @@ type internal CheckedDocument = {
 type internal CheckedProject =
     {
         Kind: CheckKind
+        /// <summary>The compiler references of the check; the analysis check uses those of the original.</summary>
+        References: string array
         Documents: CheckedDocument list
         Results: FSharpCheckProjectResults
         Uses: FSharpSymbolUse array
@@ -147,16 +149,63 @@ module internal CompilerEdge =
                 | _ -> ()
         ]
 
-    /// <summary>The texts of the deps files that the host loaded (APP_CONTEXT_DEPS_FILES), or none.</summary>
-    let depsFiles () : string list =
-        match AppContext.GetData "APP_CONTEXT_DEPS_FILES" with
+    /// <summary>Why the frontend cannot give the compiler its references. Each case is a frontend error.</summary>
+    [<RequireQualifiedAccess>]
+    type ReferenceError =
+        /// <summary>FSharp.Core or the Morphir F# annotations have no file location (a single-file bundle).</summary>
+        | NoFileLocation
+        /// <summary>A self-contained folder, and no deps file lists the framework assemblies.</summary>
+        | NoFrameworkList
+        /// <summary>The host runtime does not list its trusted platform assemblies.</summary>
+        | NoTrustedAssemblies
+        /// <summary>The host lists a deps file that cannot be read or is not a deps file.</summary>
+        | UnreadableDepsFile of path: string * reason: string
+
+        /// <summary>The message of the frontend's error diagnostic.</summary>
+        member this.Message =
+            match this with
+            | NoFileLocation ->
+                "FSharp.Core or the Morphir F# annotations have no file location, as in a single-file bundle; the F# frontend needs its references as files."
+            | NoFrameworkList ->
+                "The runtime directory is the application folder (a self-contained application), and no deps file lists the framework assemblies, so the framework references cannot be told from the application's own assemblies."
+            | NoTrustedAssemblies -> "The host runtime does not list its trusted platform assemblies."
+            | UnreadableDepsFile(path, reason) ->
+                $"The host lists the deps file '{path}', which the F# frontend cannot read: {reason}"
+
+    /// <summary>
+    /// The paths of an APP_CONTEXT_DEPS_FILES value. hostpolicy joins them with ';' on every platform
+    /// (<c>hostpolicy_context.cpp</c>), as <c>DependencyContextPaths</c> reads them; it is not the path
+    /// separator, which is ':' on Unix and may occur inside a path.
+    /// </summary>
+    let parseDepsFiles (value: string) : string list =
+        value.Split(';', StringSplitOptions.RemoveEmptyEntries)
+        |> List.ofArray
+
+    /// <summary>
+    /// The framework assemblies that the host's deps files name (see <c>frameworkAssemblies</c>), from an
+    /// APP_CONTEXT_DEPS_FILES value. No value lists no deps file and gives an empty set; <c>selectReferences</c>
+    /// decides whether a layout needs the list. A listed file that is missing, unreadable or not JSON is an
+    /// error: the host loaded it, so skipping it would give a guessed reference set.
+    /// </summary>
+    let hostFramework (value: obj | null) : Result<Set<string>, ReferenceError> =
+        let read path =
+            try
+                Ok(frameworkAssemblies [ File.ReadAllText path ])
+            with
+            | :? IOException
+            | :? UnauthorizedAccessException
+            | :? JsonException as error -> Error(ReferenceError.UnreadableDepsFile(path, error.Message))
+
+        match value with
         | :? string as paths ->
-            [
-                for path in paths.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) do
-                    if File.Exists path then
-                        yield File.ReadAllText path
-            ]
-        | _ -> []
+            parseDepsFiles paths
+            |> List.fold
+                (fun result path ->
+                    match result with
+                    | Error _ -> result
+                    | Ok names -> read path |> Result.map (Set.union names))
+                (Ok Set.empty)
+        | _ -> Ok Set.empty
 
     /// <summary>What the reference selection reads from the hosting process.</summary>
     type ReferenceLayout = {
@@ -183,18 +232,16 @@ module internal CompilerEdge =
     /// out. A self-contained folder without a framework list, and an assembly without a location (a single-file
     /// bundle), are refused rather than given a guessed reference set.
     /// </summary>
-    let selectReferences (layout: ReferenceLayout) : Result<string array, string> =
+    let selectReferences (layout: ReferenceLayout) : Result<string array, ReferenceError> =
         let trim (path: string) = Path.TrimEndingDirectorySeparator path
 
         let sameDirectory (left: string) (right: string) =
             String.Equals(trim left, trim right, StringComparison.OrdinalIgnoreCase)
 
         if String.IsNullOrEmpty layout.FSharpCore || String.IsNullOrEmpty layout.Annotations then
-            Error
-                "FSharp.Core or the Morphir F# annotations have no file location, as in a single-file bundle; the F# frontend needs its references as files."
+            Error ReferenceError.NoFileLocation
         elif Set.isEmpty layout.Framework && sameDirectory layout.RuntimeDirectory layout.ApplicationDirectory then
-            Error
-                "The runtime directory is the application folder (a self-contained application), and no deps file lists the framework assemblies, so the framework references cannot be told from the application's own assemblies."
+            Error ReferenceError.NoFrameworkList
         else
             let framework =
                 layout.Trusted
@@ -211,27 +258,26 @@ module internal CompilerEdge =
             // FSharp.Core and the Morphir attributes (MorphirNameAttribute) are the only non-framework references.
             Ok(Array.ofList (framework @ [ layout.FSharpCore; layout.Annotations ]))
 
-    /// <summary>The compiler references of this process (see <c>selectReferences</c>).</summary>
-    let references =
+    /// <summary>
+    /// The compiler references of this process (see <c>selectReferences</c>), or why there are none. The trusted
+    /// platform assemblies are joined with the path separator (hostpolicy's <c>PATH_SEPARATOR</c>), unlike the
+    /// deps files.
+    /// </summary>
+    let references: Lazy<Result<string array, ReferenceError>> =
         lazy
-            (let trusted =
-                match AppContext.GetData "TRUSTED_PLATFORM_ASSEMBLIES" with
-                | :? string as paths ->
-                    paths.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
-                | _ -> invalidOp "The host runtime does not list its trusted platform assemblies."
-
-             let layout = {
-                 RuntimeDirectory = RuntimeEnvironment.GetRuntimeDirectory()
-                 ApplicationDirectory = AppContext.BaseDirectory
-                 Trusted = trusted
-                 Framework = frameworkAssemblies (depsFiles ())
-                 FSharpCore = typeof<unit>.Assembly.Location
-                 Annotations = typeof<Morphir.MorphirNameAttribute>.Assembly.Location
-             }
-
-             match selectReferences layout with
-             | Ok references -> references
-             | Error message -> invalidOp message)
+            (match AppContext.GetData "TRUSTED_PLATFORM_ASSEMBLIES" with
+             | :? string as paths ->
+                 hostFramework (AppContext.GetData "APP_CONTEXT_DEPS_FILES")
+                 |> Result.bind (fun framework ->
+                     selectReferences {
+                         RuntimeDirectory = RuntimeEnvironment.GetRuntimeDirectory()
+                         ApplicationDirectory = AppContext.BaseDirectory
+                         Trusted = paths.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
+                         Framework = framework
+                         FSharpCore = typeof<unit>.Assembly.Location
+                         Annotations = typeof<Morphir.MorphirNameAttribute>.Assembly.Location
+                     })
+             | _ -> Error ReferenceError.NoTrustedAssemblies)
 
     let private options = [|
         "--targetprofile:netcore"
@@ -320,6 +366,7 @@ module internal CompilerEdge =
         member this.Check
             (
                 kind: CheckKind,
+                references: string array,
                 texts: string list,
                 cancellationToken: CancellationToken
             ) : Task<CheckedProject> =
@@ -347,7 +394,7 @@ module internal CompilerEdge =
                 let arguments =
                     Array.concat [
                         options
-                        references.Force()
+                        references
                         |> Array.map (fun reference -> $"-r:{reference}")
                         documents
                         |> List.map (fun (_, _, _, path) -> path)
@@ -392,6 +439,7 @@ module internal CompilerEdge =
 
                 return {
                     Kind = kind
+                    References = references
                     Documents = List.ofSeq parsed
                     Results = results
                     Uses = results.GetAllUsesOfAllSymbols(cancellationToken)
@@ -529,20 +577,32 @@ module internal CompilerEdge =
         |> order session.Documents
 
     /// <summary>
-    /// Checks the original documents. F# errors fail the result. Warnings and information pass with it.
+    /// Checks the original documents with the given references. F# errors fail the result. Warnings and
+    /// information pass with it. A reference error fails it with one <c>fsharp.references_unavailable</c>
+    /// error, which has no location, and the compiler does not run.
     /// </summary>
-    let checkOriginal
+    let checkOriginalWith
+        (references: Result<string array, ReferenceError>)
         (session: Session)
         (cancellationToken: CancellationToken)
         : Task<Checked<CheckedProject>> =
         task {
-            let! project =
-                session.Check(
-                    CheckKind.Original,
-                    session.Documents
-                    |> List.map (fun document -> document.Text),
-                    cancellationToken
-                )
+            match references with
+            | Error error ->
+                return Checked.fail [ Diagnostic.error FSharpCodes.referencesUnavailable error.Message ]
+            | Ok references ->
+                let! project =
+                    session.Check(
+                        CheckKind.Original,
+                        references,
+                        session.Documents
+                        |> List.map (fun document -> document.Text),
+                        cancellationToken
+                    )
 
-            return Checked.ofDiagnostics project (diagnostics session project)
+                return Checked.ofDiagnostics project (diagnostics session project)
         }
+
+    /// <summary>Checks the original documents with the references of this process (see <c>checkOriginalWith</c>).</summary>
+    let checkOriginal (session: Session) (cancellationToken: CancellationToken) : Task<Checked<CheckedProject>> =
+        checkOriginalWith (references.Force()) session cancellationToken

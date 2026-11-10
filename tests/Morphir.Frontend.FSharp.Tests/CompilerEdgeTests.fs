@@ -343,12 +343,87 @@ let tests =
                 "framework in ordinal order, then FSharp.Core and the attributes, once each"
 
             match CompilerEdge.selectReferences { layout with Framework = Set.empty } with
-            | Error message -> Expect.stringContains message "framework" "a self-contained folder without a framework list is refused"
+            | Error error ->
+                Expect.equal error CompilerEdge.ReferenceError.NoFrameworkList "a self-contained folder without a framework list is refused"
+                Expect.stringContains error.Message "framework" "the message says why"
             | Ok references -> failtest $"Without the framework list the application assemblies would be references: {references}"
 
             match CompilerEdge.selectReferences { layout with FSharpCore = "" } with
-            | Error message -> Expect.stringContains message "single-file" "an assembly without a location is refused"
+            | Error error ->
+                Expect.equal error CompilerEdge.ReferenceError.NoFileLocation "an assembly without a location is refused"
+                Expect.stringContains error.Message "single-file" "the message says why"
             | Ok references -> failtest $"An empty location is not a reference: {references}"
+        }
+
+        test "APP_CONTEXT_DEPS_FILES is split on ';' on every platform, not on the path separator" {
+            // hostpolicy joins the deps files with ';' (hostpolicy_context.cpp), and DependencyContextPaths in
+            // Microsoft.Extensions.DependencyModel splits on ';' too. A Unix path may contain ':'.
+            let value =
+                "/opt/app/morphir-fsharp-frontend.deps.json;/usr/share/dotnet/shared/Microsoft.NETCore.App/10.0.14/Microsoft.NETCore.App.deps.json;/srv/odd:name/x.deps.json"
+
+            Expect.equal
+                (CompilerEdge.parseDepsFiles value)
+                [
+                    "/opt/app/morphir-fsharp-frontend.deps.json"
+                    "/usr/share/dotnet/shared/Microsoft.NETCore.App/10.0.14/Microsoft.NETCore.App.deps.json"
+                    "/srv/odd:name/x.deps.json"
+                ]
+                "three entries, the ':' kept inside its path"
+
+            Expect.equal (CompilerEdge.parseDepsFiles "/a.deps.json;;/b.deps.json;") [ "/a.deps.json"; "/b.deps.json" ] "empty entries are dropped"
+            Expect.isEmpty (CompilerEdge.parseDepsFiles "") "an empty value lists none"
+        }
+
+        test "a deps file that the host lists but that cannot be read is an error, not a silent fallback" {
+            let folder = Path.Combine(Path.GetTempPath(), $"morphir-deps-{Guid.NewGuid():N}")
+            Directory.CreateDirectory folder |> ignore
+
+            try
+                let good = Path.Combine(folder, "app.deps.json")
+
+                File.WriteAllText(
+                    good,
+                    """{"targets":{".NETCoreApp,Version=v10.0/win-arm64":{"runtimepack.Microsoft.NETCore.App.Runtime.win-arm64/10.0.14":{"runtime":{"System.Runtime.dll":{}}}}}}"""
+                )
+
+                let missing = Path.Combine(folder, "missing.deps.json")
+                let malformed = Path.Combine(folder, "malformed.deps.json")
+                File.WriteAllText(malformed, "{ not json")
+
+                Expect.equal (CompilerEdge.hostFramework (box good)) (Ok(set [ "System.Runtime.dll" ])) "a readable deps file"
+                Expect.equal (CompilerEdge.hostFramework null) (Ok Set.empty) "no listed deps files: no framework list"
+
+                for path in [ missing; malformed ] do
+                    match CompilerEdge.hostFramework (box $"{good};{path}") with
+                    | Error(CompilerEdge.ReferenceError.UnreadableDepsFile(named, reason) as error) ->
+                        Expect.equal named path "the error names the file"
+                        Expect.isNotEmpty reason "and the reason"
+                        Expect.stringContains error.Message path "the message names the file"
+                    | other -> failtest $"{path}: {other}"
+            finally
+                Directory.Delete(folder, true)
+        }
+
+        test "a reference failure is an fsharp.references_unavailable error diagnostic, not an exception" {
+            use session = new CompilerEdge.Session([ rates ])
+
+            for error in [
+                CompilerEdge.ReferenceError.NoFileLocation
+                CompilerEdge.ReferenceError.NoFrameworkList
+                CompilerEdge.ReferenceError.NoTrustedAssemblies
+                CompilerEdge.ReferenceError.UnreadableDepsFile("/opt/app/app.deps.json", "not found")
+            ] do
+                let checkedProject =
+                    (CompilerEdge.checkOriginalWith (Error error) session CancellationToken.None).GetAwaiter().GetResult()
+
+                Expect.isNone (Checked.tryValue checkedProject) $"{error.Message}: the check fails"
+
+                match Checked.diagnostics checkedProject with
+                | [ diagnostic ] ->
+                    Expect.equal (codeOf diagnostic) "fsharp.references_unavailable" "the code"
+                    Expect.equal diagnostic.Severity DiagnosticSeverity.Error "an error"
+                    Expect.equal diagnostic.Message error.Message "the message"
+                | other -> failtest $"one diagnostic: {other}"
         }
 
         test "for a framework-dependent host the selection is the same as the runtime-directory rule" {
@@ -403,8 +478,11 @@ let tests =
                      |> Array.sortWith (fun left right -> String.CompareOrdinal(left, right)))
                     [| typeof<unit>.Assembly.Location; typeof<Morphir.MorphirNameAttribute>.Assembly.Location |]
 
-            Expect.isNonEmpty (CompilerEdge.frameworkAssemblies (CompilerEdge.depsFiles ())) "the host deps files name the framework"
-            Expect.equal (CompilerEdge.references.Force()) earlier "the same references, in the same order"
+            match CompilerEdge.hostFramework (AppContext.GetData "APP_CONTEXT_DEPS_FILES") with
+            | Ok framework -> Expect.isNonEmpty framework "the host deps files name the framework"
+            | Error error -> failtest error.Message
+
+            Expect.equal (CompilerEdge.references.Force()) (Ok earlier) "the same references, in the same order"
         }
 
         test "the frontend identity names the compiler, core, runtime and evidence revisions" {
