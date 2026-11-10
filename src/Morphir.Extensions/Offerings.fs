@@ -209,14 +209,14 @@ type BuildProfile =
     /// <summary>For C# callers: no profile.</summary>
     static member NoProfile = Unnamed
 
-    /// <summary>The deployment, or none.</summary>
-    member this.Deployment =
+    /// <summary>The deployment, or none. For F# in this assembly; C# reads <c>HostIdentity.DeploymentOrNull</c>.</summary>
+    member internal this.Deployment =
         match this with
         | Named(deployment, _) -> Some deployment
         | Unnamed -> None
 
-    /// <summary>The platform, or none.</summary>
-    member this.Platform =
+    /// <summary>The platform, or none. For F# in this assembly; C# reads <c>HostIdentity.PlatformOrNull</c>.</summary>
+    member internal this.Platform =
         match this with
         | Named(_, platform) -> platform
         | Unnamed -> None

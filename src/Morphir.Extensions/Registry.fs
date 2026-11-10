@@ -84,8 +84,8 @@ type HostIdentity =
     /// <summary>How this process runs.</summary>
     member this.Execution = this.execution
 
-    /// <summary>The deployment that the build states, or none when no named profile built it.</summary>
-    member this.Deployment = this.profile.Deployment
+    /// <summary>The deployment that the build states, or none when no named profile built it. C# uses <see cref="DeploymentOrNull"/>.</summary>
+    member internal this.Deployment = this.profile.Deployment
 
     /// <summary>For C# callers: the deployment, or null when no named profile built the executable.</summary>
     member this.DeploymentOrNull: Deployment | null = Option.toObj this.profile.Deployment
