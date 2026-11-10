@@ -24,7 +24,9 @@ Releases of morphir-dotnet attach `morphirup` for four platforms, beside the `mo
 | macOS ARM64 | `morphirup-osx-arm64` | `morphirup-osx-arm64-v<version>.tar.gz` |
 
 A Linux executable needs glibc 2.35 or later from the machine, which Ubuntu 22.04, Debian 12 and later releases of both
-have, and nothing else: no .NET, no ICU and no OpenSSL. It does not run on musl distributions such as Alpine.
+have, and nothing else: no .NET, no ICU and no OpenSSL. It does not run on musl distributions such as Alpine. The
+macOS executable needs the minimum macOS version that its `LC_BUILD_VERSION` load command declares, which the release
+job logs for the asset; this page does not state it yet.
 
 Each archive holds the same executable under `<rid>/`, for example `linux-x64/morphirup`, with the repository's
 `LICENSE` and `NOTICE` and the executable's `THIRD-PARTY-NOTICES.txt` beside it. The release also carries that file as
@@ -115,21 +117,43 @@ Check in both `.morphir/toolchain.toml` and `.morphir/toolchain.lock.json`. The 
 | --- | --- |
 | 0 | The result is `planned` or `succeeded` |
 | 1 | The result is `failed`: a document was refused or a check failed |
-| 2 | A command line this build cannot run: an unknown or repeated option; a missing value; an invalid option value; `setup` without `--recipe` or `--repository-id`; a machine that is not one of the [supported platforms](#platforms-and-prerequisites); a downloaded artifact whose size is missing from `--artifact-sizes`. Nothing is written to standard output; the message is on standard error |
+| 2 | `morphirup` did not run the command; see [Exit code 2](#exit-code-2). Nothing is written to standard output; the reason is on standard error |
 | 3 | **Provisional.** Internal error. Nothing is written to standard output. The result contract defines exit codes 0, 1 and 2 only |
+
+#### Exit code 2
+
+Exit code 2 means that `morphirup` did not run the command. That happens when:
+
+- no command is given, or the command is not `setup` or `doctor`;
+- an option is unknown, given twice, or has no value. A value never starts with `--`, so `--project --plan` is a missing value, not a folder named `--plan`;
+- `setup` is run without `--plan`, or with `--yes`;
+- `--platform` is not one of the eight [platform ids](#platforms-and-prerequisites), or this machine is not one of them and `--platform` is not given;
+- the value of `--repository-id`, `--expect-plan`, `--implementation`, `--deployment`, `--preset`, `--channel` or `--version` is not valid;
+- `setup` has no `--repository-id` or no `--recipe`, or `doctor` has `--recipe` without `--repository-id`;
+- the request is given two ways: `--request` with `--project` or with the selector options, or `--project` with the selector options;
+- the selector options are incomplete: `--implementation`, `--deployment` or `--preset` is missing, or not exactly one of `--channel` and `--version` is given;
+- the `--artifact-sizes` file cannot be read, is not a JSON object of objects, or has a size that is not a non-negative integer;
+- a downloaded artifact has no size in `--artifact-sizes`. `setup` finds this only after it has read the request and recipe and resolved the plan.
 
 A request, lock or recipe that is absent or cannot be read is not exit code 2: the command runs and fails with `document_unavailable` (`unsupported-contract`, naming the document, at the empty path), exit 1.
 
-An option value never starts with `--`: `--project --plan` is refused as a missing value rather than read as a folder named `--plan`.
+#### Digests, repository ids and bounds
 
-<!-- PENDING (manager-core worker, via the orchestrator): sentences on the plan digest and CRLF, `--repository-id`,
-     the nesting bound and the discovery boundary go here. Do not write them here; they come from fix/morphirup-prerelease-review. -->
-**Pending:** the sentences on the plan digest and CRLF line endings, `--repository-id`, the nesting bound and the
-discovery boundary are still to come.
+A plan carries the lock that setup would write, and the lock's `requestSha256` is the SHA-256 of the request file's exact bytes. So a checkout that converts `.morphir/toolchain.toml` to CRLF line endings, or adds a byte order mark, gives another `planSha256`, and `--expect-plan` then fails with `plan_changed`. `plan_changed` names no cause. `morphirup doctor` does: its `request_changed` diagnostic says when line endings or a byte order mark are the likely cause.
+
+In this build, `--repository-id` is copied as given into the plan's `source.repositoryId` values and the lock's `recipe.repositoryId`, and nothing checks it. The plan's `repository-target` and `recipe-digest` sources label where each artifact would come from. They are not verified provenance: this build downloads and authenticates nothing.
+
+A request, lock or recipe nested deeper than 64 levels is refused as `invalid_document`, whether the nesting is in JSON or comes from TOML arrays, inline tables or dotted keys.
+
+**Provisional.** A version, in a document, a comparator or `--version`, is at most 256 characters, and each numeric identifier (major, minor, patch, or an all-digit prerelease identifier) has at most 15 digits. A longer one is refused as `invalid_value` at its member before it is parsed; a MEP version past the bound is `unsupported_case`, because it is off the supported 0.2 line.
 
 ### Files
 
-`morphirup` reads a request, lock, recipe or sizes file only when it is a regular file. A directory, device, pipe or socket is refused, and so is a symbolic link to one. A file that does not open within five seconds is refused. A refused request, lock or recipe is `document_unavailable`; an unreadable sizes file, which is this build's own input, is exit 2. The size bounds are provisional, until the contracts state their own:
+`morphirup` reads a request, lock, recipe or sizes file only when it is a regular file. A directory, device, pipe or socket is refused, and so is a symbolic link to one, including a link into `/dev`, `/proc` or `/sys`. A file has five seconds to open, and then thirty seconds for each read: a file that keeps sending data is read in full, and one that sends no data for thirty seconds is refused as "is not a regular file: it sent no data for thirty seconds". A refused request, lock or recipe is `document_unavailable`; an unreadable sizes file, which is this build's own input, is exit 2.
+
+A read error is reported in `morphirup`'s own words, never as a system message: "does not exist", "cannot be read: it is in use by another process", "cannot be read: access is denied", "cannot be read: its path is too long for this system", or "cannot be read: input or output failed" with the error code.
+
+The size bounds are provisional, until the contracts state their own:
 
 | File | Largest size read |
 | --- | --- |
@@ -142,7 +166,13 @@ A larger file is refused before it is parsed.
 
 ### Finding the project
 
-Without `--request` or the selector options, `morphirup` finds the project request by discovery: the nearest `.morphir/toolchain.toml` in the start directory or one of its parents, up to and including the discovery boundary. Nothing above the boundary is read, and requests are never merged, so a workspace member with its own request uses it and a member without one uses the workspace root's. The start is `--project <dir>`, or the current directory; the boundary is `--boundary <dir>`, or by default the root of the start path, as for `morphir`'s own configuration discovery. A start outside the boundary has no project request. `doctor` reads the lock beside the request it found. `--project` and `--boundary` are provisional.
+Without `--request` or the selector options, `morphirup` finds the project request by discovery: the nearest `.morphir/toolchain.toml` in the start directory or one of its parents, up to and including the discovery boundary. Nothing above the boundary is read, and requests are never merged, so a workspace member with its own request uses it and a member without one uses the workspace root's. The start is `--project <dir>`, or the current directory; the boundary is `--boundary <dir>`. A start outside the boundary has no project request. `--project` and `--boundary` are provisional.
+
+Discovery stops at the first level where `.morphir/toolchain.toml` exists in any form: a file, a directory, a link (even one that points nowhere) or an entry that cannot be listed. Anything there that is not a readable regular file is refused as `document_unavailable`, and the request of an ancestor is not read instead.
+
+Without `--boundary`, discovery searches up to the root of the file system: `/` on Linux and macOS, the drive's root on Windows. So when no nearer request exists, a `.morphir/toolchain.toml` in any ancestor of the start directory is used, for example in your home directory, in `/tmp` or at the root of a shared drive. Give `--boundary <dir>` to stop at your workspace. Give `--boundary` in the same letter case as the path you start from: on Windows the comparison ignores case; elsewhere it is exact, even on a case-insensitive volume.
+
+`doctor` reads the lock beside the request: the one it found, or the file given with `--request`, unless `--lock` names another.
 
 ### `morphirup --version`
 
@@ -201,7 +231,7 @@ A recipe that is refused is reported even when the lock is refused too. The resu
 
 `morphirup` uses the .NET runtime identifiers `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64`. A musl machine never gets a glibc closure. These are the platforms it can plan for; releases publish the executable for four of them, listed under [Download and verify](#download-and-verify).
 
-The executable needs no .NET runtime and no ICU: it is built in invariant globalization mode, and it normalizes strings for the plan digest to NFC with its own Unicode 17.0.0 tables. So it runs on a Linux machine without the `libicu` package, and a plan digest is the same whatever Unicode version the machine has.
+The executable needs no .NET runtime, no ICU and no OpenSSL: it is built in invariant globalization mode, it normalizes strings for the plan digest to NFC with its own Unicode 17.0.0 tables, and it computes SHA-256 with BouncyCastle's managed implementation. So it runs on a Linux machine without the `libicu` or `libssl` packages, and a plan digest is the same whatever Unicode version the machine has.
 
 ## Common errors
 
