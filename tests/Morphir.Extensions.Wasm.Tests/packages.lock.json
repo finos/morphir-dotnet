@@ -37,6 +37,11 @@
           "TUnit.Engine": "1.81.10"
         }
       },
+      "Cucumber.Messages": {
+        "type": "Transitive",
+        "resolved": "29.0.1",
+        "contentHash": "R2oo/wR3mXrbdK04Yraf+KhB01f/lyBkLQZcdxYt9XKE6tV+Af45MEk+jfbsew1SVvrAO0WvkIRwGYUozKCJvQ=="
+      },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
         "resolved": "2.23.0",
@@ -130,6 +135,22 @@
           "TUnit.Core": "1.81.10"
         }
       },
+      "morphir.compilation": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
+      "morphir.conformance": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Gherkin": "[35.1.0, )",
+          "Morphir.Compilation": "[1.0.0, )",
+          "Morphir.Mep": "[1.0.0, )"
+        }
+      },
       "morphir.extensions.wasm": {
         "type": "Project",
         "dependencies": {
@@ -144,6 +165,12 @@
           "Morphir.Myriad.SystemTextJson.Annotations": "[1.0.0, )"
         }
       },
+      "morphir.models": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )"
+        }
+      },
       "morphir.myriad.systemtextjson.annotations": {
         "type": "Project"
       },
@@ -155,6 +182,15 @@
         "requested": "[10.1.403, )",
         "resolved": "10.1.403",
         "contentHash": "SpKxPt90eSC3pfSKGLnSyucXXKVWokv1KVMTy2uQG36seOgJg14qUxjlcaWjZNWgxJtG5MeH9WpI6PQg4OR4tA=="
+      },
+      "Gherkin": {
+        "type": "CentralTransitive",
+        "requested": "[35.1.0, )",
+        "resolved": "35.1.0",
+        "contentHash": "2eHlz7CQ7uNUsFTveswt9W7p50tN0lpBHeaz4XJ9+/nMGErOkd7fgzjXtzgrkCWQCqF9US8O3tBd81aIP603nA==",
+        "dependencies": {
+          "Cucumber.Messages": "29.0.1"
+        }
       },
       "Wasmtime": {
         "type": "CentralTransitive",
