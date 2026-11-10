@@ -26,8 +26,8 @@ Tests for validating Native AOT compilation:
 
 **9 scenarios** covering AOT compilation and runtime behavior.
 
-### Packaged Release Artifacts (`PackagedArtifacts.feature`)
-Tests for the four deployment offerings, run from the archives that the `PackRelease` target writes: integrity, layout, startup from a clean folder whose path contains a space, core commands, the F# frontend, reading an input file, no installed .NET runtime and the declared runtime. Tagged `@packaged`; they run when `MORPHIR_EXECUTABLE_TYPE` is `native-aot`, `self-contained`, `framework-dependent` or `dotnet-tool`. See [Qualifying the release profiles](../../../../docs/contributing/release-profile-qualification.md).
+### Packaged release artifacts (not in this folder)
+The checks of the four deployment offerings from their packaged archives are in `Features/Packaged/PackagedArtifacts.feature`, tagged `@packaged`. They run only when `MORPHIR_EXECUTABLE_TYPE` is `native-aot`, `self-contained`, `framework-dependent` or `dotnet-tool`, never in the AOT and trimming lanes below. See [Checking the release profiles from packaged artifacts](../../../../docs/contributing/release-profile-checks.md).
 
 ## Running AOT Tests
 
@@ -60,10 +60,10 @@ To run AOT tests locally:
 
 # Run trimming tests
 cd tests/Morphir.E2E.Tests
-MORPHIR_EXECUTABLE_TYPE=trimmed dotnet run -- --treenode-filter "*/Trimming*"
+MORPHIR_EXECUTABLE_TYPE=trimmed dotnet run -- --treenode-filter "/*/*/AssemblyTrimmingFeature/*[Category!=packaged]"
 
 # Run AOT tests
-MORPHIR_EXECUTABLE_TYPE=aot dotnet run -- --treenode-filter "*/AOT*"
+MORPHIR_EXECUTABLE_TYPE=aot dotnet run -- --treenode-filter "/*/*/NativeAOTCompilationFeature/*[Category!=packaged]"
 ```
 
 ### Excluding from Regular CI

@@ -97,9 +97,11 @@ jobs:
               env:
                   MORPHIR_EXECUTABLE_TYPE: trimmed
                   INCLUDE_MANUAL_TESTS: "true"
+              # A TUnit tree filter needs the full /assembly/namespace/class/test path; the old "*/Trimming*" selected
+              # no test. The @packaged scenarios run only for a packaged executable type, never here.
               run: |
                   cd tests/Morphir.E2E.Tests
-                  dotnet run --no-build --configuration ${{ env.CONFIGURATION }} -- --treenode-filter "*/Trimming*"
+                  dotnet run --no-build --configuration ${{ env.CONFIGURATION }} -- --treenode-filter "/*/*/AssemblyTrimmingFeature/*[Category!=packaged]"
 
             - name: Run Native AOT Compilation Tests
               if: github.event.inputs.test-suite == 'both' || github.event.inputs.test-suite == 'aot-compilation'
@@ -107,15 +109,19 @@ jobs:
               env:
                   MORPHIR_EXECUTABLE_TYPE: aot
                   INCLUDE_MANUAL_TESTS: "true"
+              # The old "*/AOT*" selected no test (see the trimming step). Packaged scenarios are excluded here too.
               run: |
                   cd tests/Morphir.E2E.Tests
-                  dotnet run --no-build --configuration ${{ env.CONFIGURATION }} -- --treenode-filter "*/AOT*"
+                  dotnet run --no-build --configuration ${{ env.CONFIGURATION }} -- --treenode-filter "/*/*/NativeAOTCompilationFeature/*[Category!=packaged]"
 
             # The native-aot release profile from its packaged archive: PackRelease, then every non-manual scenario,
-            # including Features/AOT/PackagedArtifacts.feature, against the extracted artifact.
-            - name: Qualify the packaged native-aot artifact
+            # including Features/Packaged/PackagedArtifacts.feature, against the extracted artifact. On Linux the
+            # "No installed .NET runtime" scenario runs in a clean container without .NET.
+            - name: Check the packaged native-aot artifact
               if: github.event.inputs.test-suite == 'packaged'
               shell: bash
+              env:
+                  MORPHIR_E2E_RUNTIME_CONTAINER: ${{ runner.os == 'Linux' && 'mcr.microsoft.com/dotnet/runtime-deps:10.0' || '' }}
               run: |
                   ./build.sh --target PackRelease --deployment native-aot --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }}
                   ./build.sh --target TestE2E --executable-type native-aot --configuration ${{ env.CONFIGURATION }}

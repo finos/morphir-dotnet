@@ -132,13 +132,22 @@ jobs:
               shell: bash
               run: ./build.sh --target PublishSingleFile --rid ${{ matrix.rid }} --configuration ${{ env.CONFIGURATION }} --single-file-dir ./artifacts/single-file
 
-            # For the offerings, scripts/run-e2e-tests.cs packs each missing release profile with PackRelease, then runs
-            # every non-manual scenario, including Features/AOT/PackagedArtifacts.feature, from the installed artifact.
+            # The "No installed .NET runtime" scenario cannot hide a runtime at the default location, which
+            # actions/setup-dotnet uses. On Linux it runs in a clean container without .NET instead.
+            - name: Pull the clean runtime container
+              if: runner.os == 'Linux' && github.event.inputs.executable-type != 'trimmed'
+              shell: bash
+              run: docker pull mcr.microsoft.com/dotnet/runtime-deps:10.0
+
+            # For the offerings, scripts/run-e2e-tests.cs packs each release profile that has no artifact, then runs
+            # every non-manual scenario, including Features/Packaged/PackagedArtifacts.feature, from the installed artifact.
             - name: Run E2E tests for ${{ matrix.rid }}
               shell: bash
+              env:
+                  MORPHIR_E2E_RUNTIME_CONTAINER: ${{ runner.os == 'Linux' && 'mcr.microsoft.com/dotnet/runtime-deps:10.0' || '' }}
               run: ./build.sh --target TestE2E --executable-type ${{ github.event.inputs.executable-type }} --configuration ${{ env.CONFIGURATION }}
 
-            - name: Upload the shipped-size report and launch metadata
+            - name: Upload the packaged-size report and launch metadata
               if: always() && github.event.inputs.executable-type != 'trimmed'
               uses: actions/upload-artifact@v6
               with:

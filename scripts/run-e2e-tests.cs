@@ -3,7 +3,9 @@
 // Usage: dotnet run scripts/run-e2e-tests.cs [EXECUTABLE_TYPE] [CONFIGURATION]
 // EXECUTABLE_TYPE: aot, trimmed, untrimmed, tool, all (those four), one of the packaged offerings native-aot,
 // self-contained, framework-dependent or dotnet-tool, or offerings (all four). The packaged offerings run from the
-// artifacts that the PackRelease target writes to artifacts/release (or MORPHIR_RELEASE_DIR).
+// artifacts that the PackRelease target writes to artifacts/release (or MORPHIR_RELEASE_DIR). An offering with no
+// artifact there is packed first. An artifact packed from another commit than HEAD is refused, unless
+// MORPHIR_REUSE_PACKAGED_ARTIFACTS=true says to test it anyway.
 
 using System;
 using System.IO;
@@ -11,6 +13,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 var scriptArgs = Environment.GetCommandLineArgs().Skip(1).ToArray();
 var executableType = scriptArgs.Length > 0 ? scriptArgs[0] : "all";
@@ -145,14 +148,72 @@ var releaseDir = Environment.GetEnvironmentVariable("MORPHIR_RELEASE_DIR") is { 
     ? Path.GetFullPath(customRelease)
     : Path.Combine(projectRoot, "artifacts", "release");
 
-// True when PackRelease already wrote the artifact of this deployment for this platform (or the portable tool).
-bool HasPackagedArtifact(string deployment) =>
-    Directory.Exists(releaseDir) && Directory.GetFiles(releaseDir, "*.build-launch.json").Any(file =>
+// The launch metadata files that PackRelease wrote for this deployment on this platform (or the portable tool).
+List<string> PackagedLaunchFiles(string deployment) =>
+    !Directory.Exists(releaseDir) ? new List<string>() : Directory.GetFiles(releaseDir, "*.build-launch.json").Where(file =>
     {
-        var text = File.ReadAllText(file);
-        return text.Contains($"\"deployment\": \"{deployment}\"") &&
-               (text.Contains($"\"platform\": \"{rid}\"") || text.Contains("\"platform\": \"any\""));
-    });
+        using var json = JsonDocument.Parse(File.ReadAllText(file));
+        var platform = json.RootElement.GetProperty("platform").GetString();
+        return json.RootElement.GetProperty("deployment").GetString() == deployment && (platform == rid || platform == "any");
+    }).ToList();
+
+static string GitHead(string root)
+{
+    var start = new ProcessStartInfo("git") { WorkingDirectory = root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+    start.ArgumentList.Add("rev-parse");
+    start.ArgumentList.Add("HEAD");
+    using var process = Process.Start(start)!;
+    var head = process.StandardOutput.ReadToEnd().Trim();
+    process.WaitForExit();
+    return process.ExitCode == 0 ? head : "";
+}
+
+var reusePackaged = Environment.GetEnvironmentVariable("MORPHIR_REUSE_PACKAGED_ARTIFACTS") == "true";
+
+// Prints what is under test, and refuses an artifact that was packed from another commit than HEAD: after a code
+// change its old bytes would be tested and reported as found.
+bool CheckPackagedArtifact(string deployment, string launchFile)
+{
+    using var launch = JsonDocument.Parse(File.ReadAllText(launchFile));
+    var artifact = launch.RootElement.GetProperty("artifact").GetString()!;
+    var contentsFile = Path.Combine(releaseDir, artifact + ".build-contents.json");
+    string? commit = null, packedAt = null;
+    bool? clean = null;
+    if (File.Exists(contentsFile))
+    {
+        using var contents = JsonDocument.Parse(File.ReadAllText(contentsFile));
+        if (contents.RootElement.TryGetProperty("origin", out var origin) && origin.ValueKind == JsonValueKind.Object)
+        {
+            commit = origin.GetProperty("commit").GetString();
+            clean = origin.GetProperty("workingTreeClean").GetBoolean();
+            packedAt = origin.GetProperty("packedAt").GetString();
+        }
+    }
+
+    Console.WriteLine($"Packaged {deployment} under test: {artifact}");
+    Console.WriteLine($"  release {launch.RootElement.GetProperty("release").GetString()}, SHA-256 {launch.RootElement.GetProperty("sha256").GetString()}");
+    Console.WriteLine($"  packed from commit {commit ?? "(not recorded)"}{(clean == false ? " with uncommitted changes" : "")} at {packedAt ?? "(not recorded)"}");
+
+    var head = GitHead(projectRoot);
+    if (commit is not null && commit == head)
+    {
+        // Same commit. Uncommitted changes at pack time cannot be compared, so they are only reported.
+        if (clean == false) Console.WriteLine("⚠ It was packed with uncommitted changes, which this check cannot compare.");
+        return true;
+    }
+
+    var why = commit is null ? "its pack commit is not recorded" : $"it was packed from {commit}, and HEAD is {head}";
+    if (reusePackaged)
+    {
+        Console.WriteLine($"⚠ Testing it anyway, as MORPHIR_REUSE_PACKAGED_ARTIFACTS=true says: {why}.");
+        return true;
+    }
+
+    Console.Error.WriteLine($"✗ Error: the packaged {deployment} artifact may be stale: {why}. Pack it again " +
+        $"(build --target PackRelease --deployment {deployment}{(deployment == "dotnet-tool" ? "" : $" --rid {rid}")}) " +
+        "or set MORPHIR_REUSE_PACKAGED_ARTIFACTS=true to test it as it is.");
+    return false;
+}
 
 // Build all executables that will be tested
 foreach (var type in executableTypes)
@@ -206,7 +267,7 @@ foreach (var type in executableTypes)
     }
     else if (packagedTypes.Contains(type))
     {
-        if (!HasPackagedArtifact(type))
+        if (PackagedLaunchFiles(type).Count == 0)
         {
             Console.WriteLine($"Packing the {type} release profile for {rid}...");
             var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
@@ -221,10 +282,16 @@ foreach (var type in executableTypes)
                 Environment.Exit(exitCode);
             }
         }
-        else
+
+        var launchFiles = PackagedLaunchFiles(type);
+        if (launchFiles.Count != 1)
         {
-            Console.WriteLine($"✓ Packaged {type} artifact found in {releaseDir}");
+            Console.Error.WriteLine($"✗ Error: {launchFiles.Count} packaged {type} artifacts for {rid} in {releaseDir}; keep exactly one.");
+            Environment.Exit(1);
         }
+
+        if (!CheckPackagedArtifact(type, launchFiles[0]))
+            Environment.Exit(1);
     }
     else if (type == "untrimmed")
     {
@@ -296,22 +363,20 @@ foreach (var type in executableTypes)
     Environment.SetEnvironmentVariable("MORPHIR_EXECUTABLE_TYPE", type);
     
     // Run tests (exclude manual-only tests unless explicitly included)
-    var testArgs = new List<string> { "exec", testDllPath };
-    if (!includeManualTests)
+    // Reqnroll turns tags into TUnit categories. The filter needs the full /assembly/namespace/class/test path: a
+    // shorter one selects no tests at all. The @packaged scenarios run only for the packaged offerings, which install
+    // their release artifact. The @manual-only scenarios (the AOT and trimming features) build their own executables
+    // from the source tree, so they never run for a packaged type, even with INCLUDE_MANUAL_TESTS=true.
+    var testArgs = new List<string> { "exec", testDllPath, "--treenode-filter" };
+    if (packagedTypes.Contains(type))
     {
-        // Exclude scenarios tagged @manual-only (the AOT and trimming features); they run in the
-        // dedicated manual workflow. Reqnroll turns tags into TUnit categories. The filter needs
-        // the full /assembly/namespace/class/test path: a shorter one selects no tests at all.
-        testArgs.Add("--treenode-filter");
-        // The @packaged scenarios run only for the packaged offerings, which install their release artifact.
-        testArgs.Add(packagedTypes.Contains(type)
-            ? "/*/*/*/*[Category!=manual-only]"
-            : "/*/*/*/*[(Category!=manual-only)&(Category!=packaged)]");
+        if (includeManualTests)
+            Console.WriteLine($"ℹ INCLUDE_MANUAL_TESTS=true does not apply to the packaged type {type}: @manual-only scenarios build from source");
+        testArgs.Add("/*/*/*/*[Category!=manual-only]");
     }
-    else if (!packagedTypes.Contains(type))
+    else
     {
-        testArgs.Add("--treenode-filter");
-        testArgs.Add("/*/*/*/*[Category!=packaged]");
+        testArgs.Add(includeManualTests ? "/*/*/*/*[Category!=packaged]" : "/*/*/*/*[(Category!=manual-only)&(Category!=packaged)]");
     }
     
     var exitCode = RunCommand("dotnet", testArgs.ToArray());

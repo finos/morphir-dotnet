@@ -4,14 +4,19 @@ using System.Text.Json;
 using FluentAssertions;
 using Morphir.E2E.Tests.Infrastructure;
 using Morphir.TestSupport;
+using Reqnroll.UnitTestProvider;
 
-namespace Morphir.E2E.Tests.Features.AOT;
+namespace Morphir.E2E.Tests.Features.Packaged;
 
 /// <summary>Steps of PackagedArtifacts.feature: the four offerings, run from their packaged release artifacts.</summary>
 [Binding]
-public sealed class PackagedArtifactsSteps(ScenarioContext scenario)
+public sealed class PackagedArtifactsSteps(ScenarioContext scenario, IUnitTestRuntimeProvider runtime)
 {
     private const string ResultKey = "PackagedRunResult";
+    private const string AccessKey = "PackagedRunAccess";
+
+    /// <summary>What the apphost returns when it finds no .NET: 0x80008083 on Windows; a Unix shell sees its low byte, 131.</summary>
+    private static int FrameworkMissingExitCode => OperatingSystem.IsWindows() ? unchecked((int)0x80008083) : 0x83;
 
     private static PackagedInstallation Installation => PackagedInstallation.For(ExecutableLocator.CurrentType);
 
@@ -51,9 +56,11 @@ public sealed class PackagedArtifactsSteps(ScenarioContext scenario)
         switch (installation.Artifact.Deployment)
         {
             case "native-aot":
-                // One native file. Not a .NET single-file bundle: there is no managed runtime or assembly to extract.
+                // One native file. Not a .NET single-file bundle, which would also be one file: the executable has no
+                // bundle signature and carries the Native AOT runtime's debug header export.
                 files.Should().Equal(installation.Artifact.LaunchPath);
                 names.Should().NotContain(runtime);
+                ExecutableStructure.Of(installation.LaunchPath).Should().Be(ExecutableKind.NativeAot);
                 break;
             case "self-contained":
                 // A folder that carries its runtime and the F# compiler service, untrimmed.
@@ -77,28 +84,51 @@ public sealed class PackagedArtifactsSteps(ScenarioContext scenario)
 
     [When("I run the installed artifact with \"(.*)\" from a new empty directory")]
     public async Task WhenIRunFromAnEmptyDirectory(string arguments) =>
-        scenario[ResultKey] = await PackagedRun.RunAsync(Installation, arguments.Split(' '), RuntimeAccess.Visible);
+        await Run(arguments.Split(' '), RuntimeAccess.Visible, work => Directory.EnumerateFileSystemEntries(work).Should().BeEmpty());
 
     [When("I run the installed artifact with \"(.*)\" with no .NET runtime reachable")]
-    public async Task WhenIRunWithoutARuntime(string arguments) =>
-        scenario[ResultKey] = await PackagedRun.RunAsync(Installation, arguments.Split(' '), RuntimeAccess.Hidden);
+    public async Task WhenIRunWithoutARuntime(string arguments)
+    {
+        // A runtime at a location that this run cannot hide would make the scenario prove nothing, so it is skipped
+        // with the reason, never passed.
+        var plan = PackagedRun.HidingPlanForThisMachine();
+        if (plan.Mode == RuntimeHidingMode.NotPossible)
+            runtime.TestIgnore($"No .NET runtime can be hidden on this machine: {plan.Reason}.");
+        await Run(arguments.Split(' '), RuntimeAccess.Hidden);
+    }
 
     [When("I run the installed artifact with \"(.*)\" with the machine's .NET runtime reachable")]
-    public async Task WhenIRunWithTheMachineRuntime(string arguments) =>
-        scenario[ResultKey] = await PackagedRun.RunAsync(Installation, arguments.Split(' '), RuntimeAccess.Visible);
+    public async Task WhenIRunWithTheMachineRuntime(string arguments) => await Run(arguments.Split(' '), RuntimeAccess.Visible);
 
     [When("I compile an F# source file with the installed artifact")]
     public async Task WhenICompileFSharp() =>
-        scenario[ResultKey] = await PackagedRun.RunAsync(Installation,
-            ["compile", "--language", "fsharp", "--input", "src/Rates.fs", "--package-name", "acme/demo", "--json"], RuntimeAccess.Visible,
-            work => File.WriteAllText(Path.Combine(Directory.CreateDirectory(Path.Combine(work, "src")).FullName, "Rates.fs"),
+        await Run(["compile", "--language", "fsharp", "--input", "my sources/Rates.fs", "--package-name", "acme/demo", "--json"], RuntimeAccess.Visible,
+            work => File.WriteAllText(Path.Combine(Directory.CreateDirectory(Path.Combine(work, "my sources")).FullName, "Rates.fs"),
                 "module Acme.Demo.Rates\n\nlet dailyRate (days: int) : int = days * 40\n"));
 
     [When("I validate the model fixture \"(.*)\" with the installed artifact")]
     public async Task WhenIValidate(string fixture)
     {
-        var path = new TestDataResolver().ResolvePath($"<model-fixtures>/{fixture}");
-        scenario[ResultKey] = await PackagedRun.RunAsync(Installation, ["validate", "--input", path, "--json"], RuntimeAccess.Visible);
+        // The input file is passed by an absolute path that contains spaces.
+        var source = new TestDataResolver().ResolvePath($"<model-fixtures>/{fixture}");
+        string? input = null;
+        await Run(() => ["validate", "--input", input!, "--json"], RuntimeAccess.Visible, work =>
+        {
+            input = Path.Combine(Directory.CreateDirectory(Path.Combine(work, "model inputs")).FullName, fixture);
+            File.Copy(source, input);
+        });
+    }
+
+    private Task Run(string[] arguments, RuntimeAccess access, Action<string>? prepare = null) => Run(() => arguments, access, prepare);
+
+    private async Task Run(Func<string[]> arguments, RuntimeAccess access, Action<string>? prepare)
+    {
+        scenario[AccessKey] = access;
+        scenario[ResultKey] = await PackagedRun.RunAsync(Installation, arguments, access, work =>
+        {
+            work.Should().Contain(" ", "the working directory path contains a space");
+            prepare?.Invoke(work);
+        });
     }
 
     [Then("the installed artifact exits with code (\\d+)")]
@@ -138,42 +168,52 @@ public sealed class PackagedArtifactsSteps(ScenarioContext scenario)
     }
 
     [Then("the installed artifact runs without a runtime as its launch metadata says")]
-    public void ThenTheArtifactRunsWithoutARuntime()
+    public async Task ThenTheArtifactRunsWithoutARuntime()
     {
         var artifact = Installation.Artifact;
         if (artifact.BundledRuntime)
         {
             Result.ExitCode.Should().Be(0, Result.Describe());
             Result.StandardOutput.Trim().Split('+')[0].Should().Be(artifact.Release);
-            AssertNoMachineRuntime();
+            await AssertNoMachineRuntime();
+            return;
         }
-        else if (PackagedRun.UnhideableRuntimeRoots() is { Count: > 0 } unhideable && Result.ExitCode == 0)
+
+        var trace = Result.HostTrace ?? throw new InvalidOperationException($"The apphost wrote no host trace.\n{Result.Describe()}");
+        if (Result.ExitCode == 0)
         {
-            // This machine has a runtime where every apphost looks, so it cannot be hidden. The run is still proof
-            // that the hidden variables and PATH played no part: the host found the runtime only there.
-            var fxr = HostTrace.ResolvedFxr(Result.HostTrace ?? "");
-            fxr.Should().NotBeNull(Result.Describe());
-            unhideable.Should().Contain(root => HostTrace.IsUnder(fxr!, root), $"with the runtime hidden, {fxr} must come from a default location");
+            // The apphost found a runtime although the run hid every one it knew of. If it came from a registered or
+            // default location, this machine's runtime could not be hidden after all: skipped, not passed.
+            var fxr = HostTrace.ResolvedFxr(trace);
+            var unhideable = PackagedRun.RegisteredRuntimeRoots().Concat(PackagedRun.DefaultRuntimeRoots()).ToList();
+            if (fxr is not null && unhideable.Any(root => HostTrace.IsUnder(fxr, root)))
+                runtime.TestIgnore($"The apphost still found the runtime at {fxr}, a location this run could not hide.");
+            throw new InvalidOperationException($"The runtime was hidden, yet the apphost started with hostfxr {fxr}.\n{Result.Describe()}");
         }
-        else
+
+        // The application cannot start, so the apphost's message is all a user sees. The installation guide repeats
+        // what to do (docs/content/docs/getting-started/installation.md).
+        Result.ExitCode.Should().Be(FrameworkMissingExitCode, Result.Describe());
+        Result.StandardError.Should().Contain("You must install .NET to run this application", Result.Describe())
+            .And.Contain("https://aka.ms/dotnet-core-applaunch");
+        if (OperatingSystem.IsWindows() && Result.Environment.GetValueOrDefault("ProgramW6432") is { } emptyRoot)
         {
-            // The application cannot start, so the apphost's message is all a user sees. The installation guide
-            // repeats what to do (docs/content/docs/getting-started/installation.md).
-            Result.ExitCode.Should().NotBe(0, Result.Describe());
-            Result.StandardError.Should().Contain("You must install .NET to run this application", Result.Describe())
-                .And.Contain("https://aka.ms/dotnet-core-applaunch");
+            // The default location the apphost looked in is the empty folder, so the hiding reached the host.
+            var location = HostTrace.DefaultLocation(trace);
+            location.Should().NotBeNull(trace);
+            HostTrace.IsUnder(location!, emptyRoot).Should().BeTrue($"the default location {location} is the empty {emptyRoot}");
         }
     }
 
     [Then("the installed artifact uses the runtime that its launch metadata declares")]
-    public void ThenTheArtifactUsesTheDeclaredRuntime()
+    public async Task ThenTheArtifactUsesTheDeclaredRuntime()
     {
         var artifact = Installation.Artifact;
         Result.ExitCode.Should().Be(0, Result.Describe());
         if (artifact.BundledRuntime)
         {
             // Even with a machine runtime reachable, a bundled offering never uses it.
-            AssertNoMachineRuntime();
+            await AssertNoMachineRuntime();
             return;
         }
 
@@ -183,29 +223,33 @@ public sealed class PackagedArtifactsSteps(ScenarioContext scenario)
         fxr.Should().NotBeNull(trace);
         PackagedRun.MachineRuntimeRoots().Should().Contain(root => HostTrace.IsUnder(fxr!, root),
             "a framework-dependent offering runs on the machine's shared runtime");
-        HostTrace.ChosenFramework(trace).Should().StartWith("10.", "the runtimeconfig asks for Microsoft.NETCore.App 10.0");
+        // The runtimeconfig asks for Microsoft.NETCore.App 10.0.0 with the default roll-forward (Minor): the newest
+        // 10.0 patch, or a higher 10.x minor when no 10.0 patch is installed, never 11.
+        HostTrace.ChosenFramework(trace).Should().StartWith("10.", trace);
     }
 
     /// <summary>
-    /// The process loaded no runtime from the machine: native-aot ran no .NET host at all (no host trace, and no
-    /// runtime files in the installation); self-contained resolved hostfxr and CoreCLR inside its installation only.
+    /// The process loaded no runtime from the machine. native-aot ran no .NET host at all: no host trace file, no host
+    /// tracing on standard error (where the host writes when it cannot open the file), an executable that is Native AOT
+    /// and not a single-file bundle, and a control apphost run through the same sandbox that does write a trace.
+    /// self-contained resolved hostfxr and CoreCLR inside its installation only.
     /// </summary>
-    private void AssertNoMachineRuntime()
+    private async Task AssertNoMachineRuntime()
     {
         var installation = Installation;
         if (installation.Artifact.Execution == "native")
         {
             Result.HostTrace.Should().BeNull("a Native AOT executable runs no .NET host, so there is no host trace");
+            HostTrace.IsTracingOutput(Result.StandardError).Should().BeFalse(Result.Describe());
+            ExecutableStructure.Of(installation.LaunchPath).Should().Be(ExecutableKind.NativeAot);
+            var control = await PackagedRun.TraceControlAsync(scenario.TryGetValue(AccessKey, out RuntimeAccess access) ? access : RuntimeAccess.Visible);
+            control.HostTrace.Should().NotBeNull($"a known apphost run the same way writes a host trace, so the trace variables work here\n{control.Describe()}");
+            control.HostTrace.Should().Contain("--- Invoked apphost");
             return;
         }
 
         var trace = Result.HostTrace ?? throw new InvalidOperationException("The apphost wrote no host trace.");
-        trace.Should().Contain("Using app-local location", "the host runs in self-contained mode");
-        var loaded = HostTrace.LoadedRuntimePaths(trace);
-        loaded.Should().NotBeEmpty(trace);
-        loaded.Should().OnlyContain(path => HostTrace.IsUnder(path, installation.Directory), "hostfxr and CoreCLR come from the installation");
-        foreach (var root in PackagedRun.MachineRuntimeRoots())
-            loaded.Should().NotContain(path => HostTrace.IsUnder(path, root), $"nothing is loaded from the machine runtime at {root}");
+        HostTrace.BundledRuntimeViolations(trace, installation.Directory, PackagedRun.MachineRuntimeRoots()).Should().BeEmpty(trace);
     }
 
     private static string RuntimeLibrary(string name) =>

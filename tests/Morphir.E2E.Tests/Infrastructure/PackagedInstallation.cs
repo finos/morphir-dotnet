@@ -16,7 +16,9 @@ namespace Morphir.E2E.Tests.Infrastructure;
 public sealed class PackagedInstallation
 {
     private static readonly ConcurrentDictionary<string, Lazy<PackagedInstallation>> Installed = new(StringComparer.Ordinal);
-    private static readonly string RunRoot = Path.Combine(Path.GetTempPath(), $"morphir packaged e2e {Guid.NewGuid():N}");
+    // Canonical, so the paths a host trace reports compare equal to it: on macOS the temporary folder is reached
+    // through the /var link, and a Windows TEMP can be a short name.
+    private static readonly string RunRoot = CanonicalPath.Of(Path.Combine(Path.GetTempPath(), $"morphir packaged e2e {Guid.NewGuid():N}"));
 
     private PackagedInstallation(PackagedArtifact artifact, string directory, string launchPath)
     {
@@ -74,10 +76,13 @@ public sealed class PackagedInstallation
 
     /// <summary>
     /// Installs the tool package with the SDK, from a feed that holds only that package, into a tool path. This is the
-    /// documented installation of the dotnet-tool offering; the SDK is its installation prerequisite.
+    /// documented installation of the dotnet-tool offering; the SDK is its installation prerequisite. The install runs
+    /// in the same kind of sandbox as the runs, with its own NuGet packages folder, and the package that the tool store
+    /// keeps must be the packed file.
     /// </summary>
     private static PackagedInstallation InstallTool(PackagedArtifact artifact, string directory)
     {
+        using var sandbox = TestSandbox.Create("morphir-packaged-install-");
         var feed = System.IO.Directory.CreateDirectory(Path.Combine(RunRoot, "tool feed")).FullName;
         File.Copy(artifact.ArchivePath, Path.Combine(feed, artifact.Artifact), overwrite: true);
         var config = Path.Combine(RunRoot, "nuget.tool.config");
@@ -88,12 +93,36 @@ public sealed class PackagedInstallation
         var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")
             ?? Path.GetFullPath(Path.Combine(RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", "..", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet"));
         var start = ChildProcess.StartInfo(dotnet, "tool", "install", "Morphir.Tool", "--version", artifact.Release, "--tool-path", directory, "--configfile", config);
+        start.WorkingDirectory = sandbox.Work;
+        sandbox.Apply(start, new SandboxOptions { Boundary = sandbox.Root });
+        // A contained packages folder: the install neither reads nor writes the machine's NuGet cache.
+        start.Environment["NUGET_PACKAGES"] = System.IO.Directory.CreateDirectory(Path.Combine(sandbox.Root, "nuget packages")).FullName;
         var result = ChildProcess.RunAsync(start, TimeSpan.FromMinutes(3)).GetAwaiter().GetResult();
         if (result.ExitCode != 0)
             throw new InvalidOperationException($"dotnet tool install failed with exit code {result.ExitCode}:\n{result.CombinedOutput}");
+        if (StoredPackageProblem(directory, "Morphir.Tool", artifact.Release, artifact.ArchivePath) is { } problem)
+            throw new InvalidOperationException(problem);
 
         var launch = Path.Combine(directory, OperatingSystem.IsWindows() ? "dotnet-morphir.exe" : "dotnet-morphir");
         return new PackagedInstallation(artifact, directory, launch);
+    }
+
+    /// <summary>
+    /// Null when the tool store of <paramref name="toolPath"/> keeps exactly <paramref name="packed"/> for
+    /// <paramref name="packageId"/> <paramref name="version"/>; otherwise what differs. The store path is
+    /// <c>.store/&lt;id&gt;/&lt;version&gt;/&lt;id&gt;/&lt;version&gt;/&lt;id&gt;.&lt;version&gt;.nupkg</c>, in lowercase.
+    /// </summary>
+    public static string? StoredPackageProblem(string toolPath, string packageId, string version, string packed)
+    {
+        var id = packageId.ToLowerInvariant();
+        var lower = version.ToLowerInvariant();
+        var stored = Path.Combine(toolPath, ".store", id, lower, id, lower, $"{id}.{lower}.nupkg");
+        if (!File.Exists(stored)) return $"The tool path {toolPath} has no stored package {stored}.";
+        var storedHash = ReleaseFiles.Sha256(stored);
+        var packedHash = ReleaseFiles.Sha256(packed);
+        return storedHash == packedHash
+            ? null
+            : $"The installed {stored} has SHA-256 {storedHash}, not the packed {packed} ({packedHash}).";
     }
 }
 
