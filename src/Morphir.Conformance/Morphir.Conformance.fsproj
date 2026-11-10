@@ -22,6 +22,7 @@
     <Compile Include="WasmHost/CaseIds.fs" />
     <Compile Include="WasmHost/FeatureWriter.fs" />
     <Compile Include="WasmHost/Generation.fs" />
+    <Compile Include="WasmHost/FeatureReader.fs" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />

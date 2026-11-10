@@ -549,7 +549,17 @@ module Corpus =
                 |> List.sortWith (fun left right ->
                     System.StringComparer.Ordinal.Compare(left.Path, right.Path)
                 ) do
-                if artifact.Path.EndsWith(".feature", System.StringComparison.Ordinal) then
+                // Each suite has its own directory and reader: the wasm-host suite beside this
+                // one has another vocabulary, so only the features of the requested suite are read.
+                if
+                    artifact.Path.EndsWith(".feature", System.StringComparison.Ordinal)
+                    && artifact.Path.StartsWith(
+                        "suites/"
+                        + options.Suite
+                        + "/",
+                        System.StringComparison.Ordinal
+                    )
+                then
                     let parsed =
                         try
                             use reader = new StringReader(Encoding.UTF8.GetString artifact.Bytes)
