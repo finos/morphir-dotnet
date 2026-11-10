@@ -12,10 +12,22 @@ on:
                     - Release
                     - Debug
             platforms:
-                description: "Platforms to test (comma-separated: linux-x64,linux-arm64,osx-arm64,osx-x64,win-x64)"
+                description: "Platforms to test (comma-separated: linux-x64,linux-arm64,osx-arm64,osx-x64,win-x64,win-arm64)"
                 required: true
                 default: "linux-x64,osx-arm64"
                 type: string
+            executable-type:
+                description: "What to test: the legacy trimmed single-file executable, all four packaged offerings, or one offering"
+                required: true
+                default: "trimmed"
+                type: choice
+                options:
+                    - trimmed
+                    - offerings
+                    - native-aot
+                    - self-contained
+                    - framework-dependent
+                    - dotnet-tool
 
 env:
     CONFIGURATION: ${{ github.event.inputs.configuration }}
@@ -56,6 +68,9 @@ jobs:
                               ;;
                           win-x64)
                               OS="windows-latest"
+                              ;;
+                          win-arm64)
+                              OS="windows-11-arm"
                               ;;
                           *)
                               echo "Unknown platform: $PLATFORM"
@@ -106,13 +121,34 @@ jobs:
               shell: bash
               run: ./build.sh --target Restore
 
+            # The Native AOT link on Windows needs vswhere.exe, which the ILCompiler targets call by name.
+            - name: Put vswhere on PATH
+              if: runner.os == 'Windows'
+              shell: bash
+              run: echo "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer" >> "$GITHUB_PATH"
+
             - name: Build single-file executable for ${{ matrix.rid }}
+              if: github.event.inputs.executable-type == 'trimmed'
               shell: bash
               run: ./build.sh --target PublishSingleFile --rid ${{ matrix.rid }} --configuration ${{ env.CONFIGURATION }} --single-file-dir ./artifacts/single-file
 
+            # For the offerings, scripts/run-e2e-tests.cs packs each missing release profile with PackRelease, then runs
+            # every non-manual scenario, including Features/AOT/PackagedArtifacts.feature, from the installed artifact.
             - name: Run E2E tests for ${{ matrix.rid }}
               shell: bash
-              run: ./build.sh --target TestE2E --executable-type trimmed --configuration ${{ env.CONFIGURATION }}
+              run: ./build.sh --target TestE2E --executable-type ${{ github.event.inputs.executable-type }} --configuration ${{ env.CONFIGURATION }}
+
+            - name: Upload the shipped-size report and launch metadata
+              if: always() && github.event.inputs.executable-type != 'trimmed'
+              uses: actions/upload-artifact@v6
+              with:
+                  name: release-profiles-${{ matrix.rid }}
+                  path: |
+                      ./artifacts/release/size-report.md
+                      ./artifacts/release/*.build-launch.json
+                      ./artifacts/release/*.build-contents.json
+                  if-no-files-found: ignore
+                  retention-days: 14
 
             - name: Upload executable artifact (on failure)
               if: failure()

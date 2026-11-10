@@ -1,6 +1,9 @@
 #!/usr/bin/env dotnet run
 // Run end-to-end tests against Morphir executables
 // Usage: dotnet run scripts/run-e2e-tests.cs [EXECUTABLE_TYPE] [CONFIGURATION]
+// EXECUTABLE_TYPE: aot, trimmed, untrimmed, tool, all (those four), one of the packaged offerings native-aot,
+// self-contained, framework-dependent or dotnet-tool, or offerings (all four). The packaged offerings run from the
+// artifacts that the PackRelease target writes to artifacts/release (or MORPHIR_RELEASE_DIR).
 
 using System;
 using System.IO;
@@ -46,7 +49,8 @@ static string GetCurrentRid()
 
 static string GetExecutableName(string rid, bool isAot = false)
 {
-    var baseName = isAot ? "Morphir" : "morphir";
+    // Every morphir executable is named morphir, AOT included; "Morphir" never matched on Linux and macOS.
+    var baseName = "morphir";
     if (rid.StartsWith("win-"))
     {
         return $"{baseName}.exe";
@@ -122,15 +126,33 @@ Console.WriteLine($"Executable type: {executableType}");
 Console.WriteLine($"Configuration: {config}");
 
 // Determine which executable types to test
+var packagedTypes = new[] { "native-aot", "self-contained", "framework-dependent", "dotnet-tool" };
 var executableTypes = new List<string>();
 if (executableType == "all")
 {
     executableTypes.AddRange(new[] { "aot", "trimmed", "untrimmed", "tool" });
 }
+else if (executableType == "offerings")
+{
+    executableTypes.AddRange(packagedTypes);
+}
 else
 {
     executableTypes.Add(executableType);
 }
+
+var releaseDir = Environment.GetEnvironmentVariable("MORPHIR_RELEASE_DIR") is { Length: > 0 } customRelease
+    ? Path.GetFullPath(customRelease)
+    : Path.Combine(projectRoot, "artifacts", "release");
+
+// True when PackRelease already wrote the artifact of this deployment for this platform (or the portable tool).
+bool HasPackagedArtifact(string deployment) =>
+    Directory.Exists(releaseDir) && Directory.GetFiles(releaseDir, "*.build-launch.json").Any(file =>
+    {
+        var text = File.ReadAllText(file);
+        return text.Contains($"\"deployment\": \"{deployment}\"") &&
+               (text.Contains($"\"platform\": \"{rid}\"") || text.Contains("\"platform\": \"any\""));
+    });
 
 // Build all executables that will be tested
 foreach (var type in executableTypes)
@@ -180,6 +202,28 @@ foreach (var type in executableTypes)
         else
         {
             Console.WriteLine($"✓ Trimmed executable found: {exePath}");
+        }
+    }
+    else if (packagedTypes.Contains(type))
+    {
+        if (!HasPackagedArtifact(type))
+        {
+            Console.WriteLine($"Packing the {type} release profile for {rid}...");
+            var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? Path.Combine(projectRoot, "build.cmd")
+                : Path.Combine(projectRoot, "build.sh");
+            var packArgs = new List<string> { "--target", "PackRelease", "--deployment", type, "--configuration", config };
+            if (type != "dotnet-tool") packArgs.AddRange(new[] { "--rid", rid });
+            var exitCode = RunCommand(buildScript, packArgs.ToArray());
+            if (exitCode != 0)
+            {
+                Console.Error.WriteLine($"✗ Error: Failed to pack the {type} release profile");
+                Environment.Exit(exitCode);
+            }
+        }
+        else
+        {
+            Console.WriteLine($"✓ Packaged {type} artifact found in {releaseDir}");
         }
     }
     else if (type == "untrimmed")
@@ -259,7 +303,15 @@ foreach (var type in executableTypes)
         // dedicated manual workflow. Reqnroll turns tags into TUnit categories. The filter needs
         // the full /assembly/namespace/class/test path: a shorter one selects no tests at all.
         testArgs.Add("--treenode-filter");
-        testArgs.Add("/*/*/*/*[Category!=manual-only]");
+        // The @packaged scenarios run only for the packaged offerings, which install their release artifact.
+        testArgs.Add(packagedTypes.Contains(type)
+            ? "/*/*/*/*[Category!=manual-only]"
+            : "/*/*/*/*[(Category!=manual-only)&(Category!=packaged)]");
+    }
+    else if (!packagedTypes.Contains(type))
+    {
+        testArgs.Add("--treenode-filter");
+        testArgs.Add("/*/*/*/*[Category!=packaged]");
     }
     
     var exitCode = RunCommand("dotnet", testArgs.ToArray());

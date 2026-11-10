@@ -26,6 +26,9 @@ Tests for validating Native AOT compilation:
 
 **9 scenarios** covering AOT compilation and runtime behavior.
 
+### Packaged Release Artifacts (`PackagedArtifacts.feature`)
+Tests for the four deployment offerings, run from the archives that the `PackRelease` target writes: integrity, layout, startup from a clean folder whose path contains a space, core commands, the F# frontend, reading an input file, no installed .NET runtime and the declared runtime. Tagged `@packaged`; they run when `MORPHIR_EXECUTABLE_TYPE` is `native-aot`, `self-contained`, `framework-dependent` or `dotnet-tool`. See [Qualifying the release profiles](../../../../docs/contributing/release-profile-qualification.md).
+
 ## Running AOT Tests
 
 ### Manual Workflow (Recommended)

@@ -22,6 +22,7 @@ on:
                     - osx-arm64
                     - osx-x64
                     - win-x64
+                    - win-arm64
             test-suite:
                 description: "AOT test suite to run"
                 required: true
@@ -32,6 +33,7 @@ on:
                     - trimming
                     - aot-compilation
                     - measure-compile
+                    - packaged
 
 env:
     CONFIGURATION: ${{ github.event.inputs.configuration }}
@@ -39,7 +41,7 @@ env:
 jobs:
     aot-tests:
         timeout-minutes: 90
-        runs-on: ${{ (github.event.inputs.platform == 'linux-x64' && 'ubuntu-latest') || (github.event.inputs.platform == 'linux-arm64' && 'ubuntu-24.04-arm') || (github.event.inputs.platform == 'osx-x64' && 'macos-15-intel') || (github.event.inputs.platform == 'osx-arm64' && 'macos-latest') || (github.event.inputs.platform == 'win-x64' && 'windows-latest') || 'ubuntu-latest' }}
+        runs-on: ${{ (github.event.inputs.platform == 'linux-x64' && 'ubuntu-latest') || (github.event.inputs.platform == 'linux-arm64' && 'ubuntu-24.04-arm') || (github.event.inputs.platform == 'osx-x64' && 'macos-15-intel') || (github.event.inputs.platform == 'osx-arm64' && 'macos-latest') || (github.event.inputs.platform == 'win-x64' && 'windows-latest') || (github.event.inputs.platform == 'win-arm64' && 'windows-11-arm') || 'ubuntu-latest' }}
         steps:
             - name: Fetch Source Code
               uses: actions/checkout@v6.1.0
@@ -62,6 +64,12 @@ jobs:
             - name: Restore dependencies
               shell: bash
               run: ./build.sh --target Restore
+
+            # The Native AOT link on Windows needs vswhere.exe, which the ILCompiler targets call by name.
+            - name: Put vswhere on PATH
+              if: runner.os == 'Windows'
+              shell: bash
+              run: echo "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer" >> "$GITHUB_PATH"
 
             - name: Build E2E test project
               if: github.event.inputs.test-suite != 'measure-compile'
@@ -103,6 +111,16 @@ jobs:
                   cd tests/Morphir.E2E.Tests
                   dotnet run --no-build --configuration ${{ env.CONFIGURATION }} -- --treenode-filter "*/AOT*"
 
+            # The native-aot release profile from its packaged archive: PackRelease, then every non-manual scenario,
+            # including Features/AOT/PackagedArtifacts.feature, against the extracted artifact.
+            - name: Qualify the packaged native-aot artifact
+              if: github.event.inputs.test-suite == 'packaged'
+              shell: bash
+              run: |
+                  ./build.sh --target PackRelease --deployment native-aot --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }}
+                  ./build.sh --target TestE2E --executable-type native-aot --configuration ${{ env.CONFIGURATION }}
+                  cat artifacts/release/size-report.md >> "$GITHUB_STEP_SUMMARY"
+
             - name: Measure morphir compile (size and wall time)
               if: github.event.inputs.test-suite == 'measure-compile'
               shell: bash
@@ -136,6 +154,9 @@ jobs:
               with:
                   name: aot-executables-${{ github.event.inputs.platform }}
                   path: |
+                      ./artifacts/release/*.zip
+                      ./artifacts/release/*.tar.gz
+                      ./artifacts/release/*.json
                       ./artifacts/executables/${{ github.event.inputs.platform }}/
                       ./artifacts/single-file/${{ github.event.inputs.platform }}/
                       ./artifacts/single-file-untrimmed/${{ github.event.inputs.platform }}/

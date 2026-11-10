@@ -364,7 +364,7 @@ build.cmd --target PackRelease --deployment native-aot --rid win-arm64
 ./build.sh --target PublishRelease --deployment self-contained --rid win-x64
 ```
 
-Platforms: `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`. Any other RID is refused. Beside each archive, `<archive>.build-launch.json` records its launch path, execution mode, bundled runtime, required runtime or SDK, F# frontend and SHA-256. It is a build output, not a public contract. Building a profile does not qualify a platform: no platform is release-qualified yet.
+Platforms: `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`. Any other RID is refused. Beside each archive, `<archive>.build-launch.json` records its launch path, execution mode, bundled runtime, required runtime or SDK, F# frontend and SHA-256. It is a build output, not a public contract. Building a profile does not qualify a platform: no platform is release-qualified yet. [Qualifying the release profiles](docs/contributing/release-profile-qualification.md) runs the E2E suite against the packaged archives and lists each platform's status. `PackRelease` also writes `<archive>.build-contents.json` and `artifacts/release/size-report.md`, which list every shipped file with its size.
 
 On Windows, the Native AOT link needs the Visual Studio C++ build tools for the target architecture, and the ILCompiler targets call `vswhere.exe`. If the link fails with "'vswhere.exe' is not recognized", put `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer` on `PATH` in that shell.
 
