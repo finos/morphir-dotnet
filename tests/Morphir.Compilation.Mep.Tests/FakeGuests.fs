@@ -96,6 +96,22 @@ let private blocksReadLoop () =
           Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
     )
 
+/// A guest whose failed compileModel result has a diagnostic position that does not fit in a signed 32-bit number.
+let private hugePosition () =
+    let handler =
+        Handlers.raw (fun _ _ ->
+            use document =
+                Text.Json.JsonDocument.Parse
+                    """{"success":false,"diagnostics":[{"severity":"error","code":"fake.huge","message":"far away","location":{"uri":"src/Pricing.fs","range":{"start":{"line":4294967295,"character":4294967295},"end":{"line":4294967295,"character":4294967295}}}}]}"""
+
+            Task.FromResult(Ok(document.RootElement.Clone())))
+
+    Guest(
+        { Claims = FSharpGuest.claims
+          Capabilities = FSharpGuest.capabilities
+          Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
+    )
+
 /// Runs a scripted guest on stdin and stdout until the session ends.
 let run (scenario: string) =
     let output = Console.OpenStandardOutput()
@@ -109,6 +125,7 @@ let run (scenario: string) =
         | "stdout-log" -> stdoutLog output
         | "never-answers" -> neverAnswers ()
         | "blocks-read-loop" -> blocksReadLoop ()
+        | "huge-position" -> hugePosition ()
         | other -> failwith $"Unknown fake guest scenario {other}"
 
     guest.RunAsync(input, output, CancellationToken.None).GetAwaiter().GetResult() |> ignore

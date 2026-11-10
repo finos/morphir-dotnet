@@ -126,8 +126,12 @@ type MepFrontend
         { Message = message
           Diagnostics = [| Diagnostic.error code message |] }
 
+    /// A MEP position is unsigned; above Int32.MaxValue it is kept at Int32.MaxValue, not wrapped to a negative.
+    static let clamp (value: uint32) =
+        if value > uint32 Int32.MaxValue then Int32.MaxValue else int value
+
     static let mepPosition (position: SourcePosition) =
-        Position.Create(int position.Line, int position.Character)
+        Position.Create(clamp position.Line, clamp position.Character)
 
     static let mepLocation (location: SourceLocation) =
         Location.Create(location.Uri, Range.Create(mepPosition location.Range.Start, mepPosition location.Range.End))

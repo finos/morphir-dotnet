@@ -64,6 +64,12 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     /// <summary>The default host limits, which fit in one 64 MiB frame, as the frontend adapter offers.</summary>
     public static ModelTransportLimits DefaultLimits { get; } = new(60 * 1024 * 1024, 45 * 1024 * 1024, 4096, 50_000_000);
 
+    /// <summary>
+    /// The most artifacts that the host accepts in one generateModel result. A result with more is a protocol error,
+    /// so a guest cannot make the host build an unbounded file tree; one frame (64 MiB) still bounds the bytes.
+    /// </summary>
+    public const int MaxArtifacts = 10_000;
+
     /// <summary>The UTF-8 byte order mark, which is not part of the JSON that the host sends.</summary>
     private static ReadOnlySpan<byte> Utf8Bom => [0xEF, 0xBB, 0xBF];
 
@@ -259,7 +265,9 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
             error => error.Code switch
             {
                 (int)ErrorCode.InvalidParams => Fail(GenerationFailureKind.Invocation, "extension.not_admitted", $"Extension {Identity} refused the request: {error.Message}"),
-                (int)ErrorCode.RequestCancelled => Fail(GenerationFailureKind.Cancelled, "cancelled", "Generation was cancelled."),
+                // -32800 is a cancellation only when the host asked for one; otherwise the guest broke the protocol.
+                (int)ErrorCode.RequestCancelled when ct.IsCancellationRequested => Fail(GenerationFailureKind.Cancelled, "cancelled", "Generation was cancelled."),
+                (int)ErrorCode.RequestCancelled => Fail(GenerationFailureKind.Operational, "extension.protocol_error", $"Extension {Identity} answered -32800 (request cancelled), but the host did not cancel the request."),
                 _ => Fail(GenerationFailureKind.Operational, "extension.protocol_error", $"Extension {Identity}: generateModel failed with {error.Code}: {error.Message}")
             },
             failed => Fail(GenerationFailureKind.Operational, failed.Code, failed.Message));
@@ -285,6 +293,9 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
                 diagnostics = diagnostics.Add(new("extension.protocol_error", $"Extension {Identity} reported a failed generation without an error diagnostic.", source));
             return new Outcome<GenerationArtifacts>.Failure(new(GenerationFailureKind.Semantic, diagnostics));
         }
+
+        if (result.Artifacts.Count > MaxArtifacts)
+            return Fail(GenerationFailureKind.Operational, "extension.protocol_error", $"Extension {Identity} returned {result.Artifacts.Count} artifacts, more than the {MaxArtifacts} that the host accepts in one result.");
 
         // The whole set is checked before any file is made, so a refusal publishes nothing.
         if (UnsafePaths(result.Artifacts.Select(artifact => artifact.Path)) is { } unsafePath)
@@ -418,10 +429,13 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
             && data.TryGetProperty("location", out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString() : null;
         var range = location is null ? null : new DiagnosticRange(
-            new((int)location.Range.Start.Line, (int)location.Range.Start.Character),
-            new((int)location.Range.End.Line, (int)location.Range.End.Character));
+            new(Position(location.Range.Start.Line), Position(location.Range.Start.Character)),
+            new(Position(location.Range.End.Line), Position(location.Range.End.Character)));
         return new(diagnostic.CodeOrNull() ?? "extension.diagnostic", diagnostic.Message, location?.Uri, logical, diagnostic.Severity.WireValue, range);
     }
+
+    /// <summary>A MEP position (an unsigned number) as a generation position: above Int32.MaxValue it is Int32.MaxValue.</summary>
+    private static int Position(uint value) => value > int.MaxValue ? int.MaxValue : (int)value;
 
     private static Outcome<T> Fail<T>(GenerationFailureKind kind, string code, string message) =>
         new Outcome<T>.Failure(GenerationFailure.One(kind, code, message));

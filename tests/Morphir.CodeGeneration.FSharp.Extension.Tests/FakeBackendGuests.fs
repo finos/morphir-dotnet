@@ -47,6 +47,7 @@ let private guestWith (tuples: ModelTransportTuple list) (handler: MethodHandler
 
 let private json4 = tuple ModelCodec.MorphirJson "morphir-ir" "4.0.0"
 
+
 /// A result with the given artifacts, as raw JSON.
 let private result (artifacts: string) =
     use document =
@@ -123,6 +124,22 @@ let run (scenario: string) =
                         ModelTransport = None }
                   Methods = readOnlyDict [ Method.GenerateModel.WireValue, answer (result "[]") ] }
             )
+        // Returns one artifact more than the host accepts in one response.
+        | "too-many-artifacts" ->
+            let artifacts =
+                [ for index in 0 .. Morphir.Tooling.Features.Generate.MepGenerationBackend.MaxArtifacts -> $"""{{"path":"F{index}.fs","content":"x","binary":false}}""" ]
+
+            guestWith [ json4 ] (answer (result ("[" + String.Join(",", artifacts) + "]")))
+        // Answers -32800 (request cancelled) although the host did not cancel.
+        | "spontaneous-cancel" ->
+            guestWith [ json4 ] (Handlers.raw (fun _ _ -> Task.FromResult(Error(RpcErrors.create ErrorCode.RequestCancelled))))
+        // A failed result whose diagnostic position does not fit in a signed 32-bit number.
+        | "huge-position" ->
+            use document =
+                JsonDocument.Parse
+                    """{"success":false,"artifacts":[],"diagnostics":[{"severity":"error","code":"fake.huge","message":"far away","location":{"uri":"a.fs","range":{"start":{"line":4294967295,"character":4294967295},"end":{"line":4294967295,"character":4294967295}}}}]}"""
+
+            guestWith [ json4 ] (answer (document.RootElement.Clone()))
         // Never answers generateModel.
         | "never-answers" ->
             guestWith [ json4 ] (Handlers.raw (fun _ _ -> TaskCompletionSource<Result<JsonElement, RpcError>>().Task))

@@ -415,6 +415,23 @@ let tests =
 
               Expect.isFalse running $"The guest process {id} is gone after dispose"
 
+          testCase "A guest diagnostic position beyond a signed 32-bit number is kept at the largest position, not an exception"
+          <| fun _ ->
+              let frontend = connect (fakeOptions "huge-position")
+
+              try
+                  match (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend, CancellationToken.None).GetAwaiter().GetResult() with
+                  | FrontendOutcome.Completed result ->
+                      let diagnostic =
+                          Checked.diagnostics result |> List.find (fun diagnostic -> string diagnostic.CodeOrNull = "fake.huge")
+
+                      let range = diagnostic.LocationOrNull |> nonNull |> _.Range
+                      Expect.equal range.Start.Line Int32.MaxValue "the start line"
+                      Expect.equal range.End.Character Int32.MaxValue "the end character"
+                  | failed -> failtest $"Expected the guest's failed compilation: {failed}"
+              finally
+                  dispose frontend
+
           testCase "An executable that does not exist is an unavailable extension"
           <| fun _ ->
               let options =

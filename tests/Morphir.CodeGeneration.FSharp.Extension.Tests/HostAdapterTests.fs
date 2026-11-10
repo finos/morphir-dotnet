@@ -193,6 +193,43 @@ let tests =
               finally
                   dispose backend
 
+          testCase "A result with more artifacts than the host accepts is a protocol error that names the bound"
+          <| fun _ ->
+              let backend = connect (fakeGuest "too-many-artifacts" (TimeSpan.FromMinutes 1.0))
+
+              try
+                  let failure = failureOf (generateWith backend (load (irFixture "daily-rate-v4.json")) [])
+                  Expect.equal (codes failure) [ "extension.protocol_error" ] "the code"
+                  Expect.stringContains (messages failure) (string MepGenerationBackend.MaxArtifacts) "names the bound"
+              finally
+                  dispose backend
+
+          testCase "A -32800 answer that the host did not ask for is a protocol error, not a user cancellation"
+          <| fun _ ->
+              let backend = connect (fakeGuest "spontaneous-cancel" (TimeSpan.FromMinutes 1.0))
+
+              try
+                  let failure = failureOf (generateWith backend (load (irFixture "daily-rate-v4.json")) [])
+                  Expect.notEqual failure.Kind GenerationFailureKind.Cancelled "not a cancellation"
+                  Expect.equal (codes failure) [ "extension.protocol_error" ] "the code"
+              finally
+                  dispose backend
+
+          testCase "A guest diagnostic position beyond a signed 32-bit number is kept at the largest position, not negative"
+          <| fun _ ->
+              let backend = connect (fakeGuest "huge-position" (TimeSpan.FromMinutes 1.0))
+
+              try
+                  let failure = failureOf (generateWith backend (load (irFixture "daily-rate-v4.json")) [])
+                  let diagnostic = failure.Diagnostics |> Seq.find (fun diagnostic -> diagnostic.Code = "fake.huge")
+                  let range = diagnostic.Range |> nonNull
+
+                  for position in [ range.Start; range.End ] do
+                      Expect.equal position.Line Int32.MaxValue "the line"
+                      Expect.equal position.Character Int32.MaxValue "the character"
+              finally
+                  dispose backend
+
           testCase "A malformed describe while connecting is extension.protocol_error, and the guest process is gone"
           <| fun _ ->
               let writer = new StringWriter()
