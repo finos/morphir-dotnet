@@ -127,11 +127,13 @@ partial class Build
     /// (ubuntu:22.04 ships libssl3), then what the image has of .NET, libicu, libssl and libcrypto (empty when clean), and
     /// its glibc. The caller decides whether leftovers fail it.
     /// </summary>
-    static CleanImage PrepareCleanImage(string pinned, string tag, string workingDirectory)
+    static CleanImage PrepareCleanImage(string pinned, string tag, string workingDirectory, string? setup = null)
     {
+        // An optional setup runs first in the same container, for example installing libicu; its output is not kept.
         var container = tag.Replace(':', '-');
-        var removed = RunChecked("docker", ["run", "--name", container, pinned, "sh", "-c", NativeCheck.OpenSslPurgeScript], null, workingDirectory,
-            $"removing OpenSSL from {pinned}").Trim();
+        var script = setup is null ? NativeCheck.OpenSslPurgeScript : $"{{ {setup}; }} > /dev/null 2>&1\n{NativeCheck.OpenSslPurgeScript}";
+        var removed = RunChecked("docker", ["run", "--name", container, pinned, "sh", "-c", script], null, workingDirectory,
+            $"preparing {pinned}").Trim();
         RunChecked("docker", ["commit", container, tag], null, workingDirectory, $"committing {tag}");
         RunChecked("docker", ["rm", container], null, workingDirectory, $"removing the container {container}");
         var leftovers = RunChecked("docker", ["run", "--rm", tag, "sh", "-c", NativeCheck.CleanImageListing], null, workingDirectory,
@@ -147,7 +149,7 @@ partial class Build
     /// outcome. Never throws for a command's outcome; the caller decides what fails.
     /// </summary>
     static IReadOnlyList<CheckOutcome> RunOnRunner(AbsolutePath launch, AbsolutePath folder, AbsolutePath inputs, AbsolutePath scratchRoot,
-        IEnumerable<CheckCommand> commands, string label = "runner")
+        IEnumerable<CheckCommand> commands, string label = "runner", IReadOnlyDictionary<string, string>? extra = null)
     {
         var inherited = Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
             .ToDictionary(entry => (string)entry.Key, entry => (string?)entry.Value);
@@ -156,7 +158,7 @@ partial class Build
         {
             var scratch = Scratch(scratchRoot, label, command, inputs);
             var environment = new Dictionary<string, string>(NativeCheck.CheckEnvironment(inherited, OperatingSystem.IsWindows()), OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-            foreach (var (key, value) in command.Environment)
+            foreach (var (key, value) in (extra ?? new Dictionary<string, string>()).Concat(command.Environment))
                 environment[key] = value.Replace("{scratch}", scratch, StringComparison.Ordinal);
             var (exit, stdout, stderr, timedOut) = RunCaptured(launch, [.. command.Expand(inputs, scratch, Path.DirectorySeparatorChar)], environment,
                 command.InScratch ? scratch : folder, TimeSpan.FromMinutes(5));
@@ -171,7 +173,7 @@ partial class Build
     /// <c>/check</c> and the command's scratch folder read-write at <c>/scratch</c>.
     /// </summary>
     static IReadOnlyList<CheckOutcome> RunInImage(CleanImage image, AbsolutePath folder, string launchName, AbsolutePath inputs,
-        AbsolutePath scratchRoot, IEnumerable<CheckCommand> commands, string label)
+        AbsolutePath scratchRoot, IEnumerable<CheckCommand> commands, string label, IReadOnlyDictionary<string, string>? extra = null)
     {
         const string mounted = "/check";
         var mountedInputs = $"{mounted}/{Path.GetRelativePath(folder, inputs).Replace('\\', '/')}";
@@ -181,7 +183,7 @@ partial class Build
             var scratch = Scratch(scratchRoot, label, command, inputs);
             List<string> docker = ["run", "--rm", "--network", "none", "--volume", $"{folder}:{mounted}:ro", "--volume", $"{scratch}:/scratch",
                 "--workdir", command.InScratch ? "/scratch" : mounted];
-            foreach (var (key, value) in command.Environment)
+            foreach (var (key, value) in (extra ?? new Dictionary<string, string>()).Concat(command.Environment))
                 docker.AddRange(["--env", $"{key}={value.Replace("{scratch}", "/scratch", StringComparison.Ordinal)}"]);
             docker.AddRange([image.Image, $"{mounted}/{launchName}", .. command.Expand(mountedInputs, "/scratch")]);
             var (exit, stdout, stderr, timedOut) = RunCaptured("docker", [.. docker], null, folder, TimeSpan.FromMinutes(5));
@@ -194,7 +196,7 @@ partial class Build
     /// <summary>A fresh scratch folder of one command in one environment, with the command's scratch files copied in.</summary>
     static string Scratch(AbsolutePath scratchRoot, string label, CheckCommand command, AbsolutePath inputs)
     {
-        var scratch = scratchRoot / string.Concat(label.Select(c => char.IsLetterOrDigit(c) || c is '-' or '.' ? c : '-')) / command.Name;
+        var scratch = ScratchPath(scratchRoot, label, command.Name);
         scratch.CreateOrCleanDirectory();
         foreach (var file in command.ScratchFiles)
         {
@@ -205,6 +207,10 @@ partial class Build
 
         return scratch;
     }
+
+    /// <summary>The scratch folder of one command in one environment.</summary>
+    static AbsolutePath ScratchPath(AbsolutePath scratchRoot, string label, string command) =>
+        scratchRoot / string.Concat(label.Select(c => char.IsLetterOrDigit(c) || c is '-' or '.' ? c : '-')) / command;
 
     /// <summary>
     /// Runs a command with an explicit environment (or the inherited one when null), no shell and no window, kills its

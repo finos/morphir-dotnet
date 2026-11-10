@@ -31,10 +31,10 @@ partial class Build
     [
         new("version", ["startup", "ICU at startup (no invariant globalization)"], ["--version"]) { Expect = CheckExpectation.Report },
         new("extension-list", ["registry"], ["extension", "list", "--json"]) { Expect = CheckExpectation.Report },
-        new("generate-csharp", ["ICU title-casing (Morphir.Core Name.Capitalize)", "lstat (libSystem.Native SystemNative_LStat, model capture)"],
+        new("generate-csharp", ["C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text", "lstat (libSystem.Native SystemNative_LStat, model capture)"],
             ["generate", "--input", "{inputs}/daily-rate-v3.json", "--target", "csharp", "--output", "{scratch}/out", "--json"])
             { Expect = CheckExpectation.Report },
-        new("generate-fsharp", ["ICU title-casing (Morphir.Models Name.toTitleCase)"],
+        new("generate-fsharp", ["F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text"],
             ["generate", "--input", "{inputs}/daily-rate-v3.json", "--target", "fsharp", "--output", "{scratch}/out", "--json"])
             { Expect = CheckExpectation.Report },
         new("validate", ["model reading and analyzers"], ["validate", "--input", "{inputs}/daily-rate-v3.json", "--json"])
@@ -48,7 +48,9 @@ partial class Build
             ["dist", "install", "https://example.invalid/morphir.tar.gz", "1.0.0"])
             { Expect = CheckExpectation.Report, NotReachedMarker = "not implemented" },
         new("compile-project-file", ["kill (libc, BoundedProcess stops a child that writes too much)"],
-            ["compile", "--language", "fsharp", "--project-file", "probe.fsproj", "--package-name", "acme/probe", "--json"])
+            // No --language and no [frontend] language: with either, compile refuses for want of a frontend before it
+            // selects sources; without them it expands the project file through the MSBuild provider first.
+            ["compile", "--project-file", "probe.fsproj", "--package-name", "acme/probe", "--json"])
         {
             Expect = CheckExpectation.Report, InScratch = true, UnixOnly = true, Marker = "was stopped",
             ScratchFiles = ["morphir.toml", "probe.fsproj", "fake-dotnet"],
@@ -111,23 +113,68 @@ partial class Build
                 report.Append($"## What the executable needs from a Mac\n\n- `LC_BUILD_VERSION` declares the minimum macOS {minimum ?? "(none)"}.\n\n");
             }
 
+            // The runner as it is (ICU where the platform has it), the runner in invariant globalization mode, and on Linux
+            // and macOS the runner under the Turkish culture, whose casing of i differs from the invariant culture's.
             var outcomes = new List<CheckOutcome>(RunOnRunner(launch, folder, inputs, scratchRoot, MorphirProbeCommands));
+            outcomes.AddRange(RunOnRunner(launch, folder, inputs, scratchRoot, MorphirProbeCommands, "runner, invariant", InvariantVariable));
+            if (!OperatingSystem.IsWindows())
+                outcomes.AddRange(RunOnRunner(launch, folder, inputs, scratchRoot, MorphirProbeCommands, "runner, tr-TR", TurkishCulture));
+
             if (linux)
             {
                 report.Append("## Clean images\n\n");
+                var variableIgnored = false;
                 foreach (var (pinned, index) in NativeCheck.CleanImages.Select((image, index) => (image, index)))
                 {
-                    var image = PrepareCleanImage(pinned, $"morphir-probe-{rid}:{index}", probe);
                     var label = pinned.Split('@')[0];
+                    var image = PrepareCleanImage(pinned, $"morphir-probe-{rid}:{index}", probe);
                     var (_, ldd, lddError, _) = RunCaptured("docker", ["run", "--rm", "--volume", $"{folder}:/check:ro", image.Image, "ldd", $"/check/{launchName}"],
                         null, probe, TimeSpan.FromMinutes(2));
                     report.Append($"### `{label}`\n\n- {image.Glibc}\n- OpenSSL removed: {(image.Removed.Length > 0 ? image.Removed : "none shipped")}\n");
                     report.Append($"- Left of .NET, libicu, libssl, libcrypto: {(image.Leftovers.Length > 0 ? image.Leftovers.Replace('\n', ' ') : "nothing")}\n");
                     report.Append($"- `ldd`:\n\n```text\n{(ldd + lddError).Trim()}\n```\n\n");
                     outcomes.AddRange(RunInImage(image, folder, launchName, inputs, scratchRoot, MorphirProbeCommands, label));
+                    var underVariable = RunInImage(image, folder, launchName, inputs, scratchRoot, MorphirProbeCommands, $"{label}, invariant", InvariantVariable);
+                    outcomes.AddRange(underVariable);
+                    variableIgnored |= underVariable.All(outcome => outcome.Stderr.Contains(IcuMissing, StringComparison.Ordinal));
                     RunChecked("docker", ["rmi", image.Image], null, probe, $"removing the image {image.Image}");
+
+                    // The same image with libicu installed and still no OpenSSL, so the two prerequisites are seen apart.
+                    var withIcu = PrepareCleanImage(pinned, $"morphir-probe-icu-{rid}:{index}", probe, IcuInstall);
+                    report.Append($"### `{label} + libicu`\n\n- libicu installed with apt-get, OpenSSL removed: {(withIcu.Removed.Length > 0 ? withIcu.Removed : "none shipped")}\n");
+                    report.Append($"- Left of .NET, libicu, libssl, libcrypto (libicu is expected here): {(withIcu.Leftovers.Length > 0 ? withIcu.Leftovers.Replace('\n', ' ') : "nothing: libicu did not install")}\n\n");
+                    outcomes.AddRange(RunInImage(withIcu, folder, launchName, inputs, scratchRoot, MorphirProbeCommands, $"{label} + libicu"));
+                    RunChecked("docker", ["rmi", withIcu.Image], null, probe, $"removing the image {withIcu.Image}");
+                }
+
+                // If the variable did not take effect, the switch is fixed at build time: publish the probe's own invariant
+                // executable (InvariantGlobalization=true, for the probe only, not the release profile) and run that.
+                report.Append(variableIgnored
+                    ? "`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` did **not** take effect in the clean images, so the probe also ran an executable published with `InvariantGlobalization=true`.\n\n"
+                    : "`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` took effect: under it, no command stopped for want of ICU.\n\n");
+                if (variableIgnored)
+                {
+                    var invariantPublish = probe / "publish-invariant";
+                    string[] invariantArguments =
+                        [.. arguments.Select(argument => argument == publish.ToString() ? invariantPublish.ToString() : argument), "-p:InvariantGlobalization=true"];
+                    var (invariantExit, invariantLog) = PublishInContainer(NativeCheck.LinuxBuildImage, platform, invariantArguments);
+                    File.WriteAllText(probe / "publish-invariant.log", invariantLog);
+                    if (invariantExit != 0)
+                        throw new Exception($"The invariant publish of morphir for {rid} failed; see {probe / "publish-invariant.log"}.");
+                    var invariantFolder = probe / "check" / $"{rid} invariant build";
+                    CopyForCheck(invariantPublish / launchName, invariantFolder, launchName);
+                    WriteMorphirProbeInputs(invariantFolder / "probe inputs");
+                    foreach (var (pinned, index) in NativeCheck.CleanImages.Select((image, index) => (image, index)))
+                    {
+                        var image = PrepareCleanImage(pinned, $"morphir-probe-invariant-{rid}:{index}", probe);
+                        outcomes.AddRange(RunInImage(image, invariantFolder, launchName, invariantFolder / "probe inputs", scratchRoot, MorphirProbeCommands,
+                            $"{pinned.Split('@')[0]}, InvariantGlobalization build"));
+                        RunChecked("docker", ["rmi", image.Image], null, probe, $"removing the image {image.Image}");
+                    }
                 }
             }
+
+            report.Append(CompareGeneratedFiles(outcomes, scratchRoot));
 
             report.Append("## Commands\n\nReport mode: no outcome fails the probe. *Path ran* is `yes` when the command succeeded or printed the marker of its path, `no` when it printed that the path is not implemented, and `unknown` otherwise.\n\n");
             report.Append(NativeCheck.Table(outcomes));
@@ -151,6 +198,78 @@ partial class Build
             if (Environment.GetEnvironmentVariable("GITHUB_STEP_SUMMARY") is { Length: > 0 } summary)
                 File.AppendAllText(summary, text + "\n");
         });
+
+    /// <summary>Invariant globalization mode, set at run time.</summary>
+    static IReadOnlyDictionary<string, string> InvariantVariable { get; } =
+        new Dictionary<string, string> { ["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"] = "1" };
+
+    /// <summary>The Turkish culture, whose title-casing of <c>i</c> is <c>İ</c>, not <c>I</c>.</summary>
+    static IReadOnlyDictionary<string, string> TurkishCulture { get; } =
+        new Dictionary<string, string> { ["LANG"] = "tr_TR.UTF-8", ["LC_ALL"] = "tr_TR.UTF-8" };
+
+    /// <summary>What .NET prints when it stops at startup for want of ICU.</summary>
+    const string IcuMissing = "Couldn't find a valid ICU package";
+
+    /// <summary>Installs the image's own libicu package (libicu72 in Debian 12, libicu70 in Ubuntu 22.04) with apt-get.</summary>
+    const string IcuInstall =
+        "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && "
+        + "package=$(apt-cache search --names-only '^libicu[0-9]+$' | cut -d' ' -f1 | sort -V | tail -n 1) && "
+        + "apt-get install -y -qq --no-install-recommends \"$package\"";
+
+    /// <summary>The commands whose generated files are compared across environments, for what invariant mode changes.</summary>
+    static readonly string[] GenerationCommands = ["generate-csharp", "generate-fsharp"];
+
+    /// <summary>
+    /// Compares, byte for byte, the files that each generation command wrote on the runner with ICU against the files it
+    /// wrote in every other environment where it succeeded, and returns the Markdown section.
+    /// </summary>
+    static string CompareGeneratedFiles(IReadOnlyList<CheckOutcome> outcomes, AbsolutePath scratchRoot)
+    {
+        var text = new StringBuilder("\n## Generated files compared with the runner's\n\n");
+        text.Append("Byte for byte, against the files the command wrote on the runner (ICU where the platform has it, the runner's culture):\n\n");
+        text.Append("| Command | Environment | Result |\n| --- | --- | --- |\n");
+        foreach (var command in GenerationCommands)
+        {
+            var baseline = outcomes.FirstOrDefault(outcome => outcome.Environment == "runner" && outcome.Command.Name == command && outcome.ExitCode == 0);
+            if (baseline is null)
+            {
+                text.Append($"| {command} | runner | no baseline: the command did not succeed on the runner |\n");
+                continue;
+            }
+
+            var reference = ScratchPath(scratchRoot, "runner", command) / "out";
+            foreach (var other in outcomes.Where(outcome => outcome.Command.Name == command && outcome.Environment != "runner"))
+            {
+                if (other.ExitCode != 0)
+                {
+                    text.Append($"| {command} | {other.Environment} | not compared: exit {NativeCheck.ExitText(other.ExitCode)} |\n");
+                    continue;
+                }
+
+                text.Append($"| {command} | {other.Environment} | {TreeDifference(reference, ScratchPath(scratchRoot, other.Environment, command) / "out")} |\n");
+            }
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary>"identical (n files)", or the files that are missing, extra or different.</summary>
+    static string TreeDifference(AbsolutePath left, AbsolutePath right)
+    {
+        static Dictionary<string, string> Files(AbsolutePath root) =>
+            Directory.Exists(root)
+                ? Directory.GetFiles(root, "*", SearchOption.AllDirectories)
+                    .ToDictionary(file => Path.GetRelativePath(root, file).Replace('\\', '/'), file => ReleaseArchive.Sha256(file), StringComparer.Ordinal)
+                : new Dictionary<string, string>(StringComparer.Ordinal);
+        var a = Files(left);
+        var b = Files(right);
+        var differences = a.Keys.Union(b.Keys).Order(StringComparer.Ordinal)
+            .Where(file => !a.TryGetValue(file, out var x) || !b.TryGetValue(file, out var y) || x != y)
+            .ToList();
+        return differences.Count == 0
+            ? $"identical ({a.Count} files)"
+            : $"**differ**: {string.Join(", ", differences.Select(file => $"`{file}`"))}";
+    }
 
     /// <summary>
     /// The probe's inputs: the daily-rate model; a copy of the greeting Ion tree in which one type file states its name and
@@ -180,8 +299,8 @@ partial class Build
         File.WriteAllLines(Path.Combine(Path.GetDirectoryName(stated)!, $"daily__{digest}.value.ion"), lines);
         File.Delete(stated);
 
-        File.WriteAllText(inputs / "morphir.toml",
-            "[project]\nname = \"acme/probe\"\n\n[frontend]\nlanguage = \"fsharp\"\n\n[frontend.fsharp]\nproject_file = \"probe.fsproj\"\n");
+        // A project with no frontend language, so that compile reaches source selection (see compile-project-file).
+        File.WriteAllText(inputs / "morphir.toml", "[project]\nname = \"acme/probe\"\n");
         File.WriteAllText(inputs / "probe.fsproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
         File.WriteAllText(inputs / "fake-dotnet", "#!/bin/sh\nexec yes morphir-probe\n");
         if (!OperatingSystem.IsWindows())
