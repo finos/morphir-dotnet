@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The F# frontend extension `morphir-fsharp-frontend` has a self-contained process delivery: a folder with the guest, the F# compiler service and its own .NET runtime, published with the `SelfContainedProcess` profile or the build target `PublishFSharpFrontendProcess --rid <rid>`, which also writes a deterministic zip or `.tar.gz` archive. The native `morphir` compiles F# source through it on a machine with no .NET runtime or SDK. Verified on Windows ARM64 only; releases do not publish it yet. The framework-dependent dotnet tool is unchanged
+
+### Fixed
+- The F# frontend takes its framework references from the framework's runtime assembly list, so in a self-contained folder it no longer gives the compiler the application's own assemblies (`Morphir.*`, the compiler service). The references of the dotnet tool and the in-process frontend are unchanged
+
 ## [0.4.0-alpha.3] - 2026-11-09
 
 ### Added
