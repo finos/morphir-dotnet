@@ -13,6 +13,14 @@ module FSharpCodes =
     let compiler = DiagnosticCode.Create "fsharp.compiler"
 
     /// <summary>
+    /// The frontend cannot give the compiler its references: no file location for FSharp.Core or the annotations,
+    /// a self-contained folder without a framework list, no trusted platform assemblies, or a deps file that the
+    /// host lists but that cannot be read. The diagnostic has no location.
+    /// </summary>
+    [<CompiledName("ReferencesUnavailable")>]
+    let referencesUnavailable = DiagnosticCode.Create "fsharp.references_unavailable"
+
+    /// <summary>
     /// The frontend could not get complete, unambiguous and unchanged compiler evidence for a <c>match</c>.
     /// The diagnostic is at the original match, and its data names the reason.
     /// </summary>

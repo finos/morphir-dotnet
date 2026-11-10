@@ -41,15 +41,18 @@
         "PackAll",
         "PackLibs",
         "PackPlatformTarballs",
+        "PackRelease",
         "PackTool",
         "Precommit",
         "PrepareRelease",
         "PublishAll",
         "PublishExecutable",
+        "PublishFSharpFrontendProcess",
         "PublishLibs",
         "PublishLocalAll",
         "PublishLocalLibs",
         "PublishLocalTool",
+        "PublishRelease",
         "PublishSingleFile",
         "PublishSingleFileUntrimmed",
         "PublishTool",
@@ -143,6 +146,10 @@
           "type": "string",
           "description": "Configuration to build - Default is 'Release'"
         },
+        "deployment": {
+          "type": "string",
+          "description": "Deployment offering for PublishRelease and PackRelease: native-aot, self-contained, framework-dependent or dotnet-tool"
+        },
         "ExecutablesDir": {
           "type": "string",
           "description": "Output directory for executables"
@@ -150,6 +157,10 @@
         "ExecutableType": {
           "type": "string",
           "description": "Executable type for E2E tests: aot, trimmed, untrimmed, or all"
+        },
+        "ExtensionProcessesDir": {
+          "type": "string",
+          "description": "Output directory for self-contained extension process folders and archives"
         },
         "Global": {
           "type": "boolean",
@@ -174,6 +185,10 @@
         "ProtoPluginDir": {
           "type": "string",
           "description": "Output directory for proto plugin WASM"
+        },
+        "ReleaseDir": {
+          "type": "string",
+          "description": "Output directory for release profile artifacts"
         },
         "ReleaseVersion": {
           "type": "string",

@@ -14,10 +14,13 @@
   <UsingTask Condition="'$(MorphirSystemTextJsonTaskHost)' != 'true'" TaskName="Morphir.Myriad.SystemTextJson.Build.GenerateJsonContexts" AssemblyFile="$(MorphirSystemTextJsonTaskAssembly)" />
   <!-- In the repository the task assembly is a build output; a task host keeps MSBuild nodes from locking it. -->
   <UsingTask Condition="'$(MorphirSystemTextJsonTaskHost)' == 'true'" TaskName="Morphir.Myriad.SystemTextJson.Build.GenerateJsonContexts" AssemblyFile="$(MorphirSystemTextJsonTaskAssembly)" TaskFactory="TaskHostFactory" />
-  <!-- Set in the target: IntermediateOutputPath may be empty when this file is imported. -->
+  <!--
+    Set in the target: IntermediateOutputPath may be empty when this file is imported. It may also be absolute (for
+    example with -artifacts-path), so it is combined with the project directory, not appended to it.
+  -->
   <Target Name="_MorphirSystemTextJsonPaths">
     <PropertyGroup>
-      <_MorphirSystemTextJsonOutput>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)system-text-json'))</_MorphirSystemTextJsonOutput>
+      <_MorphirSystemTextJsonOutput>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'system-text-json'))))</_MorphirSystemTextJsonOutput>
     </PropertyGroup>
   </Target>
   <Target Name="GenerateFSharpJsonContexts" BeforeTargets="CoreCompile" DependsOnTargets="_MorphirSystemTextJsonPaths" Condition="'@(FSharpJsonContext)' != ''">
