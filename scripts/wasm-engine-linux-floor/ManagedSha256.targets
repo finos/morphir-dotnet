@@ -1,0 +1,25 @@
+<Project>
+  <!--
+    EXPERIMENT, not a product change (add-wasm-extension-host, the Linux floor measurement, point 4). Nothing in the
+    repository imports this file. scripts/wasm-engine-linux-floor.ps1 passes it to one publish of the AOT probe as
+
+      -p:CustomAfterMicrosoftCommonTargets=<this file> -p:MorphirExperimentManagedSha256=probe|library
+
+    which MSBuild imports at the end of every project of that publish. It compiles ManagedSha256.cs, a class named
+    SHA256 with a HashData backed by BouncyCastle's managed Sha256Digest (the digest Morphir.Toolchain uses), into one
+    project, so that the unqualified SHA256.HashData calls there resolve to it and not to
+    System.Security.Cryptography.SHA256, which calls OpenSSL on Linux. No tracked project file or source changes.
+
+      probe    the probe's own digests only (its namespace Morphir.Extensions.Wasm.AotProbe): shows which call of the
+               library is the first to need OpenSSL.
+      library  Morphir.Extensions.Wasm (public, so the probe, in a child namespace, uses it too): shows whether
+               anything other than SHA-256 needs OpenSSL.
+  -->
+  <PropertyGroup Condition="'$(MorphirExperimentManagedSha256)' == 'library' and '$(MSBuildProjectName)' == 'Morphir.Extensions.Wasm'">
+    <DefineConstants>$(DefineConstants);MORPHIR_EXPERIMENT_MANAGED_SHA256_LIBRARY</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="('$(MorphirExperimentManagedSha256)' == 'library' and '$(MSBuildProjectName)' == 'Morphir.Extensions.Wasm') or ('$(MorphirExperimentManagedSha256)' == 'probe' and '$(MSBuildProjectName)' == 'Morphir.Extensions.Wasm.AotProbe')">
+    <PackageReference Include="BouncyCastle.Cryptography" />
+    <Compile Include="$(MSBuildThisFileDirectory)ManagedSha256.cs" Link="Experiment/ManagedSha256.cs" />
+  </ItemGroup>
+</Project>
