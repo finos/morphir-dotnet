@@ -149,9 +149,23 @@ partial class Build
         // An optional setup runs first in the same container, for example installing libicu; its output is not kept.
         var container = tag.Replace(':', '-');
         var script = setup is null ? NativeCheck.OpenSslPurgeScript : $"{{ {setup}; }} > /dev/null 2>&1\n{NativeCheck.OpenSslPurgeScript}";
-        var removed = RunChecked("docker", ["run", "--name", container, pinned, "sh", "-c", script], null, workingDirectory,
-            $"preparing {pinned}").Trim();
-        RunChecked("docker", ["commit", container, tag], null, workingDirectory, $"committing {tag}");
+        // A setup such as apt-get update and install depends on the distribution's mirror, which can take minutes on a
+        // slow day; the purge alone takes seconds. A failed or timed-out preparation removes its container, because
+        // killing the docker client does not stop the container it started.
+        var timeout = setup is null ? TimeSpan.FromMinutes(5) : TimeSpan.FromMinutes(15);
+        string removed;
+        try
+        {
+            removed = RunChecked("docker", ["run", "--name", container, pinned, "sh", "-c", script], null, workingDirectory,
+                $"preparing {pinned}", timeout).Trim();
+            RunChecked("docker", ["commit", container, tag], null, workingDirectory, $"committing {tag}");
+        }
+        catch
+        {
+            RunCaptured("docker", ["rm", "--force", container], null, workingDirectory, TimeSpan.FromMinutes(1));
+            throw;
+        }
+
         RunChecked("docker", ["rm", container], null, workingDirectory, $"removing the container {container}");
         var leftovers = RunChecked("docker", ["run", "--rm", tag, "sh", "-c", NativeCheck.CleanImageListing], null, workingDirectory,
             $"the check of the image {tag}").Trim();
@@ -278,13 +292,15 @@ partial class Build
 
     /// <summary>
     /// Runs a command with an explicit environment (or the inherited one when null), no shell and no window, kills its
-    /// process tree after five minutes, and returns stdout. Fails with the output on a non-zero exit code.
+    /// process tree after the timeout (five minutes by default), and returns stdout. Fails with the output on a non-zero exit code.
     /// </summary>
-    static string RunChecked(string command, string[] arguments, IReadOnlyDictionary<string, string>? environment, string workingDirectory, string what)
+    static string RunChecked(string command, string[] arguments, IReadOnlyDictionary<string, string>? environment, string workingDirectory, string what,
+        TimeSpan? timeout = null)
     {
-        var (exit, stdout, stderr, timedOut) = RunCaptured(command, arguments, environment, workingDirectory, TimeSpan.FromMinutes(5));
+        var limit = timeout ?? TimeSpan.FromMinutes(5);
+        var (exit, stdout, stderr, timedOut) = RunCaptured(command, arguments, environment, workingDirectory, limit);
         if (timedOut)
-            throw new Exception($"{what}: timed out after five minutes.");
+            throw new Exception($"{what}: timed out after {limit.TotalMinutes:0} minutes.");
         if (exit != 0)
             throw new Exception($"{what}: exit code {exit}{Environment.NewLine}{stdout}{stderr}");
         return stdout;

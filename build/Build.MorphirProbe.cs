@@ -115,6 +115,7 @@ partial class Build
 
             // The runner as it is (ICU where the platform has it), the runner in invariant globalization mode, and on Linux
             // and macOS the runner under the Turkish culture, whose casing of i differs from the invariant culture's.
+            var notPrepared = new List<(string Environment, string Reason)>();
             var outcomes = new List<CheckOutcome>(RunOnRunner(launch, folder, inputs, scratchRoot, MorphirProbeCommands));
             outcomes.AddRange(RunOnRunner(launch, folder, inputs, scratchRoot, MorphirProbeCommands, "runner, invariant", InvariantVariable));
             if (!OperatingSystem.IsWindows())
@@ -124,23 +125,38 @@ partial class Build
             {
                 report.Append("## Clean images\n\n");
                 var variableIgnored = false;
+                var variableMeasured = false;
                 foreach (var (pinned, index) in NativeCheck.CleanImages.Select((image, index) => (image, index)))
                 {
                     var label = pinned.Split('@')[0];
-                    var image = PrepareCleanImage(pinned, $"morphir-probe-{rid}:{index}", probe);
-                    var (_, ldd, lddError, _) = RunCaptured("docker", ["run", "--rm", "--volume", $"{folder}:/check:ro", image.Image, "ldd", $"/check/{launchName}"],
-                        null, probe, TimeSpan.FromMinutes(2));
-                    report.Append($"### `{label}`\n\n- {image.Glibc}\n- OpenSSL removed: {(image.Removed.Length > 0 ? image.Removed : "none shipped")}\n");
-                    report.Append($"- Left of .NET, libicu, libssl, libcrypto: {(image.Leftovers.Length > 0 ? image.Leftovers.Replace('\n', ' ') : "nothing")}\n");
-                    report.Append($"- `ldd`:\n\n```text\n{(ldd + lddError).Trim()}\n```\n\n");
-                    outcomes.AddRange(RunInImage(image, folder, launchName, inputs, scratchRoot, MorphirProbeCommands, label));
-                    var underVariable = RunInImage(image, folder, launchName, inputs, scratchRoot, MorphirProbeCommands, $"{label}, invariant", InvariantVariable);
-                    outcomes.AddRange(underVariable);
-                    variableIgnored |= underVariable.All(outcome => outcome.Stderr.Contains(IcuMissing, StringComparison.Ordinal));
-                    RunChecked("docker", ["rmi", image.Image], null, probe, $"removing the image {image.Image}");
+                    var image = TryPrepare(pinned, $"morphir-probe-{rid}:{index}", probe, [label, $"{label}, invariant"], notPrepared);
+                    if (image is null)
+                    {
+                        report.Append($"### `{label}`\n\n- not prepared: {notPrepared[^1].Reason}\n\n");
+                    }
+                    else
+                    {
+                        var (_, ldd, lddError, _) = RunCaptured("docker", ["run", "--rm", "--volume", $"{folder}:/check:ro", image.Image, "ldd", $"/check/{launchName}"],
+                            null, probe, TimeSpan.FromMinutes(2));
+                        report.Append($"### `{label}`\n\n- {image.Glibc}\n- OpenSSL removed: {(image.Removed.Length > 0 ? image.Removed : "none shipped")}\n");
+                        report.Append($"- Left of .NET, libicu, libssl, libcrypto: {(image.Leftovers.Length > 0 ? image.Leftovers.Replace('\n', ' ') : "nothing")}\n");
+                        report.Append($"- `ldd`:\n\n```text\n{(ldd + lddError).Trim()}\n```\n\n");
+                        outcomes.AddRange(RunInImage(image, folder, launchName, inputs, scratchRoot, MorphirProbeCommands, label));
+                        var underVariable = RunInImage(image, folder, launchName, inputs, scratchRoot, MorphirProbeCommands, $"{label}, invariant", InvariantVariable);
+                        outcomes.AddRange(underVariable);
+                        variableMeasured = true;
+                        variableIgnored |= underVariable.All(outcome => outcome.Stderr.Contains(IcuMissing, StringComparison.Ordinal));
+                        RunChecked("docker", ["rmi", image.Image], null, probe, $"removing the image {image.Image}");
+                    }
 
                     // The same image with libicu installed and still no OpenSSL, so the two prerequisites are seen apart.
-                    var withIcu = PrepareCleanImage(pinned, $"morphir-probe-icu-{rid}:{index}", probe, IcuInstall);
+                    var withIcu = TryPrepare(pinned, $"morphir-probe-icu-{rid}:{index}", probe, [$"{label} + libicu"], notPrepared, IcuInstall);
+                    if (withIcu is null)
+                    {
+                        report.Append($"### `{label} + libicu`\n\n- not prepared: {notPrepared[^1].Reason}\n\n");
+                        continue;
+                    }
+
                     report.Append($"### `{label} + libicu`\n\n- libicu installed with apt-get, OpenSSL removed: {(withIcu.Removed.Length > 0 ? withIcu.Removed : "none shipped")}\n");
                     report.Append($"- Left of .NET, libicu, libssl, libcrypto (libicu is expected here): {(withIcu.Leftovers.Length > 0 ? withIcu.Leftovers.Replace('\n', ' ') : "nothing: libicu did not install")}\n\n");
                     outcomes.AddRange(RunInImage(withIcu, folder, launchName, inputs, scratchRoot, MorphirProbeCommands, $"{label} + libicu"));
@@ -149,7 +165,9 @@ partial class Build
 
                 // If the variable did not take effect, the switch is fixed at build time: publish the probe's own invariant
                 // executable (InvariantGlobalization=true, for the probe only, not the release profile) and run that.
-                report.Append(variableIgnored
+                report.Append(!variableMeasured
+                    ? "Whether `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` takes effect is **not measured**: no clean image was prepared.\n\n"
+                    : variableIgnored
                     ? "`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` did **not** take effect in the clean images, so the probe also ran an executable published with `InvariantGlobalization=true`.\n\n"
                     : "`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` took effect: under it, no command stopped for want of ICU.\n\n");
                 if (variableIgnored)
@@ -166,9 +184,11 @@ partial class Build
                     WriteMorphirProbeInputs(invariantFolder / "probe inputs");
                     foreach (var (pinned, index) in NativeCheck.CleanImages.Select((image, index) => (image, index)))
                     {
-                        var image = PrepareCleanImage(pinned, $"morphir-probe-invariant-{rid}:{index}", probe);
+                        var invariantLabel = $"{pinned.Split('@')[0]}, InvariantGlobalization build";
+                        var image = TryPrepare(pinned, $"morphir-probe-invariant-{rid}:{index}", probe, [invariantLabel], notPrepared);
+                        if (image is null) continue;
                         outcomes.AddRange(RunInImage(image, invariantFolder, launchName, invariantFolder / "probe inputs", scratchRoot, MorphirProbeCommands,
-                            $"{pinned.Split('@')[0]}, InvariantGlobalization build"));
+                            invariantLabel));
                         RunChecked("docker", ["rmi", image.Image], null, probe, $"removing the image {image.Image}");
                     }
                 }
@@ -177,7 +197,11 @@ partial class Build
             report.Append(CompareGeneratedFiles(outcomes, scratchRoot));
 
             report.Append("## Commands\n\nReport mode: no outcome fails the probe. *Path ran* is `yes` when the command succeeded or printed the marker of its path, `no` when it printed that the path is not implemented, and `unknown` otherwise.\n\n");
+            if (notPrepared.Count > 0)
+                report.Append($"Environments not prepared, so not run: {string.Join("; ", notPrepared.Select(entry => $"`{entry.Environment}` ({entry.Reason})"))}.\n\n");
             report.Append(NativeCheck.Table(outcomes));
+            foreach (var (environment, reason) in notPrepared)
+                report.Append($"| {environment} | (every command) | image preparation | not prepared | no | {reason.Replace("|", "\\|")} |\n");
             var outputs = probe / "outputs";
             foreach (var outcome in outcomes)
             {
@@ -198,6 +222,28 @@ partial class Build
             if (Environment.GetEnvironmentVariable("GITHUB_STEP_SUMMARY") is { Length: > 0 } summary)
                 File.AppendAllText(summary, text + "\n");
         });
+
+    /// <summary>
+    /// Prepares a clean image, or records why it could not be prepared against each environment that would have run in it
+    /// and returns null. In report mode a failed preparation (a slow mirror, a missing image) is a finding, not a reason to
+    /// stop the probe.
+    /// </summary>
+    static CleanImage? TryPrepare(string pinned, string tag, AbsolutePath probe, IReadOnlyList<string> environments,
+        List<(string Environment, string Reason)> notPrepared, string? setup = null)
+    {
+        try
+        {
+            return PrepareCleanImage(pinned, tag, probe, setup);
+        }
+        catch (Exception error)
+        {
+            var reason = error.Message.Replace("\r\n", "\n").Split('\n')[0].Trim();
+            foreach (var environment in environments)
+                notPrepared.Add((environment, reason));
+            Serilog.Log.Warning("Not prepared: {Image} ({Reason})", pinned, reason);
+            return null;
+        }
+    }
 
     /// <summary>Invariant globalization mode, set at run time.</summary>
     static IReadOnlyDictionary<string, string> InvariantVariable { get; } =
