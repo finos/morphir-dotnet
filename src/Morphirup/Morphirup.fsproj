@@ -26,11 +26,12 @@
         <StripSymbols>true</StripSymbols>
         <OptimizationPreference>Size</OptimizationPreference>
         <!--
-          Not invariant: the plan digest normalizes strings to NFC, and in invariant mode String.Normalize does not
-          normalize. .NET then uses the operating system's ICU (built into Windows 10 1903 and later and macOS; libicu
-          on Linux). Every comparison and format in this code is ordinal or invariant, so the culture changes nothing else.
+          Invariant: morphirup needs no ICU. The plan digest normalizes strings to NFC with Morphir.Toolchain's own
+          Unicode 17.0.0 tables, not String.Normalize, so it is the same on every machine, including one without
+          libicu. Every comparison and format in this code is ordinal or invariant. tests/Morphir.Toolchain.Tests
+          GlobalizationTests fails if a globalization dependency comes back.
         -->
-        <InvariantGlobalization>false</InvariantGlobalization>
+        <InvariantGlobalization>true</InvariantGlobalization>
         <UseSystemResourceKeys>true</UseSystemResourceKeys>
     </PropertyGroup>
 
