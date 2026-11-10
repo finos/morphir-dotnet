@@ -16,6 +16,8 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.Frontend.FSharp.Extension/Morphir.Frontend.FSharp.Extension.fsproj" />
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+    <!-- The conformance corpus holds the fixed package of the self-contained readiness check. -->
+    <ProjectReference Include="../../src/Morphir.Conformance/Morphir.Conformance.fsproj" />
     <None Include="../Fixtures/Mep/**" Link="Fixtures/Mep/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
@@ -23,6 +25,7 @@
     <Compile Include="GuestTests.fs" />
     <Compile Include="ProcessReplayTests.fs" />
     <Compile Include="PackageTests.fs" />
+    <Compile Include="SelfContainedTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>

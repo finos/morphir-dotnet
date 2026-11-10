@@ -24,19 +24,9 @@ open Morphir.TestSupport
 /// Like a host, the exchange waits for the replies to all earlier requests before it sends morphir.shutdown or
 /// morphir.exit: the guest cancels the requests that still run when the session ends. Stdin closes after the last
 /// message. The result is the reply frames in order and the exit code.
-let internal exchange (messages: string list) : JsonNode list * int =
-    let host =
-        match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
-        | null -> "dotnet"
-        | path -> path
-
-    use sandbox = TestSandbox.Create "morphir-guest-"
-    let start = ChildProcess.StartInfo(host, Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-frontend.dll"))
-    start.WorkingDirectory <- sandbox.Work
+let internal exchangeWith (start: Diagnostics.ProcessStartInfo) (running: unit -> unit) (messages: string list) : JsonNode list * int =
     start.StandardInputEncoding <- UTF8Encoding false
     start.StandardOutputEncoding <- UTF8Encoding false
-    sandbox.Apply start
-
     let replies = ResizeArray<JsonNode>()
 
     let refused failure (output: string) =
@@ -69,6 +59,7 @@ let internal exchange (messages: string list) : JsonNode list * int =
                     | FrameRead.Message body ->
                         let node = JsonNode.Parse(ReadOnlySpan body) |> nonNull
                         replies.Add node
+                        if replies.Count = 1 then running ()
                         idOf node |> Option.iter (pending.Remove >> ignore)
                         return true
                     | FrameRead.EndOfStream -> return false
@@ -116,6 +107,19 @@ let internal exchange (messages: string list) : JsonNode list * int =
         | FrameRead.Refused failure -> refused failure result.CombinedOutput
 
     List.ofSeq replies @ frames [], result.ExitCode
+
+/// Runs the framework-dependent guest (dotnet morphir-fsharp-frontend.dll) in a test sandbox; see exchangeWith.
+let internal exchange (messages: string list) : JsonNode list * int =
+    let host =
+        match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
+        | null -> "dotnet"
+        | path -> path
+
+    use sandbox = TestSandbox.Create "morphir-guest-"
+    let start = ChildProcess.StartInfo(host, Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-frontend.dll"))
+    start.WorkingDirectory <- sandbox.Work
+    sandbox.Apply start
+    exchangeWith start ignore messages
 
 type private Direction =
     | HostToExtension
