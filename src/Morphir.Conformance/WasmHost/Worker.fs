@@ -224,15 +224,16 @@ module Worker =
 
     /// The worker arguments of a case, as the corpus's worker convention gives them:
     /// `extension worker --abi <declaredAbi> --module <wasm> --build-identity <identity>`, then
-    /// `--request-bytes` and `--response-bytes` when the case gives them, then `--json`. An argument the
-    /// case omits is left out with its value, and the other build identity changes the last digit.
+    /// `--request-bytes`, `--response-bytes` and `--instructions` when the case gives them, then `--json`.
+    /// An argument the case omits is left out with its value, and the other build identity changes the
+    /// last digit. A case that gives none of the limits leaves the contract's defaults to the worker.
     let arguments (identity: string) (modulePath: string) (case: WasmHostCase) =
         let identity =
             match case.Worker.BuildIdentity with
             | BuildIdentity.Host -> identity
             | BuildIdentity.Other -> otherIdentity identity
 
-        let number (value: int) =
+        let number (value: int64) =
             value.ToString(Globalization.CultureInfo.InvariantCulture)
 
         let pairs = [
@@ -242,10 +243,13 @@ module Worker =
             yield "--module", Some modulePath
             yield "--build-identity", Some identity
             match case.Worker.RequestBytes with
-            | Some bytes -> yield "--request-bytes", Some(number bytes)
+            | Some bytes -> yield "--request-bytes", Some(number (int64 bytes))
             | None -> ()
             match case.Worker.ResponseBytes with
-            | Some bytes -> yield "--response-bytes", Some(number bytes)
+            | Some bytes -> yield "--response-bytes", Some(number (int64 bytes))
+            | None -> ()
+            match case.Worker.Instructions with
+            | Some budget -> yield "--instructions", Some(number budget)
             | None -> ()
             yield "--json", None
         ]

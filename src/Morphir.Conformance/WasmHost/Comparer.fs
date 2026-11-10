@@ -11,6 +11,9 @@ open System.Text.RegularExpressions
 type MatcherFailure = {
     /// The run, counted from 1.
     Run: int
+    /// The alternative of the run whose matcher this is, counted from 1. None for a run without
+    /// alternatives.
+    Alternative: int option
     /// The matcher, as the corpus's conventions name it, for example exitCode or events.
     Matcher: string
     Message: string
@@ -45,17 +48,48 @@ type WorkerEventLine = {
 module Comparer =
     let private invariant = CultureInfo.InvariantCulture
 
-    let private numberValue (literal: string) =
-        match Decimal.TryParse(literal, NumberStyles.Float, invariant) with
-        | true, value -> Some(Choice1Of2 value)
-        | _ ->
-            match Double.TryParse(literal, NumberStyles.Float, invariant) with
-            | true, value when Double.IsFinite value -> Some(Choice2Of2 value)
-            | _ -> None
+    let private numberLiteral =
+        Regex("^(-?)(0|[1-9][0-9]*)(?:\\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$")
 
-    /// JSON value equality: the same kind; strings equal ordinally; numbers equal by value, so 1 equals 1.0;
-    /// arrays equal item by item in order; objects with the same member names, in any order, and equal
-    /// values.
+    /// The exact value of a JSON number literal: its sign, its significant digits without leading or
+    /// trailing zeros, and the power of ten of the last digit. Zero is (false, "", 0) whatever its sign.
+    /// None for text that is not a JSON number.
+    let private numberValue (literal: string) =
+        let found = numberLiteral.Match literal
+
+        if not found.Success then
+            None
+        else
+            let digits =
+                found.Groups[2].Value
+                + found.Groups[3].Value
+
+            let exponent =
+                (if found.Groups[4].Success then
+                     Numerics.BigInteger.Parse(found.Groups[4].Value, invariant)
+                 else
+                     Numerics.BigInteger.Zero)
+                - Numerics.BigInteger(found.Groups[3].Value.Length)
+
+            let significant = digits.TrimStart '0'
+            let trimmed = significant.TrimEnd '0'
+
+            if trimmed = "" then
+                Some(false, "", Numerics.BigInteger.Zero)
+            else
+                Some(
+                    found.Groups[1].Value = "-",
+                    trimmed,
+                    exponent
+                    + Numerics.BigInteger(
+                        significant.Length
+                        - trimmed.Length
+                    )
+                )
+
+    /// JSON value equality, as the corpus's stdout convention defines it: the same type and value; object
+    /// members in any order; array elements in order; numbers by their exact numeric value, so 1 equals 1.0
+    /// and 1e400 equals 10e399; strings by code point, which is ordinal equality of their UTF-16 text.
     let rec jsonEquals (left: JsonValue) (right: JsonValue) =
         match left, right with
         | JsonValue.Null, JsonValue.Null -> true
@@ -64,14 +98,7 @@ module Comparer =
             left = right
             || (
                 match numberValue left, numberValue right with
-                | Some(Choice1Of2 left), Some(Choice1Of2 right) -> left = right
-                | Some left, Some right ->
-                    let asDouble =
-                        function
-                        | Choice1Of2(value: decimal) -> float value
-                        | Choice2Of2(value: float) -> value
-
-                    asDouble left = asDouble right
+                | Some left, Some right -> left = right
                 | _ -> false
             )
         | JsonValue.String left, JsonValue.String right ->

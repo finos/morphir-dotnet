@@ -21,9 +21,25 @@ let root =
 
     find (DirectoryInfo __SOURCE_DIRECTORY__)
 
-/// The number of cases at the pinned commit 7b049c223.
+/// The finos/morphir commit of the pin.
 [<Literal>]
-let PinnedCaseCount = 56
+let PinnedCommit = "48d10706f1feea2131f76ef5deca9017efc0df97"
+
+/// The number of cases at the pinned commit 48d10706f.
+[<Literal>]
+let PinnedCaseCount = 58
+
+/// The number of cases for extism-kernel-v1 at the pin, which apply to every host.
+[<Literal>]
+let PinnedExtismCaseCount = 48
+
+/// The number of cases for morphir-bytes-v1 at the pin.
+[<Literal>]
+let PinnedBytesCaseCount = 10
+
+/// The number of modules at the pin.
+[<Literal>]
+let PinnedModuleCount = 50
 
 let requireOk label (result: Result<'T, CorpusIssue list>) =
     match result with
@@ -55,6 +71,13 @@ let corpusCaseCount () =
         JsonNode.Parse(File.ReadAllText(Path.Combine(root, CorpusJson.DefaultCorpusPath)))
 
     node["cases"].AsArray().Count
+
+/// The number of entries of the corpus's modules table, counted without the reader.
+let corpusModuleCount () =
+    let node =
+        JsonNode.Parse(File.ReadAllText(Path.Combine(root, CorpusJson.DefaultCorpusPath)))
+
+    node["modules"].AsObject().Count
 
 /// A sandbox that holds a copy of the pinned corpus, its provenance and the committed suite at
 /// their repository paths. edit changes the corpus copy; the pinned file is never touched.

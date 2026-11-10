@@ -5,7 +5,6 @@ namespace Morphir.Conformance.WasmHost
 open System
 open System.IO
 open System.Reflection
-open System.Runtime.InteropServices
 open System.Security.Cryptography
 open System.Threading
 open System.Threading.Tasks
@@ -162,9 +161,6 @@ module HostRunner =
                 |> Option.defaultValue ""
         }
 
-    /// The platform of this process, for example win-arm64.
-    let currentPlatform () = RuntimeInformation.RuntimeIdentifier
-
     let private deviationOf (deviations: Deviation list) (case: SuiteCase) =
         deviations
         |> List.tryFind (fun deviation -> deviation.CaseId = case.Case.CaseId)
@@ -230,7 +226,20 @@ module HostRunner =
                         let outcome =
                             Judge.outcome options.Declared.Profiles bounds case.Case sha runs
 
-                        options.Progress $"{case.Id} {case.Case.CaseId}: {outcome.WireValue}"
+                        let satisfied =
+                            match outcome with
+                            | CaseOutcome.Passed(_ :: _ as alternatives) ->
+                                let shown =
+                                    alternatives
+                                    |> List.map (fun alternative ->
+                                        $"run {alternative.Run} alternative {alternative.Alternative}"
+                                    )
+
+                                $""" ({String.Join(", ", shown)})"""
+                            | _ -> ""
+
+                        options.Progress
+                            $"{case.Id} {case.Case.CaseId}: {outcome.WireValue}{satisfied}"
 
                         {
                             Case = case

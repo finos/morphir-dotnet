@@ -33,7 +33,7 @@ let tests =
             Expect.equal
                 (corpusCaseCount ())
                 PinnedCaseCount
-                "The pinned corpus has 56 cases at 7b049c223"
+                "The pinned corpus has 58 cases at 48d10706f"
 
             Expect.equal corpus.Cases.Length (corpusCaseCount ()) "Every case of the corpus is read"
 
@@ -45,10 +45,32 @@ let tests =
                 PinnedCaseCount
                 "Case ids are distinct"
 
+            let countFor profile =
+                corpus.Cases
+                |> List.filter (fun case -> case.AppliesTo = profile)
+                |> List.length
+
             Expect.equal
-                corpus.Pin.Commit
-                "7b049c223d2fc7309eec5ac81976f9cae845b522"
-                "The pin's commit comes from PROVENANCE.md"
+                (countFor Profile.ExtismKernelV1)
+                PinnedExtismCaseCount
+                "48 cases for extism-kernel-v1"
+
+            Expect.equal
+                (countFor Profile.MorphirBytesV1)
+                PinnedBytesCaseCount
+                "10 cases for morphir-bytes-v1"
+
+            Expect.equal (corpusModuleCount ()) PinnedModuleCount "The pinned corpus has 50 modules"
+
+            Expect.equal
+                (corpus.Cases
+                 |> List.map (fun case -> case.Module.Name)
+                 |> List.distinct
+                 |> List.length)
+                PinnedModuleCount
+                "Every module is used by a case"
+
+            Expect.equal corpus.Pin.Commit PinnedCommit "The pin's commit comes from PROVENANCE.md"
 
             Expect.equal
                 corpus.Pin.Sha256
@@ -107,19 +129,63 @@ let tests =
             let spin = find "bounds/spin-extism"
             Expect.equal spin.Bounds [ Bound.CallDeadline ] "bounds"
 
+            let fault (expect: Expectation) =
+                expect.Events
+                |> List.tryPick (
+                    function
+                    | EventMatcher.Fault kind -> kind
+                    | _ -> None
+                )
+
             match spin.Runs with
             | [ {
-                    Expect = RunExpectation.Alternatives [ enforced; notEnforced ]
+                    Expect = RunExpectation.Alternatives [ budget; deadline; notEnforced ]
                 } ] ->
+                // Two alternatives with the same condition: a metering host may show either bound.
                 Expect.equal
-                    enforced.When
+                    budget.When
                     (Condition.Bound(Bound.InstructionBudget, true))
                     "first alternative"
 
                 Expect.equal
+                    (fault budget.Expect)
+                    (Some FaultKind.BudgetExhausted)
+                    "the budget ends it"
+
+                Expect.equal
+                    budget.Expect.WithinSeconds
+                    (Some
+                        {
+                            Until = Until.Fault
+                            From = 0m
+                            To = 30m
+                        })
+                    "before the deadline"
+
+                Expect.equal
+                    deadline.When
+                    budget.When
+                    "the second alternative has the same condition"
+
+                Expect.equal
+                    (fault deadline.Expect)
+                    (Some FaultKind.CallDeadline)
+                    "the deadline ends it"
+
+                Expect.equal
+                    deadline.Expect.WithinSeconds
+                    (Some
+                        {
+                            Until = Until.Fault
+                            From = 30m
+                            To = 32m
+                        })
+                    "between the deadline and the margin"
+
+                Expect.equal
                     notEnforced.When
                     (Condition.Bound(Bound.InstructionBudget, false))
-                    "second alternative"
+                    "third alternative"
 
                 Expect.equal
                     notEnforced.Expect.WithinSeconds
@@ -132,9 +198,86 @@ let tests =
                     "timing"
             | other -> failtest $"Unexpected runs %A{other}"
 
+            match (find "bounds/spin-bytes").Runs with
+            | [ {
+                    Expect = RunExpectation.Alternatives [ first; second; _ ]
+                } ] -> Expect.equal first.When second.When "spin-bytes repeats the condition too"
+            | other -> failtest $"Unexpected runs %A{other}"
+
             let missingAbi = find "worker/missing-abi"
             Expect.isNone missingAbi.DeclaredAbi "No declared ABI"
             Expect.equal missingAbi.Worker.Omit [ "--abi" ] "omit"
+            Expect.isNone missingAbi.Worker.Instructions "no budget"
+        }
+
+        // Spec "A case's worker arguments reach the worker": Small instruction budget.
+        test
+            "bounds/small-budget gives the worker an instruction budget and accepts only budget-exhausted" {
+            let small =
+                (corpus.Force()).Cases
+                |> List.find (fun case -> case.CaseId = "bounds/small-budget")
+
+            Expect.equal small.Worker.Instructions (Some 1000000L) "worker.instructions"
+            Expect.equal small.Bounds [ Bound.InstructionBudget ] "the bound it exercises"
+            Expect.equal small.Module.Name "extism-spin" "the spinning module"
+
+            match small.Runs with
+            | [ {
+                    Expect = RunExpectation.Always expect
+                } ] ->
+                Expect.equal
+                    expect.Events
+                    [
+                        EventMatcher.Started(Some Profile.ExtismKernelV1)
+                        EventMatcher.Fault(Some FaultKind.BudgetExhausted)
+                    ]
+                    "only budget-exhausted"
+            | other -> failtest $"Unexpected runs %A{other}"
+        }
+
+        test "A worker budget the corpus cannot mean is refused" {
+            readCopy (fun corpus ->
+                (caseNode "bounds/small-budget" corpus).["worker"].["instructions"] <-
+                    Nodes.JsonValue.Create 0
+            )
+            |> requireError "a zero budget"
+            |> namesIt "mck.invalid_case" "/worker/instructions"
+
+            readCopy (fun corpus ->
+                (caseNode "bounds/small-budget" corpus).["worker"].["instructions"] <-
+                    Nodes.JsonValue.Create 5000000000L
+            )
+            |> requireOk "the contract's default budget, above 32 bits"
+            |> fun corpus ->
+                Expect.equal
+                    (corpus.Cases
+                     |> List.find (fun case -> case.CaseId = "bounds/small-budget"))
+                        .Worker.Instructions
+                    (Some 5000000000L)
+                    "a 64-bit budget"
+        }
+
+        test "The reader implements every convention of the pin, word for word" {
+            let conventions =
+                JsonNode
+                    .Parse(File.ReadAllText(Path.Combine(root, CorpusJson.DefaultCorpusPath)))
+                    .["conventions"].AsObject()
+
+            Expect.equal
+                (conventions
+                 |> Seq.map (fun pair -> pair.Key, pair.Value.GetValue<string>())
+                 |> List.ofSeq)
+                CorpusJson.implementedConventions
+                "The conventions the runner implements are the pinned ones, in order"
+        }
+
+        test "A convention whose text changed is refused, naming it" {
+            readCopy (fun corpus ->
+                corpus["conventions"].["guestOutput"] <-
+                    Nodes.JsonValue.Create "guestOutput lists strings joined with a space."
+            )
+            |> requireError "changed convention"
+            |> namesIt "mck.unknown_convention" "guestOutput"
         }
 
         test "An unknown matcher in a corpus copy is an error that names it" {

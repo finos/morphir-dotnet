@@ -62,6 +62,44 @@ let tests =
             Expect.isFalse (Comparer.jsonEquals (json "1") (json "2")) "1 and 2"
         }
 
+        // Convention stdout at 48d10706f: "numbers by numeric value".
+        test "JSON equality compares numbers by their exact value, beyond decimal and double" {
+            Expect.isTrue (Comparer.jsonEquals (json "0") (json "-0")) "zero has one value"
+            Expect.isTrue (Comparer.jsonEquals (json "0.5") (json "5e-1")) "0.5 and 5e-1"
+            Expect.isTrue (Comparer.jsonEquals (json "1e400") (json "10e399")) "beyond double"
+
+            Expect.isTrue
+                (Comparer.jsonEquals
+                    (json "12345678901234567890123456789012345")
+                    (json "1.2345678901234567890123456789012345E34"))
+                "beyond decimal"
+
+            Expect.isFalse
+                (Comparer.jsonEquals (json "1e30") (json "1000000000000000019884624838656"))
+                "two values that are one double"
+
+            Expect.isFalse
+                (Comparer.jsonEquals (json "0.1") (json "0.1000000000000000000000000000001"))
+                "two values that are one decimal"
+
+            Expect.isFalse (Comparer.jsonEquals (json "1e400") (json "1e401")) "two large values"
+        }
+
+        // Convention stdout at 48d10706f: "strings by code point".
+        test "JSON equality compares strings by code point, escapes resolved" {
+            Expect.isTrue
+                (Comparer.jsonEquals (json "\"\\u00e9\"") (json "\"é\""))
+                "an escape and its character"
+
+            Expect.isTrue
+                (Comparer.jsonEquals (json "\"\\ud83d\\ude00\"") (json "\"😀\""))
+                "a surrogate pair"
+
+            Expect.isFalse
+                (Comparer.jsonEquals (json "\"\\u00e9\"") (json "\"e\\u0301\""))
+                "no Unicode normalization"
+        }
+
         test "JSON equality keeps array order, kinds and exact strings" {
             Expect.isFalse (Comparer.jsonEquals (json "[1,2]") (json "[2,1]")) "array order"
 
@@ -415,6 +453,18 @@ let tests =
 
             let text = Comparer.guestText found
             Expect.equal text "alpha beta" "joined in order; dropped bytes add no text"
+
+            Expect.equal
+                (Comparer.guestText (
+                    events [
+                        line 1L "\"event\":\"output\",\"output\":\"ab\""
+                        line 2L "\"event\":\"output\",\"output\":\"cd\""
+                    ]
+                ))
+                "abcd"
+                "joined with nothing between them"
+
+            none (Comparer.guestOutputInOrder [ "bc" ] "abcd") "a string may span two output events"
             none (Comparer.guestOutputInOrder [ "alpha"; "beta" ] text) "in order"
             some (Comparer.guestOutputInOrder [ "beta"; "alpha" ] text) "out of order"
         }

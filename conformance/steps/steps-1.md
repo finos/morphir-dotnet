@@ -5,8 +5,8 @@ version is `0.1.0-draft.1`, independent of IR, CLI and MEP versions.
 `Morphir.Conformance.Corpus.read` reads vocabularies 1.0 and 1.1, and refuses
 other versions. Version 1.1 adds the call step. Version 1.0 refuses it. The
 report records the vocabulary version of the case set. [Version 1.2](steps-1.2.md)
-adds the `wasm-host` suite and changes nothing on this page; the F# frontend
-suite is read with version 1.1.
+adds the `wasm-host` suite and [version 1.3](steps-1.3.md) revises it; neither changes
+anything on this page, and the F# frontend suite is read with version 1.1.
 
 Features live under `suites/frontend-fsharp/`, declare
 `@suite:frontend-fsharp`, and use stable `frontend-fsharp-NNNN` scenario ids.

@@ -191,7 +191,10 @@ type WasmHostCommands =
                 | CaseOutcome.Failed failures ->
                     failures
                     |> List.map (fun failure ->
-                        $"run {failure.Run} {failure.Matcher}: {failure.Message}"
+                        match failure.Alternative with
+                        | Some alternative ->
+                            $"run {failure.Run} alternative {alternative} {failure.Matcher}: {failure.Message}"
+                        | None -> $"run {failure.Run} {failure.Matcher}: {failure.Message}"
                     )
                     |> fun parts -> String.Join(" | ", parts)
                 | CaseOutcome.Error reason -> reason
@@ -206,7 +209,7 @@ type WasmHostCommands =
                         )
 
                     $"the host does not enforce {shown}, which qualification requires"
-                | CaseOutcome.Passed
+                | CaseOutcome.Passed _
                 | CaseOutcome.NotApplicable _ -> ""
 
             let deviation =
@@ -220,8 +223,9 @@ type WasmHostCommands =
     /// <summary>
     /// <c>morphir mck wasm-host run</c>: runs every case of the kit against the host's worker mode and writes the
     /// report. The host is an executable path and the arguments before <c>extension worker</c>. Profiles are the
-    /// profiles the host declares it runs; offering, platform and engine are what the host declares about itself
-    /// (null platform means this process's platform). The guest kit citation is all three of its values or none.
+    /// profiles the host declares it runs. Offering, platform and engine are what the host declares about itself;
+    /// all three are required, because a worker reports none of them (corpus convention identity). The guest kit
+    /// citation is all three of its values or none.
     /// </summary>
     static member RunAsync
         (kit: string | null, host: string | null,
@@ -256,12 +260,29 @@ type WasmHostCommands =
             let invalid code message =
                 WasmHostCommands.Invalid(command, code, [ message ])
 
+            let identity =
+                [
+                    "--offering", WasmHostCommands.Text offering
+                    "--platform", WasmHostCommands.Text platform
+                    "--engine", WasmHostCommands.Text engine
+                ]
+                |> List.filter (fun (_, value) -> value.IsNone)
+                |> List.map fst
+
             match
                 WasmHostCommands.Text kit, WasmHostCommands.Text host, WasmHostCommands.Text report
             with
             | None, _, _ -> return invalid "mck.usage" "--kit is required"
             | _, None, _ -> return invalid "mck.usage" "--host is required"
             | _, _, None -> return invalid "mck.usage" "--report is required"
+            | _ when not identity.IsEmpty ->
+                let missing = String.Join(" and ", identity)
+                let verb = if identity.Length = 1 then "is" else "are"
+
+                return
+                    invalid
+                        "mck.usage"
+                        $"{missing} {verb} required: the runner is given the host's offering, platform and engine, because a worker reports none of them, and a report without them is refused (corpus convention identity)"
             | Some kit, Some host, Some reportPath ->
                 let hostPath = Path.GetFullPath host
 
@@ -346,9 +367,7 @@ type WasmHostCommands =
                                             |> List.choose Result.toOption
                                             |> List.distinct
                                         Offering = WasmHostCommands.Text offering
-                                        Platform =
-                                            WasmHostCommands.Text platform
-                                            |> Option.orElse (Some(HostRunner.currentPlatform ()))
+                                        Platform = WasmHostCommands.Text platform
                                         Engine = WasmHostCommands.Text engine
                                     }
                                     Limits = RunLimits.ofKit suite.Kit

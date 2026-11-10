@@ -6,7 +6,7 @@ open System.Globalization
 open System.Text
 open Morphir.Conformance
 
-/// Writes cases of the model as Gherkin features in step vocabulary 1.2. The output depends only
+/// Writes cases of the model as Gherkin features in step vocabulary 1.3. The output depends only
 /// on its input: the same pin, kit and numbered cases give the same bytes.
 module FeatureWriter =
     /// The group of a case id, the part before its first slash. Each group is one feature file.
@@ -191,6 +191,13 @@ module FeatureWriter =
             yield
                 "the worker limits responses to "
                 + count bytes "byte"
+        | None -> ()
+
+        match case.Worker.Instructions with
+        | Some budget ->
+            let text = budget.ToString(CultureInfo.InvariantCulture)
+            let noun = if budget = 1L then "unit" else "units"
+            yield $"the worker limits instructions to {text} {noun}"
         | None -> ()
 
         match case.Worker.BuildIdentity with

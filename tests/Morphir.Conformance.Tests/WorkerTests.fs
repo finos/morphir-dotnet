@@ -19,6 +19,20 @@ let private refusal = [
     exitWith 3
 ]
 
+/// The first run of a case passed on this alternative of an instruction-budget condition.
+let private satisfiedBudget (alternative: int) (enforced: bool) : SatisfiedAlternative = {
+    Run = 1
+    Alternative = alternative
+    Condition = Condition.Bound(Bound.InstructionBudget, enforced)
+}
+
+/// The first run of a case passed on this alternative of a byte-profile condition.
+let private satisfiedProfile (alternative: int) (runs: bool) : SatisfiedAlternative = {
+    Run = 1
+    Alternative = alternative
+    Condition = Condition.HostRuns(Profile.MorphirBytesV1, runs)
+}
+
 let private runOne (modules: (string * Text.Json.Nodes.JsonNode list) list) (caseId: string) =
     let fake = host modules
     use _ = fake.Sandbox
@@ -88,7 +102,7 @@ let tests =
             let report, calls =
                 runOne [ "env-open-socket", refusal ] "classification/unknown-namespace"
 
-            Expect.equal (onlyOutcome report) CaseOutcome.Passed "passed"
+            Expect.equal (onlyOutcome report) (CaseOutcome.Passed []) "passed"
             Expect.equal report.Host.BuildIdentity Identity "the identity from --help --json"
 
             Expect.equal
@@ -154,7 +168,7 @@ let tests =
             let report, _ =
                 runOne [ "extism-echo", [ started []; echo 1; read 1; exitWith 0 ] ] "extism/echo"
 
-            Expect.equal (onlyOutcome report) CaseOutcome.Passed "passed"
+            Expect.equal (onlyOutcome report) (CaseOutcome.Passed []) "passed"
         }
 
         // Spec "Module digests are checked before a case runs": Binary does not match its text.
@@ -267,7 +281,93 @@ let tests =
                     [ "extism-spin", [ started []; read 1; fault "budget-exhausted"; exitWith 1 ] ]
                     "bounds/spin-extism"
 
-            Expect.equal (onlyOutcome report) CaseOutcome.Passed "passed"
+            Expect.equal
+                (onlyOutcome report)
+                (CaseOutcome.Passed [ satisfiedBudget 1 true ])
+                "passed on the budget alternative"
+        }
+
+        // Spec "A case's worker arguments reach the worker": Small instruction budget.
+        test "The worker arguments of bounds/small-budget give --instructions 1000000" {
+            let case = (suiteCase "bounds/small-budget").Case
+
+            Expect.equal
+                (Worker.arguments Identity "/m.wasm" case)
+                [
+                    "extension"
+                    "worker"
+                    "--abi"
+                    "extism-kernel-v1"
+                    "--module"
+                    "/m.wasm"
+                    "--build-identity"
+                    Identity
+                    "--instructions"
+                    "1000000"
+                    "--json"
+                ]
+                "abi, module, build identity, the case's budget, json"
+        }
+
+        // Spec "A case's worker arguments reach the worker": Case without a worker object.
+        test "A case without a worker object starts the worker without any limit or budget" {
+            let case = (suiteCase "bounds/spin-extism").Case
+            let arguments = Worker.arguments Identity "/m.wasm" case
+
+            for name in [ "--request-bytes"; "--response-bytes"; "--instructions" ] do
+                Expect.isFalse (List.contains name arguments) $"no {name}"
+        }
+
+        test
+            "--instructions reaches the fake worker, and budget-exhausted passes bounds/small-budget" {
+            let report, calls =
+                runOne
+                    [ "extism-spin", [ started []; read 1; fault "budget-exhausted"; exitWith 1 ] ]
+                    "bounds/small-budget"
+
+            let worker =
+                calls
+                |> List.find (fun call -> not (List.contains "--help" call))
+
+            let at = List.findIndex ((=) "--instructions") worker
+            Expect.equal worker[at + 1] "1000000" "the budget's value follows the argument"
+            Expect.equal (onlyOutcome report) (CaseOutcome.Passed []) "passed"
+        }
+
+        // Spec "A runaway guest is stopped in time": Small budget on a metering host.
+        test
+            "A metering host that reaches the call deadline under the small budget fails bounds/small-budget" {
+            let report, _ =
+                runOne
+                    [ "extism-spin", [ started []; read 1; fault "call-deadline"; exitWith 1 ] ]
+                    "bounds/small-budget"
+
+            Expect.contains
+                (failedMatchers (onlyOutcome report))
+                "events"
+                "only budget-exhausted passes"
+        }
+
+        test "A host without metering records bounds/small-budget as not_enforced" {
+            let report, _ =
+                runOne
+                    [
+                        "extism-spin",
+                        [
+                            started [ "instructionBudget" ]
+                            read 1
+                            fault "call-deadline"
+                            exitWith 1
+                        ]
+                    ]
+                    "bounds/small-budget"
+
+            Expect.equal
+                (onlyOutcome report)
+                (CaseOutcome.NotEnforced [ Bound.InstructionBudget ])
+                "not_enforced, not passed or failed"
+
+            Expect.equal (HostRunner.exitCode report) 0 "the budget is optional for qualification"
         }
 
         // Spec "A runaway guest is stopped in time": Host without metering. Uses the contract's 30-second deadline.
@@ -295,7 +395,10 @@ let tests =
                     }
                     (suiteOf [ "bounds/spin-extism" ])
 
-            Expect.equal (onlyOutcome report) CaseOutcome.Passed "passed"
+            Expect.equal
+                (onlyOutcome report)
+                (CaseOutcome.Passed [ satisfiedBudget 3 false ])
+                "passed on the alternative for a host without metering"
 
             Expect.equal
                 (Map.find Bound.InstructionBudget report.Bounds)
@@ -338,7 +441,7 @@ let tests =
 
             Expect.equal
                 (outcome "classification/bytes-profile-unsupported")
-                CaseOutcome.Passed
+                (CaseOutcome.Passed [ satisfiedProfile 1 false ])
                 "the refusal passes"
 
             Expect.equal
@@ -358,7 +461,10 @@ let tests =
                     (options fake [ Profile.ExtismKernelV1; Profile.MorphirBytesV1 ])
                     (suiteOf [ "classification/bytes-profile-unsupported" ])
 
-            Expect.equal (onlyOutcome report) CaseOutcome.Passed "served"
+            Expect.equal
+                (onlyOutcome report)
+                (CaseOutcome.Passed [ satisfiedProfile 2 true ])
+                "served"
         }
 
         // Spec "Unenforced bounds stay visible": Deadline not enforced.

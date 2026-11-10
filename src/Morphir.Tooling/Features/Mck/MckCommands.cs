@@ -69,9 +69,9 @@ public sealed class WasmHostRunCommand : Command, IMorphirParseErrorHandler
     private readonly Option<string?> _host = new("--host") { Description = "The host executable; the runner starts '<host> [host-args] extension worker ...'" };
     private readonly Option<string[]> _hostArgs = new("--host-arg") { Description = "An argument before 'extension worker'; repeatable", AllowMultipleArgumentsPerToken = false };
     private readonly Option<string[]> _profiles = new("--host-profile") { Description = "A profile the host declares it runs (extism-kernel-v1 is always run); repeatable", AllowMultipleArgumentsPerToken = false };
-    private readonly Option<string?> _offering = new("--offering") { Description = "The host's offering, for example native-aot or dotnet-tool" };
-    private readonly Option<string?> _platform = new("--platform") { Description = "The host's platform (default: this machine's runtime identifier)" };
-    private readonly Option<string?> _engine = new("--engine") { Description = "The engine the host reports, for example 'wasmtime 50.0.1'" };
+    private readonly Option<string?> _offering = new("--offering") { Description = "Required. The host's offering, for example native-aot or dotnet-tool; a worker does not report it" };
+    private readonly Option<string?> _platform = new("--platform") { Description = "Required. The host executable's platform, for example linux-x64; a worker does not report it" };
+    private readonly Option<string?> _engine = new("--engine") { Description = "Required. The host's engine, for example 'wasmtime 50.0.1'; a worker does not report it" };
     private readonly Option<string?> _report = new("--report") { Description = "The report file to write" };
     private readonly Option<string?> _deviations = new("--deviations") { Description = "A JSON file of known deviations that explain failures; they never change an outcome" };
     private readonly Option<string?> _guestReport = new("--guest-kit-report") { Description = "The report of a passing generic guest kit run through the same host executable" };

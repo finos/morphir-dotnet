@@ -12,11 +12,11 @@ open Gherkin.Ast
 open Morphir.Conformance
 
 /// Reads the generated features of the suite into the case model, the runner's input. The
-/// features use step vocabulary 1.2 (conformance/steps/steps-1.2.md). A step outside the
+/// features use step vocabulary 1.3 (conformance/steps/steps-1.3.md). A step outside the
 /// vocabulary is refused with its file and line, and a feature that is not exactly what the
 /// generator writes for its own cases is refused.
 module FeatureReader =
-    /// A step of vocabulary 1.2, with its arguments read.
+    /// A step of vocabulary 1.3, with its arguments read.
     [<RequireQualifiedAccess>]
     type private Step =
         | Module of ModuleRef
@@ -24,6 +24,7 @@ module FeatureReader =
         | Omit of string
         | RequestBytes of int
         | ResponseBytes of int
+        | Instructions of int64
         | OtherIdentity
         | StartWorker
         | SendFrame of name: string
@@ -61,6 +62,7 @@ module FeatureReader =
         Omit = pattern $"the worker is started without the argument {q}"
         RequestBytes = pattern $"the worker limits requests to {integer} bytes?"
         ResponseBytes = pattern $"the worker limits responses to {integer} bytes?"
+        Instructions = pattern $"the worker limits instructions to {integer} units?"
         OtherIdentity = pattern "the worker is given another build identity"
         StartWorker = pattern "a new worker is started"
         SendFrame = pattern $"the worker is sent the frame {q}:"
@@ -101,6 +103,11 @@ module FeatureReader =
 
     let private int32 (text: string) =
         match Int32.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture) with
+        | true, value -> Ok value
+        | _ -> Error $"The number {text} is too large"
+
+    let private int64Of (text: string) =
+        match Int64.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture) with
         | true, value -> Ok value
         | _ -> Error $"The number {text} is too large"
 
@@ -179,6 +186,13 @@ module FeatureReader =
                     (fun groups ->
                         int32 (group groups 1)
                         |> Result.map Step.ResponseBytes
+                    )
+            fun () ->
+                attempt
+                    patterns.Instructions
+                    (fun groups ->
+                        int64Of (group groups 1)
+                        |> Result.map Step.Instructions
                     )
             fun () -> attempt patterns.OtherIdentity (fun _ -> Ok Step.OtherIdentity)
             fun () -> attempt patterns.StartWorker (fun _ -> Ok Step.StartWorker)
@@ -870,6 +884,15 @@ module FeatureReader =
                                     ResponseBytes = Some bytes
                                 }
                             )
+                        | Step.Instructions budget ->
+                            once worker.Instructions.IsSome "instruction budget"
+                            |> Result.map (fun () ->
+                                moduleRef,
+                                abi,
+                                { worker with
+                                    Instructions = Some budget
+                                }
+                            )
                         | Step.OtherIdentity ->
                             once (worker.BuildIdentity = BuildIdentity.Other) "build identity"
                             |> Result.map (fun () ->
@@ -935,6 +958,7 @@ module FeatureReader =
                             | Step.Omit _
                             | Step.RequestBytes _
                             | Step.ResponseBytes _
+                            | Step.Instructions _
                             | Step.OtherIdentity -> true
                             | _ -> false
                         )
@@ -1053,30 +1077,20 @@ module FeatureReader =
                             })
                         )
 
-                    if
-                        (alternatives
-                         |> List.map (fun alternative -> alternative.When)
-                         |> List.distinct)
-                            .Length
-                        <> alternatives.Length
-                    then
-                        problem
-                            "mck.invalid_case"
-                            first.Line
-                            $"The alternatives of {first.CaseId} repeat a condition"
-                    else
-                        Ok(
-                            first.Number,
-                            first.Line,
-                            { first.Case with
-                                Runs = [
-                                    {
-                                        Frames = frames
-                                        Expect = RunExpectation.Alternatives alternatives
-                                    }
-                                ]
-                            }
-                        )
+                    // Two scenarios may carry the same condition tags: two alternatives with the same
+                    // condition (convention alternatives).
+                    Ok(
+                        first.Number,
+                        first.Line,
+                        { first.Case with
+                            Runs = [
+                                {
+                                    Frames = frames
+                                    Expect = RunExpectation.Alternatives alternatives
+                                }
+                            ]
+                        }
+                    )
             | _ ->
                 problem
                     "mck.invalid_case"
@@ -1375,7 +1389,7 @@ module FeatureReader =
                             | issues -> Error issues
                         | issues -> Error issues
 
-    /// Reads every .feature artifact into the suite's cases. A step outside vocabulary 1.2 is
+    /// Reads every .feature artifact into the suite's cases. A step outside vocabulary 1.3 is
     /// refused with its file and line. A feature that is not exactly what the generator writes
     /// for the cases it holds, or features of different pins, are refused.
     let parse (artifacts: Artifact list) : Result<WasmHostSuite, CorpusIssue list> =

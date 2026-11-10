@@ -176,9 +176,9 @@ let tests =
                         fake.Sandbox.PathOf "no-host",
                         [||],
                         [||],
-                        null,
-                        null,
-                        null,
+                        "test",
+                        "test-platform",
+                        "fake",
                         report,
                         null,
                         null,
@@ -199,9 +199,9 @@ let tests =
                         dotnet,
                         [||],
                         [||],
-                        null,
-                        null,
-                        null,
+                        "test",
+                        "test-platform",
+                        "fake",
                         report,
                         null,
                         report,
@@ -215,6 +215,59 @@ let tests =
 
             Expect.equal partialCitation.ExitCode 2 "a guest kit citation without its digests"
             Expect.isEmpty (invocations fake) "no worker started"
+        }
+
+        // Spec "Report identity"; corpus convention identity at 48d10706f.
+        test
+            "run without the host's offering, platform or engine is an invalid invocation before any case" {
+            let fake = host [ "*", [ exitWith 3 ] ]
+            use _ = fake.Sandbox
+            let kit = Path.Combine(root, Generation.SuiteDirectory)
+
+            let runWithout (offering: string) (platform: string) (engine: string) =
+                WasmHostCommands
+                    .RunAsync(
+                        kit,
+                        dotnet,
+                        (fake.Command.Arguments
+                         |> List.toArray),
+                        [||],
+                        offering,
+                        platform,
+                        engine,
+                        fake.Sandbox.PathOf "r.json",
+                        null,
+                        null,
+                        null,
+                        null,
+                        Action<string>(ignore),
+                        CancellationToken.None
+                    )
+                    .GetAwaiter()
+                    .GetResult()
+
+            for name, result in
+                [
+                    "--offering", runWithout null "test-platform" "fake"
+                    "--platform", runWithout "test" null "fake"
+                    "--engine", runWithout "test" "test-platform" " "
+                ] do
+                Expect.equal result.ExitCode 2 $"no {name}"
+                let error = (document result).["error"]
+                Expect.equal (error["code"].GetValue<string>()) "mck.usage" $"no {name}: the code"
+
+                Expect.stringContains
+                    (error["message"].GetValue<string>())
+                    name
+                    $"no {name}: the option is named"
+
+                Expect.stringContains
+                    (error["message"].GetValue<string>())
+                    "a worker reports none of them"
+                    $"no {name}: the convention's reason"
+
+            Expect.isEmpty (invocations fake) "no worker started, not even --help"
+            Expect.isFalse (File.Exists(fake.Sandbox.PathOf "r.json")) "no report"
         }
 
         // Spec "Module digests are checked before a case runs": Corpus version the runner does not know.

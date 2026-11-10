@@ -86,11 +86,19 @@ let tests =
         }
 
         test "The script's copy of the library types it loads is the same as Types.fs" {
-            let types = File.ReadAllText(Path.Combine(root, "src", "Morphir.Conformance", "Types.fs"))
-            let shim = File.ReadAllText(Path.Combine(root, "scripts", "wasm-host", "Artifacts.fs"))
+            let types =
+                File.ReadAllText(Path.Combine(root, "src", "Morphir.Conformance", "Types.fs"))
+
+            let shim =
+                File.ReadAllText(Path.Combine(root, "scripts", "wasm-host", "Artifacts.fs"))
+
             let start = shim.IndexOf "type Artifact"
             Expect.isGreaterThan start 0 "The shim declares Artifact"
-            Expect.stringContains types (shim.Substring(start).TrimEnd()) "Types.fs declares the same types"
+
+            Expect.stringContains
+                types
+                (shim.Substring(start).TrimEnd())
+                "Types.fs declares the same types"
         }
 
         test "The committed features and id map are what the pinned corpus generates" {
@@ -137,18 +145,90 @@ let tests =
                 ]
                 "The host-profile alternatives"
 
+            // Spec "Each alternative is its own scenario": Two alternatives with the same condition.
             Expect.equal
                 (scenarioTags (featureText "bounds.feature") "bounds/spin-extism")
                 [
                     "@requires:profile:extism-kernel-v1 @requires:enforced:instructionBudget @bound:callDeadline"
+                    "@requires:profile:extism-kernel-v1 @requires:enforced:instructionBudget @bound:callDeadline"
                     "@requires:profile:extism-kernel-v1 @requires:not-enforced:instructionBudget @bound:callDeadline"
                 ]
-                "The bound alternatives"
+                "The bound alternatives, two of them with the same tags"
+
+            Expect.equal
+                (scenarioTags
+                    (featureText "classification.feature")
+                    "classification/known-name-other-signature")
+                [
+                    "@requires:profile:extism-kernel-v1 @requires:runs:morphir-bytes-v1"
+                    "@requires:profile:extism-kernel-v1 @requires:does-not-run:morphir-bytes-v1"
+                ]
+                "The case applies to every host, with an alternative for each"
 
             Expect.equal
                 (scenarioTags (featureText "bytes.feature") "bytes/echo")
                 [ "@requires:profile:morphir-bytes-v1" ]
                 "A byte-profile case requires the profile"
+        }
+
+        // Spec "A case's worker arguments reach the worker": the scenario states the budget in its own step.
+        test "A case's instruction budget is a step of its scenario" {
+            let text = featureText "bounds.feature"
+            let start = text.IndexOf " bounds/small-budget\n"
+            Expect.isGreaterThan start 0 "the scenario"
+            let finish = text.IndexOf("\n  @", start)
+
+            let scenario =
+                if finish < 0 then
+                    text.Substring start
+                else
+                    text.Substring(
+                        start,
+                        finish
+                        - start
+                    )
+
+            Expect.stringContains
+                scenario
+                "    And the worker limits instructions to 1000000 units\n"
+                "the budget step"
+
+            Expect.isFalse
+                ((featureText "bounds.feature").Substring(0, start).Contains
+                    "the worker limits instructions")
+                "no other case of the group sets a budget"
+        }
+
+        // Spec "Generated cases keep stable ids": Case added upstream, at the move of the pin to 48d10706f.
+        test "The cases added at 48d10706f took the next unused numbers and no number moved" {
+            let map = committedIds ()
+
+            Expect.equal map.Pin.Commit PinnedCommit "The map was generated from the pin"
+            Expect.equal (highest map) PinnedCaseCount "58 numbers, none retired"
+
+            Expect.isTrue
+                (map.Entries
+                 |> List.forall (fun entry -> not entry.Retired))
+                "no case was removed"
+
+            let numbers = activeNumbers map
+
+            for caseId, number in
+                [
+                    "classification/unknown-namespace", 1
+                    "extism/notifications-accepted", 29
+                    "extism/notification-answered", 30
+                    "bounds/spin-bytes", 33
+                    "bounds/grow-to-ceiling-then-trap", 35
+                    "bounds/bytes-grow-refused", 37
+                    "sandbox/logging", 56
+                    "extism/notification-delivery-unlisted", 57
+                    "bounds/small-budget", 58
+                ] do
+                Expect.equal
+                    (Map.tryFind caseId numbers)
+                    (Some number)
+                    $"{caseId} is wasm-host-{number:D4}"
         }
 
         // Spec scenario: Stale features.

@@ -1,5 +1,7 @@
 # MCK step vocabulary 1.2: the wasm-host suite
 
+> The runner reads the `wasm-host` suite with [version 1.3](steps-1.3.md) since the pin moved to finos/morphir `48d10706f`. This page keeps the meaning of version 1.2 unchanged.
+
 Version 1.2 adds the `wasm-host` suite to [vocabulary 1.1](steps-1.md). It
 changes nothing in version 1.1 or in the F# frontend suite: the frontend suite
 keeps its steps and is read with version 1.1, and the steps below are valid only

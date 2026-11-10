@@ -31,7 +31,7 @@ module HostReport =
 
     /// The report format version.
     [<Literal>]
-    let FormatVersion = "0.1.0-draft.1"
+    let FormatVersion = "0.1.0-draft.2"
 
     /// What the report says in place of a verdict.
     [<Literal>]
@@ -49,7 +49,7 @@ module HostReport =
 
         {
             Cases = outcomes.Length
-            Passed = count (fun outcome -> outcome = CaseOutcome.Passed)
+            Passed = count (fun outcome -> outcome.WireValue = "passed")
             Failed = count (fun outcome -> outcome.WireValue = "failed")
             Error = count (fun outcome -> outcome.WireValue = "error")
             Refused = count (fun outcome -> outcome.WireValue = "refused")
@@ -117,6 +117,20 @@ module HostReport =
         writer.WriteEndArray()
         writer.WriteEndObject()
 
+    /// An alternative's condition as the corpus writes it: {bound, enforced} or {hostRuns, runs}.
+    let private writeCondition (writer: Utf8JsonWriter) (condition: Condition) =
+        writer.WriteStartObject "when"
+
+        match condition with
+        | Condition.Bound(bound, enforced) ->
+            writer.WriteString("bound", bound.WireValue)
+            writer.WriteBoolean("enforced", enforced)
+        | Condition.HostRuns(profile, runs) ->
+            writer.WriteString("hostRuns", profile.WireValue)
+            writer.WriteBoolean("runs", runs)
+
+        writer.WriteEndObject()
+
     let private writeCase (writer: Utf8JsonWriter) (result: HostCaseResult) =
         let case = result.Case
         writer.WriteStartObject()
@@ -142,13 +156,28 @@ module HostReport =
         writer.WriteString("outcome", result.Outcome.WireValue)
 
         match result.Outcome with
-        | CaseOutcome.Passed -> ()
+        | CaseOutcome.Passed satisfied ->
+            writer.WriteStartArray "satisfied"
+
+            for alternative in satisfied do
+                writer.WriteStartObject()
+                writer.WriteNumber("run", alternative.Run)
+                writer.WriteNumber("alternative", alternative.Alternative)
+                writeCondition writer alternative.Condition
+                writer.WriteEndObject()
+
+            writer.WriteEndArray()
         | CaseOutcome.Failed failures ->
             writer.WriteStartArray "failures"
 
             for failure in failures do
                 writer.WriteStartObject()
                 writer.WriteNumber("run", failure.Run)
+
+                match failure.Alternative with
+                | Some alternative -> writer.WriteNumber("alternative", alternative)
+                | None -> writer.WriteNull "alternative"
+
                 writer.WriteString("matcher", failure.Matcher)
                 writer.WriteString("message", failure.Message)
                 writer.WriteEndObject()
@@ -832,8 +861,12 @@ module HostReport =
                         "platform", report.Host.Declared.Platform
                         "engine", report.Host.Declared.Engine
                     ] do
-                    if value.IsNone then
-                        yield $"The report does not identify the host's {name}"
+                    if
+                        value
+                        |> Option.forall String.IsNullOrWhiteSpace
+                    then
+                        yield
+                            $"The report does not identify the host's {name}. The runner is given the host's offering, platform and engine, because a worker reports none of them, and a report without them is refused (corpus convention identity)"
 
                 match expectations.Offering, report.Host.Declared.Offering with
                 | Some expected, Some recorded when

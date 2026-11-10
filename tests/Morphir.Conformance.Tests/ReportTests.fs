@@ -228,13 +228,118 @@ let tests =
                 "named"
         }
 
-        test "report-check refuses a report whose host does not identify its engine" {
-            let edited = edit (fun node -> node["host"].["engine"] <- null)
+        // Spec "Report identity"; corpus convention identity at 48d10706f.
+        test "report-check refuses a report without the host's offering, platform or engine" {
+            for name in [ "offering"; "platform"; "engine" ] do
+                for missing: JsonNode in
+                    [
+                        null
+                        System.Text.Json.Nodes.JsonValue.Create "" :> JsonNode
+                        System.Text.Json.Nodes.JsonValue.Create " " :> JsonNode
+                    ] do
+                    let edited = edit (fun node -> node["host"].[name] <- missing)
 
-            Expect.exists
-                (problems (check edited))
-                (fun problem -> problem.Contains "engine")
-                "named"
+                    Expect.exists
+                        (problems (check edited))
+                        (fun problem ->
+                            problem.Contains $"does not identify the host's {name}"
+                            && problem.Contains "identity"
+                        )
+                        $"the {name} is named with the convention"
+        }
+
+        // Spec "Each alternative is its own scenario" and "A runaway guest is stopped in time": the report
+        // records which bound ended the call.
+        test
+            "A passed case records the alternative it satisfied, and a failed one the failures of each" {
+            let fake =
+                host [
+                    "extism-spin", [ started []; read 1; fault "call-deadline"; exitWith 1 ]
+                    // classification/known-name-other-signature expects a refusal; this host serves the module.
+                    "bytes-input-byte-i64", [ started []; read 1; exitWith 0 ]
+                ]
+
+            use _ = fake.Sandbox
+
+            let alternatives =
+                suiteOf [ "bounds/spin-extism"; "classification/known-name-other-signature" ]
+
+            let report = runSuite (options fake [ Profile.ExtismKernelV1 ]) alternatives
+
+            let node =
+                JsonNode.Parse(Encoding.UTF8.GetString(HostReport.toUtf8 report)).AsObject()
+
+            let caseOf (caseId: string) =
+                node["cases"].AsArray()
+                |> Seq.find (fun case -> case["caseId"].GetValue<string>() = caseId)
+
+            let spin = caseOf "bounds/spin-extism"
+
+            Expect.equal
+                (spin["outcome"].GetValue<string>())
+                "failed"
+                "call-deadline at once is outside 30 to 32"
+
+            let failing = caseOf "classification/known-name-other-signature"
+
+            Expect.equal
+                (failing["outcome"].GetValue<string>())
+                "failed"
+                "a served module is not the refusal"
+
+            Expect.all
+                (failing["failures"].AsArray()
+                 |> List.ofSeq)
+                (fun failure -> failure["alternative"].GetValue<int>() = 2)
+                "an Extism-only host is judged on the second alternative only"
+
+            Expect.equal
+                (spin["failures"].AsArray()
+                 |> Seq.map (fun failure -> failure["alternative"].GetValue<int>())
+                 |> Seq.distinct
+                 |> List.ofSeq)
+                [ 1; 2 ]
+                "both alternatives of a metering host, each with its failures"
+
+            let passingFake =
+                host [ "extism-spin", [ started []; read 1; fault "budget-exhausted"; exitWith 1 ] ]
+
+            use _ = passingFake.Sandbox
+
+            let passed =
+                runSuite
+                    (options passingFake [ Profile.ExtismKernelV1 ])
+                    (suiteOf [ "bounds/spin-extism" ])
+
+            let passedNode =
+                JsonNode.Parse(Encoding.UTF8.GetString(HostReport.toUtf8 passed)).["cases"].[0]
+
+            Expect.equal (passedNode["outcome"].GetValue<string>()) "passed" "passed"
+
+            Expect.equal
+                (passedNode["satisfied"].ToJsonString())
+                """[{"run":1,"alternative":1,"when":{"bound":"instructionBudget","enforced":true}}]"""
+                "the satisfied alternative and its condition"
+
+            match
+                HostReport.check
+                    (suiteOf [ "bounds/spin-extism" ])
+                    moduleFile
+                    noExpectations
+                    (HostReport.toUtf8 passed)
+            with
+            | Ok checkedReport ->
+                Expect.equal
+                    (checkedReport.Cases.Head.Outcome)
+                    (CaseOutcome.Passed [
+                        {
+                            Run = 1
+                            Alternative = 1
+                            Condition = Condition.Bound(Bound.InstructionBudget, true)
+                        }
+                    ])
+                    "report-check recomputes the same alternative"
+            | Error problems -> failtest (String.concat "\n" problems)
         }
 
         // Spec "One executable per report": AOT report cited for the tool.

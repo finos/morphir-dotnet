@@ -53,7 +53,36 @@ let tests =
                 (corpusCaseCount ())
                 "Every corpus case is in the features"
 
-            Expect.equal suite.Cases.Length PinnedCaseCount "56 cases at the pin"
+            Expect.equal suite.Cases.Length PinnedCaseCount "58 cases at the pin"
+
+            let small =
+                suite.Cases
+                |> List.find (fun case -> case.Case.CaseId = "bounds/small-budget")
+
+            Expect.equal
+                small.Case.Worker.Instructions
+                (Some 1000000L)
+                "The budget step reads back as worker.instructions"
+
+            let spin =
+                suite.Cases
+                |> List.find (fun case -> case.Case.CaseId = "bounds/spin-extism")
+
+            match spin.Case.Runs with
+            | [ {
+                    Expect = RunExpectation.Alternatives alternatives
+                } ] ->
+                Expect.equal
+                    (alternatives
+                     |> List.map (fun alternative -> alternative.When))
+                    [
+                        Condition.Bound(Bound.InstructionBudget, true)
+                        Condition.Bound(Bound.InstructionBudget, true)
+                        Condition.Bound(Bound.InstructionBudget, false)
+                    ]
+                    "Two scenarios with the same tags are two alternatives"
+            | other -> failtest $"Unexpected runs %A{other}"
+
             Expect.equal suite.Pin corpus.Pin "The same pin"
             Expect.equal suite.Kit corpus.Kit "The same kit"
 
@@ -212,9 +241,9 @@ let tests =
 
             match
                 offered.Case.Runs
-                |> List.map (Selection.expectation declared enforcedAll)
+                |> List.map (Selection.applicable declared enforcedAll)
             with
-            | [ Ok expect ] ->
+            | [ Ok [ { Expect = expect } ] ] ->
                 Expect.equal expect.ExitCode (Some 3) "The worker refuses before any request"
 
                 Expect.equal
@@ -231,12 +260,12 @@ let tests =
             match
                 offered.Case.Runs
                 |> List.map (
-                    Selection.expectation
+                    Selection.applicable
                         [ Profile.ExtismKernelV1; Profile.MorphirBytesV1 ]
                         enforcedAll
                 )
             with
-            | [ Ok expect ] ->
+            | [ Ok [ { Expect = expect } ] ] ->
                 Expect.equal
                     expect.ExitCode
                     (Some 0)

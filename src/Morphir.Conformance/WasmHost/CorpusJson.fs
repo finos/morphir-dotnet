@@ -48,23 +48,45 @@ module CorpusJson =
     [<Literal>]
     let DefaultProvenancePath = "tests/Fixtures/MepWasm/PROVENANCE.md"
 
-    /// The conventions of kit 0.1.0-draft.1. The runner implements each one; a corpus with
-    /// another convention, or without one of these, is refused.
-    let knownConventions = [
-        "expectations"
-        "worker"
-        "profiles"
-        "frames"
-        "exitCode"
-        "stdout"
-        "events"
-        "guestOutput"
-        "timing"
-        "alternatives"
-        "bounds"
-        "gaps"
-        "withoutCase"
+    /// The conventions of kit 0.1.0-draft.1 that this runner implements, word for word as the pin at
+    /// finos/morphir 48d10706f writes them, in corpus order. A corpus with another convention, without one
+    /// of these, or with another text for one of them is refused: a changed text can change what a matcher
+    /// means, so the runner is reviewed against the new text before this table changes.
+    let implementedConventions = [
+        "expectations",
+        """Every expectation is written by hand from the profile contract and the profile spec. None is recorded from a host run."""
+        "worker",
+        """Each run starts a new worker process: <host> extension worker --abi <declaredAbi> --module <wasm> --build-identity <identity> --json, with --request-bytes, --response-bytes and --instructions when the case's worker object gives requestBytes, responseBytes or instructions. <identity> is result.buildIdentity of the morphir/command-result that <host> extension worker --help --json writes, read once for the host. worker.omit names arguments the runs leave out. worker.buildIdentity other passes the host's identity with its last hexadecimal digit changed."""
+        "identity",
+        """The runner is given the host's offering, platform and engine, because a worker reports none of them. A report without them is refused."""
+        "profiles",
+        """The runner is given the profiles the host declares to run. A case applies to a host that declares its appliesTo profile and is recorded as not_applicable for any other. extism-kernel-v1 is the required profile, so its cases apply to every host."""
+        "frames",
+        """A run writes its frames in order, each as a Content-Length framed message whose body is the UTF-8 of the frame's value serialized compactly with members in the order written. After the last frame, stdin stays open until the worker exits."""
+        "exitCode",
+        """The worker's exit status: 0 served until its instance ended; 1 a fault, an invalid frame, or stdin ended first; 2 bad arguments; 3 a refusal before any request. Absent means not constrained."""
+        "stdout",
+        """stdoutBytes is the byte count of all of stdout. stdoutFrames lists every frame on stdout, in order. Two JSON values are equal when they have the same type and value: object members in any order, array elements in order, numbers by numeric value and strings by code point. A frame matches when its body parses to a JSON value equal to json, or equal to the body of the run's frame sameAsFrame, or satisfying every pointers entry (an RFC 6901 pointer with equals, a JSON value, or type, a JSON type name)."""
+        "events",
+        """events lists stderr events that must appear in this order, possibly among others. A matcher names the event and may fix abi (started), code and messageIncludes (refused; each string must occur in error.message) or kind (fault; absent means any kind). noEvents names events that must not appear. Every started event's moduleSha256 must equal the module's sha256. Every started event's bounds must have exactly the members memoryCeiling, instructionBudget and callDeadline, each {"enforced": true} or {"enforced": false, "reason": r} with r one of the contract's reasons. Every fault event's fault must have kind and may have message, and nothing else."""
+        "guestOutput",
+        """guestOutput lists strings that must occur, in order, in the text of the run's output events joined in their order with nothing between them. guestOutputIncludes lists strings that must each occur in that text, in any order. noGuestOutput lists strings that must not occur in it."""
+        "timing",
+        """withinSeconds.range is measured from the end of the write of the run's last frame to the first fault event (until: fault) or to the worker's exit (until: exit)."""
+        "alternatives",
+        """A run with alternatives passes when the observation satisfies one alternative whose when matches: {bound, enforced} matches what the started event's bounds declare for that bound; {hostRuns, runs} matches whether the host declares the profile hostRuns. Two alternatives may have the same when; the host may then show either. A run that expects budget-exhausted under the default budget also has a call-deadline alternative for the same when, because the budget unit is engine-defined and the deadline may come first."""
+        "bounds",
+        """A case's bounds are the bounds it exercises. When the host declares one of them not enforced, the case is recorded as not_enforced, not as passed or failed."""
+        "gaps",
+        """A case's gaps say what the contract leaves open about the observation; the expectation stops there."""
+        "withoutCase",
+        """withoutCase lists the contract elements that no case covers, each with the reason. Every other contract element has at least one case."""
     ]
+
+    /// The names of the conventions this runner implements.
+    let knownConventions =
+        implementedConventions
+        |> List.map fst
 
     /// The matchers of an expectation, as the corpus names them.
     let knownMatchers = [
@@ -160,6 +182,21 @@ module CorpusJson =
         if
             element.ValueKind = JsonValueKind.Number
             && element.TryGetInt32(&value)
+            && Regex.IsMatch(element.GetRawText(), "^(0|[1-9][0-9]*)$")
+        then
+            if value < minimum then
+                invalid path $"An integer of at least {minimum} is required"
+            else
+                Ok value
+        else
+            invalid path "An integer is required"
+
+    let private integer64 (path: string) (minimum: int64) (element: JsonElement) =
+        let mutable value = 0L
+
+        if
+            element.ValueKind = JsonValueKind.Number
+            && element.TryGetInt64(&value)
             && Regex.IsMatch(element.GetRawText(), "^(0|[1-9][0-9]*)$")
         then
             if value < minimum then
@@ -518,20 +555,11 @@ module CorpusJson =
                     })
                     value
 
-            if
-                (alternatives
-                 |> List.map (fun alternative -> alternative.When)
-                 |> List.distinct)
-                    .Length
-                <> alternatives.Length
-            then
-                return!
-                    invalid (child path "alternatives") "The conditions of the alternatives repeat"
-            else
-                return {
-                    Frames = names
-                    Expect = RunExpectation.Alternatives alternatives
-                }
+            // Two alternatives may have the same condition (convention alternatives).
+            return {
+                Frames = names
+                Expect = RunExpectation.Alternatives alternatives
+            }
         | _ -> return! invalid path "A run has exactly one of expect and alternatives"
     }
 
@@ -539,7 +567,7 @@ module CorpusJson =
         let! found =
             members
                 "mck.unknown_member"
-                [ "requestBytes"; "responseBytes"; "omit"; "buildIdentity" ]
+                [ "requestBytes"; "responseBytes"; "instructions"; "omit"; "buildIdentity" ]
                 path
                 element
 
@@ -555,6 +583,13 @@ module CorpusJson =
             | None -> Ok None
             | Some value ->
                 integer (child path "responseBytes") 1 value
+                |> Result.map Some
+
+        let! instructions =
+            match optional "instructions" found with
+            | None -> Ok None
+            | Some value ->
+                integer64 (child path "instructions") 1L value
                 |> Result.map Some
 
         let! omit =
@@ -590,6 +625,7 @@ module CorpusJson =
         return {
             RequestBytes = requestBytes
             ResponseBytes = responseBytes
+            Instructions = instructions
             Omit = omit
             BuildIdentity = identity
         }
@@ -793,7 +829,20 @@ module CorpusJson =
                     fail
                         "mck.unknown_convention"
                         $"The convention \"{name}\" that this runner implements is missing at {path}; the corpus defines its matchers otherwise"
-            | None -> return ()
+            | None ->
+                match
+                    implementedConventions
+                    |> List.tryFind (fun (name, text) ->
+                        nonNull (found[name].GetString())
+                        <> text
+                    )
+                with
+                | Some(name, _) ->
+                    return!
+                        fail
+                            "mck.unknown_convention"
+                            $"The convention \"{name}\" at {child path name} says something other than the text this runner implements; review the runner against the new text before it reads this corpus"
+                | None -> return ()
     }
 
     let private kitOf (root: JsonElement) = result {

@@ -270,7 +270,8 @@ type Alternative = { When: Condition; Expect: Expectation }
 [<RequireQualifiedAccess>]
 type RunExpectation =
     | Always of Expectation
-    /// The alternatives, in corpus order. The list is not empty and its conditions differ.
+    /// The alternatives, in corpus order. The list is not empty. Two alternatives may have the same
+    /// condition: the host may then show either, and the run passes when one is satisfied.
     | Alternatives of Alternative list
 
 /// A frame to send, by its name in the corpus's frame table and its value. The body sent is
@@ -293,8 +294,12 @@ type BuildIdentity =
 
 /// The worker arguments that a case sets beyond the module and its ABI.
 type WorkerSettings = {
+    /// `--request-bytes`: the largest request frame the worker takes.
     RequestBytes: int option
+    /// `--response-bytes`: the largest response the worker writes.
     ResponseBytes: int option
+    /// `--instructions`: the instruction budget of the worker's session, in the engine's units.
+    Instructions: int64 option
     /// Arguments that the runs leave out, in corpus order.
     Omit: string list
     BuildIdentity: BuildIdentity
@@ -302,10 +307,12 @@ type WorkerSettings = {
 
 /// The worker arguments of a case that sets none.
 module WorkerSettings =
-    /// No limit, no omitted argument and the host's own build identity.
+    /// No limit, no budget, no omitted argument and the host's own build identity, so the
+    /// contract's defaults apply.
     let defaults = {
         RequestBytes = None
         ResponseBytes = None
+        Instructions = None
         Omit = []
         BuildIdentity = BuildIdentity.Host
     }
@@ -402,7 +409,7 @@ module Suite =
 
     /// The step vocabulary version of the suite.
     [<Literal>]
-    let VocabularyVersion = "1.2"
+    let VocabularyVersion = "1.3"
 
     /// The kit this runner implements.
     [<Literal>]
@@ -652,6 +659,15 @@ module Json =
         with :? System.Text.Json.JsonException as error ->
             Error error.Message
 
+/// An expectation of a run that applies to a host: the run's only expectation, or one of its
+/// alternatives whose condition holds for the host.
+type ApplicableExpectation = {
+    /// The alternative's number in the run, counted from 1, and its condition. None for a run
+    /// without alternatives.
+    Alternative: (int * Condition) option
+    Expect: Expectation
+}
+
 /// Selects what a case expects of a host from what the host declares.
 module Selection =
     /// Whether a case applies to a host that declares these profiles. Every host runs
@@ -670,23 +686,38 @@ module Selection =
              || List.contains profile declared) = runs
         | Condition.Bound(bound, value) -> enforced bound = value
 
-    /// The expectation of a run for a host: the run's only expectation, or the one alternative
-    /// whose condition holds. It is an error when no alternative or more than one holds.
-    let expectation
+    /// The expectations of a run that apply to a host, in corpus order: the run's only
+    /// expectation, or every alternative whose condition holds. The run passes when the
+    /// observation satisfies one of them (convention alternatives). It is an error when no
+    /// alternative holds, because then the corpus says nothing about the host.
+    let applicable
         (declared: Profile list)
         (enforced: Bound -> bool)
         (run: Run)
-        : Result<Expectation, string> =
+        : Result<ApplicableExpectation list, string> =
         match run.Expect with
-        | RunExpectation.Always expectation -> Ok expectation
+        | RunExpectation.Always expectation ->
+            Ok [
+                {
+                    Alternative = None
+                    Expect = expectation
+                }
+            ]
         | RunExpectation.Alternatives alternatives ->
             match
                 alternatives
-                |> List.filter (fun alternative -> holds declared enforced alternative.When)
+                |> List.indexed
+                |> List.filter (fun (_, alternative) -> holds declared enforced alternative.When)
             with
-            | [ alternative ] -> Ok alternative.Expect
             | [] -> Error "No alternative of the run holds for the host"
-            | _ -> Error "More than one alternative of the run holds for the host"
+            | found ->
+                Ok(
+                    found
+                    |> List.map (fun (index, alternative) -> {
+                        Alternative = Some(index + 1, alternative.When)
+                        Expect = alternative.Expect
+                    })
+                )
 
     /// Whether the host declares one of the case's bounds not enforced, so that the case is
     /// recorded as not_enforced.

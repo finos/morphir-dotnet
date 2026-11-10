@@ -117,6 +117,20 @@ public sealed class WasmHostCommandTests
     }
 
     [Test]
+    public async Task RunWithoutTheHostsPlatformExitsTwoBeforeAnyCase()
+    {
+        await using var sandbox = TestSandbox.Create("morphir-mck-run-");
+        var report = sandbox.PathOf("wasm-host.json");
+        var result = await InvokeAsync([
+            "mck", "wasm-host", "run", "--kit", Kit, .. FakeHost(sandbox, Refusal()), "--offering", "test", "--engine", "fake", "--report", report
+        ]);
+        result.ExitCode.Should().Be(2);
+        Document(result)["error"]!["code"]!.GetValue<string>().Should().Be("mck.usage");
+        result.Stderr.Should().Contain("--platform is required").And.Contain("a worker reports none of them");
+        File.Exists(report).Should().BeFalse("no case ran");
+    }
+
+    [Test]
     public async Task AnUnknownOptionExitsTwoWithOneJsonDocument()
     {
         var result = await InvokeAsync("mck", "wasm-host", "report-check", "--no-such-option");
@@ -139,7 +153,7 @@ public sealed class WasmHostCommandTests
         var kit = OneCaseKit(sandbox, "classification/unknown-namespace");
         var report = sandbox.PathOf("out", "wasm-host.json");
         var run = await InvokeAsync([
-            "mck", "wasm-host", "run", "--kit", kit, .. FakeHost(sandbox, Refusal()), "--offering", "test", "--engine", "fake", "--report", report
+            "mck", "wasm-host", "run", "--kit", kit, .. FakeHost(sandbox, Refusal()), "--offering", "test", "--platform", "test-platform", "--engine", "fake", "--report", report
         ]);
         run.ExitCode.Should().Be(0, run.Stderr);
         var document = Document(run);
@@ -158,11 +172,11 @@ public sealed class WasmHostCommandTests
         await using var sandbox = TestSandbox.Create("morphir-mck-run-");
         var report = sandbox.PathOf("wasm-host.json");
         var run = await InvokeAsync([
-            "mck", "wasm-host", "run", "--kit", Kit, .. FakeHost(sandbox, Refusal()), "--offering", "test", "--engine", "fake", "--report", report
+            "mck", "wasm-host", "run", "--kit", Kit, .. FakeHost(sandbox, Refusal()), "--offering", "test", "--platform", "test-platform", "--engine", "fake", "--report", report
         ]);
         run.ExitCode.Should().Be(1);
         var totals = Document(run)["totals"]!;
-        totals["cases"]!.GetValue<int>().Should().Be(56);
+        totals["cases"]!.GetValue<int>().Should().Be(58, "the corpus at finos/morphir 48d10706f has 58 cases");
         totals["notApplicable"]!.GetValue<int>().Should().BeGreaterThan(0, "the byte-profile cases, since the host declares only Extism");
         totals["failed"]!.GetValue<int>().Should().BeGreaterThan(0);
         File.Exists(report).Should().BeTrue();

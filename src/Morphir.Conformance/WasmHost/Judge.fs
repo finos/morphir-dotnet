@@ -28,12 +28,25 @@ type BoundDeclaration =
 
             $"inconsistent ({shown})"
 
+/// The alternative that a run with alternatives satisfied. For a runaway case it records which bound
+/// ended the call.
+type SatisfiedAlternative = {
+    /// The run, counted from 1.
+    Run: int
+    /// The alternative, counted from 1 in corpus order.
+    Alternative: int
+    /// The alternative's condition.
+    Condition: Condition
+}
+
 /// The outcome of one case.
 [<RequireQualifiedAccess>]
 type CaseOutcome =
-    /// Every run satisfied every matcher.
-    | Passed
-    /// A run did not satisfy a matcher. Never empty.
+    /// Every run satisfied its expectation: its only one, or one alternative that applies to the host.
+    /// The list gives, for each run with alternatives, the first alternative it satisfied.
+    | Passed of satisfied: SatisfiedAlternative list
+    /// A run satisfied no expectation that applies to the host. The failures of every applicable
+    /// alternative of such a run are listed, each with its alternative. Never empty.
     | Failed of failures: MatcherFailure list
     /// The runner could not judge the case: the outcome is neither a pass nor a failure of the host.
     | Error of reason: string
@@ -47,7 +60,7 @@ type CaseOutcome =
     /// The outcome, as the report writes it.
     member this.WireValue =
         match this with
-        | Passed -> "passed"
+        | Passed _ -> "passed"
         | Failed _ -> "failed"
         | Error _ -> "error"
         | NotApplicable _ -> "not_applicable"
@@ -108,6 +121,58 @@ module Judge =
                 match alternative.When with
                 | Condition.Bound(bound, _) -> Some bound
                 | Condition.HostRuns _ -> None
+            )
+
+    /// Judges one run against the expectations that apply to the host (convention alternatives): the run
+    /// passes when its observation satisfies one of them. Choice1Of2 is a pass, with the first alternative
+    /// satisfied when the run has alternatives; Choice2Of2 the failures of every applicable expectation,
+    /// each with its alternative.
+    let private judgeRun
+        (case: WasmHostCase)
+        (runNumber: int)
+        (run: Run)
+        (observation: RunObservation)
+        (applicable: ApplicableExpectation list)
+        : Choice<SatisfiedAlternative option, MatcherFailure list> =
+        let compared =
+            applicable
+            |> List.map (fun expectation ->
+                expectation, Comparer.compare case run.Frames expectation.Expect observation
+            )
+
+        match
+            compared
+            |> List.tryFind (fun (_, failures) -> failures.IsEmpty)
+        with
+        | Some(expectation, _) ->
+            Choice1Of2(
+                expectation.Alternative
+                |> Option.map (fun (number, condition) ->
+                    ({
+                        Run = runNumber
+                        Alternative = number
+                        Condition = condition
+                    }
+                    : SatisfiedAlternative)
+                )
+            )
+        | None ->
+            Choice2Of2(
+                compared
+                |> List.collect (fun (expectation, failures) ->
+                    failures
+                    |> List.map (fun (matcher, message) ->
+                        ({
+                            Run = runNumber
+                            Alternative =
+                                expectation.Alternative
+                                |> Option.map fst
+                            Matcher = matcher
+                            Message = message
+                        }
+                        : MatcherFailure)
+                    )
+                )
             )
 
     /// The outcome of a case for a host that declares these profiles and bounds. observedSha256 is the
@@ -180,15 +245,8 @@ module Judge =
                                 let judged =
                                     List.zip case.Runs runs
                                     |> List.mapi (fun index (run, observation) ->
-                                        Selection.expectation profiles isEnforced run
-                                        |> Result.map (fun expect ->
-                                            Comparer.compare case run.Frames expect observation
-                                            |> List.map (fun (matcher, message) -> {
-                                                Run = index + 1
-                                                Matcher = matcher
-                                                Message = message
-                                            })
-                                        )
+                                        Selection.applicable profiles isEnforced run
+                                        |> Result.map (judgeRun case (index + 1) run observation)
                                     )
 
                                 match
@@ -201,22 +259,34 @@ module Judge =
                                 with
                                 | Some message -> CaseOutcome.Error message
                                 | None ->
-                                    match
+                                    let verdicts =
                                         judged
+                                        |> List.choose Result.toOption
+
+                                    match
+                                        verdicts
                                         |> List.collect (
                                             function
-                                            | Ok failures -> failures
-                                            | Error _ -> []
+                                            | Choice2Of2 failures -> failures
+                                            | Choice1Of2 _ -> []
                                         )
                                     with
-                                    | [] -> CaseOutcome.Passed
+                                    | [] ->
+                                        CaseOutcome.Passed(
+                                            verdicts
+                                            |> List.choose (
+                                                function
+                                                | Choice1Of2 satisfied -> satisfied
+                                                | Choice2Of2 _ -> None
+                                            )
+                                        )
                                     | failures -> CaseOutcome.Failed failures
 
     /// Whether an outcome counts as a pass for the exit status: passed, not_applicable, or not_enforced for
     /// bounds that qualification does not require.
     let acceptable (outcome: CaseOutcome) =
         match outcome with
-        | CaseOutcome.Passed
+        | CaseOutcome.Passed _
         | CaseOutcome.NotApplicable _ -> true
         | CaseOutcome.NotEnforced bounds ->
             bounds
