@@ -33,6 +33,8 @@
     <Project Path="src/Morphir.Extensions.Wasm/Morphir.Extensions.Wasm.csproj" />
     <Project Path="src/Morphir.Analyzers/Morphir.Analyzers.fsproj" />
     <Project Path="src/Morphir.Mep/Morphir.Mep.fsproj" />
+    <Project Path="src/Morphir.Toolchain/Morphir.Toolchain.fsproj" />
+    <Project Path="src/Morphirup/Morphirup.fsproj" />
     <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
     <Project Path="src/Morphir/Morphir.csproj" />
     <Project Path="src/Morphir.Configuration/Morphir.Configuration.fsproj" />
@@ -88,6 +90,7 @@
     <Project Path="tests/Morphir.Extensions.Tests/Morphir.Extensions.Tests.fsproj" />
     <Project Path="tests/Morphir.Analyzers.Tests/Morphir.Analyzers.Tests.fsproj" />
     <Project Path="tests/Morphir.Mep.Tests/Morphir.Mep.Tests.fsproj" />
+    <Project Path="tests/Morphir.Toolchain.Tests/Morphir.Toolchain.Tests.fsproj" />
     <Project Path="tests/Morphir.Mep.AotProbe/Morphir.Mep.AotProbe.csproj" />
     <Project Path="tests/Morphir.Extensions.Wasm.AotProbe/Morphir.Extensions.Wasm.AotProbe.csproj" />
     <Project Path="tests/Morphir.Extensions.Wasm.Tests/Morphir.Extensions.Wasm.Tests.csproj" />

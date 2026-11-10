@@ -19,6 +19,10 @@ The Morphir .NET CLI provides powerful command-line tools for working with Morph
 - [morphir mck wasm-host](./mck-wasm-host/) - _Experimental and internal:_ run the crafted WASM host cases against a host's worker mode
 - [morphir extension worker](./extension-worker/) - _Experimental and internal:_ serve one WASM extension module over stdio for a conformance runner
 
+### Toolchain manager
+
+- [morphirup](./morphirup/) - The standalone toolchain manager. This build makes plan-only setups and checks a project's request and lock; it acquires and installs nothing yet
+
 ### IR Management
 
 - **[morphir ir verify](./ir-verify/)** - Validate Morphir IR JSON files against official schemas

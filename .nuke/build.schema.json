@@ -27,6 +27,7 @@
         "BuildE2ETests",
         "BuildProtoPlugin",
         "Check",
+        "CheckMorphirup",
         "CI",
         "CILint",
         "CITest",
@@ -37,9 +38,11 @@
         "DevWorkflow",
         "Format",
         "Lint",
+        "MorphirupChecksums",
         "PackageProtoPlugin",
         "PackAll",
         "PackLibs",
+        "PackMorphirup",
         "PackPlatformTarballs",
         "PackRelease",
         "PackTool",
@@ -62,6 +65,7 @@
         "TestBuild",
         "TestE2E",
         "TestMepAot",
+        "TestMorphirupAot",
         "TestMyriadJsonAot",
         "TestMyriadPackages",
         "TestProtoPlugin"
@@ -170,6 +174,24 @@
           "type": "string",
           "description": "Local NuGet feed directory"
         },
+        "MorphirupBuildImage": {
+          "type": "string",
+          "description": "Linux only: publish morphirup inside this image, with this machine's .NET SDK mounted, so the executable needs that image's glibc and no newer"
+        },
+        "MorphirupContainers": {
+          "type": "array",
+          "description": "Linux only: container images with glibc and neither .NET nor libicu, in which CheckMorphirup also runs the executable",
+          "items": {
+            "type": "string"
+          }
+        },
+        "MorphirupPlatforms": {
+          "type": "array",
+          "description": "The platforms whose morphirup assets MorphirupChecksums requires (default: every platform releases build)",
+          "items": {
+            "type": "string"
+          }
+        },
         "NuGetSource": {
           "type": "string",
           "description": "NuGet source URL"
@@ -185,6 +207,10 @@
         "ProtoPluginDir": {
           "type": "string",
           "description": "Output directory for proto plugin WASM"
+        },
+        "ReleaseAssetsDir": {
+          "type": "string",
+          "description": "Folder for the morphirup release assets and their checksum file"
         },
         "ReleaseDir": {
           "type": "string",

@@ -51,6 +51,12 @@ tests/Fixtures/MorphirOut/** -text
 tests/Fixtures/MepWasm/** -text
 tests/Fixtures/MepGuestKit/** -text
 
+# Toolchain acquisition contract fixtures are checked by SHA-256 against finos/morphir; the plan digest fixture
+# holds exact canonical bytes, and request identity is the SHA-256 of the exact TOML bytes.
+tests/Fixtures/Toolchain/** -text
+# The morphirup AOT probe's plan digest covers the SHA-256 of its recipe bytes.
+tests/Morphir.Toolchain.Tests/AotProbe/** -text
+
 # The portable case-set digest must not change with checkout newline settings.
 conformance/** text eol=lf
 
@@ -66,3 +72,5 @@ tests/Fixtures/Configuration/** -text
 
 # JSON5 newline grammar fixtures intentionally contain hash-pinned CR/CRLF bytes.
 tests/Fixtures/Configuration/json5-tests/new-lines/*.json5 -whitespace
+# Unicode conformance data is checked by SHA-256, so its bytes must not change
+tests/Fixtures/Unicode/** -text
