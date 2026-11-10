@@ -148,10 +148,12 @@ type SemVer =
     override this.GetHashCode() = StringComparer.Ordinal.GetHashCode this.Text
 
 module SemVer =
+    /// <summary>A strict, canonical SemVer version. The Semver library refuses more than 1,024 characters by
+    /// default; the pages set no length bound, so none is applied here: a document's size bounds its versions.</summary>
     let tryParse (text: string) =
         let mutable version = Unchecked.defaultof<SemVersion>
 
-        if SemVersion.TryParse(text, SemVersionStyles.Strict, &version) && version.ToString() = text then
+        if SemVersion.TryParse(text, SemVersionStyles.Strict, &version, Int32.MaxValue) && version.ToString() = text then
             Ok(SemVer version)
         else
             Error ReaderCode.InvalidValue

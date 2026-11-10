@@ -151,6 +151,12 @@ let tests =
             // The one disagreement: SemVer precedence ignores build metadata, so the range admits it.
             Expect.isFalse (onLine "0.2.0+build.1") "the page refuses build metadata"
             Expect.isTrue (inRange "0.2.0+build.1") "the range admits it")
+        testCase "versions have no length bound of their own, as on the pages" (fun () ->
+            // Semver for .NET refuses more than 1,024 characters by default; the pages, the schemas and the Rust
+            // reader set no bound, and a document's size bounds its versions.
+            let long = "0.2.0-" + String.replicate 1100 "a"
+            Expect.equal (SemVer.tryParse long |> Result.map _.Text) (Ok long) "a long prerelease is a version"
+            Expect.equal (ProtocolVersion.tryParse long |> Result.map _.Text) (Ok long) "and on the MEP 0.2 line")
         testCase "credential names match ASCII case-insensitively and nothing else" (fun () ->
             for name in [ "token"; "TOKEN"; "Authorization"; "APIKEY"; "Api_Key"; "cookie" ] do
                 Expect.isTrue (Reading.isCredential name) name
