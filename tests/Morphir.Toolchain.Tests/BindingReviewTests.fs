@@ -187,6 +187,13 @@ let costTests =
             let outcome = RecipeBindings.check (SignedCaseTests.repository ()) (SignedCaseTests.authenticatedTargets "metadata") bytesOf recipe
             Expect.isOk outcome "both offerings bind"
             Expect.equal fetches 1 "the shared release descriptor is fetched once")
+
+        testCase "two offerings of one tool at two versions read two releases" (fun () ->
+            // The repository publishes no 1.2.4, so the second offering's release is not authenticated.
+            let recipe = valueOf recipeTarget
+            let host0 = (items (memberOf "hosts" recipe)).Head
+            let later = host0 |> setAt [ "implementation" ] (str "twin") |> setAt [ "version" ] (str "1.2.4")
+            signed () |> editRecipe (setAt [ "hosts" ] (Value.Array [ host0; later ])) |> expectOutcome "target_not_authenticated @ hosts[1].source")
     ]
 
 [<Tests>]
@@ -298,6 +305,17 @@ let releasePathTests =
                 [ placed "1.0.0" [ "stable" ] "active"
                   recordAt "mirror/releases/tool/1.0.0.json" (members "1.0.0" [ "stable" ] "active") ]
 
+            Expect.equal (resolveIn records (onChannel "stable")) "releases/tool/1.0.0.json = 1.0.0" "the channel")
+
+        testCase "a record without a version is refused under the tool's release directory and ignored elsewhere" (fun () ->
+            let unversioned = members "1.1.0" [ "stable" ] "active" |> List.filter (fst >> (<>) "version")
+            let resolveWith (target: string) = resolveIn [ placed "1.0.0" [ "stable" ] "active"; recordAt target unversioned ] (onChannel "stable")
+            Expect.equal (resolveWith "releases/tool/1.1.0.json") "release_descriptor_mismatch" "under the directory"
+            Expect.equal (resolveWith "elsewhere/1.1.0.json") "releases/tool/1.0.0.json = 1.0.0" "elsewhere"
+            Expect.equal (resolveWith "1.1.0.json") "releases/tool/1.0.0.json = 1.0.0" "at the root")
+
+        testCase "a record whose target is its version file at the root is ignored" (fun () ->
+            let records = [ placed "1.0.0" [ "stable" ] "active"; recordAt "1.1.0.json" (members "1.1.0" [ "stable" ] "active") ]
             Expect.equal (resolveIn records (onChannel "stable")) "releases/tool/1.0.0.json = 1.0.0" "the channel")
 
         testCase "a malformed record at its layout path is still refused" (fun () ->

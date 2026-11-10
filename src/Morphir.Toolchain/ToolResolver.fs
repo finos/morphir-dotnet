@@ -114,17 +114,15 @@ module ToolResolver =
                   Platforms = platforms }
         | _ -> None
 
-    /// <summary>The version segment of a target at the layout's release path for the tool,
-    /// <c>releases/&lt;tool-id&gt;/&lt;exact-version&gt;.json</c>, or None for any other target.</summary>
-    let private releaseSegment (toolId: ToolId) (target: string) =
-        let prefix = $"releases/{toolId.Text}/"
-        let suffix = ".json"
+    /// <summary>Whether a record of the tool belongs to the layout: at <c>releases/&lt;tool-id&gt;/&lt;version&gt;.json</c>
+    /// for the version it states or, when it states none, anywhere under <c>releases/&lt;tool-id&gt;/</c>, where it is
+    /// read and refused as malformed.</summary>
+    let private placed (toolId: ToolId) (target: string) (morphir: Value) =
+        let directory = $"releases/{toolId.Text}/"
 
-        if target.StartsWith(prefix, System.StringComparison.Ordinal) && target.EndsWith(suffix, System.StringComparison.Ordinal) then
-            let segment = target.Substring(prefix.Length, target.Length - prefix.Length - suffix.Length)
-            if segment.Length > 0 && not (segment.Contains '/') then Some segment else None
-        else
-            None
+        match text "version" morphir with
+        | Some version -> target = $"{directory}{version}.json"
+        | None -> target.StartsWith(directory, System.StringComparison.Ordinal)
 
     /// <summary>The release states of one tool: every authenticated target at the layout's release path,
     /// <c>releases/&lt;tool-id&gt;/&lt;exact-version&gt;.json</c>, whose <c>custom.morphir.kind</c> is
@@ -139,11 +137,13 @@ module ToolResolver =
     let releases (targets: Map<string, AuthenticatedTarget>) (toolId: ToolId) : Result<ToolReleaseState list, TargetRefusal> =
         let ofTool =
             [ for KeyValue(target, entry) in targets do
-                  match entry.Custom |> Option.bind (member' "morphir"), releaseSegment toolId target with
-                  | Some morphir, Some segment when text "kind" morphir = Some "tool-release" && text "toolId" morphir = Some toolId.Text ->
-                      match text "version" morphir with
-                      | Some stated when stated <> segment -> ()
-                      | _ -> yield state target morphir
+                  match entry.Custom |> Option.bind (member' "morphir") with
+                  | Some morphir when
+                      text "kind" morphir = Some "tool-release"
+                      && text "toolId" morphir = Some toolId.Text
+                      && placed toolId target morphir
+                      ->
+                      yield state target morphir
                   | _ -> () ]
 
         if ofTool |> List.exists Option.isNone then
