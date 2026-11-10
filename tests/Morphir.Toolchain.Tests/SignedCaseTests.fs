@@ -282,7 +282,8 @@ let private trustTests () =
                       let lockFile = str action "lock"
                       let lock = LockDocument.read (Fixtures.bytesIn Fixtures.signed lockFile) |> valid lockFile
                       // The generation's recipe, as setup stored it: the authenticated bytes of the lock's recipe target.
-                      let recipe = signedRecipe lock.Recipe.Target.Text
+                      // A generation whose recipe target the trust state does not list is refused before it is read.
+                      let recipe = lazy (signedRecipe lock.Recipe.Target.Text)
 
                       let actual = RecipeTargets.checkLockedGeneration (repository ()) listed recipe lock |> targetOutcome
                       Expect.equal actual (Manifest.expected name case) name)
