@@ -660,3 +660,21 @@ let schemaReadingTests =
             for spelling in [ "2"; "1.5"; "0"; "-1"; "-1.0"; "1e400"; "1e-400"; "11e-1"; "0.99999999999999999999999999999"; "1e99999999999" ] do
                 Expect.equal (readRelease (setAt [ "schemaVersion" ] (Value.Number spelling))) "unsupported_contract_version @ schemaVersion" spelling)
     ]
+[<Tests>]
+let constructionTests =
+    // Review of #583, A8: with public constructors any caller could build a RecipeDigest without authenticating
+    // anything, so "authenticated" held by convention. Only the binding check produces these values now.
+    testList "Only the binding check produces bound values" [
+        for t, properties in
+            [ typeof<RecipeDigest>, [ "RepositoryId"; "Target"; "Sha256" ]
+              typeof<BoundHost>, [ "Offering"; "Release"; "Artifacts" ]
+              typeof<BoundClaims>, [ "Claims"; "ClaimCheck" ]
+              typeof<BoundProvider>, [ "Provider"; "Descriptor"; "Release"; "Artifacts" ]
+              typeof<BoundRecipe>, [ "Hosts"; "Providers" ] ] ->
+            testCase t.Name (fun () ->
+                Expect.isEmpty (t.GetConstructors()) "no public constructor"
+
+                let readable = t.GetProperties() |> Array.filter (fun p -> p.CanRead && not p.CanWrite) |> Array.map _.Name |> Set.ofArray
+                Expect.isTrue (Set.isSubset (set properties) readable) $"its members are public and read-only: {readable}"
+                Expect.isEmpty (t.GetProperties() |> Array.filter _.CanWrite) "nothing is writable")
+    ]

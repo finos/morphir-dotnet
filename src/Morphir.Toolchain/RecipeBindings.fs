@@ -4,37 +4,66 @@ namespace Morphir.Toolchain
 
 open System.Collections.Generic
 
+// The representations below are private: only RecipeBindings.check produces these values, so a RecipeDigest is always
+// one the check authenticated, never one a caller built (review of #583, A8).
+
 /// <summary>Authentication of bytes by a recipe: the authenticated repository's publisher bound exactly these bytes,
-/// by this target and digest, to the toolset. It says nothing about whether anyone ran them.</summary>
+/// by this target and digest, to the toolset. It says nothing about whether anyone ran them. Only the binding check
+/// produces one.</summary>
 type RecipeDigest =
-    { RepositoryId: Sha256
-      Target: TargetPath
-      Sha256: Sha256 }
+    private
+        { repositoryId: Sha256
+          target: TargetPath
+          sha256: Sha256 }
+
+    /// The repository whose metadata authenticated the bytes.
+    member this.RepositoryId = this.repositoryId
+    member this.Target = this.target
+    member this.Sha256 = this.sha256
 
 /// A host offering whose bindings were checked: its v1 release, when it is a tool release, and each bound artifact.
 type BoundHost =
-    { Offering: HostOffering
-      Release: ToolRelease option
-      Artifacts: (Platform * RecipeDigest) list }
+    private
+        { offering: HostOffering
+          release: ToolRelease option
+          artifacts: (Platform * RecipeDigest) list }
+
+    member this.Offering = this.offering
+    member this.Release = this.release
+    member this.Artifacts = this.artifacts
 
 /// The claims a bound artifact states, with the descriptor's own word on whether they were checked by running it. This
 /// is a separate fact from the <see cref="RecipeDigest"/> that authenticates the bytes.
 type BoundClaims =
-    { Claims: ClaimSet
-      ClaimCheck: DescriptorClaimCheck }
+    private
+        { claims: ClaimSet
+          claimCheck: DescriptorClaimCheck }
+
+    member this.Claims = this.claims
+    member this.ClaimCheck = this.claimCheck
 
 /// A provider whose bindings were checked: its descriptor, the release it describes, and each bound artifact or
 /// package with the claims that describe it.
 type BoundProvider =
-    { Provider: RecipeProvider
-      Descriptor: RecipeDigest
-      Release: ExtensionRelease
-      Artifacts: (RecipeDigest * BoundClaims list) list }
+    private
+        { provider: RecipeProvider
+          descriptor: RecipeDigest
+          described: ExtensionRelease
+          bound: (RecipeDigest * BoundClaims list) list }
+
+    member this.Provider = this.provider
+    member this.Descriptor = this.descriptor
+    member this.Release = this.described
+    member this.Artifacts = this.bound
 
 /// Every host and provider binding of a recipe, checked against one authenticated repository.
 type BoundRecipe =
-    { Hosts: BoundHost list
-      Providers: BoundProvider list }
+    private
+        { hosts: BoundHost list
+          providers: BoundProvider list }
+
+    member this.Hosts = this.hosts
+    member this.Providers = this.providers
 
 /// <summary>
 /// The host and provider binding rows of the toolset recipe page's authenticated recipe targets (the second and third
@@ -160,9 +189,9 @@ module RecipeBindings =
         | Some entry ->
             Ok(
                 entry,
-                { RepositoryId = repository
-                  Target = binding.Target
-                  Sha256 = binding.Sha256 }
+                { repositoryId = repository
+                  target = binding.Target
+                  sha256 = binding.Sha256 }
             )
 
     /// The release record of a tool and version, with the member of the offering a refusal is reported at.
@@ -272,9 +301,9 @@ module RecipeBindings =
                         })
 
                 return
-                    { Offering = host
-                      Release = release |> Option.map _.Tool
-                      Artifacts = artifacts }
+                    { offering = host
+                      release = release |> Option.map _.Tool
+                      artifacts = artifacts }
             })
 
     /// <summary>The host binding rows for each offering, in order, and each platform in platform table order. A
@@ -321,9 +350,9 @@ module RecipeBindings =
               Generates = rows |> List.map _.Generates |> Set.intersectMany
               Tuples = rows |> List.map _.Tuples |> Set.intersectMany }
 
-    let private claimsOf (artifact: DescribedArtifact) =
-        { Claims = artifact.Claims
-          ClaimCheck = artifact.ClaimCheck }
+    let private claimsOf (artifact: DescribedArtifact) : BoundClaims =
+        { claims = artifact.Claims
+          claimCheck = artifact.ClaimCheck }
 
     /// A descriptor's bytes, authenticated against its entry and read, with its artifacts indexed.
     let private readDescriptor (entry: AuthenticatedTarget) (bytesOf: string -> byte array option) (target: TargetPath) : Result<ReadDescriptor, Code> =
@@ -516,10 +545,10 @@ module RecipeBindings =
             let! bound = artifacts repository targets at provider read
 
             return
-                { Provider = provider
-                  Descriptor = digest
-                  Release = read.Described
-                  Artifacts = bound }
+                { provider = provider
+                  descriptor = digest
+                  described = read.Described
+                  bound = bound }
         }
 
     /// <summary>
@@ -541,5 +570,5 @@ module RecipeBindings =
                 |> List.indexed
                 |> Result.traverse (fun (index, provider) -> checkProvider reads repository targets bytesOf index provider)
 
-            return { Hosts = hosts; Providers = providers }
+            return { hosts = hosts; providers = providers }
         }
