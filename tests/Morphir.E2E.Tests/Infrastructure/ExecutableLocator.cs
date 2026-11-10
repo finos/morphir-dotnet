@@ -20,8 +20,29 @@ public class ExecutableLocator
     /// <summary>The executable type under test: <c>MORPHIR_EXECUTABLE_TYPE</c>, or <c>aot</c>.</summary>
     public static string CurrentType => Environment.GetEnvironmentVariable("MORPHIR_EXECUTABLE_TYPE") ?? "aot";
 
-    /// <summary>The host that an executable type runs as: <c>dotnet-morphir</c> for <c>tool</c>, else <c>morphir</c>.</summary>
-    public static string HostFor(string executableType) => executableType == "tool" ? "dotnet-morphir" : "morphir";
+    /// <summary>
+    /// The four deployment offerings as executable types. They run from the packaged release artifacts that the
+    /// PackRelease target writes, installed into a new directory, not from a build output folder.
+    /// </summary>
+    public static IReadOnlyList<string> PackagedTypes { get; } = ["native-aot", "self-contained", "framework-dependent", "dotnet-tool"];
+
+    /// <summary>True for an executable type that runs from a packaged release artifact.</summary>
+    public static bool IsPackaged(string executableType) => PackagedTypes.Contains(executableType);
+
+    /// <summary>True for an executable type that runs as <c>dotnet-morphir</c>: the built tool or the packaged one.</summary>
+    public static bool IsToolHost(string executableType) => executableType is "tool" or "dotnet-tool";
+
+    /// <summary>The host that an executable type runs as: <c>dotnet-morphir</c> for the tool types, else <c>morphir</c>.</summary>
+    public static string HostFor(string executableType) => IsToolHost(executableType) ? "dotnet-morphir" : "morphir";
+
+    /// <summary>The platform of this machine, for example <c>win-arm64</c>.</summary>
+    public string CurrentRid => _currentRid;
+
+    /// <summary>Where the packaged release artifacts are: <c>MORPHIR_RELEASE_DIR</c>, or <c>artifacts/release</c>.</summary>
+    public string ReleaseDirectory =>
+        Environment.GetEnvironmentVariable("MORPHIR_RELEASE_DIR") is { Length: > 0 } directory
+            ? Path.GetFullPath(directory)
+            : Path.Combine(_repositoryRoot, "artifacts", "release");
 
     private static string Configuration =>
         typeof(ExecutableLocator).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration ?? "Release";
@@ -53,7 +74,7 @@ public class ExecutableLocator
     /// <summary>
     /// Get the path to the executable based on type
     /// </summary>
-    /// <param name="executableType">Type of executable: "aot", "trimmed", "untrimmed", "tool", or null for auto-detect</param>
+    /// <param name="executableType">Type of executable: "aot", "trimmed", "untrimmed", "tool", one of <see cref="PackagedTypes"/>, or null for auto-detect</param>
     /// <returns>Path to the executable, or null if not found</returns>
     public string? GetExecutablePath(string? executableType = null)
     {
@@ -71,6 +92,10 @@ public class ExecutableLocator
         if (type == "tool")
             return GetToolPath();
 
+        // A packaged offering runs only from its installed artifact; there is no fallback to a build folder.
+        if (IsPackaged(type))
+            return PackagedInstallation.For(type).LaunchPath;
+
         // All executables use lowercase "morphir" (consistent naming)
         var aotExecutableName = GetExecutableName(isAot: false);
         var singleFileExecutableName = GetExecutableName(isAot: false);
@@ -83,26 +108,6 @@ public class ExecutableLocator
             if (File.Exists(trimmedPath))
                 return trimmedPath;
 
-            // Debug: Log what we're looking for and what exists
-            var trimmedDir = Path.Combine(_repositoryRoot, "artifacts", "single-file", _currentRid);
-            if (Directory.Exists(trimmedDir))
-            {
-                var files = Directory.GetFiles(trimmedDir);
-                Console.WriteLine($"DEBUG: Looking for {trimmedPath}");
-                Console.WriteLine($"DEBUG: Directory exists: {trimmedDir}");
-                Console.WriteLine($"DEBUG: Files in directory: {string.Join(", ", files)}");
-            }
-            else
-            {
-                var parentDir = Path.Combine(_repositoryRoot, "artifacts", "single-file");
-                if (Directory.Exists(parentDir))
-                {
-                    var subdirs = Directory.GetDirectories(parentDir);
-                    Console.WriteLine($"DEBUG: Looking for {trimmedPath}");
-                    Console.WriteLine($"DEBUG: Parent directory exists: {parentDir}");
-                    Console.WriteLine($"DEBUG: Subdirectories: {string.Join(", ", subdirs)}");
-                }
-            }
 
             // Fallback: Check flat structure (when merge-multiple flattens artifacts)
             var flatPath = Path.Combine(_repositoryRoot, "artifacts", "single-file", singleFileExecutableName);

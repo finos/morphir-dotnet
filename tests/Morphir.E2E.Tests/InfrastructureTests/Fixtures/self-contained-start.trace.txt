@@ -1,0 +1,63 @@
+Tracing enabled @ Tue Nov 10 02:09:07 2026 GMT
+--- Invoked apphost [version: 10.0.14 @Commit: 0427b9abbead3fa64c6655eb4290c537397131fa] main = {
+<INSTALL>\morphir.exe
+--version
+}
+Redirecting errors to custom writer.
+The managed DLL bound to this executable is: 'morphir.dll'
+.NET root search location options: 0
+Using app-local location [<INSTALL>\] as runtime location.
+Resolved fxr [<INSTALL>\hostfxr.dll]...
+Loaded library from <INSTALL>\hostfxr.dll
+Invoking fx resolver [<INSTALL>\hostfxr.dll] hostfxr_main_startupinfo
+Host path: [<INSTALL>\morphir.exe]
+Dotnet path: [<INSTALL>\]
+App path: [<INSTALL>\morphir.dll]
+Tracing enabled @ Tue Nov 10 02:09:07 2026 GMT
+--- Invoked hostfxr_main_startupinfo [version: 10.0.14 @Commit: 0427b9abbead3fa64c6655eb4290c537397131fa]
+Checking if CoreCLR path exists=[<INSTALL>\coreclr.dll]
+Detecting mode... CoreCLR present in dotnet root [<INSTALL>\] and checking if [morphir.deps.json] file present=[1]
+--- Executing in a native executable mode...
+Using dotnet root path [<INSTALL>\]
+App runtimeconfig.json from [<INSTALL>\morphir.dll]
+Runtime config is cfg=<INSTALL>\morphir.runtimeconfig.json dev=<INSTALL>\morphir.runtimeconfig.dev.json
+Attempting to read dev runtime config: <INSTALL>\morphir.runtimeconfig.dev.json
+Attempting to read runtime config: <INSTALL>\morphir.runtimeconfig.json
+Runtime config [<INSTALL>\morphir.runtimeconfig.json] is valid=[1]
+Executing as a self-contained app as per config file [<INSTALL>\morphir.runtimeconfig.json]
+--- Resolving hostpolicy.dll version from deps json [<INSTALL>\morphir.deps.json]
+Dependency manifest <INSTALL>\morphir.deps.json does not contain an entry for runtime.win-arm64.Microsoft.NETCore.DotNetHostPolicy
+The expected hostpolicy.dll directory is [<INSTALL>\]
+Loaded library from <INSTALL>\hostpolicy.dll
+Tracing enabled @ Tue Nov 10 02:09:07 2026 GMT
+Reading from host interface version: [0x16041101:248] to initialize policy version: [0x16041101:248]
+--- Invoked hostpolicy [version: 10.0.14 @Commit: 0427b9abbead3fa64c6655eb4290c537397131fa] corehost_main = {
+<INSTALL>\morphir.exe
+--version
+}
+Mode: apphost
+Deps file: 
+-- arguments_t: app_root='<INSTALL>\' deps='<INSTALL>\morphir.deps.json' mgd_app='<INSTALL>\morphir.dll'
+DOTNET_MULTILEVEL_LOOKUP is set to 0
+Multilevel lookup is false
+Using <INSTALL>\morphir.deps.json deps file
+Loading deps file... [<INSTALL>\morphir.deps.json]: is_framework_dependent=0, use_fallback_graph=0
+Processing package morphir/0.4.0-alpha.3
+  Adding runtime assets
+    morphir.dll assemblyVersion= fileVersion= localPath=(not set)
+Processing package runtimepack.Microsoft.NETCore.App.Runtime.win-arm64/10.0.14
+  Adding runtime assets
+    Microsoft.CSharp.dll assemblyVersion=10.0.0.0 fileVersion=10.0.1426.52326 localPath=(not set)
+    Microsoft.VisualBasic.Core.dll assemblyVersion=15.0.0.0 fileVersion=15.0.1426.52326 localPath=(not set)
+    Microsoft.VisualBasic.dll assemblyVersion=10.0.0.0 fileVersion=10.0.1426.52326 localPath=(not set)
+    Microsoft.Win32.Primitives.dll assemblyVersion=10.0.0.0 fileVersion=10.0.1426.52326 localPath=(not set)
+    Microsoft.Win32.Registry.dll assemblyVersion=10.0.0.0 fileVersion=10.0.1426.52326 localPath=(not set)
+    System.AppContext.dll assemblyVersion=10.0.0.0 fileVersion=10.0.1426.52326 localPath=(not set)
+    System.Buffers.dll assemblyVersion=10.0.0.0 fileVersion=10.0.1426.52326 localPath=(not set)
+    System.Collections.Concurrent.dll assemblyVersion=10.0.0.0 fileVersion=10.0.1426.52326 localPath=(not set)
+    System.Collections.Immutable.dll assemblyVersion=10.0.0.0 fileVersion=10.0.1426.52326 localPath=(not set)
+    System.Collections.NonGeneric.dll assemblyVersion=10.0.0.0 fileVersion=10.0.1426.52326 localPath=(not set)
+    System.Collections.Specialized.dll assemblyVersion=10.0.0.0 fileVersion=10.0.1426.52326 localPath=(not set)
+...
+CoreCLR path = '<INSTALL>\coreclr.dll', CoreCLR dir = '<INSTALL>\'
+Loaded library from <INSTALL>\coreclr.dll

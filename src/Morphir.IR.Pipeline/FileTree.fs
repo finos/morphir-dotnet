@@ -1022,3 +1022,16 @@ module VFileTree =
                 Result.Error (TreeLoadError.DirectoryNotFound rootDir)
         with ex ->
             Result.Error (TreeLoadError.LoadFailed (rootDir, ex))
+
+/// C# members of VFileTree, so C# callers do not build F# lists or maps.
+type VFileTree with
+    /// <summary>
+    /// For C# callers: a tree of the files, keyed by their relative paths, with their given order as the declared
+    /// order (<see cref="VFileTree.declaredOrder"/>). Paths should be distinct; a later file with the same path replaces
+    /// the earlier one.
+    /// </summary>
+    static member OfFiles(files: System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, VFile>>) : VFileTree =
+        let ordered = List.ofSeq files
+
+        VFileTree.fromFileMap (Map.ofList [ for KeyValue(path, file) in ordered -> path, file ])
+        |> VFileTree.set VFileTree.declaredOrder [ for KeyValue(path, _) in ordered -> path ]
