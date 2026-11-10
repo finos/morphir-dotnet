@@ -489,6 +489,18 @@ let tests =
                 Expect.equal run.Exit 2 "a usage error"
                 Expect.equal run.Stdout "" "no result"
                 Expect.stringContains run.Stderr "give either --request or --project, not both" "the message")
+            testCase "discovery keeps a backslash inside a directory name (Linux and macOS)" (fun () ->
+                if OperatingSystem.IsWindows() then
+                    skiptest "a backslash is a directory separator on Windows"
+
+                use sandbox = tempDirectory ()
+                let backslash = string (char 92)
+                let projectDirectory = Path.Combine(sandbox.Work, "a" + backslash + "b")
+                let morphir = Directory.CreateDirectory(Path.Combine(projectDirectory, ".morphir")).FullName
+                File.Copy(fixture "request/approved.toml", Path.Combine(morphir, "toolchain.toml"))
+                File.Copy(fixture "lock/two-platforms-bound.json", Path.Combine(morphir, "toolchain.lock.json"))
+                let run = runIn projectDirectory Platform.OsxArm64 [ "doctor"; "--boundary"; sandbox.Work ]
+                Expect.equal run.Exit 0 $"the request in the directory itself; stdout: {run.Stdout}; stderr: {run.Stderr}")
             testCase "a request above the discovery boundary is never read" (fun () ->
                 use sandbox = project "request/approved.toml"
                 let member' = Directory.CreateDirectory(Path.Combine(sandbox.Work, "member")).FullName

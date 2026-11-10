@@ -210,10 +210,14 @@ let private requiredOption name parse options (why: string) : Result<'T, Usage> 
         | Some value -> Ok value
         | None -> usage $"{name} is required {why}")
 
-/// A full path as path segments: its root, then each directory name.
+/// <summary>A full path as path segments: its root, then each directory name, split at this operating system's
+/// separators only. On Linux and macOS a backslash is an ordinary character of a name.</summary>
 let private segments (full: string) =
     let root = nonNull (Path.GetPathRoot full)
-    root :: (full.Substring(root.Length).Split([| '\\'; '/' |], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray)
+
+    root
+    :: (full.Substring(root.Length).Split([| Path.DirectorySeparatorChar; Path.AltDirectorySeparatorChar |], StringSplitOptions.RemoveEmptyEntries)
+        |> List.ofArray)
 
 let private pathOf (segments: string list) = Path.Combine(Array.ofList segments)
 
