@@ -13,6 +13,48 @@ open System.Runtime.InteropServices
 [<AbstractClass; Sealed>]
 type ConfigValueProjections =
 
+    /// <summary>
+    /// The value at a key path, for C# callers: one item for each key, so a key may contain a dot (a TOML quoted
+    /// key such as <c>codegen."acme.codegen"</c> is the path <c>codegen</c>, <c>acme.codegen</c>). False when no value
+    /// is there.
+    /// </summary>
+    static member TryFind(root: ConfigValue, path: IReadOnlyList<string>, [<Out; MaybeNullWhen(false)>] value: byref<ConfigValue>) : bool =
+        match ConfigTree.tryFind (List.ofSeq path) root with
+        | Some found ->
+            value <- found
+            true
+        | None ->
+            value <- Unchecked.defaultof<_>
+            false
+
+    /// <summary>The origin of the value at a key path (see <see cref="TryFind"/>), for C# callers. False when none is recorded.</summary>
+    static member TryFindOrigin
+        (
+            origins: Map<string list, ValueOrigin>,
+            path: IReadOnlyList<string>,
+            [<Out; MaybeNullWhen(false)>] origin: byref<ValueOrigin>
+        ) : bool =
+        match Map.tryFind (List.ofSeq path) origins with
+        | Some found ->
+            origin <- found
+            true
+        | None ->
+            origin <- Unchecked.defaultof<_>
+            false
+
+    /// <summary>
+    /// A key path as TOML writes it, for messages: the keys joined with dots, and a key that is not a bare key
+    /// (letters, digits, <c>-</c> and <c>_</c>) in double quotes, for example <c>codegen."acme.codegen".extension</c>.
+    /// </summary>
+    static member KeyText(path: IReadOnlyList<string>) : string =
+        let bare (key: string) =
+            key.Length > 0
+            && key |> Seq.forall (fun c -> Char.IsAsciiLetterOrDigit c || c = '-' || c = '_')
+
+        path
+        |> Seq.map (fun key -> if bare key then key else "\"" + key.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"")
+        |> String.concat "."
+
     /// <summary>The text of a string value. False for every other case.</summary>
     static member TryText(value: ConfigValue, [<Out; MaybeNullWhen(false)>] text: byref<string>) : bool =
         match value with

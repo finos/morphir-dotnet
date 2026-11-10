@@ -1,6 +1,6 @@
 namespace Morphir.Tooling.Features.Generate;
 
-/// <summary>Resolves explicit invocation values. No workspace discovery or configuration I/O.</summary>
+/// <summary>Resolves explicit invocation values, including <c>--extension</c>. No workspace discovery or configuration I/O.</summary>
 public sealed class CliGenerationSettingsResolver : IGenerationSettingsResolver
 {
     public ValueTask<Outcome<GenerationSettings>> ResolveAsync(GenerateOverrides overrides, InvocationContext context, CancellationToken ct)
@@ -26,6 +26,9 @@ public sealed class CliGenerationSettingsResolver : IGenerationSettingsResolver
         if (format is null)
             return ValueTask.FromResult(Fail("invalid-input-format", "Input format must be auto, json or ion."));
 
+        if (overrides.Extension is { } extension && string.IsNullOrWhiteSpace(extension))
+            return ValueTask.FromResult(Fail("invalid-extension", "The backend extension from --extension is empty."));
+
         var options = BackendOptionText.Parse(overrides.Options);
         if (options is Outcome<BackendOptions>.Failure optionFailure)
             return ValueTask.FromResult<Outcome<GenerationSettings>>(new Outcome<GenerationSettings>.Failure(optionFailure.Error));
@@ -35,7 +38,12 @@ public sealed class CliGenerationSettingsResolver : IGenerationSettingsResolver
             var input = Path.GetFullPath(overrides.Input!, context.WorkingDirectory);
             var output = Path.GetFullPath(overrides.Output!, context.WorkingDirectory);
             return ValueTask.FromResult<Outcome<GenerationSettings>>(new Outcome<GenerationSettings>.Success(
-                new(new(input, format.Value), RequestedTarget.Parse(overrides.Target!), ((Outcome<BackendOptions>.Success)options).Value, new(output), ModelReadLimits.Default)));
+                new(new(input, format.Value), RequestedTarget.Parse(overrides.Target!), ((Outcome<BackendOptions>.Success)options).Value, new(output), ModelReadLimits.Default)
+                {
+                    Extension = overrides.Extension is { } selected
+                        ? new Morphir.Tooling.Features.Compile.Setting<string>(selected, new Morphir.Tooling.Features.Compile.SettingOrigin.CommandLine("--extension"))
+                        : null,
+                }));
         }
         catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException)
         {

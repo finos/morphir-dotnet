@@ -93,14 +93,9 @@ type MepFrontendOptions =
 type MepFrontend
     private
     (
-        options: MepFrontendOptions,
-        child: Process,
-        session: HostSession,
-        connection: Task<ConnectionEnd>,
-        negotiated: NegotiatedSession,
+        guest: MepGuestProcess,
         identity: ComponentId,
-        capability: CompileCapability,
-        pump: Task
+        capability: CompileCapability
     ) =
 
     static let jsonTuple (version: string) : ModelTransportTuple =
@@ -120,12 +115,23 @@ type MepFrontend
               MaxNodes = 50_000_000 }
           Guarantees = [||] }
 
+    /// The diagnostic code of a guest failure.
+    static let codeOf (failed: MepGuestFailure) =
+        match failed with
+        | MepGuestFailure.Unavailable _ -> MepFrontendCodes.unavailable
+        | MepGuestFailure.ProtocolError _ -> MepFrontendCodes.protocolError
+        | MepGuestFailure.Timeout _ -> MepFrontendCodes.timeout
+
     static let failure (code: DiagnosticCode) (message: string) : FrontendFailure =
         { Message = message
           Diagnostics = [| Diagnostic.error code message |] }
 
+    /// A MEP position is unsigned; above Int32.MaxValue it is kept at Int32.MaxValue, not wrapped to a negative.
+    static let clamp (value: uint32) =
+        if value > uint32 Int32.MaxValue then Int32.MaxValue else int value
+
     static let mepPosition (position: SourcePosition) =
-        Position.Create(int position.Line, int position.Character)
+        Position.Create(clamp position.Line, clamp position.Character)
 
     static let mepLocation (location: SourceLocation) =
         Location.Create(location.Uri, Range.Create(mepPosition location.Range.Start, mepPosition location.Range.End))
@@ -181,18 +187,18 @@ type MepFrontend
                        { Family = Model.ModelFamily.Classic
                          Version = Versioning.Classic version } |]
 
+    let negotiated = guest.Session
     let name = negotiated.Extension.Id
-    let mutable ended = false
-    let mutable exited = false
 
     let agreed = negotiated.Capabilities.ModelTransport
 
     /// The tuple for a target: 4.0.0 for v4, and 3.0.0 for every classic version.
     let tupleFor (target: IrTarget) =
         let version =
+            // Exhaustive, so a new model family fails to compile until its tuple is decided.
             match target.Family with
             | Model.ModelFamily.V4 -> "4.0.0"
-            | _ -> "3.0.0"
+            | Model.ModelFamily.Classic -> "3.0.0"
 
         agreed
         |> Option.bind (fun support -> support.Tuples |> Seq.tryFind (fun tuple -> tuple = jsonTuple version))
@@ -223,24 +229,10 @@ type MepFrontend
     /// Sends one request and waits for its reply, the deadline or the end of the connection.
     let send (method: Method) (parameters: JsonElement) (cancellation: CancellationToken) =
         task {
-            use deadline = CancellationTokenSource.CreateLinkedTokenSource cancellation
-            deadline.CancelAfter options.Deadline
-            let request = session.RequestAsync(method, Nullable parameters, deadline.Token)
-            let! first = Task.WhenAny(request :> Task, connection :> Task)
-
-            if Object.ReferenceEquals(first, connection) && not request.IsCompleted then
-                return Error(protocol $"the connection ended: {connection.Result}")
-            else
-                try
-                    let! reply = request
-                    return Ok reply
-                with :? OperationCanceledException when not cancellation.IsCancellationRequested ->
-                    return
-                        Error(
-                            FrontendOutcome.Failed(
-                                failure MepFrontendCodes.timeout $"Extension {name} did not answer {method} within {options.Deadline}."
-                            )
-                        )
+            match! guest.SendAsync(method, parameters, cancellation) with
+            | MepGuestReply.Result result -> return Ok(Ok result)
+            | MepGuestReply.Error error -> return Ok(Error error)
+            | MepGuestReply.Failed failed -> return Error(FrontendOutcome.Failed(failure (codeOf failed) failed.Message))
         }
 
     /// <summary>The extension id as a component identity.</summary>
@@ -250,114 +242,66 @@ type MepFrontend
     member _.Session = negotiated
 
     /// <summary>True when the extension process has exited.</summary>
-    member _.HasExited = exited || child.HasExited
+    member _.HasExited = guest.HasExited
 
     /// <summary>Starts the extension, initializes a session and returns the frontend, or an operational failure.</summary>
     static member ConnectAsync(options: MepFrontendOptions, cancellation: CancellationToken) : Task<Result<MepFrontend, FrontendFailure>> =
+        MepFrontend.ConnectAsync(options, null, cancellation)
+
+    /// <summary>
+    /// Starts the extension with the given whole environment (null for the host's: then it is the overload without
+    /// an environment), initializes a session and returns the frontend, or an operational failure.
+    /// </summary>
+    static member ConnectAsync
+        (
+            options: MepFrontendOptions,
+            environment: IReadOnlyDictionary<string, string> | null,
+            cancellation: CancellationToken
+        ) : Task<Result<MepFrontend, FrontendFailure>> =
         task {
-            let start = ProcessStartInfo(options.Executable)
+            let guestOptions: MepGuestOptions =
+                { Executable = options.Executable
+                  Arguments = options.Arguments
+                  WorkingDirectory = options.WorkingDirectory
+                  Deadline = options.Deadline
+                  Stderr = options.Stderr
+                  Host = options.Host
+                  Environment = environment }
 
-            for argument in options.Arguments do
-                start.ArgumentList.Add argument
+            match! MepGuestProcess.StartAsync(guestOptions, offer, cancellation) with
+            | Error failed -> return Error(failure (codeOf failed) failed.Message)
+            | Ok guest ->
+                let negotiated = guest.Session
 
-            match options.WorkingDirectory with
-            | null -> ()
-            | directory -> start.WorkingDirectory <- directory
+                let identity =
+                    match ComponentId.Parse negotiated.Extension.Id with
+                    | Ok id -> id
+                    | Error _ -> ComponentId.Create "mep-extension"
 
-            start.UseShellExecute <- false
-            start.CreateNoWindow <- true
-            start.RedirectStandardInput <- true
-            start.RedirectStandardOutput <- true
-            start.RedirectStandardError <- true
+                let languages =
+                    negotiated.Capabilities.Frontend
+                    |> Option.map (fun frontend ->
+                        [| for language in frontend.Languages do
+                               match LanguageId.Parse language.Id with
+                               | Ok id ->
+                                   yield
+                                       ({ Id = id
+                                          FileExtensions = language.FileExtensions }
+                                       : CompileLanguage)
+                               | Error _ -> () |])
+                    |> Option.defaultValue [||]
 
-            let started =
-                try
-                    match Process.Start start with
-                    | null -> Error $"Extension {options.Executable} did not start."
-                    | child -> Ok child
-                with error ->
-                    Error $"Extension {options.Executable} did not start: {error.Message}"
+                let capability: CompileCapability =
+                    { Languages = languages
+                      Outputs = outputsOf negotiated.Capabilities.ModelTransport
+                      Incremental = false
+                      MultiDocument =
+                        negotiated.Capabilities.Frontend
+                        |> Option.map _.MultiDocument
+                        |> Option.defaultValue false }
 
-            match started with
-            | Error message -> return Error(failure MepFrontendCodes.unavailable message)
-            | Ok child ->
-                let pump =
-                    task {
-                        let mutable reading = true
-
-                        while reading do
-                            match! child.StandardError.ReadLineAsync() with
-                            | null -> reading <- false
-                            | line -> options.Stderr.WriteLine line
-                    }
-                    :> Task
-
-                let session =
-                    HostSession(child.StandardOutput.BaseStream, child.StandardInput.BaseStream, options.Host, offer)
-
-                let connection = session.RunAsync CancellationToken.None
-
-                let stop () =
-                    try
-                        if not child.HasExited then
-                            child.Kill true
-                    with _ ->
-                        ()
-
-                use deadline = CancellationTokenSource.CreateLinkedTokenSource cancellation
-                deadline.CancelAfter options.Deadline
-
-                let initialize = session.InitializeAsync deadline.Token
-                let! first = Task.WhenAny(initialize :> Task, connection :> Task)
-
-                if Object.ReferenceEquals(first, connection) && not initialize.IsCompleted then
-                    stop ()
-                    return Error(failure MepFrontendCodes.protocolError $"Extension {options.Executable} ended the connection before initialize: {connection.Result}")
-                else
-                    let! initialized =
-                        task {
-                            try
-                                let! result = initialize
-                                return result |> Result.mapError _.ToString()
-                            with :? OperationCanceledException ->
-                                return Error $"Extension {options.Executable} did not initialize within {options.Deadline}."
-                        }
-
-                    match initialized with
-                    | Error message ->
-                        stop ()
-                        return Error(failure MepFrontendCodes.unavailable message)
-                    | Ok negotiated ->
-                        let identity =
-                            match ComponentId.Parse negotiated.Extension.Id with
-                            | Ok id -> id
-                            | Error _ -> ComponentId.Create "mep-extension"
-
-                        let languages =
-                            negotiated.Capabilities.Frontend
-                            |> Option.map (fun frontend ->
-                                [| for language in frontend.Languages do
-                                       match LanguageId.Parse language.Id with
-                                       | Ok id ->
-                                           yield
-                                               ({ Id = id
-                                                  FileExtensions = language.FileExtensions }
-                                               : CompileLanguage)
-                                       | Error _ -> () |])
-                            |> Option.defaultValue [||]
-
-                        let capability: CompileCapability =
-                            { Languages = languages
-                              Outputs = outputsOf negotiated.Capabilities.ModelTransport
-                              Incremental = false
-                              MultiDocument =
-                                negotiated.Capabilities.Frontend
-                                |> Option.map _.MultiDocument
-                                |> Option.defaultValue false }
-
-                        return Ok(new MepFrontend(options, child, session, connection, negotiated, identity, capability, pump))
+                return Ok(new MepFrontend(guest, identity, capability))
         }
-
     /// <summary>
     /// Starts the extension and initializes a session, for C# callers: a passed result holds the frontend, and a
     /// failed result holds the diagnostics of the failure. Dispose the frontend to end the session.
@@ -460,47 +404,4 @@ type MepFrontend
                     }
 
     interface IAsyncDisposable with
-        member _.DisposeAsync() =
-            ValueTask(
-                task {
-                    if not ended then
-                        ended <- true
-
-                        try
-                            use deadline = new CancellationTokenSource(options.Deadline)
-
-                            if not connection.IsCompleted then
-                                let! _ = session.ShutdownAsync deadline.Token
-                                do! session.ExitAsync()
-
-                            // The end of its input also ends a guest whose connection already failed.
-                            try
-                                child.StandardInput.Close()
-                            with _ ->
-                                ()
-
-                            let! stopped =
-                                task {
-                                    try
-                                        do! child.WaitForExitAsync deadline.Token
-                                        return true
-                                    with :? OperationCanceledException ->
-                                        return false
-                                }
-
-                            if not stopped then
-                                child.Kill true
-                                do! child.WaitForExitAsync()
-                        with _ ->
-                            try
-                                if not child.HasExited then
-                                    child.Kill true
-                                    child.WaitForExit()
-                            with _ ->
-                                ()
-
-                        do! pump
-                        exited <- true
-                        child.Dispose()
-                }
-            )
+        member _.DisposeAsync() = (guest :> IAsyncDisposable).DisposeAsync()

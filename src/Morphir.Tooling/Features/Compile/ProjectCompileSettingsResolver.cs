@@ -149,18 +149,18 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
 
         foreach (var (key, value, reason) in new[]
                  {
-                     ("ir.layout", "document-tree", "The document-tree layout is not implemented. Use \"single-file\"."),
-                     ("ir.format", "yaml", "YAML IR is not implemented. Use \"json\"."),
-                     ("ir.format", "ion", "Ion IR output is not implemented. Use \"json\"."),
+                     (new[] { "ir", "layout" }, "document-tree", "The document-tree layout is not implemented. Use \"single-file\"."),
+                     (new[] { "ir", "format" }, "yaml", "YAML IR is not implemented. Use \"json\"."),
+                     (new[] { "ir", "format" }, "ion", "Ion IR output is not implemented. Use \"json\"."),
                  })
             if (config.String(key) is { } setting && setting.Value == value)
-                Error(CompileCodes.UnsupportedSetting, $"The setting {key} = \"{value}\" in {Describe(setting.Origin)} is not supported. {reason}");
+                Error(CompileCodes.UnsupportedSetting, $"The setting {string.Join('.', key)} = \"{value}\" in {Describe(setting.Origin)} is not supported. {reason}");
 
         // Language: CLI, else frontend.language from a configuration file. The upstream default is not a selection.
         Setting<LanguageId>? language = null;
         var languageText = overrides.Language is { } cliLanguage
             ? new Setting<string>(cliLanguage, new SettingOrigin.CommandLine("--language"))
-            : config.String("frontend.language") is { Origin: SettingOrigin.Configuration } configured ? configured : null;
+            : config.String("frontend", "language") is { Origin: SettingOrigin.Configuration } configured ? configured : null;
         if (languageText is not null)
         {
             if (LanguageId.TryParse(languageText.Value, out var id, out var failure)) language = new(id, languageText.Origin);
@@ -170,7 +170,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         // Package name.
         var packageText = overrides.PackageName is { } cliPackage
             ? new Setting<string>(cliPackage, new SettingOrigin.CommandLine("--package-name"))
-            : config.String("project.name");
+            : config.String("project", "name");
         Setting<ParsedPackageName>? package = null;
         if (packageText is null)
             Error(CompileCodes.PackageRequired, "No package name is given. Use --package-name, or set project.name in morphir.toml.");
@@ -182,7 +182,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         // IR version, with its exact spelling.
         var versionText = overrides.IrVersion is { } cliVersion
             ? new Setting<string>(cliVersion, new SettingOrigin.CommandLine("--ir-version"))
-            : config.Version("ir.format_version") ?? new Setting<string>(DefaultIrVersion, SettingOrigin.Default.Instance);
+            : config.Version("ir", "format_version") ?? new Setting<string>(DefaultIrVersion, SettingOrigin.Default.Instance);
         Setting<SourceFormatVersion>? version = null;
         if (SourceFormatVersions.TryParse(versionText.Value, out var parsedVersion, out var versionFailure))
             version = new(parsedVersion, versionText.Origin);
@@ -190,14 +190,19 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Error(CompileCodes.InvalidSetting, $"The IR version from {Describe(versionText.Origin)} is not valid. {versionFailure}");
 
         // Exposed modules.
-        Setting<ImmutableArray<string>>? exposed = config.Strings("project.exposed_modules");
+        Setting<ImmutableArray<string>>? exposed = config.Strings("project", "exposed_modules");
 
         // A frontend extension: --extension, else [frontend.<language>].extension of the selected language.
         var extension = overrides.Extension is { } cliExtension
             ? new Setting<string>(cliExtension, new SettingOrigin.CommandLine("--extension"))
-            : language is null ? null : config.String($"frontend.{language.Value.Value}.extension");
+            : language is null ? null : config.String("frontend", language.Value.Value, "extension");
         if (extension is not null && string.IsNullOrWhiteSpace(extension.Value))
             Error(CompileCodes.InvalidSetting, $"The frontend extension from {Describe(extension.Origin)} is empty.");
+
+        // A backend extension of the requested target, which compile --target does not run (only generate does).
+        var ignoredBackend = overrides.Target?.Target is RequestedTarget.Valid requestedTarget
+            ? config.String("codegen", requestedTarget.Id.Value, "extension")
+            : null;
 
         // Sources (SRC-1): --project-file, --input, the configured project file, the source directory.
         var unread = ImmutableArray<string>.Empty;
@@ -209,12 +214,12 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             sources = new SourceRequest.ProjectFile(Path.GetFullPath(projectFile, working), new SettingOrigin.CommandLine("--project-file"));
         else if (overrides.Inputs.Count > 0)
             sources = new SourceRequest.Inputs(overrides.Inputs.Select(input => Path.GetFullPath(input, working)).ToImmutableArray());
-        else if (language is not null && config.String($"frontend.{language.Value.Value}.project_file") is { } configuredFile)
+        else if (language is not null && config.String("frontend", language.Value.Value, "project_file") is { } configuredFile)
             sources = new SourceRequest.ProjectFile(config.Resolve(configuredFile, baseDirectory), configuredFile.Origin);
         else
         {
             if (language is null) unread = config.ProjectFileKeys();
-            var directory = config.String("project.source_directory") is { Origin: SettingOrigin.Configuration } configuredDirectory
+            var directory = config.String("project", "source_directory") is { Origin: SettingOrigin.Configuration } configuredDirectory
                 ? configuredDirectory
                 : new Setting<string>("src", SettingOrigin.Default.Instance);
             sources = new SourceRequest.SourceDirectory(config.Resolve(directory, baseDirectory), directory.Origin);
@@ -253,6 +258,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Extension = extension,
             Sources = sources,
             UnreadProjectFileKeys = unread,
+            IgnoredBackendExtension = ignoredBackend,
             ProjectRoot = loaded.ProjectRoot,
             OutRoot = place.OutRoot,
             Member = place.Member,
@@ -262,43 +268,48 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         }, warnings);
     }
 
+    /// <summary>
+    /// The key <c>[codegen.&lt;target&gt;].extension</c> of a target, for messages, as TOML writes it: a dotted target id
+    /// is one quoted key, <c>[codegen."acme.codegen"].extension</c>.
+    /// </summary>
+    public static string CodegenExtensionKey(string targetId) => $"[codegen.{ConfigValueProjections.KeyText([targetId])}].extension";
+
     /// <summary>A short description of an origin for messages.</summary>
     public static string Describe(SettingOrigin origin) => origin.Match(
         cli => cli.Flag,
         config => config.File,
         _ => "the default");
 
-    /// <summary>Typed reads of the effective configuration, with origins.</summary>
-    private sealed class ConfigurationView(LoadedCompileConfiguration loaded)
+    /// <summary>
+    /// Typed reads of the effective configuration, with origins. Each read takes the key path as segments, one for each
+    /// key, so an id with a dot stays one key: <c>("codegen", "acme.codegen", "extension")</c> is the TOML key
+    /// <c>codegen."acme.codegen".extension</c>. The lookups and the union decisions are in F# (ConfigValueProjections).
+    /// </summary>
+    internal sealed class ConfigurationView(LoadedCompileConfiguration loaded)
     {
-        private static FSharpList<string> KeyPath(string key) => ListModule.OfSeq(key.Split('.'));
+        private ConfigValue? Find(string[] path) =>
+            ConfigValueProjections.TryFind(loaded.Effective, path, out var value) ? value : null;
 
-        private ConfigValue? Find(string key) =>
-            ConfigTree.tryFind(KeyPath(key), loaded.Effective) is { } found ? found.Value : null;
+        private SettingOrigin Origin(string[] path) =>
+            ConfigValueProjections.TryFindOrigin(loaded.Origins, path, out var origin) && !origin.Source.Role.Equals(SourceRole.Defaults)
+                ? new SettingOrigin.Configuration(origin.Source.Path, ConfigValueProjections.KeyText(path))
+                : SettingOrigin.Default.Instance;
 
-        private SettingOrigin Origin(string key)
-        {
-            var origin = MapModule.TryFind(KeyPath(key), loaded.Origins);
-            if (origin is null || origin.Value.Source.Role == SourceRole.Defaults) return SettingOrigin.Default.Instance;
-            return new SettingOrigin.Configuration(origin.Value.Source.Path, key);
-        }
+        public Setting<string>? String(params string[] path) =>
+            Find(path) is { } value && ConfigValueProjections.TryText(value, out var text) ? new(text, Origin(path)) : null;
 
-        // The union decisions are in F# (ConfigValueProjections), so C# does not test union cases.
-        public Setting<string>? String(string key) =>
-            Find(key) is { } value && ConfigValueProjections.TryText(value, out var text) ? new(text, Origin(key)) : null;
+        public Setting<string>? Version(params string[] path) =>
+            Find(path) is { } value && ConfigValueProjections.TryVersionText(value, out var text) ? new(text, Origin(path)) : null;
 
-        public Setting<string>? Version(string key) =>
-            Find(key) is { } value && ConfigValueProjections.TryVersionText(value, out var text) ? new(text, Origin(key)) : null;
-
-        public Setting<ImmutableArray<string>>? Strings(string key) =>
-            Find(key) is { } value && ConfigValueProjections.TryTextList(value, out var items)
-                ? new([.. items], Origin(key))
+        public Setting<ImmutableArray<string>>? Strings(params string[] path) =>
+            Find(path) is { } value && ConfigValueProjections.TryTextList(value, out var items)
+                ? new([.. items], Origin(path))
                 : null;
 
-        /// <summary>Every <c>frontend.&lt;language&gt;.project_file</c> key that is set.</summary>
+        /// <summary>Every <c>frontend.&lt;language&gt;.project_file</c> key that is set, as TOML writes it (a dotted language is quoted).</summary>
         public ImmutableArray<string> ProjectFileKeys() =>
-            Find("frontend") is { } tables
-                ? [.. ConfigValueProjections.TablesWithKey(tables, "project_file").Select(language => $"frontend.{language}.project_file")]
+            Find(["frontend"]) is { } tables
+                ? [.. ConfigValueProjections.TablesWithKey(tables, "project_file").Select(language => ConfigValueProjections.KeyText(["frontend", language, "project_file"]))]
                 : [];
 
         /// <summary>A path setting, relative to the directory of the file that set it, else to the base directory.</summary>
