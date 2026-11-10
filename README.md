@@ -310,13 +310,11 @@ morphir-dotnet/
 
 The project uses C# scripts (`.cs` files) for build automation, leveraging .NET 10's direct C# file execution. These scripts are located in the `scripts/` directory:
 
-- `publish-single-file.cs` - Publishes trimmed single-file executables
-- `publish-single-file-untrimmed.cs` - Publishes untrimmed single-file executables
 - `run-tests.cs` - Runs unit tests
 - `run-e2e-tests.cs` - Runs end-to-end tests
 - `generate-wolverine-code.cs` - Generates Wolverine code
 
-**Note**: The deprecated `build-tool-dll.cs` and `pack-tool-platform.cs` scripts have been removed. Use the Nuke build targets (`PackTool`, `PublishTool`) instead.
+**Note**: The deprecated `build-tool-dll.cs`, `pack-tool-platform.cs`, `publish-single-file.cs` and `publish-single-file-untrimmed.cs` scripts have been removed. Use the Nuke build targets (`PackTool`, `PublishTool`, `PackRelease`, `PublishSingleFile`, `PublishSingleFileUntrimmed`) instead.
 
 ### Build Commands
 
@@ -346,7 +344,33 @@ build.cmd --target PackLibs --configuration Debug --version 1.2.3
 build.cmd --target PackLibs --output-dir ./my-packages
 ```
 
+#### Building Release Profiles
+
+The four .NET deployment offerings each have a named release profile. `PackRelease` publishes one profile for one platform and packs it into an archive named `morphir-dotnet-<release>-<deployment>-<rid>.<zip|tar.gz>` (zip on Windows, tar.gz elsewhere, files at the archive root), or for `dotnet-tool` the `Morphir.Tool.<release>.nupkg` package. The release comes from `CHANGELOG.md`. Output goes to `artifacts/release/`; the publish folders are in `artifacts/release/publish/<deployment>/<rid>/`.
+
+```bash
+# Native AOT morphir (src/Morphir). Build on the operating system of the RID.
+./build.sh --target PackRelease --deployment native-aot --rid linux-x64
+build.cmd --target PackRelease --deployment native-aot --rid win-arm64
+
+# Managed morphir with the in-process F# frontend (src/Morphir.Managed), untrimmed folder archives
+./build.sh --target PackRelease --deployment self-contained --rid osx-arm64
+./build.sh --target PackRelease --deployment framework-dependent --rid linux-arm64
+
+# The Morphir.Tool package (dotnet-morphir). Portable, so no --rid.
+./build.sh --target PackRelease --deployment dotnet-tool
+
+# Publish only, without the archive
+./build.sh --target PublishRelease --deployment self-contained --rid win-x64
+```
+
+Platforms: `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`. Any other RID is refused. Beside each archive, `<archive>.build-launch.json` records its launch path, execution mode, bundled runtime, required runtime or SDK, F# frontend and SHA-256. It is a build output, not a public contract. Building a profile does not qualify a platform: no platform is release-qualified yet.
+
+On Windows, the Native AOT link needs the Visual Studio C++ build tools for the target architecture, and the ILCompiler targets call `vswhere.exe`. If the link fails with "'vswhere.exe' is not recognized", put `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer` on `PATH` in that shell.
+
 #### Building Executables
+
+These targets keep the layouts that the workflows and E2E tests use. `PublishSingleFile` builds the legacy release asset that releases ship as `morphir-<rid>[.exe]` and `morphir-<rid>-v<version>.tar.gz`.
 
 ```bash
 # Build a trimmed single-file executable for a specific platform
@@ -364,8 +388,8 @@ build.cmd --target PublishSingleFileUntrimmed --rid win-x64
 # Common RIDs: linux-x64, linux-arm64, win-x64, osx-x64, osx-arm64
 
 # With custom configuration and output directory
-./build.sh --target PublishSingleFile --rid linux-x64 --configuration Debug --output-dir ./bin
-build.cmd --target PublishSingleFile --rid linux-x64 --configuration Debug --output-dir ./bin
+./build.sh --target PublishSingleFile --rid linux-x64 --configuration Debug --single-file-dir ./bin
+build.cmd --target PublishSingleFile --rid linux-x64 --configuration Debug --single-file-dir ./bin
 ```
 
 #### Building the Dotnet Tool
@@ -454,7 +478,9 @@ Key targets:
 - `PackLibs` - Pack library projects as NuGet packages
 - `PackTool` - Pack the Morphir CLI as a dotnet tool
 - `PackAll` - Pack all projects (libraries and tool)
-- `PublishSingleFile` - Publish trimmed single-file executable (requires `--rid`)
+- `PublishRelease` - Publish one release profile (requires `--deployment`, and `--rid` except for `dotnet-tool`)
+- `PackRelease` - Pack one release profile into its named archive and launch metadata
+- `PublishSingleFile` - Publish the legacy trimmed single-file release asset (requires `--rid`)
 - `PublishExecutable` - Publish AOT executable (requires `--rid`)
 - `PublishSingleFileUntrimmed` - Publish untrimmed single-file executable (requires `--rid`)
 - `TestE2E` - Run end-to-end tests

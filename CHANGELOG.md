@@ -10,9 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `MorphirApplication` in `Morphir.Tooling`: the shared command layer (the scenarios, `info` and `--version`) that every entry point runs. `Morphir.Program.Run` and `Morphir.Program.CreateApp` keep their signatures and delegate to it
 - A managed `morphir` entry point (`src/Morphir.Managed`) and the managed composition it shares with `dotnet-morphir` (`src/Morphir.Tooling.Managed`), which holds the in-process F# frontend. It is not packaged or released yet
+- Build: named release profiles for the four .NET deployment offerings. `PublishRelease` and `PackRelease` with `--deployment native-aot|self-contained|framework-dependent|dotnet-tool` and `--rid` produce `artifacts/release/morphir-dotnet-<release>-<deployment>-<rid>.<zip|tar.gz>` (or `Morphir.Tool.<release>.nupkg`) with a build-side `.build-launch.json` beside it, for win-x64, win-arm64, osx-x64, osx-arm64, linux-x64 and linux-arm64. The managed profiles are untrimmed folders with the in-process F# frontend. Releases do not publish these archives yet, and no platform is qualified yet ([#558](https://github.com/finos/morphir-dotnet/issues/558))
 
 ### Changed
 - `dotnet-morphir` runs the shared command layer with the managed composition and no longer references the AOT-compatible `morphir` project, so the tool package no longer contains `morphir.dll`. Its commands and its F# frontend are unchanged
+- Build: `PublishExecutable`, `PublishSingleFile` and `PublishSingleFileUntrimmed` take their settings from the release profile model. `PublishSingleFile` keeps the settings and names of the legacy release assets `morphir-<rid>[.exe]` and `morphir-<rid>-v<version>.tar.gz`. `PublishExecutable` now leaves out debug symbols and documentation files, and finds `morphir` (not `Morphir`) on Linux and macOS ([#558](https://github.com/finos/morphir-dotnet/issues/558))
+- `just publish-single-file` and `just publish-single-file-untrimmed` run the Nuke targets; their `VERSION` argument is gone, as the version comes from `CHANGELOG.md`
+
+### Removed
+- `scripts/publish-single-file.cs` and `scripts/publish-single-file-untrimmed.cs`, which called a removed `codegen write` command. Use the `PublishSingleFile` and `PublishSingleFileUntrimmed` targets ([#558](https://github.com/finos/morphir-dotnet/issues/558))
 
 ## [0.4.0-alpha.3] - 2026-11-09
 

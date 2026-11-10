@@ -262,106 +262,36 @@ partial class Build : NukeBuild
             Serilog.Log.Information("CI pipeline completed successfully");
         });
 
-    // Publishing targets for executables (AOT, single-file, etc.)
+    // Publishing targets for executables. Their publish settings come from the release profile model in
+    // build/Helpers/ReleaseProfiles.cs. The named release profiles are in Build.ReleaseProfiles.cs; these three
+    // targets keep their names and output folders for the workflows and scripts/run-e2e-tests.cs that call them.
     // Note: Packaging and publishing for NuGet packages are in Build.Packaging.cs and Build.Publishing.cs
 
     /// <summary>
-    /// Publish platform-specific executable for the specified runtime identifier (RID)
+    /// Publish the Native AOT executable (the native-aot profile's settings) for the specified runtime identifier (RID)
     /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
-    /// Output: artifacts/executables/{rid}/
+    /// Output: artifacts/executables/{rid}/ (used by the E2E executable type "aot")
     /// </summary>
     Target PublishExecutable => _ => _
-        .Description("Publish single-file executable for a specific platform (requires --rid parameter)")
-        .Executes(() =>
-        {
-            if (string.IsNullOrEmpty(Rid))
-            {
-                throw new Exception("RID parameter is required. Use --rid <rid> (e.g., --rid linux-x64)");
-            }
-
-            var ridOutputDir = ExecutablesDir / Rid;
-            ridOutputDir.CreateOrCleanDirectory();
-
-            var publishSettings = new DotNetPublishSettings()
-                .SetProject(MorphirProject)
-                .SetConfiguration(Configuration)
-                .SetRuntime(Rid)
-                .SetSelfContained(true)
-                .SetProperty("PublishSingleFile", "true")
-                .SetProperty("PublishTrimmed", "true")
-                .SetProperty("PublishAot", "true")
-                .SetProperty("Version", Version.ToString())
-                .SetOutput(ridOutputDir);
-
-            Serilog.Log.Information($"Publishing single-file executable for {Rid}...");
-            DotNetPublish(publishSettings);
-
-            var exeName = GetExecutableName(Rid, isAot: true);
-            var exePath = ridOutputDir / exeName;
-
-            if (File.Exists(exePath))
-            {
-                var size = GetFileSize(exePath);
-                Serilog.Log.Information($"✓ Created: {exePath}");
-                Serilog.Log.Information($"  Size: {size}");
-            }
-            else
-            {
-                throw new Exception($"✗ Error: Executable not found at {exePath}");
-            }
-        });
+        .Description("Publish the Native AOT executable for a specific platform (requires --rid parameter)")
+        .Executes(() => PublishLegacyLayout(Morphir.Build.Helpers.Deployment.NativeAot.Project,
+            Morphir.Build.Helpers.Deployment.NativeAot.BuildProperties, ExecutablesDir, "Native AOT"));
 
     /// <summary>
-    /// Publish single-file executable without AOT (managed .NET runtime) with trimming
+    /// Publish the legacy release asset: a single-file executable without AOT (managed .NET runtime) with trimming.
+    /// Releases ship this as morphir-{rid}[.exe] and morphir-{rid}-v{version}.tar.gz (LegacyAsset.TrimmedSingleFile).
     /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
     /// Output: artifacts/single-file/{rid}/
     /// Note: Foundatio.Mediator source generators run automatically during build
     /// </summary>
     Target PublishSingleFile => _ => _
         .DependsOn(Compile)
-        .Description("Publish single-file executable without AOT (managed .NET runtime) with trimming (requires --rid parameter)")
-        .Executes(() =>
-        {
-            if (string.IsNullOrEmpty(Rid))
-            {
-                throw new Exception("RID parameter is required. Use --rid <rid> (e.g., --rid linux-x64)");
-            }
-
-            var ridOutputDir = SingleFileDir / Rid;
-            ridOutputDir.CreateOrCleanDirectory();
-
-            var publishSettings = new DotNetPublishSettings()
-                .SetProject(MorphirProject)
-                .SetConfiguration(Configuration)
-                .SetRuntime(Rid)
-                .SetSelfContained(true)
-                .SetProperty("PublishSingleFile", "true")
-                .SetProperty("PublishTrimmed", "true")
-                .SetProperty("TrimMode", "partial")
-                .SetProperty("TreatWarningsAsErrors", "false") // Temporarily disable to allow trimming warnings
-                .SetProperty("Version", Version.ToString())
-                .SetOutput(ridOutputDir);
-
-            Serilog.Log.Information($"Publishing single-file executable (managed, trimmed) for {Rid}...");
-            DotNetPublish(publishSettings);
-
-            var exeName = GetExecutableName(Rid, isAot: false);
-            var exePath = ridOutputDir / exeName;
-
-            if (File.Exists(exePath))
-            {
-                var size = GetFileSize(exePath);
-                Serilog.Log.Information($"✓ Created: {exePath}");
-                Serilog.Log.Information($"  Size: {size}");
-            }
-            else
-            {
-                throw new Exception($"✗ Error: Executable not found at {exePath}");
-            }
-        });
+        .Description("Publish the legacy single-file executable (managed, trimmed) that releases ship (requires --rid parameter)")
+        .Executes(() => PublishLegacyLayout(Morphir.Build.Helpers.LegacyAsset.TrimmedSingleFile.Project,
+            Morphir.Build.Helpers.LegacyAsset.TrimmedSingleFile.BuildProperties, SingleFileDir, "managed, trimmed"));
 
     /// <summary>
-    /// Publish single-file executable without AOT and without trimming
+    /// Publish single-file executable without AOT and without trimming: the manual AOT workflow's baseline, never released
     /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
     /// Output: artifacts/single-file-untrimmed/{rid}/
     /// Note: Foundatio.Mediator source generators run automatically during build
@@ -369,43 +299,57 @@ partial class Build : NukeBuild
     Target PublishSingleFileUntrimmed => _ => _
         .DependsOn(Compile)
         .Description("Publish single-file executable without AOT and without trimming (requires --rid parameter)")
-        .Executes(() =>
+        .Executes(() => PublishLegacyLayout(Morphir.Build.Helpers.LegacyAsset.UntrimmedSingleFile.Project,
+            Morphir.Build.Helpers.LegacyAsset.UntrimmedSingleFile.BuildProperties, SingleFileUntrimmedDir, "managed, untrimmed"));
+
+    /// <summary>
+    /// Publishes <paramref name="project"/> for <see cref="Rid"/> into <c>{outputRoot}/{rid}</c> with the given MSBuild
+    /// properties and the release version, then checks that the <c>morphir</c> executable is there.
+    /// </summary>
+    void PublishLegacyLayout(string project, IReadOnlyDictionary<string, string> properties, AbsolutePath outputRoot, string kind)
+    {
+        if (string.IsNullOrEmpty(Rid))
         {
-            if (string.IsNullOrEmpty(Rid))
-            {
-                throw new Exception("RID parameter is required. Use --rid <rid> (e.g., --rid linux-x64)");
-            }
+            throw new Exception("RID parameter is required. Use --rid <rid> (e.g., --rid linux-x64)");
+        }
 
-            var ridOutputDir = SingleFileUntrimmedDir / Rid;
-            ridOutputDir.CreateOrCleanDirectory();
+        var ridOutputDir = outputRoot / Rid;
+        ridOutputDir.CreateOrCleanDirectory();
 
-            var publishSettings = new DotNetPublishSettings()
-                .SetProject(MorphirProject)
+        var publishSettings = ApplyBuildProperties(new DotNetPublishSettings()
+                .SetProject(RootDirectory / project)
                 .SetConfiguration(Configuration)
-                .SetRuntime(Rid)
-                .SetSelfContained(true)
-                .SetProperty("PublishSingleFile", "true")
-                .SetProperty("PublishTrimmed", "false")
-                .SetProperty("Version", Version.ToString())
-                .SetOutput(ridOutputDir);
+                .SetRuntime(Rid), properties)
+            .SetProperty("Version", Version.ToString())
+            .SetOutput(ridOutputDir);
 
-            Serilog.Log.Information($"Publishing single-file executable (managed, untrimmed) for {Rid}...");
-            DotNetPublish(publishSettings);
+        Serilog.Log.Information($"Publishing executable ({kind}) for {Rid}...");
+        DotNetPublish(publishSettings);
 
-            var exeName = GetExecutableName(Rid, isAot: false);
-            var exePath = ridOutputDir / exeName;
+        var exePath = ridOutputDir / (Rid.StartsWith("win-", StringComparison.Ordinal) ? "morphir.exe" : "morphir");
+        if (!File.Exists(exePath))
+        {
+            throw new Exception($"✗ Error: Executable not found at {exePath}");
+        }
 
-            if (File.Exists(exePath))
-            {
-                var size = GetFileSize(exePath);
-                Serilog.Log.Information($"✓ Created: {exePath}");
-                Serilog.Log.Information($"  Size: {size}");
-            }
-            else
-            {
-                throw new Exception($"✗ Error: Executable not found at {exePath}");
-            }
-        });
+        Serilog.Log.Information($"✓ Created: {exePath}");
+        Serilog.Log.Information($"  Size: {GetFileSize(exePath)}");
+    }
+
+    /// <summary>
+    /// Applies profile properties to a publish. <c>SelfContained</c> goes through the publish option, as the
+    /// command-line <c>--self-contained</c> does; every other property is an MSBuild property.
+    /// </summary>
+    static DotNetPublishSettings ApplyBuildProperties(DotNetPublishSettings settings, IReadOnlyDictionary<string, string> properties)
+    {
+        foreach (var (key, value) in properties)
+        {
+            settings = key == "SelfContained"
+                ? settings.SetSelfContained(bool.Parse(value))
+                : settings.SetProperty(key, value);
+        }
+        return settings;
+    }
 
     // Helper methods
 
@@ -438,16 +382,6 @@ partial class Build : NukeBuild
         process.WaitForExit();
 
         return process.ExitCode;
-    }
-
-    string GetExecutableName(string rid, bool isAot = false)
-    {
-        var baseName = isAot ? "Morphir" : "morphir";
-        if (rid.StartsWith("win-"))
-        {
-            return $"{baseName}.exe";
-        }
-        return baseName;
     }
 
     string GetFileSize(string filePath)

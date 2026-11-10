@@ -196,7 +196,7 @@ partial class Build
             foreach (var rid in ridDirs)
             {
                 var ridDir = singleFileDir / rid;
-                var tarballName = $"morphir-{rid}-v{versionString}.tar.gz";
+                var tarballName = LegacyAsset.TrimmedSingleFile.TarballName(rid, versionString);
                 var tarballPath = artifactsDir / tarballName;
 
                 Serilog.Log.Information($"Creating tarball for {rid}...");

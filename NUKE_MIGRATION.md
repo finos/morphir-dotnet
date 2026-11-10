@@ -24,6 +24,8 @@ All justfile targets have been migrated to Nuke. Below is the mapping:
 | `publish-executable` | `PublishExecutable` | ✅ | AOT single-file executable (requires --rid) |
 | `publish-single-file` | `PublishSingleFile` | ✅ | Managed trimmed executable (requires --rid) |
 | `publish-single-file-untrimmed` | `PublishSingleFileUntrimmed` | ✅ | Managed untrimmed executable (requires --rid) |
+| (none) | `PublishRelease` | ✅ | One release profile: native-aot, self-contained, framework-dependent or dotnet-tool (requires --deployment, and --rid except for dotnet-tool) |
+| (none) | `PackRelease` | ✅ | Named release archive or tool package with build-side launch metadata |
 | `build-e2e-tests` | `BuildE2ETests` | ✅ | Builds E2E test project |
 | `test-e2e` | `TestE2E` | ✅ | Runs E2E tests via run-e2e-tests.cs |
 | `publish-libs` | `PublishLibs` | ✅ | Pushes libs to NuGet.org |

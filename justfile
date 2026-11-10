@@ -165,21 +165,19 @@ publish-executables:
     echo ""
     echo "All single-file executables published to $OUTPUT_DIR"
 
-# Publish single-file executable without AOT (managed .NET runtime) with trimming
-# Usage: just publish-single-file <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/single-file]
-# This creates a self-contained single-file executable that runs as a managed .NET application
-# Trimming is enabled for size optimization (TrimMode=partial for safety)
-# Compatible with dependencies that aren't AOT-compatible (e.g., Wolverine)
+# Publish the legacy single-file release asset: managed, trimmed (TrimMode=partial), self-contained, no F# frontend
+# Usage: just publish-single-file <RID> [CONFIGURATION=Release] [OUTPUT_DIR=./artifacts/single-file]
+# Runs the Nuke target PublishSingleFile. The version comes from CHANGELOG.md.
 publish-single-file RID:
     #!/usr/bin/env bash
-    dotnet run scripts/publish-single-file.cs "{{RID}}" "${CONFIGURATION:-Release}" "${VERSION:-}" "${OUTPUT_DIR:-./artifacts/single-file}"
+    ./build.sh --target PublishSingleFile --rid "{{RID}}" --configuration "${CONFIGURATION:-Release}" --single-file-dir "${OUTPUT_DIR:-./artifacts/single-file}"
 
-# Publish single-file executable without AOT and without trimming (baseline)
-# Usage: just publish-single-file-untrimmed <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/single-file-untrimmed]
-# This creates a baseline for size comparison
+# Publish single-file executable without AOT and without trimming (baseline for size comparison, never released)
+# Usage: just publish-single-file-untrimmed <RID> [CONFIGURATION=Release] [OUTPUT_DIR=./artifacts/single-file-untrimmed]
+# Runs the Nuke target PublishSingleFileUntrimmed. The version comes from CHANGELOG.md.
 publish-single-file-untrimmed RID:
     #!/usr/bin/env bash
-    dotnet run scripts/publish-single-file-untrimmed.cs "{{RID}}" "${CONFIGURATION:-Release}" "${VERSION:-}" "${OUTPUT_DIR:-./artifacts/single-file-untrimmed}"
+    ./build.sh --target PublishSingleFileUntrimmed --rid "{{RID}}" --configuration "${CONFIGURATION:-Release}" --single-file-untrimmed-dir "${OUTPUT_DIR:-./artifacts/single-file-untrimmed}"
 
 # Build the E2E test project
 # Usage: just build-e2e-tests [CONFIGURATION=Release]
