@@ -33,6 +33,16 @@ let internal disposeGuestWork () =
     if guestWork.IsValueCreated then
         guestWork.Value.Dispose()
 
+/// The sandbox's environment for the guests that the adapter starts: the inherited variables, with the sandbox's
+/// home and machine folders and its MORPHIR_* settings (TestSandbox.EnvironmentSnapshot).
+let private sandboxEnvironment () : Collections.Generic.IReadOnlyDictionary<string, string> =
+    let inherited =
+        readOnlyDict
+            [ for entry in Environment.GetEnvironmentVariables() |> Seq.cast<Collections.DictionaryEntry> ->
+                  string entry.Key, string entry.Value ]
+
+    guestWork.Value.EnvironmentSnapshot inherited
+
 let private optionsFor (arguments: string list) : MepFrontendOptions =
     { Executable = host
       Arguments = Array.ofList arguments
@@ -51,7 +61,7 @@ let private fakeOptions (scenario: string) =
     optionsFor [ Path.Combine(AppContext.BaseDirectory, "Morphir.Compilation.Mep.Tests.dll"); "--fake-guest"; scenario ]
 
 let private connect (options: MepFrontendOptions) =
-    match MepFrontend.ConnectAsync(options, CancellationToken.None).GetAwaiter().GetResult() with
+    match MepFrontend.ConnectAsync(options, sandboxEnvironment (), CancellationToken.None).GetAwaiter().GetResult() with
     | Ok frontend -> frontend
     | Error failure -> failtest $"The guest connects: {failure.Message}"
 
@@ -140,7 +150,8 @@ let tests =
                       TimeSpan.FromMinutes 1.0,
                       TextWriter.Synchronized stderr,
                       "morphir-dotnet-tests",
-                      "1.0.0"
+                      "1.0.0",
+                      sandboxEnvironment ()
                   )
 
               let guest =
@@ -438,7 +449,7 @@ let tests =
                   { guestOptions () with
                       Executable = Path.Combine(AppContext.BaseDirectory, "no-such-guest") }
 
-              match MepFrontend.ConnectAsync(options, CancellationToken.None).GetAwaiter().GetResult() with
+              match MepFrontend.ConnectAsync(options, sandboxEnvironment (), CancellationToken.None).GetAwaiter().GetResult() with
               | Error failure ->
                   Expect.equal
                       (failure.Diagnostics |> Seq.map (fun diagnostic -> diagnostic.CodeOrNull |> string) |> List.ofSeq)

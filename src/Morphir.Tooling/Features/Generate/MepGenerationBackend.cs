@@ -40,6 +40,9 @@ public sealed record MepBackendOptions(string Executable, IReadOnlyList<string> 
     /// it sends it.
     /// </summary>
     public ModelTransportLimits OfferLimits { get; init; } = MepGenerationBackend.DefaultLimits;
+
+    /// <summary>The whole environment of the guest, or null for the host's. When it is given, the guest inherits nothing.</summary>
+    public IReadOnlyDictionary<string, string>? Environment { get; init; }
 }
 
 /// <summary>
@@ -121,7 +124,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     public static async Task<Outcome<MepGenerationBackend>> ConnectAsync(MepBackendOptions options, CancellationToken ct)
     {
         var guestOptions = MepGuestOptions.Create(options.Executable, options.Arguments, options.WorkingDirectory, options.Deadline,
-            options.Stderr, options.HostName, options.HostVersion);
+            options.Stderr, options.HostName, options.HostVersion, options.Environment);
         var offer = OfferWith(options.OfferLimits);
         var start = await MepGuestProcess.StartCheckedAsync(guestOptions, offer, ct);
         var guest = start.Match<MepGuestProcess?>(started => started, _ => null);

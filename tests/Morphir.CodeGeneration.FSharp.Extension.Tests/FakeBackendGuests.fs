@@ -140,6 +140,12 @@ let run (scenario: string) =
                     """{"success":false,"artifacts":[],"diagnostics":[{"severity":"error","code":"fake.huge","message":"far away","location":{"uri":"a.fs","range":{"start":{"line":4294967295,"character":4294967295},"end":{"line":4294967295,"character":4294967295}}}}]}"""
 
             guestWith [ json4 ] (answer (document.RootElement.Clone()))
+        // Writes the variable MORPHIR_FAKE_GUEST_MARKER and HOME or USERPROFILE to stderr, then serves as only-v4.
+        | "print-env" ->
+            let home = if OperatingSystem.IsWindows() then "USERPROFILE" else "HOME"
+            eprintfn "fake-guest-marker=%s" (Environment.GetEnvironmentVariable "MORPHIR_FAKE_GUEST_MARKER" |> Option.ofObj |> Option.defaultValue "<unset>")
+            eprintfn "fake-guest-home=%s" (Environment.GetEnvironmentVariable home |> Option.ofObj |> Option.defaultValue "<unset>")
+            guestWith [ json4 ] (answer (result """[{"path":"Only.fs","content":"module Only","binary":false}]"""))
         // Never answers generateModel.
         | "never-answers" ->
             guestWith [ json4 ] (Handlers.raw (fun _ _ -> TaskCompletionSource<Result<JsonElement, RpcError>>().Task))

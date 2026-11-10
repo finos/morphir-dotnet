@@ -34,6 +34,16 @@ let internal disposeGuestWork () =
     if guestWork.IsValueCreated then
         guestWork.Value.Dispose()
 
+/// The sandbox's environment for the guests that the adapter starts: the inherited variables, with the sandbox's
+/// home and machine folders and its MORPHIR_* settings (TestSandbox.EnvironmentSnapshot).
+let private sandboxEnvironment () : IReadOnlyDictionary<string, string> =
+    let inherited =
+        readOnlyDict
+            [ for entry in Environment.GetEnvironmentVariables() |> Seq.cast<Collections.DictionaryEntry> ->
+                  string entry.Key, string entry.Value ]
+
+    guestWork.Value.EnvironmentSnapshot inherited
+
 let private optionsFor (arguments: string list) (deadline: TimeSpan) =
     MepBackendOptions(
         dotnet,
@@ -41,7 +51,8 @@ let private optionsFor (arguments: string list) (deadline: TimeSpan) =
         TargetId.Create "fsharp",
         Deadline = deadline,
         Stderr = TextWriter.Synchronized stderr,
-        WorkingDirectory = guestWork.Value.Work
+        WorkingDirectory = guestWork.Value.Work,
+        Environment = sandboxEnvironment ()
     )
 
 /// The real guest, morphir-fsharp-backend, as a framework-dependent dll.
@@ -137,7 +148,8 @@ let private fakeGuestWith (scenario: string) (deadline: TimeSpan) (writer: TextW
         TargetId.Create "fsharp",
         Deadline = deadline,
         Stderr = TextWriter.Synchronized writer,
-        WorkingDirectory = guestWork.Value.Work
+        WorkingDirectory = guestWork.Value.Work,
+        Environment = sandboxEnvironment ()
     )
 
 [<Tests>]
@@ -175,6 +187,7 @@ let tests =
                       Deadline = TimeSpan.FromMinutes 1.0,
                       Stderr = TextWriter.Synchronized stderr,
                       WorkingDirectory = guestWork.Value.Work,
+                      Environment = sandboxEnvironment (),
                       OfferLimits =
                           ({ MaxEncodedBytes = 4096
                              MaxDecodedBytes = 100
@@ -192,6 +205,28 @@ let tests =
                   Expect.isFalse backend.HasExited "the guest still runs: nothing was sent that it could fail on"
               finally
                   dispose backend
+
+          testCase "The guest runs with the environment that the options give, not the host's"
+          <| fun _ ->
+              let writer = new StringWriter()
+              let environment = Dictionary<string, string>(sandboxEnvironment ())
+              environment["MORPHIR_FAKE_GUEST_MARKER"] <- "from-options"
+
+              let options =
+                  MepBackendOptions(
+                      dotnet,
+                      [| Path.Combine(AppContext.BaseDirectory, "Morphir.CodeGeneration.FSharp.Extension.Tests.dll"); "--fake-backend-guest"; "print-env" |],
+                      TargetId.Create "fsharp",
+                      Deadline = TimeSpan.FromMinutes 1.0,
+                      Stderr = TextWriter.Synchronized writer,
+                      WorkingDirectory = guestWork.Value.Work,
+                      Environment = environment
+                  )
+
+              dispose (connect options)
+              let text = writer.ToString()
+              Expect.stringContains text "fake-guest-marker=from-options" "the variable from the options"
+              Expect.stringContains text $"fake-guest-home={guestWork.Value.Home}" "the sandbox's home, not the user's"
 
           testCase "A result with more artifacts than the host accepts is a protocol error that names the bound"
           <| fun _ ->

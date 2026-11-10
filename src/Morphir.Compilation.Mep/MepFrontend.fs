@@ -245,6 +245,18 @@ type MepFrontend
 
     /// <summary>Starts the extension, initializes a session and returns the frontend, or an operational failure.</summary>
     static member ConnectAsync(options: MepFrontendOptions, cancellation: CancellationToken) : Task<Result<MepFrontend, FrontendFailure>> =
+        MepFrontend.ConnectAsync(options, null, cancellation)
+
+    /// <summary>
+    /// Starts the extension with the given whole environment (null for the host's: then it is the overload without
+    /// an environment), initializes a session and returns the frontend, or an operational failure.
+    /// </summary>
+    static member ConnectAsync
+        (
+            options: MepFrontendOptions,
+            environment: IReadOnlyDictionary<string, string> | null,
+            cancellation: CancellationToken
+        ) : Task<Result<MepFrontend, FrontendFailure>> =
         task {
             let guestOptions: MepGuestOptions =
                 { Executable = options.Executable
@@ -252,7 +264,8 @@ type MepFrontend
                   WorkingDirectory = options.WorkingDirectory
                   Deadline = options.Deadline
                   Stderr = options.Stderr
-                  Host = options.Host }
+                  Host = options.Host
+                  Environment = environment }
 
             match! MepGuestProcess.StartAsync(guestOptions, offer, cancellation) with
             | Error failed -> return Error(failure (codeOf failed) failed.Message)

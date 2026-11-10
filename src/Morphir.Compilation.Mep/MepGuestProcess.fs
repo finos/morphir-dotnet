@@ -26,6 +26,11 @@ type MepGuestOptions =
         Stderr: TextWriter
         /// <summary>The host identity that the session sends.</summary>
         Host: PeerInfo
+        /// <summary>
+        /// The whole environment of the guest, or null for the host's environment. When it is given, the guest gets
+        /// exactly these variables and inherits none.
+        /// </summary>
+        Environment: IReadOnlyDictionary<string, string> | null
     }
 
     /// <summary>For C# callers: the options, with the host kind cli and the given host name and version.</summary>
@@ -47,7 +52,26 @@ type MepGuestOptions =
           Host =
             { Kind = PeerKind.Cli
               Name = hostName
-              Version = hostVersion } }
+              Version = hostVersion }
+          Environment = null }
+
+    /// <summary>
+    /// For C# callers: the options, with the host kind cli, the given host name and version, and the guest's whole
+    /// environment (null for the host's).
+    /// </summary>
+    static member Create
+        (
+            executable: string,
+            arguments: IEnumerable<string>,
+            workingDirectory: string | null,
+            deadline: TimeSpan,
+            stderr: TextWriter,
+            hostName: string,
+            hostVersion: string,
+            environment: IReadOnlyDictionary<string, string> | null
+        ) : MepGuestOptions =
+        { MepGuestOptions.Create(executable, arguments, workingDirectory, deadline, stderr, hostName, hostVersion) with
+            Environment = environment }
 
     /// <summary>The executable.</summary>
     override this.ToString() = $"Extension {this.Executable}"
@@ -178,6 +202,14 @@ type MepGuestProcess
             match options.WorkingDirectory with
             | null -> ()
             | directory -> start.WorkingDirectory <- directory
+
+            match options.Environment with
+            | null -> ()
+            | environment ->
+                start.Environment.Clear()
+
+                for KeyValue(key, value) in environment do
+                    start.Environment[key] <- value
 
             start.UseShellExecute <- false
             start.CreateNoWindow <- true
