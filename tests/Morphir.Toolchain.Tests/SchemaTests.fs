@@ -19,11 +19,37 @@ let private schemaFiles =
           "recipe", "toolset-recipe-0.1.0-draft.1.schema.json"
           "lock", "toolchain-lock-0.1.0-draft.1.schema.json"
           "receipt", "toolchain-receipt-0.1.0-draft.1.schema.json"
-          "result", "morphirup-result-0.1.0-draft.1.schema.json" ]
+          "result", "morphirup-result-0.1.0-draft.1.schema.json"
+          "workflow-case", "toolchain-workflow-case-0.1.0-draft.1.schema.json" ]
+
+/// <summary>A schema's text with every pattern anchored as ECMA-262 anchors it: a final <c>$</c> without the m flag
+/// matches only at the end, where .NET's, which JsonSchema.Net uses, also matches before a final line feed. So the
+/// final unescaped <c>$</c> of each pattern becomes <c>\z</c>.</summary>
+let ecmaAnchored (text: string) =
+    let root = Nodes.JsonNode.Parse text |> nonNull
+
+    let rec walk (node: Nodes.JsonNode | null) =
+        match node with
+        | :? Nodes.JsonObject as o ->
+            for KeyValue(name, child) in List.ofSeq o do
+                match child with
+                | :? Nodes.JsonValue as v when name = "pattern" ->
+                    let pattern = v.GetValue<string>()
+
+                    if pattern.EndsWith "$" && not (pattern.EndsWith @"\$") then
+                        o[name] <- Nodes.JsonValue.Create(pattern.Substring(0, pattern.Length - 1) + @"\z")
+                | _ -> walk child
+        | :? Nodes.JsonArray as a ->
+            for child in List.ofSeq a do
+                walk child
+        | _ -> ()
+
+    walk root
+    root.ToJsonString()
 
 let private schema (contract: string) =
     let text = File.ReadAllText(Path.Combine(Fixtures.schemas, schemaFiles[contract]))
-    JsonSchema.FromText(text, BuildOptions(SchemaRegistry = SchemaRegistry()))
+    JsonSchema.FromText(ecmaAnchored text, BuildOptions(SchemaRegistry = SchemaRegistry()))
 
 /// Whether a value validates, with the first failing location for the message.
 let validates (contract: string) (value: Value) =
@@ -185,4 +211,107 @@ let tests =
                 testCase "a request written from selector options" (fun () ->
                     expectValid "request" "the written request" (parsed "request" (Fixtures.bytes "request/approved.toml")))
         ]
+    ]
+
+/// <summary>What the workflow case states about its files and steps that does not hold: each source, expected IR and
+/// expected generated file has the SHA-256 the case states, and each generated file its byte count; and each step's
+/// operation is <c>compile</c> or <c>generate</c>, the two the readiness workflow page defines.</summary>
+let workflowProblems (case: JsonElement) =
+    let digest (file: string) =
+        Fixtures.bytesIn Fixtures.workflow file |> System.Security.Cryptography.SHA256.HashData |> System.Convert.ToHexStringLower
+
+    [ for source in case.GetProperty("sources").EnumerateArray() do
+          let file = nonNull (source.GetProperty("file").GetString())
+
+          if digest file <> nonNull (source.GetProperty("sha256").GetString()) then
+              yield $"{file} does not have its stated SHA-256"
+
+      for step in case.GetProperty("steps").EnumerateArray() do
+          let id = nonNull (step.GetProperty("id").GetString())
+
+          match nonNull (step.GetProperty("operation").GetString()) with
+          | "compile"
+          | "generate" -> ()
+          | other -> yield $"step {id} has the operation {other}, which the workflow does not define"
+
+          let expected = step.GetProperty "expected"
+
+          match expected.TryGetProperty "ir" with
+          | true, ir ->
+              let file = nonNull (ir.GetProperty("file").GetString())
+
+              if digest file <> nonNull (ir.GetProperty("sha256").GetString()) then
+                  yield $"{file} does not have its stated SHA-256"
+          | false, _ -> ()
+
+          match expected.TryGetProperty "sets" with
+          | true, sets ->
+              for set in sets.EnumerateArray() do
+                  for entry in set.GetProperty("files").EnumerateArray() do
+                      let file = nonNull (entry.GetProperty("file").GetString())
+                      let bytes = Fixtures.bytesIn Fixtures.workflow file
+
+                      if int64 bytes.Length <> entry.GetProperty("bytes").GetInt64() then
+                          yield $"{file} does not have its stated byte count"
+
+                      if digest file <> nonNull (entry.GetProperty("sha256").GetString()) then
+                          yield $"{file} does not have its stated SHA-256"
+          | false, _ -> () ]
+
+let private caseValue () =
+    match Syntax.parseJson (File.ReadAllBytes(Path.Combine(Fixtures.workflow, "case.json"))) with
+    | Ok value -> value
+    | Error _ -> failtest "case.json does not parse"
+
+/// The case with the reviewer's made-up step appended.
+let private withMadeUpStep () =
+    match caseValue () with
+    | Value.Object members ->
+        Value.Object(
+            members
+            |> List.map (fun (name, value) ->
+                match name, value with
+                | "steps", Value.Array steps ->
+                    name,
+                    Value.Array(
+                        steps
+                        @ [ Value.Object
+                                [ "id", Value.String "made-up"
+                                  "operation", Value.String "made-up-operation"
+                                  "providers", Value.Array []
+                                  "expected", Value.Object [ "outcome", Value.String "success-without-error-diagnostics" ] ] ]
+                    )
+                | _ -> name, value)
+        )
+    | _ -> failtest "case.json is not an object"
+
+[<Tests>]
+let workflowCaseTests =
+    testList "The readiness workflow case" [
+        testCase "case.json validates against the pinned workflow case schema" (fun () -> expectValid "workflow-case" "case.json" (caseValue ()))
+
+        testCase "every file the case states has its stated SHA-256 and byte count, and every step a defined operation" (fun () ->
+            use case = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(Fixtures.workflow, "case.json")))
+            Expect.isEmpty (workflowProblems case.RootElement) "no problems")
+
+        testCase "a made-up step is refused by the schema and by the case checks" (fun () ->
+            let edited = withMadeUpStep ()
+            let valid, _ = validates "workflow-case" edited
+            Expect.isFalse valid "the schema refuses the made-up step"
+            use case = JsonDocument.Parse(JsonText.toBytes edited)
+            Expect.contains (workflowProblems case.RootElement) "step made-up has the operation made-up-operation, which the workflow does not define" "the case check refuses it")
+
+        testCase "a generated file whose stated size is wrong is found" (fun () ->
+            use case = JsonDocument.Parse(File.ReadAllText(Path.Combine(Fixtures.workflow, "case.json")).Replace("\"bytes\": 112", "\"bytes\": 113"))
+            Expect.contains (workflowProblems case.RootElement) "expected/generated/Pricing.fs does not have its stated byte count" "the size")
+
+        testCase "ECMA-262 anchoring refuses a trailing line feed the .NET pattern accepts" (fun () ->
+            let schema = """{"type":"string","pattern":"^a$"}"""
+            let evaluate (text: string) (instance: string) =
+                use document = JsonDocument.Parse(JsonSerializer.Serialize instance)
+                (JsonSchema.FromText text).Evaluate(document.RootElement).IsValid
+
+            Expect.isTrue (evaluate schema "a\n") ".NET's $ accepts a final line feed"
+            Expect.isFalse (evaluate (ecmaAnchored schema) "a\n") "anchored, it is refused"
+            Expect.isTrue (evaluate (ecmaAnchored schema) "a") "and the value itself still matches")
     ]
