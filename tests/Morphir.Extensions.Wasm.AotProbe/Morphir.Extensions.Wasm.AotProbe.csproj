@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     The kernel proof of the add-wasm-extension-host change (task 2.2, design KPF-1): the embedded
-    Extism kernel and a published Extism guest in one Wasmtime store, under Native AOT.
+    Extism kernel and a published Extism guest in one Wasmtime store, under Native AOT, and a whole
+    MEP host session through the WASM channel (task 3.1).
     Publish with: dotnet publish -c Release -r <rid> -p:MorphirProbeAot=true
   -->
   <PropertyGroup>
@@ -13,6 +14,9 @@
     <IsPackable>false</IsPackable>
     <IsAotCompatible>true</IsAotCompatible>
     <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+    <!-- The FSharp.Core summary baseline of tests/Morphir.Mep.AotProbe: Morphir.Mep brings in FSharp.Core. The lines stay in the publish log, and the probe's claim 1 fails on every other IL line. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2104;IL3053</WarningsNotAsErrors>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <InvariantGlobalization>true</InvariantGlobalization>
     <PublishAot Condition="'$(MorphirProbeAot)' == 'true'">true</PublishAot>
     <StripSymbols Condition="'$(MorphirProbeAot)' == 'true'">true</StripSymbols>

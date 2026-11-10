@@ -422,6 +422,7 @@
       "morphir.extensions.wasm": {
         "type": "Project",
         "dependencies": {
+          "Morphir.Mep": "[1.0.0, )",
           "Wasmtime": "[50.0.1, )"
         }
       },

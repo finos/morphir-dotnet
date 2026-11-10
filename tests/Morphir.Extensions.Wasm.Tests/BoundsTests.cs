@@ -59,7 +59,7 @@ public class BoundsTests
     public async Task The_corpus_has_every_pinned_bounds_and_limits_case()
     {
         await Assert.That(BoundsCaseIds().Count()).IsEqualTo(PinnedBoundsCaseCount);
-        // The limits/ cases are the worker's frame limits; they need the session layer (tasks 3.1 and 4.1).
+        // The limits/ cases are the frame limits; ChannelCorpusTests runs them through the channel (task 3.1).
         await Assert.That(CraftedCorpus.Cases.Count(@case => @case.CaseId.StartsWith(LimitsGroup, StringComparison.Ordinal)))
             .IsEqualTo(PinnedLimitsCaseCount);
     }
@@ -202,6 +202,7 @@ public class BoundsTests
     }
 
     [Test]
+    [NotInParallel] // It keeps every processor busy, which would delay the timing of any test beside it.
     public async Task The_deadline_holds_while_the_thread_pool_is_busy()
     {
         // A host whose thread pool is blocked must still stop the guest: the epoch may not wait for a pool thread.
@@ -450,26 +451,29 @@ public class BoundsTests
     }
 
     [Test]
-    [Arguments("0.2.0-draft.1", 5_000_000_000UL)]
-    [Arguments("0.1", 1_000_000_000UL)]
-    public async Task The_instruction_budget_follows_the_MEP_version(string protocol, ulong budget)
+    public async Task The_one_instruction_budget_is_the_contract_budget_of_MEP_0_2_0_draft_1()
     {
-        var limits = SessionLimits.ForProtocol(protocol);
+        // Design MEP-1: the host speaks 0.2.0-draft.1 only, so it reads that budget and no other.
+        using var contract = JsonDocument.Parse(await File.ReadAllBytesAsync(MepWasmFixtures.Contract));
+        var budget = contract.RootElement.GetProperty("bounds").GetProperty("instructionBudget").GetProperty("0.2.0-draft.1").GetUInt64();
 
-        await Assert.That(limits.InstructionBudget).IsEqualTo(budget);
-        await Assert.That(limits.MemoryCeilingBytes).IsEqualTo(256 * MiB);
-        await Assert.That(limits.CallDeadline).IsEqualTo(TimeSpan.FromSeconds(30));
-        await Assert.That(SessionLimits.TryForProtocol(protocol, out var tried)).IsTrue();
-        await Assert.That(tried).IsEqualTo(limits);
+        await Assert.That(WasmProfileContract.SessionProtocol).IsEqualTo("0.2.0-draft.1");
+        await Assert.That(WasmProfileContract.Pinned.InstructionBudget).IsEqualTo(budget);
+        await Assert.That(SessionLimits.Default.InstructionBudget).IsEqualTo(budget);
+        await Assert.That(SessionLimits.Default.InstructionBudget).IsEqualTo(5_000_000_000UL);
+        await Assert.That(SessionLimits.Default.MemoryCeilingBytes).IsEqualTo(256 * MiB);
+        await Assert.That(SessionLimits.Default.CallDeadline).IsEqualTo(TimeSpan.FromSeconds(30));
     }
 
     [Test]
-    [Arguments("0.3")]
-    [Arguments("probe")]
-    public async Task A_MEP_version_without_a_contract_budget_has_no_limits(string protocol)
+    public async Task No_budget_is_chosen_by_protocol_version()
     {
-        await Assert.That(SessionLimits.TryForProtocol(protocol, out _)).IsFalse();
-        await Assert.That(() => SessionLimits.ForProtocol(protocol)).Throws<ArgumentException>();
+        // The MEP 0.1 budget of the contract has no reader: SessionLimits has no member that takes a version.
+        var members = typeof(SessionLimits).GetMembers().Select(member => member.Name).ToList();
+
+        await Assert.That(members).DoesNotContain("ForProtocol");
+        await Assert.That(members).DoesNotContain("TryForProtocol");
+        await Assert.That(typeof(WasmProfileContract).GetMethods().Select(method => method.Name)).DoesNotContain("TryGetInstructionBudget");
     }
 
     [Test]

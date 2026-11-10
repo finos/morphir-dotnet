@@ -71,7 +71,7 @@ Parent tasks 1.1 to 1.4 and 1.6 belong to finos/morphir and are dependencies onl
 
 ## 3. Extism profile and sandbox, morphir-dotnet
 
-- [ ] 3.1 Implement the Extism adapter on the proven kernel: one instance per session, input and output through the kernel, Extism errors as session failures and `exit` ending the instance. Verify a compile session on the Python guest makes one `handle` call per request and that a guest which advertises nothing receives no notification.
+- [x] 3.1 Implement the Extism adapter on the proven kernel: one instance per session, input and output through the kernel, Extism errors as session failures and `exit` ending the instance. Verify a compile session on the Python guest makes one `handle` call per request and that a guest which advertises nothing receives no notification.
   - Files: `src/Morphir.Extensions.Wasm/`. The adapter is the WASM implementation of the channel from 2.3.
   - "The Python guest" is release `0.6.0`, on MEP `0.2.0-draft.1` with a model transport offer (design MEP-1).
   - The `extism/` and `limits/` cases of the pinned corpus are the test data.

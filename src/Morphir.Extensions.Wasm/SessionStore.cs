@@ -39,7 +39,7 @@ public sealed record HandleCallResult(int ReturnCode, long OutputOffset, byte[] 
 /// returns <see cref="HandleOutcome.NotRun"/> with it, without running guest or kernel code.
 /// </para>
 /// <para>
-/// Seams for later tasks. Task 3.1 builds the Extism adapter on <see cref="CallHandle"/>. Tasks 3.3 and 3.4
+/// The Extism adapter, <see cref="WasmChannel"/>, is built on <see cref="CallHandle"/>. Tasks 3.3 and 3.4
 /// replace the trapping callbacks of the host functions and the empty WASI configuration.
 /// </para>
 /// </remarks>

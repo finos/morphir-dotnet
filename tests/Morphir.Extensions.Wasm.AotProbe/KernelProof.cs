@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Morphir.Mep;
 using Wasmtime;
 using Module = Wasmtime.Module;
 
@@ -19,9 +20,28 @@ namespace Morphir.Extensions.Wasm.AotProbe;
 /// </summary>
 public static partial class KernelProof
 {
-    /// <summary>The published SHA-256 of <c>morphir-python-binding-0.4.2.wasm</c> (finos/morphir-python
-    /// release <c>extension/python/v0.4.2</c>, asset <c>morphir-python-binding-0.4.2.wasm.sha256</c>).</summary>
-    public const string PythonGuestSha256 = "10acafa0f0282c5240e9620a5f2bb21629cc7580b9add528e7b77c7e54db22b5";
+    /// <summary>The SHA-256 of <c>morphir-python-binding-0.6.0.wasm</c> (finos/morphir-python release
+    /// <c>extension/python/v0.6.0</c>), as finos/morphir <c>7b049c223</c> pins it in
+    /// <c>.config/published-extension-bundles.toml</c> (design MEP-1).</summary>
+    public const string PythonGuestSha256 = "ce0cba07f0395ff8179b42eb021ade05c68197f69b8e9c0c8bc369d2a035727c";
+
+    /// <summary>The one MEP version this host speaks (design MEP-1).</summary>
+    const string ProtocolVersion = "0.2.0-draft.1";
+
+    /// <summary>
+    /// The model-transport offer of the generic guest kit's <c>model-initialize</c> (finos/morphir <c>7b049c223</c>,
+    /// <c>crates/morphir-mck/src/mep/generic.rs</c>, <c>offer</c> and <c>limits</c>). A published guest accepts
+    /// MEP <c>0.2.0-draft.1</c> only with an offer; without one it refuses with -32011 (evidence 2.5).
+    /// </summary>
+    const string ModelTransportOffer =
+        """{"tuples":[{"operation":"morphir.frontend.compileModel","profile":"morphir-ir","codec":"morphir-json","envelopeVersion":"0.1.0-draft.1","irVersion":"3.0.0"},{"operation":"morphir.backend.generateModel","profile":"morphir-ir","codec":"morphir-json","envelopeVersion":"0.1.0-draft.1","irVersion":"3.0.0"},{"operation":"morphir.frontend.compileModel","profile":"morphir-ir","codec":"morphir-json","envelopeVersion":"0.1.0-draft.1","irVersion":"4.0.0"},{"operation":"morphir.backend.generateModel","profile":"morphir-ir","codec":"morphir-json","envelopeVersion":"0.1.0-draft.1","irVersion":"4.0.0"}],"limits":{"maxEncodedBytes":1000000,"maxDecodedBytes":750000,"maxDepth":128,"maxNodes":100000},"guarantees":[]}""";
+
+    /// <summary>
+    /// The params of the kit's <c>compile-model-vthree</c> for the <c>python</c> language (finos/morphir
+    /// <c>7b049c223</c>: <c>spec/mep/mck/guest-generic-json.json</c> and <c>compile_params</c> in <c>generic.rs</c>).
+    /// </summary>
+    const string CompileModelParams =
+        """{"languageId":"python","sources":{"documents":[{"uri":"main.py","languageId":"python","version":1,"text":"def ready() -> bool:\n    return True\n\n\ndef blocked() -> bool:\n    return False\n"}]},"package":{"name":"mck/generic","exposedModules":["main"]},"options":{"typesOnly":false,"irVersion":"3.0.0"},"contextDigest":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","output":{"operation":"morphir.frontend.compileModel","profile":"morphir-ir","codec":"morphir-json","envelopeVersion":"0.1.0-draft.1","irVersion":"3.0.0"}}""";
 
     /// <summary>The SHA-256 of the crafted <c>extism-spin.wasm</c>, as the pinned corpus records it.</summary>
     public const string SpinGuestSha256 = "013df84b7cdecce0386f1b20b6395d663df1533c01fcac16141019ce87d3e11e";
@@ -32,11 +52,10 @@ public static partial class KernelProof
     /// design (RPT-1): 256 MiB for each linear memory, the contract's ceiling.</summary>
     const long CallCeilingBytes = 256L * 1024 * 1024;
 
-    /// <summary>The first request of a session, in the MEP 0.1 shape that the Python 0.4.2 guest claims
-    /// (its release descriptor lists protocol versions ["0.1"]; finos/morphir
-    /// spec/mep/smithy/transcripts/doc-initialize.md gives the request).</summary>
+    /// <summary>The first request of a session on MEP <c>0.2.0-draft.1</c>, with a numeric id and the kit's
+    /// model-transport offer (design MEP-1).</summary>
     public const string InitializeRequest =
-        """{"jsonrpc":"2.0","id":1,"method":"morphir.initialize","params":{"protocolVersions":["0.1"],"host":{"kind":"cli","name":"morphir-dotnet-kernel-proof","version":"0.0.0"}}}""";
+        """{"jsonrpc":"2.0","id":1,"method":"morphir.initialize","params":{"protocolVersions":["0.2.0-draft.1"],"host":{"kind":"cli","name":"morphir-dotnet-kernel-proof","version":"0.0.0"},"modelTransport":""" + ModelTransportOffer + "}}";
 
     enum Verdict
     {
@@ -54,7 +73,7 @@ public static partial class KernelProof
             return 2;
         }
 
-        output.WriteLine("kernel proof: add-wasm-extension-host task 2.2");
+        output.WriteLine("kernel proof: add-wasm-extension-host task 2.2, after decision MEP-1, with the task 3.1 session");
         output.WriteLine($"os: {RuntimeInformation.OSDescription}");
         output.WriteLine($"os architecture: {RuntimeInformation.OSArchitecture}; process architecture: {RuntimeInformation.ProcessArchitecture}; runtime identifier: {RuntimeInformation.RuntimeIdentifier}");
         output.WriteLine($"native aot: {!RuntimeFeature.IsDynamicCodeSupported}");
@@ -97,15 +116,105 @@ public static partial class KernelProof
 
         var claim2 = Check(output, "claim 2", () => CheckMemoryLimit(output, guest, MemoryMinimumPages(kernelModule)));
         var claim3 = Check(output, "claim 3", () => CheckHandle(output, guest));
+        var session = Check(output, "session", () => CheckSession(output, guest));
         var claim1 = Check(output, "claim 1", () => CheckNoTrimWarnings(output, publishLog, sources));
         var bounds = spinPath is null ? Verdict.NotChecked : Check(output, "bounds", () => CheckBounds(output, spinPath));
 
         output.WriteLine("summary:");
-        output.WriteLine($"claim 1, zero IL warnings and no suppressions: {Text(claim1)}");
+        output.WriteLine($"claim 1, no IL warning but the FSharp.Core summary baseline (so zero IL2026 and IL3050), and no suppressions: {Text(claim1)}");
         output.WriteLine($"claim 2, the store limit covers the kernel's memory: {Text(claim2)}");
         output.WriteLine($"claim 3, the host reads the result of handle directly: {Text(claim3)}");
+        output.WriteLine($"session (task 3.1), a whole HostSession through the WASM channel: {Text(session)}");
         output.WriteLine($"bounds (task 2.5), budget, deadline and cancellation stop a spinning guest: {Text(bounds)}");
-        return claim1 == Verdict.Holds && claim2 == Verdict.Holds && claim3 == Verdict.Holds && bounds != Verdict.Fails ? 0 : 1;
+        return claim1 == Verdict.Holds && claim2 == Verdict.Holds && claim3 == Verdict.Holds && session == Verdict.Holds && bounds != Verdict.Fails ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Task 3.1 under the same executable: one whole <see cref="HostSession"/> on the guest through
+    /// <see cref="WasmChannel"/>, on MEP <c>0.2.0-draft.1</c> with the kit's offer: initialize, one
+    /// <c>morphir.frontend.compileModel</c>, shutdown and exit. Each request must be one <c>handle</c> call, and
+    /// no notification may reach the guest, which advertises nothing.
+    /// </summary>
+    static Verdict CheckSession(TextWriter output, ExtismModule guest)
+    {
+        var ok = true;
+        void Expect(bool condition, string what)
+        {
+            output.WriteLine($"  {(condition ? "ok" : "FAILED")}: {what}");
+            ok &= condition;
+        }
+
+        using var channel = WasmChannel.Open(guest, SessionLimits.Default).Match(
+            opened => opened,
+            failure => throw new InvalidOperationException($"the channel did not open: {failure.Message}"));
+        var recording = new RecordingChannel(channel, output);
+        var offer = JsonSerializer.Deserialize(ModelTransportOffer, MepJson.Default.ModelTransportSupport)
+            ?? throw new InvalidOperationException("the offer is empty");
+        var session = new HostSession(recording, new PeerInfo(PeerKind.Cli, "morphir-dotnet-kernel-proof", "0.0.0"), offer);
+        var run = session.RunAsync(CancellationToken.None);
+
+        var initialized = session.InitializeAsync(CancellationToken.None).GetAwaiter().GetResult();
+        var negotiated = initialized.Match(value => value.ProtocolVersion.Value, failure => $"failed: {failure}");
+        output.WriteLine($"  negotiated protocol version: {negotiated}");
+        Expect(negotiated == ProtocolVersion, $"the session negotiated {ProtocolVersion}");
+
+        using var parameters = JsonDocument.Parse(CompileModelParams);
+        var compiled = session.RequestAsync(Method.CompileModel, parameters.RootElement.Clone(), CancellationToken.None).GetAwaiter().GetResult();
+        var success = compiled.Match(
+            result => result.TryGetProperty("success", out var flag) && flag.ValueKind == JsonValueKind.True
+                && result.TryGetProperty("model", out var model) && model.TryGetProperty("irVersion", out var ir) && ir.GetString() == "3.0.0",
+            error => false);
+        output.WriteLine($"  compileModel: {compiled.Match(result => $"success {result.GetProperty("success")}, model irVersion {result.GetProperty("model").GetProperty("irVersion")}", error => $"error {error}")}");
+        Expect(success, "compileModel returned a successful result with an IR 3.0.0 model");
+
+        var shutdown = session.ShutdownAsync(CancellationToken.None).GetAwaiter().GetResult();
+        Expect(shutdown.Match(_ => true, _ => false), "shutdown returned a result");
+        session.ExitAsync().GetAwaiter().GetResult();
+        var ended = run.WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
+
+        output.WriteLine($"  handle calls: {channel.HandleCalls}; requests: {recording.Requests}; notifications sent by the session: {recording.Notifications}, of which delivered: {recording.Notifications - recording.Withheld}");
+        output.WriteLine($"  session failure: {session.FailureOrNull()?.ToString() ?? "none"}; channel failure: {channel.Failure?.Message ?? "none"}; instance ended: {channel.InstanceEnded}; run ended: {ended.Match(() => "end-of-stream", () => "stopped", failure => $"framing {failure}")}");
+        Expect(channel.HandleCalls == recording.Requests && recording.Requests == 3, "one handle call per request (initialize, compileModel, shutdown)");
+        Expect(recording.Notifications == 2 && recording.Withheld == 2, "morphir.initialized and morphir.exit were withheld without a call");
+        Expect(session.FailureOrNull() is null && channel.Failure is null && channel.InstanceEnded, "the session ended cleanly and exit ended the instance");
+        return ok ? Verdict.Holds : Verdict.Fails;
+    }
+
+    /// <summary>Passes every message to the WASM channel and prints it, with the reply.</summary>
+    sealed class RecordingChannel(WasmChannel inner, TextWriter output) : ISingleMessageChannel
+    {
+        public int Requests { get; private set; }
+
+        public int Notifications { get; private set; }
+
+        public int Withheld { get; private set; }
+
+        public async Task<byte[]?> RequestAsync(string method, ReadOnlyMemory<byte> message, CancellationToken cancellation)
+        {
+            Requests++;
+            output.WriteLine($"  request {method} ({message.Length} bytes): {Shorten(Encoding.UTF8.GetString(message.Span))}");
+            var calls = inner.HandleCalls;
+            var reply = await inner.RequestAsync(method, message, cancellation);
+            output.WriteLine($"  reply ({reply?.Length ?? 0} bytes, {inner.HandleCalls - calls} handle call): {(reply is null ? "none" : Shorten(Encoding.UTF8.GetString(reply)))}");
+            return reply;
+        }
+
+        public async Task<byte[]?> NotifyAsync(string method, ReadOnlyMemory<byte> message, CancellationToken cancellation)
+        {
+            Notifications++;
+            var calls = inner.HandleCalls;
+            var reply = await inner.NotifyAsync(method, message, cancellation);
+            var delivered = inner.HandleCalls - calls;
+            if (delivered == 0)
+            {
+                Withheld++;
+            }
+
+            output.WriteLine($"  notification {method}: {(delivered == 0 ? "withheld, no handle call" : $"{delivered} handle call")}");
+            return reply;
+        }
+
+        static string Shorten(string text) => text.Length <= 1200 ? text : $"{text[..1200]}... ({text.Length} characters)";
     }
 
     /// <summary>
@@ -373,7 +482,28 @@ public static partial class KernelProof
         Expect(result.Output.Length > 0, "the kernel holds output");
         var (wellFormed, kind) = JsonRpcResponse(result.Output);
         Expect(wellFormed, $"the output is one JSON-RPC 2.0 response to id 1 ({kind})");
+        var negotiated = ResultProtocolVersion(result.Output);
+        Expect(negotiated == ProtocolVersion, $"the guest chose MEP {ProtocolVersion} (result.protocolVersion {negotiated ?? "absent"})");
         return ok ? Verdict.Holds : Verdict.Fails;
+    }
+
+    static string? ResultProtocolVersion(byte[] bytes)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(bytes);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("result", out var result)
+                && result.ValueKind == JsonValueKind.Object
+                && result.TryGetProperty("protocolVersion", out var version)
+                && version.ValueKind == JsonValueKind.String
+                    ? version.GetString()
+                    : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     static (bool WellFormed, string Kind) JsonRpcResponse(byte[] bytes)
@@ -413,20 +543,34 @@ public static partial class KernelProof
         }
 
         var lines = File.ReadAllLines(publishLog);
-        var ilLines = lines.Where(line => IlDiagnostic().IsMatch(line)).Distinct().ToArray();
+        var ilLines = lines.Where(line => IlDiagnostic().IsMatch(line)).Select(line => line.Trim()).Distinct().ToArray();
         output.WriteLine($"  publish log: {publishLog}, {lines.Length} lines");
         foreach (var line in lines.Where(line => LogSummary().IsMatch(line)))
         {
             output.WriteLine($"  log summary: {line.Trim()}");
         }
 
+        // The FSharp.Core assembly-level summary lines, which every F#-carrying Native AOT publish in this repository
+        // has, are the baseline that the TestMepAot target accepts and Morphir.Mep.AotProbe keeps as warnings. Every
+        // other IL line fails the claim.
+        var baseline = ilLines.Where(IsFSharpCoreSummary).ToArray();
+        var unexpected = ilLines.Where(line => !IsFSharpCoreSummary(line)).ToArray();
         output.WriteLine($"  IL warnings and errors in the publish log: {ilLines.Length}");
-        foreach (var line in ilLines)
+        output.WriteLine($"  IL2026: {ilLines.Count(line => line.Contains("IL2026", StringComparison.Ordinal))}; IL3050: {ilLines.Count(line => line.Contains("IL3050", StringComparison.Ordinal))}");
+        output.WriteLine($"  the FSharp.Core summary baseline (IL2104, IL3053), as TestMepAot accepts it: {baseline.Length}");
+        foreach (var line in baseline)
         {
-            output.WriteLine($"    {line.Trim()}");
+            output.WriteLine($"    {line}");
+        }
+
+        output.WriteLine($"  other IL warnings and errors: {unexpected.Length}");
+        foreach (var line in unexpected)
+        {
+            output.WriteLine($"    {line}");
         }
 
         var findings = new List<string>();
+        var baselineSettings = new List<string>();
         var files = 0;
         foreach (var file in sources.SelectMany(SourceFiles))
         {
@@ -435,7 +579,11 @@ public static partial class KernelProof
             foreach (var line in File.ReadLines(file))
             {
                 lineNumber++;
-                if (Suppressions.Any(pattern => pattern.IsMatch(line)))
+                if (line.Trim() == FSharpCoreBaselineSetting)
+                {
+                    baselineSettings.Add($"{file}:{lineNumber}: {line.Trim()}");
+                }
+                else if (Suppressions.Any(pattern => pattern.IsMatch(line)))
                 {
                     findings.Add($"{file}:{lineNumber}: {line.Trim()}");
                 }
@@ -448,8 +596,24 @@ public static partial class KernelProof
             output.WriteLine($"    {finding}");
         }
 
-        return ilLines.Length == 0 && findings.Count == 0 && files > 0 ? Verdict.Holds : Verdict.Fails;
+        output.WriteLine($"  the FSharp.Core baseline kept as warnings, not errors, as in Morphir.Mep.AotProbe: {baselineSettings.Count}");
+        foreach (var setting in baselineSettings)
+        {
+            output.WriteLine($"    {setting}");
+        }
+
+        return unexpected.Length == 0 && findings.Count == 0 && files > 0 ? Verdict.Holds : Verdict.Fails;
     }
+
+    /// <summary>The same test as the <c>TestMepAot</c> build target (<c>build/Build.MyriadJson.cs</c>).</summary>
+    static bool IsFSharpCoreSummary(string line) =>
+        line.Contains("FSharp.Core", StringComparison.Ordinal)
+        && (line.Contains("IL2104", StringComparison.Ordinal) || line.Contains("IL3053", StringComparison.Ordinal));
+
+    /// <summary>The one project setting that names an IL code: the FSharp.Core summary baseline of
+    /// <c>tests/Morphir.Mep.AotProbe</c>, which keeps those two lines as warnings under warnings-as-errors. It hides
+    /// nothing; the lines stay in the log and are counted above.</summary>
+    const string FSharpCoreBaselineSetting = "<Warnings" + "NotAsErrors>$(Warnings" + "NotAsErrors);IL2104;IL3053</Warnings" + "NotAsErrors>";
 
     static IEnumerable<string> SourceFiles(string path)
     {

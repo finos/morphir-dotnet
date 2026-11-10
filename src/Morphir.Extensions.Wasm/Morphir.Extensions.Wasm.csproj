@@ -12,6 +12,10 @@
     <PackageReference Include="Wasmtime" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The host session's single-message channel and the MEP wire types (design LAY-1, CHAN-1). -->
+    <ProjectReference Include="../Morphir.Mep/Morphir.Mep.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- The Extism kernel module of moonrockz/extism; see Kernel/PROVENANCE.md. -->
     <EmbeddedResource Include="Kernel/extism-kernel.wasm" LogicalName="Morphir.Extensions.Wasm.Kernel.extism-kernel.wasm" />
     <None Include="Kernel/LICENSE;Kernel/NOTICE;Kernel/PROVENANCE.md" />

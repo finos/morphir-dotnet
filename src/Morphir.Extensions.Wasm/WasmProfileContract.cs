@@ -19,7 +19,6 @@ public sealed class WasmProfileContract
     static readonly Lazy<WasmProfileContract> Embedded = new(Load);
 
     readonly FrozenDictionary<WasmAbi, WasmProfileSurface> profiles;
-    readonly FrozenDictionary<string, ulong> instructionBudgets;
     readonly FrozenDictionary<string, ContractFault> faults;
 
     WasmProfileContract(
@@ -31,7 +30,8 @@ public sealed class WasmProfileContract
         WasmAbi defaultProfile,
         long memoryCeilingBytes,
         long kernelMemoryCeilingBytes,
-        FrozenDictionary<string, ulong> instructionBudgets,
+        ulong instructionBudget,
+        HostSessionLimits hostSession,
         FrozenSet<string> refusalCodes,
         FrozenDictionary<string, ContractFault> faults,
         FrozenDictionary<WasmAbi, WasmProfileSurface> profiles)
@@ -45,10 +45,17 @@ public sealed class WasmProfileContract
         DefaultProfile = defaultProfile;
         MemoryCeilingBytes = memoryCeilingBytes;
         KernelMemoryCeilingBytes = kernelMemoryCeilingBytes;
-        this.instructionBudgets = instructionBudgets;
+        InstructionBudget = instructionBudget;
+        RequestFrameLimitBytes = hostSession.RequestBytes;
+        ResponseFrameLimitBytes = hostSession.ResponseBytes;
+        RequestLimitCode = hostSession.RequestCode;
+        ResponseLimitCode = hostSession.ResponseCode;
         RefusalCodes = refusalCodes;
         this.profiles = profiles;
     }
+
+    /// <summary>The host-session frame limits and their codes, as the contract's <c>hostSession</c> object gives them.</summary>
+    readonly record struct HostSessionLimits(long RequestBytes, long ResponseBytes, string RequestCode, string ResponseCode);
 
     /// <summary>The contract embedded in this library: the pinned <c>wasm-execution-profiles.json</c>.</summary>
     public static WasmProfileContract Pinned => Embedded.Value;
@@ -90,10 +97,29 @@ public sealed class WasmProfileContract
     public WasmProfileSurface Profile(WasmAbi profile) => profiles[profile];
 
     /// <summary>
-    /// The per-call instruction budget the contract gives for <paramref name="key"/>: a MEP version such as
-    /// <c>0.2.0-draft.1</c> or <c>0.1</c>, or <c>probe</c>.
+    /// The one MEP version this host speaks (design MEP-1), whose instruction budget is the host's only budget.
     /// </summary>
-    public bool TryGetInstructionBudget(string key, out ulong budget) => instructionBudgets.TryGetValue(key, out budget);
+    public const string SessionProtocol = "0.2.0-draft.1";
+
+    /// <summary>
+    /// The per-call instruction budget of a session: the contract's budget for MEP <see cref="SessionProtocol"/>
+    /// (5,000,000,000 at the pin). The contract also gives budgets for MEP <c>0.1</c> and for a probe; this host
+    /// speaks neither, so it does not read them (design MEP-1).
+    /// </summary>
+    public ulong InstructionBudget { get; }
+
+    /// <summary>The host session's request frame limit, in bytes, counted over the whole frame, its
+    /// <c>Content-Length</c> header included (6 MiB at the pin).</summary>
+    public long RequestFrameLimitBytes { get; }
+
+    /// <summary>The host session's response frame limit, in bytes, counted over the whole frame (16 MiB at the pin).</summary>
+    public long ResponseFrameLimitBytes { get; }
+
+    /// <summary>The code of a request frame over its limit, <c>extension.request_limit</c> (host-session rule <c>request-limit</c>).</summary>
+    public string RequestLimitCode { get; }
+
+    /// <summary>The code of a response frame over its limit, <c>extension.incomplete_session</c> (host-session rule <c>response-limit</c>).</summary>
+    public string ResponseLimitCode { get; }
 
     static WasmProfileContract Load()
     {
@@ -140,8 +166,13 @@ public sealed class WasmProfileContract
             throw Invalid($"its kernel memory ceiling {kernelCeiling} differs from the memory ceiling {memoryCeiling}, which one store limit cannot apply");
         }
 
-        var budgets = bounds.GetProperty("instructionBudget").EnumerateObject()
-            .ToFrozenDictionary(budget => budget.Name, budget => budget.Value.GetUInt64(), StringComparer.Ordinal);
+        if (!bounds.GetProperty("instructionBudget").TryGetProperty(SessionProtocol, out var sessionBudget))
+        {
+            throw Invalid($"it gives no instruction budget for MEP {SessionProtocol}");
+        }
+
+        var budget = sessionBudget.GetUInt64();
+        var hostSession = ReadHostSession(root.GetProperty("hostSession"));
 
         var refusalCodes = root.GetProperty("refusals").EnumerateArray()
             .Select(refusal => refusal.GetProperty("code").GetString()!)
@@ -172,10 +203,34 @@ public sealed class WasmProfileContract
             defaultProfile,
             memoryCeiling,
             kernelCeiling,
-            budgets,
+            budget,
+            hostSession,
             refusalCodes,
             faults,
             profiles.ToFrozenDictionary());
+    }
+
+    /// <summary>The frame limits of the host session, counted over the whole frame, and the codes of its
+    /// <c>request-limit</c> and <c>response-limit</c> rules.</summary>
+    static HostSessionLimits ReadHostSession(JsonElement hostSession)
+    {
+        var limits = hostSession.GetProperty("frameLimits");
+        if (limits.GetProperty("counted").GetString() is not "whole-frame" and var counted)
+        {
+            throw Invalid($"its frame limits are counted over {counted}, and this library counts the whole frame");
+        }
+
+        string Code(string rule) =>
+            hostSession.GetProperty("rules").EnumerateArray()
+                .Where(entry => entry.GetProperty("id").GetString() == rule)
+                .Select(entry => entry.GetProperty("code").GetString())
+                .SingleOrDefault() ?? throw Invalid($"it has no code for the host-session rule {rule}");
+
+        return new HostSessionLimits(
+            limits.GetProperty("requestBytes").GetInt64(),
+            limits.GetProperty("responseBytes").GetInt64(),
+            Code("request-limit"),
+            Code("response-limit"));
     }
 
     static WasmProfileSurface ReadProfile(WasmAbi abi, JsonElement profile)

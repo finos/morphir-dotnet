@@ -49,6 +49,21 @@ internal sealed record CraftedCase(
     /// <summary>The names of the bounds the case exercises (its <c>bounds</c> member), empty when it has none.</summary>
     public IReadOnlyList<string> Bounds { get; init; } = [];
 
+    /// <summary>The case's <c>worker.requestBytes</c>, or null when the run uses the default.</summary>
+    public long? WorkerRequestBytes { get; init; }
+
+    /// <summary>The case's <c>worker.responseBytes</c>, or null when the run uses the default.</summary>
+    public long? WorkerResponseBytes { get; init; }
+
+    /// <summary>The expected stdout frames of each run's <c>expect</c>, as written: each a <c>sameAsFrame</c>,
+    /// <c>json</c> or <c>pointers</c> matcher.</summary>
+    public IReadOnlyList<IReadOnlyList<JsonElement>> StdoutFrameMatchers =>
+        Runs.EnumerateArray()
+            .Select(run => run.TryGetProperty("expect", out var expect) && expect.TryGetProperty("stdoutFrames", out var frames)
+                ? (IReadOnlyList<JsonElement>)frames.EnumerateArray().ToList()
+                : [])
+            .ToList();
+
     /// <summary>The frame names of each run, in run order.</summary>
     public IReadOnlyList<IReadOnlyList<string>> RunFrames =>
         Runs.EnumerateArray()
@@ -227,6 +242,10 @@ internal static class CraftedCorpus
         return buffer.ToArray();
     }
 
+    /// <summary>The <c>method</c> of the frame <paramref name="name"/>.</summary>
+    public static string FrameMethod(string name) =>
+        Document.Value.RootElement.GetProperty("frames").GetProperty(name).GetProperty("method").GetString()!;
+
     /// <summary>Whether the frame <paramref name="name"/> is a request, a message with an <c>id</c>.</summary>
     public static bool IsRequest(string name) =>
         Document.Value.RootElement.GetProperty("frames").GetProperty(name).TryGetProperty("id", out _);
@@ -253,6 +272,12 @@ internal static class CraftedCorpus
                     Bounds = @case.TryGetProperty("bounds", out var bounds)
                         ? bounds.EnumerateArray().Select(bound => bound.GetString()!).ToList()
                         : [],
+                    WorkerRequestBytes = @case.TryGetProperty("worker", out var worker) && worker.TryGetProperty("requestBytes", out var request)
+                        ? request.GetInt64()
+                        : null,
+                    WorkerResponseBytes = @case.TryGetProperty("worker", out var limits) && limits.TryGetProperty("responseBytes", out var response)
+                        ? response.GetInt64()
+                        : null,
                 };
             })
             .ToList();

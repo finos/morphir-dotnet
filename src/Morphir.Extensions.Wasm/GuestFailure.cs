@@ -145,7 +145,7 @@ public abstract record HandleOutcome
 
     /// <summary>
     /// <c>handle</c> returned. What its result, output and error mean for the session (an Extism error, a non-zero
-    /// result, no output) is the Extism adapter's to decide (task 3.1).
+    /// result, no output) the Extism adapter, <see cref="WasmChannel"/>, decides.
     /// </summary>
     /// <param name="Result">The i32 result and what the kernel holds.</param>
     /// <param name="FuelUsed">The fuel the call used: its budget minus what remained.</param>
