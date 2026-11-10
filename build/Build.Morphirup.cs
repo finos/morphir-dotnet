@@ -268,8 +268,26 @@ partial class Build
             if (!OperatingSystem.IsLinux())
                 throw new Exception("--morphirup-containers runs only on Linux.");
 
-            foreach (var image in MorphirupContainers)
+            foreach (var (pinned, index) in MorphirupContainers.Select((image, index) => (image, index)))
             {
+                // A Linux executable needs glibc and nothing else, so the check removes OpenSSL where the image ships it
+                // (ubuntu:22.04 has libssl3), in a derived image; the precondition below then checks what is left.
+                var container = $"morphirup-check-{rid}-{index}";
+                var image = $"morphirup-check-{rid}:{index}";
+                var purge = RunChecked("docker", ["run", "--name", container, pinned, "sh", "-c", """
+                    removed=""
+                    for package in libssl3 libssl1.1; do
+                        if dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'install ok installed'; then
+                            dpkg --purge --force-depends "$package" > /dev/null 2>&1
+                            removed="$removed $package"
+                        fi
+                    done
+                    echo "$removed"
+                    """], null, root, $"removing OpenSSL from {pinned}").Trim();
+                RunChecked("docker", ["commit", container, image], null, root, $"committing {image}");
+                RunChecked("docker", ["rm", container], null, root, $"removing the container {container}");
+                Serilog.Log.Information("{Image}: {Removed}", pinned, purge.Length > 0 ? $"removed {purge} (dpkg --purge --force-depends) in {image}" : "ships no OpenSSL package");
+
                 // The image must be the clean environment it claims to be: glibc and no .NET, libicu, libssl or libcrypto.
                 var leftovers = RunChecked("docker", ["run", "--rm", image, "sh", "-c",
                     "ls -d /usr/lib/*/libicu* /lib/*/libicu* /usr/lib/libicu* /usr/lib/*/libssl.so* /lib/*/libssl.so* /usr/lib/libssl.so* "
@@ -289,7 +307,8 @@ partial class Build
                     throw new Exception($"In {image}, --version printed '{containerVersion.Trim()}', not '{hostVersion.Trim()}'.");
                 if (containerPlan != hostPlan)
                     throw new Exception($"In {image}, the plan output differs from the runner's.");
-                Serilog.Log.Information("✓ {Rid} in {Image} ({Glibc}), with no .NET, libicu, libssl or libcrypto: the same version and plan", rid, image, glibc);
+                Serilog.Log.Information("✓ {Rid} in {Image} ({Glibc}), with no .NET, libicu, libssl or libcrypto: the same version and plan", rid, pinned, glibc);
+                RunChecked("docker", ["rmi", image], null, root, $"removing the image {image}");
             }
         });
 

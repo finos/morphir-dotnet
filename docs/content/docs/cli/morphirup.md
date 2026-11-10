@@ -68,7 +68,8 @@ A Native AOT executable needs the glibc of the machine that linked it, or newer.
 in an `ubuntu:22.04` image pinned by digest, which has glibc 2.35, and not on the runner. The release job reads the
 glibc versions each Linux executable needs (`readelf --version-info`) and fails if one is above 2.35. It then runs the
 same commands in `debian:12-slim` (glibc 2.36) and in the `ubuntu:22.04` build image (glibc 2.35), after checking that
-neither image has .NET, `libicu`, `libssl` or `libcrypto`. It also checks that each archive holds exactly the four
+neither image has .NET, `libicu`, `libssl` or `libcrypto`. `ubuntu:22.04` ships OpenSSL (`libssl3`), so the check
+removes that package from a copy of the image first. It also checks that each archive holds exactly the four
 files above and that the notices name every package the compiler linked. Nothing more is checked: no other
 distribution, glibc version or operating-system version is tested.
 
