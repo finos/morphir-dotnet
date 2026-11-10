@@ -199,12 +199,12 @@ let tests =
                 "no other case of the group sets a budget"
         }
 
-        // Spec "Generated cases keep stable ids": Case added upstream, at the move of the pin to 48d10706f.
-        test "The cases added at 48d10706f took the next unused numbers and no number moved" {
+        // Spec "Generated cases keep stable ids": Case added upstream, at the moves of the pin to 48d10706f and 8d678d2b.
+        test "The cases added at 48d10706f and 8d678d2b took the next unused numbers and no number moved" {
             let map = committedIds ()
 
             Expect.equal map.Pin.Commit PinnedCommit "The map was generated from the pin"
-            Expect.equal (highest map) PinnedCaseCount "58 numbers, none retired"
+            Expect.equal (highest map) PinnedCaseCount "59 numbers, none retired"
 
             Expect.isTrue
                 (map.Entries
@@ -224,6 +224,7 @@ let tests =
                     "sandbox/logging", 56
                     "extism/notification-delivery-unlisted", 57
                     "bounds/small-budget", 58
+                    "bounds/error-at-ceiling", 59
                 ] do
                 Expect.equal
                     (Map.tryFind caseId numbers)
