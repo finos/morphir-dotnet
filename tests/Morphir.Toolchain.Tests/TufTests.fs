@@ -408,3 +408,74 @@ let failureCodeTests =
         Expect.equal (TufFailure.role (TufFailure.Expired TufRole.Snapshot)) (Some TufRole.Snapshot) "the role a diagnostic names"
         Expect.equal (TufFailure.role (TufFailure.NonPortableTarget "x")) (Some TufRole.Targets) "a target path is targets metadata's"
         Expect.equal (TufFailure.role (TufFailure.RootRotationInvalid(2UL, "reason"))) (Some TufRole.Root) "rotation is the root's")
+[<Tests>]
+let spikeProfileTests =
+    // The 16 profile cases of the TUF client evaluation (spike/tuf-client-evaluation, results/conformance-win-arm64.md),
+    // on the pinned signed repository's keys. Three need a transport or durable state, which this slice does not have;
+    // the report lists them.
+    let rootKeys () = keysOf "root"
+    let newRootKeys () = [ newTestKey "root-a"; newTestKey "root-b" ]
+    let padded (value: Value) = Array.append (canonical value) (Array.create (70 * 1024) (byte ' '))
+
+    testList "TUF profile cases from the client evaluation" [
+        testCase "1 rotation v1 to v2 meeting both thresholds" (fun () ->
+            Expect.equal (refreshed (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ rootVersion 2UL (rootKeys ()) 2 (rootKeys ()) ]))).Root.Version 2UL "v2")
+
+        testCase "2 rotation signed by a new threshold only" (fun () ->
+            rotationRefused (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ rootVersion 2UL (newRootKeys ()) 2 (newRootKeys ()) ])))
+
+        testCase "3 rotation signed by the old threshold only" (fun () ->
+            rotationRefused (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ rootVersion 2UL (newRootKeys ()) 2 (rootKeys ()) ])))
+
+        testCase "4 2.root.json whose signed version is 3" (fun () ->
+            let set = metadataSet "metadata"
+            let v3 = canonical (rootVersion 3UL (rootKeys ()) 2 (rootKeys ()))
+            rotationRefused (refresh (anchor ()) { sourceOf set [] with Root = fun v -> if v = 1UL then Some(canonical set.Root) elif v = 2UL then Some v3 else None }))
+
+        testCase "5 33 newer roots stop after 32 and ask to retry" (fun () ->
+            match refresh (anchor ()) (sourceOf (metadataSet "metadata") [ for v in 2UL .. 34UL -> rootVersion v (rootKeys ()) 2 (rootKeys ()) ]) with
+            | Ok(RefreshOutcome.RootRotationPaused trusted) -> Expect.equal trusted.Root.Version 33UL "paused at v33"
+            | other -> failtestf "expected a pause, got %A" other)
+
+        testCase "6 timestamp v1 served after a persisted timestamp v2" (fun () ->
+            let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet "learnedRevocation") []))
+            Expect.equal (refused (refresh trusted (sourceOf (metadataSet "metadata") []))) (TufFailure.Rollback TufRole.Timestamp) "rollback")
+
+        testCase "7 snapshot v2 served as 1.snapshot.json" (fun () ->
+            let other = canonical (metadataSet "learnedRevocation").Snapshot
+            let source = { sourceOf (metadataSet "metadata") [] with Snapshot = fun v -> if v = 1UL then Some other else None }
+            Expect.equal (refused (refresh (anchor ()) source)) (TufFailure.LinkMismatch TufRole.Snapshot) "mix and match")
+
+        testCase "8 and 9 a timestamp of 70 KiB is refused before parsing" (fun () ->
+            // The spike's case 9 ran the same input through a bounding transport; here the client bounds it.
+            let set = metadataSet "metadata"
+            let source = { sourceOf set [] with Timestamp = fun () -> Some(padded set.Timestamp) }
+            Expect.equal (refused (refresh (anchor ()) source)) (TufFailure.MetadataTooLarge(TufRole.Timestamp, 64 * 1024)) "the bound")
+
+        testCase "10 a root v2 of 70 KiB is refused before parsing" (fun () ->
+            let set = metadataSet "metadata"
+            let v2 = padded (rootVersion 2UL (rootKeys ()) 2 (rootKeys ()))
+            let source = { sourceOf set [] with Root = fun v -> if v = 1UL then Some(canonical set.Root) elif v = 2UL then Some v2 else None }
+            Expect.equal (refused (refresh (anchor ()) source)) (TufFailure.MetadataTooLarge(TufRole.Root, 64 * 1024)) "the bound")
+
+        testCase "11 a timestamp with spec_version 2.0.0 is refused" (fun () ->
+            let set = metadataSet "metadata"
+            let timestamp = resign "timestamp" (setAt [ "signed"; "spec_version" ] (text "2.0.0") set.Timestamp)
+
+            match refused (refresh (anchor ()) (sourceOf { set with Timestamp = timestamp } [])) with
+            | TufFailure.MetadataInvalid(TufRole.Timestamp, _) -> ()
+            | other -> failtestf "expected the timestamp to be refused, got %A" other)
+
+        testCase "12 a trusted root with consistent_snapshot false is refused" (fun () ->
+            let root = resign "root" (setAt [ "signed"; "consistent_snapshot" ] (Value.Boolean false) (metadataSet "metadata").Root)
+
+            match TrustAnchor.load TrustAnchorPurpose.TestOnly (canonical root) with
+            | Error(TrustAnchorRefusal.Unreadable(TufFailure.MetadataInvalid(TufRole.Root, _))) -> ()
+            | other -> failtestf "expected the root to be refused, got %A" other)
+
+        testCase "16 the consistent-snapshot path of a target uses / on every system" (fun () ->
+            let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet "metadata") []))
+            let path = "artifacts/morphir-dotnet-native-aot/1.2.3/win-x64.zip"
+            let target = (Option.get trusted.Targets).Targets[path]
+            Expect.equal (TufClient.consistentTargetPath path target.Sha256) $"artifacts/morphir-dotnet-native-aot/1.2.3/{target.Sha256.Text}.win-x64.zip" "the path")
+    ]
