@@ -1,0 +1,99 @@
+name: "WASM engine static link"
+
+# Task 5.1 of the OpenSpec change add-wasm-extension-host: try linking the Wasmtime engine statically into the
+# Native AOT probe on each of the six platforms the Wasmtime package supports, each on a runner of that platform,
+# and record the result. It publishes tests/Morphir.Extensions.Wasm.AotProbe only and does not touch the release
+# profiles (design SEQ-1). A platform where the static link fails still passes: its result says so.
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - ci/wasm-engine-static-link
+        paths:
+            - .github/workflows/wasm-engine-static-link.yml
+            - scripts/wasm-engine-static-link.ps1
+            - build/wasmtime/**
+            - tests/Morphir.Extensions.Wasm.AotProbe/**
+            - src/Morphir.Extensions.Wasm/**
+
+permissions:
+    contents: read
+
+jobs:
+    static-link:
+        name: static link (${{ matrix.rid }})
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 45
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - rid: linux-x64
+                      runner: ubuntu-24.04
+                    - rid: linux-arm64
+                      runner: ubuntu-24.04-arm
+                    - rid: osx-x64
+                      runner: macos-15-intel
+                    - rid: osx-arm64
+                      runner: macos-15
+                    - rid: win-x64
+                      runner: windows-2025
+                    - rid: win-arm64
+                      runner: windows-11-arm
+        env:
+            DOTNET_NOLOGO: "1"
+            DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+            # The published Python 0.6.0 extension, as finos/morphir pins it in .config/published-extension-bundles.toml.
+            GUEST_URL: https://github.com/finos/morphir-python/releases/download/extension/python/v0.6.0/morphir-python-binding-0.6.0.wasm
+            GUEST_SHA256: ce0cba07f0395ff8179b42eb021ade05c68197f69b8e9c0c8bc369d2a035727c
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.1.0
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+
+            - name: Install the Native AOT prerequisites (Linux)
+              if: runner.os == 'Linux'
+              run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+            - name: Download and verify the Python 0.6.0 guest
+              shell: pwsh
+              run: |
+                  $directory = Join-Path $env:RUNNER_TEMP 'guest'
+                  New-Item -ItemType Directory -Force $directory | Out-Null
+                  $file = Join-Path $directory 'morphir-python-binding-0.6.0.wasm'
+                  Invoke-WebRequest -Uri $env:GUEST_URL -OutFile $file
+                  $actual = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+                  if ($actual -ne $env:GUEST_SHA256) { throw "guest SHA-256 $actual, expected $env:GUEST_SHA256" }
+                  Write-Host "guest $file, SHA-256 $actual verified"
+
+            - name: Fetch and verify the pinned Wasmtime C API archive
+              shell: pwsh
+              run: >-
+                  dotnet msbuild tests/Morphir.Extensions.Wasm.AotProbe/Morphir.Extensions.Wasm.AotProbe.csproj
+                  -t:MorphirWasmtimeFetchStaticLibrary -p:MorphirProbeAot=true -p:MorphirWasmtimeStaticLink=true
+                  -p:RuntimeIdentifier=${{ matrix.rid }} -nologo -tl:off -v:m -nodeReuse:false
+
+            - name: Try the static link, fall back to the separate library, and run the probe
+              shell: pwsh
+              run: >-
+                  ./scripts/wasm-engine-static-link.ps1 -Rid ${{ matrix.rid }} -RunnerLabel ${{ matrix.runner }}
+                  -Guest (Join-Path $env:RUNNER_TEMP 'guest/morphir-python-binding-0.6.0.wasm')
+                  -WorkDirectory (Join-Path $env:RUNNER_TEMP 'static-link')
+
+            - name: Upload the result
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: wasm-engine-static-link-${{ matrix.rid }}
+                  path: |
+                      ${{ runner.temp }}/static-link/result.json
+                      ${{ runner.temp }}/static-link/result.md
+                      ${{ runner.temp }}/static-link/*.log
+                      ${{ runner.temp }}/static-link/probe-*.txt
+                  if-no-files-found: warn
+                  retention-days: 30
