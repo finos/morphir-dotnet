@@ -808,3 +808,34 @@ let reviewT4Tests =
             let timestamp = resign "timestamp" (setAt [ "signed"; "note" ] (text "x") set.Timestamp)
             refreshed (refresh (anchor ()) { sourceOf set [] with Timestamp = fun () -> Some(canonical timestamp) }) |> ignore)
     ]
+
+[<Tests>]
+let reviewT5Tests =
+    // Review of #581, T5: removing the snapshot or the targets expiry check, or weakening a threshold of two to one
+    // signature, failed no workflow test.
+    let set () = metadataSet "metadata"
+    let expiredAt = text "2029-01-01T00:00:00Z"
+
+    testList "T5 each expiry and each threshold of two is checked in a real refresh" [
+        testCase "only the snapshot has expired" (fun () ->
+            let s = set ()
+            let expired = relink { s with Snapshot = setAt [ "signed"; "expires" ] expiredAt s.Snapshot }
+            Expect.equal (refused (refresh (anchor ()) (sourceOf expired []))) (TufFailure.Expired TufRole.Snapshot) "snapshot")
+
+        testCase "only the targets have expired" (fun () ->
+            let s = set ()
+            let expired = relink { s with Targets = resign "targets" (setAt [ "signed"; "expires" ] expiredAt s.Targets) }
+            Expect.equal (refused (refresh (anchor ()) (sourceOf expired []))) (TufFailure.Expired TufRole.Targets) "targets")
+
+        testCase "a rotation signed by one of the two root keys is refused" (fun () ->
+            let v2 = rootVersion 2UL (keysOf "root") 2 [ (keysOf "root").Head ]
+            rotationRefused (refresh (anchor ()) (sourceOf (set ()) [ v2 ])))
+
+        testCase "an anchor signed by one of its two root keys is refused" (fun () ->
+            let root = (set ()).Root
+            let once = envelope (memberOf "signed" root) [ (keysOf "root").Head ]
+
+            match TrustAnchor.load TrustAnchorPurpose.TestOnly (canonical once) with
+            | Error(TrustAnchorRefusal.Unreadable(TufFailure.SignatureInvalid TufRole.Root)) -> ()
+            | other -> failtestf "expected one of two signatures to be refused, got %A" other)
+    ]
