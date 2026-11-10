@@ -105,14 +105,15 @@ public sealed class MckRouting : IAsyncDisposable
     }
 
     /// <summary>Whether the process with <paramref name="pid"/> ends within <paramref name="timeout"/>.</summary>
-    public static async Task<bool> EndsWithinAsync(int pid, TimeSpan timeout) => (await ObserveEndAsync(pid, timeout)).Ended;
+    public static async Task<bool> EndsWithinAsync(int pid, TimeSpan timeout, CancellationToken cancellationToken = default) =>
+        (await ObserveEndAsync(pid, timeout, cancellationToken)).Ended;
 
     /// <summary>
     /// Whether the process with <paramref name="pid"/> ends within <paramref name="timeout"/>, and, when it does not,
     /// what the operating system reports about it and its ancestors (state, parent, command), taken before it is
     /// killed for cleanup.
     /// </summary>
-    public static async Task<(bool Ended, string Evidence)> ObserveEndAsync(int pid, TimeSpan timeout)
+    public static async Task<(bool Ended, string Evidence)> ObserveEndAsync(int pid, TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         Process process;
         try
@@ -126,17 +127,24 @@ public sealed class MckRouting : IAsyncDisposable
 
         using (process)
         {
-            using var wait = new CancellationTokenSource(timeout);
+            using var wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            wait.CancelAfter(timeout);
             try
             {
                 await process.WaitForExitAsync(wait.Token);
                 return (true, $"pid {pid}: exited");
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                var evidence = await DescribeAsync(pid);
+                var evidence = await DescribeAsync(pid, cancellationToken);
                 process.Kill(entireProcessTree: true);
                 return (false, evidence);
+            }
+            catch (OperationCanceledException)
+            {
+                // The caller's deadline: stop the process, then let the cancellation through.
+                process.Kill(entireProcessTree: true);
+                throw;
             }
         }
     }
@@ -146,14 +154,14 @@ public sealed class MckRouting : IAsyncDisposable
     /// <c>/bin/ps</c>. Each entry has the process id, its state (Z is a zombie: exited, not yet reaped by its parent),
     /// its parent and its command.
     /// </summary>
-    public static async Task<string> DescribeAsync(int pid)
+    public static async Task<string> DescribeAsync(int pid, CancellationToken cancellationToken = default)
     {
         var entries = new List<string>();
         var current = pid;
         for (var depth = 0; depth < 16 && current > 0; depth++)
         {
             var (entry, parent) = OperatingSystem.IsLinux() ? DescribeLinux(current)
-                : OperatingSystem.IsMacOS() ? await DescribeMacOsAsync(current)
+                : OperatingSystem.IsMacOS() ? await DescribePsAsync(current, cancellationToken)
                 : ($"pid {current}: still running", 0);
             entries.Add(entry);
             if (parent <= 0 || current == 1) break;
@@ -203,10 +211,11 @@ public sealed class MckRouting : IAsyncDisposable
         return ($"pid {pid} state {fields[0]} ppid {parent} fds {descriptors} comm {comm} cmd [{command}]", parent);
     }
 
-    private static async Task<(string Entry, int Parent)> DescribeMacOsAsync(int pid)
+    /// <summary>One entry of <see cref="DescribeAsync"/> from <c>/bin/ps</c>, as on macOS, which has no <c>/proc</c>.</summary>
+    public static async Task<(string Entry, int Parent)> DescribePsAsync(int pid, CancellationToken cancellationToken = default)
     {
-        var result = await ChildProcess.RunAsync(ChildProcess.StartInfo("/bin/ps", "-o", "pid=,ppid=,stat=,command=", "-p", pid.ToString()),
-            TimeSpan.FromSeconds(10));
+        var result = await RunDiagnosticAsync(ChildProcess.StartInfo("/bin/ps", "-o", "pid=,ppid=,stat=,command=", "-p", pid.ToString()),
+            cancellationToken);
         var line = result.StandardOutput.Trim();
         if (line.Length == 0) return ($"pid {pid}: not listed by ps", 0);
         var parts = line.Split(' ', 4, StringSplitOptions.RemoveEmptyEntries);
@@ -214,6 +223,19 @@ public sealed class MckRouting : IAsyncDisposable
         if (line.Length > 200) line = line[..200] + "...";
         return ($"ps [{line}]", parent);
     }
+
+    /// <summary>
+    /// The gate of diagnostic children: one at a time, apart from <see cref="ProcessGate.Shared"/>, whose slots the
+    /// routing tests hold while they describe a process.
+    /// </summary>
+    private static readonly ProcessGate DiagnosticGate = new(1);
+
+    /// <summary>Holds the diagnostic slot until disposed, for tests of the cancellation of a waiting diagnostic.</summary>
+    public static Task<IDisposable> HoldDiagnosticSlotAsync() => DiagnosticGate.EnterAsync();
+
+    /// <summary>Runs a short diagnostic child, such as <c>/bin/ps</c>, for the description of a process.</summary>
+    public static Task<ChildProcessResult> RunDiagnosticAsync(ProcessStartInfo start, CancellationToken cancellationToken) =>
+        ChildProcess.RunAsync(start, TimeSpan.FromSeconds(10), cancellationToken, DiagnosticGate);
 
     public async ValueTask DisposeAsync() => await Sandbox.DisposeAsync();
 }

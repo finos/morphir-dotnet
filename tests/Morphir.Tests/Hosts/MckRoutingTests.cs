@@ -177,7 +177,7 @@ public sealed class MckRoutingTests
             var (tool, grandchild) = await MckRouting.WaitForPidsAsync(pids, token);
             // Only the CLI is killed, as Task Manager or a CI runner would do: not its tree.
             using (var process = System.Diagnostics.Process.GetProcessById(cli)) process.Kill(entireProcessTree: false);
-            ended = (await MckRouting.EndsWithinAsync(tool, TimeSpan.FromSeconds(20)), await MckRouting.EndsWithinAsync(grandchild, TimeSpan.FromSeconds(20)));
+            ended = (await MckRouting.EndsWithinAsync(tool, TimeSpan.FromSeconds(20), token), await MckRouting.EndsWithinAsync(grandchild, TimeSpan.FromSeconds(20), token));
         }, started: pid => cli = pid);
 
         ended.Tool.Should().BeTrue("the tool is in the CLI's kill-on-close job");
@@ -201,10 +201,10 @@ public sealed class MckRoutingTests
         var result = await ChildProcess.ConverseAsync(start, Timeout, async (_, _, token) =>
         {
             var (toolPid, grandchildPid) = await MckRouting.WaitForPidsAsync(pids, token);
-            before = await MckRouting.DescribeAsync(grandchildPid);
+            before = await MckRouting.DescribeAsync(grandchildPid, token);
             SendSignal(cli, SigTerm).Should().Be(0);
-            tool = await MckRouting.ObserveEndAsync(toolPid, TimeSpan.FromSeconds(20));
-            grandchild = await MckRouting.ObserveEndAsync(grandchildPid, TimeSpan.FromSeconds(20));
+            tool = await MckRouting.ObserveEndAsync(toolPid, TimeSpan.FromSeconds(20), token);
+            grandchild = await MckRouting.ObserveEndAsync(grandchildPid, TimeSpan.FromSeconds(20), token);
         }, started: pid => cli = pid);
 
         // The evidence is the process state and ancestry (Linux /proc, macOS ps) of a process that did not end, taken

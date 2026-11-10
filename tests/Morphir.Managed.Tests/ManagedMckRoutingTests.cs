@@ -59,7 +59,7 @@ public sealed class ManagedMckRoutingTests
         {
             var (tool, grandchild) = await MckRouting.WaitForPidsAsync(pids, token);
             using (var process = System.Diagnostics.Process.GetProcessById(cli)) process.Kill(entireProcessTree: false);
-            ended = (await MckRouting.EndsWithinAsync(tool, TimeSpan.FromSeconds(20)), await MckRouting.EndsWithinAsync(grandchild, TimeSpan.FromSeconds(20)));
+            ended = (await MckRouting.EndsWithinAsync(tool, TimeSpan.FromSeconds(20), token), await MckRouting.EndsWithinAsync(grandchild, TimeSpan.FromSeconds(20), token));
         }, started: pid => cli = pid);
 
         ended.Should().Be((true, true));
