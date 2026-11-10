@@ -58,8 +58,8 @@ An installed entry's `deployments` SHALL list the offerings of the running relea
 - **WHEN** an installed process extension speaks `0.2.0-draft.1` and a user runs `extension list --json` in the `native-aot` `morphir`
 - **THEN** its `deployments` are `native-aot`, `self-contained`, `framework-dependent` and `dotnet-tool`, and `available` is true
 
-#### Scenario: A legacy entry from the Rust CLI
-- **WHEN** the shared catalog holds an entry that speaks only MEP `0.1`
+#### Scenario: An entry that speaks only MEP 0.1
+- **WHEN** the shared catalog holds a current entry that speaks only MEP `0.1`
 - **THEN** its entry has `deployments` `[]`, `available` false and a `reason` saying that it speaks only MEP `0.1`, which is not supported, and the list exits with code 0
 
 #### Scenario: WASM entry

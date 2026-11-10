@@ -93,7 +93,7 @@ The installer SHALL check the descriptor against its `.sha256` file, and each ar
 - **THEN** the install fails with `extension.digest_mismatch`
 
 ### Requirement: A descriptor is read with the parent descriptor rules
-The installer SHALL read the descriptor only at the current draft, exactly `2.0.0-draft.2` until finos/morphir#1149 replaces it with `2.0.0-draft.3`, refusing others with `extension.unsupported_contract_version` (decision DOC-1), require claims on every artifact, require a platform triple for process artifacts and none for WASM, refuse a descriptor that mixes runtimes, and refuse claims that differ between artifacts unless `platformDifferences` is `declared`.
+The installer SHALL read the descriptor only when its `$schema` is the release schema URL at `0.1.0-preview.1` (Decision 15A), refusing others with `extension.unsupported_contract_version` (decision DOC-1), require claims on every artifact, require a platform triple for process artifacts and none for WASM, refuse a descriptor that mixes runtimes, and refuse claims that differ between artifacts unless `platformDifferences` is `declared`.
 
 #### Scenario: Undeclared difference
 - **WHEN** two artifacts' claim sets differ and `platformDifferences` is `none`
@@ -104,7 +104,7 @@ The installer SHALL read the descriptor only at the current draft, exactly `2.0.
 - **THEN** the install fails with `extension.unsupported_package`
 
 ### Requirement: A target archive holds exactly one executable
-Provisional pending Q-ARCHIVE and Q-MULTIFILE. When a process artifact is a `.zip`, `.tgz` or `.tar.gz` target archive, the installer SHALL read it with the same entry rules and limits, require exactly one regular file, and install that file. Its digest SHALL be the installed digest; the archive's digest SHALL be kept only in the .NET inventory. More than one file SHALL be refused with `extension.multi_file_artifact`.
+Provisional pending Q-ARCHIVE and finos/morphir#1151 (open), whose `package` member would replace this rule. When a process artifact is a `.zip`, `.tgz` or `.tar.gz` target archive, the installer SHALL read it with the same entry rules and limits, require exactly one regular file, and install that file. Its digest SHALL be the installed digest; the archive's digest SHALL be kept only in the .NET inventory. More than one file SHALL be refused with `extension.multi_file_artifact`.
 
 #### Scenario: One executable
 - **WHEN** the selected target archive holds only `acme-backend.exe`
@@ -191,6 +191,6 @@ Provisional pending Q-PROVENANCE. For a global install from a file or staged fol
 - **THEN** its catalog entry and lock name the generated repository as a `local-directory` index, and its generated history omits `platform`
 
 #### Scenario: Generated WASM history
-- **WHEN** the generated history for a WASM package is read with the reference index reader
+- **WHEN** the generated history for a WASM package is read with the index record reader
 - **THEN** its artifact record has no `platform` member and is accepted
 </content>

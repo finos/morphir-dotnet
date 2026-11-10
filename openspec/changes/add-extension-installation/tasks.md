@@ -6,24 +6,30 @@ GitHub issue: [finos/morphir-dotnet#558](https://github.com/finos/morphir-dotnet
 <!-- TRACKING: link the dedicated installer issue here once it exists. -->
 No Beads id is recorded; do not invent one.
 
-Dependencies. The design groups its questions in two. One group follows today's reference behavior, which stands in for the shared contract until finos/morphir writes it down; those need no maintainer answer to start. The other group needs the maintainer. A task waits only on the second group.
+Dependencies. The design groups its questions in two. One group follows today's reference behavior or an open parent proposal, which stands in for the shared contract until finos/morphir writes it down; those need no maintainer answer to start, and a change in the parent's review changes the named specs first. The other group needs the maintainer. Parent contracts are named where a task waits on them.
 
-- Can start now: group 1; 2.1 to 2.8 and 2.10; 3.1 to 3.5; 4.1 to 4.3; 5.1; 6.5 (the shared catalog first).
+- Can start now: group 1; 2.1 to 2.4 and 2.10; 3.1, 3.3 and 3.4; 5.1.
+- Waits on parent contracts in finos/morphir:
+  - 2.5 to 2.8, 3.2, 3.5, 3.6, 4.1 and 4.9 on finos/morphir#1150 (open, read at `6e15650`). It gives the family's schema URLs (Decision 15A), the journal, the history rule and the old-state move (Decisions 10 and 11).
+  - 2.7, 2.8 and 4.1 also on the member tables of finos/morphir#1149's task 1.4, which is not done yet. #1149 is merged, but its task 1.4 page is the authority for the catalog, lock and repositories members. Until then, the reference behavior is the only evidence.
+  - 4.3 also on the claims `$schema` in `describe` answers: the probe refuses an answer without it, so the test guest, and every guest built on `Morphir.Mep`, must answer with it first (provisional on #1150).
+  - 8.1 on the shared case manifest of #1149's task 1.2.
+  - 5.3, and the F# frontend for adoption task 3.3, on finos/morphir#1151 (open), the multi-file package contract the maintainer decided on 9 November 2026.
+  - 6.1, 6.4 and 7.1's plan answer on the shared toolchain contract (finos/morphir#1147, open). Without that contract, the pin and overlay formats would be a .NET-only parallel design.
 - Waits on a maintainer answer:
   - 4.4 to 4.8 on Q-COMMANDS, Q-DIAG and Q-DEVPOLICY.
-  - 5.2 on Q-ARCHIVE. 5.3 on Q-ARCHIVE, Q-MULTIFILE and Q-WINLAUNCH. 5.4 on Q-PROVENANCE.
+  - 5.2 on Q-ARCHIVE. 5.3 on Q-ARCHIVE and Q-WINLAUNCH. 5.4 on Q-PROVENANCE.
   - 6.1 to 6.3 on Q-LEVELS. 6.4 on Q-OVERLAY. 6.6 on Q-WINLAUNCH. 6.7 on Q-CONFIGREF.
   - An answer that differs from the recommendation changes the named specs first, through task 1.1.
-- Waits on the shared toolchain contract in finos/morphir (raised in 1.2): 6.1 and 6.4, as well as their maintainer answers. Without that contract, the pin and overlay formats would be a .NET-only parallel design.
 - Waits on other work:
   - 5.6 on PRD step 2a, a WASM runtime in this host.
   - 7.2 on the adoption change's group 4 and the separately evaluated TUF client.
-  - 8.1 on finos/morphir#1149 being approved. The maintainer chose one catalog for it on 9 November 2026; this change follows its text at `123bbffc5`.
+  - Real extensions to install: until morphir-dotnet's bundle authoring republishes them at the family version (Decision 13), only extensions published at that version, such as the F# guests, can be installed by a current host (an unconfirmed reading recorded in #1146).
+- Not a prerequisite for the first .NET delivery: 9.1, the cross-host check with the MoonBit host.
 - The adoption change (`openspec/changes/add-deployment-and-acquisition`, on main) consumes this one:
-  - its task 3.3 needs 3.5, 5.2, 5.3 and 7.1, and the Q-MULTIFILE answer;
+  - its task 3.3 needs 3.5, 5.2, 5.3 and 7.1, and the package contract of #1151;
   - its 3.4 needs 6.5;
   - its 4.4 needs 6.4.
-
 Commands follow the repository's build settings. Build one project with `dotnet build <project> -c Release -m:1 -p:UseSharedCompilation=false -nodeReuse:false`. Run Expecto assemblies with `dotnet exec <dll> --filter-test-list "<list>"` and TUnit assemblies with `dotnet exec <dll> --treenode-filter "<filter>"`, as `build/Build.Testing.cs` does. In the notes below:
 
 - `<inst>` stands for `tests/Morphir.Extensions.Installation.Tests/bin/Release/net10.0/Morphir.Extensions.Installation.Tests.dll`;
@@ -36,10 +42,10 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 - [ ] 1.2 Raise the upstream asks of the design's "Raised upstream" list in finos/morphir, and the PRD superset proposal; verify that each question in `design.html` links its issue or proposal.
   - The asks:
     - the maintainer decision MEP-1: MEP `0.1` is not supported, and the supported protocol is the whole 0.2 line (`>=0.2.0-0`, `<0.3.0`, under the npm and Cargo prerelease rule) as an explicit exception to the exact-match rule for prereleases. Say so in `protocol.md` and the extension README, and move the Rust host to the 0.2 line;
-    - the review comments on finos/morphir#1149 listed in the design's "Asks for finos/morphir#1149";
+    - the remaining asks listed in the design's "Asks for the shared extension contract" (finos/morphir#1149 task 1.4 and #1150);
     - the overlay, the level pins and the receipt launch path, for the toolchain contract;
-    - the rules that only the Rust source specifies today, to be written into the contract pages (finos/morphir#1149 task 1.4 covers the catalog, lock, journal, state lock and paths): Q-LOCKPRIM, Q-JOURNAL, Q-STRICTLOCK, Q-CATVER, Q-NUMBERS, Q-PLATFORM, Q-REQHOST, Q-PROBELIMITS, Q-GC and Q-FIXTURES, plus the repository identity spelling;
-    - target and package archives (Q-ARCHIVE), multi-file packages (Q-MULTIFILE), and a provenance kind (Q-PROVENANCE);
+    - the rules that only the reference source specifies today and that #1150 does not yet cover, to be written into the contract pages: Q-PLATFORM, Q-REQHOST, Q-PROBELIMITS, Q-GC and Q-FIXTURES (#1150 covers Q-LOCKPRIM, Q-JOURNAL, Q-STRICTLOCK, Q-NUMBERS and the path spelling; Decision 15A retires Q-CATVER);
+    - target and package archives (Q-ARCHIVE), as review comments on finos/morphir#1151, and a provenance kind (Q-PROVENANCE);
     - the claim check after `update` (Q-CLAIMCHECK).
   - Do not write issue numbers before they exist.
 
@@ -48,19 +54,19 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 - [ ] 2.1 Create `src/Morphir.Extensions.Installation` (F#, referencing `Morphir.Extensions` and `Morphir.Mep`, not `Morphir.Tooling`), `tests/Morphir.Extensions.Installation.Tests` (Expecto) and an AOT probe `tests/Morphir.Extensions.Installation.AotProbe` run in the pull request lane like `TestMepAot`; verify the solution builds and the probe publishes with Native AOT with zero IL2026 and IL3050 warnings.
   - Files: `Morphir.slnx`, `build/Build.Testing.cs` (test project lists), the probe target beside `TestMepAot`.
   - Follow the `fsharp-csharp-interop` skill for every public member C# will call.
-- [ ] 2.2 Add distribution identifiers: the id rule by document version with the reference device-name rule, artifact file names, declared relative paths, channels, selections and SHA-256 digests; verify the `Identifiers` tests pass.
-  - First failing test: `con`, `com1`, `a-`, `A`, 239 characters and the dotted `org.finos.morphir.fsharp-frontend` under `2.0.0-draft.2` are refused with `extension.id_not_portable`; `morphir-elm` is accepted; a declared path of 513 UTF-8 bytes or 241 UTF-16 units is refused. Cases from the toolchain identifier and target path tables.
+- [ ] 2.2 Add distribution identifiers: the id rule of finos/morphir#1149 (merged) with its first-segment device-name rule, the reserved `morphir.` prefix, artifact file names, declared relative paths, channels, selections and SHA-256 digests; verify the `Identifiers` tests pass.
+  - First failing tests: `con`, `con.tools`, `a-`, `A`, `a..b` and 239 characters are refused with `extension.id_not_portable`; `morphir-elm` and `org.finos.morphir.fsharp-frontend` are accepted; `morphir.example` is refused with `extension.reserved_id`; a declared path of 513 UTF-8 bytes or 241 UTF-16 units is refused. Until 8.1 brings in #1149's shared cases, the cases come from #1149's spec scenarios and the toolchain target path tables.
   - Command: build `tests/Morphir.Extensions.Installation.Tests/Morphir.Extensions.Installation.Tests.fsproj`, then `dotnet exec <inst> --filter-test-list "Identifiers"`.
 - [ ] 2.3 Add the platform table from the toolchain contracts: RID to descriptor triple to the "Tool release v1 platform" `os` and `arch`, with musl giving no index platform; verify the `Platforms` tests pass.
   - First failing test: each row of the table maps both ways; `linux-musl-x64` has no index platform, and resolution names it in `extension.no_matching_artifact`.
   - Command: `dotnet exec <inst> --filter-test-list "Platforms"` after the build above.
-- [ ] 2.4 Add claim sets that keep their JSON beside the typed `Morphir.Mep` view, compare over the typed projection with the reference number equality, check `critical` and evaluate `requires.host`; verify the `Claims` tests pass.
+- [ ] 2.4 Add claim sets that keep their JSON beside the typed `Morphir.Mep` view, compare over the typed projection without schema members, check `critical` and evaluate `requires.host`; verify the `Claims` tests pass.
   - First failing tests:
-    - `{"a":1}` differs from `{"a":1.0}`, and `1.0` equals `1.00`;
+    - a claim set holding `1.0` is refused, because shared documents hold integers only (provisional on #1150);
     - key order is ignored and array order is not;
     - an unknown top-level member is ignored, and an absent `critical` equals `[]`;
-    - a claim set at `0.1.0-draft.1` (`statement`, `statementSource`) is refused with `extension.unsupported_contract_version` and is not converted (DOC-1);
-    - a mixed record is refused.
+    - a standalone claim set without the claims `$schema`, including one with `claimsVersion` and nothing else, is refused with `extension.unsupported_contract_version` and is not converted (DOC-1);
+    - an embedded claim set with a `$schema` of its own is refused.
   - Command: `dotnet exec <inst> --filter-test-list "Claims"`.
 - [ ] 2.5 Add index records, JSONL histories and pure resolution; verify the `Resolution` tests pass.
   - First failing tests:
@@ -69,13 +75,14 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - a release whose `requires.host` excludes the host is skipped for an older one;
     - only-`0.1` releases give `extension.no_compatible_mep_version`;
     - two artifacts for one platform are refused;
-    - a WASM record with `platform` `null` is refused, as the reference index reader refuses it.
-    - a history with version 1 lines for 0.1.0 and 0.2.0 and a `2.0.0-draft.2` line for 0.3.0 selects 0.3.0 on stable, and refuses `--version 0.2.0` with `extension.unsupported_contract_version`.
+    - a WASM record with `platform` `null` is refused, as the reference index reader refuses it;
+    - a history whose lines 1 and 2 have `schemaVersion` `2.0.0-draft.2` and whose line 3 is current is refused whole, naming line 1 (#1150);
+    - a history with no record is refused.
   - Command: `dotnet exec <inst> --filter-test-list "Resolution"`.
-- [ ] 2.6 Add release descriptor reading at exactly `2.0.0-draft.2`, with the platform-differences check; verify the `Descriptors` tests pass.
-  - First failing test: two artifacts whose claims differ at `capabilities.backend.targets` with `platformDifferences` `none` are refused naming that member; a descriptor mixing `wasm` and `process` is refused; integer `schemaVersion` 1, `"1.0"` and `2.0.0-draft.1` are refused with `extension.unsupported_contract_version` (DOC-1).
+- [ ] 2.6 Add release descriptor reading at the family's release schema URL (`0.1.0-preview.1`, Decision 15A), with the platform-differences check; verify the `Descriptors` tests pass.
+  - First failing test: two artifacts whose claims differ at `capabilities.backend.targets` with `platformDifferences` `none` are refused naming that member; a descriptor mixing `wasm` and `process` is refused; descriptors with integer `schemaVersion` 1, `"1.0"`, `2.0.0-draft.2` or `2.0.0-draft.3` and no `$schema`, or another family URL, are refused with `extension.unsupported_contract_version` (DOC-1).
   - Command: `dotnet exec <inst> --filter-test-list "Descriptors"`.
-- [ ] 2.7 Add catalog and lock codecs that write the members and values the shared contract defines and read with must-ignore, including the catalog version switch, `critical` and `requires`; pin evidence fixtures with provenance; verify the `StateCodecs` tests pass.
+- [ ] 2.7 Add catalog and lock codecs that write the members and values the shared contract defines, with the family `$schema` written first; catalogs are read with must-ignore unless `critical`, and locks refuse unknown members. Include `critical` and `requires`, and pin evidence fixtures with provenance. Verify the `StateCodecs` tests pass.
   - Fixtures: `tests/Fixtures/ExtensionAcquisition/` holds:
     - `frontend-catalog-v1.json` and `frontend-lock-v1.json`, copied from `ecosystem/morphir-rust/crates/morphir-distribution/tests/fixtures` at submodule `c9f79da`;
     - a catalog, lock, journal, repositories file, history and descriptor written by the pinned Rust CLI, including an entry with `requires.host` and one installed from a version 1 record.
@@ -83,18 +90,19 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - First failing tests:
     - reading `frontend-lock-v1.json` and writing it back gives the same member set and values, with `"platform": null`;
     - the lock writer never adds a top-level member outside the contract's list;
-    - a catalog with a supplied claim set is written as `"2.0.0-draft.2"`;
+    - every catalog and lock is written with its family `$schema` and no `schemaVersion`, and the evidence fixtures (which have `schemaVersion`) are read as old state, not converted;
     - an entry for a release with `requires.host` is written with `critical` `["requires.host"]`;
-    - a Rust-written entry converted from a version 1 record is carried through unchanged when .NET rewrites the catalog, and is listed as unavailable.
+    - a catalog out of order, or naming one id twice, is refused naming the first entry out of place;
+    - a document with a repeated member name, a fraction, or `null` where the member does not allow it is refused.
   - Command: `dotnet exec <inst> --filter-test-list "StateCodecs"`.
 - [ ] 2.8 Add the journal and repositories-file codecs; verify the `StateCodecs` tests pass.
-  - Journal: `schemaVersion` 1, and `nextLock` and `nextCatalog` as byte arrays or `null`.
-  - Repositories file: integer `schemaVersion`, no unknown members, and identities as canonical absolute paths in the platform's ordinary syntax.
+  - Journal: exactly `$schema`, `nextLock` and `nextCatalog`, each `null` or an array of integers from 0 to 255.
+  - Repositories configuration: its family `$schema`, no unknown members, and repository paths written as #1150 spells them.
   - First failing tests:
     - a journal with `nextLock` `null` reads as a deletion;
     - the writer never adds a member;
-    - the Rust-written repositories file from 2.7 reads, and writes back with the same members;
-    - on Windows, `D:\ext-repo` and `\\?\D:\ext-repo` compare equal, and the .NET writer emits `D:\ext-repo`.
+    - a journal or repositories configuration with `schemaVersion` and no `$schema` is reported as old state;
+    - on Windows, a final path reported as `\\?\C:\ext-repo` is written as `C:\ext-repo`, and a current file that names `\\?\C:\ext-repo` is refused.
   - Command: `dotnet exec <inst> --filter-test-list "StateCodecs"`.
 - [ ] 2.10 Add the supported MEP line and the implemented set: the comparators `>=0.2.0-0` and `<0.3.0` under the npm and Cargo prerelease rule, the implemented versions (today `0.2.0-draft.1`), and the runnable check with its two reasons; verify the `MepLine` tests pass.
   - Library: the repository has no SemVer range library in product code. `Morphir.Models/IR/Versioning.fs` parses and prints versions but has no precedence or ranges, and `NuGet.Versioning` reaches only the build projects, transitively.
@@ -110,17 +118,20 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 
 ## 3. Shared state on disk
 
-- [ ] 3.1 Resolve Morphir Home and implement the state lock on `locks/extensions.state.lock` as a whole-file exclusive operating-system lock, the primitive the reference uses today (Q-LOCKPRIM), with its waiting line and cancellation; verify the `StateLock` tests pass on Windows and on Linux or macOS.
+- [ ] 3.1 Resolve Morphir Home and implement the state and repositories locks with the contract's primitive (Q-LOCKPRIM, provisional on #1150): blocking `flock` `LOCK_EX` on a file opened `O_RDWR | O_CREAT | O_CLOEXEC` on Unix, and blocking `LockFileEx` exclusive over the whole range on a file opened to share read, write and delete on Windows. Bind both through `LibraryImport`, because `FileStream.Lock` and `FileShare.None` do not take that lock. Add the waiting line, cancellation and the network file system refusal. Verify the `StateLock` tests pass on Windows and on Linux or macOS.
   - Add a small helper process, `tests/Morphir.Extensions.Installation.LockHelper`, that takes the lock with `LockFileEx` on Windows and `flock` elsewhere, standing in for any other host, such as the MoonBit host, that shares the home.
   - First failing tests:
     - while the helper holds the lock, an acquisition prints one waiting line and blocks;
-    - while .NET holds it, the helper's non-blocking attempt reports contention, not an I/O error;
+    - while .NET holds it, the helper's non-blocking attempt reports contention, and the helper's open of the file succeeds;
+    - the lock file is never written or removed, and the state and repositories locks are never held together;
     - a relative `MORPHIR_HOME` resolves against the current directory.
   - Command: build the helper and the tests, then `dotnet exec <inst> --filter-test-list "StateLock"`.
-- [ ] 3.2 Implement atomic file replacement and the transaction journal with rollback and recovery at every lock acquisition; verify the `Transactions` tests pass.
+- [ ] 3.2 Implement atomic file replacement through `.stage-` files, and the transaction journal: one at a time, recovered at every lock acquisition after old-state detection, with the saved documents validated before they are written. Verify the `Transactions` tests pass.
   - First failing tests:
     - with a writer seam that fails after the lock write, the next acquisition applies the journal and the pair agrees;
-    - a journal in the format of the 2.7 evidence fixtures is applied and removed;
+    - a journal in the format of the 2.7 evidence fixtures is written back by nothing and reported as old state;
+    - a current journal whose saved catalog has no `$schema` is not applied;
+    - a stale `.stage-` file is ignored;
     - a journal with `nextLock` `null` deletes the lock;
     - a reader during a replacement sees the old or the new file.
   - Command: `dotnet exec <inst> --filter-test-list "Transactions"`.
@@ -144,6 +155,14 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - a second global install of an id the catalog holds fails with `extension.already_installed`;
     - a catalog holding a 0.1-only entry lists that entry as unavailable, saying that MEP `0.1` is not supported, and lists the others as usual.
   - Command: `dotnet exec <inst> --filter-test-list "Commit"`.
+- [ ] 3.6 Detect old state under the state lock before any recovery, and implement the one move aside to `backups/extensions-<time>/` with its completion marker (Decisions 10 and 11; layout provisional on #1150); verify the `OldState` tests pass.
+  - First failing tests:
+    - a home whose catalog has `schemaVersion` `2.0.0-draft.2` is reported as old state, naming the catalog, before any journal is read;
+    - a current catalog beside one lock at `"1.0"` makes the whole home old state;
+    - the move takes every lock and journal, then the catalog, writes `.complete`, and leaves the store, a current repositories configuration and both lock files in place;
+    - an interrupted move is completed in the same backup directory, and no second one is started.
+  - Command: `dotnet exec <inst> --filter-test-list "OldState"`.
+
 ## 4. Install from a named repository, and the commands
 
 - [ ] 4.1 Read and write the upstream repositories file under `locks/extensions.repositories.lock`, and add `extension repository add|list|remove`; verify the repository command tests pass.
@@ -177,7 +196,9 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - `--platform` exits 2;
     - `--json` stdout parses as one document with the report members;
     - installing twice fails with `extension.already_installed`;
-    - a global uninstall removes the entry and lock in one journal and keeps the store object.
+    - a global uninstall removes the entry and lock in one journal and keeps the store object;
+    - `morphir.example` is refused with `extension.reserved_id`;
+    - in a home with old state, an install without a terminal and without `--yes` fails, changes nothing and names `morphir doctor --fix` and `--yes`; with `--yes` it moves the old state through 3.6 and installs.
   - Command: `dotnet exec <tooling> --treenode-filter "/*/Morphir.Tooling.Tests.Features.Extensions/ExtensionInstallCommandTests/*"`.
 - [ ] 4.5 Wire `extension update` and `extension info`, including the platform-differences report; verify the command tests pass.
   - First failing tests, in `ExtensionUpdateCommandTests` and `ExtensionInfoCommandTests`:
@@ -187,7 +208,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - `info` of an id that is not installed fails with `extension.not_installed`;
     - a declared platform difference is named in the install report and in `info`.
   - Command: `dotnet exec <tooling> --treenode-filter "/*/Morphir.Tooling.Tests.Features.Extensions/ExtensionUpdateCommandTests/*"`, then the same filter with `ExtensionInfoCommandTests`.
-- [ ] 4.6 List installed extensions in `extension list`, with deliveries `process` and `wasm`, `deployments`, `reason`, the `installation` member with `layer`, and `--platform`; refuse an installed id equal to a built-in id. Verify the registry and list tests pass.
+- [ ] 4.6 List installed extensions in `extension list`, with deliveries `process` and `wasm`, `deployments`, `reason`, the `installation` member, and `--platform`; refuse an installed id equal to a built-in id. Verify the registry and list tests pass.
   - Files: `src/Morphir.Extensions/Registry.fs` (delivery cases, installed claims), `src/Morphir.Tooling/Features/Extensions/ExtensionListReport.cs`. Run the `fsharp-csharp-interop-reviewer` agent on the F# changes.
   - First failing tests, in `tests/Morphir.Extensions.Tests/RegistryTests.fs`:
     - an installed entry whose id equals `morphir.fsharp` is refused with `extension.duplicate_id`, exit 1;
@@ -205,6 +226,12 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - mark step 3 in progress in the extension-model PRD, with the corrections in the design's finding 6;
     - recommend closing #492 as superseded.
   - Command: `dotnet exec <tooling> --treenode-filter "/*/Morphir.Tooling.Tests.Features.Management/*/*"`.
+- [ ] 4.9 Add `morphir doctor` and `morphir doctor --fix` in both hosts over 3.6's move (Decisions 10 and 11); verify the doctor command tests pass.
+  - First failing tests, in `DoctorCommandTests`:
+    - `morphir doctor` in a home with old state lists what `--fix` would move, exits 1 and changes no file;
+    - `morphir doctor --fix --yes` moves it and exits 0, and a second run finds nothing and exits 0;
+    - `morphir doctor --fix` without a terminal and without `--yes` changes nothing.
+  - Command: `dotnet exec <tooling> --treenode-filter "/*/Morphir.Tooling.Tests.Features.Extensions/DoctorCommandTests/*"`.
 
 ## 5. Package archives and staged folders
 
@@ -224,7 +251,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - First failing test: a zip of release assets for the current RID is accepted; two descriptors are refused naming both; a replaced artifact with a matching replaced `.sha256` but the original descriptor digest fails with `extension.digest_mismatch`.
   - Command: `dotnet exec <inst> --filter-test-list "PackageLayout"`.
 - [ ] 5.3 Install a process artifact from a target archive that holds exactly one file, with the Windows `.exe` rule; verify the `TargetArchives` tests pass.
-  - Waits on Q-ARCHIVE, Q-MULTIFILE and Q-WINLAUNCH.
+  - Waits on Q-ARCHIVE and Q-WINLAUNCH, and on finos/morphir#1151: if its `package` member is approved as proposed, a one-file target archive installs as a one-file package instead, and this task follows that contract.
   - First failing test: a target archive with one `.exe` installs that file's digest, and its archive digest is only in the inventory; two files fail with `extension.multi_file_artifact`; on Windows, a file without `.exe` fails with `extension.not_launchable`.
   - Command: `dotnet exec <inst> --filter-test-list "TargetArchives"`.
 - [ ] 5.4 Install a package archive given as a file through the pipeline, with generated local repositories for entries that enter the shared catalog and WASM packages unchecked; verify the `PackageInstall` tests pass.
@@ -248,9 +275,9 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 
 ## 6. Selection layers and activation
 
-- [ ] 6.1 Read and write pin files (`0.1.0-draft.1`) with exact draft matching, critical members and per-platform digests; verify the `Pins` tests pass.
+- [ ] 6.1 Read and write pin files with an exact `$schema` match, critical members and per-platform digests; verify the `Pins` tests pass.
   - Waits on Q-LEVELS and on the shared toolchain contract for level pins.
-  - First failing test: a pin with `0.1.0-draft.2` is refused with `extension.unsupported_contract_version`; a pin with an absolute path member value or a credential member is refused.
+  - First failing test: a pin whose `$schema` is not the URL the toolchain contract defines, or that has `schemaVersion` and no `$schema`, is refused with `extension.unsupported_contract_version`; a pin with an absolute path member value or a credential member is refused.
   - Command: `dotnet exec <inst> --filter-test-list "Pins"`.
 - [ ] 6.2 Resolve through the layers with the discovery boundary and isolation, refuse duplicates within a layer, and report shadowing; verify the `Layers` tests pass.
   - First failing tests:
@@ -272,7 +299,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - First failing tests:
     - two overlays selecting 0.2.0 and 0.3.0 of one id resolve to their own versions, while the global selection still names 0.1.0;
     - an overlay of `/tmp/gen` fails with `extension.overlay_invalid`;
-    - a `"1.0"` shared catalog from the 2.7 fixtures is read: the overlay's ids resolve, and its converted entries are listed as unavailable and not rewritten.
+    - with an overlay set, a catalog an older CLI wrote is handled as 3.6 says: without a terminal and without `--yes`, the command fails and changes nothing.
   - Command: `dotnet exec <inst> --filter-test-list "Overlay"`.
   - Docs: the overlay contract for `morphirup` in `src/Morphir.Extensions.Installation/README.md`.
 - [ ] 6.5 Activate offline: pair agreement, containment, mode and MEP version checks; hash the store object in the read that writes the private copy; launch with the filtered environment and an explicit working directory; check the session against the installed claims. Verify the `Activation` tests pass on Windows and Linux.
@@ -311,21 +338,19 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 
 ## 8. Dotted ids
 
-- [ ] 8.1 Move every document to the drafts of finos/morphir#1149 (its task 2.3), for every id, dotted or not. Write descriptors, index records and the catalog at `2.0.0-draft.3` and locks at `2.0.0-draft.1`, in the one `catalog/extensions.json`, `locks/extensions/` and repository `extensions/`, and read only those drafts. Verify that the `Identifiers`, `StateCodecs` and `Commit` tests gain #1149's shared cases and pass through `src/Morphir.Conformance`.
-  - Waits on #1149's approval. It is provisional on #1149 at `123bbffc5`, because small corrections may follow its review.
-  - First failing tests:
-    - a home holding `acme-backend` and `org.finos.morphir.fsharp-backend` has one catalog listing both, and two locks in `locks/extensions/`;
-    - a `2.0.0-draft.2` catalog is refused with `extension.unsupported_contract_version`, naming the file and the versions read, and nothing changes;
-    - the catalog version switch of 2.7 (Q-CATVER) is gone: every catalog is written at `2.0.0-draft.3`.
-
+- [ ] 8.1 Run finos/morphir#1149's shared extension id cases (its task 1.2) through the compatibility kit runner, and fix what they find in 2.2, 2.7 and 3.5; verify every case reports its expected outcome.
+  - The runner is the standalone `morphir-mck` executable, which `morphir mck` dispatches to as a process (maintainer decision, 10 November 2026). The cases and expectations stay in finos/morphir. This task adds no second checker.
+  - Waits on #1149's task 1.2, which publishes the case manifest.
+  - First failing tests: a home holding `acme-backend` and `org.finos.morphir.fsharp-backend` has one catalog listing both and two locks in `locks/extensions/`, and every derived-name, device-name and length case gives the manifest's outcome.
 ## 9. Integration checks
 
-- [ ] 9.1 Check a shared Morphir Home with a second current host: the MoonBit host, once it installs extensions (finos/morphir#1149 group 3). Each host lists, activates and uninstalls what the other installed, concurrent installs serialize on the state lock, and a journal either leaves is applied by the other; record the outcome and the revisions in the pull request.
-  - Waits on the MoonBit host. The Rust CLI is legacy and is not part of this check (maintainer decision, 9 November 2026).
+- [ ] 9.1 Check a shared Morphir Home with a second current host: the MoonBit host, once it installs extensions. Each host lists, activates and uninstalls what the other installed, concurrent installs serialize on the state lock, and a journal either leaves is applied by the other. Record the outcome and the revisions in the pull request.
+  - Waits on the MoonBit host. It is not a prerequisite for the first .NET delivery. The Rust product CLI is to be deleted (Decision 16) and is not part of this check.
+  - Official qualification of a release belongs to finos/morphir's build orchestration and qualification (Decision 16A). This task records a development check only.
 ## Workflow follow-up
 
 - Link the dedicated installer issue, when it exists, in the proposal and here before claiming tasks.
 - Follow AGENTS.md and `openspec/config.yaml` for review and explicit approval before merge.
-- Archive only after the implemented scope passes. Split 5.6, 7.2 and 8.1 into a follow-up change if they are still waiting.
+- Archive only after the implemented scope passes. Split 5.6, 7.2, 8.1 and 9.1 into a follow-up change if they are still waiting. Multi-file packages (finos/morphir#1151) get their own change once that contract is approved.
 - The `extension-registry` delta is written against the text of `add-deployment-and-acquisition`, which is active on main. If that change archives first, this delta applies as written. If this change archives first, the adoption change's MODIFIED block must take this one's installed-entry sentences.
 </content>

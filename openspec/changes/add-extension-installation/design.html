@@ -99,26 +99,29 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <li><span class="tag obs">Observed</span> The extension-model PRD (<code>docs/content/contributing/design/prds/morphir-extension-model.md</code>) plans step 3: the upstream store, catalog and global locks under <code>MORPHIR_HOME</code>, selection and lock files at four levels, <code>staged/</code> folders with <code>[extension_install] staged</code> (default <code>auto</code>), the extension package archive in zip and tar gzip, real <code>install</code>/<code>use</code>/<code>remove</code>/<code>which</code>, refusal to write dotted ids into shared files, and removal of <code>OsPaths</code>.</li>
 <li><span class="tag obs">Observed</span> Issues #490, #491 and #492 wire the existing <code>dist</code>, <code>tool</code> and <code>extension</code> handlers. #492 is not step 3 (see <a href="#cmd-2">CMD-2</a>).</li>
 <li><span class="tag obs">Observed</span> The approved finos/morphir change <code>add-deployment-and-acquisition</code> needs this installer in tasks 3.3, 3.4 and 4.4. Its adoption in this repository is on main (<code>b8ebd12cd</code>) and is still an active change. Its task 3.1 has landed (#569, <code>4b14b0d</code>): the self-contained F# frontend is published as a folder, not a single file, because the frontend needs file locations for its compiler references (FSF-1).</li>
-<li><span class="tag obs">Observed</span> finos/morphir#1149 proposes dotted extension ids. Its rewrite at <code>123bbffc5</code> (committed, not yet pushed or reviewed) follows the maintainer's choice of one catalog:
+<li><span class="tag obs">Observed</span> finos/morphir#1149 merged on 10 November 2026 (<code>9690dfc37</code>). It allows dotted extension ids and keeps every id in one <code>catalog/extensions.json</code>, one <code>locks/extensions/</code> and one repository <code>extensions/</code>, with no dotted partition. Its text prescribes per-file drafts (descriptor, record and catalog <code>2.0.0-draft.3</code>, lock <code>2.0.0-draft.1</code>); Decision 15A replaced those (next item). Three of its tasks are not done: 1.1 (the normative id page), 1.2 (the shared case manifest), and 1.4 (the member tables in <code>distribution-and-acquisition.md</code>, which become the authority for the catalog, lock and repositories members).</li>
+<li><span class="tag obs">Observed</span> Maintainer Decision 15A (10 November 2026, recorded in finos/morphir#1146) gives each contract family one version, carried by a required <code>$schema</code> naming the file's published schema, with no separate <code>schemaVersion</code>. The extension state family (descriptor, index record, catalog, lock, journal, repositories configuration, claim set) and the toolchain family both restart at <code>0.1.0-preview.1</code>. MEP, the IR <code>formatVersion</code> and tool release metadata v1 stay separate authorities. The decision gives <code>https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/release.schema.json</code> as its example.</li>
+<li><span class="tag obs">Observed</span> finos/morphir#1150 (open, read at <code>6e15650</code>) carries Decision 15A for the extension family and defines the shared files. It covers:
   <ul>
-  <li>Every id, dotted or not, lives in <code>catalog/extensions.json</code>, <code>locks/extensions/</code> and a repository's <code>extensions/</code>.</li>
-  <li>Writers write descriptor, index record and catalog at <code>2.0.0-draft.3</code>, and every lock at <code>2.0.0-draft.1</code>, for every id.</li>
-  <li>Readers read only those drafts and refuse earlier ones by version, with no conversion.</li>
-  <li>Hosts that read only earlier versions, including the released Rust CLI, are not protected.</li>
-  <li>Its task 1.4 makes <code>distribution-and-acquisition.md</code> the authority for the members and values of those documents, the journal, the state lock and the paths, and says equal members and values conform. Its task 2.3 is for this installer.</li>
+  <li>the other schema URLs, encoding (I-JSON, compared by parsed value), absent versus <code>null</code>, unknown-member rules (catalog and records ignore unless critical; locks, journals and the repositories configuration refuse);</li>
+  <li>the lock primitive and how lock files are opened, the refusal of a home on a network file system, path spelling (no <code>\\?\</code>), <code>.stage-</code> files, the journal (exact members, one at a time, validated before recovery), whole histories, and the publish lock;</li>
+  <li>a home an older CLI wrote: detected, offered a move to a marked backup, never read (Decisions 10 and 11), and <code>morphir doctor</code> (with <code>--fix</code>);</li>
+  <li>who republishes existing extensions: morphir-dotnet's bundle authoring (Decision 13).</li>
   </ul>
-  The previous revision, <code>6d58eec56</code>, had a dotted partition (<code>extensions-dotted</code>); that is gone.</li>
-<li><span class="tag obs">Observed</span> The toolchain pages (finos/morphir#1147, at <code>60d363059</code> on <code>feat/morphirup-deployment-acquisition</code>) moved again:
+  Its text is a proposal under review; the decisions it records are the maintainer's.</li>
+<li><span class="tag obs">Observed</span> The maintainer decided on 9 November 2026 (finos/morphir#1146) that the shared contract is extended so that an extension can be a multi-file package, and that no self-unpacking single-file form of the F# frontend is built. finos/morphir#1151 (open, read at <code>083b41eb</code>) proposes that contract, with its own open questions on launching from the store (Q-LAUNCH) and what activation checks (Q-VERIFY).</li>
+<li><span class="tag obs">Observed</span> Decision 16, as amended: the Morphir CLI is the .NET one, and its source stays in finos/morphir-dotnet, pinned in finos/morphir as <code>ecosystem/morphir-dotnet</code>. finos/morphir owns official build orchestration, qualification and publishing, the specs and docs, and FINOS registry-channel governance. The Rust product CLI is to be deleted, and its compatibility implementation is kept separately. This page cites the Rust distribution code at <code>c9f79da</code> as evidence of the reference behavior only.</li><li><span class="tag obs">Observed</span> The toolchain pages (finos/morphir#1147, at <code>60d363059</code> on <code>feat/morphirup-deployment-acquisition</code>) moved again:
   <ul>
   <li>One repository per binding check, with <code>repository_mismatch</code>, which is the manager's check.</li>
   <li>The managed offerings (<code>self-contained</code>, <code>framework-dependent</code>, <code>dotnet-tool</code>) have the built-in F# frontend <code>morphir-dotnet.fsharp</code> in every <code>fsharp</code> recipe. Only <code>native-aot</code> resolves the process frontend (<code>toolset-recipe.md:35</code>).</li>
   <li>A plan covers everything its command writes, and setup's readiness runs the acquired host (<code>manager-result.md:86-88</code>).</li>
   <li><code>local-developer</code> is no longer a receipt authentication value. Developer artifacts never appear in a locked generation (<code>installation-receipt.md:43, 51</code>).</li>
   <li>A learned revocation of a recipe target blocks every generation bound to it (<code>installation-receipt.md:99-107</code>).</li>
-  <li>Recipe question M2 recommends a single-file self-extracting frontend at the archive root, with the recipe and lock binding the archive digest (<code>toolset-recipe.md:215</code>).</li>
+  <li>Recipe question M2 recommended a single-file self-extracting frontend at the archive root (<code>toolset-recipe.md:215</code>); the maintainer has since chosen the package form instead (above).</li>
+  <li>The toolchain documents are a separate family, which also restarts at <code>0.1.0-preview.1</code> under Decision 15A; #1147 is still open.</li>
   </ul>
   See <a href="#trust-1">TRUST-1</a> and <a href="#fsharp-frontend">the F# frontend section</a>.</li>
-<li><span class="tag obs">Observed</span> <code>add-discovery-containment</code> gives the boundary and isolation controls this change uses. <code>establish-morphir-compatibility-kit</code> owns the kit runner in <code>src/Morphir.Conformance</code>; the cases stay in finos/morphir as data.</li>
+<li><span class="tag obs">Observed</span> <code>add-discovery-containment</code> gives the boundary and isolation controls this change uses. The compatibility kit runner is a standalone <code>morphir-mck</code> executable, which <code>morphir mck</code> dispatches to as a process, as dotnet tools are (maintainer decision, 10 November 2026). The shared cases and fixed expectations stay in finos/morphir, and this change adds no second checker.</li>
 </ul>
 
 <h2 id="shared">What "shared" means for today's extensions</h2>
@@ -133,8 +136,8 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <tr><td><span class="tag obs">Observed</span> Every Rust command that needs extensions lists them first.</td><td>finos/morphir <code>crates/morphir/src/commands/compile/prepare.rs:248</code>, <code>generate.rs:207</code>, <code>extension.rs:153</code>.</td></tr>
 </tbody>
 </table>
-<p>So one .NET global install of a guest built on <code>Morphir.Mep</code> into <code>catalog/extensions.json</code> would make every Rust <code>compile</code>, <code>generate</code> and <code>extension list</code> on that Morphir Home fail. The reverse gives nothing either: an extension the Rust CLI installed that speaks only <code>0.1</code> cannot run in .NET. The failure is in the catalog only. Rust reads a lock file only for an id the catalog names. It lists <code>locks/extensions/</code> only to find <code>*.json.transaction</code> journals, whose bytes it writes to the lock path and to the one catalog path without parsing ids (<code>state_io.rs:209-252</code>), and it never lists the store. The first revision of this page said Rust never lists that directory, which was wrong. It is also why #1149 gives dotted journals their own directory. Index records reach a Rust reader only through a repository it is configured to read, and its resolver filters MEP versions per release (<code>resolver.rs:49-64</code>), so an incompatible record fails only the install of that id.</p>
-<p>The maintainer decided on 9 November 2026 that every global install goes to that shared catalog, and that this cost is accepted: a released Rust CLI cannot list a Morphir Home that the .NET host has installed into (<a href="#q-shared">Q-SHARED</a>). The Rust CLI is legacy. Current hosts, .NET now and MoonBit later, share what is installed. Store objects are shared as before. A user who needs the Rust CLI again gives it its own <code>MORPHIR_HOME</code>.</p>
+<p>So one .NET global install of a guest built on <code>Morphir.Mep</code> into <code>catalog/extensions.json</code> would make every Rust <code>compile</code>, <code>generate</code> and <code>extension list</code> on that Morphir Home fail. The reverse gives nothing either: an extension the Rust CLI installed that speaks only <code>0.1</code> cannot run in .NET. The failure is in the catalog only. Rust reads a lock file only for an id the catalog names. It lists <code>locks/extensions/</code> only to find <code>*.json.transaction</code> journals, whose bytes it writes to the lock path and to the one catalog path without parsing ids (<code>state_io.rs:209-252</code>), and it never lists the store. The first revision of this page said Rust never lists that directory, which was wrong. Index records reach a Rust reader only through a repository it is configured to read, and its resolver filters MEP versions per release (<code>resolver.rs:49-64</code>), so an incompatible record fails only the install of that id.</p>
+<p>The maintainer decided on 9 November 2026 that every global install goes to that shared catalog, and that this cost is accepted: a released Rust CLI cannot list a Morphir Home that the .NET host has installed into (<a href="#q-shared">Q-SHARED</a>). The Rust product CLI is to be deleted (Decision 16). Current hosts, .NET now and MoonBit later, share what is installed. A home an older CLI wrote is not read at all: the host offers to move it aside (Decisions 10 and 11). Store objects are shared as before. A user who needs the Rust CLI again gives it its own <code>MORPHIR_HOME</code>.</p>
 <h2 id="goals">Goals and non-goals</h2>
 <p><strong>Goals.</strong></p>
 <ul>
@@ -152,7 +155,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <h3>1. Add a local repository</h3>
 <p>Dana's build produced a repository directory in the upstream layout: <code>D:\ext-repo\extensions\acme-backend.jsonl</code> and the executables below <code>D:\ext-repo\artifacts\</code>. One line of the history, pretty-printed:</p>
 <pre><code class="language-json">{
-  "schemaVersion": "2.0.0-draft.2",
+  "$schema": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/index-record.schema.json",
   "id": "acme-backend",
   "name": "Acme backend",
   "version": "0.1.0",
@@ -166,7 +169,6 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
     "args": [],
     "executable": true,
     "claims": {
-      "claimsVersion": "0.1.0-draft.2",
       "protocolVersions": ["0.2.0-draft.1"],
       "extension": { "id": "acme-backend", "name": "Acme backend",
                      "version": "0.1.0", "types": ["backend"] },
@@ -175,9 +177,10 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
     "claimCheck": "unchecked"
   }]
 }</code></pre>
+<p>Decision 15A fixes the pattern of the <code>$schema</code> URLs in these examples; the file names after <code>0.1.0-preview.1/</code> are the ones finos/morphir#1150 proposes, and may change in its review. The embedded claim set carries no version of its own. The members are the reference's, as evidence, until #1149's task 1.4 publishes the tables.</p>
 <pre><code class="language-console">&gt; morphir extension repository add local-dev --directory D:\ext-repo
 </code></pre>
-<p>This writes <code>%USERPROFILE%\.morphir\config\extensions\repositories.json</code> in the upstream format, under <code>locks/extensions.repositories.lock</code>, with the canonical path <code>D:\ext-repo</code>. The reference writes the Windows verbatim form <code>\\?\D:\ext-repo</code> (<code>repository.rs:83-97</code>, <code>local.rs:62-67</code>); this host compares the two as equal, and the spelling is an ask for the contract pages.</p>
+<p>This writes <code>%USERPROFILE%\.morphir\config\extensions\repositories.json</code> with its family <code>$schema</code>, under <code>locks/extensions.repositories.lock</code>, naming <code>D:\ext-repo</code>: the path the operating system reports for the open root, without the verbatim prefix <code>\\?\</code>, as finos/morphir#1150 proposes. The reference wrote <code>\\?\D:\ext-repo</code> (<code>repository.rs:83-97</code>, <code>local.rs:62-67</code>); a current reader refuses that form, and a file an older CLI wrote is old state.</p>
 
 <h3>2. Install it</h3>
 <pre><code class="language-console">&gt; morphir extension install --repository local-dev acme-backend --json
@@ -210,14 +213,14 @@ stdout:
 </ol>
 <p>The global lock has exactly the upstream members, because the Rust lock reader refuses any other (<a href="#q-strictlock">Q-STRICTLOCK</a>):</p>
 <pre><code class="language-json">{
-  "schemaVersion": "1.0",
+  "$schema": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/lock.schema.json",
   "selection": { "kind": "channel", "value": "stable" },
   "extensionId": "acme-backend",
   "name": "Acme backend",
   "version": "0.1.0",
   "index": { "kind": "local-directory", "identity": "D:\\ext-repo",
              "revision": "2222222222222222222222222222222222222222222222222222222222222222",
-             "claims": { "claimsVersion": "0.1.0-draft.2", "…": "the artifact's claim set" } },
+             "claims": { "…": "the artifact's claim set, with no version of its own" } },
   "source": { "kind": "local-file", "path": "artifacts/acme-backend.exe" },
   "runtime": "process",
   "platform": { "os": "windows", "arch": "x86_64" },
@@ -234,7 +237,7 @@ stdout:
 Error: Failed to list installed extensions: …
 </code></pre>
 <p>The pinned Rust host supports only MEP <code>0.1</code>, so its listing fails on the <code>0.2</code> entry (<code>state.rs:782-791</code>; the wording after the colon is the Rust error's own text). This is the accepted cost of <a href="#q-shared">Q-SHARED</a>.</p>
-<p>The Rust CLI is legacy (maintainer decision, 9 November 2026), and keeping it working on a shared home is not a goal. A user who needs it again gives it its own <code>MORPHIR_HOME</code>.</p>
+<p>The Rust product CLI is to be deleted (Decision 16), and keeping it working on a shared home is not a goal. A user who needs a released copy gives it its own <code>MORPHIR_HOME</code>. Had the Rust CLI written this home first, the .NET install would have offered to move its state aside before going on (Decisions 10 and 11).</p>
 
 <h3>4. A second project pins another version</h3>
 <p>Dana's project <code>D:\work\billing</code> needs <code>acme-backend</code> 0.2.0, without changing other projects. This step depends on <a href="#q-levels">Q-LEVELS</a> and on the shared toolchain contract.</p>
@@ -242,7 +245,7 @@ Error: Failed to list installed extensions: …
 </code></pre>
 <p>The store gains the 0.2.0 object and the inventory gains its record. The global selection still names 0.1.0. The project gets a portable pin, <code>D:\work\billing\.morphir\extensions\selection.json</code>, which can be committed:</p>
 <pre><code class="language-json">{
-  "schemaVersion": "0.1.0-draft.1",
+  "$schema": "(the pin schema URL, which the toolchain contract will define)",
   "extensions": [{
     "extensionId": "acme-backend",
     "version": "0.2.0",
@@ -292,8 +295,9 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <rect class="box" x="680" y="198" width="280" height="44" rx="6"/><text x="692" y="218">&lt;repository&gt;/extensions/&lt;id&gt;.jsonl</text><text class="small" x="692" y="234">a named repository, read only</text>
 <text class="small" x="20" y="340">Solid blue: format owned by the parent contract and read by upstream CLIs.</text>
 <text class="small" x="20" y="358">Dashed orange: .NET files, ignored by upstream CLIs; pins and overlays are proposed for the toolchain contract.</text>
-<text class="small" x="20" y="376">Every global install goes to the shared catalog; a legacy Rust CLI cannot list a home that holds 0.2 entries (Q-SHARED).</text>
+<text class="small" x="20" y="376">Every global install goes to the shared catalog; a released Rust CLI cannot list a home that holds 0.2 entries (Q-SHARED).</text>
 <text class="small" x="20" y="394">Pins and inventory records refer to store objects by digest; nothing outside the store copies their bytes.</text>
+<text class="small" x="20" y="412">An older CLI's catalog, locks and journals move to backups/extensions-&lt;time&gt;/ on consent (Decisions 10 and 11).</text>
 </svg>
 <figcaption>Figure 1: where extension state lives. Notice that every file a Rust CLI reads is in the left column, and that nothing in the right column holds an absolute path.</figcaption>
 </figure>
@@ -329,7 +333,8 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <tr><td>Digest of the staged copy differs</td><td><code>extension.digest_mismatch</code> with both digests</td><td>Unchanged; staging removed</td><td>Republish; treat as possible tampering</td></tr>
 <tr><td><code>describe</code> answer differs, hangs or writes junk</td><td><code>extension.claims_mismatch</code> naming the first differing member, or <code>extension.probe_failed</code></td><td>Unchanged; the guest's process tree ended</td><td>Fix the guest, or <code>--no-probe</code> to record <code>unchecked</code></td></tr>
 <tr><td>The guest rewrote its staged file during the probe</td><td><code>extension.digest_mismatch</code> when the store copy is hashed</td><td>Unchanged; nothing published</td><td>Treat as a hostile guest</td></tr>
-<tr><td>A legacy Rust CLI on a Morphir Home where the .NET host installed a <code>0.2</code> extension</td><td>The Rust listing fails; the .NET install printed a note about it</td><td>Unchanged</td><td>Accepted (Q-SHARED); give the Rust CLI its own <code>MORPHIR_HOME</code></td></tr>
+<tr><td>A home an older CLI wrote (state without its current <code>$schema</code>)</td><td>A prompt showing what would move; without a terminal and without <code>--yes</code>, a refusal naming the file, <code>morphir doctor --fix</code> and <code>--yes</code></td><td>Moved to <code>backups/extensions-&lt;time&gt;/</code> on acceptance; otherwise unchanged</td><td>Accept, pass <code>--yes</code>, or run <code>morphir doctor --fix</code></td></tr>
+<tr><td>A released Rust CLI on a Morphir Home where the .NET host installed a <code>0.2</code> extension</td><td>The Rust listing fails; the .NET install printed a note about it</td><td>Unchanged</td><td>Accepted (Q-SHARED); give the Rust CLI its own <code>MORPHIR_HOME</code></td></tr>
 <tr><td>The shared catalog holds a Rust-installed entry this host cannot run</td><td><code>extension list</code> shows it unavailable with its reason; selecting it gives <code>extension.no_compatible_mep_version</code></td><td>Unchanged</td><td>Install a release that speaks <code>0.2.0-draft.1</code></td></tr>
 <tr><td>Interrupted after the lock write, before the catalog write</td><td>Nothing until the next command</td><td>Journal present</td><td>The next holder of the state lock, .NET or Rust, applies it</td></tr>
 <tr><td>Another CLI holds the state lock</td><td>One stderr line: waiting for another Morphir run</td><td>Unchanged while waiting</td><td>Waits; Ctrl+C leaves state unchanged</td></tr>
@@ -348,14 +353,14 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <thead><tr><th>Concern</th><th>Source of the rule</th><th>Reference behavior</th><th>Here today</th><th>This change</th></tr></thead>
 <tbody>
 <tr><td>Morphir Home</td><td>PRD; Rust <code>morphir-common/src/home.rs</code></td><td><code>MORPHIR_HOME</code> or <code>~/.morphir</code>; relative values used as given</td><td><code>MorphirHomeDirectory</code> joins a relative value to the start directory; handlers use <code>OsPaths</code> instead</td><td>Use <code>MorphirHomeDirectory</code> with the current directory as start; stop using <code>OsPaths</code> for extensions</td></tr>
-<tr><td>Shared use</td><td>None in the parent</td><td>Listing fails on any entry without MEP <code>0.1</code> (<code>state.rs:722-737, 782-791</code>)</td><td>Host speaks only <code>0.2.0-draft.1</code></td><td><a href="#q-shared">Q-SHARED</a>: every global install goes to the shared catalog; the legacy Rust CLI is not protected; <a href="#mep-1">MEP-1</a>: no <code>0.1</code></td></tr>
+<tr><td>Shared use</td><td>None in the parent</td><td>Listing fails on any entry without MEP <code>0.1</code> (<code>state.rs:722-737, 782-791</code>)</td><td>Host speaks only <code>0.2.0-draft.1</code></td><td><a href="#q-shared">Q-SHARED</a>: every global install goes to the shared catalog; a released Rust CLI is not protected; <a href="#mep-1">MEP-1</a>: no <code>0.1</code></td></tr>
 <tr><td>Store layout</td><td>PRD table; parent "content-addressed store"; layout only in Rust <code>store.rs</code></td><td><code>store/extensions/sha256/&lt;digest&gt;/&lt;filename&gt;</code>; <code>.stage-*</code> temp file; hash while copying from staging (<code>store.rs:179-190</code>); no-clobber; existing object rehashed; 256 MiB (<code>store.rs:14</code>); owner execute bit on Unix</td><td>None</td><td><a href="#store-1">STORE-1</a>; spec <code>extension-store</code></td></tr>
-<tr><td>Catalog</td><td>Parent "installed inventory"; member list and version switch only in Rust</td><td><code>catalog/extensions.json</code>; members of <code>InstalledExtension</code> (<code>state.rs:266-290</code>) including conditional <code>critical</code> and <code>requires</code>; <code>"1.0"</code> or <code>"2.0.0-draft.2"</code> (<code>state.rs:510-523</code>); a reader refuses <code>requires.host</code> without <code>critical</code> (<code>extension_format/mod.rs:35-40</code>)</td><td>None</td><td>Same members; <a href="#q-catver">Q-CATVER</a></td></tr>
-<tr><td>Shared locks</td><td>Parent "matching lock"; members only in Rust</td><td><code>locks/extensions/&lt;id&gt;.json</code>, <code>"1.0"</code>, unknown members refused, claims in <code>index.claims</code></td><td>None</td><td><a href="#q-strictlock">Q-STRICTLOCK</a></td></tr>
-<tr><td>Repositories file</td><td>Parent README commands; format only in Rust</td><td><code>config/extensions/repositories.json</code>, integer <code>schemaVersion</code>, <code>deny_unknown_fields</code> (<code>repository.rs:149, 241-245</code>), own lock <code>locks/extensions.repositories.lock</code> (<code>morphir-common/src/home.rs:237-238</code>), canonical paths (<code>\\?\</code> form on Windows)</td><td>None</td><td>Spec <code>extension-installation</code></td></tr>
-<tr><td>Interprocess lock</td><td>PRD names the file; primitive only in Rust <code>state_io.rs:26-45</code></td><td><code>fs2</code> <code>lock_exclusive</code>, blocking, file opened read/write, created, not truncated</td><td><code>TaskLock</code> uses share modes on Windows, which a Rust holder does not see and which make a Rust opener fail</td><td><a href="#store-2">STORE-2</a>; <a href="#q-lockprim">Q-LOCKPRIM</a></td></tr>
-<tr><td>Transactions</td><td>Parent "staging and atomic publication"; journal only in Rust</td><td><code>&lt;id&gt;.json.transaction</code>, <code>deny_unknown_fields</code>, <code>schemaVersion</code> 1, <code>nextLock</code>/<code>nextCatalog</code> as byte arrays or <code>null</code> for delete (<code>state_io.rs:10-18, 288-293</code>); recovery applies the bytes it holds (<code>state_io.rs:249-252</code>)</td><td>Stage-then-move in <code>FileTree</code></td><td><a href="#store-3">STORE-3</a>; <a href="#q-journal">Q-JOURNAL</a></td></tr>
-<tr><td>Descriptor reading</td><td>Parent "Release descriptor, version 2"; PRD package archive</td><td>v1 integer or <code>"1.0"</code>, v2 exact drafts, claims per artifact, triple per process artifact, runtimes not mixed, undeclared differences refused; bundle directory requires <code>release.json</code> and <code>&lt;sha256&gt;  &lt;name&gt;\n</code> (<code>repository_authoring.rs:334-365</code>); publish refuses archives (<code>repository_authoring/process.rs:35-41</code>)</td><td>None</td><td>Only <code>2.0.0-draft.2</code> and #1149's drafts (<a href="#doc-1">DOC-1</a>); spec <code>extension-package-archives</code>; <a href="#q-archive">Q-ARCHIVE</a></td></tr>
+<tr><td>Catalog</td><td>Parent "installed inventory"; member list and version switch only in Rust</td><td><code>catalog/extensions.json</code>; members of <code>InstalledExtension</code> (<code>state.rs:266-290</code>) including conditional <code>critical</code> and <code>requires</code>; <code>"1.0"</code> or <code>"2.0.0-draft.2"</code> (<code>state.rs:510-523</code>); a reader refuses <code>requires.host</code> without <code>critical</code> (<code>extension_format/mod.rs:35-40</code>)</td><td>None</td><td>Family <code>$schema</code>, no version switch (Decision 15A); members from #1149 task 1.4; <a href="#q-catver">Q-CATVER</a> retired</td></tr>
+<tr><td>Shared locks</td><td>Parent "matching lock"; members only in Rust</td><td><code>locks/extensions/&lt;id&gt;.json</code>, <code>"1.0"</code>, unknown members refused, claims in <code>index.claims</code></td><td>None</td><td>Family <code>$schema</code>; closed member set (#1150); <a href="#q-strictlock">Q-STRICTLOCK</a></td></tr>
+<tr><td>Repositories file</td><td>Parent README commands; format only in Rust</td><td><code>config/extensions/repositories.json</code>, integer <code>schemaVersion</code>, <code>deny_unknown_fields</code> (<code>repository.rs:149, 241-245</code>), own lock <code>locks/extensions.repositories.lock</code> (<code>morphir-common/src/home.rs:237-238</code>), canonical paths (<code>\\?\</code> form on Windows)</td><td>None</td><td>Family <code>$schema</code>; ordinary paths, verbatim refused (#1150); spec <code>extension-installation</code></td></tr>
+<tr><td>Interprocess lock</td><td>PRD names the file; primitive only in Rust <code>state_io.rs:26-45</code></td><td><code>fs2</code> <code>lock_exclusive</code>, blocking, file opened read/write, created, not truncated</td><td><code>TaskLock</code> uses share modes on Windows, which a Rust holder does not see and which make a Rust opener fail</td><td>The primitive and open flags #1150 names, bound directly; <a href="#store-2">STORE-2</a>; <a href="#q-lockprim">Q-LOCKPRIM</a></td></tr>
+<tr><td>Transactions</td><td>Parent "staging and atomic publication"; journal only in Rust</td><td><code>&lt;id&gt;.json.transaction</code>, <code>deny_unknown_fields</code>, <code>schemaVersion</code> 1, <code>nextLock</code>/<code>nextCatalog</code> as byte arrays or <code>null</code> for delete (<code>state_io.rs:10-18, 288-293</code>); recovery applies the bytes it holds (<code>state_io.rs:249-252</code>)</td><td>Stage-then-move in <code>FileTree</code></td><td>The journal #1150 defines; <a href="#store-3">STORE-3</a>; <a href="#q-journal">Q-JOURNAL</a></td></tr>
+<tr><td>Descriptor reading</td><td>Parent "Release descriptor, version 2"; PRD package archive</td><td>v1 integer or <code>"1.0"</code>, v2 exact drafts, claims per artifact, triple per process artifact, runtimes not mixed, undeclared differences refused; bundle directory requires <code>release.json</code> and <code>&lt;sha256&gt;  &lt;name&gt;\n</code> (<code>repository_authoring.rs:334-365</code>); publish refuses archives (<code>repository_authoring/process.rs:35-41</code>)</td><td>None</td><td>Only the family release <code>$schema</code> (<a href="#doc-1">DOC-1</a>, Decision 15A); spec <code>extension-package-archives</code>; <a href="#q-archive">Q-ARCHIVE</a></td></tr>
 <tr><td>Index records and resolution</td><td>Parent repository architecture and channels; ordering only in Rust <code>resolver.rs:43-126</code>, <code>index.rs:27-89</code></td><td>Highest precedence; MEP filter; skip host-incompatible; refuse two artifacts for one platform; a WASM record refuses any <code>platform</code> member, even <code>null</code> (<code>domain/manifest.rs:312-318</code>)</td><td>None</td><td>Spec <code>extension-installation</code></td></tr>
 <tr><td>Platform selection</td><td>Toolchain <code>index.md:136-149</code> at <code>efdbc34da</code>: RID, "Tool release v1 platform" and triple columns; musl told no artifact exists</td><td><code>std::env::consts</code> spellings (<code>domain/manifest.rs:95-125</code>), which equal the v1 column</td><td><code>RuntimeIdentifier.GetCurrentRid()</code></td><td><a href="#q-platform">Q-PLATFORM</a></td></tr>
 <tr><td>Digest verification</td><td>Parent: verify before publishing; rehash at activation</td><td>Hash while copying into staging and again into the store; at activation read the whole file into memory, hash, and launch from those bytes (<code>store.rs:334-368</code>, <code>morphir-host-native/src/activate.rs:103-117</code>)</td><td>None (download unchecked)</td><td>Same: hash in the read that writes each copy</td></tr>
@@ -381,30 +386,28 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>A named repository, a package archive, a staged file and a <code>morphirup</code> hand-over each produce the same value: release record, selected artifact, selection, index provenance, and a separate source description for the .NET inventory and report. Staging, hashing, probing, storing and committing are then one code path (Figure 2). Alternative: separate pipelines per source, as the old handlers had. Rejected because checks drift.</p>
 
 <h3 id="store-1">STORE-1. Shared files carry the members and values the shared contract defines</h3>
-<p>The bar for the catalog, locks, journal, repositories file and index records is the members and values the shared contract defines. Byte equality with any other writer is not a goal. Today much of that contract is specified only by the Rust source. Where it is, this change follows that behavior and asks upstream to write it down: finos/morphir#1149's task 1.4 makes <code>distribution-and-acquisition.md</code> the authority for the catalog, lock, journal, state lock and paths. Where Rust has a quirk the contract does not need, such as the Windows verbatim path spelling, this host does not copy it.</p>
-<p>Writers write <code>critical</code> and <code>requires</code> on an entry whose release has <code>requires.host</code>. This host never writes an entry converted from a version 1 record (<a href="#doc-1">DOC-1</a>). When it rewrites a catalog that holds one another host wrote, it carries that entry through with its members and values unchanged.</p>
-<p>Readers keep unknown optional members and refuse unknown critical ones. .NET-only facts (true source, archive digest, level) go to the .NET inventory, never into shared files.</p>
-<h3 id="store-2">STORE-2. The state lock uses the reference primitive</h3>
-<p>Open <code>locks/extensions.state.lock</code> for read and write, create without truncate, and take an exclusive lock that <code>fs2</code> respects:</p>
+<p>The bar for the catalog, locks, journal, repositories file and index records is the members and values the shared contract defines. Byte equality with any other writer is not a goal. Today much of that contract is specified only by the Rust source. Where it is, this change follows that behavior until the contract pages say otherwise: finos/morphir#1149's task 1.4 makes <code>distribution-and-acquisition.md</code> the authority for the members, and finos/morphir#1150 (open) proposes the rest of the shared-file rules, which the specs follow as provisional. Where Rust has a quirk the contract does not need, such as the Windows verbatim path spelling, this host does not copy it. Every document carries its family <code>$schema</code> and no <code>schemaVersion</code> (Decision 15A).</p>
+<p>Writers write <code>critical</code> and <code>requires</code> on an entry whose release has <code>requires.host</code>. This host never writes an entry converted from a version 1 record, and never reads a catalog an older CLI wrote: that is old state, offered a move aside (<a href="#doc-1">DOC-1</a>, Decisions 10 and 11).</p>
+<p>Catalog and record readers keep unknown optional members and refuse unknown critical ones; lock, journal and repositories readers refuse unknown members. Documents are I-JSON with integer numbers only. .NET-only facts (true source, archive digest, level) go to the .NET inventory, never into shared files.</p>
+<h3 id="store-2">STORE-2. The state lock uses the contract's primitive, bound directly</h3>
+<p>finos/morphir#1150 proposes one primitive for every lock file, and this change follows it as provisional:</p>
 <ul>
-<li>on Linux and macOS, <code>flock</code>, which is what .NET takes for <code>FileShare.None</code>;</li>
-<li>on Windows, a byte-range lock over the whole file: <code>FileStream.Lock</code> on a handle opened with <code>FileShare.ReadWrite | FileShare.Delete</code>, which overlaps <code>LockFileEx</code> over <code>0..2^64-1</code>.</li>
+<li>on Unix, blocking <code>flock</code> with <code>LOCK_EX</code> on a descriptor opened with <code>O_RDWR | O_CREAT | O_CLOEXEC</code>, mode <code>0644</code>;</li>
+<li>on Windows, blocking <code>LockFileEx</code> with <code>LOCKFILE_EXCLUSIVE_LOCK</code> from offset 0 over the whole range, on a handle opened with read and write access and <code>FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE</code>.</li>
 </ul>
-<p>Poll with the <code>TaskLock</code> waiting line. The repositories lock uses the same primitive. Any other current host that shares the home, such as the MoonBit host, must take the same whole-file lock, which is why the contract pages should name it.</p>
-<p><span class="tag asm">Assumed</span> <code>FileStream.Lock(0, long.MaxValue)</code> conflicts with an <code>fs2</code> lock on Windows. Task 3.1 proves it with a helper process that calls <code>LockFileEx</code> directly.</p>
-<p>Alternative: reuse <code>TaskLock</code> unchanged. Rejected: on Windows a .NET holder makes the Rust CLI fail instead of wait, and a Rust holder is invisible to it.</p>
-
-<h3 id="store-3">STORE-3. The reference transaction journal, applied by every holder</h3>
-<p>The journal follows the reference format exactly:</p>
+<p>A lock file is created when absent, and never written or removed. The repositories lock uses the same primitive, and a host never holds both lock files at once. .NET binds both calls through <code>LibraryImport</code>, which is AOT-safe. <code>FileShare.None</code> and <code>FileStream.Lock</code> are not that lock: on Unix .NET takes <code>flock</code> with <code>LOCK_NB</code> for <code>FileShare.None</code>, and <code>FileStream.Lock</code> takes a byte range that is not the whole one. That replaces this page's earlier assumption about <code>FileStream.Lock</code>. Poll with the <code>TaskLock</code> waiting line. Task 3.1 proves the primitive against a helper process that calls the same functions.</p>
+<p>Alternative: reuse <code>TaskLock</code> unchanged. Rejected: on Windows its share mode makes another host's open fail, and another host's lock is invisible to it.</p>
+<h3 id="store-3">STORE-3. One journal, checked before it is applied</h3>
+<p>The journal is <code>locks/extensions/&lt;id&gt;.json.transaction</code>. As finos/morphir#1150 proposes:</p>
 <ul>
-<li>it is <code>&lt;id&gt;.json.transaction</code>, with <code>schemaVersion</code> 1 and exactly the members <code>nextLock</code> and <code>nextCatalog</code>;</li>
-<li>each member is a JSON number array of the bytes to write, or <code>null</code> for a deletion, which is what uninstall writes for the lock.</li>
+<li>it has exactly the members <code>$schema</code>, <code>nextLock</code> and <code>nextCatalog</code>;</li>
+<li>each of the last two is <code>null</code> for an absent file, or the file's exact bytes as an array of integers;</li>
+<li>one journal exists at a time.</li>
 </ul>
-<p>Recovery does not decide between completing and rolling back. It writes whatever bytes the journal holds and removes it, as the reference does. A failed write first rewrites the journal with the previous bytes (<code>state_io.rs:180-187, 249-252</code>). Every acquisition of the state lock recovers journals before it reads.</p>
+<p>Under the state lock, a host first detects old state. Only when there is none does it recover a journal: it validates the saved lock and catalog in full as current documents, then writes the lock, then the catalog, then removes the journal. A journal at an earlier version, more than one journal, or a journal whose saved bytes are not current documents is old state, and nothing is written from it. The reference's own journal, <code>schemaVersion</code> 1 (<code>state_io.rs:10-18, 249-252</code>), is therefore old state.</p>
 <p>The inventory record is written after the pair, under the same lock. A missing inventory record for a shared entry is rebuilt from the pair on the next read.</p>
-
 <h3 id="store-4">STORE-4. A .NET inventory of every installed version</h3>
-<p><code>data/morphir-dotnet/extensions/installed/&lt;id&gt;/&lt;digest&gt;.json</code> keeps the entry and lock the installer would write globally, plus the source and, for target archives, the archive digest. It exists because the catalog and lock have closed member sets: it holds the .NET-only facts they cannot carry, and every installed version that level pins and overlays need.</p>
+<p><code>data/morphir-dotnet/extensions/installed/&lt;id&gt;/&lt;digest&gt;.json</code> keeps the entry and lock the installer would write globally, plus the source and, for target archives, the archive digest. It exists because shared files carry only the members the contract defines, and a lock refuses any other: it holds the .NET-only facts they cannot carry, and every installed version that level pins and overlays need.</p>
 <p>The key is the id and the artifact digest. The same bytes installed again with other <code>args</code>, claims or index replace the record, and the report warns. A pin binds a digest, not the metadata around it. For a shared entry the catalog and lock always win over the record. A record rebuilt from a Rust-written pair says source kind <code>shared-catalog</code>, because the true source cannot be known.</p>
 <p>Alternative: several entries per id in the shared catalog. Rejected: upstream readers refuse duplicate ids (<code>state.rs:557-563</code>, as <code>StateMismatch</code>).</p>
 
@@ -526,32 +529,29 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li><strong>Nothing implements 0.1.</strong> Nothing here implements, bridges or tests <code>0.1</code>.</li>
 <li><strong>No legacy code paths.</strong> The probe does not carry the reference's fallback for refusals that older guests signal only by message (PROBE-1). An extension that speaks only <code>0.1</code> is refused at install with <code>extension.no_compatible_mep_version</code>, and is listed as unavailable when the Rust CLI installed it. Both messages say that MEP <code>0.1</code> is not supported.</li>
 
-<li><strong>The Rust CLI is legacy.</strong> Moving it to the 0.2 line is optional later work upstream, not a dependency of this change.</li>
+<li><strong>The Rust product CLI is to be deleted</strong> (Decision 16). No Rust host work is planned or needed by this change.</li>
 </ul>
 <p>A shared entry this host cannot run, for example one the Rust CLI installed, is listed as unavailable instead of failing the listing. That is robustness, not protocol support. <a href="#doc-1">DOC-1</a> applies the same "no transient compatibility" reasoning to old document formats.</p>
 <h3 id="doc-1">DOC-1. Only the current contract drafts are read (maintainer decision)</h3>
 <p><strong>Decision.</strong> On 9 November 2026 the maintainer decided to stop reading the older document formats, because "we are paying too much of a cost to support transient pre 1.0 contracts".</p>
-<p>What this host reads and writes:</p>
+<p>Decision 15A then put the extension documents on one family version. What this host reads and writes:</p>
 <ul>
-<li>index records, release descriptors and catalog entries at the current draft: <code>2.0.0-draft.2</code> today, and <code>2.0.0-draft.3</code> for every id once finos/morphir#1149 is approved, which then also stops the reading of <code>2.0.0-draft.2</code>;</li>
-<li>claim sets at <code>0.1.0-draft.2</code>;</li>
-<li>catalog and lock files at the versions the reference writes today: catalog <code>"1.0"</code> or <code>"2.0.0-draft.2"</code> (<a href="#q-catver">Q-CATVER</a>), and lock <code>"1.0"</code>; once #1149 is approved, catalog <code>2.0.0-draft.3</code> and lock <code>2.0.0-draft.1</code> only.</li>
+<li>every document of the extension state family (descriptor, index record, catalog, lock, journal, repositories configuration, standalone claim set) with its required <code>$schema</code> at <code>0.1.0-preview.1</code>, compared as exact text, and no <code>schemaVersion</code>;</li>
+<li>embedded claim sets with no version of their own; a claim set that <code>describe</code> returns carries the claims <code>$schema</code> in place of <code>claimsVersion</code>.</li>
 </ul>
-<p>What it no longer reads, and never converts: version 1 index records and descriptors (integer <code>1</code> or <code>"1.0"</code>), records and descriptors at <code>2.0.0-draft.1</code>, and claim sets at <code>0.1.0-draft.1</code> (<code>statement</code>, <code>statementSource</code>). Those formats mostly carried MEP <code>0.1</code>-era extensions, which MEP-1 already leaves out.</p>
+<p>The URLs are those finos/morphir#1150 proposes, and the specs mark them provisional.</p>
+<p>What it no longer reads, and never converts: everything else. That is version 1 records and descriptors, every <code>schemaVersion</code> draft (<code>2.0.0-draft.1</code>, <code>.2</code> and <code>.3</code>, lock <code>"1.0"</code> and <code>2.0.0-draft.1</code>), and claim sets with <code>claimsVersion</code>. This history is kept here because those documents still exist in published releases and older homes.</p>
 <p>Where old documents still appear, and what happens:</p>
 <ul>
-<li><strong>A history with old lines.</strong> A line at a version this host does not read takes part only through its <code>schemaVersion</code>, <code>id</code> and <code>version</code>, so the history checks still hold, and it is never selected. Asking for such a release gives <code>extension.unsupported_contract_version</code>.</li>
+<li><strong>A history with old lines.</strong> It is read whole, and refused when any line is not current, naming the first such line (#1150). This replaces the earlier rule of this page, which used old lines only for the history checks.</li>
 <li><strong>A descriptor in an old format</strong> is refused with <code>extension.unsupported_contract_version</code>.</li>
-<li><strong>A Rust-written catalog entry this host does not read</strong> (converted from a version 1 record, or with claim set draft.1) is listed as unavailable with a reason, never activated, and carried through unchanged when this host rewrites the catalog. The file stays readable; only those entries are unavailable.</li>
+<li><strong>A catalog, lock, journal or repositories configuration in an old format</strong> is old state: never read, offered a move aside (Decisions 10 and 11). This replaces the earlier rule of this page, which carried converted entries through.</li>
+<li><strong>Published releases at earlier drafts</strong> stay uninstallable until they are republished at the family version, which morphir-dotnet's bundle authoring is to do (Decision 13).</li>
 </ul>
-<p>The cost removed: no draft.1 conversion, no mixed-draft detection, no version 1 descriptor or record codecs, and no converted-entry writer.</p>
-<h3 id="id-1">ID-1. The id rule is chosen by document version, and dotted ids follow finos/morphir#1149</h3>
-<p>The registry keeps its dotted rule for built-ins. The installer parses ids with the rule of the version it reads.</p>
-<ul>
-<li><strong>Today,</strong> at <code>2.0.0-draft.2</code>, an id is one token of at most 238 characters that is not a Windows device name (<code>domain/identity.rs:237-286</code> is the evidence).</li>
-<li><strong>Once #1149 is approved</strong> (provisional, read at <code>123bbffc5</code>), every id, dotted or not, is read and written at its drafts: descriptor, index record and catalog at <code>2.0.0-draft.3</code>, and lock at <code>2.0.0-draft.1</code>. Every id lives in the one <code>catalog/extensions.json</code>, <code>locks/extensions/</code> and repository <code>extensions/</code>, and earlier drafts are refused by version. #1149 also adds the device-name rule for the first segment, which morphir-dotnet adopts in its task 2.1.</li>
-</ul>
-<p>There are no separate dotted files or directories. Task 8.1 moves this installer to those drafts. Corrections from #1149's review may follow, which is why the requirements name the commit read.</p>
+<p>The cost removed: no draft conversion, no mixed-draft detection, no version switch, no per-line history rule, and no converted-entry writer.</p><h3 id="id-1">ID-1. The id rule is finos/morphir#1149's, and every id shares one catalog</h3>
+<p>The registry keeps its dotted rule for built-ins. The installer checks every id with the rule of finos/morphir#1149 (merged): one or more lowercase portable tokens joined by <code>.</code>, at most 238 characters, with a first segment that is not a Windows device name. A document at an earlier version is refused by version before its id is read (DOC-1), so there is no version-dependent id rule any more.</p>
+<p>Every id, dotted or not, lives in the one <code>catalog/extensions.json</code>, <code>locks/extensions/</code> and repository <code>extensions/</code>; there are no separate dotted files or directories. Every id starting with <code>morphir.</code> is reserved for built-in frontends and backends and refused at install, which grants nothing to any id (maintainer decision, 9 November 2026; #1150 allows a host such a prefix). <code>org.finos.morphir.*</code> is not reserved.</p>
+<p>Task 8.1 runs #1149's shared id cases through the kit runner once its task 1.2 publishes them.</p>
 <h2 id="questions">Questions</h2>
 <p>The first version of this page listed 25 questions with one status. They are now grouped by what they need.</p>
 <ul>
@@ -608,10 +608,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p><strong>For the package archive.</strong> Accept exactly one <code>*.release.json</code> at the root, and checksum files of 64 lowercase digits, white space and the entry name. The reference bundle directory instead requires exactly <code>release.json</code> and the line <code>&lt;sha256&gt;  &lt;name&gt;\n</code> (<code>repository_authoring.rs:334-365</code>).</p>
 <p><strong>Blocks:</strong> 5.2 and 5.3.</p></details>
 
-<details open id="q-multifile"><summary>Q-MULTIFILE. Multi-file process artifacts (conflicts with adoption FSF-1)</summary>
-<p>The store holds one file per digest (<code>store.rs:157</code>), and activation reads one file (<code>activation.rs:193-204</code>). This change keeps refusing multi-file artifacts (<code>extension.multi_file_artifact</code>). The choice that remains is how the F# frontend gets installed, set out with costs in <a href="#fsharp-frontend">its own section</a>.</p>
-<p><strong>Recommendation:</strong> the single-file path for the first delivery, and an upstream package form for the long term.</p>
-<p><strong>Blocks:</strong> 5.3 (the refusal stays either way), adoption tasks 3.1 and 3.3.</p></details>
+
 
 <details id="q-commands"><summary>Q-COMMANDS. Command names and options</summary>
 <p>The .NET stubs have <code>use</code>, <code>remove</code> and <code>which</code>, each with <code>--platform</code> and <code>--local</code>. Upstream has <code>update</code>, <code>uninstall</code>, <code>search</code> and <code>repository …</code>.</p>
@@ -654,12 +651,12 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>This change follows the parent text: an installed record says <code>probed</code> only when this install or update ran the probe. <code>update</code> probes by default and takes <code>--no-probe</code>. The divergence is visible: the same update records <code>unchecked</code> in .NET and <code>probed</code> in Rust. It is raised upstream, and the maintainer may veto it.</p></details>
 
 <h3 id="follows-reference">Follows the reference; raised upstream; no maintainer answer needed to start</h3>
-<p>For each of these, the specs copy the reference implementation at <code>c9f79da</code> and cite the question. The upstream ask is only to write the rule into the contract, usually with fixtures.</p>
-<details id="q-lockprim"><summary>Q-LOCKPRIM. The state lock primitive</summary><p><code>fs2::lock_exclusive</code>, blocking, on a file opened read/write, created, not truncated (<code>state_io.rs:26-45</code>). The .NET primitive is in STORE-2, and task 3.1 proves it on Windows.</p></details>
-<details id="q-journal"><summary>Q-JOURNAL. The transaction journal</summary><p>The format is in STORE-3 (<code>state_io.rs:10-18, 120-136, 175-190, 245-264, 288-293</code>). Ask upstream to document it with fixtures.</p></details>
-<details id="q-strictlock"><summary>Q-STRICTLOCK. Lock readers refuse unknown members</summary><p><code>ExtensionLock</code> refuses unknown members (<code>state.rs:50-72</code>), which contradicts the parent's must-ignore rule. Write exactly the upstream members, keep extras in the .NET inventory, and ask upstream which rule a lock follows.</p></details>
-<details id="q-catver"><summary>Q-CATVER. Catalog schema version switching</summary><p><code>"2.0.0-draft.2"</code> when any entry has supplied claims, and <code>"1.0"</code> otherwise (<code>state.rs:510-523</code>). Ask upstream to document it.</p></details>
-<details id="q-numbers"><summary>Q-NUMBERS. Claim comparison</summary><p>Comparison is over the typed projection, with <code>serde_json</code> number equality and no <code>arbitrary_precision</code>: <code>1</code> is not <code>1.0</code>, and <code>1.0</code> equals <code>1.00</code> (<code>agreement.rs:31-60</code>). Ask upstream for fixture pairs.</p></details>
+<p>For each of these, the specs follow the reference implementation at <code>c9f79da</code>, or finos/morphir#1150 where it now proposes the rule, and cite the question. The upstream ask is only to write the rule into the contract, usually with fixtures.</p>
+<details id="q-lockprim"><summary>Q-LOCKPRIM. The state lock primitive</summary><p>The reference uses <code>fs2::lock_exclusive</code>, blocking (<code>state_io.rs:26-45</code>). finos/morphir#1150 now names the exact <code>flock</code> and <code>LockFileEx</code> calls and open flags. STORE-2 follows it, and task 3.1 proves it.</p></details>
+<details id="q-journal"><summary>Q-JOURNAL. The transaction journal</summary><p>finos/morphir#1150 now defines it (STORE-3). The reference's journal (<code>state_io.rs:10-18, 120-136, 175-190, 245-264, 288-293</code>) is old state under that definition.</p></details>
+<details id="q-strictlock"><summary>Q-STRICTLOCK. Lock readers refuse unknown members</summary><p><code>ExtensionLock</code> refuses unknown members (<code>state.rs:50-72</code>), which contradicted the parent's must-ignore rule. finos/morphir#1150 settles it: locks, journals and the repositories configuration refuse unknown members, while the catalog and records ignore them unless critical. .NET-only facts stay in the .NET inventory.</p></details>
+
+<details id="q-numbers"><summary>Q-NUMBERS. Claim comparison</summary><p>Comparison is over the typed projection, without schema members (<code>agreement.rs:31-60</code>). finos/morphir#1150 makes every shared document I-JSON with integer numbers only, so the reference's <code>1</code> versus <code>1.0</code> distinction no longer arises: a fraction is refused. Ask upstream for fixture pairs.</p></details>
 <details id="q-platform"><summary>Q-PLATFORM. Platform spellings</summary><p>The toolchain table already has a "Tool release v1 platform" column (<code>windows</code>/<code>x86_64</code> and so on), and already tells a musl machine that no artifact exists (<code>index.md:136-149</code> at <code>efdbc34da</code>). Those spellings equal Rust's index spellings (<code>domain/manifest.rs:95-125</code>). The only ask is to say that extension index records use the same column.</p></details>
 <details id="q-reqhost"><summary>Q-REQHOST. Whose version requires.host compares</summary><p>Compare with this host's own release version and name the range on refusal, which is a safe default. Ask upstream for an implementation-qualified requirement, because recipes bind providers to hosts of different implementations.</p></details>
 <details id="q-probelimits"><summary>Q-PROBELIMITS. Probe environment and limits</summary><p>The reference uses a cleared environment and a 30 second request timeout. The short variable list is the recorded difference (PROBE-1). Ask upstream to set common values.</p></details>
@@ -683,45 +680,59 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>On finos/morphir#1149 the maintainer added: "we want to focus on morphir-dotnet and morphir-moonbit hosts and only possibly invest in Rust once 1 or both of those 2 are functional. For now we are treating the rust cli as legacy".</p>
 <p><strong>What this removes:</strong> the admission rule, <code>data/morphir-dotnet/extensions/global.json</code> as an install destination, the layer's place in precedence, its uninstall and report details, task 2.9 and the Rust interoperability gate in task 3.5.</p>
 <p><strong>What stays:</strong> the .NET inventory (STORE-4). It is a different thing: it holds .NET-only facts that the catalog's and lock's closed member sets cannot carry, and every installed version for pins and overlays. It is never a place a global install is selected from. Also kept: listing a shared entry this host cannot run as unavailable instead of failing.</p>
-<p>For dotted ids, see <a href="#id-1">ID-1</a>.</p></details><details id="q-idrule"><summary>Q-IDRULE. Ids in shared files</summary><p>Settled by the maintainer's decisions to allow dotted ids through finos/morphir#1149 and to keep them in one catalog, and by ID-1. Every id is read and written at #1149's drafts in the one catalog, lock directory and history directory (task 8.1, provisional on #1149 at <code>123bbffc5</code>).</p></details>
+<p>For dotted ids, see <a href="#id-1">ID-1</a>.</p></details>
+<details open id="q-multifile"><summary>Q-MULTIFILE. Multi-file process artifacts. Settled: the package form, by the maintainer on 9 November 2026</summary>
+<p>The store holds one file per digest (<code>store.rs:157</code>), and activation reads one file (<code>activation.rs:193-204</code>). The F# frontend is a folder of about 239 files (#569).</p>
+<p>This change had recommended a self-unpacking single-file frontend first (Option A in <a href="#fsharp-frontend">the F# frontend section</a>). The maintainer decided instead that the shared contract is extended so that an extension can be a multi-file package, and that no self-unpacking single-file form is built (finos/morphir#1146).</p>
+<p>finos/morphir#1151 (open) proposes that contract. Its own questions on launching from the store (Q-LAUNCH, which would change SEL-3's private copy for packages) and on what activation checks (Q-VERIFY) are for its review.</p>
+<p>Until it is approved, this change keeps refusing multi-file artifacts (<code>extension.multi_file_artifact</code>). Packages get their own change once #1151 is approved. Adoption task 3.3 waits on both.</p></details>
+<details id="q-catver"><summary>Q-CATVER. Catalog schema version switching. Retired by Decision 15A</summary><p>The reference writes <code>"2.0.0-draft.2"</code> when any entry has supplied claims, and <code>"1.0"</code> otherwise (<code>state.rs:510-523</code>). Under Decision 15A every catalog carries its family <code>$schema</code>, so there is nothing to switch.</p></details>
+<details id="q-idrule"><summary>Q-IDRULE. Ids in shared files</summary><p>Settled by finos/morphir#1149 (merged), which allows dotted ids and keeps every id in the one catalog, lock directory and history directory, and by ID-1. Their documents carry the family <code>$schema</code> of Decision 15A.</p></details>
 <details id="q-autoprocess"><summary>Q-AUTOPROCESS. Does auto apply to process guests?</summary><p>No. It is a safe default, and written as a SHALL (ARC-2).</p></details>
 <details id="q-wasmdescribe"><summary>Q-WASMDESCRIBE. WASM install and describe</summary><p>Settled by the upstream decision that WASM installation does not probe. WASM packages install <code>unchecked</code>; a bare <code>.wasm</code> waits for PRD step 2a. The PRD is corrected in task 4.8.</p></details>
 <details id="q-descname"><summary>Q-DESCNAME. Descriptor and checksum file names</summary><p>Merged into <a href="#q-archive">Q-ARCHIVE</a>.</p></details>
 
 <h3 id="upstream">Raised upstream (task 1.2)</h3>
 <ul>
-<li>Review comments on #1149, listed below in <a href="#asks-1149">Asks for finos/morphir#1149</a>.</li>
-
+<li>The asks listed below in <a href="#asks-1149">Asks for the shared extension contract</a>.</li>
 <li>The overlay, the level pins and the receipt's launch path (<code>launch.program</code> names the store path while the host runs a private copy), for <code>docs/spec/toolchain</code>.</li>
-<li>Target and package archives (Q-ARCHIVE), a multi-file package form (Q-MULTIFILE), and a provenance kind for staged and file installs (Q-PROVENANCE).</li>
+<li>Target and package archives (Q-ARCHIVE), as review comments on finos/morphir#1151, and a provenance kind for staged and file installs (Q-PROVENANCE).</li>
 <li>The claim check after <code>update</code> (Q-CLAIMCHECK).</li>
-<li>The reference-only rules: Q-LOCKPRIM, Q-JOURNAL, Q-STRICTLOCK, Q-CATVER, Q-NUMBERS, Q-PLATFORM, Q-REQHOST, Q-PROBELIMITS, Q-GC, Q-FIXTURES.</li>
+<li>The reference-only rules that #1150 does not yet cover: Q-PLATFORM, Q-REQHOST, Q-PROBELIMITS, Q-GC, Q-FIXTURES.</li>
 <li>Stable codes (Q-DIAG), offered for both CLIs.</li>
-<li>The maintainer decision MEP-1, that MEP <code>0.1</code> is not supported and the whole 0.2 line is (<code>&gt;=0.2.0-0</code>, <code>&lt;0.3.0</code>, an explicit exception to the exact-match rule for prereleases): say so in <code>protocol.md</code> and the extension README, and move the Rust host to the MEP 0.2 line.</li>
+<li>The maintainer decision MEP-1, that MEP <code>0.1</code> is not supported and the whole 0.2 line is (<code>&gt;=0.2.0-0</code>, <code>&lt;0.3.0</code>, an explicit exception to the exact-match rule for prereleases): say so in <code>protocol.md</code> and the extension README. No Rust host work is asked, because the Rust product CLI is to be deleted (Decision 16).</li>
 </ul>
 
-<h3 id="asks-1149">Asks for finos/morphir#1149 (read at 123bbffc5)</h3>
-<p>This change follows #1149 and does not work around it. Each item is something its text leaves open or that this change needs stated:</p>
+<h3 id="asks-1149">Asks for the shared extension contract</h3>
+<p>The previous revision asked seven questions of finos/morphir#1149 at <code>123bbffc5</code>. #1150 (open, read at <code>6e15650</code>) proposes answers to all of them:</p>
+<ul>
+<li>an older home moves aside on consent (Decisions 10 and 11);</li>
+<li>earlier locks and journals are old state;</li>
+<li>a history is read whole;</li>
+<li>the repositories configuration and its lock are shared files;</li>
+<li>member sets are open for the catalog and records, and closed for locks, journals and the repositories configuration;</li>
+<li>paths are written without <code>\\?\</code>, and readers refuse that form;</li>
+<li>the lock primitive is named.</li>
+</ul>
+<p>This change follows those answers as provisional. What is still asked:</p>
 <ol>
-<li><strong>A home that already holds an earlier catalog.</strong> #1149 says a current host refuses a <code>2.0.0-draft.2</code> <code>catalog/extensions.json</code> and changes nothing. So a .NET install into any home the Rust CLI has used is blocked until the user removes the file by hand. Say what a current host does: refuse with instructions to move the old catalog aside, or replace it in a transaction under the state lock.</li>
-<li><strong>Earlier locks and journals in <code>locks/extensions/</code>.</strong> State what a current host does with a <code>"1.0"</code> lock, and with a journal whose bytes are an earlier catalog or lock. The journal's bytes are applied without being parsed, so recovery could write an earlier-version file back.</li>
-<li><strong>Histories with earlier lines.</strong> A JSONL history is many records in one file. Say whether a reader refuses the whole file when one line is at an earlier version, or skips that line. This change takes part in the history checks with such a line's <code>schemaVersion</code>, <code>id</code> and <code>version</code>, and never selects it (DOC-1).</li>
-<li><strong>The repositories file.</strong> Task 1.4 lists the catalog, lock, journal, state lock and paths, but not <code>config/extensions/repositories.json</code> and <code>locks/extensions.repositories.lock</code>, which two installers sharing a home also share. Add them.</li>
-<li><strong>Open or closed member sets.</strong> State for each document whether unknown members are ignored or refused. The Rust lock and journal readers refuse them today, which is why this change keeps .NET-only facts in its own inventory (Q-STRICTLOCK).</li>
-<li><strong>Repository identity spelling.</strong> State how <code>index.identity</code> and repository paths are spelled, in particular whether the Windows verbatim form <code>\\?\</code> is used. This change writes ordinary canonical paths and compares the two forms as equal.</li>
-<li><strong>The state lock primitive.</strong> Name the operating-system lock (a whole-file exclusive lock) so the .NET and MoonBit hosts exclude each other (Q-LOCKPRIM).</li>
+<li><strong>The member tables</strong> of the catalog entry, lock and repositories configuration (#1149 task 1.4). Until they exist, the only definition of those members is the reference source, and #1150 itself says an installer cannot be built from it alone.</li>
+<li><strong>The shared id cases</strong> (#1149 task 1.2), for task 8.1.</li>
+<li><strong>The claims <code>$schema</code> in <code>describe</code> answers.</strong> #1150 puts it on standalone claim sets, so every guest's answer changes, and with it this repository's <code>Morphir.Mep</code> guest loop. Say when hosts may start to refuse answers without it, so that guests can move first.</li>
+<li><strong>Published schemas.</strong> Each family file's schema is to be published under <code>website/static/schemas/extensions/0.1.0-preview.1/</code> (#1150 task 1.7), and none exists yet. This change does not invent any.</li>
+<li><strong>Packages</strong>: whether a one-file target archive becomes a one-file package (#1151) or installs its one file (Q-ARCHIVE (a)). The two cannot both stand.</li>
 </ol>
-<p>Already consistent, no ask: equal members and values conform (task 1.4); readers need not read earlier drafts (matches DOC-1); the catalog version switch (Q-CATVER) disappears, because every catalog is written at <code>2.0.0-draft.3</code>.</p>
 <h2 id="fsharp-frontend">The path to installing the F# frontend without .NET</h2>
-<p>At finos/morphir#1147 (<code>60d363059</code>), the managed offerings have the built-in F# frontend <code>morphir-dotnet.fsharp</code> in every <code>fsharp</code> recipe, so only the <code>native-aot</code> offering needs this installed process frontend. The recipe's question M2 recommends the same first delivery as Option A below: a single-file self-extracting frontend at the archive root, with the recipe and lock binding the archive digest. That matches Q-ARCHIVE (a): the toolchain lock binds the archive, and the extension lock binds the one file inside it.</p>
+<p>At finos/morphir#1147 (<code>60d363059</code>), the managed offerings have the built-in F# frontend <code>morphir-dotnet.fsharp</code> in every <code>fsharp</code> recipe, so only the <code>native-aot</code> offering needs this installed process frontend.</p>
+<p class="note"><strong>Decided:</strong> the maintainer chose the package form, Option B below, on 9 November 2026 (finos/morphir#1146). No self-unpacking single-file form of the frontend is built, so Option A is kept below only as the history of this page's earlier recommendation. The package contract is finos/morphir#1151 (open).</p>
 <p>Two facts apply whatever is chosen:</p>
 <ul>
-<li>The guest reports <code>org.finos.morphir.fsharp-frontend</code> (<code>src/Morphir.Frontend.FSharp.Extension/FSharpGuest.fs:61</code>). The probe compares <code>extension.id</code>, and dotted ids wait for #1149. So the frontend cannot be installed under any id today, even as one file, unless the maintainer accepts a temporary single-token id.</li>
-<li>It speaks only versions of the MEP 0.2 line (today <code>0.2.0-draft.1</code>), so once it is installed globally, a legacy Rust CLI cannot list that Morphir Home. That cost is accepted (Q-SHARED).</li>
+<li>The guest reports <code>org.finos.morphir.fsharp-frontend</code> (<code>src/Morphir.Frontend.FSharp.Extension/FSharpGuest.fs:61</code>). finos/morphir#1149 (merged) allows that id; its release must still be published at the family version (Decision 13).</li>
+<li>It speaks only versions of the MEP 0.2 line (today <code>0.2.0-draft.1</code>), so once it is installed globally, a released Rust CLI cannot list that Morphir Home. That cost is accepted (Q-SHARED).</li>
 </ul>
 <p><span class="tag obs">Observed</span> Adoption task 3.1 has landed on main as a folder (#569, <code>4b14b0d</code>). <code>SelfContainedProcess.pubxml</code> publishes a self-contained folder with <code>PublishSingleFile</code> false, "because the compiler references are files of the folder". <code>CompilerEdge</code> now takes the framework references from the host's deps files, and it refuses a single-file bundle with <code>NoFileLocation</code> when <code>FSharp.Core</code> or the annotations have no file location. Both options below build on that.</p>
 
-<h3>Option A: single-file self-contained publish with extraction (the cheapest path)</h3>
+<h3>Option A, not taken: single-file self-contained publish with extraction</h3>
 <p>Adoption task 3.1 did not qualify a single-file publish, and #569 makes the frontend refuse one on purpose (<code>NoFileLocation</code>). <code>CompilerEdge</code> gives the F# compiler file locations for its references, and in a bundle <code>Assembly.Location</code> is empty for bundled assemblies (FSF-1).</p>
 <p>What would have to change:</p>
 <ol>
@@ -735,23 +746,23 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
   The second is faster, but the extracted files are not rehashed at activation. They have the trust of user-owned Morphir Home, the same as the store, and that is recorded rather than hidden.</li>
 <li>Check the size against the 256 MiB artifact limit (<code>store.rs:14</code>). <span class="tag asm">Assumed</span> The self-contained folder reported for adoption 3.1 is about 121 MB. That is not measured here. An uncompressed bundle is about the size of the folder, roughly 115 MiB, so it fits with about 140 MiB to spare. A compressed bundle is smaller but starts more slowly. The probe's 30 second deadline must also cover the first extraction. Both are measured in the qualification task.</li>
 <li>Ship the bundle raw, or as a one-file target archive (Q-ARCHIVE (a)).</li>
-<li>Settle the id: wait for #1149, or accept a temporary single-token id.</li>
+<li>Settle the id, which #1149 has since done.</li>
 </ol>
 <p>Cost: one build change and one qualification task in the adoption change (a single-file publish profile beside #569's folder profile, qualified in its own task). No contract change, no Rust change and no store change. The integrity gap of reused extraction is documented.</p>
 
-<h3>Option B: an upstream package form for multi-file extensions</h3>
+<h3>Option B, chosen: an upstream package form for multi-file extensions</h3>
 <p>This needs:</p>
 <ul>
 <li>a descriptor member for an entry point and a per-file manifest;</li>
 <li>a store layout for trees, and activation that verifies every file;</li>
 <li>a catalog and lock member for trees;</li>
-<li>the Rust reader, writer and activation changes;</li>
-<li>a new draft of the descriptor, catalog and lock.</li>
+<li>the readers, writers and activation of every current host;</li>
+<li>a <code>package</code> member in the family documents, at <code>0.1.0-preview.1</code> or the next preview, as #1151 proposes.</li>
 </ul>
 <p>Benefits: no extraction, every file verified at each activation, and one form for any multi-file guest (other self-contained runtimes, Python, JVM).</p>
-<p>Cost: a contract change and implementation work in two repositories before the first F# frontend install.</p>
+<p>Cost: a contract change, and implementation work in this repository, before the first installed F# frontend.</p>
 
-<p><strong>Recommendation:</strong> Option A for the first F# frontend delivery, for the <code>native-aot</code> offering only. Add a single-file profile and its qualification task beside #569's folder profile, and make adoption task 3.3 depend on 3.5, 5.3 and the id. Raise Option B upstream as the long-term form. Decide before adoption task 3.3 starts.</p>
+<p><strong>Decision:</strong> Option B (maintainer, 9 November 2026). The installer implements packages in a follow-up change once finos/morphir#1151 is approved, and adoption task 3.3 waits on that change, 3.5 and 7.1.</p>
 
 <h2 id="verifiable">What a .NET implementation can be verified against</h2>
 <table>
@@ -760,8 +771,8 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <tr><td>Claim set shape, <code>describe</code>, agreement rule, critical members</td><td><code>protocol.md</code>, <code>distribution-and-acquisition.md</code>, <code>spec/mep</code></td><td>Typed projection and number equality (Q-NUMBERS); fallback by message (omitted here); converted entries written without claims (carried through here, DOC-1)</td></tr>
 <tr><td>Version 2 descriptor</td><td>Parent example and rules; toolchain recipe binding checks and signed fixtures</td><td>Exact member path lists; bundle file set and checksum format</td></tr>
 <tr><td>Index records and resolution</td><td>Channel rules</td><td>JSONL history rules, precedence duplicates, MEP filter, ambiguity, host-requirement skipping, WASM <code>platform</code> absence</td></tr>
-<tr><td>Store, catalog, locks, journal, state lock, repositories file</td><td>Layout in the PRD; two Rust test fixtures</td><td>Member sets, <code>critical</code>/<code>requires</code>, version switching, strict lock reader, journal, lock primitive, repository identity spelling, the listing failure that MEP-1 accepts</td></tr>
-<tr><td>Identifiers, paths, platforms</td><td>Toolchain <code>index.md</code> identifiers, target path rules, platform table; #1149's id cases once approved</td><td>Device-name rule for single-token extension ids</td></tr>
+<tr><td>Store, catalog, locks, journal, state lock, repositories file</td><td>Layout in the PRD; two Rust test fixtures</td><td>Member sets, <code>critical</code>/<code>requires</code>, the listing failure that MEP-1 accepts; #1150 now proposes the strict lock reader, journal, lock primitive and path spelling</td></tr>
+<tr><td>Identifiers, paths, platforms</td><td>Toolchain <code>index.md</code> identifiers, target path rules, platform table; #1149's id cases once its task 1.2 publishes them</td><td>None for ids: #1149 states the device-name rule</td></tr>
 <tr><td>Archives</td><td>PRD rules</td><td>Tool archive limits and collision rules (prior art only)</td></tr>
 </tbody>
 </table>
@@ -789,17 +800,17 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <tr><td>Substituted artifact in a repository, an archive, or the store</td><td>Digest checks at staging, against the descriptor as well as the checksum file; again when copying into the store; again in the read that writes the run copy</td></tr>
 <tr><td>Time of check to time of use: a guest rewrites its staged file during <code>describe</code>; the store object changes between hash and launch</td><td>"The copy into the store is verified again"; "Only verified bytes run" (one read hashes and copies)</td></tr>
 <tr><td>Symbolic link or junction out of a repository or out of Morphir Home, swapped in after the check</td><td>Canonicalize, then read through the opened handle; "Repository paths stay inside the repository"; "Store paths stay inside Morphir Home"</td></tr>
-<tr><td>A .NET install that breaks the Rust CLI on a shared Morphir Home (availability)</td><td>Accepted: the Rust CLI is legacy (Q-SHARED). A stderr note at install and the docs say so, and the Rust CLI can have its own <code>MORPHIR_HOME</code></td></tr>
-<tr><td>Lock-file abuse: a process holds <code>locks/extensions.state.lock</code> forever, or a .NET lock that a Rust process cannot see</td><td>The reference primitive, so both CLIs exclude each other; the wait is visible on stderr and cancellable; a user-level holder is the same user, so this is a nuisance, not an escalation</td></tr>
+<tr><td>A .NET install that breaks the Rust CLI on a shared Morphir Home (availability)</td><td>Accepted: the Rust product CLI is to be deleted (Q-SHARED, Decision 16). A stderr note at install and the docs say so, and a released copy can have its own <code>MORPHIR_HOME</code></td></tr>
+<tr><td>Lock-file abuse: a process holds <code>locks/extensions.state.lock</code> forever, or a .NET lock that a Rust process cannot see</td><td>The contract's primitive, so every current host excludes the others; the wait is visible on stderr and cancellable; a user-level holder is the same user, so this is a nuisance, not an escalation</td></tr>
 <tr><td>Concurrent CLIs writing the same pair</td><td>One state lock; the journal; install refuses an id that appeared meanwhile</td></tr>
 <tr><td>Dependency confusion: the same id in two repositories</td><td>Install and update name exactly one repository; the lock records the repository identity and history revision; pins bind digests</td></tr>
-<tr><td>An installed extension impersonating a built-in, or a familiar dotted prefix</td><td>"An installed id never reuses a built-in id"; "Extension ids are unique"; an id grants no trust (#1149)</td></tr>
+<tr><td>An installed extension impersonating a built-in, or a familiar dotted prefix</td><td>"An installed id never reuses a built-in id", including the reserved <code>morphir.</code> prefix; "Extension ids are unique"; an id grants no trust (#1149)</td></tr>
 <tr><td>Claims that lie</td><td>Install probe for process artifacts; session agreement at every start; WASM labelled <code>unchecked</code></td></tr>
 <tr><td>A probe that hangs, floods, or spawns children</td><td>"A probe runs with bounded rights and resources"</td></tr>
 <tr><td>Secrets leaking into a probe or an activated guest</td><td>Cleared environment with a short allow-list at probe and activation; no credentials in any written document</td></tr>
 <tr><td>Code from a cloned repository running unasked</td><td>Staged files never run; process packages never install automatically; compile never installs</td></tr>
 <tr><td>Windows path length and reserved names in launch paths</td><td>Short private copy path; <code>extension.path_too_long</code> (provisional); device-name rules for ids and entries</td></tr>
-<tr><td>Unknown critical member or newer draft that changes meaning</td><td>Refused and named</td></tr>
+<tr><td>Unknown critical member, another <code>$schema</code>, or old state that changes meaning</td><td>Refused and named; old state is only moved aside, on consent, never read or replayed</td></tr>
 <tr><td>Hand-edited catalog or lock</td><td>Pair agreement before any start; <code>extension.state_mismatch</code></td></tr>
 <tr><td>A checksum mistaken for a signature, or a developer label mistaken for a receipt</td><td>"Authentication and claim checks are reported separately"; TRUST-1</td></tr>
 <tr><td>Deleting another host's run copies</td><td>"Private run copies belong to the host that made them"</td></tr>
@@ -809,22 +820,22 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <ul>
 <li>A malicious process extension that the user installs and runs has the user's rights. That is the PRD's stated trust model for process guests, and is documented, not solved, here.</li>
 <li>A same-user process can change a private run copy between the hash and the launch.</li>
-<li>Option A's reused extraction directory is not rehashed. Both of these rest on Morphir Home being user-owned.</li>
+<li>This rests on Morphir Home being user-owned.</li>
 </ul></div>
 
 <h2 id="findings">Findings for the approved and adoption changes</h2>
 <ol>
-<li><strong>A .NET install of a 0.2-only guest would break the Rust CLI.</strong> The approved toolset-setup requirement says setup "SHALL use the host's extension configuration, store, claims and locks". That writes the F# guests into the shared catalog, which breaks every legacy Rust command on that Morphir Home (<a href="#shared">the evidence</a>). The maintainer accepted that (Q-SHARED). The approved qualification should not include the Rust CLI on a home the .NET host writes.</li>
-<li><strong>Multi-file frontend versus single-file store.</strong> Adoption FSF-1 ships the self-contained F# frontend as a folder, and the store holds one file per digest. Approved task 3.3 cannot complete as written until Q-MULTIFILE is answered. The cheapest path re-scopes adoption 3.1 (<a href="#fsharp-frontend">the F# frontend section</a>).</li>
-<li><strong>Dotted ids.</strong> Both F# guests report dotted ids, so neither can be installed until #1149 lands. See <a href="#id-1">ID-1</a> for how dotted ids are stored.</li>
-<li><strong>Target archives.</strong> The approved recipe binds <code>win-x64.zip</code> process archives, but nothing upstream says how an installer turns one into an installed artifact (Q-ARCHIVE). Under the recommendation, the shared lock records the inner file's digest and a generated repository, so only the .NET inventory ties the install back to the publisher's archive, and the Rust CLI cannot <code>update</code> it.</li>
+<li><strong>A .NET install of a 0.2-only guest would break the Rust CLI.</strong> The approved toolset-setup requirement says setup "SHALL use the host's extension configuration, store, claims and locks". That writes the F# guests into the shared catalog, which breaks every released Rust command on that Morphir Home (<a href="#shared">the evidence</a>). The maintainer accepted that (Q-SHARED). The approved qualification should not include the Rust CLI on a home the .NET host writes.</li>
+<li><strong>Multi-file frontend versus single-file store.</strong> Adoption FSF-1 ships the self-contained F# frontend as a folder, and the store holds one file per digest. The maintainer chose a multi-file package form (Q-MULTIFILE, settled). Approved task 3.3 waits on its contract, finos/morphir#1151, and on the package follow-up change (<a href="#fsharp-frontend">the F# frontend section</a>).</li>
+<li><strong>Dotted ids.</strong> Both F# guests report dotted ids, which finos/morphir#1149 (merged) allows. They can be installed once their releases are published at the family version (Decision 13). See <a href="#id-1">ID-1</a>.</li>
+<li><strong>Target archives.</strong> The approved recipe binds <code>win-x64.zip</code> process archives, but nothing upstream says how an installer turns one into an installed artifact (Q-ARCHIVE). Under the recommendation, the shared lock records the inner file's digest and a generated repository, so only the .NET inventory ties the install back to the publisher's archive. finos/morphir#1151 proposes the other answer, a one-file package; see <a href="#asks-1149">the asks</a>.</li>
 <li><strong>"Duplicate ids cannot enter one registry" (approved 4.4).</strong> The same id is expected across layers. The rule applies after precedence and within one layer. This change states that rule in a MODIFIED "Extension ids are unique", with exit code 1 for a refused selection.</li>
 <li><strong>PRD step 3 corrections.</strong>
   <ul>
   <li>Provenance kind <code>staged</code> would break upstream readers (Q-PROVENANCE).</li>
   <li><code>describe</code> for WASM packages conflicts with the upstream decision.</li>
   <li>The global level's selection is the shared catalog itself, not a second file.</li>
-  <li>"Sharing global installs" means sharing with the other current hosts; the legacy Rust CLI is not protected.</li>
+  <li>"Sharing global installs" means sharing with the other current hosts; a released Rust CLI is not protected.</li>
   </ul></li>
 <li><strong>#492 as written contradicts step 3.</strong> Recommend closing it as superseded (CMD-2).</li>
 <li><strong>Receipt launch path.</strong> A receipt's <code>launch.program</code> for an installed provider would be the store path, while the host runs a private copy (SEL-3). Raised upstream with the overlay and pins.</li>
@@ -832,20 +843,21 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li><strong>requires.host across implementations.</strong> A provider's <code>requires.host</code> cannot say which implementation it targets (Q-REQHOST).</li>
 <li><strong>MEP 0.1-only extensions.</strong> MEP <code>0.1</code> is not supported (MEP-1). So the published process extensions pinned upstream resolve to <code>extension.no_compatible_mep_version</code>, and Rust-installed ones are listed as unavailable. The approved qualification matrix should drop them, and their publishers need releases that speak <code>0.2.0-draft.1</code>.</li>
 <li><strong>Two changes modify one registry requirement.</strong> This change's MODIFIED block for "An entry states its delivery and hosts" is now written against the adoption change's text on main, and adds <code>deployments</code> and <code>reason</code> for installed entries.</li>
-<li><strong>"Keeps old global catalogs readable" (approved UP-2, task 4.4) is narrowed by DOC-1.</strong> An old catalog file is still read, and the ids an overlay does not select still resolve. But a catalog entry converted from a version 1 record, or one carrying claim set draft.1, is now listed as unavailable and never activated. The approved wording should say "readable", not "usable in full".</li>
+<li><strong>"Keeps old global catalogs readable" (approved UP-2, task 4.4) no longer holds.</strong> Under DOC-1 and Decisions 10 and 11, a catalog an older CLI wrote is not read at all: the host offers to move it aside, and refuses without consent. An overlay changes nothing about that. The approved wording should say that an overlay never changes the shared catalog, not that an old one stays readable.</li>
 </ol>
 
 <h2 id="risks">Risks and trade-offs</h2>
 <table>
 <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
 <tbody>
-<tr><td>Someone runs the legacy Rust CLI on a Morphir Home the .NET host wrote</td><td>Accepted (Q-SHARED); a stderr note at install and the docs say to give it its own <code>MORPHIR_HOME</code></td></tr>
+<tr><td>Someone runs a released Rust CLI on a Morphir Home the .NET host wrote</td><td>Accepted (Q-SHARED); a stderr note at install and the docs say to give it its own <code>MORPHIR_HOME</code></td></tr>
 
-<tr><td>Upstream changes a Rust-only rule (lock reader, journal, catalog switch) and the CLIs diverge</td><td>Fixtures captured from a pinned Rust CLI; the interoperability gate; upstream issues to document each rule</td></tr>
+<tr><td>finos/morphir#1150's review changes a shared-file rule this change follows as provisional</td><td>Each such requirement names #1150; task 1.1 updates the specs first; the evidence fixtures pin today's reference behavior separately</td></tr>
+<tr><td>Guests answer <code>describe</code> without the claims <code>$schema</code>, and every probe fails</td><td>Moving <code>Morphir.Mep</code> and the test guest first is a precondition of task 4.3, and an ask upstream on when hosts may refuse</td></tr>
 <tr><td>The Windows lock primitive assumption is wrong</td><td>Task 3.1 proves it with a direct <code>LockFileEx</code> helper before anything depends on it</td></tr>
 <tr><td>The pins and overlay become a .NET-only parallel design</td><td>Marked provisional; raised for the toolchain contract; 6.1 and 6.4 wait on it</td></tr>
 <tr><td>Generated local repositories confuse users who see them in locks</td><td>They live below <code>data/morphir-dotnet/</code>; <code>extension info</code> names the true source</td></tr>
-<tr><td>The single-file restriction blocks the F# frontend</td><td>Q-MULTIFILE, with costed options and a decision point before adoption 3.3</td></tr>
+<tr><td>The package contract (#1151) takes long, and the F# frontend for <code>native-aot</code> waits</td><td>The managed offerings have the built-in frontend; only <code>native-aot</code> waits</td></tr>
 <tr><td>Probe runs code with the user's rights at install</td><td><code>--no-probe</code>; never automatic for process guests; stderr note before it runs</td></tr>
 <tr><td>Trim or AOT warnings from tar or zip readers</td><td>The AOT probe task runs in the pull request lane from task 2.1</td></tr>
 </tbody>
@@ -855,7 +867,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <ol>
 <li>Group 1 records the maintainer's answers and raises the upstream asks. Groups 2 and 3 add the library and shared-state code with no command change, and 3.5 runs the first interoperability gate.</li>
 <li>Group 4 replaces the stubs. No release ever installed anything through them, so there is no user data to migrate. Files the old handlers could have written below the <code>OsPaths</code> folders are not read or deleted.</li>
-<li>Groups 5 to 7 add archives, staged folders, levels, activation and the hand-over. Group 8 waits for #1149.</li>
+<li>Groups 5 to 7 add archives, staged folders, levels, activation and the hand-over. Task 8.1 waits for #1149's shared cases, and packages for #1151.</li>
 <li>The PRD's feature table and step 3 text are updated in the group that lands each part; <code>docs/content/docs/cli/management.md</code> is rewritten in task 4.8.</li>
 <li>Rollback: until group 4, each group adds code paths beside the old ones, and reverting a group's commits restores the stubs. Entries in the shared catalog are in the upstream format, so another current host can still read, update or uninstall what a reverted .NET host installed.</li>
 </ol>
@@ -866,9 +878,11 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>Signature, provenance or repository-identity verification of any kind.</li>
 <li>Repository authoring: <code>repository init</code>, <code>publish</code>, <code>bundle</code>; also <code>search</code>, <code>repository enable|disable|inspect|verify</code>.</li>
 <li>A WASM runtime, and bare <code>.wasm</code> install until step 2a supplies one.</li>
-<li>Multi-file extension artifacts and any new store layout (Q-MULTIFILE).</li>
-<li>MEP <code>0.1</code> support in this host or its guests (MEP-1), and keeping the legacy Rust CLI working on a shared home (Q-SHARED).</li>
-<li>Dotted ids before #1149 is approved.</li>
+<li>Multi-file packages and their store layout: a follow-up change once finos/morphir#1151 is approved (Q-MULTIFILE).</li>
+<li>Republishing existing extensions at the family version: morphir-dotnet's bundle authoring (Decision 13), not this change.</li>
+<li>Official qualification and publishing, which belong to finos/morphir (Decision 16A).</li>
+<li>MEP <code>0.1</code> support in this host or its guests (MEP-1), and keeping the Rust CLI, which is to be deleted, working on a shared home (Q-SHARED).</li>
+
 <li>Store cleanup, yanking and revocation of extensions.</li>
 <li>External generator and analyzer selection in <code>generate</code> and <code>validate</code>; only the frontend reference (<code>extension_id</code>) is wired.</li>
 <li><code>dist</code> and <code>tool</code> commands (#490, #491) and the tool store.</li>
@@ -898,7 +912,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>finos/morphir <code>crates/morphir/src/commands/extension.rs</code>, <code>compile/prepare.rs</code> and <code>generate.rs</code> at <code>c247aad39</code>.</li>
 <li>finos/morphir <code>docs/spec/toolchain/</code> (<code>index.md</code>, <code>toolset-recipe.md</code>, <code>toolchain-lock.md</code>, <code>installation-receipt.md</code>) and <code>fixtures/0.1.0-draft.1/</code> at <code>efdbc34da</code>, and again (with <code>readiness-workflow.md</code> and <code>manager-result.md</code>) at <code>60d363059</code> on <code>feat/morphirup-deployment-acquisition</code> (finos/morphir#1147).</li>
 <li>finos/morphir <code>openspec/changes/add-deployment-and-acquisition/</code>, approved 9 November 2026; its adoption in this repository on main (<code>b8ebd12cd</code>).</li>
-<li>finos/morphir#1149, <code>openspec/changes/allow-dotted-extension-ids/</code> read at <code>e00e4d988</code> and <code>6d58eec56</code> on <code>docs/openspec-allow-dotted-extension-ids</code>, and at <code>123bbffc5</code>, the one-catalog rewrite.</li>
+<li>finos/morphir#1149, <code>openspec/changes/allow-dotted-extension-ids/</code> read at <code>e00e4d988</code>, <code>6d58eec56</code> and <code>123bbffc5</code>, and merged as <code>9690dfc37</code>; finos/morphir#1150 at <code>6e15650</code> (open); finos/morphir#1151 at <code>083b41eb</code> (open); maintainer Decisions 10, 11, 13, 15A and 16 in finos/morphir#1146.</li>
 <li>This repository: <a href="proposal.md">proposal.md</a>, <a href="tasks.md">tasks.md</a>, specs <a href="specs/extension-installation/spec.md">extension-installation</a>, <a href="specs/extension-store/spec.md">extension-store</a>, <a href="specs/extension-package-archives/spec.md">extension-package-archives</a>, <a href="specs/extension-selection/spec.md">extension-selection</a>, <a href="specs/extension-registry/spec.md">extension-registry</a>; the extension-model PRD; issues #490, #491, #492, #558.</li>
 </ul>
 </main>

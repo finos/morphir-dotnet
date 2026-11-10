@@ -7,10 +7,10 @@ Installs, updates, removes and describes external extensions from local sources 
 ## ADDED Requirements
 
 ### Requirement: Install reads a named local repository
-`extension install --repository <name> <id>` SHALL resolve `<id>` from the repository `<name>` configured in `config/extensions/repositories.json` below Morphir Home, reading `extensions/<id>.jsonl` below its directory for every id, dotted or not, as finos/morphir#1149 (read at `123bbffc5`) proposes. A disabled or unknown repository SHALL be refused with `extension.repository_unavailable`.
+`extension install --repository <name> <id>` SHALL resolve `<id>` from the repository `<name>` configured in `config/extensions/repositories.json` below Morphir Home, reading `extensions/<id>.jsonl` below its directory for every id, dotted or not, as finos/morphir#1149 (merged) defines. A disabled or unknown repository SHALL be refused with `extension.repository_unavailable`.
 
-#### Scenario: Repository configured by the Rust CLI
-- **WHEN** the Rust CLI configured repository `local-dev` and a user runs `morphir extension install --repository local-dev acme-backend`
+#### Scenario: Repository configured by another host
+- **WHEN** another current host configured repository `local-dev` and a user runs `morphir extension install --repository local-dev acme-backend`
 - **THEN** the .NET host reads that configuration and installs from `<directory>/extensions/acme-backend.jsonl`
 
 #### Scenario: Disabled repository
@@ -18,7 +18,7 @@ Installs, updates, removes and describes external extensions from local sources 
 - **THEN** the install fails with `extension.repository_unavailable` naming `local-dev`, and nothing is written
 
 ### Requirement: Repositories are configured in the upstream format
-`extension repository add <name> --directory <dir>` SHALL record the directory as an enabled `local-directory` endpoint in the upstream repositories file, under `locks/extensions.repositories.lock` with the state lock primitive. The file SHALL have integer `schemaVersion` 1 and only the members the shared contract defines. A name SHALL be a portable token of at most 64 characters. `list` and `remove` SHALL use the same file.
+`extension repository add <name> --directory <dir>` SHALL record the directory as an enabled `local-directory` endpoint in the repositories configuration, under `locks/extensions.repositories.lock` with the state lock primitive, never holding both lock files at once. The file SHALL carry its family `$schema` and only the members the shared contract defines. A name SHALL be a portable token of at most 64 characters.
 
 #### Scenario: Add a repository
 - **WHEN** a user runs `morphir extension repository add local-dev --directory ./ext-repo`
@@ -28,12 +28,16 @@ Installs, updates, removes and describes external extensions from local sources 
 - **WHEN** the directory has no `extensions` folder
 - **THEN** the command fails and the repositories file is unchanged
 
-### Requirement: Repository identities are canonical absolute paths
-The installer SHALL record a repository path and a lock's `index.identity` as the canonical absolute path in the platform's ordinary syntax, without the Windows verbatim prefix, until the shared contract defines the spelling. It SHALL compare two identities after canonicalizing both, so that a path written as `\\?\D:\ext-repo` by another host equals `D:\ext-repo`.
+### Requirement: Repository identities are ordinary absolute paths
+Provisional pending finos/morphir#1150. The installer SHALL write a repository path and a lock's `index.identity` as the final path the operating system reports for the open repository root, without the verbatim prefix `\\?\`, with `\\?\UNC\server\share` written as `\\server\share`, an uppercase drive letter and no trailing separator except at a volume root. Readers SHALL refuse a verbatim path and compare paths by their bytes.
 
-#### Scenario: An identity in the verbatim form
-- **WHEN** a repositories file names `\\?\D:\ext-repo` and the .NET host resolves the same directory given as `D:\ext-repo`
-- **THEN** the two identities compare equal, and a lock the .NET host writes for it holds `D:\ext-repo`
+#### Scenario: Verbatim final path
+- **WHEN** on Windows a user adds `C:\ext-repo` and the operating system reports its final path as `\\?\C:\ext-repo`
+- **THEN** the repositories configuration names `C:\ext-repo`
+
+#### Scenario: A verbatim path in a current file
+- **WHEN** a current repositories configuration names a repository at `\\?\C:\ext-repo`
+- **THEN** the host refuses the file and names the path
 
 ### Requirement: Selection is a channel or an exact version
 Install and update SHALL take `--channel <channel>` or `--version <semver>`, not both, and default to channel `stable`. `stable` SHALL select only releases without a prerelease label that list `stable`. `preview` and `insiders` SHALL select from all preview channels; `preview/<segment>` only from that one.
@@ -83,6 +87,7 @@ An entry or index record SHALL be runnable only when its `mepVersions` holds, ex
 #### Scenario: Outside the line
 - **WHEN** an entry's `mepVersions` is `["0.3.0"]`
 - **THEN** it is unavailable with a reason saying MEP `0.3.0` is not supported
+
 ### Requirement: Repository paths stay inside the repository
 The installer SHALL canonicalize the history file and each artifact source path, and SHALL refuse one that resolves outside the repository directory, for example through a symbolic link or `..`, with `extension.path_escape`. A declared source path SHALL be relative, use `/`, and have at most 512 UTF-8 bytes and 240 UTF-16 code units.
 
@@ -91,33 +96,41 @@ The installer SHALL canonicalize the history file and each artifact source path,
 - **THEN** the install fails with `extension.path_escape` and reads no bytes through the link
 
 ### Requirement: A release history is consistent
-The installer SHALL refuse a history whose records name different ids, repeat a version, or contain two versions of equal SemVer precedence, and SHALL record the SHA-256 of the exact history bytes as the index revision. A record at a version this host does not read SHALL take part only through its `schemaVersion`, `id` and `version`, and SHALL never be selected.
+The installer SHALL refuse a history whose records name different ids, repeat a version, or contain two versions of equal SemVer precedence, and SHALL record the SHA-256 of the exact history bytes as the index revision. A history is read whole and refused when any line is not current (store capability, decision DOC-1).
 
 #### Scenario: Two equal precedences
 - **WHEN** a history lists `1.0.0+a` and `1.0.0+b`
 - **THEN** resolution fails and names both versions
 
-#### Scenario: Old lines in a history
-- **WHEN** a history holds version 1 records for 0.1.0 and 0.2.0 and a `2.0.0-draft.2` record for 0.3.0
-- **THEN** a stable install selects 0.3.0, and `--version 0.2.0` fails with `extension.unsupported_contract_version`
+### Requirement: The id rule is the one finos/morphir#1149 defines
+The installer SHALL check every id with the rule finos/morphir#1149 (merged) defines: one or more lowercase portable tokens joined by `.`, at most 238 characters, with a first segment that is not a Windows device name. A document at an earlier version SHALL be refused by version before its id is read (decision DOC-1).
 
-### Requirement: The id rule is the rule of the contract version read
-The installer SHALL check an id with the rule of the document version it reads. For record and descriptor version `2.0.0-draft.2`, an id SHALL be one portable token of at most 238 characters that is not a Windows device name by the reference rule. Dotted ids SHALL be read only at the drafts finos/morphir#1149 introduces for every id, once it is approved; this part is provisional on #1149 at `123bbffc5`.
+#### Scenario: A dotted id in a current descriptor
+- **WHEN** a current descriptor has `extensionId` `org.finos.morphir.fsharp-frontend`
+- **THEN** the id is accepted
 
-#### Scenario: Dotted id in a draft.2 descriptor
-- **WHEN** a version `2.0.0-draft.2` descriptor has `extensionId` `org.finos.morphir.fsharp-frontend`
-- **THEN** the install fails with `extension.id_not_portable` naming the id and the descriptor version, and nothing is written
+#### Scenario: Historical example, a dotted id at draft.2
+- **WHEN** a descriptor has `schemaVersion` `2.0.0-draft.2` and `extensionId` `org.finos.morphir.fsharp-frontend`
+- **THEN** the install fails with `extension.unsupported_contract_version` for the version, and nothing is written
 
 #### Scenario: Device name
 - **WHEN** a record has the id `con` or `com1`
 - **THEN** reading refuses it with `extension.id_not_portable`
 
 ### Requirement: An installed id never reuses a built-in id
-The installer SHALL refuse an extension whose id equals the id of a built-in registry entry of this release, with `extension.duplicate_id`.
+The installer SHALL refuse an extension whose id equals the id of a built-in registry entry of this release, with `extension.duplicate_id`. It SHALL refuse every id that starts with `morphir.`, a prefix reserved for built-in frontends and backends, with `extension.reserved_id` (maintainer decision, 9 November 2026). Neither refusal SHALL grant any id trust, precedence or built-in status.
 
 #### Scenario: Impersonated generator
-- **WHEN** a descriptor version that allows dotted ids names the extension `morphir.fsharp`
+- **WHEN** a current descriptor names the extension `morphir.fsharp`
 - **THEN** the install fails with `extension.duplicate_id` and the built-in stays the only `morphir.fsharp` entry
+
+#### Scenario: Reserved prefix
+- **WHEN** a current descriptor names the extension `morphir.example`, which no built-in uses
+- **THEN** the install fails with `extension.reserved_id`
+
+#### Scenario: Not reserved
+- **WHEN** a descriptor names `org.finos.morphir.fsharp-frontend`
+- **THEN** the prefix rule does not apply, and the id gains no trust from its segments
 
 ### Requirement: The host platform maps to one artifact platform
 The installer SHALL map the host's runtime identifier to the descriptor target triple and to the index `os` and `arch` with the platform table of the toolchain contracts, whose "Tool release v1 platform" column gives the index spelling. A musl host, which that column cannot name, SHALL get `extension.no_matching_artifact` naming its runtime identifier for process artifacts (Q-PLATFORM, follows the reference).
@@ -143,7 +156,7 @@ The installer SHALL copy the selected artifact into a private directory below `t
 - **THEN** the install fails with `extension.artifact_too_large` after reading at most 256 MiB and one byte
 
 ### Requirement: Process artifacts are probed before they are recorded
-For a `process` artifact the installer SHALL start the staged copy and call `morphir.extension.describe` before shared state changes. The answer and the recorded claim set SHALL be compared over the typed claim set projection, as the reference compares them (Q-NUMBERS). A refusal with `-32601` or `-32014` SHALL fall back to a session. Lifecycle refusals that older guests signal only by message SHALL NOT trigger a fallback, because those guests predate `0.2.0-draft.1`.
+For a `process` artifact the installer SHALL start the staged copy and call `morphir.extension.describe` before shared state changes. The answer and the recorded claim set SHALL be compared over the typed claim set projection, without their schema members (Q-NUMBERS). A refusal with `-32601` or `-32014` SHALL fall back to a session. Lifecycle refusals that older guests signal only by message SHALL NOT trigger a fallback, because those guests predate `0.2.0-draft.1`.
 
 #### Scenario: Claims agree
 - **WHEN** the staged guest answers `describe` with a claim set equal to the descriptor's
@@ -165,6 +178,13 @@ For a `process` artifact the installer SHALL start the staged copy and call `mor
 #### Scenario: A refusal by message only
 - **WHEN** the guest answers `describe` with code `-32600` and the message `not initialized`
 - **THEN** the install fails with `extension.probe_failed`, which deliberately differs from the reference
+
+### Requirement: A describe answer carries the claims schema
+Provisional pending finos/morphir#1150. A claim set that `describe` returns SHALL carry the `$schema` of the claims schema at the family version, in place of `claimsVersion` (Decision 15A). An answer without it, or with another URL, SHALL fail the probe with `extension.unsupported_contract_version`, naming the URL this host reads.
+
+#### Scenario: An answer at an earlier claims version
+- **WHEN** the staged guest answers `describe` with `claimsVersion` `0.1.0-draft.2` and no `$schema`
+- **THEN** the install fails with `extension.unsupported_contract_version` and writes nothing
 
 ### Requirement: The claim check records what this install did
 An installed record's `claimCheck` SHALL be `probed` only when this install or update ran the probe, and `unchecked` otherwise, whatever the index record says. This deliberately differs from the reference `update` (Q-CLAIMCHECK). `--no-probe` SHALL skip the probe and print a note on stderr. WASM artifacts SHALL NOT be probed and SHALL be recorded `unchecked`.
@@ -262,6 +282,7 @@ Provisional pending the shared toolchain contract. Before it writes anything, th
 #### Scenario: Plan then install
 - **WHEN** a caller asks what a hand-over would write and then performs it
 - **THEN** the files the install changes are exactly those the answer named
+
 ### Requirement: Platform differences are reported
 When the release that an install reads has artifacts whose claim sets differ from the installed artifact's, the install and `extension info` SHALL name the members that differ and the platforms they differ on.
 

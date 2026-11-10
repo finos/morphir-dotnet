@@ -19,9 +19,13 @@ This host does not support MEP `0.1` (maintainer decision, 9 November 2026): "we
 - **Later versions are added, not swapped.** As later versions of the line appear, the host keeps the earlier ones.
 - **This is an explicit exception.** The general rule is that a prerelease matches only exactly.
 
-The same day the maintainer decided to stop reading transient pre-1.0 document formats: "we are paying too much of a cost to support transient pre 1.0 contracts". This host reads index records, descriptors and catalog entries only at the current draft, `2.0.0-draft.2` until finos/morphir#1149 moves every document to `2.0.0-draft.3` (lock `2.0.0-draft.1`), with claim sets at `0.1.0-draft.2`. It does not read or convert version 1 records and descriptors, `2.0.0-draft.1` or claim set draft.1. A Rust-written catalog entry in those formats is listed as unavailable and carried through unchanged.
+The same day the maintainer decided to stop reading transient pre-1.0 document formats: "we are paying too much of a cost to support transient pre 1.0 contracts" (DOC-1). On 10 November, Decision 15A put the extension state family on one version: the descriptor, index record, catalog, lock, journal, repositories configuration and standalone claim set each carry a required `$schema` at `0.1.0-preview.1`, with no `schemaVersion`.
 
-Every global install goes to the shared catalog, `catalog/extensions.json`, so the current hosts (.NET now, MoonBit later) share what is installed. The maintainer accepted the cost on 9 November 2026: a released Rust CLI cannot list a Morphir Home the .NET host has installed into, because one catalog entry it cannot run fails every Rust `compile`, `generate` and `extension list`. "For now we are treating the rust cli as legacy." A user who needs the Rust CLI gives it its own `MORPHIR_HOME`.
+- **What this host reads.** Only documents with their current `$schema`. It reads no `schemaVersion` draft, and converts nothing.
+- **A home an older CLI wrote** is not read. The host offers to move it to a marked backup and goes on. Without consent, or without a terminal and without `--yes`, the command is refused and nothing changes. `morphir doctor` reports such a home, and `morphir doctor --fix` moves it (Decisions 10 and 11).
+- **The exact schema URLs and shared-file rules** come from finos/morphir#1150, which is open, so the specs mark them provisional.
+
+Every global install goes to the shared catalog, `catalog/extensions.json`, so the current hosts (.NET now, MoonBit later) share what is installed. The maintainer accepted the cost on 9 November 2026: a released Rust CLI cannot list a Morphir Home the .NET host has installed into, because one catalog entry it cannot run fails every Rust `compile`, `generate` and `extension list`. "For now we are treating the rust cli as legacy", and on 10 November it decided the Rust product CLI is to be deleted (Decision 16). A user who needs a released copy gives it its own `MORPHIR_HOME`.
 
 ```text
 source (named repository | package archive | staged folder | manager handoff)
@@ -33,9 +37,10 @@ source (named repository | package archive | staged folder | manager handoff)
 ```
 
 - **The installer.** It writes the shared store, catalog and locks under Morphir Home, with the members and values the shared contract defines, under one interprocess lock.
-  - Where only the Rust source specifies the contract today, the installer follows it and asks upstream to write it down. It does not copy Rust quirks the contract does not need.
-  - A shared entry this host cannot run, such as one the Rust CLI installed that speaks only `0.1`, is listed as unavailable instead of breaking the list.
-  - A .NET inventory keeps the .NET-only facts that the closed catalog and lock member sets cannot carry.
+  - Where the contract is unwritten, the installer follows finos/morphir#1150's proposal, then the reference source as evidence, and asks upstream to write it down. It does not copy Rust quirks the contract does not need, such as the Windows `\\?\` path spelling.
+  - A shared entry this host cannot run, such as one that speaks only MEP `0.1`, is listed as unavailable instead of breaking the list.
+  - A .NET inventory keeps the .NET-only facts that the shared files' member sets cannot carry.
+  - Ids follow finos/morphir#1149 (merged), with every id in one catalog. The `morphir.` prefix is reserved for built-ins.
   - It never downloads anything. Compile, generate and validate never install.
 - **Install sources.** Each source becomes the same resolved record before any byte is stored:
   - a named local-directory repository (the upstream path);
@@ -49,21 +54,31 @@ source (named repository | package archive | staged folder | manager handoff)
   - The verbs are `extension install`, `update`, `uninstall` (with `remove` as an alias), `list`, `info`, `use`, `which` and `extension repository add|list|remove`.
   - Each has `--json` on stdout and messages on stderr.
   - Only `list` keeps `--platform`.
+  - `morphir doctor` and `morphir doctor --fix` handle a home an older CLI wrote.
 - **BREAKING** for a command that never worked: the `extension install <name> <url> <version>` arguments go away. The stub never installed anything, and no release documented it as working. The download handlers in `src/Morphir.Tooling/Features/Management` stop being used for extensions.
 
 The design groups its questions by what they need:
 
-- **Follows today's reference behavior.** The specs follow what the Rust source does where the contract is unwritten. The ask is to write it into the contract pages, and no maintainer answer is needed to start.
+- **Follows the reference or an open parent proposal.** The specs follow #1150, or the reference source, where the contract is unwritten. The ask is to write it into the contract pages, and no maintainer answer is needed to start.
 - **Needs the maintainer.** The requirements that depend on these questions are marked provisional in the spec text, and each question names the tasks it blocks.
 
-The decision that mattered most, what may enter the shared catalog (Q-SHARED), is settled: every global install. The design records how the question went three turns, so the .NET-only layer is not restored again. Nothing here is shipped, released or qualified.
+The decision that mattered most, what may enter the shared catalog (Q-SHARED), is settled: every global install. The design records how the question went three turns, so the .NET-only layer is not restored again. Multi-file extensions are settled too: the maintainer chose a package form (finos/morphir#1146), whose contract is finos/morphir#1151 (open), so this change keeps refusing multi-file artifacts and packages follow in their own change.
+
+Parent contracts still pending, which block the tasks the design names:
+
+- the member tables of #1149's task 1.4, and its shared id cases (task 1.2);
+- the shared-file rules and schema URLs of #1150;
+- the package contract of #1151;
+- the toolchain contract (#1147) for pins, overlays and the plan.
+
+Nothing here is shipped, released or qualified.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `extension-installation`: the install, update, uninstall and info pipeline from each source: record reading, the id rule of the contract version, artifact selection, digest checks, claim probes, reports and diagnostics.
-- `extension-store`: the shared Morphir Home state: content-addressed store, catalog, locks, the .NET inventory, the interprocess state lock, transaction recovery and compatibility with upstream readers.
+- `extension-installation`: the install, update, uninstall and info pipeline from each source: record reading, the id rule, artifact selection, digest checks, claim probes, reports and diagnostics.
+- `extension-store`: the shared Morphir Home state: content-addressed store, catalog, locks, journal, the family `$schema`, old state and `morphir doctor`, the .NET inventory and the interprocess state lock.
 - `extension-package-archives`: the extension package archive and bare `.wasm` formats, archive safety rules and limits, and the `staged/` folders with their install policy.
 - `extension-selection`: level pins, the generation overlay, precedence, offline activation checks and launching only verified bytes.
 
@@ -78,14 +93,19 @@ The decision that mattered most, what may enter the shared catalog (Q-SHARED), i
 - Beads: no id is recorded. Do not invent one.
 - Parent contract: finos/morphir `docs/design/draft/extensions/distribution-and-acquisition.md` and the reference implementation `ecosystem/morphir-rust/crates/morphir-distribution`, read at finos/morphir `c247aad39` (submodule `c9f79da`). The toolchain pages were read at finos/morphir `efdbc34da`.
 - Approved change: finos/morphir `openspec/changes/add-deployment-and-acquisition/` (tasks 3.3, 3.4, 4.4). Its adoption in this repository is on main (`b8ebd12cd`).
-- Dotted ids: finos/morphir#1149, read at `123bbffc5` (the one-catalog rewrite, not yet reviewed). The maintainer chose one catalog: every id goes in `catalog/extensions.json`, `locks/extensions/` and a repository's `extensions/`, at new drafts, and its task 2.3 is for this installer. Toolchain contract pages: finos/morphir#1147 at `60d363059`.
+- Dotted ids: finos/morphir#1149, merged on 10 November 2026 (`9690dfc37`). Every id is in one `catalog/extensions.json`, `locks/extensions/` and repository `extensions/`, and its task 2.3 is for this installer. Its tasks 1.1, 1.2 and 1.4 are not done.
+- Shared extension files: finos/morphir#1150 (open, read at `6e15650`), which carries Decisions 10, 11, 13 and 15A for the extension family.
+- Multi-file packages: finos/morphir#1151 (open, read at `083b41eb`).
+- Toolchain contract pages: finos/morphir#1147 (open), read at `60d363059`.
+- Maintainer decisions are recorded in finos/morphir#1146.
 - Issues: #492 wires the existing handlers, which this change replaces for extensions; the design recommends closing #492 as superseded. #490 (`dist`) and #491 (`tool`) are not part of this change.
 
 ## Impact
 
 - New F# library `src/Morphir.Extensions.Installation` (AOT-safe, no reference to `Morphir.Tooling`), so both hosts and `morphirup` can use it, and its Expecto tests.
 - `src/Morphir.Extensions` (registry entries for installed extensions), `src/Morphir.Tooling/Features/Extensions` and `Scenarios/ManagementScenario.cs` (commands), `src/Morphir.Configuration/Schema.fs` (`[extension_install]`), `src/Morphir.Compilation.Mep` and `src/Morphir.Mep` (the describe probe).
-- A workflow job that runs the pinned Rust CLI as a separate executable against Morphir Homes written by the .NET code, from task 3.5 on.
+- `morphir doctor` in both hosts.
+- Shared extension id cases run through the compatibility kit runner, the standalone `morphir-mck` executable that `morphir mck` dispatches to (task 8.1). No second checker.
 - Removal from the extension path: `Features/Management/ExtensionHandlers.cs`, `ExtensionCommands.cs` and the extension use of `ArtifactPathResolver` and `Configuration/OsPaths.cs`.
 - Docs: `docs/content/docs/cli/management.md`, the extension-model PRD (step 3 status and corrections), and a new installation guide.
 - Upstream: issues and review comments for the asks the design lists, and language-neutral fixtures for the acquisition documents in finos/morphir.

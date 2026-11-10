@@ -25,7 +25,7 @@ When discovery is isolated, the host SHALL omit the system pin and the shared ca
 - **THEN** that extension is not selected
 
 ### Requirement: A pin file is portable
-Provisional pending Q-LEVELS and the shared toolchain contract. A level pin file SHALL be `.morphir/extensions/selection.json` at its level, with `schemaVersion` `0.1.0-draft.1` and `extensions` sorted by id. Each entry SHALL have `extensionId`, `version`, `runtime`, and the digest per platform identifier, or one `portable` digest for WASM. It SHALL hold no absolute path and no credential.
+Provisional pending Q-LEVELS and the shared toolchain contract. A level pin file SHALL be `.morphir/extensions/selection.json` at its level, with a required `$schema` (Decision 15A, URL to be defined by that contract) and `extensions` sorted by id. Each entry SHALL have `extensionId`, `version`, `runtime`, and the digest per platform identifier, or one `portable` digest for WASM. It SHALL hold no absolute path and no credential.
 
 #### Scenario: Pin for two platforms
 - **WHEN** a project pins `acme-backend` 0.2.0 after installs on `win-x64` and `linux-x64`
@@ -35,12 +35,12 @@ Provisional pending Q-LEVELS and the shared toolchain contract. A level pin file
 - **WHEN** a pin file has an unknown optional member and another with a `critical` path the host does not know
 - **THEN** the host ignores the first and refuses the file, naming the second path
 
-### Requirement: Pin files follow exact draft matching
-A host SHALL refuse a pin file whose `schemaVersion` is not exactly a draft it lists, with `extension.unsupported_contract_version`, before it uses any entry of that file.
+### Requirement: Pin files follow exact schema matching
+Provisional pending the shared toolchain contract, which defines the URL. A host SHALL refuse a pin file whose `$schema` is not exactly the URL it reads, or that has no `$schema`, with `extension.unsupported_contract_version`, before it uses any entry of that file.
 
-#### Scenario: Later draft
-- **WHEN** a pin file has `schemaVersion` `0.1.0-draft.2`
-- **THEN** the host refuses it and names the version
+#### Scenario: Another version
+- **WHEN** a pin file's `$schema` names another version, or the file has `schemaVersion` and no `$schema`
+- **THEN** the host refuses it and names the URL it reads
 
 ### Requirement: Pins resolve against the local inventory only
 A host SHALL resolve a pin through the .NET inventory by id and the digest for its platform. A pin with no installed record SHALL fail with `extension.not_installed`, naming the id, version and the install command, and a pin without a digest for the running platform SHALL fail with `extension.platform_not_pinned`. It SHALL NOT fetch content or fall back to a lower layer.
@@ -65,12 +65,12 @@ Provisional pending Q-OVERLAY and the shared toolchain contract. A host SHALL re
 - **WHEN** two projects run under overlays that select versions 0.2.0 and 0.3.0 of one id
 - **THEN** each uses its own version, and the shared catalog still selects the version it selected before
 
-### Requirement: Old global catalogs stay readable under an overlay
-An overlay or pin SHALL NOT require a change to the shared catalog or locks. A host SHALL read a shared catalog written by any upstream release whose format this host reads, with or without an overlay.
+### Requirement: An overlay does not change the shared catalog
+An overlay or pin SHALL NOT require a change to the shared catalog or locks. A home that holds old state SHALL be handled as the store capability says, with or without an overlay: offered a move aside, never read (Decisions 10 and 11).
 
-#### Scenario: Catalog from an older Rust CLI
-- **WHEN** the shared catalog has `schemaVersion` `"1.0"` with entries the Rust CLI converted from version 1 records, and an overlay is set
-- **THEN** the catalog is read, the overlay's ids resolve, and the converted entries are listed as unavailable without being rewritten
+#### Scenario: An old catalog under an overlay
+- **WHEN** the shared catalog was written by an older CLI, an overlay is set, and a command runs without a terminal and without `--yes`
+- **THEN** the command fails, changes nothing, and names `catalog/extensions.json`, `morphir doctor --fix` and `--yes`
 
 ### Requirement: Activation checks the installed bytes offline
 Before it starts a guest, a host SHALL load the selected record and, for a shared entry, its lock, check that they agree, check that the store path resolves inside Morphir Home, check the executable mode on Unix, and check that a recorded MEP version is one it speaks. Any failure SHALL stop before guest code runs. This is the parent contract's activation.
