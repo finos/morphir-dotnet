@@ -17,15 +17,19 @@ open Morphir.Toolchain.Tests.Manifest
 open Morphir.Toolchain.Tests.BindingCaseTests
 
 /// Sections this suite runs, in whole or in part.
-let ranSections = [ "selection"; "frozen"; "lockRecipe"; "recipeChecks"; "trust"; "channelSelection" ]
+let ranSections = [ "selection"; "frozen"; "lockRecipe"; "recipeChecks"; "trust"; "channelSelection"; "v1Descriptors" ]
+
+/// Parts of a section this suite runs that it does not run, each with its reason.
+let notRunClauses =
+    [ "v1Descriptors",
+      "Validation against tool-release-v1.schema.json, which this pin does not hold: the v1 reader checks the schema's rules, written from it by hand." ]
 
 let private noV1Client =
     "needs the tool release metadata v1 client, which does not exist in morphir-dotnet yet (task 4.2)"
 
 /// Sections this suite does not run, each with its reason.
 let notRunSections =
-    [ "v1Client", $"Selects artifacts by tool id, channel and v1 platform: {noV1Client}."
-      "v1Descriptors", "Validates release targets against tool-release-v1.schema.json, which is not part of this pin, read through the TUF client." ]
+    [ "v1Client", $"Selects artifacts by tool id, channel and v1 platform: {noV1Client}." ]
 
 /// Members of the signed manifest that are data, not case sections.
 let metadataMembers = [ "contractVersion"; "repository"; "referenceClient" ]
@@ -332,6 +336,44 @@ let private trustTests () =
                       Expect.equal actual (Manifest.expected name case) name)
           | _ -> () ]
 
+let private v1DescriptorTests () =
+    use document = manifest ()
+    let section = document.RootElement.GetProperty "v1Descriptors"
+    requireKnown "v1Descriptors" [ "note"; "schema"; "releases" ] section
+    let releases = [ for r in section.GetProperty("releases").EnumerateArray() -> nonNull (r.GetString()) ]
+    let listed = authenticatedTargets "metadata"
+
+    [ for release in releases do
+          yield testCase release (fun () ->
+              // Read as the binding check reads it: authenticated bytes, a tool-release target of schemaVersion 1, and
+              // an unchanged v1 descriptor.
+              let entry =
+                  match RecipeTargets.authenticate (listed.TryFind release) (targetBytes release) with
+                  | Ok entry -> entry
+                  | Error refusal -> failtestf "%s is not authenticated: %A" release refusal
+
+              let morphir =
+                  match entry.Custom with
+                  | Some(Value.Object members) -> members |> List.tryFind (fst >> (=) "morphir") |> Option.map snd
+                  | _ -> None
+
+              match morphir with
+              | Some(Value.Object members) ->
+                  Expect.contains members ("kind", Value.String "tool-release") "custom.morphir.kind"
+                  Expect.contains members ("schemaVersion", Value.Number "1") "custom.morphir.schemaVersion"
+              | _ -> failtestf "%s has no custom.morphir" release
+
+              Expect.isOk (ToolReleaseDocument.read (targetBytes release)) "a v1 descriptor")
+      yield testCase "every other release target is the deliberate negative" (fun () ->
+          let others =
+              listed
+              |> Map.keys
+              |> Seq.filter (fun target -> target.StartsWith "releases/" && not (List.contains target releases))
+              |> List.ofSeq
+
+          Expect.equal others [ "releases/morphir-dotnet-not-a-release/1.2.3.json" ] "the one release not listed"
+          Expect.isError (ToolReleaseDocument.read (targetBytes others.Head)) "it does not read as a v1 descriptor") ]
+
 let private channelTests () =
     let listed = authenticatedTargets "metadata" |> Map.toList
 
@@ -419,4 +461,9 @@ let tests =
         testList "recipeChecks" (recipeCheckTests ())
         testList "trust" (trustTests ())
         testList "channelSelection" (channelTests ())
+        testList "v1Descriptors" (v1DescriptorTests ())
+
+        testCase "every part of a run section that is not run names its section" (fun () ->
+            for section, _ in notRunClauses do
+                Expect.contains ranSections section $"{section} is run")
     ]
