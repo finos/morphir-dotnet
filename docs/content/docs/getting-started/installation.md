@@ -58,6 +58,17 @@ extension, `Morphir.CodeGeneration.FSharp.Extension` (command
 backend; `morphir generate` does not use it. See
 [F# generation]({{< relref "/docs/backends/fsharp" >}}).
 
+### The morphirup toolchain manager
+
+Releases also attach `morphirup`, the standalone toolchain manager, as `morphirup-linux-x64`,
+`morphirup-linux-arm64`, `morphirup-osx-arm64` and `morphirup-win-x64.exe`, each also in a
+`morphirup-<rid>-v<version>.tar.gz` archive, with the checksum file `morphirup-v<version>.sha256`. It is one
+Native AOT file that needs neither .NET nor ICU. This first release reads toolchain documents and prints plans; it
+does not download, install, update or activate a toolchain, and it does not verify signed metadata. The files are not
+code-signed, and the macOS file is not notarized. See
+[Download and verify]({{< relref "/docs/cli/morphirup#download-and-verify" >}}) for the commands and for what the
+release job checks.
+
 ### Local Project Installation
 
 Add the Morphir libraries to your project:

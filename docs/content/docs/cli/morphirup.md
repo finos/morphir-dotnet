@@ -11,6 +11,65 @@ description: "The standalone toolchain manager: plan-only setup and project chec
 
 **This build does not acquire, install or activate anything.** It reads the toolchain documents, resolves a request against a recipe file you give it, prints the plan, and checks a project's request and lock. Bootstrap, authenticated downloads, generations, activation, `restore`, `show`, `run`, the `morphir` proxy and shell setup are later work.
 
+## Download and verify
+
+Releases of morphir-dotnet attach `morphirup` for four platforms, beside the `morphir` assets on the
+[releases page](https://github.com/finos/morphir-dotnet/releases):
+
+| Platform | Executable | Archive |
+| --- | --- | --- |
+| Linux glibc x64 | `morphirup-linux-x64` | `morphirup-linux-x64-v<version>.tar.gz` |
+| Linux glibc ARM64 | `morphirup-linux-arm64` | `morphirup-linux-arm64-v<version>.tar.gz` |
+| Windows x64 | `morphirup-win-x64.exe` | `morphirup-win-x64-v<version>.tar.gz` |
+| macOS ARM64 | `morphirup-osx-arm64` | `morphirup-osx-arm64-v<version>.tar.gz` |
+
+Each archive holds the same executable under `<rid>/`, for example `linux-x64/morphirup`. The file
+`morphirup-v<version>.sha256` lists the SHA-256 of every `morphirup` asset of the release, in the format that
+`sha256sum -c` reads. It shows that the file you have is the file the release published. It is not a signature:
+verifying signed release metadata is later work.
+
+On Linux:
+
+```bash
+version=0.4.0-alpha.4   # the release you want
+base=https://github.com/finos/morphir-dotnet/releases/download/v$version
+curl -fLO "$base/morphirup-linux-x64"
+curl -fLO "$base/morphirup-v$version.sha256"
+sha256sum -c --ignore-missing "morphirup-v$version.sha256"
+chmod +x morphirup-linux-x64
+./morphirup-linux-x64 --version
+```
+
+On macOS, compare the digest with its line in the checksum file:
+
+```bash
+shasum -a 256 morphirup-osx-arm64
+grep ' morphirup-osx-arm64$' "morphirup-v$version.sha256"
+```
+
+On Windows, in PowerShell:
+
+```powershell
+(Get-FileHash .\morphirup-win-x64.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+Select-String -Path ".\morphirup-v$version.sha256" -Pattern ' morphirup-win-x64.exe$'
+```
+
+The release job checks each executable on a GitHub-hosted runner of its platform. It runs the published file from a
+folder whose path has a space, with `PATH` reduced to the system folders and no `DOTNET_*` variable. The file must
+print the release version and make a plan-only setup whose plan digest matches a recorded one. On Linux it runs the
+same commands in the `debian:12-slim` image, which has glibc 2.36 and neither .NET nor `libicu`. Nothing more is
+checked: no other distribution, glibc version or operating-system version is tested.
+
+The executables are not code-signed, and the macOS executable is not notarized. On macOS, a file that a browser
+downloads carries the quarantine attribute, and Gatekeeper refuses to open it because Apple cannot check it for
+malicious software; a file that `curl` downloads has no quarantine attribute. After you have checked its digest, you
+can remove the attribute with `xattr -d com.apple.quarantine morphirup-osx-arm64`. On Windows, SmartScreen can warn
+about an unsigned file that a browser downloads. Neither behavior has been checked for these files on a Mac or a
+Windows desktop.
+
+This first release reads documents and plans. It does not download, install, update or activate anything, and it does
+not verify signed metadata.
+
 ## Implementation, deployment and toolset
 
 A request names three things, and the manager never infers one from another:
@@ -122,7 +181,7 @@ A recipe that is refused is reported even when the lock is refused too. The resu
 
 ## Platforms and prerequisites
 
-`morphirup` uses the .NET runtime identifiers `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64`. A musl machine never gets a glibc closure.
+`morphirup` uses the .NET runtime identifiers `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64`. A musl machine never gets a glibc closure. These are the platforms it can plan for; releases publish the executable for four of them, listed under [Download and verify](#download-and-verify).
 
 The executable needs no .NET runtime and no ICU: it is built in invariant globalization mode, and it normalizes strings for the plan digest to NFC with its own Unicode 17.0.0 tables. So it runs on a Linux machine without the `libicu` package, and a plan digest is the same whatever Unicode version the machine has.
 
