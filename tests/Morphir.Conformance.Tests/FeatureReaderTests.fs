@@ -53,7 +53,7 @@ let tests =
                 (corpusCaseCount ())
                 "Every corpus case is in the features"
 
-            Expect.equal suite.Cases.Length PinnedCaseCount "58 cases at the pin"
+            Expect.equal suite.Cases.Length PinnedCaseCount "59 cases at the pin"
 
             let small =
                 suite.Cases

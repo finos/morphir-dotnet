@@ -23,15 +23,15 @@ let root =
 
 /// The finos/morphir commit of the pin.
 [<Literal>]
-let PinnedCommit = "48d10706f1feea2131f76ef5deca9017efc0df97"
+let PinnedCommit = "8d678d2b888a6d5eaa075172a020f7ebef06fc72"
 
-/// The number of cases at the pinned commit 48d10706f.
+/// The number of cases at the pinned commit 8d678d2b.
 [<Literal>]
-let PinnedCaseCount = 58
+let PinnedCaseCount = 59
 
 /// The number of cases for extism-kernel-v1 at the pin, which apply to every host.
 [<Literal>]
-let PinnedExtismCaseCount = 48
+let PinnedExtismCaseCount = 49
 
 /// The number of cases for morphir-bytes-v1 at the pin.
 [<Literal>]
@@ -39,7 +39,7 @@ let PinnedBytesCaseCount = 10
 
 /// The number of modules at the pin.
 [<Literal>]
-let PinnedModuleCount = 50
+let PinnedModuleCount = 51
 
 let requireOk label (result: Result<'T, CorpusIssue list>) =
     match result with

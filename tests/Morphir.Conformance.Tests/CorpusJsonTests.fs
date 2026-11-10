@@ -33,7 +33,7 @@ let tests =
             Expect.equal
                 (corpusCaseCount ())
                 PinnedCaseCount
-                "The pinned corpus has 58 cases at 48d10706f"
+                "The pinned corpus has 59 cases at 8d678d2b"
 
             Expect.equal corpus.Cases.Length (corpusCaseCount ()) "Every case of the corpus is read"
 
@@ -53,14 +53,14 @@ let tests =
             Expect.equal
                 (countFor Profile.ExtismKernelV1)
                 PinnedExtismCaseCount
-                "48 cases for extism-kernel-v1"
+                "49 cases for extism-kernel-v1"
 
             Expect.equal
                 (countFor Profile.MorphirBytesV1)
                 PinnedBytesCaseCount
                 "10 cases for morphir-bytes-v1"
 
-            Expect.equal (corpusModuleCount ()) PinnedModuleCount "The pinned corpus has 50 modules"
+            Expect.equal (corpusModuleCount ()) PinnedModuleCount "The pinned corpus has 51 modules"
 
             Expect.equal
                 (corpus.Cases
