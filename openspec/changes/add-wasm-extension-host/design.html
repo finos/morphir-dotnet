@@ -63,7 +63,7 @@ svg .small { font-size: 11.5px; fill: var(--muted); }
 </ol></nav>
 
 <h2 id="context">Context</h2>
-<p>See <a href="proposal.md">the proposal</a> for motivation. The narrative design, with every decision argued from first principles, is the parent change in finos/morphir: <code>openspec/changes/add-dotnet-wasm-extension-host/design.html</code>, draft PR <a href="https://github.com/finos/morphir/pull/1148">finos/morphir#1148</a>, read at <code>bb9d15c3b</code>. This page does not repeat it. It says what this repository adopts, where the work lands in this codebase, and which choices the parent leaves to the implementing repository.</p>
+<p>See <a href="proposal.md">the proposal</a> for motivation. The narrative design, with every decision argued from first principles, is the parent change in finos/morphir: <code>openspec/changes/add-dotnet-wasm-extension-host/design.html</code>, draft PR <a href="https://github.com/finos/morphir/pull/1148">finos/morphir#1148</a>, read at <code>7b049c223</code>. This page does not repeat it. It says what this repository adopts, where the work lands in this codebase, and which choices the parent leaves to the implementing repository.</p>
 <p>What inspection of this repository at <code>3f226a0</code> found:</p>
 <div class="table-wrap"><table>
 <thead><tr><th>Where</th><th>Observed</th><th>What it means here</th></tr></thead>
@@ -91,7 +91,7 @@ svg .small { font-size: 11.5px; fill: var(--muted); }
 <td>The same convention fits the profile contract and the crafted corpus. Decision <a href="#pin-1">PIN-1</a>.</td></tr>
 <tr><td>finos/morphir-moonbit <code>origin/main</code> at <code>89f8924</code></td>
 <td><code>pkgs/morphir-host/moon.mod</code> pins <code>moonrockz/extism@0.3.0</code>. The model-line instruction budget is 5,000,000,000 since its PR 328.</td>
-<td>The kernel to embed comes from that package version. The parent contract's JSON still says 2,147,483,647 and cites kernel <code>v0.1.1</code>; the parent specs win where they differ.</td></tr>
+<td>The kernel to embed comes from that package version. The parent contract at <code>7b049c223</code> cites the same kernel version and the same budget.</td></tr>
 </tbody></table></div>
 
 <h2 id="goals">Goals and non-goals</h2>
@@ -132,7 +132,7 @@ svg .small { font-size: 11.5px; fill: var(--muted); }
 <rect class="new" x="270" y="182" width="230" height="64" rx="6"/><text x="385" y="204" text-anchor="middle">src/Morphir.Extensions.Wasm (new)</text><text class="small" x="385" y="222" text-anchor="middle">engine, classifier, bounds, kernel,</text><text class="small" x="385" y="237" text-anchor="middle">Extism adapter, policy, WASI</text>
 <rect class="box" x="270" y="272" width="230" height="40" rx="6"/><text x="385" y="296" text-anchor="middle">Wasmtime 50.0.1 + embedded kernel</text>
 <rect class="box" x="540" y="96" width="200" height="54" rx="6"/><text x="640" y="118" text-anchor="middle">src/Morphir.Conformance</text><text class="small" x="640" y="136" text-anchor="middle">new: worker adapter, kit reader</text>
-<rect class="box" x="540" y="182" width="200" height="64" rx="6"/><text x="640" y="204" text-anchor="middle">Pinned inputs</text><text class="small" x="640" y="222" text-anchor="middle">profile contract, crafted corpus,</text><text class="small" x="640" y="237" text-anchor="middle">40 modules (finos/morphir)</text>
+<rect class="box" x="540" y="182" width="200" height="64" rx="6"/><text x="640" y="204" text-anchor="middle">Pinned inputs</text><text class="small" x="640" y="222" text-anchor="middle">profile contract, crafted corpus,</text><text class="small" x="640" y="237" text-anchor="middle">49 modules (finos/morphir)</text>
 <path class="edge" d="M135 64v32M385 64v32M135 150v32M385 150v32M385 246v26M640 150v32"/>
 <path class="edge" d="M540 123h-40" stroke-dasharray="5 4"/><text class="small" x="520" y="88" text-anchor="middle">starts a host</text><text class="small" x="520" y="170" text-anchor="middle">as a process</text>
 <path class="edge" d="M250 214h20"/>
@@ -220,10 +220,10 @@ sha256 = "10acafa0...22b5"                 # optional; other bytes are refused b
 <p>The command is registered in both entry points before the CLI host is built, so that no log line or banner can reach stdout. It is hidden from help and documented in the contributor guide as internal and experimental.</p>
 
 <h3 id="pin-1">PIN-1. Pin the contract and the corpus by commit, and expect the pin to move</h3>
-<p>The profile contract (<code>wasm-execution-profiles.json</code> and <code>.md</code>), the crafted corpus (<code>wasm-host.cases.json</code>) and its 40 modules are copied unchanged into <code>tests/Fixtures/MepWasm/</code> with a <code>PROVENANCE.md</code> that records the upstream commit and each file's SHA-256, as <code>tests/Fixtures/Mep/</code> does. The first pin is a commit of the draft PR's branch.</p>
-<p>The parent is about to revise these files once more: the byte profile marked transitional, notification cases added, and about a dozen silences settled from the MoonBit implementation. So:</p>
+<p>The profile contract (<code>wasm-execution-profiles.json</code> and <code>.md</code>), the crafted corpus (<code>wasm-host.cases.json</code>) and its modules (49 at <code>7b049c223</code>) are copied unchanged into <code>tests/Fixtures/MepWasm/</code> with a <code>PROVENANCE.md</code> that records the upstream commit and each file's SHA-256, as <code>tests/Fixtures/Mep/</code> does. The first pin is a commit of the draft PR's branch.</p>
+<p>The parent revised these files at <code>7b049c223</code>: the byte profile is marked transitional, notification cases are added, and the silences found in the MoonBit implementation are settled. It is still a draft, and one member is still marked provisional (<a href="#ntfy-1">NTFY-1</a>). So:</p>
 <ul>
-<li>Where the pinned JSON and the parent specs differ, the parent specs win. Today that is the instruction budget (5,000,000,000, not 2,147,483,647) and notification delivery (negotiated, not "never").</li>
+<li>Where the pinned JSON and the parent specs differ, the parent specs win. At <code>7b049c223</code> they agree on the instruction budget (5,000,000,000) and on negotiated notifications.</li>
 <li>A task that depends on a detail re-reads the parent first. If the detail is unsettled, the implementer asks; it does not guess.</li>
 <li>The pin moves as one change, and qualification (group 6) runs only against a pin of a merged parent commit.</li>
 </ul>
@@ -280,7 +280,7 @@ $ morphir mck wasm-host report-check --kit ... --report .dev/wasm-host-dotnet.js
 <thead><tr><th>Question</th><th>Recommendation written into this change</th><th>If answered otherwise</th></tr></thead>
 <tbody>
 <tr><td>1. Does this change port the generic guest kit's runner to .NET?</td><td>No. The Rust <code>guest-run</code> drives the .NET worker unchanged, and the port belongs to the compatibility-kit change (<a href="#run-2">RUN-2</a>).</td><td>Tasks 3.5 and 4.3 grow, and the qualification report holds the run instead of citing it.</td></tr>
-<tr><td>2. Is the crafted corpus read in its upstream JSON format, outside the Gherkin rule?</td><td>Yes, as a pinned upstream input (<a href="#run-1">RUN-1</a>).</td><td>A conversion step and a second review of 44 cases are added to task 1.5.</td></tr>
+<tr><td>2. Is the crafted corpus read in its upstream JSON format, outside the Gherkin rule?</td><td>Yes, as a pinned upstream input (<a href="#run-1">RUN-1</a>).</td><td>A conversion step and a second review of 56 cases are added to task 1.5.</td></tr>
 <tr><td>3. Does <code>extension list</code> show configured WASM modules now?</td><td>No. The registry gains the value only (<a href="#reg-1">REG-1</a>).</td><td>The registry delta gains a requirement and task 2.6 runs <code>describe</code> at list time.</td></tr>
 <tr><td>4. Are <code>abi</code> and <code>sha256</code> acceptable as local amendments to the configuration schema?</td><td>Yes, proposed upstream at the same time (<a href="#cfg-1">CFG-1</a>).</td><td>Task 2.6 declares them only through the worker's arguments, and the digest scenario waits for installation.</td></tr>
 <tr><td>5. Should a product command reach a configured module in this change, for example <code>morphir extension describe &lt;name&gt;</code>?</td><td>No. The parent keeps the runtime behind the worker mode. Task 2.6 is verified at the service level and through the worker.</td><td>One command, its spec and its documentation are added to group 2.</td></tr>
@@ -297,7 +297,7 @@ $ morphir mck wasm-host report-check --kit ... --report .dev/wasm-host-dotnet.js
 
 <h2 id="references">References</h2>
 <ul>
-<li>finos/morphir, branch <code>t3/design-file-based-layout</code> at <code>bb9d15c3b</code> (draft PR <a href="https://github.com/finos/morphir/pull/1148">1148</a>): <code>openspec/changes/add-dotnet-wasm-extension-host/</code>, <code>spec/mep/wasm-execution-profiles.md</code> and <code>.json</code>, <code>spec/mep/mck/wasm-host.cases.json</code>, <code>spec/mep/mck/fixtures/wasm/</code>, <code>spec/mep/mck/README.md</code>.</li>
+<li>finos/morphir, branch <code>t3/design-file-based-layout</code> at <code>7b049c223</code> (draft PR <a href="https://github.com/finos/morphir/pull/1148">1148</a>): <code>openspec/changes/add-dotnet-wasm-extension-host/</code>, <code>spec/mep/wasm-execution-profiles.md</code> and <code>.json</code>, <code>spec/mep/mck/wasm-host.cases.json</code>, <code>spec/mep/mck/fixtures/wasm/</code>, <code>spec/mep/mck/README.md</code>.</li>
 <li>finos/morphir-moonbit <code>origin/main</code> at <code>89f8924</code>: <code>pkgs/morphir-host/worker/wasm/README.mbt.md</code> (worker mode, events, exit statuses, policy, bounds) and <code>pkgs/morphir-host/moon.mod</code> (<code>moonrockz/extism@0.3.0</code>).</li>
 <li>This repository at <code>3f226a0</code>: <code>docs/content/contributing/design/prds/morphir-extension-model.md</code>, <code>docs/content/contributing/design/spikes/extension-model/wasm-runtime.md</code>, <code>src/Morphir.Mep/Peers.fs</code>, <code>src/Morphir.Extensions/Registry.fs</code>, <code>src/Morphir.Configuration/Schema.fs</code>, <code>src/Morphir.Conformance/</code>, <code>tests/Fixtures/Mep/PROVENANCE.md</code>.</li>
 <li>Sibling changes: <a href="../establish-morphir-compatibility-kit/proposal.md">establish-morphir-compatibility-kit</a>, and <code>add-deployment-and-acquisition</code> in PR <a href="https://github.com/finos/morphir-dotnet/pull/559">559</a>.</li>

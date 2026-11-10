@@ -1,6 +1,6 @@
 # Tasks
 
-This is the morphir-dotnet adoption of the finos/morphir change `add-dotnet-wasm-extension-host` (draft PR finos/morphir#1148, read at `bb9d15c3b`). Groups 1 to 6 keep the parent's task numbers and wording, so that completion can be reported against the parent. The indented notes under a checkbox say where the work lands in this repository; they are planning detail and are not tracked. Group 0 holds the two tasks only this repository has.
+This is the morphir-dotnet adoption of the finos/morphir change `add-dotnet-wasm-extension-host` (draft PR finos/morphir#1148, read at `7b049c223`). Groups 1 to 6 keep the parent's task numbers and wording, so that completion can be reported against the parent. The indented notes under a checkbox say where the work lands in this repository; they are planning detail and are not tracked. Group 0 holds the two tasks only this repository has.
 
 GitHub issue: [finos/morphir-dotnet#563](https://github.com/finos/morphir-dotnet/issues/563). This repository has no Beads database.
 
@@ -35,7 +35,7 @@ Parent tasks 1.1 to 1.4 and 1.6 belong to finos/morphir and are dependencies onl
 
 - [ ] 1.5 Add to the kit's runner only what is needed to run crafted cases through a stdio worker and to read its stderr reports, in the .NET runner in morphir-dotnet. Verify the complete corpus against the MoonBit native CLI's worker mode first, since that host already exists, and record each difference as a contract question or a MoonBit issue before any .NET result is compared.
   - Files: `src/Morphir.Conformance/` (a kit reader, a worker adapter, the matchers of the kit's `conventions`), `src/Morphir.Tooling/Features/Mck/` (the experimental `morphir mck wasm-host run` and `report-check`), both entry points.
-  - First failing tests: in `tests/Morphir.Conformance.Tests` (new), the reader loads the pinned kit and lists 44 cases; a fake worker script gives a `refused` event and the comparer passes the case; a module whose bytes differ from the recorded digest is refused with both digests; a worker still alive at the end of a case has its process tree stopped. Use `ChildProcess.RunAsync` and `TestSandbox` from `tests/Morphir.TestSupport`.
+  - First failing tests: in `tests/Morphir.Conformance.Tests` (new), the reader loads the pinned kit and lists every case (56 at `7b049c223`); a fake worker script gives a `refused` event and the comparer passes the case; a module whose bytes differ from the recorded digest is refused with both digests; a worker still alive at the end of a case has its process tree stopped. Use `ChildProcess.RunAsync` and `TestSandbox` from `tests/Morphir.TestSupport`.
   - Specs: `wasm-host-qualification`. Design: RUN-1.
   - Needs a MoonBit native CLI build. If none is available on the machine, say so and run that verification where one is.
   - The report verdict follows parent task 1.4. Until it is defined, write per-case observations and no verdict.
@@ -56,7 +56,7 @@ Parent tasks 1.1 to 1.4 and 1.6 belong to finos/morphir and are dependencies onl
   - Design: CHAN-1.
 - [ ] 2.4 Add the engine layer: one engine with fuel and epoch interruption, one store per session, in-memory module reuse by digest, and classification from the validated module against the contract table. Verify the crafted classification cases in-process, including an unknown import named in the refusal, a feature refusal for shared memory and a byte-profile module refused with the profile named.
   - Files: `src/Morphir.Extensions.Wasm/`, `tests/Morphir.Extensions.Wasm.Tests/` (new, TUnit), `src/Morphir.Extensions/Registry.fs` (the `wasm` delivery and its availability rule) with `tests/Morphir.Extensions.Tests`.
-  - The classifier reads its import table from the pinned contract file, not from a second copy in code. The 13 `classification/` cases of the pinned corpus are the test data.
+  - The classifier reads its import table from the pinned contract file, not from a second copy in code. The `classification/` cases of the pinned corpus are the test data.
   - Specs: `dotnet-wasm-host`, `extension-registry`. Design: REG-1.
 - [ ] 2.5 Implement the bounds and their mapping: fuel, epoch deadline, cancellation, the per-memory limit and the at-ceiling memory rule, with memory size on every failure. Verify the crafted bounds cases, that Ctrl+C stops a spinning guest within one second with exit status 130, and record the published guests' fuel use and compile time on the kit package in the change's evidence.
   - The instruction budget is 5,000,000,000 on MEP `0.2.0-draft.1` and 1,000,000,000 on MEP `0.1`, from the parent spec. Deadline cases use the corpus margin; do not shorten a deadline in a way that hides a missing bound.

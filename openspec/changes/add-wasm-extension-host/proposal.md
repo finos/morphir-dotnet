@@ -56,7 +56,7 @@ The shared rules themselves (import tables, policy, bounds, failure codes) are n
 
 ## Tracking
 
-- Parent change: `openspec/changes/add-dotnet-wasm-extension-host/` in finos/morphir, draft PR [finos/morphir#1148](https://github.com/finos/morphir/pull/1148), read at `bb9d15c3b`. The parent stays the source of truth. This change covers its tasks 2.1 to 6.2 and the runner parts of 1.5 and 4.3, with their numbers kept.
+- Parent change: `openspec/changes/add-dotnet-wasm-extension-host/` in finos/morphir, draft PR [finos/morphir#1148](https://github.com/finos/morphir/pull/1148), read at `7b049c223`. The parent stays the source of truth. This change covers its tasks 2.1 to 6.2 and the runner parts of 1.5 and 4.3, with their numbers kept.
 - GitHub issue: [finos/morphir-dotnet#563](https://github.com/finos/morphir-dotnet/issues/563). Related: [#326](https://github.com/finos/morphir-dotnet/issues/326) (Extism integration design, from an earlier plan) and [#558](https://github.com/finos/morphir-dotnet/issues/558) (deployment and acquisition). This change does not claim to close either.
 - Roadmap: the extension-model PRD, step 2a (runtime part) and step 5. Task 0.1 updates the PRD for decision 1.
 - Sibling changes in this repository: `add-deployment-and-acquisition` ([#559](https://github.com/finos/morphir-dotnet/pull/559), not merged) owns the four offerings and their publish profiles, and modifies the same `extension-registry` requirement. `establish-morphir-compatibility-kit` owns the general `morphir mck` command and has not started.
