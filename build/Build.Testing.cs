@@ -15,6 +15,9 @@ partial class Build
     [Parameter("Time with no test progress after which a Microsoft.Testing.Platform test run takes a hang dump and stops - Default is '10m'")]
     readonly string TestHangTimeout = "10m";
 
+    /// <summary>The variable that names the published self-contained F# frontend folder for its process test.</summary>
+    const string FSharpFrontendProcessDirVariable = "MORPHIR_FSHARP_FRONTEND_PROCESS_DIR";
+
     /// <summary>Results of the last Test run (reports, hang logs and hang dumps), one directory for each test assembly.</summary>
     AbsolutePath TestResultsDirectory => RootDirectory / "artifacts" / "test-results";
 
@@ -221,6 +224,10 @@ partial class Build
         var sdkTestDll = TestsDirectory / "Morphir.SDK.Tests" / "bin" / configuration / "net10.0" / "Morphir.SDK.Tests.dll";
         var sdkExitCode = RunCommand("dotnet", "exec", sdkTestDll);
 
+        // The self-contained process test of the F# frontend runs against a folder published once here, not in the
+        // test. Only that assembly gets the variable.
+        var frontendProcess = PublishFSharpFrontendProcessForTests();
+
         var myriadExitCodes = new[]
         {
             "Morphir.TestSupport.Tests",
@@ -237,6 +244,7 @@ partial class Build
             "Morphir.Tests",
             "Morphir.Managed.Tests",
             "Morphir.CodeGeneration.FSharp.Tests",
+            "Morphir.CodeGeneration.FSharp.Extension.Tests",
             "Morphir.CodeGeneration.CSharp.Tests",
             "Morphir.Ion.Tests",
             "Morphir.Myriad.Tests",
@@ -246,9 +254,19 @@ partial class Build
         {
             Serilog.Log.Information("Running {Project}...", project);
             var testDll = TestsDirectory / project / "bin" / configuration / "net10.0" / $"{project}.dll";
-            var exitCode = project == "Morphir.CodeGeneration.CSharp.Tests"
-                ? RunCommand("dotnet", "exec", testDll, "--sequenced")
-                : RunTestAssembly(project, testDll);
+            var frontendTests = project == "Morphir.Frontend.FSharp.Extension.Tests" && frontendProcess is not null;
+            if (frontendTests) Environment.SetEnvironmentVariable(FSharpFrontendProcessDirVariable, frontendProcess!.ToString());
+            int exitCode;
+            try
+            {
+                exitCode = project == "Morphir.CodeGeneration.CSharp.Tests"
+                    ? RunCommand("dotnet", "exec", testDll, "--sequenced")
+                    : RunTestAssembly(project, testDll);
+            }
+            finally
+            {
+                if (frontendTests) Environment.SetEnvironmentVariable(FSharpFrontendProcessDirVariable, null);
+            }
             if (exitCode != 0)
             {
                 Serilog.Log.Error("{Project}: exit code {ExitCode}", project, exitCode);
