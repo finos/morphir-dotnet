@@ -81,6 +81,13 @@ and parsed with `JsonDocument`. A test checks that the embedded copy has the pin
 preview 1 imports are checked against the standard types that Wasmtime's own WASI definitions give, because the
 contract admits every WASI preview 1 function and does not list them.
 
+## Loading a configured module
+
+`Morphir.Tooling`'s `WasmModuleLoader` (task 2.6) reads the file that `extensions.<name>.path` names, refuses
+bytes whose digest differs from a declared `sha256` (read with `ModuleDigest.TryParse`) before the engine sees
+them, and then calls `WasmEngine.Load` and `WasmHost.Admit` with the declared `abi`. It reports
+`ModuleLoad.Invalid` as a file that is not a WASM module.
+
 ## Left for later tasks
 
 - Task 3.1 builds the Extism adapter and MEP channel on `SessionStore.CallHandle`, chooses
@@ -89,7 +96,6 @@ contract admits every WASI preview 1 function and does not list them.
 - Task 4.1 joins Ctrl+C to the `CancellationToken` of the running call and exits with status 130.
 - Tasks 3.3 and 3.4 replace the trapping callbacks for the Extism and Morphir host functions, and the empty
   WASI configuration.
-- Task 2.6 turns `ModuleLoad.Invalid` into the diagnostic for a path that is not a WASM module.
 
 The Native AOT probe in `tests/Morphir.Extensions.Wasm.AotProbe` runs this library on the Python `0.4.2` guest
 (task 2.2 evidence: `openspec/changes/add-wasm-extension-host/evidence/2.2-kernel-proof.md`). With

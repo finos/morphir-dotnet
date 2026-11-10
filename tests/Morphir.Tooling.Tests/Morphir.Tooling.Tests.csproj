@@ -43,6 +43,11 @@
   <ItemGroup>
     <!-- Test data files -->
     <None Include="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!--
+      The pinned WASM profile contract, crafted corpus and modules, for the configured-module loader; see
+      ../Fixtures/MepWasm/PROVENANCE.md. IfDifferent, as in Morphir.Extensions.Wasm.Tests, so restored bytes replace a stale copy.
+    -->
+    <None Include="../Fixtures/MepWasm/**/*" Link="Fixtures/MepWasm/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
     <Content Include="**/*.feature"/>
   </ItemGroup>
 

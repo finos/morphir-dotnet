@@ -19,6 +19,18 @@ public readonly record struct ModuleDigest
     /// <summary>The digest of <paramref name="bytes"/>.</summary>
     public static ModuleDigest Of(ReadOnlySpan<byte> bytes) => new(Convert.ToHexStringLower(SHA256.HashData(bytes)));
 
+    /// <summary>
+    /// Reads a digest written as <see cref="Hex"/> writes it: 64 lowercase hexadecimal digits, with no prefix. This
+    /// is the form of a declared digest, such as the configuration key <c>extensions.&lt;name&gt;.sha256</c>.
+    /// </summary>
+    /// <returns>True when <paramref name="text"/> is a digest; otherwise <paramref name="digest"/> is the default.</returns>
+    public static bool TryParse(string? text, out ModuleDigest digest)
+    {
+        var valid = text is { Length: 64 } && text.All(static c => char.IsAsciiDigit(c) || c is >= 'a' and <= 'f');
+        digest = valid ? new ModuleDigest(text!) : default;
+        return valid;
+    }
+
     /// <inheritdoc />
     public override string ToString() => Hex;
 }

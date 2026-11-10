@@ -19,6 +19,8 @@ public class ManagementScenario : IMorphirCliScenario
         {
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IExtensionSource, BackendExtensionSource>());
             services.TryAddSingleton<ExtensionRegistry>();
+            // The configured WASM module loader (design CFG-1). No command uses it yet (design review question 5).
+            services.TryAddSingleton<IWasmModuleLoader, WasmModuleLoader>();
         });
 
         builder.AddCommand(rootCommand =>

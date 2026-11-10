@@ -28,13 +28,18 @@ Primary sources:
 
 `morphir-config-v1.json` stays byte-identical to upstream. `scripts/configuration/generate-schema.py`
 applies these amendments to the parsed schema before it generates `src/Morphir.Configuration/Schema.fs`
-(change `add-fsharp-compile`, decisions VER-1 and SRC-2):
+(change `add-fsharp-compile`, decisions VER-1 and SRC-2; change `add-wasm-extension-host`, decision CFG-1):
 
 - `ir.format_version` accepts an integer from 1 to 10, or a SemVer string with optional pre-release and
   build parts, for example `"4.1.0-draft.1"`. The integer default stays 4.
 - The definition `frontendLanguage` has the members `extension` and `project_file`. Every
   `[frontend.<language>]` table uses it, including `[frontend.elm]`. Upstream documents `extension` as
   valid under any language table; `project_file` is the proposed shared key.
+- The definition `extension`, which every `[extensions.<name>]` table uses, has two more optional keys.
+  `abi` is a profile id of the pinned WASM execution profile contract, which the generator reads from
+  `tests/Fixtures/MepWasm/wasm-execution-profiles.json` (`extism-kernel-v1` or `morphir-bytes-v1` at the
+  pinned commit). `sha256` is 64 lowercase hexadecimal digits. Both are proposed upstream for the shared
+  schema. Upstream's `additionalProperties: true` on the table is kept, so other keys stay unvalidated.
 
 ## Semantics and deliberate differences
 

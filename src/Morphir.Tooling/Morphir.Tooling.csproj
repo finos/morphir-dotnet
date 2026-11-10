@@ -61,6 +61,8 @@
     <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
     <ProjectReference Include="..\Morphir.Compilation.Mep\Morphir.Compilation.Mep.fsproj" />
     <ProjectReference Include="..\Morphir.Extensions\Morphir.Extensions.fsproj" />
+    <!-- The WASM extension runtime, for the configured-module loader (add-wasm-extension-host, task 2.6) -->
+    <ProjectReference Include="..\Morphir.Extensions.Wasm\Morphir.Extensions.Wasm.csproj" />
     <ProjectReference Include="..\Morphir.Analyzers\Morphir.Analyzers.fsproj" />
     <ProjectReference Include="..\Morphir.IR.Pipeline\Morphir.IR.Pipeline.fsproj" />
     <ProjectReference Include="..\Morphir.CodeGeneration.FSharp\Morphir.CodeGeneration.FSharp.fsproj" />
