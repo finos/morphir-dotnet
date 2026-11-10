@@ -98,7 +98,7 @@ module RecipeBindings =
           Protocols: Set<string>
           Compiles: Set<string>
           Generates: Set<string>
-          Tuples: Set<byte array> }
+          Tuples: Set<Value> }
 
     /// A tool release read once per check: the release, and its first artifact for each target path.
     type private ReadRelease =
@@ -287,8 +287,9 @@ module RecipeBindings =
         hosts (newReads ()) repository targets bytesOf recipe
 
     /// The comparison key of a model tuple: equal as parsed values, so object member order does not matter, and array
-    /// order and number spelling do.
-    let private tupleKey (value: Value) = Canonical.bytes value |> Result.toOption
+    /// order, text and number spelling do. Text is not normalized: canonical bytes are NFC, under which U+212A KELVIN
+    /// SIGN equals <c>K</c>, and a tuple names exact text (review of #583, A3).
+    let private tupleKey (value: Value) = ParsedValue.ordered value
 
     let private rowsOf (claims: ClaimSet) : ClaimRows =
         { Kinds = set claims.Extension.Types
@@ -301,7 +302,7 @@ module RecipeBindings =
             match claims.Backend with
             | Some backend when backend.Generate -> backend.Targets
             | _ -> Set.empty
-          Tuples = claims.ModelTuples |> List.choose tupleKey |> set }
+          Tuples = claims.ModelTuples |> List.map tupleKey |> set }
 
     /// The rows every claim set has: a provider these admit is admitted by each of them.
     let private sharedRows (rows: ClaimRows list) : ClaimRows =
@@ -433,7 +434,7 @@ module RecipeBindings =
             Some "protocolVersion"
         elif not admitted then
             Some operandName
-        elif not (tupleKey (tupleValue provider.Protocol.Tuple) |> Option.exists rows.Tuples.Contains) then
+        elif not (rows.Tuples.Contains(tupleKey (tupleValue provider.Protocol.Tuple))) then
             Some "modelTuple"
         else
             None

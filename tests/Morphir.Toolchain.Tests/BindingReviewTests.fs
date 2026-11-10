@@ -51,6 +51,78 @@ let checkWith (listed: Map<string, AuthenticatedTarget>) (served: Map<string, by
     | Ok _ -> "valid"
     | Error refusal -> $"{Code.name refusal.Code} @ {DocumentPath.render refusal.Path}"
 
+/// A binding check's inputs: the recipe as a value, the authenticated targets, and the bytes served in place of the
+/// signed repository's.
+type Setup =
+    { Recipe: Value
+      Listed: Map<string, AuthenticatedTarget>
+      Served: Map<string, byte array> }
+
+let signed () =
+    { Recipe = valueOf recipeTarget
+      Listed = SignedCaseTests.authenticatedTargets "metadata"
+      Served = Map.empty }
+
+let rec replaceText (old: string) (replacement: string) (value: Value) =
+    match value with
+    | Value.String text when text = old -> Value.String replacement
+    | Value.Object members -> Value.Object(members |> List.map (fun (name, item) -> name, replaceText old replacement item))
+    | Value.Array items -> Value.Array(items |> List.map (replaceText old replacement))
+    | other -> other
+
+let private currentValue (setup: Setup) (target: string) =
+    match setup.Served.TryFind target with
+    | Some bytes ->
+        match Syntax.parseJson bytes with
+        | Ok value -> value
+        | Error _ -> failtestf "%s does not parse" target
+    | None -> valueOf target
+
+/// Serves a target's edited value, listed with its new length and digest (its custom object kept), with every recipe
+/// digest of its old bytes rebound to the new ones: the publisher bound the edited bytes.
+let editTarget (target: string) (edit: Value -> Value) (setup: Setup) =
+    let old = setup.Listed[target]
+    let bytes = bytesOf (edit (currentValue setup target))
+
+    let entry =
+        { old with
+            Length = uint64 bytes.Length
+            Sha256 = Sha256.ofBytes bytes }
+
+    { Recipe = replaceText old.Sha256.Text entry.Sha256.Text setup.Recipe
+      Listed = setup.Listed.Add(target, entry)
+      Served = setup.Served.Add(target, bytes) }
+
+/// Serves other bytes for a target without listing them: the served bytes no longer match their entry.
+let serve (target: string) (bytes: byte array) (setup: Setup) =
+    { setup with Served = setup.Served.Add(target, bytes) }
+
+let editRecipe (edit: Value -> Value) (setup: Setup) = { setup with Recipe = edit setup.Recipe }
+
+let editListed (target: string) (edit: AuthenticatedTarget -> AuthenticatedTarget) (setup: Setup) =
+    { setup with Listed = setup.Listed.Add(target, edit setup.Listed[target]) }
+
+let unlist (target: string) (setup: Setup) = { setup with Listed = setup.Listed.Remove target }
+
+/// The descriptor with an edit applied to each of its artifacts.
+let eachArtifact (edit: Value -> Value) (descriptor: Value) =
+    setAt [ "artifacts" ] (Value.Array(items (memberOf "artifacts" descriptor) |> List.map edit)) descriptor
+
+/// The check's outcome as "valid" or "code @ path".
+let outcomeOf (setup: Setup) =
+    checkWith setup.Listed setup.Served (readRecipe setup.Recipe)
+
+let expectOutcome (expected: string) (setup: Setup) = Expect.equal (outcomeOf setup) expected "the outcome"
+
+let tuplePath = [ "claims"; "capabilities"; "modelTransport"; "tuples"; "0" ]
+
+/// The value at a path of member names and array indexes.
+let rec valueAt (path: string list) (value: Value) =
+    match path, value with
+    | [], _ -> value
+    | head :: rest, Value.Array items -> valueAt rest (List.item (int head) items)
+    | head :: rest, _ -> valueAt rest (memberOf head value)
+
 let private textOf (value: Value) =
     match value with
     | Value.String text -> text
@@ -115,4 +187,29 @@ let costTests =
             let outcome = RecipeBindings.check (SignedCaseTests.repository ()) (SignedCaseTests.authenticatedTargets "metadata") bytesOf recipe
             Expect.isOk outcome "both offerings bind"
             Expect.equal fetches 1 "the shared release descriptor is fetched once")
+    ]
+
+[<Tests>]
+let tupleTests =
+    // Review of #583, A3: tuples were compared by their canonical bytes, after NFC, so KELVIN SIGN equalled K.
+    let irVersion (version: string) =
+        signed ()
+        |> editRecipe (setAt [ "providers"; "0"; "modelTuple"; "irVersion" ] (str "4.0.0-K") >> setAt [ "providers"; "1"; "modelTuple"; "irVersion" ] (str "4.0.0-K"))
+        |> editTarget frontendTarget (eachArtifact (setAt (tuplePath @ [ "irVersion" ]) (str version)))
+
+    testList "A model tuple is compared as a parsed value" [
+        testCase "the same text binds" (fun () -> irVersion "4.0.0-K" |> expectOutcome "valid")
+
+        testCase "KELVIN SIGN is not K, though NFC maps one to the other" (fun () ->
+            irVersion "4.0.0-K" |> expectOutcome "release_descriptor_mismatch @ providers[0].modelTuple")
+
+        testCase "member order does not matter" (fun () ->
+            let reversed (tuple: Value) =
+                match tuple with
+                | Value.Object members -> Value.Object(List.rev members)
+                | other -> other
+
+            signed ()
+            |> editTarget frontendTarget (eachArtifact (fun artifact -> setAt tuplePath (reversed (valueAt tuplePath artifact)) artifact))
+            |> expectOutcome "valid")
     ]

@@ -336,3 +336,15 @@ module Digest =
         Convert.ToHexStringLower output
 
     let ofBytes (bytes: byte array) = ofParts [ bytes ]
+
+/// Values compared as parsed values: equal when they are equal as JSON values, whatever their member order.
+module internal ParsedValue =
+    /// <summary>A value with every object's members in ordinal name order, so two values equal as parsed values (the
+    /// schema's <c>uniqueItems</c> equality) are equal, and compare, as F# values. Strings and number spellings are kept
+    /// exactly: nothing is normalized, so U+212A KELVIN SIGN is not <c>K</c> (review of #583, A3).</summary>
+    let rec ordered (value: Value) =
+        match value with
+        | Value.Object members ->
+            Value.Object(members |> List.map (fun (name, item) -> name, ordered item) |> List.sortWith (fun (a, _) (b, _) -> String.CompareOrdinal(a, b)))
+        | Value.Array items -> Value.Array(items |> List.map ordered)
+        | other -> other
