@@ -198,11 +198,12 @@ type ClaimedExtension =
       Version: SemVer
       Types: CapabilityKind list }
 
-/// What a claim set says about compiling: whether <c>compile</c> is <c>true</c>, and the ids of its languages.
-type FrontendClaims = { Compile: bool; Languages: string list }
+/// What a claim set says about compiling: whether <c>compile</c> is <c>true</c>, and the ids of its languages, as a set,
+/// so a binding check looks one up without scanning the list (review of #583, A1).
+type FrontendClaims = { Compile: bool; Languages: Set<string> }
 
-/// What a claim set says about generating: whether <c>generate</c> is <c>true</c>, and its targets.
-type BackendClaims = { Generate: bool; Targets: string list }
+/// What a claim set says about generating: whether <c>generate</c> is <c>true</c>, and its targets, as a set.
+type BackendClaims = { Generate: bool; Targets: Set<string> }
 
 /// <summary>
 /// A capability claim set (<c>claimsVersion</c> <c>0.1.0-draft.2</c>), as far as the recipe binding checks read it:
@@ -289,7 +290,7 @@ module ClaimSetDocument =
             let! compile = optional "compile" boolean o
             let languageId (l: Node) = asObject l |> Result.bind (required "id" text)
             let! languages = optional "languages" (array languageId) o
-            return { Compile = defaultArg compile false; Languages = defaultArg languages [] }
+            return { Compile = defaultArg compile false; Languages = set (defaultArg languages []) }
         }
 
     let private backend (n: Node) : Read<BackendClaims> =
@@ -297,7 +298,7 @@ module ClaimSetDocument =
             let! o = asObject n
             let! generate = optional "generate" boolean o
             let! targets = optional "targets" (array text) o
-            return { Generate = defaultArg generate false; Targets = defaultArg targets [] }
+            return { Generate = defaultArg generate false; Targets = set (defaultArg targets []) }
         }
 
     let private tuples (n: Node) : Read<Value list> =

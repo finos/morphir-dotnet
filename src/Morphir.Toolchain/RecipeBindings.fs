@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 namespace Morphir.Toolchain
 
+open System.Collections.Generic
+
 /// <summary>Authentication of bytes by a recipe: the authenticated repository's publisher bound exactly these bytes,
 /// by this target and digest, to the toolset. It says nothing about whether anyone ran them.</summary>
 type RecipeDigest =
@@ -44,6 +46,9 @@ type BoundRecipe =
 /// SECURITY: this code has not had a security review. It checks that a recipe binds exactly what the authenticated
 /// repository published. It does not verify metadata (the TUF client does), does not run an artifact, and does not
 /// make a claim set probed. A failed read of a target that a binding names is reported at that binding member.
+/// <para>Each descriptor target and each tool release is fetched, authenticated and read once per check, however many
+/// providers or offerings name it, and claims are looked up in sets: the check is linear in the recipe and the
+/// targets it reads (review of #583, A1).</para>
 /// </remarks>
 module RecipeBindings =
 
@@ -86,6 +91,48 @@ module RecipeBindings =
         | Platform.LinuxMuslX64 -> "x86_64-unknown-linux-musl"
         | Platform.LinuxMuslArm64 -> "aarch64-unknown-linux-musl"
 
+    /// The capability rows of one claim set as sets: the kinds, the MEP versions, the languages when <c>compile</c> is
+    /// <c>true</c>, the targets when <c>generate</c> is <c>true</c>, and the model tuples by their comparison key.
+    type private ClaimRows =
+        { Kinds: Set<CapabilityKind>
+          Protocols: Set<string>
+          Compiles: Set<string>
+          Generates: Set<string>
+          Tuples: Set<byte array> }
+
+    /// A tool release read once per check: the release, and its first artifact for each target path.
+    type private ReadRelease =
+        { Tool: ToolRelease
+          ByTargetPath: Dictionary<string, ToolReleaseArtifact> }
+
+    /// A descriptor read once per check: the release it describes, whether every artifact's claims name it, each
+    /// artifact by its target in the descriptor's directory with its rows, and the rows every artifact shares.
+    type private ReadDescriptor =
+        { Described: ExtensionRelease
+          NamesItself: bool
+          ByTarget: Dictionary<string, DescribedArtifact * ClaimRows>
+          Rows: ClaimRows list
+          Shared: ClaimRows
+          AllClaims: BoundClaims list }
+
+    /// What one check has read, keyed by target: a failed read is kept as its code (and, for a release, the member it is
+    /// reported at), so a second offering or provider that names the target is refused alike without reading it again.
+    type private Reads =
+        { Releases: Dictionary<string * string, Result<ReadRelease, Code * string>>
+          Descriptors: Dictionary<string, Result<ReadDescriptor, Code>> }
+
+    let private newReads () =
+        { Releases = Dictionary(HashIdentity.Structural)
+          Descriptors = Dictionary(System.StringComparer.Ordinal) }
+
+    let private cached (cache: Dictionary<'K, 'V>) (key: 'K) (make: unit -> 'V) =
+        match cache.TryGetValue key with
+        | true, value -> value
+        | _ ->
+            let value = make ()
+            cache[key] <- value
+            value
+
     /// The bytes the source serves for an authenticated target. A source that has none, or fails, has not served
     /// them: <c>repository_unavailable</c> at the binding member.
     let private fetch (bytesOf: string -> byte array option) (target: string) (at: DocumentPath) =
@@ -117,72 +164,82 @@ module RecipeBindings =
                   Sha256 = binding.Sha256 }
             )
 
+    /// The release record of a tool and version, with the member of the offering a refusal is reported at.
+    let private readRelease
+        (targets: Map<string, AuthenticatedTarget>)
+        (bytesOf: string -> byte array option)
+        (toolId: ToolId)
+        (version: SemVer)
+        : Result<ReadRelease, Code * string> =
+        let path = $"releases/{toolId.Text}/{version.Text}.json"
+        let source code = Error(Code.Trust code, "source")
+
+        let state =
+            targets.TryFind path
+            |> Option.bind (fun entry -> morphir entry |> Option.map (fun m -> entry, m))
+            |> Option.filter (fun (_, m) ->
+                text "kind" m = Some "tool-release"
+                && text "toolId" m = Some toolId.Text
+                && text "version" m = Some version.Text
+                && List.contains (text "status" m) [ Some "active"; Some "yanked"; Some "revoked" ])
+
+        match state with
+        | None -> source TrustCode.TargetNotAuthenticated
+        | Some(_, m) when text "status" m = Some "revoked" -> Error(Code.Trust TrustCode.ReleaseRevoked, "version")
+        | Some(entry, _) ->
+            match fetch bytesOf path DocumentPath.root |> Result.bind (fun bytes -> read entry bytes DocumentPath.root |> Result.map (fun _ -> bytes)) with
+            | Error refusal -> Error(refusal.Code, "source")
+            | Ok bytes ->
+                match ToolReleaseDocument.read bytes with
+                | Ok release when release.ToolId.Text = toolId.Text && release.Version = version ->
+                    let byTargetPath = Dictionary<string, ToolReleaseArtifact>(System.StringComparer.Ordinal)
+
+                    for artifact in release.Artifacts do
+                        byTargetPath.TryAdd(artifact.TargetPath, artifact) |> ignore
+
+                    Ok { Tool = release; ByTargetPath = byTargetPath }
+                | _ -> source TrustCode.ReleaseDescriptorMismatch
+
     /// <summary>The release record of a <c>tool-release</c> offering: its descriptor target is an authenticated
     /// <c>tool-release</c> for the tool and version (provisional: with a known status), not revoked, served with the
     /// authenticated length and digest, and readable as a v1 tool release. Provisional, the stricter reading: the
     /// descriptor's own tool id and version are the offering's, since the profile calls a mismatch in those immutable
-    /// values <c>release_descriptor_mismatch</c>.</summary>
+    /// values <c>release_descriptor_mismatch</c>. Read once per check for each tool and version.</summary>
     let private hostRelease
+        (reads: Reads)
         (targets: Map<string, AuthenticatedTarget>)
         (bytesOf: string -> byte array option)
         (at: DocumentPath)
         (host: HostOffering)
         (toolId: ToolId)
-        : Result<ToolRelease, TargetRefusal> =
-        result {
-            let path = $"releases/{toolId.Text}/{host.Version.Text}.json"
-            let sourcePath = at.Child "source"
-
-            let state =
-                targets.TryFind path
-                |> Option.bind (fun entry -> morphir entry |> Option.map (fun m -> entry, m))
-                |> Option.filter (fun (_, m) ->
-                    text "kind" m = Some "tool-release"
-                    && text "toolId" m = Some toolId.Text
-                    && text "version" m = Some host.Version.Text
-                    && List.contains (text "status" m) [ Some "active"; Some "yanked"; Some "revoked" ])
-
-            match state with
-            | None -> return! trust TrustCode.TargetNotAuthenticated sourcePath
-            | Some(entry, m) ->
-                if text "status" m = Some "revoked" then
-                    return! trust TrustCode.ReleaseRevoked (at.Child "version")
-
-                let! bytes = fetch bytesOf path sourcePath
-                let! _ = read entry bytes sourcePath
-
-                match ToolReleaseDocument.read bytes with
-                | Error _ -> return! trust TrustCode.ReleaseDescriptorMismatch sourcePath
-                | Ok release when release.ToolId.Text <> toolId.Text || release.Version <> host.Version ->
-                    return! trust TrustCode.ReleaseDescriptorMismatch sourcePath
-                | Ok release -> return release
-        }
+        : Result<ReadRelease, TargetRefusal> =
+        cached reads.Releases (toolId.Text, host.Version.Text) (fun () -> readRelease targets bytesOf toolId host.Version)
+        |> Result.mapError (fun (code, name) -> { Code = code; Path = at.Child name })
 
     /// <summary>The v1 release rows of one bound host artifact: the release lists the target, the listed artifact's
     /// v1 platform is the bound platform (a musl platform has none), and the target's <c>custom.morphir</c> is a
     /// <c>tool-artifact</c> of the release's tool, version and that platform.</summary>
-    let private releaseArtifact (release: ToolRelease) (platform: Platform) (entry: AuthenticatedTarget) (binding: TargetBinding) (at: DocumentPath) =
+    let private releaseArtifact (release: ReadRelease) (platform: Platform) (entry: AuthenticatedTarget) (binding: TargetBinding) (at: DocumentPath) =
         let targetPath = at.Child "target"
 
-        match release.Artifacts |> List.tryFind (fun artifact -> artifact.TargetPath = binding.Target.Text) with
-        | None -> trust TrustCode.ReleaseDescriptorMismatch targetPath
-        | Some artifact ->
+        match release.ByTargetPath.TryGetValue binding.Target.Text with
+        | false, _ -> trust TrustCode.ReleaseDescriptorMismatch targetPath
+        | true, artifact ->
             match toolPlatform platform with
             | Some(os, arch) when artifact.Platform.Os = os && artifact.Platform.Arch = arch ->
                 let agrees =
                     morphir entry
                     |> Option.exists (fun m ->
                         text "kind" m = Some "tool-artifact"
-                        && text "toolId" m = Some release.ToolId.Text
-                        && text "version" m = Some release.Version.Text
+                        && text "toolId" m = Some release.Tool.ToolId.Text
+                        && text "version" m = Some release.Tool.Version.Text
                         && (member' "platform" m |> Option.exists (fun p -> text "os" p = Some os && text "arch" p = Some arch)))
 
                 if agrees then Ok() else trust TrustCode.ReleaseDescriptorMismatch targetPath
             | _ -> trust TrustCode.ArtifactPlatformMismatch targetPath
 
-    /// <summary>The host binding rows for each offering, in order, and each platform in platform table order. A
-    /// <c>dotnet-tool</c> offering has no v1 release, so only its platforms' target and digest rows apply.</summary>
-    let checkHosts
+    let private hosts
+        (reads: Reads)
         (repository: Sha256)
         (targets: Map<string, AuthenticatedTarget>)
         (bytesOf: string -> byte array option)
@@ -196,7 +253,7 @@ module RecipeBindings =
 
                 let! release =
                     match host.Source with
-                    | HostSource.ToolRelease toolId -> hostRelease targets bytesOf at host toolId |> Result.map Some
+                    | HostSource.ToolRelease toolId -> hostRelease reads targets bytesOf at host toolId |> Result.map Some
                     | HostSource.DotnetTool _ -> Ok None
 
                 let! artifacts =
@@ -215,21 +272,101 @@ module RecipeBindings =
 
                 return
                     { Offering = host
-                      Release = release
+                      Release = release |> Option.map _.Tool
                       Artifacts = artifacts }
             })
+
+    /// <summary>The host binding rows for each offering, in order, and each platform in platform table order. A
+    /// <c>dotnet-tool</c> offering has no v1 release, so only its platforms' target and digest rows apply.</summary>
+    let checkHosts
+        (repository: Sha256)
+        (targets: Map<string, AuthenticatedTarget>)
+        (bytesOf: string -> byte array option)
+        (recipe: Recipe)
+        : Result<BoundHost list, TargetRefusal> =
+        hosts (newReads ()) repository targets bytesOf recipe
+
+    /// The comparison key of a model tuple: equal as parsed values, so object member order does not matter, and array
+    /// order and number spelling do.
+    let private tupleKey (value: Value) = Canonical.bytes value |> Result.toOption
+
+    let private rowsOf (claims: ClaimSet) : ClaimRows =
+        { Kinds = set claims.Extension.Types
+          Protocols = set claims.ProtocolVersions
+          Compiles =
+            match claims.Frontend with
+            | Some frontend when frontend.Compile -> frontend.Languages
+            | _ -> Set.empty
+          Generates =
+            match claims.Backend with
+            | Some backend when backend.Generate -> backend.Targets
+            | _ -> Set.empty
+          Tuples = claims.ModelTuples |> List.choose tupleKey |> set }
+
+    /// The rows every claim set has: a provider these admit is admitted by each of them.
+    let private sharedRows (rows: ClaimRows list) : ClaimRows =
+        match rows with
+        | [] ->
+            { Kinds = Set.empty
+              Protocols = Set.empty
+              Compiles = Set.empty
+              Generates = Set.empty
+              Tuples = Set.empty }
+        | _ ->
+            { Kinds = rows |> List.map _.Kinds |> Set.intersectMany
+              Protocols = rows |> List.map _.Protocols |> Set.intersectMany
+              Compiles = rows |> List.map _.Compiles |> Set.intersectMany
+              Generates = rows |> List.map _.Generates |> Set.intersectMany
+              Tuples = rows |> List.map _.Tuples |> Set.intersectMany }
+
+    let private claimsOf (artifact: DescribedArtifact) =
+        { Claims = artifact.Claims
+          ClaimCheck = artifact.ClaimCheck }
+
+    /// A descriptor's bytes, authenticated against its entry and read, with its artifacts indexed.
+    let private readDescriptor (entry: AuthenticatedTarget) (bytesOf: string -> byte array option) (target: TargetPath) : Result<ReadDescriptor, Code> =
+        match fetch bytesOf target.Text DocumentPath.root |> Result.bind (fun bytes -> read entry bytes DocumentPath.root |> Result.map (fun _ -> bytes)) with
+        | Error refusal -> Error refusal.Code
+        | Ok bytes ->
+            match ExtensionReleaseDocument.read bytes with
+            | Error _ -> Error(Code.Trust TrustCode.ReleaseDescriptorMismatch)
+            | Ok described ->
+                let directory =
+                    match target.Text.LastIndexOf '/' with
+                    | -1 -> ""
+                    | at -> target.Text.Substring(0, at + 1)
+
+                let rows = described.Artifacts |> List.map (fun artifact -> artifact, rowsOf artifact.Claims)
+                let byTarget = Dictionary<string, DescribedArtifact * ClaimRows>(System.StringComparer.Ordinal)
+
+                for artifact, row in rows do
+                    byTarget.TryAdd(directory + artifact.Filename, (artifact, row)) |> ignore
+
+                let namesDescriptor (artifact: DescribedArtifact) =
+                    artifact.Claims.Extension.Id.Text = described.ExtensionId.Text
+                    && artifact.Claims.Extension.Version = described.Version
+
+                Ok
+                    { Described = described
+                      NamesItself = List.forall namesDescriptor described.Artifacts
+                      ByTarget = byTarget
+                      Rows = rows |> List.map snd
+                      Shared = sharedRows (rows |> List.map snd)
+                      AllClaims = described.Artifacts |> List.map claimsOf }
 
     /// <summary>The descriptor rows of one provider: <c>descriptorTarget</c> is authenticated with
     /// <c>descriptorSha256</c>, its bytes have the authenticated length and digest, they read as an extension release
     /// descriptor, its <c>extensionId</c> and <c>version</c> are the provider's, and every artifact's claims name the
-    /// descriptor's identity, as publication already requires.</summary>
+    /// descriptor's identity, as publication already requires. The bytes are read once per check for each
+    /// target.</summary>
     let private descriptor
+        (reads: Reads)
         (repository: Sha256)
         (targets: Map<string, AuthenticatedTarget>)
         (bytesOf: string -> byte array option)
         (at: DocumentPath)
         (provider: RecipeProvider)
-        : Result<RecipeDigest * ExtensionRelease, TargetRefusal> =
+        : Result<RecipeDigest * ReadDescriptor, TargetRefusal> =
         result {
             let release = provider.Release
             let targetPath = at.Child "descriptorTarget"
@@ -244,48 +381,35 @@ module RecipeBindings =
                     { Target = release.DescriptorTarget
                       Sha256 = release.DescriptorSha256 }
 
-            let! bytes = fetch bytesOf release.DescriptorTarget.Text targetPath
-            let! _ = read entry bytes targetPath
+            let! read =
+                cached reads.Descriptors release.DescriptorTarget.Text (fun () -> readDescriptor entry bytesOf release.DescriptorTarget)
+                |> Result.mapError (fun code -> { Code = code; Path = targetPath })
 
-            let! described =
-                ExtensionReleaseDocument.read bytes
-                |> Result.mapError (fun _ -> { Code = Code.Trust TrustCode.ReleaseDescriptorMismatch; Path = targetPath })
-
-            if described.ExtensionId.Text <> provider.ExtensionId.Text then
+            if read.Described.ExtensionId.Text <> provider.ExtensionId.Text then
                 return! trust TrustCode.ReleaseDescriptorMismatch (at.Child "extensionId")
 
-            if described.Version <> provider.Version then
+            if read.Described.Version <> provider.Version then
                 return! trust TrustCode.ReleaseDescriptorMismatch (at.Child "version")
 
-            let namesDescriptor (artifact: DescribedArtifact) =
-                artifact.Claims.Extension.Id.Text = described.ExtensionId.Text
-                && artifact.Claims.Extension.Version = described.Version
-
-            if not (List.forall namesDescriptor described.Artifacts) then
+            if not read.NamesItself then
                 return! trust TrustCode.ReleaseDescriptorMismatch targetPath
 
-            return digest, described
+            return digest, read
         }
 
     /// <summary>The descriptor's entry for a bound artifact: the descriptor lists it in its own directory, with the
     /// delivery's runtime and the bound digest.</summary>
     let private listedArtifact
-        (release: ExtensionRelease)
-        (descriptorTarget: TargetPath)
+        (read: ReadDescriptor)
         (runtime: ArtifactRuntime)
         (binding: TargetBinding)
         (owner: DocumentPath)
-        : Result<DescribedArtifact, TargetRefusal> =
-        let directory =
-            match descriptorTarget.Text.LastIndexOf '/' with
-            | -1 -> ""
-            | at -> descriptorTarget.Text.Substring(0, at + 1)
-
-        match release.Artifacts |> List.tryFind (fun artifact -> directory + artifact.Filename = binding.Target.Text) with
-        | None -> trust TrustCode.ReleaseDescriptorMismatch (owner.Child "artifactTarget")
-        | Some artifact when artifact.Runtime <> runtime -> trust TrustCode.ReleaseDescriptorMismatch (owner.Child "artifactTarget")
-        | Some artifact when artifact.Sha256 <> binding.Sha256 -> trust TrustCode.TargetDigestMismatch (owner.Child "artifactSha256")
-        | Some artifact -> Ok artifact
+        : Result<DescribedArtifact * ClaimRows, TargetRefusal> =
+        match read.ByTarget.TryGetValue binding.Target.Text with
+        | false, _ -> trust TrustCode.ReleaseDescriptorMismatch (owner.Child "artifactTarget")
+        | true, (artifact, _) when artifact.Runtime <> runtime -> trust TrustCode.ReleaseDescriptorMismatch (owner.Child "artifactTarget")
+        | true, (artifact, _) when artifact.Sha256 <> binding.Sha256 -> trust TrustCode.TargetDigestMismatch (owner.Child "artifactSha256")
+        | true, found -> Ok found
 
     /// The provider's model tuple as the parsed value a claim set lists.
     let private tupleValue (tuple: ModelTuple) =
@@ -296,59 +420,46 @@ module RecipeBindings =
               "envelopeVersion", Value.String tuple.EnvelopeVersion.Text
               "irVersion", Value.String tuple.IrVersion.Text ]
 
-    /// Equal as parsed values: object member order does not matter, array order and number spelling do.
-    let private sameValue (a: Value) (b: Value) =
-        match Canonical.bytes a, Canonical.bytes b with
-        | Ok x, Ok y -> x = y
-        | _ -> false
+    /// The first claim row, in the page's order, that the rows do not admit for the provider, by its member name.
+    let private failingRow (provider: RecipeProvider) (rows: ClaimRows) =
+        let kind, (operandName, admitted) =
+            match provider.Operation with
+            | Operation.Compile language -> CapabilityKind.Frontend, ("language", rows.Compiles.Contains language.Text)
+            | Operation.Generate target -> CapabilityKind.Backend, ("target", rows.Generates.Contains target.Text)
+
+        if not (rows.Kinds.Contains kind) then
+            Some "operation"
+        elif not (rows.Protocols.Contains(ProtocolVersion.text provider.Protocol.Version)) then
+            Some "protocolVersion"
+        elif not admitted then
+            Some operandName
+        elif not (tupleKey (tupleValue provider.Protocol.Tuple) |> Option.exists rows.Tuples.Contains) then
+            Some "modelTuple"
+        else
+            None
 
     /// <summary>The claim rows of one artifact's claims, in the page's order: the capability kind
     /// (<c>frontend</c> for <c>compile</c>, <c>backend</c> for <c>generate</c>), the provider's MEP version in
     /// <c>protocolVersions</c> (exact text), the language or target (<c>compile</c> or <c>generate</c> is
     /// <c>true</c> and the operand is listed), and the provider's <c>modelTuple</c> exactly among
     /// <c>modelTransport.tuples</c>. These are what the publisher claims; checking them is not a probe.</summary>
-    let private capabilities (at: DocumentPath) (provider: RecipeProvider) (claims: ClaimSet) : Result<unit, TargetRefusal> =
-        let mismatch (name: string) = trust TrustCode.ReleaseDescriptorMismatch (at.Child name)
-
-        let kind =
-            match provider.Operation with
-            | Operation.Compile _ -> CapabilityKind.Frontend
-            | Operation.Generate _ -> CapabilityKind.Backend
-
-        if not (List.contains kind claims.Extension.Types) then
-            mismatch "operation"
-        elif not (List.contains (ProtocolVersion.text provider.Protocol.Version) claims.ProtocolVersions) then
-            mismatch "protocolVersion"
-        else
-            let operand =
-                match provider.Operation with
-                | Operation.Compile language ->
-                    "language", claims.Frontend |> Option.exists (fun f -> f.Compile && List.contains language.Text f.Languages)
-                | Operation.Generate target ->
-                    "target", claims.Backend |> Option.exists (fun b -> b.Generate && List.contains target.Text b.Targets)
-
-            match operand with
-            | name, false -> mismatch name
-            | _ when not (claims.ModelTuples |> List.exists (sameValue (tupleValue provider.Protocol.Tuple))) -> mismatch "modelTuple"
-            | _ -> Ok()
-
-    let private claimsOf (artifact: DescribedArtifact) =
-        { Claims = artifact.Claims
-          ClaimCheck = artifact.ClaimCheck }
+    let private capabilities (at: DocumentPath) (provider: RecipeProvider) (rows: ClaimRows) : Result<unit, TargetRefusal> =
+        match failingRow provider rows with
+        | Some name -> trust TrustCode.ReleaseDescriptorMismatch (at.Child name)
+        | None -> Ok()
 
     /// <summary>The artifact rows of a provider's delivery: each bound artifact or package is authenticated with its
     /// digest; a process or WASM artifact is listed by the descriptor in its own directory, with the delivery's runtime
     /// and the bound digest; and a process artifact's target triple is the bound platform's. Process platforms are
-    /// checked in platform table order. A <c>dotnet-tool</c> package is described by every artifact's claims.</summary>
+    /// checked in platform table order. A <c>dotnet-tool</c> package is described by every artifact's claims: when the
+    /// rows they share admit the provider, each admits it; otherwise the first that does not is found in order.</summary>
     let private artifacts
         (repository: Sha256)
         (targets: Map<string, AuthenticatedTarget>)
         (at: DocumentPath)
         (provider: RecipeProvider)
-        (release: ExtensionRelease)
+        (read: ReadDescriptor)
         : Result<(RecipeDigest * BoundClaims list) list, TargetRefusal> =
-        let descriptorTarget = provider.Release.DescriptorTarget
-
         match provider.Delivery with
         | RecipeDelivery.Process platforms ->
             platforms
@@ -356,19 +467,19 @@ module RecipeBindings =
                 result {
                     let owner = (at.Child "platforms").Child(Platform.name platform)
                     let! _, digest = bound repository targets owner "artifactTarget" "artifactSha256" binding
-                    let! artifact = listedArtifact release descriptorTarget ArtifactRuntime.Process binding owner
+                    let! artifact, rows = listedArtifact read ArtifactRuntime.Process binding owner
 
                     if artifact.Platform <> Some(targetTriple platform) then
                         return! trust TrustCode.ArtifactPlatformMismatch (owner.Child "artifactTarget")
 
-                    do! capabilities at provider artifact.Claims
+                    do! capabilities at provider rows
                     return digest, [ claimsOf artifact ]
                 })
         | RecipeDelivery.Wasm(_, binding) ->
             result {
                 let! _, digest = bound repository targets at "artifactTarget" "artifactSha256" binding
-                let! artifact = listedArtifact release descriptorTarget ArtifactRuntime.Wasm binding at
-                do! capabilities at provider artifact.Claims
+                let! artifact, rows = listedArtifact read ArtifactRuntime.Wasm binding at
+                do! capabilities at provider rows
                 return [ digest, [ claimsOf artifact ] ]
             }
         | RecipeDelivery.DotnetTool package ->
@@ -377,13 +488,16 @@ module RecipeBindings =
                     bound repository targets at "packageTarget" "packageSha256" { Target = package.Target; Sha256 = package.Sha256 }
 
                 // The version 2 descriptor has no runtime for .NET tool packages: every artifact's claims describe it.
-                do! release.Artifacts |> Result.traverse (fun artifact -> capabilities at provider artifact.Claims) |> Result.map ignore
-                return [ digest, release.Artifacts |> List.map claimsOf ]
+                if (failingRow provider read.Shared).IsSome then
+                    do! read.Rows |> Result.traverse (capabilities at provider) |> Result.map ignore
+
+                return [ digest, read.AllClaims ]
             }
 
     /// <summary>The provider binding rows for one provider, in the page's order: its repository first, before its
     /// descriptor is read.</summary>
     let private checkProvider
+        (reads: Reads)
         (repository: Sha256)
         (targets: Map<string, AuthenticatedTarget>)
         (bytesOf: string -> byte array option)
@@ -396,13 +510,13 @@ module RecipeBindings =
             if provider.Release.RepositoryId <> repository then
                 return! trust TrustCode.RepositoryMismatch (at.Child "repositoryId")
 
-            let! digest, release = descriptor repository targets bytesOf at provider
-            let! bound = artifacts repository targets at provider release
+            let! digest, read = descriptor reads repository targets bytesOf at provider
+            let! bound = artifacts repository targets at provider read
 
             return
                 { Provider = provider
                   Descriptor = digest
-                  Release = release
+                  Release = read.Described
                   Artifacts = bound }
         }
 
@@ -417,10 +531,13 @@ module RecipeBindings =
         (recipe: Recipe)
         : Result<BoundRecipe, TargetRefusal> =
         result {
-            let! hosts = checkHosts repository targets bytesOf recipe
+            let reads = newReads ()
+            let! hosts = hosts reads repository targets bytesOf recipe
 
             let! providers =
-                recipe.Providers |> List.indexed |> Result.traverse (fun (index, provider) -> checkProvider repository targets bytesOf index provider)
+                recipe.Providers
+                |> List.indexed
+                |> Result.traverse (fun (index, provider) -> checkProvider reads repository targets bytesOf index provider)
 
             return { Hosts = hosts; Providers = providers }
         }

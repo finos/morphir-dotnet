@@ -148,7 +148,7 @@ let claimSetTests =
                 Expect.equal claims.Extension.Version.Text "0.6.0" "version"
                 Expect.equal claims.Extension.Types [ CapabilityKind.Frontend ] "types"
                 Expect.equal claims.ProtocolVersions [ "0.2.0-draft.1" ] "protocol versions"
-                Expect.equal claims.Frontend (Some { Compile = true; Languages = [ "fsharp" ] }) "frontend"
+                Expect.equal claims.Frontend (Some { Compile = true; Languages = set [ "fsharp" ] }) "frontend"
                 Expect.equal claims.Backend None "no backend"
                 Expect.equal claims.ModelTuples.Length 1 "one tuple"
             | Error refusal -> failtestf "refused: %A" refusal)

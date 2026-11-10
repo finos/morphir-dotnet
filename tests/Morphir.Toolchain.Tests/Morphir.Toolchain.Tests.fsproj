@@ -27,6 +27,7 @@
     <Compile Include="BindingCaseTests.fs" />
     <Compile Include="SignedCaseTests.fs" />
     <Compile Include="ReleaseDescriptorTests.fs" />
+    <Compile Include="BindingReviewTests.fs" />
     <Compile Include="ContractTableTests.fs" />
     <Compile Include="NormalizationTests.fs" />
     <Compile Include="CanonicalJsonTests.fs" />
