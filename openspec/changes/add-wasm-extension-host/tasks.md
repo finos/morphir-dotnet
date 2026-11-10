@@ -22,7 +22,7 @@ Rules for every task:
 
 ## 0. Adoption housekeeping, morphir-dotnet
 
-- [ ] 0.1 Update the extension-model PRD for the decision of 9 November 2026 that the host runs `extism-kernel-v1` only: the Runtimes section, step 2a, step 5, the reference guest, the status table and the "Memory limit report" open point, with a link to this change. Add a dated note to the WASM runtime spike that its per-byte callback and module-serialization advice no longer applies. Verify the documentation build passes and that no page still says morphir-dotnet hosts `morphir-bytes-v1`.
+- [ ] 0.1 Update the extension-model PRD for the decision of 9 November 2026 that the host runs `extism-kernel-v1` only: the Runtimes section, step 2a, step 5, the reference guest, the status table and the "Memory limit report" open point, with a link to this change. Name the listing of configured WASM extensions in `extension list` ([#565](https://github.com/finos/morphir-dotnet/issues/565)) in steps 2a and 3 and in the status table. Add a dated note to the WASM runtime spike that its per-byte callback and module-serialization advice no longer applies. Verify the documentation build passes and that no page still says morphir-dotnet hosts `morphir-bytes-v1`.
   - Files: `docs/content/contributing/design/prds/morphir-extension-model.md`, `docs/content/contributing/design/prds/_index.md`, `docs/content/contributing/design/spikes/extension-model/wasm-runtime.md`.
   - Design: ORD-1.
 - [ ] 0.2 Pin the profile contract, the crafted corpus and its modules under `tests/Fixtures/MepWasm/`, copied unchanged from one finos/morphir commit, with `PROVENANCE.md`, the upstream licence and notice. Verify a test recomputes every recorded SHA-256, and that each module's digest equals the one the corpus records.
@@ -113,6 +113,6 @@ Parent tasks 1.1 to 1.4 and 1.6 belong to finos/morphir and are dependencies onl
 ## Workflow follow-up
 
 - These files are a proposal for review. Do not begin implementation from the planning turn.
-- Keep these as separately scoped follow-up work: product commands that select a WASM analyzer, frontend or generator; listing configured modules in `extension list`; user-granted host capabilities; extension installation; an on-disk compiled-module cache; a .NET port of the generic guest kit's runner; moving the rest of the compatibility kit from JSON to Gherkin, which the maintainer set as the direction on 9 November 2026 and which belongs with `establish-morphir-compatibility-kit`.
+- Keep these as separately scoped follow-up work: product commands that select a WASM analyzer, frontend or generator; listing configured modules in `extension list`, tracked in [#565](https://github.com/finos/morphir-dotnet/issues/565); user-granted host capabilities; extension installation; an on-disk compiled-module cache; a .NET port of the generic guest kit's runner; moving the rest of the compatibility kit from JSON to Gherkin, which the maintainer set as the direction on 9 November 2026 and which belongs with `establish-morphir-compatibility-kit`.
 - When `add-deployment-and-acquisition` and this change are both open at archive time, the second to archive merges both edits to the `extension-registry` requirement "An entry states its delivery and hosts".
 - Follow AGENTS.md for review, spec synchronization, archive, tracker closure and release approval.
