@@ -307,3 +307,280 @@ let releasePathTests =
 
             Expect.equal (resolveIn records (onChannel "stable")) "release_descriptor_mismatch" "malformed")
     ]
+let private nativeRelease = "releases/morphir-dotnet-native-aot/1.2.3.json"
+let private selfContainedRelease = "releases/morphir-dotnet-self-contained/1.2.3.json"
+let private backendTarget = "extensions/fsharp-backend/0.1.0/release.json"
+let private hostWinX64 = "artifacts/morphir-dotnet-native-aot/1.2.3/win-x64.zip"
+let private hostWinArm64 = "artifacts/morphir-dotnet-native-aot/1.2.3/win-arm64.zip"
+let private frontendWinX64 = "extensions/fsharp-frontend/0.6.0/win-x64.zip"
+let private frontendWinArm64 = "extensions/fsharp-frontend/0.6.0/win-arm64.zip"
+let private frontendPackage = "packages/nuget/morphir.frontend.fsharp.extension/0.6.0/morphir.frontend.fsharp.extension.0.6.0.nupkg"
+let private zeros = String.replicate 64 "0"
+
+let private servedBytes (setup: Setup) (target: string) =
+    match setup.Served.TryFind target with
+    | Some bytes -> bytes
+    | None -> SignedCaseTests.targetBytes target
+
+/// Serves the target's bytes with one more space: longer than the authenticated length.
+let private longer (target: string) (setup: Setup) = serve target (Array.append (servedBytes setup target) [| 32uy |]) setup
+
+/// Serves the target's bytes with each z replaced by y: the authenticated length, another digest.
+let private otherBytes (target: string) (setup: Setup) =
+    serve target (servedBytes setup target |> Array.map (fun b -> if b = byte 'z' then byte 'y' else b)) setup
+
+let private editCustom (target: string) (edit: Value -> Value) =
+    editListed target (fun entry -> { entry with Custom = entry.Custom |> Option.map edit })
+
+let private releaseState (name: string) (value: Value) = editCustom nativeRelease (setAt [ "morphir"; name ] value)
+let private atRecipe (path: string list) (value: Value) = editRecipe (setAt path value)
+
+/// Edits the frontend descriptor's artifact with a filename.
+let private frontendArtifact (filename: string) (path: string list) (value: Value) =
+    editTarget frontendTarget (fun descriptor ->
+        let index = items (memberOf "artifacts" descriptor) |> List.findIndex (fun artifact -> memberOf "filename" artifact = str filename)
+        setAt ("artifacts" :: string index :: path) value descriptor)
+
+let private asWasm (filename: string) =
+    editTarget frontendTarget (fun descriptor ->
+        let index = items (memberOf "artifacts" descriptor) |> List.findIndex (fun artifact -> memberOf "filename" artifact = str filename)
+        descriptor |> setAt [ "artifacts"; string index; "runtime" ] (str "wasm") |> removeAt [ "artifacts"; string index; "platform" ])
+
+let private case (name: string) (expected: string) (edits: (Setup -> Setup) list) =
+    testCase name (fun () -> edits |> List.fold (fun setup edit -> edit setup) (signed ()) |> expectOutcome expected)
+
+[<Tests>]
+let hostRowTests =
+    // Review of #583, A2: each row of the host table reports its code at its path, and of two faults the earlier row
+    // is reported (B05, B21, B22 and the adjacent pairs).
+    testList "Host binding rows" [
+        testList "one fault" [
+            case "the signed recipe binds" "valid" []
+            case "H1 the release target is absent" "target_not_authenticated @ hosts[0].source" [ unlist nativeRelease ]
+            case "H1 the release target's kind is another" "target_not_authenticated @ hosts[0].source" [ releaseState "kind" (str "tool-artifact") ]
+            case "H1 the release target states another version" "target_not_authenticated @ hosts[0].source" [ releaseState "version" (str "1.2.4") ]
+            case "H1 the release target states another tool" "target_not_authenticated @ hosts[0].source" [ releaseState "toolId" (str "morphir-dotnet-self-contained") ]
+            case "H1 the release target has no custom object" "target_not_authenticated @ hosts[0].source" [ editListed nativeRelease (fun entry -> { entry with Custom = None }) ]
+            case "H2 the release is revoked" "release_revoked @ hosts[0].version" [ releaseState "status" (str "revoked") ]
+            case "H3 the release bytes are longer" "target_length_mismatch @ hosts[0].source" [ longer nativeRelease ]
+            case "H3 the release bytes have another digest" "target_digest_mismatch @ hosts[0].source" [ otherBytes nativeRelease ]
+            case "H4 the release is not version 1" "release_descriptor_mismatch @ hosts[0].source" [ editTarget nativeRelease (setAt [ "schemaVersion" ] (Value.Number "2")) ]
+            case "H5 the win-x64 target is absent" "target_not_authenticated @ hosts[0].platforms.win-x64.target" [ unlist hostWinX64 ]
+            case "H6 the win-x64 sha256 is another" "target_digest_mismatch @ hosts[0].platforms.win-x64.sha256" [ atRecipe [ "hosts"; "0"; "platforms"; "win-x64"; "sha256" ] (str zeros) ]
+            case "H7 the release does not list the win-x64 target" "release_descriptor_mismatch @ hosts[0].platforms.win-x64.target" [ editTarget nativeRelease (setAt [ "artifacts"; "0"; "targetPath" ] (str "artifacts/x.zip")) ]
+            case "H8 the listed artifact is for another platform" "artifact_platform_mismatch @ hosts[0].platforms.win-x64.target" [ editTarget nativeRelease (setAt [ "artifacts"; "0"; "platform"; "arch" ] (str "aarch64")) ]
+            case "H9 the artifact target's kind is another" "release_descriptor_mismatch @ hosts[0].platforms.win-x64.target" [ editCustom hostWinX64 (setAt [ "morphir"; "kind" ] (str "tool-release")) ]
+            case "H9 the artifact target's platform is another" "release_descriptor_mismatch @ hosts[0].platforms.win-x64.target" [ editCustom hostWinX64 (setAt [ "morphir"; "platform"; "arch" ] (str "aarch64")) ]
+        ]
+
+        testList "two faults report the earlier row" [
+            case "H1 kind + H2 revoked" "target_not_authenticated @ hosts[0].source" [ releaseState "kind" (str "tool-artifact"); releaseState "status" (str "revoked") ]
+            case "H2 revoked + H3 length" "release_revoked @ hosts[0].version" [ releaseState "status" (str "revoked"); longer nativeRelease ]
+            case "H2 revoked + H4 not version 1" "release_revoked @ hosts[0].version" [ editTarget nativeRelease (setAt [ "schemaVersion" ] (Value.Number "2")); releaseState "status" (str "revoked") ]
+            case "H3 length + H4 not version 1" "target_length_mismatch @ hosts[0].source" [ editTarget nativeRelease (setAt [ "schemaVersion" ] (Value.Number "2")); longer nativeRelease ]
+            case "H4 not version 1 + H5 target absent" "release_descriptor_mismatch @ hosts[0].source" [ editTarget nativeRelease (setAt [ "schemaVersion" ] (Value.Number "2")); unlist hostWinX64 ]
+            case "H5 target absent + H6 digest, one platform" "target_not_authenticated @ hosts[0].platforms.win-x64.target" [ unlist hostWinX64; atRecipe [ "hosts"; "0"; "platforms"; "win-x64"; "sha256" ] (str zeros) ]
+            case "H6 digest + H7 unlisted, one platform" "target_digest_mismatch @ hosts[0].platforms.win-x64.sha256" [ atRecipe [ "hosts"; "0"; "platforms"; "win-x64"; "sha256" ] (str zeros); editTarget nativeRelease (setAt [ "artifacts"; "0"; "targetPath" ] (str "artifacts/x.zip")) ]
+            case "H7 unlisted + H9 metadata, one platform" "release_descriptor_mismatch @ hosts[0].platforms.win-x64.target" [ editTarget nativeRelease (setAt [ "artifacts"; "0"; "targetPath" ] (str "artifacts/x.zip")); editCustom hostWinX64 (setAt [ "morphir"; "kind" ] (str "x")) ]
+            case "H8 platform + H9 metadata, one platform" "artifact_platform_mismatch @ hosts[0].platforms.win-x64.target" [ editTarget nativeRelease (setAt [ "artifacts"; "0"; "platform"; "arch" ] (str "aarch64")); editCustom hostWinX64 (setAt [ "morphir"; "kind" ] (str "x")) ]
+            // Platforms are checked one at a time, every row for one before the next (see "For the contract author").
+            case "H7 at win-x64 + H5 at win-arm64" "release_descriptor_mismatch @ hosts[0].platforms.win-x64.target" [ editTarget nativeRelease (setAt [ "artifacts"; "0"; "targetPath" ] (str "artifacts/x.zip")); unlist hostWinArm64 ]
+            case "H5 at win-arm64 + H6 at win-x64" "target_digest_mismatch @ hosts[0].platforms.win-x64.sha256" [ unlist hostWinArm64; atRecipe [ "hosts"; "0"; "platforms"; "win-x64"; "sha256" ] (str zeros) ]
+            case "host 0 H9 + host 1 H1" "release_descriptor_mismatch @ hosts[0].platforms.win-x64.target" [ editCustom hostWinX64 (setAt [ "morphir"; "kind" ] (str "x")); unlist selfContainedRelease ]
+            case "host 1 H1 + provider 0 repository: hosts before providers" "target_not_authenticated @ hosts[1].source" [ unlist selfContainedRelease; atRecipe [ "providers"; "0"; "repositoryId" ] (str zeros) ]
+            case "a dotnet-tool host's digest + provider 0 repository" "target_digest_mismatch @ hosts[3].platforms.win-x64.sha256" [ atRecipe [ "hosts"; "3"; "platforms"; "win-x64"; "sha256" ] (str zeros); atRecipe [ "providers"; "0"; "repositoryId" ] (str zeros) ]
+        ]
+
+        // B08: version 1 platforms state no C library, so a musl platform has no version 1 platform. The reader
+        // refuses a musl platform of a tool-release offering, so the check is reached only by a recipe value built in
+        // code; it must still bind no glibc artifact to musl.
+        testCase "a musl platform binds no glibc artifact" (fun () ->
+            let recipe = readRecipe (valueOf recipeTarget)
+            let host = recipe.Hosts.Head
+            let glibc = host.Platforms |> List.find (fst >> (=) Platform.LinuxX64) |> snd
+            let musl = { recipe with Hosts = [ { host with Platforms = host.Platforms @ [ Platform.LinuxMuslX64, glibc ] } ] }
+
+            let outcome =
+                match RecipeBindings.checkHosts (SignedCaseTests.repository ()) (SignedCaseTests.authenticatedTargets "metadata") SignedCaseTests.tryTargetBytes musl with
+                | Ok _ -> "valid"
+                | Error refusal -> $"{Code.name refusal.Code} @ {DocumentPath.render refusal.Path}"
+
+            Expect.equal outcome "artifact_platform_mismatch @ hosts[0].platforms.linux-musl-x64.target" "musl"
+            Expect.isNone (RecipeBindings.toolPlatform Platform.LinuxMuslArm64) "musl arm64")
+    ]
+
+[<Tests>]
+let providerRowTests =
+    testList "Provider binding rows" [
+        testList "one fault" [
+            case "P1 another repository" "repository_mismatch @ providers[0].repositoryId" [ atRecipe [ "providers"; "0"; "repositoryId" ] (str zeros) ]
+            case "P2 the descriptor is absent" "target_not_authenticated @ providers[0].descriptorTarget" [ unlist frontendTarget ]
+            case "P2 the descriptorSha256 is another" "target_digest_mismatch @ providers[0].descriptorSha256" [ atRecipe [ "providers"; "0"; "descriptorSha256" ] (str zeros) ]
+            case "P3 the descriptor bytes are longer" "target_length_mismatch @ providers[0].descriptorTarget" [ longer frontendTarget ]
+            case "P3 the descriptor bytes have another digest" "target_digest_mismatch @ providers[0].descriptorTarget" [ otherBytes frontendTarget ]
+            case "P4 the descriptor is another draft" "release_descriptor_mismatch @ providers[0].descriptorTarget" [ editTarget frontendTarget (setAt [ "schemaVersion" ] (str "2.0.0-draft.1")) ]
+            case "P5 the descriptor's extensionId is another" "release_descriptor_mismatch @ providers[0].extensionId" [ editTarget frontendTarget (setAt [ "extensionId" ] (str "other")) ]
+            case "P6 the descriptor's version is another" "release_descriptor_mismatch @ providers[0].version" [ editTarget frontendTarget (setAt [ "version" ] (str "0.6.1")) ]
+            case "P7 an artifact's claims name another version" "release_descriptor_mismatch @ providers[0].descriptorTarget" [ editTarget frontendTarget (setAt [ "artifacts"; "3"; "claims"; "extension"; "version" ] (str "0.6.1")) ]
+            case "P7 an artifact's claims name another extension" "release_descriptor_mismatch @ providers[0].descriptorTarget" [ editTarget frontendTarget (setAt [ "artifacts"; "3"; "claims"; "extension"; "id" ] (str "other")) ]
+            case "P8 the win-x64 artifact is absent" "target_not_authenticated @ providers[0].platforms.win-x64.artifactTarget" [ unlist frontendWinX64 ]
+            case "P8 the win-x64 artifactSha256 is another" "target_digest_mismatch @ providers[0].platforms.win-x64.artifactSha256" [ atRecipe [ "providers"; "0"; "platforms"; "win-x64"; "artifactSha256" ] (str zeros) ]
+            case "P9 the descriptor does not list the artifact" "release_descriptor_mismatch @ providers[0].platforms.win-x64.artifactTarget" [ frontendArtifact "win-x64.zip" [ "filename" ] (str "other.zip") ]
+            case "P10 the listed artifact is WASM" "release_descriptor_mismatch @ providers[0].platforms.win-x64.artifactTarget" [ asWasm "win-x64.zip" ]
+            case "P11 the listed digest is another" "target_digest_mismatch @ providers[0].platforms.win-x64.artifactSha256" [ frontendArtifact "win-x64.zip" [ "sha256" ] (str zeros) ]
+            case "P12 the target triple is another" "artifact_platform_mismatch @ providers[0].platforms.win-x64.artifactTarget" [ frontendArtifact "win-x64.zip" [ "platform" ] (str "aarch64-pc-windows-msvc") ]
+            case "P13 the claims list no frontend kind" "release_descriptor_mismatch @ providers[0].operation" [ frontendArtifact "win-x64.zip" [ "claims"; "extension"; "types" ] (Value.Array [ str "backend" ]) ]
+            case "P14 the claims list another MEP version" "release_descriptor_mismatch @ providers[0].protocolVersion" [ frontendArtifact "win-x64.zip" [ "claims"; "protocolVersions" ] (Value.Array [ str "0.2.0-draft.2" ]) ]
+            case "P15 compile is false, with the language listed" "release_descriptor_mismatch @ providers[0].language" [ frontendArtifact "win-x64.zip" [ "claims"; "capabilities"; "frontend"; "compile" ] (Value.Boolean false) ]
+            case "P15 another language" "release_descriptor_mismatch @ providers[0].language" [ frontendArtifact "win-x64.zip" [ "claims"; "capabilities"; "frontend"; "languages"; "0"; "id" ] (str "elm") ]
+            case "P15 generate is false, with the target listed" "release_descriptor_mismatch @ providers[2].target" [ editTarget backendTarget (eachArtifact (setAt [ "claims"; "capabilities"; "backend"; "generate" ] (Value.Boolean false))) ]
+            case "P16 another irVersion" "release_descriptor_mismatch @ providers[0].modelTuple" [ frontendArtifact "win-x64.zip" (tuplePath @ [ "irVersion" ]) (str "3.0.0") ]
+            case "P16 a tuple with another member" "release_descriptor_mismatch @ providers[0].modelTuple" [ frontendArtifact "win-x64.zip" (tuplePath @ [ "extra" ]) (str "x") ]
+            case "a dotnet-tool package digest" "target_digest_mismatch @ providers[1].packageSha256" [ atRecipe [ "providers"; "1"; "packageSha256" ] (str zeros) ]
+            // B20: a .NET tool package is described by every artifact's claims, so the last artifact's are checked too.
+            case "a dotnet-tool whose last artifact claims another language" "release_descriptor_mismatch @ providers[0].language" [
+                editRecipe (fun recipe -> setAt [ "providers" ] (Value.Array(items (memberOf "providers" recipe) |> List.tail)) recipe)
+                frontendArtifact "linux-arm64.zip" [ "claims"; "capabilities"; "frontend"; "languages"; "0"; "id" ] (str "elm") ]
+        ]
+
+        testList "two faults report the earlier row" [
+            case "P1 repository + P2 descriptor absent" "repository_mismatch @ providers[0].repositoryId" [ atRecipe [ "providers"; "0"; "repositoryId" ] (str zeros); unlist frontendTarget ]
+            case "P2 descriptor absent + P2 descriptorSha256" "target_not_authenticated @ providers[0].descriptorTarget" [ unlist frontendTarget; atRecipe [ "providers"; "0"; "descriptorSha256" ] (str zeros) ]
+            case "P2 descriptorSha256 + P3 length" "target_digest_mismatch @ providers[0].descriptorSha256" [ atRecipe [ "providers"; "0"; "descriptorSha256" ] (str zeros); longer frontendTarget ]
+            case "P3 length + P4 another draft" "target_length_mismatch @ providers[0].descriptorTarget" [ editTarget frontendTarget (setAt [ "schemaVersion" ] (str "2.0.0-draft.1")); longer frontendTarget ]
+            case "P4 another draft + P5 extensionId" "release_descriptor_mismatch @ providers[0].descriptorTarget" [ editTarget frontendTarget (setAt [ "schemaVersion" ] (str "2.0.0-draft.1") >> setAt [ "extensionId" ] (str "other")) ]
+            case "P5 extensionId + P6 version" "release_descriptor_mismatch @ providers[0].extensionId" [ editTarget frontendTarget (setAt [ "extensionId" ] (str "other") >> setAt [ "version" ] (str "0.6.1")) ]
+            case "P6 version + P7 claims identity" "release_descriptor_mismatch @ providers[0].version" [ editTarget frontendTarget (setAt [ "version" ] (str "0.6.1")) ]
+            case "P7 claims identity + P8 artifact absent" "release_descriptor_mismatch @ providers[0].descriptorTarget" [ editTarget frontendTarget (setAt [ "artifacts"; "3"; "claims"; "extension"; "id" ] (str "other")); unlist frontendWinX64 ]
+            case "P8 artifact absent + P9 unlisted" "target_not_authenticated @ providers[0].platforms.win-x64.artifactTarget" [ unlist frontendWinX64; frontendArtifact "win-x64.zip" [ "filename" ] (str "other.zip") ]
+            case "P9 unlisted + P11 listed digest elsewhere" "release_descriptor_mismatch @ providers[0].platforms.win-x64.artifactTarget" [ frontendArtifact "win-x64.zip" [ "filename" ] (str "other.zip"); frontendArtifact "other.zip" [ "sha256" ] (str zeros) ]
+            case "P10 runtime + P11 listed digest" "release_descriptor_mismatch @ providers[0].platforms.win-x64.artifactTarget" [ asWasm "win-x64.zip"; frontendArtifact "win-x64.zip" [ "sha256" ] (str zeros) ]
+            case "P11 listed digest + P12 triple" "target_digest_mismatch @ providers[0].platforms.win-x64.artifactSha256" [ frontendArtifact "win-x64.zip" [ "sha256" ] (str zeros); frontendArtifact "win-x64.zip" [ "platform" ] (str "aarch64-pc-windows-msvc") ]
+            case "P12 triple + P13 kind" "artifact_platform_mismatch @ providers[0].platforms.win-x64.artifactTarget" [ frontendArtifact "win-x64.zip" [ "platform" ] (str "aarch64-pc-windows-msvc"); frontendArtifact "win-x64.zip" [ "claims"; "extension"; "types" ] (Value.Array [ str "backend" ]) ]
+            case "P13 kind + P14 protocol" "release_descriptor_mismatch @ providers[0].operation" [ frontendArtifact "win-x64.zip" [ "claims"; "extension"; "types" ] (Value.Array [ str "backend" ]); frontendArtifact "win-x64.zip" [ "claims"; "protocolVersions" ] (Value.Array [ str "0.2.0-draft.2" ]) ]
+            case "P14 protocol + P15 operand" "release_descriptor_mismatch @ providers[0].protocolVersion" [ frontendArtifact "win-x64.zip" [ "claims"; "protocolVersions" ] (Value.Array [ str "0.2.0-draft.2" ]); frontendArtifact "win-x64.zip" [ "claims"; "capabilities"; "frontend"; "compile" ] (Value.Boolean false) ]
+            case "P15 operand + P16 model" "release_descriptor_mismatch @ providers[0].language" [ frontendArtifact "win-x64.zip" [ "claims"; "capabilities"; "frontend"; "compile" ] (Value.Boolean false); frontendArtifact "win-x64.zip" (tuplePath @ [ "irVersion" ]) (str "3.0.0") ]
+            // A process provider's platforms are checked one at a time, the claim rows with the artifact rows.
+            case "P13 kind at win-x64 + P8 artifact absent at win-arm64" "release_descriptor_mismatch @ providers[0].operation" [ frontendArtifact "win-x64.zip" [ "claims"; "extension"; "types" ] (Value.Array [ str "backend" ]); unlist frontendWinArm64 ]
+            case "provider 0 P16 + provider 2 P1" "release_descriptor_mismatch @ providers[0].modelTuple" [ frontendArtifact "win-x64.zip" (tuplePath @ [ "irVersion" ]) (str "3.0.0"); atRecipe [ "providers"; "2"; "repositoryId" ] (str zeros) ]
+            case "a dotnet-tool package absent + a claims fault" "target_not_authenticated @ providers[0].packageTarget" [
+                editRecipe (fun recipe -> setAt [ "providers" ] (Value.Array(items (memberOf "providers" recipe) |> List.tail)) recipe)
+                unlist frontendPackage
+                frontendArtifact "linux-arm64.zip" [ "claims"; "capabilities"; "frontend"; "languages"; "0"; "id" ] (str "elm") ]
+        ]
+    ]
+let private readerOutcome (result: Result<'T, ReaderRefusal>) =
+    match result with
+    | Ok _ -> "read"
+    | Error refusal -> $"{Code.readerName refusal.Code} @ {DocumentPath.render refusal.Path}"
+
+/// The bytes padded with trailing spaces to a length.
+let private paddedTo (length: int) (bytes: byte array) =
+    Array.append bytes (Array.create (length - bytes.Length) (byte ' '))
+
+[<Tests>]
+let readerRuleTests =
+    let nativeAot () = valueOf nativeRelease
+    let readRelease (edit: Value -> Value) = ToolReleaseDocument.read (bytesOf (edit (nativeAot ()))) |> readerOutcome
+
+    // Review of #583, A2: reader rules no test pinned (R10 to R13, E04, E09).
+    testList "Release descriptor reader rules" [
+        testCase "R10 a target path with a drive prefix is refused" (fun () ->
+            Expect.equal (readRelease (setAt [ "artifacts"; "0"; "targetPath" ] (str "C:/artifacts/x.zip"))) "invalid_value @ artifacts[0].targetPath" "C:/"
+            Expect.equal (readRelease (setAt [ "artifacts"; "0"; "launch"; "path" ] (str "c:morphir.exe"))) "invalid_value @ artifacts[0].launch.path" "c:")
+
+        testCase "R11 an arch that ends in a hyphen or underscore is refused" (fun () ->
+            Expect.equal (readRelease (setAt [ "artifacts"; "0"; "platform"; "arch" ] (str "x86-"))) "invalid_value @ artifacts[0].platform.arch" "x86-"
+            Expect.equal (readRelease (setAt [ "artifacts"; "0"; "platform"; "arch" ] (str "x86_"))) "invalid_value @ artifacts[0].platform.arch" "x86_"
+            Expect.equal (readRelease (setAt [ "artifacts"; "0"; "platform"; "arch" ] (str "x86_64-v2"))) "read" "an inner hyphen")
+
+        testCase "R12 a v1 descriptor of exactly 1 MiB is read" (fun () ->
+            let bytes = paddedTo ToolReleaseDocument.limit (SignedCaseTests.targetBytes nativeRelease)
+            Expect.equal (ToolReleaseDocument.read bytes |> readerOutcome) "read" "1 MiB"
+            Expect.equal (ToolReleaseDocument.read (paddedTo (ToolReleaseDocument.limit + 1) bytes) |> readerOutcome) "invalid_document @ " "1 MiB + 1")
+
+        testCase "R13 the archive object is closed" (fun () ->
+            Expect.equal (readRelease (setAt [ "artifacts"; "0"; "archive"; "extra" ] (str "x"))) "invalid_document @ artifacts[0].archive.extra" "archive"
+            Expect.equal (readRelease (setAt [ "artifacts"; "0"; "launch"; "extra" ] (str "x"))) "invalid_document @ artifacts[0].launch.extra" "launch"
+            Expect.equal (readRelease (setAt [ "artifacts"; "0"; "platform"; "extra" ] (str "x"))) "invalid_document @ artifacts[0].platform.extra" "platform")
+
+        testCase "E04 an absent claimCheck reads as unchecked, never probed" (fun () ->
+            let read (edit: Value -> Value) =
+                match ExtensionReleaseDocument.read (bytesOf (edit (valueOf frontendTarget))) with
+                | Ok release -> release.Artifacts.Head.ClaimCheck
+                | Error refusal -> failtestf "refused: %A" refusal
+
+            Expect.equal (read (removeAt [ "artifacts"; "0"; "claimCheck" ])) DescriptorClaimCheck.Unchecked "absent"
+            Expect.equal (read (setAt [ "artifacts"; "0"; "claimCheck" ] (str "probed"))) DescriptorClaimCheck.Probed "probed"
+            Expect.equal (read id) DescriptorClaimCheck.Unchecked "unchecked")
+
+        testCase "E04 a bound artifact without claimCheck is bound as unchecked" (fun () ->
+            let setup = signed () |> editTarget frontendTarget (eachArtifact (removeAt [ "claimCheck" ]))
+
+            match RecipeBindings.check (SignedCaseTests.repository ()) setup.Listed (fun t -> setup.Served.TryFind t |> Option.orElse (SignedCaseTests.tryTargetBytes t)) (readRecipe setup.Recipe) with
+            | Ok bound ->
+                let checks = [ for provider in bound.Providers.[0..1] do for _, claims in provider.Artifacts do for claim in claims -> claim.ClaimCheck ]
+                Expect.isNonEmpty checks "claims"
+                Expect.allEqual checks DescriptorClaimCheck.Unchecked "every claim check"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "E09 an extension descriptor over 1 MiB is refused before it is parsed" (fun () ->
+            let bytes = SignedCaseTests.targetBytes frontendTarget
+            Expect.equal (ExtensionReleaseDocument.read (paddedTo ExtensionReleaseDocument.limit bytes) |> readerOutcome) "read" "1 MiB"
+            Expect.equal (ExtensionReleaseDocument.read (paddedTo (ExtensionReleaseDocument.limit + 1) bytes) |> readerOutcome) "invalid_document @ " "1 MiB + 1")
+    ]
+
+[<Tests>]
+let resolverRuleTests =
+    let withCli (cli: string) (version: string) =
+        recordAt $"releases/tool/{version}.json" (members version [ "stable" ] "active" |> List.map (fun (name, value) -> if name = "compatibility" then name, Value.Object [ "morphirCli", str cli ] else name, value))
+
+    // Review of #583, A2: resolver rules no test pinned (T01, T08, T09, T12, T13), with several releases per channel.
+    testList "Tool release resolution rules" [
+        testCase "T01 a yanked release is never selected by a channel, even if its state lists one" (fun () ->
+            let records = [ placed "1.0.0" [ "stable" ] "active"; placed "1.1.0" [ "stable" ] "yanked"; placed "1.2.0" [] "yanked" ]
+            Expect.equal (resolveIn records (onChannel "stable")) "releases/tool/1.0.0.json = 1.0.0" "stable"
+            Expect.equal (resolveIn records (ToolRequest.Exact(version "1.1.0"))) "releases/tool/1.1.0.json = 1.1.0" "exact")
+
+        testCase "T08 insiders and preview select one family: every preview channel" (fun () ->
+            let records =
+                [ placed "2.0.0-preview.1" [ "insiders" ] "active"
+                  placed "2.0.0-preview.2" [ "preview/fast" ] "active"
+                  placed "2.0.0-preview.3" [ "preview" ] "active"
+                  placed "1.0.0" [ "stable" ] "active" ]
+
+            Expect.equal (resolveIn records (onChannel "insiders")) "releases/tool/2.0.0-preview.3.json = 2.0.0-preview.3" "insiders selects preview"
+            Expect.equal (resolveIn records (onChannel "preview")) "releases/tool/2.0.0-preview.3.json = 2.0.0-preview.3" "preview"
+
+            let insidersOnly = [ placed "2.0.0-preview.1" [ "insiders" ] "active"; placed "2.0.0-preview.0" [ "preview" ] "active" ]
+            Expect.equal (resolveIn insidersOnly (onChannel "preview")) "releases/tool/2.0.0-preview.1.json = 2.0.0-preview.1" "preview selects insiders")
+
+        testCase "T09 a named preview selects only its own segment" (fun () ->
+            let records =
+                [ placed "2.0.0-preview.1" [ "preview/fast" ] "active"
+                  placed "2.0.0-preview.2" [ "preview/fast" ] "active"
+                  placed "2.0.0-preview.5" [ "preview/slow" ] "active"
+                  placed "2.0.0-preview.6" [ "preview" ] "active"
+                  placed "2.0.0-preview.7" [ "insiders" ] "active" ]
+
+            Expect.equal (resolveIn records (onChannel "preview/fast")) "releases/tool/2.0.0-preview.2.json = 2.0.0-preview.2" "fast"
+            Expect.equal (resolveIn records (onChannel "preview/slow")) "releases/tool/2.0.0-preview.5.json = 2.0.0-preview.5" "slow"
+            Expect.equal (resolveIn records (onChannel "preview/other")) "no_compatible_release" "other")
+
+        testCase "T12 a release state of another schemaVersion, or none, is refused" (fun () ->
+            let withSchema (schema: Value option) =
+                let rest = members "1.1.0" [ "stable" ] "active" |> List.filter (fst >> (<>) "schemaVersion")
+                let state = match schema with Some value -> ("schemaVersion", value) :: rest | None -> rest
+                [ placed "1.0.0" [ "stable" ] "active"; recordAt "releases/tool/1.1.0.json" state ]
+
+            Expect.equal (resolveIn (withSchema (Some(Value.Number "2"))) (onChannel "stable")) "release_descriptor_mismatch" "2"
+            Expect.equal (resolveIn (withSchema (Some(str "1"))) (onChannel "stable")) "release_descriptor_mismatch" "\"1\""
+            Expect.equal (resolveIn (withSchema None) (onChannel "stable")) "release_descriptor_mismatch" "absent")
+
+        testCase "T13 a CLI requirement with an empty comparator is refused" (fun () ->
+            for cli in [ ">=0.4.0, "; ", >=0.4.0"; ">=0.4.0,,<0.5.0"; "" ] do
+                Expect.equal (resolveIn [ withCli cli "1.0.0" ] (onChannel "stable")) "release_descriptor_mismatch" $"'{cli}'"
+                Expect.isNone (ToolResolver.requirement cli) $"'{cli}' parses"
+
+            Expect.equal (resolveIn [ withCli ">=0.4.0, <0.5.0" "1.0.0" ] (onChannel "stable")) "releases/tool/1.0.0.json = 1.0.0" "two comparators")
+    ]
