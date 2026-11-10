@@ -5,10 +5,14 @@ module Morphir.CodeGeneration.FSharp.Extension.Tests.Program
 open Expecto
 open Morphir.TestSupport
 
-/// The tests start guest processes, so the run fails when a test changed the machine folders outside its sandbox.
+/// With --fake-backend-guest the executable is a scripted backend guest for the host adapter tests. Otherwise it
+/// runs the tests, and the run fails when a test changed the machine folders outside its sandbox.
 [<EntryPoint>]
 let main args =
-    let tripwire = MachineTripwire.Capture()
-    let result = runTestsInAssemblyWithCLIArgs [] args
-    tripwire.AssertUnchanged()
-    result
+    match args with
+    | [| "--fake-backend-guest"; scenario |] -> FakeBackendGuests.run scenario
+    | _ ->
+        let tripwire = MachineTripwire.Capture()
+        let result = runTestsInAssemblyWithCLIArgs [] args
+        tripwire.AssertUnchanged()
+        result
