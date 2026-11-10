@@ -137,8 +137,13 @@ dotnet exec tests/Morphir.Conformance.Tests/bin/Release/net10.0/Morphir.Conforma
 
 The reader of the F# frontend suite (`Corpus.read`) reads only the features
 under `suites/<suite>/` of the suite it is given, so the two suites sit side by
-side. The runner that drives a host's worker with these cases is later work of
-task 1.5.
+side.
+
+The runner drives a host's worker mode with these cases: the experimental, internal
+`morphir mck wasm-host run` and `report-check` (see
+[the command reference](../docs/content/docs/cli/mck-wasm-host.md)). Its worker adapter,
+comparer, judge and report are in `src/Morphir.Conformance/WasmHost/`. The tests drive it
+with a scripted fake worker, `tests/Morphir.Conformance.FakeWorker`.
 
 Kit manifests, profiles, claims planning, additional adapters, provenance review
 records, report checking and literate documentation belong to the full
