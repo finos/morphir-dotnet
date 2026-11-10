@@ -429,8 +429,11 @@
     },
     {
       "contract": "receipt",
-      "document": "receipt/developer-frontend-probed.json",
-      "expected": "valid"
+      "document": "receipt/negative/developer-artifact-in-generation.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "providers[0].installation.authentication"
+      }
     },
     {
       "contract": "receipt",
@@ -541,16 +544,6 @@
     },
     {
       "contract": "receipt",
-      "document": "receipt/negative/developer-artifact-not-manager-owned.json",
-      "expected": {
-        "code": "inconsistent_document",
-        "path": "providers[0].installation.ownership"
-      },
-      "schema": "accepts",
-      "schemaGap": "Not expressed in the schema: the allowed ownership depends on the authentication kind."
-    },
-    {
-      "contract": "receipt",
       "document": "receipt/negative/credential-member.json",
       "expected": {
         "code": "credential_in_document",
@@ -585,6 +578,11 @@
     {
       "contract": "result",
       "document": "result/show-project-selection.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "result",
+      "document": "result/show-environment-selection.json",
       "expected": "valid"
     },
     {
@@ -961,15 +959,6 @@
       "expected": {
         "code": "inconsistent_document",
         "path": "checks"
-      },
-      "schema": "rejects"
-    },
-    {
-      "contract": "receipt",
-      "document": "receipt/negative/developer-policy-other.json",
-      "expected": {
-        "code": "inconsistent_document",
-        "path": "providers[0].installation.authentication.policy"
       },
       "schema": "rejects"
     },
@@ -1473,6 +1462,182 @@
       "contract": "receipt",
       "document": "receipt/binding/host-repository-substituted.json",
       "expected": "valid"
+    },
+    {
+      "contract": "request",
+      "document": "request/self-contained.toml",
+      "expected": "valid"
+    },
+    {
+      "contract": "recipe",
+      "document": "recipe/negative/built-in-compile-with-model-input.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "hosts[1].builtIns[0].modelInput"
+      }
+    },
+    {
+      "contract": "recipe",
+      "document": "recipe/negative/built-in-compile-without-model-output.json",
+      "expected": {
+        "code": "invalid_document",
+        "path": "hosts[1].builtIns[0].modelOutput"
+      }
+    },
+    {
+      "contract": "lock",
+      "document": "lock/built-in-frontend.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "lock",
+      "document": "lock/negative/built-in-compile-with-model-input.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "platforms.win-x64.providers[0].modelInput"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-without-lock.json",
+      "expected": {
+        "code": "invalid_document",
+        "path": "plan.lock"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-lock-without-platform.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.lock.platforms"
+      },
+      "schema": "accepts",
+      "schemaGap": "The rule compares the plan with the lock it carries, which JSON Schema cannot compare."
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-lock-other-recipe.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.lock.recipe"
+      },
+      "schema": "accepts",
+      "schemaGap": "The rule compares the plan with the lock it carries, which JSON Schema cannot compare."
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-provider-not-locked.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.components[1]"
+      },
+      "schema": "accepts",
+      "schemaGap": "The rule compares the plan with the lock it carries, which JSON Schema cannot compare."
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-source-other-repository.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.components[0].source.repositoryId"
+      },
+      "schema": "accepts",
+      "schemaGap": "The rule compares the plan with the lock it carries, which JSON Schema cannot compare."
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/host-probe-none.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.components[0].probe"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/built-in-probe-none.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.components[2].probe"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-prerequisite-with-platforms.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.components[1].prerequisites[0].platforms"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/setup-plan-changed.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "result",
+      "document": "result/restore-document-unavailable.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "result",
+      "document": "result/restore-request-changed-crlf.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/cause-on-other-code.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "diagnostics[0].cause"
+      }
+    },
+    {
+      "contract": "recipe",
+      "document": "recipe/negative/comparator-caret.json",
+      "expected": {
+        "code": "invalid_value",
+        "path": "hosts[2].prerequisites[0].versions[0]"
+      }
+    },
+    {
+      "contract": "recipe",
+      "document": "recipe/negative/comparator-partial-version.json",
+      "expected": {
+        "code": "invalid_value",
+        "path": "hosts[2].prerequisites[0].versions[0]"
+      }
+    },
+    {
+      "contract": "recipe",
+      "document": "recipe/negative/comparator-wildcard.json",
+      "expected": {
+        "code": "invalid_value",
+        "path": "hosts[2].prerequisites[0].versions[0]"
+      }
+    },
+    {
+      "contract": "lock",
+      "document": "lock/negative/draft-build-metadata.json",
+      "expected": {
+        "code": "unsupported_contract_version",
+        "path": "schemaVersion"
+      }
+    },
+    {
+      "contract": "lock",
+      "document": "lock/target-path-non-ascii-nfc.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "lock",
+      "document": "lock/negative/target-path-nfd.json",
+      "expected": {
+        "code": "non_portable_path",
+        "path": "platforms.win-x64.hostTarget"
+      },
+      "schema": "accepts",
+      "schemaGap": "No schema keyword checks Unicode normalization."
     }
   ],
   "bindings": [
@@ -1786,6 +1951,154 @@
       "expected": {
         "code": "repository_mismatch",
         "path": "host.installation.authentication.repositoryId"
+      }
+    },
+    {
+      "name": "a managed offering compiles with its built-in frontend",
+      "kind": "resolve",
+      "recipe": "recipe/fsharp-synthetic.json",
+      "request": "request/self-contained.toml",
+      "platform": "win-x64",
+      "expected": {
+        "providers": [
+          {
+            "operation": "compile",
+            "language": "fsharp",
+            "delivery": "built-in",
+            "extensionId": "morphir-dotnet.fsharp",
+            "version": "1.2.3"
+          },
+          {
+            "operation": "generate",
+            "target": "fsharp",
+            "delivery": "built-in",
+            "extensionId": "morphir.fsharp",
+            "version": "1.2.3"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a plan carries the complete lock its command writes",
+      "kind": "plan-lock",
+      "result": "result/setup-plan.json",
+      "lock": "lock/two-platforms-bound.json",
+      "expected": "valid"
+    },
+    {
+      "name": "the exact request bytes bind the lock",
+      "kind": "lock-request-bytes",
+      "lock": "lock/two-platforms-bound.json",
+      "request": "request/approved.toml",
+      "expected": "valid"
+    },
+    {
+      "name": "a CRLF checkout of the request is refused and names line endings",
+      "rule": "lock-request",
+      "kind": "lock-request-bytes",
+      "lock": "lock/two-platforms-bound.json",
+      "request": "request/approved-crlf.toml",
+      "expected": {
+        "code": "request_changed",
+        "path": "requestSha256",
+        "cause": "crlf-line-endings"
+      }
+    },
+    {
+      "name": "a request with a byte order mark is refused and names it",
+      "rule": "lock-request",
+      "kind": "lock-request-bytes",
+      "lock": "lock/two-platforms-bound.json",
+      "request": "request/approved-bom.toml",
+      "expected": {
+        "code": "request_changed",
+        "path": "requestSha256",
+        "cause": "byte-order-mark"
+      }
+    },
+    {
+      "name": "a request with both is refused and names both",
+      "rule": "lock-request",
+      "kind": "lock-request-bytes",
+      "lock": "lock/two-platforms-bound.json",
+      "request": "request/approved-bom-crlf.toml",
+      "expected": {
+        "code": "request_changed",
+        "path": "requestSha256",
+        "cause": "crlf-line-endings-and-byte-order-mark"
+      }
+    },
+    {
+      "name": "a changed request names no cause",
+      "rule": "lock-request",
+      "kind": "lock-request-bytes",
+      "lock": "lock/two-platforms-bound.json",
+      "request": "request/exact-host-version.toml",
+      "expected": {
+        "code": "request_changed",
+        "path": "requestSha256"
+      }
+    },
+    {
+      "name": "a member's own request wins over the workspace root's",
+      "kind": "discover",
+      "files": [
+        "workspace/.morphir/toolchain.toml",
+        "workspace/loans/.morphir/toolchain.toml"
+      ],
+      "boundary": "workspace",
+      "start": "workspace/loans/src",
+      "expected": {
+        "request": "workspace/loans/.morphir/toolchain.toml"
+      }
+    },
+    {
+      "name": "a member without a request uses the workspace root's",
+      "kind": "discover",
+      "files": [
+        "workspace/.morphir/toolchain.toml",
+        "workspace/loans/.morphir/toolchain.toml"
+      ],
+      "boundary": "workspace",
+      "start": "workspace/pricing/src",
+      "expected": {
+        "request": "workspace/.morphir/toolchain.toml"
+      }
+    },
+    {
+      "name": "the boundary directory's own request is found",
+      "kind": "discover",
+      "files": [
+        "workspace/.morphir/toolchain.toml"
+      ],
+      "boundary": "workspace",
+      "start": "workspace",
+      "expected": {
+        "request": "workspace/.morphir/toolchain.toml"
+      }
+    },
+    {
+      "name": "a request above the discovery boundary is never used",
+      "kind": "discover",
+      "files": [
+        ".morphir/toolchain.toml"
+      ],
+      "boundary": "workspace",
+      "start": "workspace/loans/src",
+      "expected": {
+        "request": null
+      }
+    },
+    {
+      "name": "a directory outside the discovery boundary has no project request",
+      "kind": "discover",
+      "files": [
+        "workspace/.morphir/toolchain.toml"
+      ],
+      "boundary": "workspace/loans",
+      "start": "workspace/pricing",
+      "expected": {
+        "request": null
       }
     }
   ]

@@ -3,7 +3,7 @@
   "repository": "repository.json",
   "referenceClient": {
     "cliVersion": "0.4.0",
-    "note": "Only the Rust v1 tool client test in this repository passes this value, to drive that client. It is not a value a manager passes; see the toolset recipe page."
+    "note": "The CLI version the Rust v1 tool client test passes. Offerings publish a comparator that no CLI version matches, so no value selects them; a manager never passes one."
   },
   "selection": [
     {
@@ -799,9 +799,113 @@
         "code": "target_length_mismatch",
         "path": "providers[0].descriptorTarget"
       }
+    },
+    {
+      "name": "a locked generation whose recipe and host are current may launch",
+      "metadata": "metadata",
+      "mutations": [],
+      "action": {
+        "op": "check-locked-generation",
+        "lock": "fsharp-native-aot.lock.json"
+      },
+      "expected": "valid"
+    },
+    {
+      "name": "a learned recipe revocation refuses launch and rollback of generations bound to it",
+      "rule": "generation-recipe-revoked",
+      "metadata": "recipeRevocation",
+      "mutations": [],
+      "action": {
+        "op": "check-locked-generation",
+        "lock": "fsharp-native-aot.lock.json"
+      },
+      "expected": {
+        "code": "release_revoked",
+        "path": "recipe.target"
+      }
+    },
+    {
+      "name": "a learned recipe revocation refuses a managed generation bound to it too",
+      "rule": "generation-recipe-revoked",
+      "metadata": "recipeRevocation",
+      "mutations": [],
+      "action": {
+        "op": "check-locked-generation",
+        "lock": "fsharp-self-contained.lock.json"
+      },
+      "expected": {
+        "code": "release_revoked",
+        "path": "recipe.target"
+      }
+    },
+    {
+      "name": "a learned host release revocation refuses launch and rollback of its generations",
+      "rule": "generation-host-revoked",
+      "metadata": "learnedRevocation",
+      "mutations": [],
+      "action": {
+        "op": "check-locked-generation",
+        "lock": "fsharp-native-aot.lock.json"
+      },
+      "expected": {
+        "code": "release_revoked",
+        "path": "host.version"
+      }
+    },
+    {
+      "name": "a generation whose host release is not revoked may launch after another release is",
+      "metadata": "learnedRevocation",
+      "mutations": [],
+      "action": {
+        "op": "check-locked-generation",
+        "lock": "fsharp-self-contained.lock.json"
+      },
+      "expected": "valid"
+    },
+    {
+      "name": "a generation locked against another repository is refused",
+      "rule": "generation-repository",
+      "metadata": "metadata",
+      "mutations": [],
+      "action": {
+        "op": "check-locked-generation",
+        "lock": "negative/lock-recipe-repository.lock.json"
+      },
+      "expected": {
+        "code": "repository_mismatch",
+        "path": "recipe.repositoryId"
+      }
+    },
+    {
+      "name": "a target with a non-ASCII NFC path is signed, served and read",
+      "metadata": "metadata",
+      "mutations": [],
+      "action": {
+        "op": "read",
+        "target": "extensions/fsharp-frontend/0.6.0/notes/café-naïve-字.txt"
+      },
+      "expected": "valid"
     }
   ],
   "frozen": [
+    {
+      "request": "fsharp-self-contained.toml",
+      "lock": "fsharp-self-contained.lock.json",
+      "recipe": "toolchains/recipes/fsharp/1.0.0.json",
+      "expected": {
+        "lockEqualsResolution": true,
+        "requestSha256": "27b50b72893ec4150bf6faf7d15c4b765e765040b9d118841e8cd50783f0168d",
+        "recipeSha256": "1e9f8eea2f489f3d1feb1d42cc2d197609517050e578f8dc3fd38d8aab09eb63",
+        "platforms": [
+          "win-x64",
+          "win-arm64",
+          "osx-x64",
+          "osx-arm64",
+          "linux-x64",
+          "linux-arm64"
+        ]
+      }
+    },
     {
       "request": "fsharp-native-aot.toml",
       "lock": "fsharp-native-aot.lock.json",
@@ -809,7 +913,7 @@
       "expected": {
         "lockEqualsResolution": true,
         "requestSha256": "c7ba6ffcee4849885baf99d9b18fbb9a4a4c1096117473264fc9c7050bc7b22f",
-        "recipeSha256": "3606a334b66335429e4d21c3831c075af4fa43627107c5aa2b8093730879aaf8",
+        "recipeSha256": "1e9f8eea2f489f3d1feb1d42cc2d197609517050e578f8dc3fd38d8aab09eb63",
         "platforms": [
           "win-x64",
           "win-arm64",
@@ -827,7 +931,7 @@
       "expected": {
         "lockEqualsResolution": true,
         "requestSha256": "435127e4a6317af8eca632f3f1f3b74f8cb3546d462c12660c641240c5bd05b9",
-        "recipeSha256": "3606a334b66335429e4d21c3831c075af4fa43627107c5aa2b8093730879aaf8",
+        "recipeSha256": "1e9f8eea2f489f3d1feb1d42cc2d197609517050e578f8dc3fd38d8aab09eb63",
         "platforms": [
           "win-x64",
           "win-arm64",
@@ -845,7 +949,7 @@
       "expected": {
         "lockEqualsResolution": true,
         "requestSha256": "1745807f06a03ab7c1f5f85adfbfd83ab0d5b7c35e93c45c6ce5f7a7b81d6304",
-        "recipeSha256": "3606a334b66335429e4d21c3831c075af4fa43627107c5aa2b8093730879aaf8",
+        "recipeSha256": "1e9f8eea2f489f3d1feb1d42cc2d197609517050e578f8dc3fd38d8aab09eb63",
         "platforms": [
           "win-x64",
           "win-arm64",
@@ -858,6 +962,12 @@
     }
   ],
   "lockRecipe": [
+    {
+      "name": "the fsharp-self-contained lock, with the built-in frontend, is a closure the F# recipe allows",
+      "lock": "fsharp-self-contained.lock.json",
+      "recipe": "toolchains/recipes/fsharp/1.0.0.json",
+      "expected": "valid"
+    },
     {
       "name": "the fsharp-native-aot lock is a closure the F# recipe allows",
       "lock": "fsharp-native-aot.lock.json",
@@ -1008,7 +1118,7 @@
     }
   ],
   "v1Client": {
-    "note": "Each selection runs the tool release metadata v1 client by tool id, channel and v1 platform. The selected artifact is the one the fsharp-builtin recipe binds for that deployment and platform, with its authenticated digest; the 18 digests are distinct.",
+    "note": "Offering descriptors publish compatibility.morphirCli \"<0.0.0-0\", which no version satisfies, so the Morphir CLI's tool release metadata v1 client never selects a .NET host offering, at referenceClient.cliVersion or any other version. Each selection runs that client by tool id, channel and v1 platform and expects nothing selected; the fsharp-builtin recipe still binds recipeBinding.targetPath for that deployment and platform with its authenticated digest, and the 18 digests are distinct.",
     "recipe": "toolchains/recipes/fsharp-builtin/1.0.0.json",
     "selections": [
       {
@@ -1020,8 +1130,11 @@
         },
         "deployment": "native-aot",
         "recipePlatform": "win-x64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-native-aot/1.2.3/win-x64.zip"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1033,8 +1146,11 @@
         },
         "deployment": "native-aot",
         "recipePlatform": "win-arm64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-native-aot/1.2.3/win-arm64.zip"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1046,8 +1162,11 @@
         },
         "deployment": "native-aot",
         "recipePlatform": "osx-x64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-native-aot/1.2.3/osx-x64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1059,8 +1178,11 @@
         },
         "deployment": "native-aot",
         "recipePlatform": "osx-arm64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-native-aot/1.2.3/osx-arm64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1072,8 +1194,11 @@
         },
         "deployment": "native-aot",
         "recipePlatform": "linux-x64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-native-aot/1.2.3/linux-x64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1085,8 +1210,11 @@
         },
         "deployment": "native-aot",
         "recipePlatform": "linux-arm64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-native-aot/1.2.3/linux-arm64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1098,8 +1226,11 @@
         },
         "deployment": "self-contained",
         "recipePlatform": "win-x64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-self-contained/1.2.3/win-x64.zip"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1111,8 +1242,11 @@
         },
         "deployment": "self-contained",
         "recipePlatform": "win-arm64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-self-contained/1.2.3/win-arm64.zip"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1124,8 +1258,11 @@
         },
         "deployment": "self-contained",
         "recipePlatform": "osx-x64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-self-contained/1.2.3/osx-x64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1137,8 +1274,11 @@
         },
         "deployment": "self-contained",
         "recipePlatform": "osx-arm64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-self-contained/1.2.3/osx-arm64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1150,8 +1290,11 @@
         },
         "deployment": "self-contained",
         "recipePlatform": "linux-x64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-self-contained/1.2.3/linux-x64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1163,8 +1306,11 @@
         },
         "deployment": "self-contained",
         "recipePlatform": "linux-arm64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-self-contained/1.2.3/linux-arm64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1176,8 +1322,11 @@
         },
         "deployment": "framework-dependent",
         "recipePlatform": "win-x64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-framework-dependent/1.2.3/win-x64.zip"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1189,8 +1338,11 @@
         },
         "deployment": "framework-dependent",
         "recipePlatform": "win-arm64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-framework-dependent/1.2.3/win-arm64.zip"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1202,8 +1354,11 @@
         },
         "deployment": "framework-dependent",
         "recipePlatform": "osx-x64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-framework-dependent/1.2.3/osx-x64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1215,8 +1370,11 @@
         },
         "deployment": "framework-dependent",
         "recipePlatform": "osx-arm64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-framework-dependent/1.2.3/osx-arm64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1228,8 +1386,11 @@
         },
         "deployment": "framework-dependent",
         "recipePlatform": "linux-x64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-framework-dependent/1.2.3/linux-x64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       },
       {
@@ -1241,8 +1402,11 @@
         },
         "deployment": "framework-dependent",
         "recipePlatform": "linux-arm64",
-        "expected": {
+        "recipeBinding": {
           "targetPath": "artifacts/morphir-dotnet-framework-dependent/1.2.3/linux-arm64.tar.gz"
+        },
+        "expected": {
+          "selected": false
         }
       }
     ]

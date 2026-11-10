@@ -75,7 +75,7 @@ Each provider has `operation` (`compile` with `language`, or `generate` with `ta
 
 | `delivery` | Additional members |
 | --- | --- |
-| `built-in` | `modelInput` |
+| `built-in` | `modelOutput` for `compile` and `modelInput` for `generate`: the model the built-in writes or reads. The other member is `inconsistent_document` |
 | `process` | `repositoryId`, `descriptorTarget`, `descriptorSha256`, `artifactTarget`, `artifactSha256`, protocol members |
 | `wasm` | `abi` and the `process` members |
 | `dotnet-tool` | `repositoryId`, `descriptorTarget`, `descriptorSha256` (the release's extension descriptor, whose claims describe the guest), `packageId`, `command`, `packageTarget`, `packageSha256`, protocol members |
@@ -84,7 +84,7 @@ The protocol members are `protocolVersion` and exactly one compatibility member.
 
 For a `dotnet-tool` host offering, `hostTarget` names the authenticated package bytes.
 
-Understood critical paths: `schemaVersion`, `critical`, `requestSha256`, `recipe`, `recipe.repositoryId`, `recipe.target`, `recipe.sha256`, `host`, `host.implementation`, `host.version`, `host.deployment`, `platforms`, `platforms.*`, `platforms.*.hostTarget`, `platforms.*.hostSha256`, `platforms.*.providers`, and `platforms.*.providers.<member>` for each provider member above, including `modelTuple.<member>` and `modelInput.<member>` for each tuple and input member. A lock that needs every reader to understand a provider member lists it, for example `platforms.*.providers.modelTuple`. A platform is named only by `*`: `platforms.win-x64.hostTarget` is not an understood path and is refused with `unsupported_critical_member` (`lock/negative/critical-concrete-platform-key.json`).
+Understood critical paths: `schemaVersion`, `critical`, `requestSha256`, `recipe`, `recipe.repositoryId`, `recipe.target`, `recipe.sha256`, `host`, `host.implementation`, `host.version`, `host.deployment`, `platforms`, `platforms.*`, `platforms.*.hostTarget`, `platforms.*.hostSha256`, `platforms.*.providers`, and `platforms.*.providers.<member>` for each provider member above, including `modelTuple.<member>`, `modelInput.<member>` and `modelOutput.<member>` for each tuple and model member. A lock that needs every reader to understand a provider member lists it, for example `platforms.*.providers.modelTuple`. A platform is named only by `*`: `platforms.win-x64.hostTarget` is not an understood path and is refused with `unsupported_critical_member` (`lock/negative/critical-concrete-platform-key.json`).
 
 ## Frozen restore
 
@@ -92,8 +92,17 @@ Understood critical paths: `schemaVersion`, `critical`, `requestSha256`, `recipe
 
 | Check | Code | Path | Cases |
 | --- | --- | --- | --- |
-| The SHA-256 of the request bytes equals `requestSha256` | `request_changed` | `requestSha256` | `lock-request` |
+| The SHA-256 of the request bytes equals `requestSha256`. The bytes are hashed as read; the request need not parse | `request_changed` | `requestSha256` | `lock-request` |
 | The lock records a closure for the current platform. A musl machine never takes a glibc closure | `platform_not_locked` | `platforms` | `lock-platform` |
+
+Request identity is the SHA-256 of the request file's exact bytes, and the lock's own identity, in a receipt, is the SHA-256 of its exact bytes. Both files live in user projects, where Git for Windows commonly converts line endings on checkout (`core.autocrlf=true`), so a Windows checkout would otherwise fail frozen restore with `request_changed`. To prevent this:
+
+- when setup creates `.morphir/toolchain.toml` or `.morphir/toolchain.lock.json`, it also adds `.morphir/toolchain.toml text eol=lf` and `.morphir/toolchain.lock.json text eol=lf` to the project's `.gitattributes`. It creates that file if needed, adds only missing lines, and never rewrites other entries;
+- when the request bytes differ from the locked ones only by CRLF line endings, a leading UTF-8 byte order mark, or both, `request_changed` names that likely cause. Its result diagnostic carries `cause` (`crlf-line-endings`, `byte-order-mark` or `crlf-line-endings-and-byte-order-mark`), and the message names the `.gitattributes` entry. The `lock-request-bytes` cases pin this with CRLF, byte-order-mark and combined copies of `request/approved.toml` against `lock/two-platforms-bound.json`.
+
+The rule itself is unchanged: the bytes are compared exactly, and a converted file is never accepted.
+
+**Extending a lock to a new platform.** An explicit setup that adds a platform resolves it from the lock's exact recipe target, `recipe.target` with `recipe.sha256`, not from a channel. A `yanked` recipe is still read by its exact target path, so a lock bound to a yanked recipe can still be extended. A `revoked` recipe is refused with `release_revoked` at `recipe.target`. The lock then cannot be extended, and a full `update` that resolves a new recipe is required.
 
 A lock records each platform's complete dependency closure. A closure with no provider is `inconsistent_document` at its `providers`. Closures that cover different operations from each other are `inconsistent_document` at `platforms`: the rule relates the closures to each other, so no single platform is named (`lock/negative/closure-operations-differ.json`). Two closures never come from independent channel resolutions: setup resolves one recipe and writes every requested platform from it.
 

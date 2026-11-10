@@ -37,11 +37,25 @@ The contracts these documents refer to keep their own versions. Nothing here ren
 | Model envelope | `0.1.0-draft.1` | [Model transport](https://github.com/finos/morphir/blob/main/spec/mep/model-transport.md) |
 | Morphir IR | `formatVersion` | [IR format version](../ir/format-version.md) |
 
+## Glossary
+
+Some words are used with more than one meaning across the toolchain, MEP and morphir-dotnet documents. On these pages they mean:
+
+| Word | Meaning here | Not to be confused with |
+| --- | --- | --- |
+| host | The Morphir CLI release a generation runs: an implementation, a version and a deployment (`dotnet` `1.2.3` `native-aot`). A recipe's `hosts` are host offerings | The command name a host's `extension list --json` reports (`morphir`, `dotnet-morphir`), and the MEP side that runs guests |
+| deployment, offering | One separately published form of a host: `native-aot`, `self-contained`, `framework-dependent` or `dotnet-tool`. An offering is a recipe's entry for one implementation, release and deployment | A command name: `dotnet-morphir` is the command of the `dotnet-tool` deployment |
+| readiness | The state one component or one generation reached on one machine: `acquired`, `integrity-verified`, `capability-checked` or `workflow-qualified` | The [readiness workflow case](./readiness-workflow.md), which is the data the workflow check runs |
+| `workflow-qualified` | A readiness state: this generation, on this machine, passed the readiness workflow with its selected providers | A qualification claim. It says nothing about a release, an offering or a platform being qualified, which needs release evidence from acquired artifacts. A generation installed from a developer build can reach it |
+| probe | The plan member `probe`: whether setup runs a component's code, and with what rights | The install-time `describe` claim check, the readiness handshake, and the AOT probe test projects in morphir-dotnet |
+| extension id | A provider's registry and MEP identity, such as `morphir-dotnet.fsharp`, without any transport label or runtime version text | The frontend identity a compile report names, which includes runtime text, and an executable name such as `morphir-fsharp-frontend` |
+| capability check | For a process, WASM or .NET tool provider, the session handshake comparing its claims with the locked model. For a built-in, the staged host's `extension list --json` reporting the built-in with the locked `extensionId`, `version`, language or target, and the IR version of its model | The claim check (`claimCheck`), which compares a probe's claims with the descriptor's |
+
 ## Rules shared by all five
 
 ### Versions
 
-`schemaVersion` is a SemVer string. A reader lists the versions it supports as SemVer requirements and refuses anything else before it reads another member. A `0.1.0-draft.1` reader lists exactly `=0.1.0-draft.1`, so it refuses `0.1.0-draft.2` and the released `0.1.0` with `unsupported_contract_version`. A string that is not SemVer, such as `0.1`, is `invalid_value`. Drafts promise no compatibility with each other. Use a SemVer library, never a hand-written version type.
+`schemaVersion` is a SemVer string. A reader lists the versions it supports as SemVer requirements and refuses anything else before it reads another member. A `0.1.0-draft.1` reader lists exactly `=0.1.0-draft.1`, so it refuses `0.1.0-draft.2` and the released `0.1.0` with `unsupported_contract_version`. A contract version carries no build metadata: `=0.1.0-draft.1` would match `0.1.0-draft.1+build.5` by SemVer precedence, so a reader also refuses any version with build metadata (`lock/negative/draft-build-metadata.json`). Every other version member is compared as exact text in canonical SemVer spelling, so `1.2.3` and `1.2.3+build` are different versions. A string that is not SemVer, such as `0.1`, is `invalid_value`. Drafts promise no compatibility with each other. Use a SemVer library, never a hand-written version type.
 
 ### Unknown and critical members
 
@@ -93,25 +107,29 @@ The provider delivery cases are:
 
 | `delivery` | Meaning | Identities it requires |
 | --- | --- | --- |
-| `built-in` | Compiled into the host | `modelInput` only; no artifact |
+| `built-in` | Compiled into the host | The model it exchanges with the host: `modelOutput` for `compile`, which writes the model, and `modelInput` for `generate`, which reads it. No artifact |
 | `process` | A native process speaking Content-Length framed MEP | Descriptor and per-platform artifact digests |
 | `wasm` | A portable module for one named ABI | `abi`, descriptor and artifact digests |
 | `dotnet-tool` | A .NET tool package installed into an isolated tool path | `packageId`, `command`, package digest, and the release's descriptor digest |
 
 The public runtime name for WASM stays `wasm`. The ABI, such as `morphir-bytes-v1` or `extism-kernel-v1`, is a separate member, and a host that supports one ABI never accepts a guest for another.
 
-Prerequisites are `runtime`, `sdk` (with `phase` `install` or `run`) and `native` (optionally limited to `platforms`). Every prerequisite has `kind` and `name`. `versions` is required for `runtime` and `sdk` and optional for `native`; `phase` is required for `sdk`. Versions are lists of single SemVer comparators, `[">=10.0.0", "<11.0.0"]`, because Rust and TypeScript separate combined ranges differently. A native library's version is written as SemVer with missing parts as zero: glibc 2.28 is `2.28.0`, so the comparator is `>=2.28.0`.
+Prerequisites are `runtime`, `sdk` (with `phase` `install` or `run`) and `native` (optionally limited to `platforms`). Every prerequisite has `kind` and `name`. `versions` is required for `runtime` and `sdk` and optional for `native`; `phase` is required for `sdk`. A comparator is exactly one of `=`, `>`, `>=`, `<` or `<=`, then a complete version in canonical SemVer spelling, with no space. `^`, `~`, wildcards, partial versions such as `>=10`, and combined ranges are `invalid_value`, because Rust, TypeScript and .NET give them different meanings (`recipe/negative/comparator-*.json`). Versions are lists of single SemVer comparators, `[">=10.0.0", "<11.0.0"]`, because Rust and TypeScript separate combined ranges differently. A native library's version is written as SemVer with missing parts as zero: glibc 2.28 is `2.28.0`, so the comparator is `>=2.28.0`.
 
 ### Identifiers
 
 | Value | Rule |
 | --- | --- |
 | Implementation, deployment, preset, language, target, ABI, generation id, workflow, package manager, command | A lowercase portable token: `[a-z]`, then `[a-z0-9-]`, ending in a letter or digit, at most 64 characters |
-| Provider identity (`extensionId`) | Portable tokens joined by `.`, at most 238 characters: `morphir.fsharp`, `morphir-fsharp-backend` |
+| Provider identity (`extensionId`) | Portable tokens joined by `.`, at most 238 characters: `morphir.fsharp`, `morphir-dotnet.fsharp`, `org.finos.morphir.fsharp-frontend`. In `0.1.0-draft.1` each segment also has at most 64 characters |
 | NuGet package id | Segments of `[A-Za-z0-9_]` joined by `.` or `-`, at most 100 characters |
 | Tool id | The tool release metadata v1 tool id grammar |
 | Digest | 64 lowercase hexadecimal digits of SHA-256 over exact bytes |
 | Version | Canonical SemVer |
+
+Dotted extension ids are decided and their descriptor change is finos/morphir#1149. When it lands, only the provider identity changes: it takes #1149's grammar, which keeps the 238-character total and drops the 64-character segment limit, refining this draft in place. Every other token in the table above keeps its 64-character limit. No toolchain document uses an extension id as a JSON member name, so the [critical path](#unknown-and-critical-members) grammar is unaffected; ids appear only as values.
+
+An extension id never appears in a target path: target layouts use the descriptor's `shortId`, as in `extensions/fsharp-frontend/0.6.0/release.json`. An id does name local files, such as the extension lock `MORPHIR_HOME/locks/extensions/<id>.json` and its `<id>.json.transaction` journal. A typical Windows home, the `locks\extensions\` directories and the `.json.transaction` suffix add about 60 characters to the id. So an id longer than about 200 characters exceeds the 260-character `MAX_PATH` when long paths are not enabled. Long ids were already allowed; dotted ids make them more likely.
 
 ### Target paths
 
@@ -124,6 +142,14 @@ A target path names an authenticated TUF target. It is relative, uses `/` as its
 - is not a Windows device name. A component is a device name when the part before its first `.`, with trailing spaces removed and compared ASCII case-insensitively, is `CON`, `PRN`, `AUX`, `NUL`, `CONIN$`, `CONOUT$`, or `COM` or `LPT` followed by one of `1` to `9`, `¹`, `²` or `³`. So `artifacts/CON/win-x64.zip` and `con.tar.gz` are refused.
 
 A path that breaks any of these rules is `non_portable_path`. These are the rules the existing tool and extension stores apply to every stored path, so a target that passes can be stored on every first-delivery platform.
+
+A target path is also in Unicode Normalization Form C. Canonical encoding normalizes the keys of signed targets metadata to NFC, so a path in another form would be signed under one key and looked up under another. The rule is applied in three places:
+
+- a publisher refuses to publish a target whose path is not NFC;
+- a reader refuses a document member that names a non-NFC target path with `non_portable_path` at that member (`lock/negative/target-path-nfd.json`);
+- a client refuses a repository whose targets metadata lists a non-NFC path with `non_portable_path` at the empty path. The canonical encoder normalizes every string to NFC, so only a server that serves non-canonical metadata bytes can list one. The signed fixtures serve canonical bytes, so no signed case lists an NFD path; this refusal has no case.
+
+Non-ASCII NFC paths are allowed, and the signed repository publishes one (`extensions/fsharp-frontend/0.6.0/notes/café-naïve-字.txt`), read by a trust case, so every runner's canonical encoder signs and serves a key that is not ASCII. `lock/target-path-non-ascii-nfc.json` is the valid lock counterpart.
 
 The length limits count UTF-8 bytes and UTF-16 code units, never code points or characters. `字` (U+5B57) is 3 bytes and 1 code unit; `𝄞` (U+1D11E) is 4 bytes and 2 code units. Both limits apply, so a path of 175 code units is still refused when it is 513 bytes. The schemas cannot express these limits: their `maxLength: 240` counts code points, so they accept some paths the reader refuses. The reader's limits govern, and the cases that the schema accepts record that in `schemaGap`. `lock/target-path-512-utf8-bytes.json` and `lock/target-path-240-utf16-units.json` are valid at each limit; `lock/negative/target-path-513-utf8-bytes.json`, `target-path-241-utf16-units.json` and `target-component-256-utf8-bytes.json` are one past them.
 
@@ -168,11 +194,13 @@ Every code has exactly one result diagnostic kind, so a [manager result](./manag
 | `non_portable_path` | `unsupported-contract` | A target path breaks the target path rules |
 | `credential_in_document` | `unsupported-contract` | A credential member or a URL carrying credentials |
 | `inconsistent_document` | `unsupported-contract` | Valid members that contradict each other |
+| `document_unavailable` | `unsupported-contract` | A document the command needs, such as the project request or lock, is absent or unreadable |
 | `request_changed` | `lock-binding` | A lock's `requestSha256` differs from the SHA-256 of the request bytes |
 | `platform_not_locked` | `lock-binding` | Frozen restore needs a platform closure the lock does not record |
 | `lock_changed` | `lock-binding` | A receipt's `lockSha256` differs from the SHA-256 of the lock bytes |
 | `receipt_lock_mismatch` | `lock-binding` | A receipt identity differs from the lock's closure for its platform |
 | `lock_recipe_mismatch` | `lock-binding` | A lock closure is not one its recipe allows |
+| `plan_changed` | `lock-binding` | `--expect-plan` named another digest than the plan the command made |
 | `unsupported_artifact` | `unsupported-artifact` | No artifact matches the requested implementation, deployment, release, platform or protocol |
 | `abi_unavailable` | `unsupported-artifact` | The preferred provider needs a WASM ABI the host does not support |
 | `no_compatible_release` | `unsupported-artifact` | Tool release metadata v1: no release matches the selection |
@@ -209,10 +237,13 @@ Cases that pin a row of a check table carry a `rule`, which that row's Cases col
 | `kind` | Inputs | Check |
 | --- | --- | --- |
 | `lock-request` | `lock`, `request` | The lock binds the exact request bytes |
+| `lock-request-bytes` | `lock`, `request` | As `lock-request`, from the request's bytes alone; a refusal's `expected.cause` names CRLF line endings, a byte order mark, or both, and is absent for other changes |
 | `lock-platform` | `lock`, `platform` | Frozen restore finds the platform's closure |
 | `receipt-lock` | `receipt`, `lock` | The receipt binds the exact lock bytes and repeats its closure |
 | `resolve` | `recipe`, `request`, `platform` | [Resolution](./toolset-recipe.md#selecting-a-closure) gives the listed providers, or the code and path |
 | `plan-canonical` | `result`, `canonical` | The plan's canonical bytes are exactly `canonical`, and `planSha256` is their SHA-256 |
+| `plan-lock` | `result`, `lock` | The plan's `lock` equals `lock` as a parsed value |
+| `discover` | `files`, `boundary`, `start` | [Discovery](./toolchain-request.md#discovery) from `start` finds `expected.request`, or no request when it is `null`. Paths are relative, `/`-separated, and name files under one synthetic root |
 
 `fixtures/0.1.0-draft.1/signed/` holds a TEST-ONLY repository in the tool release metadata v1 profile. Its `cases.json` has these sections:
 
@@ -222,7 +253,7 @@ Cases that pin a row of a check table carry a `rule`, which that row's Cases col
 | `recipeChecks` | `recipe` target | The [authenticated recipe checks](./toolset-recipe.md#authenticated-recipe-targets) |
 | `trust` | `metadata` set, `mutations`, `action` | The outcome of loading or reading the mutated repository |
 | `channelSelection` | `preset`, `channel` | The recipe target that [channel selection](./toolset-recipe.md#authenticated-recipe-targets) picks, or the code and path |
-| `v1Client` | `toolId`, `channel`, version 1 `platform` | The tool release metadata v1 client selects `expected.targetPath`; its authenticated digest is the one the `fsharp-builtin` recipe binds for `deployment` and `recipePlatform`, and the 18 digests are distinct |
+| `v1Client` | `toolId`, `channel`, version 1 `platform` | Offering descriptors publish `compatibility.morphirCli` `<0.0.0-0`, so the tool release metadata v1 client selects nothing (`expected.selected` is `false`) at `referenceClient.cliVersion` or any other CLI version. The `fsharp-builtin` recipe still binds `recipeBinding.targetPath` for `deployment` and `recipePlatform` with its authenticated digest, and the 18 digests are distinct |
 | `v1Descriptors` | release target | Read through the client, it validates unchanged against `tool-release-v1.schema.json`. Every release target except the deliberate negative is listed |
 | `frozen` | `request`, `lock`, `recipe` | The SHA-256 of the request bytes is `expected.requestSha256` and the lock binds it; the lock's `recipe.sha256` is `expected.recipeSha256`, the authenticated recipe digest; the lock records exactly `expected.platforms`, the six first-delivery platforms; and each closure equals the resolution of the request on its platform |
 | `lockRecipe` | `lock`, `recipe` | The lock's closures are ones the recipe allows |
@@ -230,10 +261,10 @@ Cases that pin a row of a check table carry a `rule`, which that row's Cases col
 The metadata is served as files. Each role is the canonical JSON bytes, by the [plan digest rules](./manager-result.md#the-plan-digest), of its envelope (`signatures` and `signed`) as stored in `repository.json`; every signature is over the canonical bytes of `signed`. The repository uses consistent snapshots:
 
 - the metadata directory holds `1.root.json` (also given to the client out of band as the trusted root), `timestamp.json`, `<version>.snapshot.json` and `<version>.targets.json`, each version taken from that role's `signed.version`;
-- each entry of `targetFiles` that the targets metadata lists is served under its SHA-256. tough 0.24, the client used here, requests `<sha256>.<target path>` from the targets directory. The TUF specification puts the digest in front of the file name inside the target's directory, as in `toolchains/recipes/fsharp/<sha256>.1.0.0.json`. A runner serves each target where its own client asks for it; the expected outcomes do not depend on the layout;
+- each entry of `targetFiles` that the targets metadata lists is served under its SHA-256. tough 0.24, the client used here, requests `<sha256>.<target path>` from the targets directory, and its filesystem transport opens the percent-encoded URL path without decoding it, so the non-ASCII target is served from a file named with `%C3%A9` and the like. The TUF specification puts the digest in front of the file name inside the target's directory, as in `toolchains/recipes/fsharp/<sha256>.1.0.0.json`. A runner serves each target where its own client asks for it; the expected outcomes do not depend on the layout;
 - a `targetFiles` entry the targets metadata does not list is not served.
 
-A trust case starts from the committed `repository.json`, takes the named metadata set (`metadata` or `learnedRevocation`), applies its `mutations` in order and serves the result as a consistent-snapshot repository trusted from `trustedRoot`:
+A trust case starts from the committed `repository.json`, takes the named metadata set, applies its `mutations` in order and serves the result as a consistent-snapshot repository trusted from `trustedRoot`:
 
 | Mutation `op` | Effect |
 | --- | --- |
@@ -243,13 +274,20 @@ A trust case starts from the committed `repository.json`, takes the named metada
 | `replace-target-bytes` | Serve the bytes of target `with` in place of target `target` |
 | `replace-target-text` | Serve `target` with the first `find` replaced by `replace` |
 
+The metadata sets are:
+
+- `metadata`: the published repository, version 1 of every role;
+- `learnedRevocation`: version 2, in which the host offering release `morphir-dotnet-native-aot` 1.2.3 has release status `revoked`;
+- `recipeRevocation`: version 2, in which the recipe target `toolchains/recipes/fsharp/1.0.0.json` has status `revoked` and no channels, which reaches every generation bound to that recipe.
+
 The `action` is one of:
 
 - `load`: load the repository;
 - `read`: read `target` through the TUF client;
 - `authenticate`: compare the UTF-8 bytes of `text` with the authenticated length and digest of `target`, as for bytes from a local store;
 - `check-recipe`: the authenticated recipe checks on `recipe`;
-- `check-recipe-bindings`: read `recipe` through the client and parse it as JSON, then apply each entry of `documentMutations` in order. Each entry has a `pointer`, an RFC 6901 pointer into the recipe document that names an existing member or array element, and a `value` that replaces it. Read the result with the recipe reader and run only the host and provider binding checks. The mutated document is not authenticated, and the recipe target checks are not run on it.
+- `check-recipe-bindings`: read `recipe` through the client and parse it as JSON, then apply each entry of `documentMutations` in order. Each entry has a `pointer`, an RFC 6901 pointer into the recipe document that names an existing member or array element, and a `value` that replaces it. Read the result with the recipe reader and run only the host and provider binding checks. The mutated document is not authenticated, and the recipe target checks are not run on it;
+- `check-locked-generation`: the [launch and rollback checks](./installation-receipt.md#launch-and-rollback-against-learned-revocations) on the committed fixture `lock`, against the repository's learned trust state.
 
 A refused load has the empty path, as does a refused `read` or `authenticate` of a target named directly. A binding check reports the binding member that named the target.
 
