@@ -908,3 +908,30 @@ let reviewT7Tests =
             let reason = rotationReason (canonical (rootVersion 3UL (keysOf "root") 2 (keysOf "root")))
             Expect.stringContains reason "version" "then the version")
     ]
+
+[<Tests>]
+let reviewT8Tests =
+    // Review of #581, T8: root.Version + 1 wrapped at 2^64 - 1. Integers are bounded at 2^53 - 1, which every reader
+    // language holds exactly, and rotation never asks for a version past the bound.
+    let largest = 9007199254740991UL
+
+    testList "T8 versions are bounded at 2^53 - 1" [
+        testCase "a root version at the bound reads" (fun () ->
+            let read = TufMetadata.readRoot (rootWith [ "version" ] (number largest)) |> expectOk "root"
+            Expect.equal read.Signed.Version largest "2^53 - 1")
+
+        testCase "a root version past the bound is refused" (fun () ->
+            invalid TufRole.Root (TufMetadata.readRoot (rootWith [ "version" ] (number (largest + 1UL)))))
+
+        testCase "a length past the bound is refused" (fun () ->
+            let set = metadataSet "metadata"
+            invalid TufRole.Timestamp (TufMetadata.readTimestamp (canonical (setAt [ "signed"; "meta"; "snapshot.json"; "length" ] (number (largest + 1UL)) set.Timestamp))))
+
+        testCase "rotation from a trusted root at the largest version asks for no further root" (fun () ->
+            for version in [ largest; UInt64.MaxValue ] do
+                let trusted = anchor ()
+                let asked = Collections.Generic.List<uint64>()
+                let source = { sourceOf (metadataSet "metadata") [] with Root = fun v -> asked.Add v; None }
+                TufClient.refresh referenceTime { trusted with Root = { trusted.Root with Version = version } } source |> ignore
+                Expect.isEmpty asked $"no root after {version}")
+    ]

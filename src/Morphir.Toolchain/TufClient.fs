@@ -216,6 +216,9 @@ module TufClient =
     /// follows, the refresh pauses.</summary>
     let private rotate (purpose: TrustAnchorPurpose) (trusted: TufRoot) (source: MetadataSource) (accept: TufRoot -> unit) : Result<bool, TufFailure> =
         let rec next (root: TufRoot) (accepted: int) =
+            // No root follows the largest version a reader takes, so the next version never wraps (review, T8).
+            if root.Version >= TufMetadata.maxInteger then Ok false else
+
             let version = root.Version + 1UL
 
             match ask TufRole.Root (fun () -> source.Root version) with

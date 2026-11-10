@@ -193,12 +193,17 @@ module TufMetadata =
         | Value.String s -> Ok s
         | _ -> Error(TufFailure.MetadataInvalid(role, $"{name} is not a string"))
 
-    /// A plain non-negative integer that fits 64 bits.
+    /// <summary>The largest integer a reader takes: 2^53 - 1, the largest that every reader language holds exactly
+    /// (a JavaScript number; I-JSON, RFC 7493), as the version bound reasons. Provisional: the profile states no bound
+    /// (review of #581, T8).</summary>
+    let maxInteger = 9007199254740991UL
+
+    /// A plain non-negative integer of at most <c>maxInteger</c>.
     let private integer (role: TufRole) (name: string) (value: Value) : Reader<uint64> =
         match value with
         | Value.Number spelling ->
             match UInt64.TryParse(spelling, NumberStyles.None, CultureInfo.InvariantCulture) with
-            | true, n when spelling = n.ToString(CultureInfo.InvariantCulture) -> Ok n
+            | true, n when spelling = n.ToString(CultureInfo.InvariantCulture) && n <= maxInteger -> Ok n
             | _ -> Error(TufFailure.MetadataInvalid(role, $"{name} is not a plain integer"))
         | _ -> Error(TufFailure.MetadataInvalid(role, $"{name} is not a number"))
 
