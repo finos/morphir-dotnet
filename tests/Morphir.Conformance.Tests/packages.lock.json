@@ -126,17 +126,28 @@
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
           "Gherkin": "[35.1.0, )",
-          "Morphir.Compilation": "[1.0.0, )"
+          "Morphir.Compilation": "[1.0.0, )",
+          "Morphir.Mep": "[1.0.0, )"
         }
       },
       "morphir.conformance.fakeworker": {
         "type": "Project"
+      },
+      "morphir.mep": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Myriad.SystemTextJson.Annotations": "[1.0.0, )"
+        }
       },
       "morphir.models": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )"
         }
+      },
+      "morphir.myriad.systemtextjson.annotations": {
+        "type": "Project"
       },
       "morphir.testsupport": {
         "type": "Project"

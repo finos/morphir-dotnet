@@ -35,6 +35,9 @@
         <Compile Include="WorkerTests.fs" />
         <Compile Include="ReportTests.fs" />
         <Compile Include="CommandTests.fs" />
+        <Compile Include="GuestKitFakeGuest.fs" />
+        <Compile Include="GuestKitProvenanceTests.fs" />
+        <Compile Include="GuestKitTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
