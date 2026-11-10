@@ -45,7 +45,7 @@ public sealed record MepBackendOptions(string Executable, IReadOnlyList<string> 
 /// Nothing registers this backend. A selection surface connects it and resolves over it alone, for example with
 /// <c>new RegisteredBackendResolver([backend])</c>, so the default resolution of a target stays the built-ins'.
 /// </remarks>
-public sealed class MepGenerationBackend : IGenerationBackend, IAsyncDisposable
+public sealed class MepGenerationBackend : IExternalGenerationBackend
 {
     private static readonly SemanticVersion Envelope = SemanticVersion.Create("0.1.0-draft.1");
 
@@ -77,6 +77,9 @@ public sealed class MepGenerationBackend : IGenerationBackend, IAsyncDisposable
 
     /// <summary>The guest's own release version, as it gave it.</summary>
     public string ExtensionVersion { get; }
+
+    /// <summary>The transport: <c>mep</c>, a MEP 0.2.0-draft.1 guest process.</summary>
+    public string Transport => "mep";
 
     /// <summary>The guest's extension id and version, for example <c>org.finos.morphir.fsharp-backend 0.4.0</c>.</summary>
     public string Identity => $"{Descriptor.Id.Value} {ExtensionVersion}";

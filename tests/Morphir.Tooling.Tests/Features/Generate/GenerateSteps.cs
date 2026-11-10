@@ -54,13 +54,77 @@ public sealed class GenerateSteps : IDisposable
     [When("I generate F# without {string}")]
     public async Task GenerateWithout(string setting) => await Invoke(setting);
 
-    private async Task Invoke(string? omit)
+    private async Task Invoke(string? omit, params string[] extra)
     {
         var arguments = new List<string> { "generate", "--json" };
         if (omit != "input") arguments.Add($"--input \"{_input}\"");
         if (omit != "target") arguments.Add("--target fsharp");
         if (omit != "output") arguments.Add($"--output \"{Output}\"");
-        _run.Result = await _cli.ExecuteCommandAsync(string.Join(" ", arguments), timeout: TimeSpan.FromSeconds(60));
+        arguments.AddRange(extra);
+        _run.Result = await _cli.ExecuteCommandAsync(string.Join(" ", arguments), timeout: TimeSpan.FromSeconds(120));
+    }
+
+    /// <summary>The external F# backend guest, morphir-fsharp-backend, from the test output.</summary>
+    private static string BackendGuest => Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-backend.dll");
+
+    /// <summary>The guest's own extension id, from the guest; the one place the tests take it from.</summary>
+    private static string BackendGuestId => Morphir.CodeGeneration.FSharp.Extension.FSharpGuest.extension.Id;
+
+    [When("I generate F# with the external F# backend extension")]
+    public async Task GenerateWithExtension() => await Invoke(null, $"--extension \"{BackendGuest}\"");
+
+    [Given("a project whose configuration selects the external F# backend")]
+    public void ProjectSelectsExtension() => File.WriteAllText(Path.Combine(_directory, "morphir.toml"),
+        $"[project]\nname = \"car/rental\"\n\n[codegen.fsharp]\nextension = '{BackendGuest}'\n");
+
+    [When("I generate F# for the project")]
+    public async Task GenerateForProject() => await Invoke(null, $"--project \"{_directory}\"");
+
+    [When("I generate F# for the project with the extension {string}")]
+    public async Task GenerateForProjectWith(string extension) => await Invoke(null, $"--project \"{_directory}\"", $"--extension {extension}");
+
+    [Then("the report names the external F# backend over MEP")]
+    public void NamesExternal()
+    {
+        using var json = JsonDocument.Parse(_run.Result!.StandardOutput);
+        json.RootElement.GetProperty("backend").GetString().Should().Be(BackendGuestId, "the external backend's own id, not morphir.fsharp");
+        json.RootElement.GetProperty("backendTransport").GetString().Should().Be("mep");
+        json.RootElement.GetProperty("backendVersion").GetString().Should().NotBeNullOrEmpty();
+    }
+
+    [Then("the generated files equal those of the built-in F# backend")]
+    public async Task EqualsBuiltIn()
+    {
+        var external = Sources();
+        var builtInOutput = Path.Combine(_directory, "built-in");
+        var result = await _cli.ExecuteCommandAsync($"generate --json --input \"{_input}\" --target fsharp --output \"{builtInOutput}\"", timeout: TimeSpan.FromSeconds(120));
+        result.ExitCode.Should().Be(0, result.CombinedOutput);
+        using var json = JsonDocument.Parse(result.StandardOutput);
+        var builtIn = json.RootElement.GetProperty("artifacts").EnumerateArray()
+            .Select(item => item.GetString()!)
+            .Select(path => Tuple.Create(path, File.ReadAllText(Path.Combine(builtInOutput, path))))
+            .ToArray();
+        builtIn.Should().NotBeEmpty();
+        external.Should().Equal(builtIn, "the same paths in the same order, with the same text");
+    }
+
+    [Then("the report has the diagnostic {string} that names {string}")]
+    public void HasDiagnostic(string code, string text)
+    {
+        using var json = JsonDocument.Parse(_run.Result!.StandardOutput);
+        var diagnostics = json.RootElement.GetProperty("diagnostics").EnumerateArray().ToArray();
+        diagnostics.Should().Contain(item => item.GetProperty("code").GetString() == code && item.GetProperty("message").GetString()!.Contains(text),
+            _run.Result.StandardOutput);
+    }
+
+    [Then("the report names the built-in F# backend with the existing members only")]
+    public void NamesBuiltIn()
+    {
+        using var json = JsonDocument.Parse(_run.Result!.StandardOutput);
+        json.RootElement.GetProperty("backend").GetString().Should().Be("morphir.fsharp");
+        json.RootElement.EnumerateObject().Select(member => member.Name).Should().Equal(
+            "success", "exitCode", "target", "backend", "input", "output", "sourceVersion", "family", "distributionKind",
+            "representation", "artifacts", "written", "unchanged", "removed", "diagnostics", "failureKind");
     }
 
     [Then("generation exits with {int} and one JSON report")]

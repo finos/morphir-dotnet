@@ -6,7 +6,14 @@ namespace Morphir.Tooling.Features.Generate;
 public sealed record GenerateRequest(GenerateOverrides Overrides, InvocationContext Context);
 public sealed record GenerationSuccess(string Target, string Backend, string InputPath, string OutputDirectory,
     string SourceVersion, string Family, string DistributionKind, string Representation,
-    GenerationPublication Publication, ImmutableArray<GenerationDiagnostic> Diagnostics);
+    GenerationPublication Publication, ImmutableArray<GenerationDiagnostic> Diagnostics)
+{
+    /// <summary>The transport of the external backend that ran, for example <c>mep</c>; null for a built-in.</summary>
+    public string? BackendTransport { get; init; }
+
+    /// <summary>The version of the external backend that ran, as the extension gave it; null for a built-in.</summary>
+    public string? BackendVersion { get; init; }
+}
 
 /// <summary>Coordinates generation through injectable application boundaries in the existing mediator.</summary>
 public static class GenerateHandler

@@ -29,6 +29,12 @@ public sealed record GenerationDiagnostic(string Code, string Message, string? P
 public sealed record GenerationFailure(GenerationFailureKind Kind, ImmutableArray<GenerationDiagnostic> Diagnostics)
 {
     public string? Backend { get; init; }
+
+    /// <summary>The transport of an external backend that was selected, for example <c>mep</c>; null for a built-in.</summary>
+    public string? BackendTransport { get; init; }
+
+    /// <summary>The version of an external backend that was selected, as the extension gave it; null for a built-in.</summary>
+    public string? BackendVersion { get; init; }
     public static GenerationFailure One(GenerationFailureKind kind, string code, string message, string? path = null, string? location = null) =>
         new(kind, [new(code, message, path, location)]);
 }
@@ -83,6 +89,9 @@ public sealed record GenerateOverrides(string? Input = null, string? Target = nu
 
     /// <summary><c>--out-dir</c>: the out root that holds the compile record.</summary>
     public string? OutDir { get; init; }
+
+    /// <summary><c>--extension</c>: the backend extension; overrides <c>[codegen.&lt;target&gt;].extension</c>.</summary>
+    public string? Extension { get; init; }
 }
 public sealed record ModelInput(string Path, InputFormat Format = InputFormat.Auto);
 
@@ -101,6 +110,13 @@ public sealed record PublicationPolicy(string OutputDirectory, string ManifestNa
 public sealed record GenerationSettings(ModelInput Input, RequestedTarget Target, BackendOptions Options,
     PublicationPolicy Publication, ModelReadLimits Limits)
 {
+    /// <summary>
+    /// The backend extension that <c>--extension</c> or <c>[codegen.&lt;target&gt;].extension</c> names, or null.
+    /// When it is set, the run uses only the backend that the extension connector gives; when it is null, the
+    /// registered backends of the target are resolved as before.
+    /// </summary>
+    public Morphir.Tooling.Features.Compile.Setting<string>? Extension { get; init; }
+
     /// <summary>
     /// A hold on the input, or null. <c>generate</c> releases it when model loading ends, after it admits the
     /// loaded model through it. The input of a prior compile holds the task's shared lock this way (REC-1).
