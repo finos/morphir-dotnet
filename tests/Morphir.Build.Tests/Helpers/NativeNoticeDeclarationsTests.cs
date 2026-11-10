@@ -74,7 +74,15 @@ public class NativeNoticeDeclarationsTests
         declaration.License.Should().Be("Apache-2.0");
         File.ReadAllText(Path.Combine(kernel, "PROVENANCE.md")).Should().Contain(declaration.Source);
         File.ReadAllBytes(Path.Combine(Notices, declaration.LicenseFile)).Should().Equal(File.ReadAllBytes(Path.Combine(kernel, "LICENSE")));
-        File.ReadAllBytes(Path.Combine(Notices, "extism-kernel.NOTICE.txt")).Should().Equal(File.ReadAllBytes(Path.Combine(kernel, "NOTICE")));
+        // The kernel is an embedded resource of Morphir.Extensions.Wasm, not a NativeLibrary item, and it has a
+        // notice as well as a licence: the declaration says both, so the notices step can find and check it.
+        using var raw = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(Notices, "extism-kernel.json")));
+        raw.RootElement.GetProperty("kind").GetString().Should().Be("embedded-resource");
+        var noticeFile = raw.RootElement.GetProperty("noticeFile").GetString();
+        noticeFile.Should().Be("extism-kernel.NOTICE.txt");
+        File.ReadAllBytes(Path.Combine(Notices, noticeFile!)).Should().Equal(File.ReadAllBytes(Path.Combine(kernel, "NOTICE")));
+        File.ReadAllText(Path.Combine(Root, "src", "Morphir.Extensions.Wasm", "Morphir.Extensions.Wasm.csproj"))
+            .Should().Contain("<EmbeddedResource Include=\"Kernel/extism-kernel.wasm\" LogicalName=\"Morphir.Extensions.Wasm.Kernel.extism-kernel.wasm\" />");
     }
 
     [Test]

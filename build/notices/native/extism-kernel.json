@@ -1,8 +1,10 @@
 {
+  "kind": "embedded-resource",
   "name": "extism-kernel.wasm",
   "version": "0.3.0",
   "license": "Apache-2.0",
   "licenseFile": "extism-kernel.LICENSE.txt",
+  "noticeFile": "extism-kernel.NOTICE.txt",
   "source": "https://download.mooncakes.io/user/moonrockz/extism/0.3.0.zip",
   "sha256": "3d23b39dc4cb508c32d5f8911ceeb625070dbe1335288d871e17feb03a7fba17"
 }
