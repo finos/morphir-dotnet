@@ -74,6 +74,18 @@ let tests =
                     + $"\nnote = \"{deep}\"\nliteral = '{deep}'\nmulti = \"\"\"\n{deep}\"\"\"\"\nraw = '''{deep}'''\n# {deep}\n"
                 Expect.isOk (RequestDocument.read (Encoding.UTF8.GetBytes(text.Replace("[host]", "x = 1\n[host]")))) "a valid request")
         ]
+        testCase "U+FFFE, which string.Normalize refuses, is its own NFC and never stops a document" (fun () ->
+            let noncharacter = string (char 0xFFFE)
+            let decomposed = "e" + string (char 0x0301)
+            let precomposed = string (char 0x00E9)
+
+            match Canonical.bytes (Value.String("a" + noncharacter + decomposed)) with
+            | Ok bytes ->
+                Expect.equal (Encoding.UTF8.GetString bytes) ("\"a" + noncharacter + precomposed + "\"") "normalized around it"
+            | Error refusal -> failtestf "refused: %A" refusal
+
+            Expect.isOk (TargetPath.tryParse ("notes/a" + noncharacter + ".txt")) "an NFC target path that holds it"
+            Expect.equal (TargetPath.tryParse ("notes/a" + noncharacter + decomposed) |> Result.map ignore) (Error ReaderCode.NonPortablePath) "and one that is not NFC")
         testCase "only the exact draft text is supported; build metadata is refused" (fun () ->
             Expect.equal (ContractVersion.check "0.1.0-draft.1") (Ok()) "the draft"
             Expect.equal (ContractVersion.check "0.1.0-draft.1+meta") (Error ReaderCode.UnsupportedContractVersion) "build metadata"

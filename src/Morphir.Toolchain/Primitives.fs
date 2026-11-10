@@ -360,7 +360,7 @@ module TargetPath =
     let private isNfc (text: string) =
         try
             strictUtf8.GetByteCount text |> ignore
-            text.IsNormalized NormalizationForm.FormC
+            Nfc.isNormalized text
         with :? ArgumentException ->
             false
 
