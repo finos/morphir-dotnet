@@ -39,7 +39,7 @@ The runner checks the module's digest, starts `<host> extension worker --module 
 
 No expectation ever comes from a host run. The runner compares; it never records.
 
-At finos/morphir `c0c1096b3` the corpus has 58 cases and 50 modules. 48 cases are for `extism-kernel-v1` and apply to every host; 10 are for `morphir-bytes-v1`.
+At finos/morphir `48d10706f` the corpus has 58 cases and 50 modules. 48 cases are for `extism-kernel-v1` and apply to every host; 10 are for `morphir-bytes-v1`.
 
 The generic guest kit is a separate kit with its own runner. Its legacy tier negotiates MEP `0.1`, which this host does not support, so that tier is not run against this host, and a run of its model tier is not reported as a complete run of that kit.
 
@@ -162,7 +162,7 @@ A case whose module never returns SHALL pass when the host ends the call no late
 - **THEN** the call ends with fault `call-deadline` between 30 and 32 seconds and the case passes
 
 ### Requirement: Report identity
-A host qualification report SHALL identify the runner, the corpus digest, the profile contract version, the host executable's path and digest, its declared offering, platform and engine, and each module's digest. Checking a report SHALL recompute the verdict from the recorded observations; a stored verdict SHALL NOT be trusted.
+A host qualification report SHALL identify the runner, the corpus digest, the profile contract version, the host executable's path and digest, its declared offering, platform and engine, and each module's digest. The offering, platform and engine are inputs to the runner, because a worker reports none of them. Checking a report SHALL refuse a report without them and SHALL recompute the verdict from the recorded observations; a stored verdict SHALL NOT be trusted.
 
 #### Scenario: Edited verdict
 - **WHEN** a report's verdict is changed to qualified while a recorded observation fails

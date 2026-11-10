@@ -1,6 +1,6 @@
 # Tasks
 
-This is the morphir-dotnet adoption of the finos/morphir change `add-dotnet-wasm-extension-host` (draft PR finos/morphir#1148, read at `c0c1096b3`). Groups 1 to 6 keep the parent's task numbers and wording, so that completion can be reported against the parent. The indented notes under a checkbox say where the work lands in this repository; they are planning detail and are not tracked. Group 0 holds the two tasks only this repository has.
+This is the morphir-dotnet adoption of the finos/morphir change `add-dotnet-wasm-extension-host` (draft PR finos/morphir#1148, read at `48d10706f`). Groups 1 to 6 keep the parent's task numbers and wording, so that completion can be reported against the parent. The indented notes under a checkbox say where the work lands in this repository; they are planning detail and are not tracked. Group 0 holds the two tasks only this repository has.
 
 GitHub issue: [finos/morphir-dotnet#563](https://github.com/finos/morphir-dotnet/issues/563). This repository has no Beads database.
 
@@ -8,8 +8,8 @@ Gates and order:
 
 - **Nothing below starts before this change is approved**, as the extension-model PRD requires. Task 2.1 is this change.
 - **Task 2.2 is the first implementation task and a gate.** If any of its three claims fails, stop and return decision KRN-1 for review. Do not switch to another approach.
-- Then groups 2, 3 and 4 in order. Task 3.2 no longer waits for the parent: the notification member is fixed at `c0c1096b3` (design NTFY-1).
-- The pin under `tests/Fixtures/MepWasm/` moves to `c0c1096b3` in the pull request that carries this revision (design PIN-1). Tasks 1.5, 2.5 and 3.2 test against that pin.
+- Then groups 2, 3 and 4 in order. Task 3.2 no longer waits for the parent: the notification member is fixed at `48d10706f` (design NTFY-1).
+- The pin under `tests/Fixtures/MepWasm/` moves to `48d10706f` in the pull request that carries this revision (design PIN-1). Tasks 1.5, 2.5 and 3.2 test against that pin.
 - Task 5.1 can start once group 2 exists. Tasks 5.2 to 5.4 wait for the publish profiles of `add-deployment-and-acquisition` to merge (design SEQ-1); check the state of that work and report it in the issue before starting.
 - Group 6 runs only against a pin of a merged parent commit.
 
@@ -32,13 +32,13 @@ Rules for every task:
 
 ## 1. Shared contract and crafted corpus, finos/morphir (runner part of 1.5 only)
 
-Parent tasks 1.1 to 1.4, 1.6 and 1.7 belong to finos/morphir and are dependencies only. At `c0c1096b3` the parent has ticked 1.1 and added 1.7, which names `notificationDelivery` in the MEP handshake model.
+Parent tasks 1.1 to 1.4, 1.6 and 1.7 belong to finos/morphir and are dependencies only. At `48d10706f` the parent has ticked 1.1 and added 1.7, which names `notificationDelivery` in the MEP handshake model.
 
 - [ ] 1.5 Add to the kit's runner only what is needed to run crafted cases through a stdio worker and to read its stderr reports, in the .NET runner in morphir-dotnet. Verify the complete corpus against the MoonBit native CLI's worker mode first, since that host already exists, and record each difference as a contract question or a MoonBit issue before any .NET result is compared.
   - The crafted cases are Gherkin (maintainer, 9 November 2026; design RUN-1). Generate the features from the pinned JSON; never edit one by hand.
   - Files: `src/Morphir.Conformance/` (a reader for the pinned JSON, the generator, the `wasm-host` suite in the Gherkin reader, a worker adapter, the matchers of the kit's `conventions`), `conformance/suites/wasm-host/` (the generated features and the id map), `conformance/steps/` (the new vocabulary version) and `conformance/README.md`, `src/Morphir.Tooling/Features/Mck/` (the experimental `morphir mck wasm-host run` and `report-check`), both entry points, and the `lint` job in `.github/workflows/development.yml` (the stale-features check).
   - Order inside the task: the vocabulary version and its steps; the JSON reader and the case model; the generator and the id map; the Gherkin reader for the suite; the equality test over every case; then the adapter and the comparer.
-  - First failing tests: in `tests/Morphir.Conformance.Tests` (new), the JSON reader loads the pinned kit and lists every case (58 at `c0c1096b3`: 48 for `extism-kernel-v1`, 10 for `morphir-bytes-v1`); the generated features and the pinned JSON give equal case models for every case; a feature edited by hand and a feature with an unknown step are refused; a case added to the corpus takes the next unused number and no existing number moves; a fake worker script gives a `refused` event and the comparer passes the case; a module whose bytes differ from the recorded digest is refused with both digests; a worker still alive at the end of a case has its process tree stopped. Use `ChildProcess.RunAsync` and `TestSandbox` from `tests/Morphir.TestSupport`.
+  - First failing tests: in `tests/Morphir.Conformance.Tests` (new), the JSON reader loads the pinned kit and lists every case (58 at `48d10706f`: 48 for `extism-kernel-v1`, 10 for `morphir-bytes-v1`); the generated features and the pinned JSON give equal case models for every case; a feature edited by hand and a feature with an unknown step are refused; a case added to the corpus takes the next unused number and no existing number moves; a fake worker script gives a `refused` event and the comparer passes the case; a module whose bytes differ from the recorded digest is refused with both digests; a worker still alive at the end of a case has its process tree stopped. Use `ChildProcess.RunAsync` and `TestSandbox` from `tests/Morphir.TestSupport`.
   - A run with alternatives passes when one alternative whose condition matches is satisfied, and two alternatives may share a condition. A case's `worker.instructions` is passed as `--instructions`, as `requestBytes` and `responseBytes` are passed as `--request-bytes` and `--response-bytes`.
   - Specs: `wasm-host-qualification`. Design: RUN-1.
   - Needs a MoonBit native CLI build. If none is available on the machine, say so and run that verification where one is.
@@ -81,7 +81,7 @@ Parent tasks 1.1 to 1.4, 1.6 and 1.7 belong to finos/morphir and are dependencie
   - "The Python guest" is release `0.6.0`, as the parent's tasks state. The session's `morphir.initialize` carries a model transport offer, as the parent requirement "Protocol line" asks.
   - The `extism/` and `limits/` cases of the pinned corpus are the test data.
 - [ ] 3.2 Implement negotiated notifications: read `capabilities.notificationDelivery` from the guest's `morphir.initialize` result, and for the value `call` deliver each notification as one `handle` call and fail the session when it returns output. Verify the crafted cases for a guest that advertises `call`, one that answers a notification, one that advertises a value the contract does not list, and a published guest that advertises nothing.
-  - The member is a string. `call` asks for delivery; an absent member, `none` and any other value, the reserved `poll` among them, mean no delivery (design NTFY-1). The cases are in the pin from `c0c1096b3`, `extism/notification-delivery-unlisted` among them.
+  - The member is a string. `call` asks for delivery; an absent member, `none` and any other value, the reserved `poll` among them, mean no delivery (design NTFY-1). The cases are in the pin from `48d10706f`, `extism/notification-delivery-unlisted` among them.
 - [x] 3.3 Implement the host-function policy and the Morphir functions with their limits. Verify the crafted sandbox cases: `http_request` fails with no connection attempt and its URL recorded, the variable store and IR cache enforce their limits, and a second session starts empty.
   - The private workspace directory is created for the session and removed with it. Tests use `TestSandbox` and never touch the real home or temporary roots outside it.
 - [x] 3.4 Configure the WASI sandbox with no preopens, arguments, environment or stdin, and bounded capture of stdout and stderr. Verify `path_open` returns an error with the session continuing, clocks and random bytes work, and guest stdout never reaches a MEP response.
