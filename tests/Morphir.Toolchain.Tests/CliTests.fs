@@ -191,8 +191,9 @@ let tests =
             Expect.equal run.Exit 1 "exit code"
 
             match (readResult run).Diagnostics with
-            | [ { Detail = DiagnosticDetail.UnsupportedArtifact(ArtifactProblem.Unsupported, Component.Host _, Platform.LinuxMuslArm64, Some alternatives) } ] ->
+            | [ { Detail = DiagnosticDetail.UnsupportedArtifact(ArtifactProblem.Unsupported, Component.Host _, Platform.LinuxMuslArm64, Some alternatives, Some concerns) } ] ->
                 Expect.isNonEmpty alternatives "alternatives"
+                Expect.equal concerns.Document DocumentKind.Request "a resolution refusal names a request member"
             | other -> failtestf "unexpected diagnostics %A" other)
 
         testCase "setup without --plan or with --yes changes nothing and writes no result" (fun () ->
@@ -389,8 +390,13 @@ let tests =
             Expect.equal run.Exit 1 "exit code"
 
             match (readResult run).Diagnostics with
-            | [ { Detail = DiagnosticDetail.TrustFailure(TrustCode.RepositoryMismatch, repository, None, None, None) } ] ->
+            | [ { Detail = DiagnosticDetail.TrustFailure(TrustCode.RepositoryMismatch, repository, None, None, None, Some concerns) } ] ->
                 Expect.equal repository.Text (String.replicate 64 "c") "the repository the check ran against"
+
+                Expect.equal
+                    (concerns.Document, DocumentPath.render concerns.Path)
+                    (DocumentKind.Recipe, "providers[0].repositoryId")
+                    "the provider that names another repository"
             | other -> failtestf "unexpected diagnostics %A" other)
 
         testCase "the AOT probe's plan normalizes its decomposed character and has the recorded digest" (fun () ->

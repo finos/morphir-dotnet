@@ -101,7 +101,8 @@
     }
   },
   "dependentRequired": {
-    "plan": [ "planSha256" ]
+    "plan": [ "planSha256" ],
+    "planSha256": [ "plan" ]
   },
   "$defs": {
     "token": {
@@ -120,7 +121,8 @@
     },
     "semanticVersion": {
       "type": "string",
-      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+      "pattern": "^(0|[1-9][0-9]{0,14})\\.(0|[1-9][0-9]{0,14})\\.(0|[1-9][0-9]{0,14})(?:-(?:0|[1-9][0-9]{0,14}|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]{0,14}|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+      "maxLength": 256
     },
     "sha256": {
       "type": "string",
@@ -295,7 +297,8 @@
           "type": "array",
           "items": {
             "type": "string",
-            "pattern": "^(?:=|>|>=|<|<=)(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+            "pattern": "^(?:=|>|>=|<|<=)(0|[1-9][0-9]{0,14})\\.(0|[1-9][0-9]{0,14})\\.(0|[1-9][0-9]{0,14})(?:-(?:0|[1-9][0-9]{0,14}|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]{0,14}|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+            "maxLength": 258
           }
         },
         "phase": {
@@ -595,6 +598,125 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "required": [ "code" ],
+            "properties": {
+              "code": {
+                "const": "request_changed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "document": {
+                "const": "lock"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [ "code" ],
+            "properties": {
+              "code": {
+                "const": "platform_not_locked"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "document": {
+                "const": "lock"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [ "code" ],
+            "properties": {
+              "code": {
+                "const": "lock_recipe_mismatch"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "document": {
+                "const": "lock"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [ "code" ],
+            "properties": {
+              "code": {
+                "const": "lock_changed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "document": {
+                "const": "receipt"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [ "code" ],
+            "properties": {
+              "code": {
+                "const": "receipt_lock_mismatch"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "document": {
+                "const": "receipt"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [ "code" ],
+            "properties": {
+              "code": {
+                "const": "plan_changed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "document": {
+                "const": "result"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [ "code" ],
+            "properties": {
+              "code": {
+                "const": "document_unavailable"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "path": {
+                "const": ""
+              }
+            }
+          }
         }
       ],
       "required": [ "kind", "code", "severity", "message" ],
@@ -644,8 +766,9 @@
           "enum": [ "root", "timestamp", "snapshot", "targets" ]
         },
         "mirror": {
+          "description": "An https or http URL with a host, and no user information, query or fragment.",
           "type": "string",
-          "format": "uri"
+          "pattern": "^https?://[^\\s/?#@]+(/[^\\s?#]*)?$"
         },
         "target": {
           "$ref": "#/$defs/targetPath"
@@ -689,6 +812,10 @@
             "crlf-line-endings-and-byte-order-mark"
           ]
         }
+      },
+      "dependentRequired": {
+        "document": [ "path" ],
+        "path": [ "document" ]
       }
     },
     "planComponent": {

@@ -97,3 +97,21 @@ Adoption-specific, not part of the approved finos/morphir text. `morphirup` SHAL
 #### Scenario: Fixed shared examples
 - **WHEN** the manager reads each fixed positive and negative example that finos/morphir publishes for these contracts
 - **THEN** it accepts or refuses each example as the shared case records
+
+### Requirement: Dry runs for state changes
+Adoption-specific, not part of the approved finos/morphir text; directed by the maintainer on 10 November 2026. Every `morphirup` command that creates, updates, repairs or removes persistent state SHALL accept `--dry-run`, which SHALL take the command's own planning and validation path, refuse what the command refuses, and make no persistent change. A dry run SHALL report an action it would take as planned, and one it cannot complete with the diagnostic that blocks it.
+
+#### Scenario: A dry run changes nothing
+- **WHEN** any dry run runs, valid or refused
+- **THEN** no request, lock, receipt, journal, cache, home or activation file is created, changed or removed, nothing is downloaded and no readiness probe runs
+- **AND** it applies nothing even with `--yes`, relaxes no trust or validation check, and reports nothing as succeeded that was only planned
+
+#### Scenario: Setup dry run in the plan-only build
+- **WHEN** `morphirup setup --dry-run` is given the same request, recipe and options as `morphirup setup --plan`
+- **THEN** it writes the same planned result, with the same `planSha256`, and exits with the same code
+- **AND** it refuses `--yes` as `--plan` does, and no file in the project or the Morphir home is created, changed or removed
+
+#### Scenario: A later command that changes state
+- **WHEN** a later build adds a command that installs, activates, updates, rolls back, repairs or removes, including `doctor --fix`
+- **THEN** that command ships with `--dry-run` on its own planning and validation path
+- **AND** the command is not offered until its dry run exists and is tested against a filesystem snapshot, while a command that only reads, such as `doctor` without `--fix`, needs none
