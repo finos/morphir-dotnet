@@ -83,6 +83,22 @@ public class ContractTests
     }
 
     [Test]
+    public async Task The_worker_instruction_range_is_read_from_the_contract()
+    {
+        // worker.arguments gives --instructions a range; the library reads it so the worker takes no copy of its own.
+        using var contract = System.Text.Json.JsonDocument.Parse(await File.ReadAllBytesAsync(MepWasmFixtures.Contract));
+        var range = contract.RootElement.GetProperty("worker").GetProperty("arguments").EnumerateArray()
+            .Single(argument => argument.GetProperty("name").GetString() == "--instructions")
+            .GetProperty("range");
+        var read = WasmProfileContract.Pinned.WorkerInstructionRange;
+
+        await Assert.That(read).IsEqualTo(new WorkerArgumentRange(range[0].GetUInt64(), range[1].GetUInt64()));
+        await Assert.That(read).IsEqualTo(new WorkerArgumentRange(1, 9007199254740991));
+        await Assert.That(WasmProfileContract.Pinned.InstructionBudget).IsGreaterThanOrEqualTo(read.Minimum);
+        await Assert.That(WasmProfileContract.Pinned.InstructionBudget).IsLessThanOrEqualTo(read.Maximum);
+    }
+
+    [Test]
     public async Task The_contract_says_a_cancelled_call_is_an_outcome_without_a_fault_kind()
     {
         // The hostSession rule cancelled, which the library's GuestFailureKind.Cancelled follows.

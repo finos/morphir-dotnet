@@ -23,9 +23,9 @@ let root =
 
 /// The finos/morphir commit of the pin.
 [<Literal>]
-let PinnedCommit = "8d678d2b888a6d5eaa075172a020f7ebef06fc72"
+let PinnedCommit = "8b3c4c35430dfb313cf439e4df1a9c0bb7e1834d"
 
-/// The number of cases at the pinned commit 8d678d2b.
+/// The number of cases at the pinned commit 8b3c4c35 (unchanged since 8d678d2b).
 [<Literal>]
 let PinnedCaseCount = 59
 

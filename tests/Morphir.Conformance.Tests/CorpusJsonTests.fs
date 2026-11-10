@@ -33,7 +33,7 @@ let tests =
             Expect.equal
                 (corpusCaseCount ())
                 PinnedCaseCount
-                "The pinned corpus has 59 cases at 8d678d2b"
+                "The pinned corpus has 59 cases at 8b3c4c35"
 
             Expect.equal corpus.Cases.Length (corpusCaseCount ()) "Every case of the corpus is read"
 

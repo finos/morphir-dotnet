@@ -77,6 +77,33 @@ public sealed class ExtensionWorkerTests
         run.StderrLines.Should().ContainSingle().Which.Should().StartWith("morphir extension worker: ").And.Contain("--surprise");
     }
 
+    [Test]
+    public async Task A_worker_started_without_a_build_identity_exits_with_2_and_serves_nothing()
+    {
+        // Parent requirement "Worker build identity", scenario "No identity given".
+        var run = await RunAsync(["--abi", "extism-kernel-v1", "--module", Corpus("extism-echo"), "--json"], Frame(Initialize));
+
+        run.ExitCode.Should().Be(2, run.Describe());
+        run.Stdout.Should().BeEmpty();
+        run.Events.Should().BeEmpty("a worker without a build identity loads no module and serves nothing");
+        run.StderrLines.Should().ContainSingle().Which.Should().Contain("--build-identity");
+    }
+
+    [Test]
+    [Arguments("0")]
+    [Arguments("65537")]
+    [Arguments("many")]
+    public async Task A_memory_pages_value_the_worker_cannot_use_is_a_usage_error_before_the_module_is_read(string pages)
+    {
+        // The contract makes it exit status 2; the MoonBit worker at 89f8924 reads the module and exits with 1.
+        var run = await RunAsync([.. Arguments(Corpus("extism-echo")), "--memory-pages", pages], Frame(Initialize));
+
+        run.ExitCode.Should().Be(2, run.Describe());
+        run.Stdout.Should().BeEmpty();
+        run.Events.Should().BeEmpty("a usage error serves nothing, so it reports no started, refused or fault event");
+        run.StderrLines.Should().ContainSingle().Which.Should().Contain("--memory-pages");
+    }
+
     // --- Start-up order -------------------------------------------------------------------------------------------
 
     [Test]
@@ -490,7 +517,7 @@ public sealed class ExtensionWorkerTests
         run.Frames.Should().HaveCount(1);
         run.Events.Should().BeEmpty();
         run.StderrLines.Should().OnlyContain(line => line.StartsWith("morphir extension worker: ", StringComparison.Ordinal));
-        run.StderrLines.First().Should().Contain("serving extism-kernel-v1 module " + Sha256(Corpus("extism-log"))).And.Contain("wasmtime 50.0.1");
+        run.StderrLines.First().Should().Contain("serving extism-kernel-v1 module " + Sha256(Corpus("extism-log"))).And.NotContain("wasmtime", "no worker event carries the engine identity, in either form");
         run.StderrLines.Last().Should().Be("morphir extension worker: exit 0");
     }
 

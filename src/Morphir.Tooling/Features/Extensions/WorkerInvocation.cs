@@ -33,8 +33,8 @@ public sealed record WorkerOptions(
     /// <summary>The bounds and frame limits of the session these options give, for <see cref="WasmChannel.Open"/>.</summary>
     /// <remarks>
     /// <see cref="SessionLimits"/> has one ceiling for every memory of the session, so <c>--memory-pages</c> also
-    /// bounds the Extism kernel's memory, which the contract gives a ceiling of its own of 256 MiB. At the default the
-    /// two are the same.
+    /// bounds the Extism kernel's memory, which the contract gives a ceiling of its own of 256 MiB. The contract allows
+    /// this of a host whose engine has one limit for every memory of a session. At the default the two are the same.
     /// </remarks>
     public SessionLimits Limits => new(MemoryPages * MemoryUse.PageBytes, Instructions, CallDeadline)
     {
@@ -58,11 +58,8 @@ public abstract record WorkerInvocation
     /// <summary>The marker that the help of an internal, experimental command carries.</summary>
     public const string Experimental = "[experimental, internal]";
 
-    /// <summary>The largest <c>--instructions</c>: 2^53 - 1, the MoonBit worker's largest budget, so that a
-    /// runner's arguments mean the same to both hosts.</summary>
-    public const ulong MaxInstructions = 9007199254740991;
-
-    /// <summary>The largest <c>--memory-pages</c>: 65,536 pages, the whole 4 GiB of a 32-bit memory.</summary>
+    /// <summary>The largest <c>--memory-pages</c>: 65,536 pages, the whole 4 GiB of a 32-bit memory. The contract
+    /// states no range for it.</summary>
     public const int MaxMemoryPages = 65536;
 
     /// <summary>
@@ -174,11 +171,11 @@ public abstract record WorkerInvocation
         var contract = WasmProfileContract.Pinned;
         var problems = new[]
         {
-            Number(values, RequestBytes, MaxFrameBytes, (ulong)contract.RequestFrameLimitBytes, out var requestBytes),
-            Number(values, ResponseBytes, MaxFrameBytes, (ulong)contract.ResponseFrameLimitBytes, out var responseBytes),
-            Number(values, CallMs, int.MaxValue, (ulong)contract.Profile(abi).CallDeadline.TotalMilliseconds, out var callMs),
-            Number(values, Instructions, MaxInstructions, contract.InstructionBudget, out var instructions),
-            Number(values, MemoryPages, MaxMemoryPages, (ulong)(contract.MemoryCeilingBytes / MemoryUse.PageBytes), out var memoryPages),
+            Number(values, RequestBytes, 1, MaxFrameBytes, (ulong)contract.RequestFrameLimitBytes, out var requestBytes),
+            Number(values, ResponseBytes, 1, MaxFrameBytes, (ulong)contract.ResponseFrameLimitBytes, out var responseBytes),
+            Number(values, CallMs, 1, int.MaxValue, (ulong)contract.Profile(abi).CallDeadline.TotalMilliseconds, out var callMs),
+            Number(values, Instructions, contract.WorkerInstructionRange.Minimum, contract.WorkerInstructionRange.Maximum, contract.InstructionBudget, out var instructions),
+            Number(values, MemoryPages, 1, MaxMemoryPages, (ulong)(contract.MemoryCeilingBytes / MemoryUse.PageBytes), out var memoryPages),
         };
         if (problems.FirstOrDefault(problem => problem is not null) is { } problem) return new Invalid(problem, json);
 
@@ -194,17 +191,18 @@ public abstract record WorkerInvocation
             json));
     }
 
-    /// <summary>The value of a numeric option: decimal digits only, from 1 to <paramref name="max"/>, or the default.</summary>
-    static string? Number(Dictionary<string, string> values, string name, ulong max, ulong fallback, out ulong value)
+    /// <summary>The value of a numeric option: decimal digits only, from <paramref name="min"/> to
+    /// <paramref name="max"/>, or the default.</summary>
+    static string? Number(Dictionary<string, string> values, string name, ulong min, ulong max, ulong fallback, out ulong value)
     {
         value = fallback;
         if (!values.TryGetValue(name, out var text)) return null;
         if (text.Length == 0 || !text.All(char.IsAsciiDigit)
             || !ulong.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value)
-            || value < 1 || value > max)
+            || value < min || value > max)
         {
             value = fallback;
-            return $"{name} must be an integer from 1 to {max.ToString(CultureInfo.InvariantCulture)}";
+            return $"{name} must be an integer from {min.ToString(CultureInfo.InvariantCulture)} to {max.ToString(CultureInfo.InvariantCulture)}";
         }
 
         return null;
@@ -216,7 +214,9 @@ public abstract record WorkerInvocation
         var extism = (long)contract.Profile(WasmAbi.ExtismKernel).CallDeadline.TotalMilliseconds;
         var bytes = (long)contract.Profile(WasmAbi.MorphirBytes).CallDeadline.TotalMilliseconds;
         var pages = contract.MemoryCeilingBytes / MemoryUse.PageBytes;
+        var instructions = contract.WorkerInstructionRange;
         string N(long value) => value.ToString(CultureInfo.InvariantCulture);
+        string U(ulong value) => value.ToString(CultureInfo.InvariantCulture);
         return $"""
             morphir {Command} {Experimental}
 
@@ -245,8 +245,8 @@ public abstract record WorkerInvocation
               {ResponseBytes} <n>       The largest response frame, its header included. Default {N(contract.ResponseFrameLimitBytes)}.
               {CallMs} <n>              The deadline of each guest call, in milliseconds. Default {N(extism)} for
                                          extism-kernel-v1, {N(bytes)} for morphir-bytes-v1.
-              {Instructions} <n>         The instruction budget of each guest call, in Wasmtime fuel units, from 1 to
-                                         {MaxInstructions}. Default {N((long)contract.InstructionBudget)}.
+              {Instructions} <n>         The instruction budget of each guest call, in Wasmtime fuel units, from {U(instructions.Minimum)} to
+                                         {U(instructions.Maximum)}. Default {U(contract.InstructionBudget)}.
               {MemoryPages} <n>         The ceiling of each linear memory, in 64 KiB pages, from 1 to {MaxMemoryPages}.
                                          Default {N(pages)} ({N(contract.MemoryCeilingBytes / (1024 * 1024))} MiB).
               {JsonFlag}                     Write the stderr report as morphir/command-event lines.

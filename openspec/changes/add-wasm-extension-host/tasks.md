@@ -1,6 +1,6 @@
 # Tasks
 
-This is the morphir-dotnet adoption of the finos/morphir change `add-dotnet-wasm-extension-host` (draft PR finos/morphir#1148, read at `8d678d2b`). Groups 1 to 6 keep the parent's task numbers and wording, so that completion can be reported against the parent. The indented notes under a checkbox say where the work lands in this repository; they are planning detail and are not tracked. Group 0 holds the two tasks only this repository has.
+This is the morphir-dotnet adoption of the finos/morphir change `add-dotnet-wasm-extension-host` (draft PR finos/morphir#1148, read at `8b3c4c35`). Groups 1 to 6 keep the parent's task numbers and wording, so that completion can be reported against the parent. The indented notes under a checkbox say where the work lands in this repository; they are planning detail and are not tracked. Group 0 holds the two tasks only this repository has.
 
 GitHub issue: [finos/morphir-dotnet#563](https://github.com/finos/morphir-dotnet/issues/563). This repository has no Beads database.
 
@@ -9,7 +9,7 @@ Gates and order:
 - **Nothing below starts before this change is approved**, as the extension-model PRD requires. Task 2.1 is this change.
 - **Task 2.2 is the first implementation task and a gate.** If any of its three claims fails, stop and return decision KRN-1 for review. Do not switch to another approach.
 - Then groups 2, 3 and 4 in order. Task 3.2 no longer waits for the parent: the notification member is fixed at `48d10706f` (design NTFY-1).
-- The pin under `tests/Fixtures/MepWasm/` moves to `8d678d2b` in the pull request that carries this revision (design PIN-1). Tasks 1.5, 2.5 and 3.2 test against that pin.
+- The pin under `tests/Fixtures/MepWasm/` moves to `8b3c4c35` in the pull request that carries this revision (design PIN-1). Tasks 1.5, 2.5 and 3.2 test against that pin.
 - Task 5.1 can start once group 2 exists. Tasks 5.2 to 5.4 wait for the publish profiles of `add-deployment-and-acquisition` to merge (design SEQ-1); check the state of that work and report it in the issue before starting.
 - Group 6 runs only against a pin of a merged parent commit.
 
@@ -32,13 +32,13 @@ Rules for every task:
 
 ## 1. Shared contract and crafted corpus, finos/morphir (runner part of 1.5 only)
 
-Parent tasks 1.1 to 1.4, 1.6 and 1.7 belong to finos/morphir and are dependencies only. At `8d678d2b` the parent has ticked 1.1 and added 1.7, which names `notificationDelivery` in the MEP handshake model.
+Parent tasks 1.1 to 1.4, 1.6 and 1.7 belong to finos/morphir and are dependencies only. At `8b3c4c35` the parent has ticked 1.1 and added 1.7, which names `notificationDelivery` in the MEP handshake model.
 
 - [x] 1.5 Add to the kit's runner only what is needed to run crafted cases through a stdio worker and to read its stderr reports, in the .NET runner in morphir-dotnet. Verify the complete corpus against the MoonBit native CLI's worker mode first, since that host already exists, and record each difference as a contract question or a MoonBit issue before any .NET result is compared.
   - The crafted cases are Gherkin (maintainer, 9 November 2026; design RUN-1). Generate the features from the pinned JSON; never edit one by hand.
   - Files: `src/Morphir.Conformance/` (a reader for the pinned JSON, the generator, the `wasm-host` suite in the Gherkin reader, a worker adapter, the matchers of the kit's `conventions`), `conformance/suites/wasm-host/` (the generated features and the id map), `conformance/steps/` (the new vocabulary version) and `conformance/README.md`, `src/Morphir.Tooling/Features/Mck/` (the experimental `morphir mck wasm-host run` and `report-check`), both entry points, and the `lint` job in `.github/workflows/development.yml` (the stale-features check).
   - Order inside the task: the vocabulary version and its steps; the JSON reader and the case model; the generator and the id map; the Gherkin reader for the suite; the equality test over every case; then the adapter and the comparer.
-  - First failing tests: in `tests/Morphir.Conformance.Tests` (new), the JSON reader loads the pinned kit and lists every case (59 at `8d678d2b`: 49 for `extism-kernel-v1`, 10 for `morphir-bytes-v1`); the generated features and the pinned JSON give equal case models for every case; a feature edited by hand and a feature with an unknown step are refused; a case added to the corpus takes the next unused number and no existing number moves; a fake worker script gives a `refused` event and the comparer passes the case; a module whose bytes differ from the recorded digest is refused with both digests; a worker still alive at the end of a case has its process tree stopped. Use `ChildProcess.RunAsync` and `TestSandbox` from `tests/Morphir.TestSupport`.
+  - First failing tests: in `tests/Morphir.Conformance.Tests` (new), the JSON reader loads the pinned kit and lists every case (59 at `8b3c4c35`: 49 for `extism-kernel-v1`, 10 for `morphir-bytes-v1`); the generated features and the pinned JSON give equal case models for every case; a feature edited by hand and a feature with an unknown step are refused; a case added to the corpus takes the next unused number and no existing number moves; a fake worker script gives a `refused` event and the comparer passes the case; a module whose bytes differ from the recorded digest is refused with both digests; a worker still alive at the end of a case has its process tree stopped. Use `ChildProcess.RunAsync` and `TestSandbox` from `tests/Morphir.TestSupport`.
   - A run with alternatives passes when one alternative whose condition matches is satisfied, and two alternatives may share a condition. A case's `worker.instructions` is passed as `--instructions`, as `requestBytes` and `responseBytes` are passed as `--request-bytes` and `--response-bytes`.
   - Specs: `wasm-host-qualification`. Design: RUN-1.
   - Needs a MoonBit native CLI build. If none is available on the machine, say so and run that verification where one is.
@@ -97,9 +97,12 @@ Parent tasks 1.1 to 1.4, 1.6 and 1.7 belong to finos/morphir and are dependencie
   - The worker relays messages and is registered before the CLI host is built (design WRK-2). It takes every argument the contract lists, as the parent requirement "Worker mode" now names them: `--abi`, `--module`, `--build-identity`, `--request-bytes`, `--response-bytes`, `--call-ms`, `--instructions`, `--memory-pages`, `--json` and `--help`.
   - Interrupted while a guest is inside `handle`, the worker stops the guest within one second, writes no `fault` event and exits with 130 (parent requirement "Worker interruption"). `cancelled` is a host-session outcome only and has no fault kind.
   - A request frame over `--request-bytes` is fault `failure` without a call, exit 1. A module file that cannot be read or is not a well-formed module is fault `failure` before `started`, exit 1.
-  - The events, their members, the 4 KiB message cut, the 64 KiB output tail and the exit statuses follow the MoonBit worker's README at the commit recorded in the pin.
+  - The event names, their members and the exit statuses follow the pinned contract and the parent requirements. The rest of the `morphir/command-event` and `morphir/command-result` documents, the help text, the usage-failure document, the 4 KiB message cut and the 64 KiB output tail follow the MoonBit worker's README at the commit recorded in the pin, until a shared contract states them (contract at `8b3c4c35`).
+  - `--build-identity` is required: without it the worker serves nothing and exits with 2 (parent requirement "Worker build identity"). An invalid `--memory-pages` is a usage error, exit 2, before the module is read; the MoonBit worker at `89f8924` exits with 1. The `--instructions` range, 1 to 9007199254740991, is read from the contract's `worker.arguments`.
+  - `started` carries the digest, the declared profile and the build identity, and says whether each bound is enforced, not its value. No worker event carries the engine identity: it is part of the build identity, and session diagnostics and the runtime report of task 4.2 state it (parent requirement "Module identity in every report").
 - [ ] 4.2 Add the runtime availability report and the `extension.runtime_unavailable` failure with its reasons, probing the engine only on first need. Verify a host started without its engine library reports `engine_missing`, fails a WASM command by name and still runs commands that need no WASM.
   - Files: `src/Morphir.Tooling/Features/Extensions/` (`extension runtimes`), `docs/content/docs/cli/`.
+  - The report states the engine identity, which no worker event carries (design RPT-1).
   - Design: RPT-1. The `deployment` value needs the build identity of `add-deployment-and-acquisition`; until it merges, report the identities that exist and say so in the evidence.
 - [ ] 4.3 Drive the worker from the kit's runner with the same worker arguments used for the MoonBit host, changing only the host path. Verify the generic guest kit's model tier and the crafted corpus both complete with no runner change, and document the command in the contributor guide as internal and experimental.
   - The crafted corpus runs through the runner of task 1.5. The generic guest kit runs through the Rust `morphir mck mep guest-run`, unchanged (design RUN-2, review question 1).

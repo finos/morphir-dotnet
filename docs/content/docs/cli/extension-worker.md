@@ -49,17 +49,18 @@ and writes `started`.
 | --- | --- | --- |
 | `--abi <profile>` | required | The declared profile, `extism-kernel-v1` or `morphir-bytes-v1`. This host runs `extism-kernel-v1` only and refuses a `morphir-bytes-v1` module. A declaration only confirms the profile the imports give. |
 | `--module <path>` | required | The module file. A relative path is resolved against the current directory. |
-| `--build-identity <hex>` | required | This executable's build identity, 64 hexadecimal digits, as `--help --json` reports it. Another identity is refused with `extension.worker_runtime_mismatch`. |
+| `--build-identity <hex>` | required | This executable's build identity, 64 hexadecimal digits, as `--help --json` reports it. Without it the worker serves nothing and exits with 2. Another identity is refused with `extension.worker_runtime_mismatch`. |
 | `--request-bytes <n>` | `6291456` (6 MiB) | The largest request frame, its `Content-Length` header included. A larger frame is fault `failure`, and the guest is not called. |
 | `--response-bytes <n>` | `16777216` (16 MiB) | The largest response frame, header included. A larger response is fault `failure`, and nothing of it reaches stdout. |
 | `--call-ms <n>` | `30000` (`10000` for `morphir-bytes-v1`) | The deadline of each `handle` call, in milliseconds. |
-| `--instructions <n>` | `5000000000` | The instruction budget of each call, in Wasmtime fuel units, from 1 to 9007199254740991. |
-| `--memory-pages <n>` | `4096` (256 MiB) | The ceiling of each linear memory, in 64 KiB pages, from 1 to 65536. It applies to the Extism kernel's memory too. |
+| `--instructions <n>` | `5000000000` | The instruction budget of each call, in Wasmtime fuel units, from 1 to 9007199254740991, the range the contract states. |
+| `--memory-pages <n>` | `4096` (256 MiB) | The ceiling of the guest's memory, in 64 KiB pages, from 1 to 65536. This host has one limit for every memory of a session, so it applies to the Extism kernel's memory too, as the contract allows. Below the default the two hosts differ: the MoonBit host leaves the kernel at 256 MiB. A value outside the range is a usage error, exit 2, before the module is read. |
 | `--json` | off | Write the report as `morphir/command-event` lines. |
 | `--help`, `-h` | | Write the help on stdout and serve nothing. With `--json`, write one `morphir/command-result` whose `result.buildIdentity` is the identity to pass. |
 
-The defaults are the pinned contract's (`tests/Fixtures/MepWasm/wasm-execution-profiles.json`,
-`worker.arguments`).
+The defaults and the range of `--instructions` are the pinned contract's
+(`tests/Fixtures/MepWasm/wasm-execution-profiles.json`, `worker.arguments`). The contract states no
+other range; the others are this host's own.
 
 ## The build identity
 
@@ -86,7 +87,7 @@ Stderr carries the report. With `--json` each event is one line:
 
 | Event | Members after the envelope | When |
 | --- | --- | --- |
-| `started` | `abi`, `moduleSha256`, `buildIdentity`, `bounds` | The module has loaded. `bounds` has exactly `memoryCeiling`, `instructionBudget` and `callDeadline`, each `{"enforced": true}`. |
+| `started` | `abi`, `moduleSha256`, `buildIdentity`, `bounds` | The module has loaded. `bounds` has exactly `memoryCeiling`, `instructionBudget` and `callDeadline`, each `{"enforced": true}`: whether the bound is enforced, not its value. |
 | `output` | `output`; or `output` and `droppedBytes` | Guest output of the call that just ended: WASI stdout and stderr, Extism and Morphir log messages, refused HTTP requests. The newest 64 KiB of a call are reported, each message cut to 4 KiB, then one event with `droppedBytes` for the rest. |
 | `fault` | `fault.kind`, `fault.message` | The session failed. The kind is `trap`, `memory-limit`, `budget-exhausted`, `call-deadline` or `failure`. The message states the guest's memory size, the kernel's memory size and the ceiling. A fault has no code. |
 | `refused` | `error.code`, `error.message` | A refusal before any request: `extension.worker_runtime_mismatch`, `extension.abi_unsupported`, `extension.abi_mismatch` or `extension.wasm_feature_unsupported`. The message of a module refusal names the file and its SHA-256. |
@@ -95,8 +96,15 @@ Stderr carries the report. With `--json` each event is one line:
 The envelope is `profile`, `contractVersion`, `command` and `sequence` (from 1), then `event`. A
 message in an event is cut to 4 KiB of JSON text and then ends with `…`.
 
+No event carries the engine identity, with or without `--json`. The engine is part of the build identity, and a
+runner is given it as an input; session diagnostics and the runtime report state it.
+The contract fixes the
+event names and their members. The rest of the `morphir/command-event` and `morphir/command-result`
+documents, the help text and the usage-failure document follow the MoonBit CLI until a shared
+contract states them.
+
 Without `--json` each event is one text line that starts with `morphir extension worker: `, for
-example `morphir extension worker: serving extism-kernel-v1 module 013d...e11e on wasmtime 50.0.1`.
+example `morphir extension worker: serving extism-kernel-v1 module 013d...e11e`.
 
 A usage error serves nothing. With `--json` it is one `morphir/command-result` failure on stderr
 (`error.code` `usage`); without it, one text line on stderr.

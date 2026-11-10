@@ -31,6 +31,7 @@ public sealed class WasmProfileContract
         long memoryCeilingBytes,
         long kernelMemoryCeilingBytes,
         ulong instructionBudget,
+        WorkerArgumentRange workerInstructionRange,
         HostSessionLimits hostSession,
         FrozenSet<string> refusalCodes,
         FrozenDictionary<string, ContractFault> faults,
@@ -48,6 +49,7 @@ public sealed class WasmProfileContract
         MemoryCeilingBytes = memoryCeilingBytes;
         KernelMemoryCeilingBytes = kernelMemoryCeilingBytes;
         InstructionBudget = instructionBudget;
+        WorkerInstructionRange = workerInstructionRange;
         RequestFrameLimitBytes = hostSession.RequestBytes;
         ResponseFrameLimitBytes = hostSession.ResponseBytes;
         RequestLimitCode = hostSession.RequestCode;
@@ -113,6 +115,16 @@ public sealed class WasmProfileContract
     /// <c>probe</c>; a host session does not use it.
     /// </summary>
     public ulong InstructionBudget { get; }
+
+    /// <summary>The name of the worker argument that sets the per-call instruction budget.</summary>
+    const string InstructionsArgument = "--instructions";
+
+    /// <summary>
+    /// The values a worker's <c>--instructions</c> may take: the <c>range</c> the contract's <c>worker.arguments</c>
+    /// gives it (1 to 9,007,199,254,740,991 at the pin). It is the only worker argument with a range in the contract;
+    /// the reader refuses a range on any other, which a worker would not apply.
+    /// </summary>
+    public WorkerArgumentRange WorkerInstructionRange { get; }
 
     /// <summary>
     /// The classification checks in the order this library makes them, which the contract's
@@ -251,6 +263,7 @@ public sealed class WasmProfileContract
             memoryCeiling,
             kernelCeiling,
             budget,
+            ReadWorkerInstructionRange(root.GetProperty("worker"), budget),
             hostSession,
             refusalCodes,
             faults,
@@ -287,6 +300,53 @@ public sealed class WasmProfileContract
             limits.GetProperty("responseBytes").GetInt64(),
             Code("request-limit"),
             Code("response-limit"));
+    }
+
+    /// <summary>
+    /// The <c>range</c> of the worker's <c>--instructions</c> in <c>worker.arguments</c>: two integers, from 1 up and
+    /// in order, that hold the session budget. A range on any other argument fails the load, since the worker
+    /// applies none, and so does an <c>--instructions</c> without one.
+    /// </summary>
+    static WorkerArgumentRange ReadWorkerInstructionRange(JsonElement worker, ulong budget)
+    {
+        WorkerArgumentRange? found = null;
+        foreach (var argument in worker.GetProperty("arguments").EnumerateArray())
+        {
+            if (!argument.TryGetProperty("range", out var range))
+            {
+                continue;
+            }
+
+            var name = argument.GetProperty("name").GetString();
+            if (name != InstructionsArgument)
+            {
+                throw Invalid($"it gives the worker argument {name} a range, and this library reads a range for {InstructionsArgument} only");
+            }
+
+            var ends = range.ValueKind == JsonValueKind.Array ? range.EnumerateArray().ToArray() : [];
+            if (ends.Length != 2
+                || !ends[0].TryGetUInt64(out var minimum)
+                || !ends[1].TryGetUInt64(out var maximum)
+                || minimum < 1
+                || minimum > maximum)
+            {
+                throw Invalid($"the range of {InstructionsArgument} is {range.GetRawText()}, and this library reads two integers from 1 up, the smaller first");
+            }
+
+            found = new WorkerArgumentRange(minimum, maximum);
+        }
+
+        if (found is not { } instructions)
+        {
+            throw Invalid($"it gives the worker argument {InstructionsArgument} no range");
+        }
+
+        if (budget < instructions.Minimum || budget > instructions.Maximum)
+        {
+            throw Invalid($"its session instruction budget {budget} is outside the range of {InstructionsArgument}, {instructions.Minimum} to {instructions.Maximum}");
+        }
+
+        return instructions;
     }
 
     static WasmProfileSurface ReadProfile(WasmAbi abi, JsonElement profile)
@@ -408,6 +468,11 @@ public sealed class WasmProfileContract
 /// <param name="HostCode">The host code, such as <c>extension.guest_trap</c>, or null when the fault is an outcome.</param>
 /// <param name="HostOutcome">The host outcome, such as <c>deadline</c>, or null when the fault has a code.</param>
 public sealed record ContractFault(string Kind, string? HostCode, string? HostOutcome);
+
+/// <summary>The values a numeric worker argument may take, as the contract's <c>worker.arguments</c> gives them.</summary>
+/// <param name="Minimum">The smallest value, at least 1.</param>
+/// <param name="Maximum">The largest value.</param>
+public readonly record struct WorkerArgumentRange(ulong Minimum, ulong Maximum);
 
 /// <summary>The name of an import: its module and its name, written <c>module.name</c>.</summary>
 /// <param name="Module">The import module, such as <c>extism:host/env</c>.</param>

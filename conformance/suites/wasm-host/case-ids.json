@@ -2,7 +2,7 @@
   "suite": "wasm-host",
   "corpus": {
     "path": "tests/Fixtures/MepWasm/wasm-host.cases.json",
-    "commit": "8d678d2b888a6d5eaa075172a020f7ebef06fc72",
+    "commit": "8b3c4c35430dfb313cf439e4df1a9c0bb7e1834d",
     "sha256": "e10040a734ed484d11675b3e26fc451d7880615eaab5012c90203a60e4f5a7ab"
   },
   "cases": [

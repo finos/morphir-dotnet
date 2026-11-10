@@ -269,8 +269,9 @@ unchanged, keeps at most 64 KiB, counts the rest as dropped, and moves the manag
 
 ## The contract is read, not copied
 
-The import table, the bounds, the refusal codes and the host-function policy come from `wasm-execution-profiles.json`.
-`WasmHostPolicy` reads the policy's numbers (the store and cache limits, the log level, the two errnos) and checks
+The import table, the bounds, the refusal codes, the host-function policy and the range of the worker's
+`--instructions` (`WorkerInstructionRange`, from `worker.arguments`) come from `wasm-execution-profiles.json`. A range
+on any other worker argument fails the load, since no worker applies one. `WasmHostPolicy` reads the policy's numbers (the store and cache limits, the log level, the two errnos) and checks
 that every other policy leaf names the behaviour this library implements, so a pin that changes a behaviour fails to
 load. That file is
 embedded from `tests/Fixtures/MepWasm/`, where it is pinned unchanged (see that directory's `PROVENANCE.md`),

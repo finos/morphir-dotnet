@@ -118,6 +118,30 @@ public sealed class ExtensionWorkerArgumentsTests
     }
 
     [Test]
+    public void The_instruction_budget_accepts_exactly_the_range_the_contract_states()
+    {
+        var range = ContractArgument("--instructions").GetProperty("range");
+        var (minimum, maximum) = (range[0].GetUInt64(), range[1].GetUInt64());
+        string Text(ulong value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        Serve([.. Required(), "--instructions", Text(minimum)]).Instructions.Should().Be(minimum);
+        Serve([.. Required(), "--instructions", Text(maximum)]).Instructions.Should().Be(maximum);
+        Invalid([.. Required(), "--instructions", Text(minimum - 1)]).Should().Contain($"from {Text(minimum)} to {Text(maximum)}");
+        Invalid([.. Required(), "--instructions", Text(maximum + 1)]).Should().Contain($"from {Text(minimum)} to {Text(maximum)}");
+        WorkerInvocation.HelpText.Should().Contain($"from {Text(minimum)} to").And.Contain(Text(maximum));
+    }
+
+    [Test]
+    public void Only_the_instruction_budget_has_a_range_in_the_contract()
+    {
+        // The other ranges (frame limits, --call-ms, --memory-pages) are this host's own until the contract states them.
+        ContractWorker().GetProperty("arguments").EnumerateArray()
+            .Where(argument => argument.TryGetProperty("range", out _))
+            .Select(argument => argument.GetProperty("name").GetString())
+            .Should().Equal("--instructions");
+    }
+
+    [Test]
     [Arguments("--abi")]
     [Arguments("--module")]
     [Arguments("--build-identity")]

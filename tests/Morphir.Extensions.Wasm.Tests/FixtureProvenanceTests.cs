@@ -9,7 +9,7 @@ namespace Morphir.Extensions.Wasm.Tests;
 /// </summary>
 public partial class FixtureProvenanceTests
 {
-    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 8d678d2b (MepWasmFixtures.PinnedCommit).
+    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 8b3c4c35 (MepWasmFixtures.PinnedCommit).
     // Change them only when the pin moves; a smaller number here means the corpus was truncated.
     private const int PinnedCaseCount = 59;
     private const int PinnedModuleCount = 51;

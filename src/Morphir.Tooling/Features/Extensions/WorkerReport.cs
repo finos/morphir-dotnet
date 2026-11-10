@@ -71,7 +71,7 @@ public sealed class WorkerReport
 
                 writer.WriteEndObject();
             },
-            () => $"serving {abi} module {moduleSha256} on {WasmRuntimeIdentity.Engine}");
+            () => $"serving {abi} module {moduleSha256}");
 
     /// <summary>One guest output, as text.</summary>
     public void Output(string text) =>
