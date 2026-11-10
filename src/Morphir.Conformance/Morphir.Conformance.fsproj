@@ -33,6 +33,9 @@
     <Compile Include="WasmHost/HostRunner.fs" />
     <Compile Include="WasmHost/HostReport.fs" />
     <Compile Include="WasmHost/Commands.fs" />
+    <Compile Include="GuestKit/Kit.fs" />
+    <Compile Include="GuestKit/IrComparison.fs" />
+    <Compile Include="GuestKit/ModelTier.fs" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />
@@ -40,5 +43,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
+    <!-- The generic guest kit's model-tier runner drives a HostSession (task 3.5). -->
+    <ProjectReference Include="..\Morphir.Mep\Morphir.Mep.fsproj" />
   </ItemGroup>
 </Project>
