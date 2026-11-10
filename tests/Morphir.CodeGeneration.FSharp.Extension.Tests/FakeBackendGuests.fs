@@ -91,6 +91,16 @@ let run (scenario: string) =
                     output.Flush()
                     Environment.Exit 3
                     Task.FromResult(Ok(result "[]"))))
+        // Blocks synchronously in the generateModel handler. The guest dispatches on its read loop, so it never
+        // reads shutdown or exit either. It writes its process id to stderr first.
+        | "blocks-read-loop" ->
+            eprintfn "fake-guest-pid=%d" Environment.ProcessId
+
+            guestWith
+                [ json4 ]
+                (Handlers.raw (fun _ _ ->
+                    Thread.Sleep Timeout.Infinite
+                    TaskCompletionSource<Result<JsonElement, RpcError>>().Task))
         // Never answers generateModel.
         | "never-answers" ->
             guestWith [ json4 ] (Handlers.raw (fun _ _ -> TaskCompletionSource<Result<JsonElement, RpcError>>().Task))

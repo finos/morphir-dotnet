@@ -153,7 +153,7 @@ session admits the language, the file extension of each document, the number of 
 version. The guest does not claim `.fsi` signature files.
 
 The command checks the model envelope of the result (base64, length and SHA-256) before it reads the IR.
-It always ends the session with `shutdown` and `exit`, or stops the process tree after a deadline. The
+When the run ends, it sends `shutdown` and then `exit`. A guest that does not answer `shutdown`, or does not take `exit`, within the deadline (for example a guest that is still busy or no longer reads its input) has its whole process tree stopped. So a request that times out ends within about two deadlines: one for the request and one for the end of the session. The
 report names the frontend with its transport, for example
 `org.finos.morphir.fsharp-frontend (mep)`. For the same documents, the guest gives the same IR and the same
 diagnostics as the in-process frontend. A `.fsi` signature file is the exception: no frontend in the

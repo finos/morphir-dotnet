@@ -344,6 +344,49 @@ let tests =
                   dispose frontend
 
               Expect.isTrue frontend.HasExited "The guest process has exited after dispose"
+
+          testCase "A guest that blocks its read loop: compile is a timeout, and disposal stops the process within about two deadlines"
+          <| fun _ ->
+              // The guest never reads shutdown or exit, so disposal must not wait for it beyond its deadline.
+              let deadline = TimeSpan.FromSeconds 3.0
+              let writer = new StringWriter()
+
+              let options =
+                  { fakeOptions "blocks-read-loop" with
+                      Deadline = deadline
+                      Stderr = TextWriter.Synchronized writer }
+
+              let watch = Stopwatch.StartNew()
+              let frontend = connect options
+
+              try
+                  match (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend, CancellationToken.None).GetAwaiter().GetResult() with
+                  | FrontendOutcome.Failed failure ->
+                      Expect.equal
+                          (failure.Diagnostics |> Seq.map (fun diagnostic -> diagnostic.CodeOrNull |> string) |> List.ofSeq)
+                          [ "extension.timeout" ]
+                          "the code"
+                  | completed -> failtest $"Expected a timeout: {completed}"
+              finally
+                  dispose frontend
+
+              watch.Stop()
+              Expect.isLessThan watch.Elapsed (deadline + deadline + TimeSpan.FromSeconds 10.0) "compile and disposal end within about two deadlines"
+
+              let id =
+                  match Text.RegularExpressions.Regex.Match(writer.ToString(), @"fake-guest-pid=(\d+)") with
+                  | found when found.Success -> int found.Groups[1].Value
+                  | _ -> failtest $"The guest wrote its process id: {writer}"
+
+              let running =
+                  try
+                      use guestProcess = Process.GetProcessById id
+                      not guestProcess.HasExited
+                  with :? ArgumentException ->
+                      false
+
+              Expect.isFalse running $"The guest process {id} is gone after dispose"
+
           testCase "An executable that does not exist is an unavailable extension"
           <| fun _ ->
               let options =

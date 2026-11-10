@@ -212,12 +212,25 @@ type MepGuestProcess
 
                 let connection = session.RunAsync CancellationToken.None
 
+                // A start that fails stops the process tree, waits for the stderr pump, and disposes the child, so
+                // no process, pipe or pump outlives the failure.
                 let stop () =
-                    try
-                        if not child.HasExited then
-                            child.Kill true
-                    with _ ->
-                        ()
+                    task {
+                        try
+                            if not child.HasExited then
+                                child.Kill true
+
+                            do! child.WaitForExitAsync()
+                        with _ ->
+                            ()
+
+                        try
+                            do! pump
+                        with _ ->
+                            ()
+
+                        child.Dispose()
+                    }
 
                 use deadline = CancellationTokenSource.CreateLinkedTokenSource cancellation
                 deadline.CancelAfter options.Deadline
@@ -226,7 +239,7 @@ type MepGuestProcess
                 let! waited = wait (initialize :> Task) connection deadline.Token
 
                 if waited = Waited.ConnectionEnded then
-                    stop ()
+                    do! stop ()
 
                     return
                         Error(
@@ -234,7 +247,7 @@ type MepGuestProcess
                                 $"Extension {options.Executable} ended the connection before initialize: {connection.Result}"
                         )
                 elif waited = Waited.DeadlinePassed then
-                    stop ()
+                    do! stop ()
                     cancellation.ThrowIfCancellationRequested()
                     return Error(MepGuestFailure.Unavailable $"Extension {options.Executable} did not initialize within {options.Deadline}.")
                 else
@@ -249,7 +262,7 @@ type MepGuestProcess
 
                     match initialized with
                     | Error message ->
-                        stop ()
+                        do! stop ()
                         return Error(MepGuestFailure.Unavailable message)
                     | Ok negotiated -> return Ok(new MepGuestProcess(options, child, session, connection, negotiated, pump))
         }
@@ -333,9 +346,16 @@ type MepGuestProcess
                         try
                             use deadline = new CancellationTokenSource(options.Deadline)
 
+                            // Neither shutdown nor exit completes when the guest does not read them, for example
+                            // when a handler blocks its read loop: a cancelled token only sends $/cancelRequest. So
+                            // both wait for the deadline too, and after it the process tree is stopped.
                             if not connection.IsCompleted then
-                                let! _ = session.ShutdownAsync deadline.Token
-                                do! session.ExitAsync()
+                                let shutdown = session.ShutdownAsync deadline.Token
+                                let! answered = wait (shutdown :> Task) connection deadline.Token
+
+                                if answered = Waited.Reply then
+                                    let! _ = wait (session.ExitAsync()) connection deadline.Token
+                                    ()
 
                             // The end of its input also ends a guest whose connection already failed.
                             try

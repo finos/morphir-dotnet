@@ -118,12 +118,52 @@ let private messages (failure: GenerationFailure) =
 
 let private builtIns () : IGenerationBackend list = [ FSharpGenerationBackend(); CSharpGenerationBackend() ]
 
+/// True when the process whose id a fake guest wrote to stderr (fake-guest-pid=N) no longer runs.
+let private guestGone (stderrText: string) =
+    match Text.RegularExpressions.Regex.Match(stderrText, @"fake-guest-pid=(\d+)") with
+    | found when found.Success ->
+        try
+            use guestProcess = Diagnostics.Process.GetProcessById(int found.Groups[1].Value)
+            guestProcess.HasExited
+        with :? ArgumentException ->
+            true
+    | _ -> failtest $"The guest wrote its process id: {stderrText}"
+
+/// A scripted guest with its own stderr writer.
+let private fakeGuestWith (scenario: string) (deadline: TimeSpan) (writer: TextWriter) =
+    MepBackendOptions(
+        dotnet,
+        [| Path.Combine(AppContext.BaseDirectory, "Morphir.CodeGeneration.FSharp.Extension.Tests.dll"); "--fake-backend-guest"; scenario |],
+        TargetId.Create "fsharp",
+        Deadline = deadline,
+        Stderr = TextWriter.Synchronized writer,
+        WorkingDirectory = guestWork.Value.Work
+    )
+
 [<Tests>]
 let tests =
     testSequenced
     <| testList
         "MEP backend host adapter"
-        [ testCase "The adapter names the guest by its own identity and declares the agreed tuples as capabilities"
+        [ testCase "A guest that blocks its read loop: generate is a timeout, and disposal stops the process within about two deadlines"
+          <| fun _ ->
+              // The guest never reads shutdown or exit, so disposal must not wait for it beyond its deadline.
+              let deadline = TimeSpan.FromSeconds 3.0
+              let writer = new StringWriter()
+              let watch = Diagnostics.Stopwatch.StartNew()
+              let backend = connect (fakeGuestWith "blocks-read-loop" deadline writer)
+
+              try
+                  let failure = failureOf (generateWith backend (load (irFixture "daily-rate-v4.json")) [])
+                  Expect.contains (codes failure) "extension.timeout" "the code"
+              finally
+                  dispose backend
+
+              watch.Stop()
+              Expect.isLessThan watch.Elapsed (deadline + deadline + TimeSpan.FromSeconds 10.0) "generate and disposal end within about two deadlines"
+              Expect.isTrue (guestGone (writer.ToString())) "The guest process is gone after dispose"
+
+          testCase "The adapter names the guest by its own identity and declares the agreed tuples as capabilities"
           <| fun _ ->
               let backend = connect (realGuest ())
 

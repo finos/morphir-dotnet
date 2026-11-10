@@ -112,7 +112,7 @@ profile `morphir-ir`, codec `morphir-json`, envelope `0.1.0-draft.1`, IR `4.0.0`
 is sent in the `4.0.0` tuple and a classic version 3 model in the `3.0.0` tuple, as the JSON bytes of the
 input file. Other versions and Ion input are not sent to an extension. The command checks every artifact
 path that the guest returns, keeps the guest's artifact order, and publishes the files as for a built-in
-backend. It always ends the session with `shutdown` and `exit`, or stops the process tree after a deadline.
+backend. When the run ends, it sends `shutdown` and then `exit`. A guest that does not answer `shutdown`, or does not take `exit`, within the deadline (for example a guest that is still busy or no longer reads its input) has its whole process tree stopped. So a request that times out ends within about two deadlines: one for the request and one for the end of the session.
 
 The report names the backend that ran by its own extension id, and adds `backendTransport` (`mep`) and
 `backendVersion`, the version that the extension gives. A report of a built-in backend has neither member.

@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build: `src/Morphir.Managed` fails to build with `PublishAot` or `PublishTrimmed`, and a project whose references resolve two different `morphir.dll` assemblies (`src/Morphir` and `src/Morphir.Managed`) fails to build
 
 ### Fixed
-- `compile --extension`: a frontend guest that never answers `compileModel` now fails with `extension.timeout` at the deadline; the host no longer waits indefinitely
+- `compile --extension`: a frontend guest that never answers `compileModel` now fails with `extension.timeout` at the deadline, and a guest that does not answer `shutdown` or take `exit` within the deadline (for example one whose handler blocks its read loop) has its process tree stopped. Before, the host could wait indefinitely in both cases. The same holds for `generate --extension`, so a timed-out request ends within about two deadlines
+- A frontend or backend guest that fails to start or initialize no longer leaves its stderr reader or process handle behind
 
 ## [0.4.0-alpha.3] - 2026-11-09
 

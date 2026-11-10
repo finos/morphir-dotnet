@@ -80,6 +80,22 @@ let private neverAnswers () =
           Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
     )
 
+/// A guest whose compileModel handler blocks synchronously before it returns its task. The guest dispatches on its
+/// read loop, so it never reads shutdown or exit either. It writes its process id to stderr first.
+let private blocksReadLoop () =
+    eprintfn "fake-guest-pid=%d" Environment.ProcessId
+
+    let handler =
+        Handlers.raw (fun _ _ ->
+            Thread.Sleep Timeout.Infinite
+            TaskCompletionSource<Result<Text.Json.JsonElement, RpcError>>().Task)
+
+    Guest(
+        { Claims = FSharpGuest.claims
+          Capabilities = FSharpGuest.capabilities
+          Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
+    )
+
 /// Runs a scripted guest on stdin and stdout until the session ends.
 let run (scenario: string) =
     let output = Console.OpenStandardOutput()
@@ -92,6 +108,7 @@ let run (scenario: string) =
         | "ion-only" -> ionOnly ()
         | "stdout-log" -> stdoutLog output
         | "never-answers" -> neverAnswers ()
+        | "blocks-read-loop" -> blocksReadLoop ()
         | other -> failwith $"Unknown fake guest scenario {other}"
 
     guest.RunAsync(input, output, CancellationToken.None).GetAwaiter().GetResult() |> ignore
