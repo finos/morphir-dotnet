@@ -56,10 +56,13 @@ public class EntryPointGuardTests
         var result = await MsBuild(Path.Combine(TestFixture.GetRepositoryRoot(), ManagedProject), AotGuard,
             Properties(Morphir.Build.Helpers.Deployment.NativeAot.BuildProperties));
         result.ExitCode.Should().NotBe(0, result.CombinedOutput);
+        result.CombinedOutput.Should().Contain("src/Morphir.Managed holds FSharp.Compiler.Service and cannot be published with PublishAot or PublishTrimmed")
+            .And.Contain("PublishAot='true'").And.Contain("Publish src/Morphir for Native AOT", "the guard, not some other failure, refuses the profile");
     }
 
     private static string[] Properties(IReadOnlyDictionary<string, string> properties) =>
         [.. properties.Select(property => $"-p:{property.Key}={property.Value}")];
+
     [Test]
     public async Task TwoMorphirAssembliesInOneProjectFail()
     {
