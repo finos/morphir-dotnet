@@ -50,6 +50,8 @@ public static class Program
                 return Cases.Run(args[1], signalsBasedTraps);
             case "bench":
                 return Cases.Bench(signalsBasedTraps);
+            case "latency":
+                return Cases.Latency(signalsBasedTraps);
             case "pe" when args.Length >= 2:
                 foreach (var file in args.Skip(1))
                 {
@@ -286,19 +288,76 @@ static class Cases
         return outcome is HandleOutcome.Failed ? 0 : 3;
     }
 
-    /// <summary>A memory-heavy loop with the product's fuel and epoch settings, to price explicit trap checks.</summary>
+    /// <summary>
+    /// How long a spinning guest runs after its call is cancelled 300 ms in: through the product's SessionStore (the
+    /// cancellation test's guest and path), ten times, one session each. The epoch callback is what stops it.
+    /// </summary>
+    public static int Latency(bool signalsBasedTraps)
+    {
+        if (!signalsBasedTraps)
+        {
+            Environment.SetEnvironmentVariable("MORPHIR_WASM_EXPERIMENT_SIGNALS_BASED_TRAPS", "false");
+        }
+
+        using var stream = typeof(Program).Assembly.GetManifestResourceStream("extism-spin.wasm")!;
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        var load = Stopwatch.StartNew();
+        var guest = WasmEngine.Shared.Load(buffer.ToArray()).Match(
+            compiled => WasmHost.Admit(compiled, WasmAbi.ExtismKernel).Match(admitted => admitted, refused => throw new InvalidOperationException(refused.Message)),
+            refused => throw new InvalidOperationException(refused.Message),
+            invalid => throw new InvalidOperationException(invalid));
+        load.Stop();
+        var after = new List<double>();
+        var open = new List<double>();
+        for (var round = 0; round < 10; round++)
+        {
+            var opening = Stopwatch.StartNew();
+            using var session = SessionStore.Open(guest, SessionLimits.Default with { InstructionBudget = ulong.MaxValue }).Match(
+                opened => opened,
+                failure => throw new InvalidOperationException(failure.Message));
+            opening.Stop();
+            open.Add(opening.Elapsed.TotalMilliseconds);
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+            var clock = Stopwatch.StartNew();
+            var outcome = session.CallHandle("{}"u8, cancellation.Token);
+            clock.Stop();
+            if (outcome is not HandleOutcome.Failed { Failure.Kind: GuestFailureKind.Cancelled })
+            {
+                Console.WriteLine($"latency: round {round} did not end as cancelled");
+                return 3;
+            }
+
+            after.Add(clock.Elapsed.TotalMilliseconds - 300);
+        }
+
+        after.Sort();
+        Console.WriteLine($"latency: signals-based traps {(signalsBasedTraps ? "on" : "off")}; load and compile {load.Elapsed.TotalMilliseconds:0} ms; " +
+            $"open median {open.OrderBy(x => x).ElementAt(5):0.0} ms; ran after the cancel: median {after[5]:0.0} ms, max {after[^1]:0.0} ms");
+        return 0;
+    }
+
+    /// <summary>A memory-heavy loop with the product's fuel and epoch settings, to price explicit trap checks. The
+    /// memory starts at one page and grows to sixteen, and the addresses come from a generator, so the compiler cannot
+    /// prove an access in bounds and leave its check out.</summary>
     public static int Bench(bool signalsBasedTraps)
     {
         const string text = """
-            (module (memory 16)
+            (module (memory 1)
               (func (export "run") (param $n i32) (result i32)
-                (local $i i32) (local $acc i32)
+                (local $i i32) (local $acc i32) (local $x i32)
+                (drop (memory.grow (i32.const 15)))
+                (local.set $x (i32.const 12345))
                 (loop $l
-                  (i32.store (i32.and (i32.mul (local.get $i) (i32.const 4)) (i32.const 0xffffc)) (local.get $acc))
+                  (local.set $x (i32.add (i32.mul (local.get $x) (i32.const 1103515245)) (i32.const 12345)))
+                  (i32.store (i32.and (local.get $x) (i32.const 0xffffc)) (local.get $acc))
                   (local.set $acc (i32.add (local.get $acc)
-                    (i32.load (i32.and (i32.mul (local.get $i) (i32.const 8)) (i32.const 0xffffc)))))
+                    (i32.load (i32.and (i32.shr_u (local.get $x) (i32.const 7)) (i32.const 0xffffc)))))
+                  (local.set $acc (i32.xor (local.get $acc)
+                    (i32.load (i32.and (i32.shr_u (local.get $x) (i32.const 3)) (i32.const 0xffffc)))))
                   (local.set $acc (i32.add (local.get $acc)
-                    (i32.div_u (local.get $i) (i32.or (local.get $acc) (i32.const 1)))))
+                    (i32.load8_u (i32.and (i32.shr_u (local.get $x) (i32.const 11)) (i32.const 0xfffff)))))
+                  (i32.store8 (i32.and (local.get $acc) (i32.const 0xfffff)) (local.get $i))
                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
                   (br_if $l (i32.lt_u (local.get $i) (local.get $n))))
                 (local.get $acc)))
