@@ -105,7 +105,14 @@ public sealed class MckRouting : IAsyncDisposable
     }
 
     /// <summary>Whether the process with <paramref name="pid"/> ends within <paramref name="timeout"/>.</summary>
-    public static async Task<bool> EndsWithinAsync(int pid, TimeSpan timeout)
+    public static async Task<bool> EndsWithinAsync(int pid, TimeSpan timeout) => (await ObserveEndAsync(pid, timeout)).Ended;
+
+    /// <summary>
+    /// Whether the process with <paramref name="pid"/> ends within <paramref name="timeout"/>, and, when it does not,
+    /// what the operating system reports about it and its ancestors (state, parent, command), taken before it is
+    /// killed for cleanup.
+    /// </summary>
+    public static async Task<(bool Ended, string Evidence)> ObserveEndAsync(int pid, TimeSpan timeout)
     {
         Process process;
         try
@@ -114,7 +121,7 @@ public sealed class MckRouting : IAsyncDisposable
         }
         catch (ArgumentException)
         {
-            return true;
+            return (true, $"pid {pid}: not found");
         }
 
         using (process)
@@ -123,14 +130,89 @@ public sealed class MckRouting : IAsyncDisposable
             try
             {
                 await process.WaitForExitAsync(wait.Token);
-                return true;
+                return (true, $"pid {pid}: exited");
             }
             catch (OperationCanceledException)
             {
+                var evidence = await DescribeAsync(pid);
                 process.Kill(entireProcessTree: true);
-                return false;
+                return (false, evidence);
             }
         }
+    }
+
+    /// <summary>
+    /// The process and its ancestors as the operating system reports them: on Linux from <c>/proc</c>, on macOS from
+    /// <c>/bin/ps</c>. Each entry has the process id, its state (Z is a zombie: exited, not yet reaped by its parent),
+    /// its parent and its command.
+    /// </summary>
+    public static async Task<string> DescribeAsync(int pid)
+    {
+        var entries = new List<string>();
+        var current = pid;
+        for (var depth = 0; depth < 16 && current > 0; depth++)
+        {
+            var (entry, parent) = OperatingSystem.IsLinux() ? DescribeLinux(current)
+                : OperatingSystem.IsMacOS() ? await DescribeMacOsAsync(current)
+                : ($"pid {current}: still running", 0);
+            entries.Add(entry);
+            if (parent <= 0 || current == 1) break;
+            current = parent;
+        }
+
+        return string.Join(" <- ", entries);
+    }
+
+    private static (string Entry, int Parent) DescribeLinux(int pid)
+    {
+        string stat;
+        try
+        {
+            stat = File.ReadAllText($"/proc/{pid}/stat");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return ($"pid {pid}: no /proc entry ({exception.GetType().Name})", 0);
+        }
+
+        // comm is in parentheses and can hold spaces; the fields after it start with state and ppid.
+        var close = stat.LastIndexOf(')');
+        var comm = stat[(stat.IndexOf('(') + 1)..close];
+        var fields = stat[(close + 2)..].Split(' ');
+        var parent = int.Parse(fields[1]);
+        string command, descriptors;
+        try
+        {
+            command = File.ReadAllText($"/proc/{pid}/cmdline").Replace('\0', ' ').Trim();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            command = "?";
+        }
+
+        try
+        {
+            descriptors = Directory.GetFileSystemEntries($"/proc/{pid}/fd").Length.ToString();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            descriptors = "?";
+        }
+
+        if (command.Length > 160) command = command[..160] + "...";
+        return ($"pid {pid} state {fields[0]} ppid {parent} fds {descriptors} comm {comm} cmd [{command}]", parent);
+    }
+
+    private static async Task<(string Entry, int Parent)> DescribeMacOsAsync(int pid)
+    {
+        var result = await ChildProcess.RunAsync(ChildProcess.StartInfo("/bin/ps", "-o", "pid=,ppid=,stat=,command=", "-p", pid.ToString()),
+            TimeSpan.FromSeconds(10));
+        var line = result.StandardOutput.Trim();
+        if (line.Length == 0) return ($"pid {pid}: not listed by ps", 0);
+        var parts = line.Split(' ', 4, StringSplitOptions.RemoveEmptyEntries);
+        var parent = parts.Length > 1 && int.TryParse(parts[1], out var ppid) ? ppid : 0;
+        if (line.Length > 200) line = line[..200] + "...";
+        return ($"ps [{line}]", parent);
     }
 
     public async ValueTask DisposeAsync() => await Sandbox.DisposeAsync();

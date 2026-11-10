@@ -195,17 +195,23 @@ public sealed class MckRoutingTests
         var start = routing.EntryPoint(entryPoint, routing.Tools, "mck", "wait");
         start.Environment["MCK_STUB_PIDS"] = pids;
         var cli = 0;
-        var ended = (Tool: false, Grandchild: false);
+        var before = "";
+        (bool Ended, string Evidence) tool = default, grandchild = default;
 
         var result = await ChildProcess.ConverseAsync(start, Timeout, async (_, _, token) =>
         {
-            var (tool, grandchild) = await MckRouting.WaitForPidsAsync(pids, token);
+            var (toolPid, grandchildPid) = await MckRouting.WaitForPidsAsync(pids, token);
+            before = await MckRouting.DescribeAsync(grandchildPid);
             SendSignal(cli, SigTerm).Should().Be(0);
-            ended = (await MckRouting.EndsWithinAsync(tool, TimeSpan.FromSeconds(20)), await MckRouting.EndsWithinAsync(grandchild, TimeSpan.FromSeconds(20)));
+            tool = await MckRouting.ObserveEndAsync(toolPid, TimeSpan.FromSeconds(20));
+            grandchild = await MckRouting.ObserveEndAsync(grandchildPid, TimeSpan.FromSeconds(20));
         }, started: pid => cli = pid);
 
-        ended.Tool.Should().BeTrue();
-        ended.Grandchild.Should().BeTrue();
+        // The evidence is the process state and ancestry (Linux /proc, macOS ps) of a process that did not end, taken
+        // before its cleanup kill, with the grandchild's ancestry before SIGTERM.
+        var cliReport = $"CLI exit {result.ExitCode}, output: {result.CombinedOutput}";
+        tool.Ended.Should().BeTrue($"the tool must stop; before SIGTERM: {before}; after: {tool.Evidence}; {cliReport}");
+        grandchild.Ended.Should().BeTrue($"the tool's child must stop; before SIGTERM: {before}; after: {grandchild.Evidence}; {cliReport}");
         result.ExitCode.Should().Be(143, result.CombinedOutput);
     }
 

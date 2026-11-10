@@ -80,15 +80,19 @@ public static class MorphirApplication
     }
 
     /// <summary>
-    /// The 'mck' command, so that help lists it. <see cref="Run"/> routes <c>mck</c> before the command tree parses;
-    /// this action routes the same way when an app built with <see cref="CreateApp"/> runs <c>mck</c>.
+    /// The 'mck' command, mainly so that help lists it. <see cref="Run"/>, which every entry point calls, routes
+    /// <c>mck</c> before the command tree is built, and only that path passes the arguments through unchanged.
+    /// When an app built with <see cref="CreateApp"/> parses <c>mck</c> itself, System.CommandLine has already applied
+    /// its own processing: <c>--help</c> or <c>-h</c> after <c>mck</c> shows this command's help instead of reaching the
+    /// tool, and an <c>@file</c> argument is expanded as a response file. The tokens left after <c>mck</c> are then
+    /// passed on in order.
     /// </summary>
     private static System.CommandLine.Command CreateMckCommand()
     {
         var arguments = new System.CommandLine.Argument<string[]>("arguments")
         {
             Arity = System.CommandLine.ArgumentArity.ZeroOrMore,
-            Description = "The arguments for morphir-mck, passed unchanged",
+            Description = "The arguments for morphir-mck. The morphir command passes them on unchanged",
         };
         var mck = new System.CommandLine.Command(MckTool.Command,
             "Run the separately installed Morphir Compatibility Kit (morphir-mck) with the arguments that follow")
