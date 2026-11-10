@@ -241,3 +241,69 @@ let servedBytesTests =
         testCase "a source that throws for a host release" (fun () ->
             Expect.equal (checkServing releaseTarget (fun () -> raise (System.IO.IOException "the source failed"))) "repository_unavailable @ hosts[0].source" "the outcome")
     ]
+/// A tool-release record of the tool <c>tool</c> at a target, with its members.
+let private recordAt (target: string) (members: (string * Value) list) =
+    target,
+    { Length = 1UL
+      Sha256 = (match Sha256.tryParse (String.replicate 64 "a") with Ok s -> s | Error _ -> failwith "sha")
+      Custom = Some(Value.Object [ "morphir", Value.Object members ]) }
+
+let private members (version: string) (channels: string list) (status: string) =
+    [ "schemaVersion", Value.Number "1"
+      "kind", str "tool-release"
+      "toolId", str "tool"
+      "version", str version
+      "channels", Value.Array(channels |> List.map str)
+      "status", str status
+      "compatibility", Value.Object [ "morphirCli", str ">=0.4.0" ]
+      "platforms", Value.Array [ Value.Object [ "os", str "windows"; "arch", str "x86_64" ] ] ]
+
+/// A record at the layout's path for its version.
+let private placed (version: string) (channels: string list) (status: string) =
+    recordAt $"releases/tool/{version}.json" (members version channels status)
+
+let private tool = match ToolId.tryParse "tool" with Ok id -> id | Error _ -> failwith "tool"
+let private version (text: string) = match SemVer.tryParse text with Ok v -> v | Error _ -> failwith text
+let private onChannel (text: string) = match Channel.tryParse text with Ok c -> ToolRequest.OnChannel c | Error _ -> failwith text
+
+/// The selection as "target = version", or the refusal's code.
+let private resolveIn (records: (string * AuthenticatedTarget) list) (request: ToolRequest) =
+    match ToolResolver.resolve (Map.ofList records) tool request { Os = "windows"; Arch = "x86_64" } (version "0.4.0") with
+    | Ok selection -> $"{selection.Target} = {selection.Version.Text}"
+    | Error refusal -> Code.name refusal.Code
+
+[<Tests>]
+let releasePathTests =
+    // Review of #583, A5: a record is a release record of the layout only at releases/<tool-id>/<exact-version>.json.
+    testList "The resolver reads release records only at their layout path" [
+        testCase "a record at another path is ignored" (fun () ->
+            let records =
+                [ placed "1.0.0" [ "stable" ] "active"
+                  recordAt "elsewhere/tool/1.1.0.json" (members "1.1.0" [ "stable" ] "active")
+                  recordAt "releases/other/1.2.0.json" (members "1.2.0" [ "stable" ] "active")
+                  recordAt "releases/tool/1.3.0/release.json" (members "1.3.0" [ "stable" ] "active") ]
+
+            Expect.equal (resolveIn records (onChannel "stable")) "releases/tool/1.0.0.json = 1.0.0" "the channel"
+            Expect.equal (resolveIn records (ToolRequest.Exact(version "1.1.0"))) "no_compatible_release" "exact")
+
+        testCase "a record whose path names another version is ignored" (fun () ->
+            let records =
+                [ placed "1.0.0" [ "stable" ] "active"
+                  recordAt "releases/tool/9.9.9.json" (members "1.1.0" [ "stable" ] "active") ]
+
+            Expect.equal (resolveIn records (onChannel "stable")) "releases/tool/1.0.0.json = 1.0.0" "the channel")
+
+        testCase "a misplaced record does not make a version ambiguous" (fun () ->
+            let records =
+                [ placed "1.0.0" [ "stable" ] "active"
+                  recordAt "mirror/releases/tool/1.0.0.json" (members "1.0.0" [ "stable" ] "active") ]
+
+            Expect.equal (resolveIn records (onChannel "stable")) "releases/tool/1.0.0.json = 1.0.0" "the channel")
+
+        testCase "a malformed record at its layout path is still refused" (fun () ->
+            let records =
+                [ placed "1.0.0" [ "stable" ] "active"
+                  recordAt "releases/tool/1.1.0.json" (members "1.1.0" [ "stable" ] "retired") ]
+
+            Expect.equal (resolveIn records (onChannel "stable")) "release_descriptor_mismatch" "malformed")
+    ]

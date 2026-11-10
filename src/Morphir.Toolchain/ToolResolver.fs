@@ -114,16 +114,36 @@ module ToolResolver =
                   Platforms = platforms }
         | _ -> None
 
-    /// <summary>The release states of one tool: every authenticated target whose <c>custom.morphir.kind</c> is
-    /// <c>tool-release</c> for the tool id. A malformed state of the tool, or two releases of one SemVer precedence
-    /// (build metadata ignored), is <c>release_descriptor_mismatch</c>; targets of other kinds are ignored, as a v1
-    /// client ignores every kind it does not define.</summary>
+    /// <summary>The version segment of a target at the layout's release path for the tool,
+    /// <c>releases/&lt;tool-id&gt;/&lt;exact-version&gt;.json</c>, or None for any other target.</summary>
+    let private releaseSegment (toolId: ToolId) (target: string) =
+        let prefix = $"releases/{toolId.Text}/"
+        let suffix = ".json"
+
+        if target.StartsWith(prefix, System.StringComparison.Ordinal) && target.EndsWith(suffix, System.StringComparison.Ordinal) then
+            let segment = target.Substring(prefix.Length, target.Length - prefix.Length - suffix.Length)
+            if segment.Length > 0 && not (segment.Contains '/') then Some segment else None
+        else
+            None
+
+    /// <summary>The release states of one tool: every authenticated target at the layout's release path,
+    /// <c>releases/&lt;tool-id&gt;/&lt;exact-version&gt;.json</c>, whose <c>custom.morphir.kind</c> is
+    /// <c>tool-release</c> for the tool id, and whose stated version is the path's. A malformed state at that path, or
+    /// two releases of one SemVer precedence (build metadata ignored), is <c>release_descriptor_mismatch</c>; targets of
+    /// other kinds are ignored, as a v1 client ignores every kind it does not define.</summary>
+    /// <remarks>Provisional: a <c>tool-release</c> record at another path, or at a path that names another version
+    /// than it states, is ignored, not refused (review of #583, A5). The repository layout defines release descriptor
+    /// targets by that path, and the host binding check reads a release only there, so the resolver and the binding
+    /// check read one set of records. The profile defines no refusal for a misplaced record, and refusing would let
+    /// one stray target deny every resolution of the tool.</remarks>
     let releases (targets: Map<string, AuthenticatedTarget>) (toolId: ToolId) : Result<ToolReleaseState list, TargetRefusal> =
         let ofTool =
             [ for KeyValue(target, entry) in targets do
-                  match entry.Custom |> Option.bind (member' "morphir") with
-                  | Some morphir when text "kind" morphir = Some "tool-release" && text "toolId" morphir = Some toolId.Text ->
-                      yield state target morphir
+                  match entry.Custom |> Option.bind (member' "morphir"), releaseSegment toolId target with
+                  | Some morphir, Some segment when text "kind" morphir = Some "tool-release" && text "toolId" morphir = Some toolId.Text ->
+                      match text "version" morphir with
+                      | Some stated when stated <> segment -> ()
+                      | _ -> yield state target morphir
                   | _ -> () ]
 
         if ofTool |> List.exists Option.isNone then
