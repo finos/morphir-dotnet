@@ -17,8 +17,10 @@ The generator has two deliveries. Both run the same generator code.
   `dotnet-morphir` hosts. It is the default: `morphir generate --target fsharp`
   uses it when no backend extension is selected. It reads JSON and Ion models. The managed host
   `dotnet-morphir` formats the generated source with Fantomas. The Native AOT
-  `morphir` cannot run Fantomas, so it writes the same declarations
-  unformatted: its files differ from the extension's in formatting.
+  `morphir` cannot run Fantomas, so by default it writes the same declarations
+  unformatted, says so on stderr, and its files differ from the extension's in
+  formatting. With `--option format=false` every host writes the same unformatted
+  bytes; see [Unformatted output](#unformatted-output).
 - **MEP extension.** `morphir-fsharp-backend` is a Morphir Extension Protocol
   (MEP) `0.2.0-draft.1` guest with its own extension id,
   `org.finos.morphir.fsharp-backend`. It is for hosts that do not have the
@@ -79,8 +81,8 @@ The guest refuses a request with `-32602`, and generates nothing, when:
   (`Model admission refused: digest_mismatch`);
 - it requires a guarantee (`Model admission refused: unsupported_guarantee`);
 - the target is not `fsharp`;
-- an option is not the Boolean `optimize`, which the built-in backend also
-  accepts and which is true when absent;
+- an option is not the Boolean `optimize` or `format`, which the built-in
+  backend also accepts and which are true when absent;
 - the payload is not JSON IR of the input tuple's IR version.
 
 Without an agreed `generateModel` tuple, the request is `-32013`. A model that
@@ -93,8 +95,10 @@ separator; the guest checks that it has no empty, `.` or `..` segment and no
 `\` or `:`, and returns `-32603` instead of an artifact that fails the check.
 The guest never writes files; it returns them to the host.
 
-The text is formatted by Fantomas, as in `dotnet-morphir`, so its line endings
-are those of the platform the guest runs on: CRLF on Windows, LF elsewhere.
+By default the text is formatted by Fantomas, as in `dotnet-morphir`, so its line
+endings are those of the platform the guest runs on: CRLF on Windows, LF
+elsewhere. With the option `format` false, the guest writes the generator's own
+text, byte-identical to the built-in backend with `format=false`.
 
 Generation runs beside the session: while a `generateModel` runs, the guest
 reads and answers other messages, such as `morphir.ping` and
@@ -129,6 +133,30 @@ are checked through the command line. Because the files come from the guest,
 the Native AOT `morphir` with `--extension` publishes the guest's formatted
 files, not the unformatted files of its built-in backend.
 
+## Unformatted output
+
+`--option format=false` turns Fantomas formatting off, for the built-in backend
+and for the extension alike. The files are the generator's own text:
+
+- LF line endings only, and exactly one final LF;
+- UTF-8 without a byte order mark;
+- the same bytes on every operating system, under JIT and Native AOT, and in
+  every current culture.
+
+The generate report says `"formatting": "off"`. The default formats when the
+host can run Fantomas (`"applied"`); the Native AOT `morphir` cannot, so under
+the default it writes the same unformatted text, reports `"unavailable"` and
+warns on stderr. Formatting the generated files with a tool of your choice
+around `generate` is planned separately.
+
+The Morphir compatibility check compares this unformatted set. For the
+finos/morphir case `fsharp-compile-generate`, the built-in backend (JIT host,
+Native AOT host and `dotnet-morphir`) and the extension (driven by the JIT and
+by the Native AOT host) give the same single file, `Pricing.fs`, 112 bytes.
+The test project pins those bytes, and its compile step (the case's F# source to
+its expected IR) runs through the compatibility kit.
+
 The guest is not qualified with the shared compatibility runner of
-`finos/morphir` yet: its frozen expected F# files do not exist yet. See
+`finos/morphir` yet: the case's expected generated files are not frozen yet, and
+the runner cannot observe generated files yet. See
 [deviations](https://github.com/finos/morphir-dotnet/blob/main/conformance/deviations.md).

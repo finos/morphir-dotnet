@@ -41,7 +41,23 @@ that does not load is a warning on stderr, and the built-in backend runs. Repeat
 as JSON first, so `optimize=false` is Boolean while `optimize='"false"'` is a
 string and is refused by this backend.
 
-F# accepts Boolean `optimize`, default `true`. C# accepts numeric JSON
+F# accepts the Boolean options `optimize` and `format`, each `true` by default:
+
+- `optimize` runs exact constant folding.
+- `format` formats the generated source with Fantomas when the host can run it. `format=false` writes the
+  generator's own text instead: LF line endings only and exactly one final LF, UTF-8 without a byte order mark,
+  the same bytes on every operating system, under JIT and Native AOT, and in every culture. Use it for output that
+  must not depend on the host, such as the Morphir compatibility check.
+
+`format` is a backend option, like `optimize`; it is not `--input-format`, which says how to read the input.
+The external F# backend `morphir-fsharp-backend` accepts the same two options, and they reach it through the
+`options` member of `morphir.backend.generateModel`.
+
+The default formatted text follows the platform's line endings (CRLF on Windows, LF elsewhere). The Native AOT
+`morphir` cannot run Fantomas, so under the default it writes the generator's own text, says so on stderr, and
+reports `formatting: unavailable`. The managed hosts (`dotnet-morphir` and the managed `morphir`) format.
+
+C# accepts numeric JSON
 `language-version=14` or `language-version=15`, default `14`, and optional string
 `namespace=Pricing.Generated`. Plain namespace text becomes a JSON string through
 the shared option parser. Numeric strings, `preview`, `latest`, unsupported
@@ -235,8 +251,11 @@ if ($LASTEXITCODE -ne 0) { throw "Morphir generation failed" }
 Human output lists relative artifact paths on stdout and diagnostics on stderr.
 JSON mode writes one document containing `success`, `exitCode`, target/backend,
 input/output, source version/family/kind/representation, ordered `artifacts`,
-`written`, `unchanged`, `removed`, `diagnostics` and `failureKind`, and for a selected
-backend extension `backendTransport` and `backendVersion`. Logs use stderr.
+`written`, `unchanged`, `removed`, `diagnostics` and `failureKind`, for a selected
+backend extension `backendTransport` and `backendVersion`, and `formatting` when the backend reports it:
+`applied` (formatted), `off` (`format=false`) or `unavailable` (the host cannot run the formatter). For an
+external backend the host reports only `off`, because a MEP generate result does not say whether the guest
+formatted. Logs and warnings use stderr, never stdout.
 Failed reports contain no successful artifact list. Parsed JSON-mode invocation
 errors also produce a report.
 
@@ -283,7 +302,7 @@ reported filesystem problem.
 
 Missing settings require an explicit `--target` and `--output`. Without
 `--input`, `generate` needs a prior `morphir compile` of the project.
-An unknown target lists registered target IDs. Invalid F# options require
-`optimize=true` or `optimize=false`. Codec diagnostics identify malformed models
+An unknown target lists registered target IDs. Invalid F# options require the
+Boolean `optimize` or `format`, for example `optimize=false` or `format=false`. Codec diagnostics identify malformed models
 and tree members. Limit diagnostics describe the exceeded byte, node, depth,
 entry or path budget. See [CLI troubleshooting](../troubleshooting/).
