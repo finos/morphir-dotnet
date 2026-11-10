@@ -223,16 +223,20 @@ module TufClient =
             | Ok None -> Ok false
             | Ok(Some _) when accepted = maxRootRotations -> Ok true
             | Ok(Some bytes) ->
+                // A root N + 1 that fails for any reason is a failed rotation, so its code says what it means; its
+                // signatures are checked before its version, as TUF 5.3.4 and 5.3.5 order them (review of #581, T7).
                 match TufMetadata.readRoot bytes with
                 | Error(TufFailure.MetadataInvalid(_, reason)) -> Error(TufFailure.RootRotationInvalid(version, reason))
-                | Error failure -> Error failure
+                | Error(TufFailure.MetadataTooLarge(_, limit)) ->
+                    Error(TufFailure.RootRotationInvalid(version, $"{metadataName TufRole.Root version} is larger than {limit} bytes"))
+                | Error failure -> Error(TufFailure.RootRotationInvalid(version, $"%A{failure}"))
                 | Ok read ->
-                    if read.Signed.Version <> version then
-                        Error(TufFailure.RootRotationInvalid(version, $"{metadataName TufRole.Root version} has version {read.Signed.Version}"))
-                    elif not (TufSignatures.thresholdMet root TufRole.Root read) then
+                    if not (TufSignatures.thresholdMet root TufRole.Root read) then
                         Error(TufFailure.RootRotationInvalid(version, "the trusted root's threshold is not met"))
                     elif not (TufSignatures.thresholdMet read.Signed TufRole.Root read) then
                         Error(TufFailure.RootRotationInvalid(version, "the new root's own threshold is not met"))
+                    elif read.Signed.Version <> version then
+                        Error(TufFailure.RootRotationInvalid(version, $"{metadataName TufRole.Root version} has version {read.Signed.Version}"))
                     else
                         match TrustRules.refusal purpose read.Signed with
                         | Some refusal -> Error(TufFailure.RootRotationInvalid(version, $"the new root breaks the anchor's purpose: %A{refusal}"))

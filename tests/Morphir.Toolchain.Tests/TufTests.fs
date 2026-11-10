@@ -459,7 +459,10 @@ let spikeProfileTests =
             let set = metadataSet "metadata"
             let v2 = padded (rootVersion 2UL (rootKeys ()) 2 (rootKeys ()))
             let source = { sourceOf set [] with Root = fun v -> if v = 1UL then Some(canonical set.Root) elif v = 2UL then Some v2 else None }
-            Expect.equal (refused (refresh (anchor ()) source)) (TufFailure.MetadataTooLarge(TufRole.Root, 64 * 1024)) "the bound")
+            // A root N + 1 that cannot be read is a failed rotation, whatever the reader refused it for (review, T7).
+            match refused (refresh (anchor ()) source) with
+            | TufFailure.RootRotationInvalid(2UL, _) -> ()
+            | other -> failtestf "expected a failed rotation, got %A" other)
 
         testCase "11 a timestamp with spec_version 2.0.0 is refused" (fun () ->
             let set = metadataSet "metadata"
@@ -876,4 +879,32 @@ let reviewT6Tests =
             match refresh partial (sourceOf (metadataSet "metadata") []) with
             | RefreshResult.Refreshed trusted -> Expect.isSome trusted.Targets "the targets are verified"
             | other -> failtestf "expected the refresh to continue, got %A" other)
+    ]
+
+[<Tests>]
+let reviewT7Tests =
+    // Review of #581, T7: a root N + 1 that fails is metadata_root_rotation_invalid, whatever failed, and its
+    // signatures are checked before its version (TUF 5.3.4, then 5.3.5).
+    let set () = metadataSet "metadata"
+
+    let rotationReason (bytes: byte array) =
+        match refresh (anchor ()) (withRoot2 (set ()) bytes) with
+        | RefreshResult.Failed(TufFailure.RootRotationInvalid(2UL, reason) as failure, _) ->
+            Expect.equal (Code.name (TufFailure.code failure)) "metadata_root_rotation_invalid" "the code"
+            reason
+        | other -> failtestf "expected a failed rotation, got %A" other
+
+    testList "T7 a failed rotation is coded as one, signatures first" [
+        testCase "2.root.json that is not JSON" (fun () -> rotationReason (Encoding.UTF8.GetBytes "{") |> ignore)
+
+        testCase "2.root.json over the root bound" (fun () ->
+            rotationReason (Array.append (canonical (rootVersion 2UL (keysOf "root") 2 (keysOf "root"))) (Array.create (70 * 1024) (byte ' '))) |> ignore)
+
+        testCase "an unsigned 2.root.json whose version is 3 fails on its signatures, not its version" (fun () ->
+            let reason = rotationReason (canonical (rootVersion 3UL (keysOf "root") 2 []))
+            Expect.stringContains reason "threshold" "the signatures are checked first")
+
+        testCase "a signed 2.root.json whose version is 3 fails on its version" (fun () ->
+            let reason = rotationReason (canonical (rootVersion 3UL (keysOf "root") 2 (keysOf "root")))
+            Expect.stringContains reason "version" "then the version")
     ]
