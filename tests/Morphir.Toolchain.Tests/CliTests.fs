@@ -469,6 +469,26 @@ let tests =
                 match (readResult run).Diagnostics |> List.map _.Detail with
                 | DiagnosticDetail.DocumentUnavailable DocumentKind.Request :: _ -> ()
                 | other -> failtestf "expected document_unavailable for the request, got %A" other)
+            testCase "doctor --request without --lock reads the lock beside that request" (fun () ->
+                use sandbox = project "request/approved.toml"
+                let other = Directory.CreateDirectory(Path.Combine(sandbox.Work, "other", ".morphir")).FullName
+                File.Copy(fixture "request/self-contained.toml", Path.Combine(other, "toolchain.toml"))
+                let run = runIn sandbox.Work Platform.OsxArm64 [ "doctor"; "--request"; Path.Combine(other, "toolchain.toml") ]
+                Expect.equal run.Exit 1 "a failed result"
+
+                match (readResult run).Diagnostics with
+                | [ { Detail = DiagnosticDetail.DocumentUnavailable DocumentKind.Lock; Message = message } ] ->
+                    Expect.stringContains message.Text (Path.Combine(other, "toolchain.lock.json")) "the lock beside the given request"
+                | other -> failtestf "expected document_unavailable for that lock, got %A" other
+
+                Expect.isFalse (run.Stderr.Contains(Path.Combine(sandbox.Work, ".morphir", "toolchain.lock.json"))) "the working directory's lock is not read")
+
+            testCase "doctor refuses --request with --project, as setup does" (fun () ->
+                use sandbox = project "request/approved.toml"
+                let run = runIn sandbox.Work Platform.OsxArm64 [ "doctor"; "--request"; fixture "request/approved.toml"; "--project"; sandbox.Work ]
+                Expect.equal run.Exit 2 "a usage error"
+                Expect.equal run.Stdout "" "no result"
+                Expect.stringContains run.Stderr "give either --request or --project, not both" "the message")
             testCase "a request above the discovery boundary is never read" (fun () ->
                 use sandbox = project "request/approved.toml"
                 let member' = Directory.CreateDirectory(Path.Combine(sandbox.Work, "member")).FullName

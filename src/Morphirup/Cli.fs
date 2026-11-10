@@ -83,7 +83,7 @@ setup options:
   --json                  Accepted; JSON is the only output format of this build
 
 doctor options:
-  --lock <file>           (provisional) Read this lock file; by default the one beside the project request
+  --lock <file>           (provisional) Read this lock file; by default the one beside the request, given or found
   --recipe <file>, --repository-id <sha256>  Also check the lock against this recipe and repository
 
 Exit codes: 0 planned or succeeded, 1 failed (one result document on stdout either way), 2 for a command line that
@@ -467,20 +467,24 @@ let private doctor (io: Io) (args: string list) : Result<int, Usage> =
         let! options =
             parse [ "--project"; "--boundary"; "--request"; "--lock"; "--recipe"; "--repository-id"; "--platform" ] [ "--json" ] args
 
+        if options.TryGet "--request" |> Option.isSome && options.TryGet "--project" |> Option.isSome then
+            return! usage "give either --request or --project, not both"
+
         let! platform = platformOption io options
-        let project = lazy (discover io options)
 
-        let requestBytes =
+        // The request: the one given, or the one discovery finds. The lock is beside that request.
+        let request =
             match options.TryGet "--request" with
-            | Some file -> readFile io Limits.request file
-            | None -> project.Value |> Result.bind (readFile io Limits.request)
+            | Some file -> Ok(Path.GetFullPath(file, io.CurrentDirectory))
+            | None -> discover io options
 
-        // The project lock is beside the project request.
+        let requestBytes = request |> Result.bind (readFile io Limits.request)
+
         let lockBytes =
             match options.TryGet "--lock" with
             | Some file -> readFile io Limits.lock file
             | None ->
-                project.Value
+                request
                 |> Result.mapError (fun reason -> $"the project lock is beside the project request, and {reason}")
                 |> Result.bind (fun request -> readFile io Limits.lock (Path.Combine(nonNull (Path.GetDirectoryName request), "toolchain.lock.json")))
 
