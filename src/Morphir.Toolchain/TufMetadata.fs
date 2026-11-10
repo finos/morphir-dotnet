@@ -35,6 +35,36 @@ type TufFailure =
     /// The source has no file for a role the refresh needs.
     | Unavailable of role: TufRole
 
+/// <summary>The stable code and role of each TUF failure, for a <c>trust-failure</c> diagnostic.</summary>
+module TufFailure =
+    /// <summary>The stable code. Provisional: metadata that does not read under the profile, or is over its
+    /// download bound, is <c>metadata_signature_invalid</c>, because the contract has no code for it; it cannot be
+    /// verified as signed metadata of the profile.</summary>
+    let code (failure: TufFailure) =
+        match failure with
+        | TufFailure.MetadataInvalid _
+        | TufFailure.MetadataTooLarge _
+        | TufFailure.SignatureInvalid _ -> Code.Trust TrustCode.MetadataSignatureInvalid
+        | TufFailure.RootRotationInvalid _ -> Code.Trust TrustCode.MetadataRootRotationInvalid
+        | TufFailure.Expired _ -> Code.Trust TrustCode.MetadataExpired
+        | TufFailure.Rollback _ -> Code.Trust TrustCode.MetadataRollback
+        | TufFailure.LinkMismatch _ -> Code.Trust TrustCode.MetadataLinkMismatch
+        | TufFailure.NonPortableTarget _ -> Code.Reader ReaderCode.NonPortablePath
+        | TufFailure.Unavailable _ -> Code.Trust TrustCode.RepositoryUnavailable
+
+    /// The metadata role a diagnostic names.
+    let role (failure: TufFailure) =
+        match failure with
+        | TufFailure.MetadataInvalid(role, _)
+        | TufFailure.MetadataTooLarge(role, _)
+        | TufFailure.SignatureInvalid role
+        | TufFailure.Expired role
+        | TufFailure.Rollback role
+        | TufFailure.LinkMismatch role
+        | TufFailure.Unavailable role -> Some role
+        | TufFailure.RootRotationInvalid _ -> Some TufRole.Root
+        | TufFailure.NonPortableTarget _ -> Some TufRole.Targets
+
 /// A signature over a metadata document's canonical <c>signed</c> bytes.
 type TufSignature =
     { KeyId: string

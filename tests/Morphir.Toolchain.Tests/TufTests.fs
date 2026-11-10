@@ -389,3 +389,22 @@ let anchorTests =
             | Error(TrustAnchorRefusal.Unreadable(TufFailure.SignatureInvalid TufRole.Root)) -> ()
             | other -> failtestf "expected the unsigned root to be refused, got %A" other)
     ]
+[<Tests>]
+let failureCodeTests =
+    testCase "each TUF failure maps to its stable code" (fun () ->
+        for failure, code in
+            [ TufFailure.SignatureInvalid TufRole.Targets, "metadata_signature_invalid"
+              TufFailure.RootRotationInvalid(2UL, "reason"), "metadata_root_rotation_invalid"
+              TufFailure.Expired TufRole.Timestamp, "metadata_expired"
+              TufFailure.Rollback TufRole.Snapshot, "metadata_rollback"
+              TufFailure.LinkMismatch TufRole.Targets, "metadata_link_mismatch"
+              TufFailure.NonPortableTarget "a/../b", "non_portable_path"
+              TufFailure.Unavailable TufRole.Timestamp, "repository_unavailable"
+              // Provisional: the contract has no code for metadata that does not read under the profile.
+              TufFailure.MetadataInvalid(TufRole.Root, "reason"), "metadata_signature_invalid"
+              TufFailure.MetadataTooLarge(TufRole.Root, 65536), "metadata_signature_invalid" ] do
+            Expect.equal (Code.name (TufFailure.code failure)) code $"%A{failure}"
+
+        Expect.equal (TufFailure.role (TufFailure.Expired TufRole.Snapshot)) (Some TufRole.Snapshot) "the role a diagnostic names"
+        Expect.equal (TufFailure.role (TufFailure.NonPortableTarget "x")) (Some TufRole.Targets) "a target path is targets metadata's"
+        Expect.equal (TufFailure.role (TufFailure.RootRotationInvalid(2UL, "reason"))) (Some TufRole.Root) "rotation is the root's")
