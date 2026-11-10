@@ -28,6 +28,8 @@
         <Compile Include="Prelude.fs" />
         <Compile Include="Paths.fs" />
         <Compile Include="Codes.fs" />
+        <Compile Include="NfcTables.fs" />
+        <Compile Include="Nfc.fs" />
         <Compile Include="Values.fs" />
         <Compile Include="Primitives.fs" />
         <Compile Include="Reading.fs" />

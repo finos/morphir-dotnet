@@ -237,24 +237,6 @@ module JsonText =
         Array.append (buffer.WrittenSpan.ToArray()) [| byte '\n' |]
 
 /// <summary>
-/// Unicode Normalization Form C over .NET's normalization, which uses ICU and refuses U+FFFE. U+FFFE is a
-/// noncharacter: combining class 0, no decomposition and no composition, so NFC never moves anything across it and the
-/// text is normalized piece by piece around it.
-/// </summary>
-module Nfc =
-    let private noncharacter = char 0xFFFE
-
-    let normalize (text: string) =
-        if text.IndexOf noncharacter < 0 then
-            text.Normalize NormalizationForm.FormC
-        else
-            text.Split noncharacter
-            |> Array.map (fun piece -> piece.Normalize NormalizationForm.FormC)
-            |> String.concat (string noncharacter)
-
-    /// Whether well-formed text is already NFC.
-    let isNormalized (text: string) = String.Equals(normalize text, text, StringComparison.Ordinal)
-/// <summary>
 /// The canonical JSON of the manager-result page, which <c>planSha256</c> hashes: no whitespace, strings in NFC with
 /// only <c>"</c> and <c>\</c> escaped, members sorted by the UTF-8 bytes of their encoded keys including the quotes,
 /// and integers in plain decimal. The bytes are not always valid JSON; they are only hashed.

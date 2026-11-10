@@ -70,3 +70,5 @@ tests/Fixtures/Configuration/** -text
 
 # JSON5 newline grammar fixtures intentionally contain hash-pinned CR/CRLF bytes.
 tests/Fixtures/Configuration/json5-tests/new-lines/*.json5 -whitespace
+# Unicode conformance data is checked by SHA-256, so its bytes must not change
+tests/Fixtures/Unicode/** -text
