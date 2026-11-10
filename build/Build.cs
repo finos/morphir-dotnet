@@ -128,6 +128,10 @@ partial class Build : NukeBuild
         ("Morphir.CodeGeneration.CSharp", MorphirCodeGenerationCSharpProject, true),
         ("Morphir.Extensions", SourceDirectory / "Morphir.Extensions" / "Morphir.Extensions.fsproj", true),
         ("Morphir.Analyzers", SourceDirectory / "Morphir.Analyzers" / "Morphir.Analyzers.fsproj", true),
+        // The WASM extension runtime (Wasmtime and the embedded Extism kernel) and the compatibility kit runner;
+        // Morphir.Tooling depends on both, so both are published before it.
+        ("Morphir.Extensions.Wasm", SourceDirectory / "Morphir.Extensions.Wasm" / "Morphir.Extensions.Wasm.csproj", true),
+        ("Morphir.Conformance", SourceDirectory / "Morphir.Conformance" / "Morphir.Conformance.fsproj", true),
         ("Morphir.Tooling", MorphirToolingProject, true),
         ("Morphir", MorphirProject, true),
         ("Morphir.SDK.FSharp", MorphirSDKFSharpProject, true),
