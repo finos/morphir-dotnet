@@ -98,7 +98,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <ul>
 <li><span class="tag obs">Observed</span> The extension-model PRD (<code>docs/content/contributing/design/prds/morphir-extension-model.md</code>) plans step 3: the upstream store, catalog and global locks under <code>MORPHIR_HOME</code>, selection and lock files at four levels, <code>staged/</code> folders with <code>[extension_install] staged</code> (default <code>auto</code>), the extension package archive in zip and tar gzip, real <code>install</code>/<code>use</code>/<code>remove</code>/<code>which</code>, refusal to write dotted ids into shared files, and removal of <code>OsPaths</code>.</li>
 <li><span class="tag obs">Observed</span> Issues #490, #491 and #492 wire the existing <code>dist</code>, <code>tool</code> and <code>extension</code> handlers. #492 is not step 3 (see <a href="#cmd-2">CMD-2</a>).</li>
-<li><span class="tag obs">Observed</span> The approved finos/morphir change <code>add-deployment-and-acquisition</code> needs this installer in tasks 3.3, 3.4 and 4.4. Its adoption in this repository is on main (<code>b8ebd12cd</code>) and is still an active change. Its task 3.1 publishes the self-contained F# frontend as a folder, not a single file, because the frontend needs file locations for its compiler references (FSF-1).</li>
+<li><span class="tag obs">Observed</span> The approved finos/morphir change <code>add-deployment-and-acquisition</code> needs this installer in tasks 3.3, 3.4 and 4.4. Its adoption in this repository is on main (<code>b8ebd12cd</code>) and is still an active change. Its task 3.1 has landed (#569, <code>4b14b0d</code>): the self-contained F# frontend is published as a folder, not a single file, because the frontend needs file locations for its compiler references (FSF-1).</li>
 <li><span class="tag obs">Observed</span> finos/morphir#1149, at <code>6d58eec56</code>, proposes dotted ids in the descriptor. It uses new exact drafts for documents that name a dotted id: descriptor, index record and dotted catalog at <code>2.0.0-draft.3</code>, and a dotted lock at <code>2.0.0-draft.1</code>.
   <ul>
   <li>It no longer promotes the shared catalog. A home gets a dotted partition that older hosts never read: <code>catalog/extensions-dotted.json</code>, and <code>locks/extensions-dotted/</code> for the dotted locks and journals, under the existing state lock. A repository gets <code>extensions-dotted/</code> for dotted histories.</li>
@@ -708,14 +708,14 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>The guest reports <code>org.finos.morphir.fsharp-frontend</code> (<code>src/Morphir.Frontend.FSharp.Extension/FSharpGuest.fs:61</code>). The probe compares <code>extension.id</code>, and dotted ids wait for #1149. So the frontend cannot be installed under any id today, even as one file, unless the maintainer accepts a temporary single-token id.</li>
 <li>It speaks only MEP <code>0.2.0-draft.1</code>, so once it is installed globally, a Rust CLI that speaks only <code>0.1</code> cannot list that Morphir Home. That is MEP-1's accepted cost.</li>
 </ul>
-<p>Both options below assume the frontend is built self-contained, with FSF-1's fix applied: framework references come from an explicit list instead of "everything in the runtime folder".</p>
+<p><span class="tag obs">Observed</span> Adoption task 3.1 has landed on main as a folder (#569, <code>4b14b0d</code>). <code>SelfContainedProcess.pubxml</code> publishes a self-contained folder with <code>PublishSingleFile</code> false, "because the compiler references are files of the folder". <code>CompilerEdge</code> now takes the framework references from the host's deps files, and it refuses a single-file bundle with <code>NoFileLocation</code> when <code>FSharp.Core</code> or the annotations have no file location. Both options below build on that.</p>
 
 <h3>Option A: single-file self-contained publish with extraction (the cheapest path)</h3>
-<p>Adoption task 3.1 explicitly did not qualify a single-file publish. Today the frontend refuses a single-file bundle, because <code>CompilerEdge</code> gives the F# compiler file locations for its references. In a bundle, <code>Assembly.Location</code> is empty for bundled assemblies, so <code>FSharp.Core</code> and the annotations reference would be empty paths (FSF-1).</p>
+<p>Adoption task 3.1 did not qualify a single-file publish, and #569 makes the frontend refuse one on purpose (<code>NoFileLocation</code>). <code>CompilerEdge</code> gives the F# compiler file locations for its references, and in a bundle <code>Assembly.Location</code> is empty for bundled assemblies (FSF-1).</p>
 <p>What would have to change:</p>
 <ol>
 <li>Publish with <code>PublishSingleFile</code> and <code>IncludeAllContentForSelfExtract</code>, so that every assembly is extracted to disk at start. <span class="tag asm">Assumed</span> With full extraction, <code>Assembly.Location</code> names the extracted file, so <code>CompilerEdge</code> gets real paths. A qualification test confirms this before anything depends on it.</li>
-<li>Take the reference list from the extraction directory with FSF-1's explicit framework list, and test that application assemblies such as <code>Morphir.*</code> never become references of the user's code.</li>
+<li>Check that <code>CompilerEdge.selectReferences</code> finds the deps files and assemblies in the extraction directory, so <code>NoFileLocation</code> does not fire, and test that application assemblies such as <code>Morphir.*</code> never become references of the user's code. <span class="tag asm">Assumed</span> With full extraction, the deps files are on disk; the qualification test confirms it.</li>
 <li>Give extraction a directory under the probe's restricted environment. Extraction needs <code>DOTNET_BUNDLE_EXTRACT_BASE_DIR</code>, or the temporary and home variables the runtime derives a default from. The probe now passes only <code>TMP</code>/<code>TEMP</code>/<code>TMPDIR</code> naming a private directory (PROBE-1).
   <ul>
   <li>Either the host extracts into a fresh private directory for every probe and run, which writes about 121 MB each time;</li>
@@ -726,7 +726,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>Ship the bundle raw, or as a one-file target archive (Q-ARCHIVE (a)).</li>
 <li>Settle the id: wait for #1149, or accept a temporary single-token id.</li>
 </ol>
-<p>Cost: one build change and one qualification task in the adoption change (3.1 is re-scoped from "folder archive" to "single file with extraction"). No contract change, no Rust change and no store change. The integrity gap of reused extraction is documented.</p>
+<p>Cost: one build change and one qualification task in the adoption change (a single-file publish profile beside #569's folder profile, qualified in its own task). No contract change, no Rust change and no store change. The integrity gap of reused extraction is documented.</p>
 
 <h3>Option B: an upstream package form for multi-file extensions</h3>
 <p>This needs:</p>
@@ -740,7 +740,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>Benefits: no extraction, every file verified at each activation, and one form for any multi-file guest (other self-contained runtimes, Python, JVM).</p>
 <p>Cost: a contract change and implementation work in two repositories before the first F# frontend install.</p>
 
-<p><strong>Recommendation:</strong> Option A for the first F# frontend delivery. Re-scope adoption task 3.1, and make adoption task 3.3 depend on 3.5, 5.3 and the id. Raise Option B upstream as the long-term form. Decide before adoption task 3.3 starts.</p>
+<p><strong>Recommendation:</strong> Option A for the first F# frontend delivery, for the <code>native-aot</code> offering only. Add a single-file profile and its qualification task beside #569's folder profile, and make adoption task 3.3 depend on 3.5, 5.3 and the id. Raise Option B upstream as the long-term form. Decide before adoption task 3.3 starts.</p>
 
 <h2 id="verifiable">What a .NET implementation can be verified against</h2>
 <table>
