@@ -124,7 +124,7 @@ A recipe that is refused is reported even when the lock is refused too. The resu
 
 `morphirup` uses the .NET runtime identifiers `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64`. A musl machine never gets a glibc closure.
 
-The executable needs no .NET runtime. It uses the operating system's ICU to normalize strings for the plan digest: it is part of Windows 10 1903 and later and of macOS, and on Linux it is the `libicu` package.
+The executable needs no .NET runtime and no ICU: it is built in invariant globalization mode, and it normalizes strings for the plan digest to NFC with its own Unicode 17.0.0 tables. So it runs on a Linux machine without the `libicu` package, and a plan digest is the same whatever Unicode version the machine has.
 
 ## Common errors
 
