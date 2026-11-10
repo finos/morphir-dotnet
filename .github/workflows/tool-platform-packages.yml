@@ -1,0 +1,163 @@
+name: "Tool platform packages"
+
+# Task 5.4 of the OpenSpec change add-wasm-extension-host, first step: does the pinned SDK publish a
+# framework-dependent .NET tool as platform-specific packages with a fallback package that has no engine?
+# One job packs the throwaway tool in spikes/extension-model/tool-platform-packages; two jobs install, update and
+# uninstall the same packages from a local folder feed, on Linux x64 (glibc) and in an Alpine container (musl).
+# A failed install or update is a result: test.ps1 records it and the job still passes.
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - ci/tool-platform-packages
+        paths:
+            - .github/workflows/tool-platform-packages.yml
+            - spikes/extension-model/tool-platform-packages/**
+
+permissions:
+    contents: read
+
+concurrency:
+    group: tool-platform-packages-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    DOTNET_NOLOGO: "1"
+    DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+    pack:
+        name: pack (linux-x64)
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.1.0
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+
+            - name: Pack the probe tool
+              shell: pwsh
+              run: |
+                  dotnet --version
+                  ./spikes/extension-model/tool-platform-packages/pack.ps1 -OutDirectory (Join-Path $env:RUNNER_TEMP 'pack')
+
+            - name: Write the package inventory to the summary
+              shell: pwsh
+              run: |
+                  $inventory = Get-Content (Join-Path $env:RUNNER_TEMP 'pack/packages.json') -Raw | ConvertFrom-Json
+                  $lines = @("## Tool platform packages: packed with SDK $($inventory.sdk)", '',
+                      '| Set | Package | Bytes | Runner | Engine libraries |', '| --- | --- | --- | --- | --- |')
+                  foreach ($p in $inventory.packages) {
+                      $runner = if ($p.runner) { $p.runner } else { 'pointer' }
+                      $engines = ($p.engineLibraries | ForEach-Object { $_.path }) -join ', '
+                      $lines += "| $($p.set) | $($p.file) | $($p.bytes) | $runner | $engines |"
+                  }
+                  $lines -join "`n" | Add-Content $env:GITHUB_STEP_SUMMARY
+
+            - name: Upload the feed
+              uses: actions/upload-artifact@v6
+              with:
+                  name: tool-platform-packages-feed
+                  path: ${{ runner.temp }}/pack/feed
+                  if-no-files-found: error
+                  retention-days: 30
+
+            - name: Upload the inventory and logs
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: tool-platform-packages-pack
+                  path: |
+                      ${{ runner.temp }}/pack/packages.json
+                      ${{ runner.temp }}/pack/*.log
+                  if-no-files-found: warn
+                  retention-days: 30
+
+    linux-glibc:
+        name: install (linux-x64, glibc)
+        needs: pack
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.1.0
+
+            - name: Setup .NET SDKs
+              uses: actions/setup-dotnet@v5
+              with:
+                  # The pinned SDK, and two older SDKs to see what they do with the packages.
+                  dotnet-version: |
+                      8.0.x
+                      9.0.x
+                  global-json-file: global.json
+
+            - name: Download the feed
+              uses: actions/download-artifact@v7
+              with:
+                  name: tool-platform-packages-feed
+                  path: ${{ runner.temp }}/feed
+
+            - name: Install, update and uninstall
+              shell: pwsh
+              run: |
+                  $sdks = dotnet --list-sdks | ForEach-Object { ($_ -split ' ')[0] }
+                  $older = @('8.0', '9.0') | ForEach-Object { $major = $_; $sdks | Where-Object { $_.StartsWith("$major.") } | Sort-Object { [version]$_ } | Select-Object -Last 1 }
+                  Write-Host "SDKs: $($sdks -join ', '); older SDKs tried: $($older -join ', ')"
+                  ./spikes/extension-model/tool-platform-packages/test.ps1 -Machine 'linux-x64 (glibc, ubuntu-24.04)' `
+                      -Feed (Join-Path $env:RUNNER_TEMP 'feed') -WorkDirectory (Join-Path $env:RUNNER_TEMP 'work') -OlderSdks $older
+                  Get-Content (Join-Path $env:RUNNER_TEMP 'work/result.md') | Add-Content $env:GITHUB_STEP_SUMMARY
+
+            - name: Upload the result
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: tool-platform-packages-linux-x64-glibc
+                  path: |
+                      ${{ runner.temp }}/work/result.json
+                      ${{ runner.temp }}/work/result.md
+                  if-no-files-found: warn
+                  retention-days: 30
+
+    linux-musl:
+        name: install (linux-musl-x64, Alpine)
+        needs: pack
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        container:
+            # SDK 10.0.403 on Alpine 3.24, amd64. Pinned by digest.
+            image: mcr.microsoft.com/dotnet/sdk:10.0.403-alpine3.24-amd64@sha256:91641f1bb088b241879fc9bf4ecc11bbbac0835bbb8cb871dd482eb73a51e80b
+        # In a container job ${{ runner.temp }} is the host's path, so this job keeps its files in the workspace.
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.1.0
+
+            - name: Download the feed
+              uses: actions/download-artifact@v7
+              with:
+                  name: tool-platform-packages-feed
+                  path: _feed
+
+            - name: Install, update and uninstall
+              shell: pwsh
+              run: |
+                  dotnet --list-sdks
+                  Get-Content /etc/alpine-release
+                  ./spikes/extension-model/tool-platform-packages/test.ps1 -Machine 'linux-musl-x64 (Alpine container)' `
+                      -Feed _feed -WorkDirectory _work
+                  Get-Content _work/result.md | Add-Content $env:GITHUB_STEP_SUMMARY
+
+            - name: Upload the result
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: tool-platform-packages-linux-musl-x64
+                  path: |
+                      _work/result.json
+                      _work/result.md
+                  if-no-files-found: warn
+                  retention-days: 30
