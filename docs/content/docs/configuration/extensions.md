@@ -43,6 +43,10 @@ No command loads a configured module in this release. The loader exists for the 
 Give `path` as an absolute path. The loader does not resolve a relative path, because the base it should use
 is not decided yet.
 
+[WASM extensions](wasm-extensions.md) says how the host runs a module once it loads: one instance for each
+session, and the memory, instruction and time bounds of each call. A session can hold twice the memory ceiling,
+512 MiB by default, because the guest and the Extism kernel each have a memory of their own.
+
 ### Declare the ABI
 
 `abi` names the profile you expect the module to have. The host still classifies the module from its imports.
