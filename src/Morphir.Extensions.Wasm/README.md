@@ -286,6 +286,27 @@ without a code, and an Extism
 `notificationDelivery` of a string member of the `morphir.initialize` result with the values `none` (the default)
 and `call` and the four notification rules.
 
+## The generic guest kit's model tier
+
+Task 3.5 runs the model tier of the MEP generic guest kit in-process: `GenericGuestKitModelTierTests` in
+`tests/Morphir.Extensions.Wasm.Tests` gives the kit runner of `Morphir.Conformance` (`ModelTierRunner`) a new
+`WasmChannel` for each session it asks for, one for `describe` and one for the model tier, and a `HostSession` on
+it. This library has no reference to the runner, and the runner none to this library.
+
+- **The Python `0.6.0` guest** passes every step of the model tier at IR `3.0.0` and `4.0.0`. Its compiled IR is
+  the kit's expected IR, which the kit recorded from release `0.4.2` through the legacy tier. Each request is one
+  `handle` call, and neither `morphir.initialized` nor `morphir.exit` reaches it.
+- **The SDK fixture guest** of finos/morphir-moonbit (`apps/morphir/fixtures/sdk-guest`, which the tests download
+  at a pinned commit and digest) is not run: it claims no model transport, speaks MEP `0.1` only and refuses
+  `describe` with `-32011` when the host offers `0.2.0-draft.1` alone.
+- **Not covered:** the kit's legacy tier, which needs MEP `0.1` (design MEP-1), and the kit's exact requests:
+  `HostSession` assigns the ids and writes `morphir.initialize` itself. The evidence is in
+  `openspec/changes/add-wasm-extension-host/evidence/3.5-generic-guest-kit.md`.
+
+The resident memory of an Extism session is bounded by twice the ceiling, because the guest's memory and the
+kernel's memory each have it: 512 MiB with the default of 256 MiB. The user guide says so in
+`docs/content/docs/configuration/wasm-extensions.md`.
+
 ## Loading a configured module
 
 `Morphir.Tooling`'s `WasmModuleLoader` (task 2.6) reads the file that `extensions.<name>.path` names, refuses

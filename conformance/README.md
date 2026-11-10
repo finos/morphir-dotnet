@@ -149,6 +149,57 @@ The runner drives a host's worker mode with these cases: the experimental, inter
 comparer, judge and report are in `src/Morphir.Conformance/WasmHost/`. The tests drive it
 with a scripted fake worker, `tests/Morphir.Conformance.FakeWorker`.
 
+## Generic guest kit, model tier only
+
+`src/Morphir.Conformance/GuestKit/` runs the model tier of the MEP generic
+guest kit (profile `generic-json-library-v1`, OpenSpec change
+`add-wasm-extension-host`, task 3.5). The kit file, its README and the
+requirements of `mep/generic-guest-profile` are pinned unchanged under
+`tests/Fixtures/MepGuestKit/`, from finos/morphir `8b3c4c35`; `PROVENANCE.md`
+there has the digests. The kit is still JSON upstream and is read in that
+form; it is not part of this seed's Gherkin suites.
+
+- `GuestKit.Parse` (F#) and `GuestKit.TryParse` (C#) read the kit file
+  strictly: an unknown member, an IR version other than `3.0.0` and `4.0.0`, or
+  another profile is an issue that names its JSON pointer.
+- `ModelTierRunner.RunAsync(kit, openSession, cancellation)` asks its caller
+  for one `HostSession` for `morphir.extension.describe`, plans the model tier
+  from the describe claim as `crates/morphir-mck/src/mep/generic.rs` does, and
+  then asks for a second session that offers the kit's model-transport tuples.
+  It runs `model-initialize`, then for each planned IR version
+  `compile-model`, `generate-model`, `roundtrip-model`,
+  `generate-model-independent` and `roundtrip-model-independent`, then
+  `bad-digest`, `model-shutdown` and `model-exit`. The caller decides what a
+  session runs on: today a `WasmChannel` in-process, later a stream to a worker
+  process.
+- A compiled IR is compared with the kit's expected IR by the kit's three
+  rules and no other: object member order is ignored; in IR 3 the order of the
+  `modules`, `types` and `values` lists is ignored; in IR 4, at an
+  `outputType` or a member of `inputTypes`, a `Reference` with an `fqname` and
+  no or empty `args` equals the FQName string. Rule 2 applies only to IR 3 and
+  rule 3 only to IR 4. Numbers compare by their literal text.
+- The result, `ModelTierRun`, lists each step with its outcome (`passed`,
+  `failed` with the difference quoted, `not-run` with the reason), what each
+  step sent and received, and the legacy tier's cases, each not run. It has no
+  verdict for the kit: `ModelTierOnly` is always true, and its text says that
+  the run is not a complete run of the generic guest kit.
+
+What it does not cover:
+
+- **The legacy tier.** It negotiates MEP `0.1`, which this host does not speak
+  (design MEP-1). Its cases are listed as not run, and so is the describe
+  case's check that the guest claims `0.1`.
+- **Guests that speak MEP `0.1` only.** This host offers `0.2.0-draft.1` alone,
+  even to `describe`. The SDK fixture guest of finos/morphir-moonbit refuses
+  that with `-32011`, so the kit plans nothing for it here.
+- **Exact requests.** `HostSession` assigns the request ids, writes its own
+  `morphir.initialize` params and reads the initialize result through its
+  types; the runner checks what `HostSession` accepted.
+- **A command.** No `morphir` command runs the kit; the tests in
+  `tests/Morphir.Extensions.Wasm.Tests` (`GenericGuestKitModelTierTests`) run
+  it in-process, and `tests/Morphir.Conformance.Tests` tests the runner on a
+  scripted guest.
+
 Kit manifests, profiles, claims planning, additional adapters, provenance review
 records, report checking and literate documentation belong to the full
 compatibility-kit change. The seed keeps those additions on the same reader,
