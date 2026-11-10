@@ -1,0 +1,58 @@
+<Project>
+  <!--
+    The Wasmtime C API archives for a Native AOT static link of the engine (add-wasm-extension-host task 5.1,
+    design PKG-1). One entry per platform the managed Wasmtime package ships a native library for.
+
+    Release: bytecodealliance/wasmtime v50.0.1, the release the Wasmtime 50.0.1 NuGet package carries: each
+    package's runtimes/<rid>/native library is byte for byte the dynamic library in lib/ of the archive below,
+    and include/wasmtime.h in each archive defines WASMTIME_VERSION "50.0.1".
+
+    Sha256: computed from the downloaded asset on 10 November 2026, and equal to the digest GitHub publishes
+    for the release asset (the "digest" field of the release's asset list).
+
+    MorphirWasmtimeCApiVersion must equal the Wasmtime PackageVersion in Directory.Packages.props:
+    tests/Morphir.Extensions.Wasm.Tests/WasmtimeCApiPinTests.cs checks that, and WasmtimeStaticLink.targets
+    checks it and the archive's header version again at build time. The archives are fetched, never committed.
+  -->
+  <PropertyGroup>
+    <MorphirWasmtimeCApiVersion>50.0.1</MorphirWasmtimeCApiVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <MorphirWasmtimeCApiArchive Include="linux-arm64">
+      <Url>https://github.com/bytecodealliance/wasmtime/releases/download/v50.0.1/wasmtime-v50.0.1-aarch64-linux-c-api.tar.xz</Url>
+      <Sha256>1a36140a016a9cc098f02a37bb0cc7be6451032861ba70049127928d2f31ef84</Sha256>
+      <Root>wasmtime-v50.0.1-aarch64-linux-c-api</Root>
+      <StaticLibrary>lib/libwasmtime.a</StaticLibrary>
+    </MorphirWasmtimeCApiArchive>
+    <MorphirWasmtimeCApiArchive Include="linux-x64">
+      <Url>https://github.com/bytecodealliance/wasmtime/releases/download/v50.0.1/wasmtime-v50.0.1-x86_64-linux-c-api.tar.xz</Url>
+      <Sha256>e2c0c26e1aef52f82f0b9918ad6f34cc30f4b557aee3e261cb127a9462be8f4d</Sha256>
+      <Root>wasmtime-v50.0.1-x86_64-linux-c-api</Root>
+      <StaticLibrary>lib/libwasmtime.a</StaticLibrary>
+    </MorphirWasmtimeCApiArchive>
+    <MorphirWasmtimeCApiArchive Include="osx-arm64">
+      <Url>https://github.com/bytecodealliance/wasmtime/releases/download/v50.0.1/wasmtime-v50.0.1-aarch64-macos-c-api.tar.xz</Url>
+      <Sha256>a49327ca596fae51cd92e230265132112bb7896c5a24e4d58cd05b56612e26bb</Sha256>
+      <Root>wasmtime-v50.0.1-aarch64-macos-c-api</Root>
+      <StaticLibrary>lib/libwasmtime.a</StaticLibrary>
+    </MorphirWasmtimeCApiArchive>
+    <MorphirWasmtimeCApiArchive Include="osx-x64">
+      <Url>https://github.com/bytecodealliance/wasmtime/releases/download/v50.0.1/wasmtime-v50.0.1-x86_64-macos-c-api.tar.xz</Url>
+      <Sha256>b6d436cba5c0964785c6ff7c9b5a743131555a0227b4f742185c4fb520c502c5</Sha256>
+      <Root>wasmtime-v50.0.1-x86_64-macos-c-api</Root>
+      <StaticLibrary>lib/libwasmtime.a</StaticLibrary>
+    </MorphirWasmtimeCApiArchive>
+    <MorphirWasmtimeCApiArchive Include="win-arm64">
+      <Url>https://github.com/bytecodealliance/wasmtime/releases/download/v50.0.1/wasmtime-v50.0.1-aarch64-windows-c-api.zip</Url>
+      <Sha256>84580636d4896df45d6a21d8c60ad9cf702d3934c6c70d98d49c21eba0470253</Sha256>
+      <Root>wasmtime-v50.0.1-aarch64-windows-c-api</Root>
+      <StaticLibrary>lib/wasmtime.lib</StaticLibrary>
+    </MorphirWasmtimeCApiArchive>
+    <MorphirWasmtimeCApiArchive Include="win-x64">
+      <Url>https://github.com/bytecodealliance/wasmtime/releases/download/v50.0.1/wasmtime-v50.0.1-x86_64-windows-c-api.zip</Url>
+      <Sha256>8b461d9dc12b076d0414b1023433bbb2dc08d3b1c0f0a156853ede35f0147802</Sha256>
+      <Root>wasmtime-v50.0.1-x86_64-windows-c-api</Root>
+      <StaticLibrary>lib/wasmtime.lib</StaticLibrary>
+    </MorphirWasmtimeCApiArchive>
+  </ItemGroup>
+</Project>
