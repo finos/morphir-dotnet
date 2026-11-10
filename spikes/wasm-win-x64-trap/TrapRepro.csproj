@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Spike of the win-x64 trap diagnosis (ci/wasm-win-x64-trap, issue #563). Not in the solution.
+    It runs one WASM trap per process and prints whether it came back as an exception or the process died, reads the
+    CET marks of an executable and the exception of a minidump. run.ps1 builds it as every launch kind:
+      framework-dependent apphost:  dotnet publish -c Release -r win-x64 - -self-contained false
+      dotnet.exe:                   dotnet <publish>/TrapRepro.dll
+      self-contained apphost:       dotnet publish -c Release -r win-x64 - -self-contained true
+      Native AOT:                   dotnet publish -c Release -r win-x64 -p:PublishAot=true
+      .NET tool shim:               dotnet pack -c Release -p:TrapReproTool=true, then dotnet tool install
+    Pass -p:CETCompat=false to try the SDK's and ILCompiler's opt-out of the CET-compatible mark.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <!-- Morphir.Mep brings in FSharp.Core, whose trim summary warnings are the AOT probe's baseline. -->
+    <NoWarn>$(NoWarn);IL2104;IL3053</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TrapReproTool)' == 'true'">
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dotnet-traprepro</ToolCommandName>
+    <PackageId>TrapRepro.Spike</PackageId>
+    <Version>0.0.1</Version>
+    <PackageReadmeFile></PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TrapReproTool)' == 'true'">
+    <None Remove="$(MSBuildThisFileDirectory)../../LICENSE.md;$(MSBuildThisFileDirectory)../../README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Wasmtime" />
+    <ProjectReference Include="../../src/Morphir.Extensions.Wasm/Morphir.Extensions.Wasm.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The crafted corpus modules of bounds/trap and bounds/grow-to-ceiling-then-trap, run through the product's SessionStore. -->
+    <EmbeddedResource Include="../../tests/Fixtures/MepWasm/fixtures/wasm/extism-trap.wasm" LogicalName="extism-trap.wasm" />
+    <EmbeddedResource Include="../../tests/Fixtures/MepWasm/fixtures/wasm/extism-grow-then-trap.wasm" LogicalName="extism-grow-then-trap.wasm" />
+  </ItemGroup>
+</Project>
