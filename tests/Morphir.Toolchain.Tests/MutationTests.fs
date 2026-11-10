@@ -55,13 +55,14 @@ let tests =
                 |> RequestDocument.read
                 |> valid version
 
-            let recipe = recipeAt "recipe/fsharp-synthetic.json"
+            // Read inside each test, so a refused fixture fails that test and not the whole run.
+            let recipe () = recipeAt "recipe/fsharp-synthetic.json"
 
             testCase "1.2.3 resolves" (fun () ->
-                Expect.isOk (Resolution.resolve recipe (request "1.2.3") Platform.WinX64) "the offering's version")
+                Expect.isOk (Resolution.resolve (recipe ()) (request "1.2.3") Platform.WinX64) "the offering's version")
 
             testCase "1.2.3+build.7 has the same precedence and is refused" (fun () ->
-                let failure = resolutionFailure (Resolution.resolve recipe (request "1.2.3+build.7") Platform.WinX64)
+                let failure = resolutionFailure (Resolution.resolve (recipe ()) (request "1.2.3+build.7") Platform.WinX64)
                 Expect.equal (failure.Code, DocumentPath.render failure.Path) (ArtifactCode.UnsupportedArtifact, "host.version") "not the exact release")
         ]
 
