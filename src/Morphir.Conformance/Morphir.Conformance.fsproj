@@ -19,6 +19,9 @@
     <Compile Include="CliAdapter.fs" />
     <Compile Include="WasmHost/Model.fs" />
     <Compile Include="WasmHost/CorpusJson.fs" />
+    <Compile Include="WasmHost/CaseIds.fs" />
+    <Compile Include="WasmHost/FeatureWriter.fs" />
+    <Compile Include="WasmHost/Generation.fs" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />
