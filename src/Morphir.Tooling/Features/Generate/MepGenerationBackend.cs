@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json;
@@ -285,15 +286,13 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
             return new Outcome<GenerationArtifacts>.Failure(new(GenerationFailureKind.Semantic, diagnostics));
         }
 
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // The whole set is checked before any file is made, so a refusal publishes nothing.
+        if (UnsafePaths(result.Artifacts.Select(artifact => artifact.Path)) is { } unsafePath)
+            return Fail(GenerationFailureKind.Operational, "extension.unsafe_artifact", $"Extension {Identity} returned the artifact path '{unsafePath.Path}': {unsafePath.Reason}");
+
         var files = new List<Tuple<string, VFile>>();
         foreach (var artifact in result.Artifacts)
         {
-            if (UnsafePath(artifact.Path) is { } reason)
-                return Fail(GenerationFailureKind.Operational, "extension.unsafe_artifact", $"Extension {Identity} returned the artifact path '{artifact.Path}': {reason}");
-            if (!seen.Add(artifact.Path))
-                return Fail(GenerationFailureKind.Operational, "extension.unsafe_artifact", $"Extension {Identity} returned the artifact path '{artifact.Path}' twice, compared without case.");
-
             if (artifact.Binary)
             {
                 byte[] content;
@@ -312,16 +311,67 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
 
     /// <summary>
     /// Why an artifact path is not safe to publish, or null: the path must be relative, with <c>/</c> as the only
-    /// separator, no empty, <c>.</c> or <c>..</c> segment, and no <c>\</c>, <c>:</c> or control character. The host
-    /// applies this to every path a guest returns and does not rely on the guest's own check.
+    /// separator, no empty, <c>.</c> or <c>..</c> segment, no <c>\</c>, <c>:</c> or control character, no segment
+    /// that ends with a period or a space, and no reserved Windows device name as a segment, so that it names the
+    /// same file on every platform. The host applies this to every path a guest returns and does not rely on the
+    /// guest's own check.
     /// </summary>
     public static string? UnsafePath(string? path)
     {
         if (string.IsNullOrEmpty(path)) return "the path is empty.";
         if (path.IndexOfAny(['\\', ':']) >= 0 || path.Any(char.IsControl)) return "the path has a \\, a : or a control character.";
-        return path.Split('/').FirstOrDefault(segment => segment is "" or "." or "..") is { } segment
-            ? $"the path has the segment '{segment}'; it must be relative, with no empty, . or .. segment."
-            : null;
+        foreach (var segment in path.Split('/'))
+        {
+            if (segment is "" or "." or "..")
+                return $"the path has the segment '{segment}'; it must be relative, with no empty, . or .. segment.";
+            // Windows drops a trailing period or space, so A.fs. and A.fs would be one file.
+            if (segment.EndsWith('.') || segment.EndsWith(' '))
+                return $"the segment '{segment}' ends with a period or a space, which Windows removes.";
+            if (IsReservedDeviceName(segment))
+                return $"the segment '{segment}' is a reserved Windows device name.";
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The Windows device names that a file or directory cannot have, with or without an extension (NUL.txt is NUL):
+    /// CON, PRN, AUX, NUL, COM1 to COM9, LPT1 to LPT9, and COM and LPT with the superscript digits ¹, ² and ³, as
+    /// "Naming Files, Paths, and Namespaces" (Microsoft Learn) lists them.
+    /// </summary>
+    private static readonly FrozenSet<string> ReservedDeviceNames = new[]
+        {
+            "CON", "PRN", "AUX", "NUL",
+            "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM¹", "COM²", "COM³",
+            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "LPT¹", "LPT²", "LPT³",
+        }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    private static bool IsReservedDeviceName(string segment)
+    {
+        var dot = segment.IndexOf('.');
+        var stem = (dot < 0 ? segment : segment[..dot]).TrimEnd(' ');
+        return ReservedDeviceNames.Contains(stem);
+    }
+
+    /// <summary>
+    /// The first path of a set that is not safe to publish, with the reason, or null. Each path must pass
+    /// <see cref="UnsafePath"/>. The set must not name one file twice, compared without case, and no path may be both
+    /// a file and the directory of another path (<c>a</c> and <c>a/b.fs</c>), which would fail part way through
+    /// publication.
+    /// </summary>
+    public static (string Path, string Reason)? UnsafePaths(IEnumerable<string?> paths)
+    {
+        var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in paths)
+        {
+            if (UnsafePath(path) is { } reason) return (path ?? "", reason);
+            if (!files.Add(path!)) return (path!, "the path is there twice, compared without case.");
+            var segments = path!.Split('/');
+            for (var count = 1; count < segments.Length; count++)
+                directories.Add(string.Join('/', segments[..count]));
+        }
+        var conflict = files.FirstOrDefault(directories.Contains);
+        return conflict is null ? null : (conflict, "the path is both a file and a directory of another path.");
     }
 
     /// <summary>The agreed tuple that a model needs: IR 4.0.0 for a v4 model, 3.0.0 for a classic version 3 model.</summary>
