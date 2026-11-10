@@ -113,6 +113,22 @@ let tests =
                     testCase $"{name} in a receipt" (fun () ->
                         refusedAt ReceiptDocument.read (withMember "receipt/win-x64-qualified.json" name value) $"providers[1].identity.{name}")
         ]
+        testCase "a host plan component whose source names another artifact is inconsistent_document at source.target" (fun () ->
+            // manager-result.md: the host component's source target is that platform's host artifact, at source.target.
+            let text = Encoding.UTF8.GetString(Fixtures.bytes "result/setup-plan.json")
+            let artifact = "artifacts/morphir-dotnet-native-aot/1.2.3/win-x64.zip"
+            // The first mention is the host component's source; the plan's lock keeps the locked artifact.
+            let at = text.IndexOf artifact
+            Expect.isGreaterThan at 0 "the host artifact"
+            let edited = text.Substring(0, at) + "artifacts/morphir-dotnet-native-aot/1.2.3/other.zip" + text.Substring(at + artifact.Length)
+
+            match ResultDocument.read (Encoding.UTF8.GetBytes edited) with
+            | Error refusal ->
+                Expect.equal
+                    (refusal.Code, DocumentPath.render refusal.Path)
+                    (ReaderCode.InconsistentDocument, "plan.components[0].source.target")
+                    "refused at the host's source target"
+            | Ok _ -> failtest "a host source naming another artifact was read")
         testCase "a host plan component with a recipe-digest source is inconsistent_document at its source" (fun () ->
             // manager-result.md: a host's source is repository-target or external-owner. No fixture pins recipe-digest.
             let text = Encoding.UTF8.GetString(Fixtures.bytes "result/setup-plan.json")

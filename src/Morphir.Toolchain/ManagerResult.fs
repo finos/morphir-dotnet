@@ -753,7 +753,8 @@ module ResultDocument =
 
             // A source has a kind its component's role allows (manager-result.md): a host release is authenticated by
             // its own TUF target, an external provider by the recipe's digest, and either may be externally owned.
-            // A bound source then names the expected bytes, from the recipe's repository.
+            // A bound source then names the expected bytes, from the recipe's repository: a host's source target is the
+            // platform's host artifact, at source.target, and a provider's source names its artifact, at source.
             let boundTo (at: DocumentPath) (role: SourceRole) (expected: TargetBinding) (source: ComponentSource) =
                 match role, source with
                 | SourceRole.Host, ComponentSource.RecipeDigest _
@@ -761,7 +762,9 @@ module ResultDocument =
                 | _, ComponentSource.RepositoryTarget(repositoryId, target, sha)
                 | _, ComponentSource.RecipeDigest(repositoryId, target, sha) ->
                     if target <> expected.Target || sha <> expected.Sha256 then
-                        refuse ReaderCode.InconsistentDocument (at.Child "source")
+                        match role with
+                        | SourceRole.Host -> refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "target")
+                        | SourceRole.Provider -> refuse ReaderCode.InconsistentDocument (at.Child "source")
                     elif repositoryId <> plan.Recipe.RepositoryId then
                         refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "repositoryId")
                     else
