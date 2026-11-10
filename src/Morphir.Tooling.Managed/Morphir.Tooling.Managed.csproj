@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The managed composition (DEP-1): what the managed entry points add on top of the shared command layer in
+      Morphir.Tooling. It references the F# frontend and so the F# compiler service, which is neither trim-safe nor
+      AOT-safe. The managed morphir (src/Morphir.Managed) and dotnet-morphir (src/Morphir.Tool) reference it; the
+      AOT-compatible morphir (src/Morphir) never does.
+    -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <RootNamespace>Morphir.Tooling.Managed</RootNamespace>
+        <Description>The managed composition of the Morphir command line: the in-process F# frontend for the managed entry points.</Description>
+        <!-- The entry points that reference it ship it; it is not a library package of its own. -->
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />
+        <!-- The only reference to the F# frontend, and so to the F# compiler service, in the command line. -->
+        <ProjectReference Include="..\Morphir.Frontend.FSharp\Morphir.Frontend.FSharp.fsproj" />
+    </ItemGroup>
+
+</Project>
