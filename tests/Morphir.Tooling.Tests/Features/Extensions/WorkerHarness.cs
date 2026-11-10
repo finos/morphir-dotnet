@@ -62,6 +62,12 @@ internal static class WorkerHarness
     /// <summary>The build identity the tests give the worker as its own.</summary>
     public static string Identity { get; } = WorkerBuildIdentity.Of(new HostIdentity(MorphirHost.Native, ReleaseVersion.Create("0.0.0-test")));
 
+    /// <summary>The host the tests run the worker as.</summary>
+    public static HostIdentity Host { get; } = new(MorphirHost.Native, ReleaseVersion.Create("0.0.0-test"));
+
+    /// <summary>The loader of a worker in this process: the process's WASM runtime, which has the engine.</summary>
+    public static IWasmModuleLoader Loader { get; } = new WasmModuleLoader(WasmRuntime.Process, Host);
+
     public static string Fixtures => Path.Combine(AppContext.BaseDirectory, "Fixtures", "MepWasm");
 
     /// <summary>A module of the pinned crafted corpus.</summary>
@@ -99,13 +105,13 @@ internal static class WorkerHarness
 
     /// <summary>Runs the worker on <paramref name="input"/>, with <paramref name="interrupt"/> as its interruption.</summary>
     public static async Task<WorkerRunResult> RunAsync(IReadOnlyList<string> arguments, Stream input, string? workspaceRoot, CancellationToken interrupt,
-        MemoryStream? stdout = null)
+        MemoryStream? stdout = null, IWasmModuleLoader? loader = null)
     {
         stdout ??= new MemoryStream();
         var stderr = new MemoryStream();
         var root = workspaceRoot ?? Path.GetTempPath();
         var clock = Stopwatch.StartNew();
-        var exit = await ExtensionWorker.RunAsync(arguments, new WorkerIo(input, stdout, stderr), new WorkerContext(Identity, root), interrupt);
+        var exit = await ExtensionWorker.RunAsync(arguments, new WorkerIo(input, stdout, stderr), new WorkerContext(Identity, root, loader ?? Loader), interrupt);
         clock.Stop();
         var lines = Encoding.UTF8.GetString(stderr.ToArray()).Split('\n', StringSplitOptions.RemoveEmptyEntries);
         return new WorkerRunResult(exit, stdout.ToArray(), lines, clock.Elapsed);

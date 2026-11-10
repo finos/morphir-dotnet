@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Morphir.Extensions;
 using Morphir.Extensions.Wasm;
 using Morphir.TestSupport;
 using Morphir.Tooling.Features.Extensions;
@@ -19,7 +20,9 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// </summary>
 public sealed class WasmModuleLoaderTests
 {
-    private static readonly WasmModuleLoader Loader = new();
+    private static readonly HostIdentity Host = new(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+
+    private static readonly WasmModuleLoader Loader = new(WasmRuntime.Process, Host);
 
     private static string Fixtures => Path.Combine(AppContext.BaseDirectory, "Fixtures", "MepWasm");
 
@@ -365,8 +368,8 @@ public sealed class WasmModuleLoaderTests
     [Test]
     public void TheManagementScenarioRegistersTheLoaderWithTheOtherExtensionServices()
     {
-        // The registry also needs the entry point's HostIdentity, which this builder does not have; the loader does not.
-        using var app = MorphirCli.CreateBuilder([]).AddScenario<ManagementScenario>().Build();
+        // The loader names the entry point's host when the runtime is unavailable, as the registry does.
+        using var app = MorphirCli.CreateBuilder([]).ConfigureServices(services => services.AddSingleton(Host)).AddScenario<ManagementScenario>().Build();
 
         app.Services.GetRequiredService<IWasmModuleLoader>().Should().BeOfType<WasmModuleLoader>();
         app.Services.GetRequiredService<IWasmModuleLoader>().Should().BeSameAs(app.Services.GetRequiredService<IWasmModuleLoader>());

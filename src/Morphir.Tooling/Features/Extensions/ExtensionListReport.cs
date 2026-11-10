@@ -10,14 +10,17 @@ namespace Morphir.Tooling.Features.Extensions;
 /// </summary>
 public sealed record ExtensionListReport(string Host, IReadOnlyList<ExtensionListEntry> Extensions, IReadOnlyList<ExtensionListDiagnostic>? Diagnostics)
 {
-    /// <summary>The report of the catalog, in a host whose WASM runtime has the availability <paramref name="wasmRuntime"/>.</summary>
-    public static ExtensionListReport From(ExtensionCatalog catalog, WasmRuntimeAvailability wasmRuntime) =>
+    /// <summary>
+    /// The report of the catalog, in a host whose WASM runtime has the availability <paramref name="wasmRuntime"/> gives.
+    /// It is called only for a <c>wasm</c> entry of this host, so a catalog of built-in entries never probes the engine.
+    /// </summary>
+    public static ExtensionListReport From(ExtensionCatalog catalog, Func<WasmRuntimeAvailability> wasmRuntime) =>
         new(catalog.Host.Host.WireValue, catalog.Entries.Select(entry => Entry(entry, catalog.Host.Host, wasmRuntime)).ToArray(), null);
 
     public static ExtensionListReport Failure(HostIdentity host, RegistryError error) =>
         new(host.Host.WireValue, [], error.Diagnostics.Select(diagnostic => new ExtensionListDiagnostic(diagnostic.Code.WireValue, diagnostic.Message)).ToArray());
 
-    private static ExtensionListEntry Entry(ExtensionEntry entry, MorphirHost host, WasmRuntimeAvailability wasmRuntime)
+    private static ExtensionListEntry Entry(ExtensionEntry entry, MorphirHost host, Func<WasmRuntimeAvailability> wasmRuntime)
     {
         var backend = entry.BackendClaimOrNull;
         var validator = entry.ValidatorClaimOrNull;

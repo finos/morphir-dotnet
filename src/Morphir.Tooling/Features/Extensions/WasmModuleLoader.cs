@@ -1,6 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 using System.Diagnostics;
+using Morphir.Extensions;
 using Morphir.Extensions.Wasm;
 
 namespace Morphir.Tooling.Features.Extensions;
@@ -60,9 +61,10 @@ public sealed class LoadedWasmModule
 
 /// <summary>
 /// Why a configured module was not loaded. <see cref="Message"/> names the extension and the path, and, once the
-/// bytes are read, their SHA-256. Only <see cref="Refused"/> has a <see cref="Code"/>: the pinned profile contract
-/// defines refusal codes for a module, and none for a file that is missing, cannot be read, is not a module or has
-/// another digest than the declared one.
+/// bytes are read, their SHA-256. Only <see cref="Refused"/> and <see cref="RuntimeUnavailable"/> have a
+/// <see cref="Code"/>: the pinned profile contract defines refusal codes for a module, the host capability defines
+/// <c>extension.runtime_unavailable</c>, and neither defines one for a file that is missing, cannot be read, is not a
+/// module or has another digest than the declared one.
 /// </summary>
 public abstract record WasmModuleFailure
 {
@@ -83,6 +85,24 @@ public abstract record WasmModuleFailure
 
     /// <summary>The diagnostic message.</summary>
     public abstract string Message { get; }
+
+    /// <summary>
+    /// The host's WASM runtime is unavailable, so the module was not read (requirement "Unavailable runtime fails by
+    /// name"). The message names the host, the platform and the reason, and never a native library loading error.
+    /// </summary>
+    /// <param name="Host">The host that has no runtime.</param>
+    /// <param name="Platform">The platform it runs on.</param>
+    /// <param name="Reason">Why the runtime is unavailable.</param>
+    public sealed record RuntimeUnavailable(string Extension, string Path, HostIdentity Host, string Platform, WasmRuntimeUnavailableReason Reason)
+        : WasmModuleFailure(Extension, Path)
+    {
+        /// <inheritdoc />
+        public override string? Code => WasmRuntimeUnavailable.Code;
+
+        /// <inheritdoc />
+        public override string Message =>
+            $"The WASM module of extension '{Extension}' at '{Path}' cannot be loaded with {Code}: {WasmRuntimeUnavailable.Clause(Host, Platform, Reason)}.";
+    }
 
     /// <summary>No file exists at the path.</summary>
     public sealed record NotFound(string Extension, string Path) : WasmModuleFailure(Extension, Path)
@@ -165,6 +185,9 @@ public interface IWasmModuleLoader
 /// <summary>
 /// Loads a configured WASM module by its content. The checks run in this order, and the first that fails decides:
 /// <list type="number">
+/// <item>Ask the host's WASM runtime (<see cref="WasmRuntime"/>), before the file is read: an unavailable runtime is
+/// <see cref="WasmModuleFailure.RuntimeUnavailable"/>, <c>extension.runtime_unavailable</c> with its reason. This is
+/// the load that probes the engine, once for the process.</item>
 /// <item>Read the whole file at <see cref="WasmModuleSource.Path"/>: <see cref="WasmModuleFailure.NotFound"/> or
 /// <see cref="WasmModuleFailure.Unreadable"/>.</item>
 /// <item>Compute the SHA-256 of the bytes. A declared digest that differs is
@@ -178,16 +201,22 @@ public interface IWasmModuleLoader
 /// </list>
 /// The file name and its extension play no part. The engine reuses a compiled module by the digest of its bytes,
 /// never by path, so a module replaced on disk is read, hashed and classified again. The loader writes nothing to
-/// stdout or stderr; it returns every diagnostic as a value. The process's engine, <see cref="WasmEngine.Shared"/>,
-/// is created on the first load that reaches step 3, not when the loader is created or registered.
+/// stdout or stderr; it returns every diagnostic as a value, and a native library that cannot be loaded is the reason
+/// of step 1, never an exception. The process's engine, <see cref="WasmEngine.Shared"/>, is created by the first load,
+/// through the runtime's probe, not when the loader is created or registered.
 /// </summary>
-public sealed class WasmModuleLoader : IWasmModuleLoader
+/// <param name="runtime">The host's WASM runtime: in the CLI, <see cref="WasmRuntime.Process"/>.</param>
+/// <param name="host">The host, which a <see cref="WasmModuleFailure.RuntimeUnavailable"/> names.</param>
+public sealed class WasmModuleLoader(WasmRuntime runtime, HostIdentity host) : IWasmModuleLoader
 {
     /// <inheritdoc />
     public WasmModuleLoad Load(WasmModuleSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
         var (extension, path) = (source.Extension, source.Path);
+
+        if (runtime.Availability.Match<WasmRuntimeUnavailableReason?>(available: () => null, unavailable: reason => reason) is { } unavailable)
+            return Fail(new WasmModuleFailure.RuntimeUnavailable(extension, path, host, runtime.Platform, unavailable));
 
         byte[] bytes;
         try
