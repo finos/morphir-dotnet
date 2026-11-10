@@ -25,8 +25,9 @@ Releases of morphir-dotnet attach `morphirup` for four platforms, beside the `mo
 
 A Linux executable needs glibc 2.35 or later from the machine, which Ubuntu 22.04, Debian 12 and later releases of both
 have, and nothing else: no .NET, no ICU and no OpenSSL. It does not run on musl distributions such as Alpine. The
-macOS executable needs the minimum macOS version that its `LC_BUILD_VERSION` load command declares, which the release
-job logs for the asset; this page does not state it yet.
+macOS executable needs macOS 12.0 or later: that is the minimum its `LC_BUILD_VERSION` load command declares, as the
+release job logged for `v0.4.0-alpha.4`. The job checks the executable only on the runner's macOS (macOS 26), not on
+macOS 12.
 
 Each archive holds the same executable under `<rid>/`, for example `linux-x64/morphirup`, with the repository's
 `LICENSE` and `NOTICE` and the executable's `THIRD-PARTY-NOTICES.txt` beside it. The release also carries that file as
