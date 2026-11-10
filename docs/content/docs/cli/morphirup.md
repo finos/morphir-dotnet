@@ -227,6 +227,19 @@ Checks a project's request and lock without changing anything:
 
 A recipe that is refused is reported even when the lock is refused too. The result is `succeeded` with no diagnostics, or `failed` with every diagnostic found. Installed generations are not checked yet. `--project`, `--boundary`, `--request`, `--lock`, `--recipe` and `--repository-id` are provisional.
 
+## Recipe binding checks
+
+`Morphir.Toolchain` can check a recipe's bindings against the repository that authenticated it: every host and provider row of the toolset recipe page's authenticated recipe targets. It reads three documents for this, each at the one version the toolchain contract lists, and no earlier one:
+
+- the tool release metadata v1 release descriptor of a `tool-release` host offering (`schemaVersion` `1`);
+- the extension release descriptor a provider binds (`schemaVersion` `2.0.0-draft.2`);
+- the capability claim set of each of its artifacts (`claimsVersion` `0.1.0-draft.2`).
+
+It also selects a tool release by the tool release metadata v1 rules for channels, CLI compatibility and platforms.
+
+No `morphirup` command uses any of this yet. Nothing downloads anything, and nothing here verifies repository metadata: the checks take the authenticated targets and their bytes as inputs. **This code has not had a security review. It must not be used to authenticate a production release until it has.**
+
+A provider's claims say what its publisher claims the artifact does. Checking that they name the provider's capability, MEP version, language or target and model tuple is not running the artifact. A recipe digest authenticates the bytes; the descriptor's `claimCheck` says whether anyone ran them to read the claims. The two are kept apart, and a recipe never changes `claimCheck`.
 ## Platforms and prerequisites
 
 `morphirup` uses the .NET runtime identifiers `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64`. A musl machine never gets a glibc closure. These are the platforms it can plan for; releases publish the executable for four of them, listed under [Download and verify](#download-and-verify).
