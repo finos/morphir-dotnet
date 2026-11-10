@@ -6,8 +6,10 @@
 //   dotnet fsi scripts/pin-toolchain-contract.fsx -- --source <finos/morphir checkout> --commit <sha> [--note <text>]
 //
 // The script reads each file with `git cat-file blob <commit>:<path>`, so the bytes are the committed blob, never a
-// working-tree copy with rewritten line endings. It deletes the previous pin, writes every file and rewrites
-// PROVENANCE.md with the repository, the full commit, each upstream path and each SHA-256. Run the
+// working-tree copy with rewritten line endings. It writes the new pin and its PROVENANCE.md (the repository, the
+// full commit, each upstream path and each SHA-256) into a temporary folder beside the pin, and replaces the pin only
+// when every file was fetched, so a failed fetch leaves the previous pin intact. --note adds a sentence about the
+// commit, such as whether it is merged; without it, the provenance states only the commit. Run the
 // Morphir.Toolchain.Tests suite afterwards: the provenance test checks the files against the table, and the manifest
 // tests show what the new pin changed. Progress goes to stderr; nothing is written to stdout.
 
@@ -66,11 +68,11 @@ let text (bytes: byte array) = Encoding.UTF8.GetString(bytes).Trim()
 
 let commit = git [ "rev-parse"; "--verify"; $"{commitArgument}^{{commit}}" ] |> text
 
+// -z: NUL-separated and unquoted, so non-ASCII and unusual names arrive exactly as stored.
 let listed prefix =
-    git [ "ls-tree"; "-r"; "--name-only"; commit; "--"; prefix ]
-    |> text
-    |> fun listing -> listing.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-    |> Array.map (fun line -> line.Trim())
+    git [ "ls-tree"; "-r"; "-z"; "--name-only"; commit; "--"; prefix ]
+    |> Encoding.UTF8.GetString
+    |> fun listing -> listing.Split('\000', StringSplitOptions.RemoveEmptyEntries)
 
 // Local folder under tests/Fixtures/Toolchain -> upstream path prefix. Files keep their path below the prefix.
 let trees =
@@ -93,23 +95,22 @@ let files =
               local + path.Substring(upstream.Length), path ]
     |> List.sortBy (fun (local, _) -> local)
 
-if Directory.Exists pinRoot then
-    Directory.Delete(pinRoot, true)
+let staging = pinRoot + ".pinning"
+
+if Directory.Exists staging then
+    Directory.Delete(staging, true)
 
 let rows =
     [ for local, upstream in files do
           let bytes = git [ "cat-file"; "blob"; $"{commit}:{upstream}" ]
-          let target = Path.Combine(pinRoot, local.Replace('/', Path.DirectorySeparatorChar))
+          let target = Path.Combine(staging, local.Replace('/', Path.DirectorySeparatorChar))
           Directory.CreateDirectory(Path.GetDirectoryName target) |> ignore
           File.WriteAllBytes(target, bytes)
           let digest = SHA256.HashData bytes |> Convert.ToHexStringLower
           eprintfn "%s %s" digest local
           $"| `{local}` | `{upstream}` | `{digest}` |" ]
 
-let pinNote =
-    note
-    |> Option.defaultValue
-        "This commit is the head of pull request finos/morphir#1147, which was not merged when it was pinned. Re-pin to the merge commit once it lands."
+let pinNote = note |> Option.map (fun text -> [ ""; text ]) |> Option.defaultValue []
 
 let provenance =
     String.Join(
@@ -124,8 +125,7 @@ let provenance =
           "Repository: https://github.com/finos/morphir"
           ""
           $"Commit: `{commit}`"
-          ""
-          pinNote
+          yield! pinNote
           ""
           "To re-pin, check out the wanted commit of finos/morphir and run"
           ""
@@ -141,5 +141,11 @@ let provenance =
           "" ]
     )
 
-File.WriteAllText(Path.Combine(pinRoot, "PROVENANCE.md"), provenance, UTF8Encoding(false))
+File.WriteAllText(Path.Combine(staging, "PROVENANCE.md"), provenance, UTF8Encoding(false))
+
+// Every file is in the staging folder: replace the previous pin.
+if Directory.Exists pinRoot then
+    Directory.Delete(pinRoot, true)
+
+Directory.Move(staging, pinRoot)
 eprintfn "Pinned %d files from %s at %s into %s" files.Length source commit pinRoot
