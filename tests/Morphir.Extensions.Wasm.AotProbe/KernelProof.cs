@@ -26,7 +26,7 @@ public static partial class KernelProof
     const long PageBytes = 65536;
 
     /// <summary>The memory ceiling of the store that runs the call, as in the runtime report sample of the
-    /// design (RPT-1): 256 MiB for each linear memory.</summary>
+    /// design (RPT-1): 256 MiB for each linear memory, the contract's ceiling.</summary>
     const long CallCeilingBytes = 256L * 1024 * 1024;
 
     /// <summary>The first request of a session, in the MEP 0.1 shape that the Python 0.4.2 guest claims
@@ -73,14 +73,27 @@ public static partial class KernelProof
         output.WriteLine($"kernel: moonrockz/extism {ExtismKernel.PackageVersion}, {kernelBytes.Length} bytes, sha256 {Convert.ToHexStringLower(SHA256.HashData(kernelBytes.Span))} (recorded {ExtismKernel.Sha256})");
         output.WriteLine();
 
-        using var engine = WasmEngine.Create();
-        using var kernelModule = Module.FromBytes(engine, "extism-kernel", kernelBytes.Span);
-        using var guestModule = Module.FromBytes(engine, Path.GetFileName(guestPath), guestBytes);
+        var engine = WasmEngine.Shared;
+        var kernelModule = engine.Kernel.Module;
+        var guestCompiled = engine.Load(guestBytes).Match(
+            compiled => compiled,
+            refused => throw new InvalidOperationException($"the engine refuses the guest: {refused.Code}: {refused.Message}"),
+            invalid => throw new InvalidOperationException($"the guest is not a WASM module: {invalid}"));
+        var guestModule = guestCompiled.Module;
         Describe(output, "kernel", kernelModule);
         Describe(output, "guest", guestModule);
 
-        var claim2 = Check(output, "claim 2", () => CheckMemoryLimit(output, engine, MemoryMinimumPages(kernelModule), guestModule));
-        var claim3 = Check(output, "claim 3", () => CheckHandle(output, engine, guestModule));
+        var admission = WasmHost.Admit(guestCompiled, WasmAbi.ExtismKernel);
+        var guest = admission.Match<ExtismModule?>(admitted => admitted, _ => null);
+        output.WriteLine($"guest classification: {admission.Match(admitted => admitted.Profile.Id, refused => $"refused {refused.Code}: {refused.Message}")}");
+        output.WriteLine();
+        if (guest is null)
+        {
+            return 1;
+        }
+
+        var claim2 = Check(output, "claim 2", () => CheckMemoryLimit(output, guest, MemoryMinimumPages(kernelModule)));
+        var claim3 = Check(output, "claim 3", () => CheckHandle(output, guest));
         var claim1 = Check(output, "claim 1", () => CheckNoTrimWarnings(output, publishLog, sources));
 
         output.WriteLine("summary:");
@@ -187,8 +200,9 @@ public static partial class KernelProof
     /// the ceiling returns 0 and the kernel memory stays at or under the ceiling, and the guest memory cannot
     /// grow past it either. The same requests in a store with a larger ceiling succeed, so the limiter is
     /// what refused them.</summary>
-    static Verdict CheckMemoryLimit(TextWriter output, Engine engine, long kernelMinimum, Module guestModule)
+    static Verdict CheckMemoryLimit(TextWriter output, ExtismModule guest, long kernelMinimum)
     {
+        var guestModule = guest.Compiled.Module;
         var ok = true;
         void Expect(bool condition, string what)
         {
@@ -204,10 +218,9 @@ public static partial class KernelProof
         var growPages = ceilingPages - guestMinimum + 1;
         output.WriteLine($"  test ceiling: {ceiling} bytes ({ceilingPages} pages) for each memory; kernel alloc request {request} bytes; guest grow {growPages} pages from its minimum {guestMinimum}");
 
-        using (var limited = KernelStore.Create(engine, ceiling))
+        using (var limited = SessionStore.Open(guest, SessionLimits.Default with { MemoryCeilingBytes = ceiling }))
         {
-            var guest = limited.Link(guestModule);
-            var guestMemory = guest.GetMemory(guestMemoryName) ?? throw new InvalidOperationException("the guest memory is not exported");
+            var guestMemory = limited.Guest.GetMemory(guestMemoryName) ?? throw new InvalidOperationException("the guest memory is not exported");
             output.WriteLine($"  small store after instantiation: kernel memory {limited.KernelMemory.GetLength()} bytes, guest memory {guestMemory.GetLength()} bytes");
 
             var refused = limited.Alloc(request);
@@ -239,10 +252,9 @@ public static partial class KernelProof
         }
 
         var largeCeiling = 4 * ceiling;
-        using (var large = KernelStore.Create(engine, largeCeiling))
+        using (var large = SessionStore.Open(guest, SessionLimits.Default with { MemoryCeilingBytes = largeCeiling }))
         {
-            var guest = large.Link(guestModule);
-            var guestMemory = guest.GetMemory(guestMemoryName) ?? throw new InvalidOperationException("the guest memory is not exported");
+            var guestMemory = large.Guest.GetMemory(guestMemoryName) ?? throw new InvalidOperationException("the guest memory is not exported");
             var handle = large.Alloc(request);
             var kernelAfter = large.KernelMemory.GetLength();
             output.WriteLine($"  large store ({largeCeiling} bytes): alloc({request}) = {handle}; kernel memory {kernelAfter} bytes");
@@ -261,15 +273,15 @@ public static partial class KernelProof
 
     /// <summary>Claim 3. One <c>handle</c> call with the initialize request; the host reads the i32 result, the
     /// output and the error value from the kernel itself. The output must be one JSON-RPC response to id 1.</summary>
-    static Verdict CheckHandle(TextWriter output, Engine engine, Module guestModule)
+    static Verdict CheckHandle(TextWriter output, ExtismModule guest)
     {
-        using var store = KernelStore.Create(engine, CallCeilingBytes);
-        var guest = store.Link(guestModule);
-        var guestMemory = guest.GetMemory(MemoryExportName(guestModule));
+        var guestModule = guest.Compiled.Module;
+        using var store = SessionStore.Open(guest, SessionLimits.Default with { MemoryCeilingBytes = CallCeilingBytes });
+        var guestMemory = store.GuestMemory;
         output.WriteLine($"  store: {CallCeilingBytes} bytes ceiling for each memory; 2 instances (kernel, guest); memories: kernel 1, guest {guestModule.Exports.OfType<MemoryExport>().Count()} exported, {guestModule.Imports.OfType<MemoryImport>().Count()} imported");
         output.WriteLine($"  request ({Encoding.UTF8.GetByteCount(InitializeRequest)} bytes): {InitializeRequest}");
 
-        var result = store.CallHandle(guest, Encoding.UTF8.GetBytes(InitializeRequest));
+        var result = store.CallHandle(Encoding.UTF8.GetBytes(InitializeRequest));
         output.WriteLine($"  guest initialization: {store.Initialization}");
         output.WriteLine($"  handle returned i32: {result.ReturnCode}");
         output.WriteLine($"  kernel error value: error_get() = {result.ErrorHandle}, {result.Error.Length} bytes{(result.Error.Length > 0 ? ": " + Encoding.UTF8.GetString(result.Error) : "")}");

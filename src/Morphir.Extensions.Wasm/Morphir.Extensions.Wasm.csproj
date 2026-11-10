@@ -16,4 +16,11 @@
     <EmbeddedResource Include="Kernel/extism-kernel.wasm" LogicalName="Morphir.Extensions.Wasm.Kernel.extism-kernel.wasm" />
     <None Include="Kernel/LICENSE;Kernel/NOTICE;Kernel/PROVENANCE.md" />
   </ItemGroup>
+  <ItemGroup>
+    <!--
+      The pinned WASM execution profile contract, linked from the pin and not copied, so the classifier's
+      import table is the pinned file (design PIN-1). See tests/Fixtures/MepWasm/PROVENANCE.md.
+    -->
+    <EmbeddedResource Include="../../tests/Fixtures/MepWasm/wasm-execution-profiles.json" Link="Contract/wasm-execution-profiles.json" LogicalName="Morphir.Extensions.Wasm.Contract.wasm-execution-profiles.json" />
+  </ItemGroup>
 </Project>

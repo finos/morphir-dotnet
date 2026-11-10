@@ -1,0 +1,123 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+using System.Collections.Concurrent;
+using Wasmtime;
+
+namespace Morphir.Extensions.Wasm;
+
+/// <summary>
+/// The one Wasmtime engine of the process (parent decision ENG-1), created on first need. It meters fuel and
+/// is interrupted by epochs, which a background timer advances every <see cref="EpochInterval"/>, so each
+/// session store can carry an instruction budget and a call deadline. It is configured without threads,
+/// 64-bit memory and multiple memories, so a module with a shared, 64-bit or second memory fails validation
+/// and is refused with <c>extension.wasm_feature_unsupported</c> (parent decision CLS-1). Compiled modules are
+/// kept in memory for the life of the process, keyed by the SHA-256 of their bytes; nothing is cached on disk
+/// (parent decision CACHE-1).
+/// </summary>
+public sealed class WasmEngine
+{
+    static readonly Lazy<WasmEngine> SharedEngine = new(() => new WasmEngine(), LazyThreadSafetyMode.ExecutionAndPublication);
+
+    readonly ConcurrentDictionary<ModuleDigest, CompiledModule> modules = new();
+    readonly Lazy<Engine> diagnostic = new(CreateDiagnosticEngine, LazyThreadSafetyMode.ExecutionAndPublication);
+    readonly Lazy<CompiledModule> kernel;
+    readonly Timer epochTicker;
+
+    WasmEngine()
+    {
+        Engine = new Engine(new Config()
+            .WithFuelConsumption(true)
+            .WithEpochInterruption(true)
+            .WithWasmThreads(false)
+            .WithMemory64(false)
+            .WithMultiMemory(false));
+        kernel = new(LoadKernel, LazyThreadSafetyMode.ExecutionAndPublication);
+        epochTicker = new Timer(_ => Engine.IncrementEpoch(), null, EpochInterval, EpochInterval);
+    }
+
+    /// <summary>The engine of this process.</summary>
+    public static WasmEngine Shared => SharedEngine.Value;
+
+    /// <summary>How often the background timer advances the engine's epoch: the resolution of a call deadline.</summary>
+    public static TimeSpan EpochInterval { get; } = TimeSpan.FromMilliseconds(10);
+
+    /// <summary>The Wasmtime engine.</summary>
+    public Engine Engine { get; }
+
+    /// <summary>The embedded Extism kernel, compiled once for this engine.</summary>
+    public CompiledModule Kernel => kernel.Value;
+
+    /// <summary>
+    /// Validates and compiles a module from its bytes, or returns the module compiled earlier in this process
+    /// from bytes with the same SHA-256.
+    /// </summary>
+    public ModuleLoad Load(ReadOnlySpan<byte> bytes)
+    {
+        var digest = ModuleDigest.Of(bytes);
+        if (modules.TryGetValue(digest, out var cached))
+        {
+            return new ModuleLoad.Compiled(cached);
+        }
+
+        Module module;
+        try
+        {
+            module = Module.FromBytes(Engine, $"sha256:{digest}", bytes);
+        }
+        catch (WasmtimeException exception)
+        {
+            return Diagnose(bytes, exception);
+        }
+
+        var compiled = new CompiledModule(this, digest, bytes.Length, module);
+        var kept = modules.GetOrAdd(digest, compiled);
+        if (!ReferenceEquals(kept, compiled))
+        {
+            module.Dispose();
+        }
+
+        return new ModuleLoad.Compiled(kept);
+    }
+
+    /// <summary>The number of epoch ticks that covers <paramref name="deadline"/>, at least one.</summary>
+    internal static ulong EpochTicks(TimeSpan deadline)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(deadline, TimeSpan.Zero);
+        return (ulong)Math.Max(1, (deadline.Ticks + EpochInterval.Ticks - 1) / EpochInterval.Ticks);
+    }
+
+    /// <summary>
+    /// Tells a module that needs a feature this engine does not enable from bytes that are not a module. The
+    /// bytes are validated again by an engine that enables every feature Wasmtime can; that engine only
+    /// validates, and never compiles or runs anything.
+    /// </summary>
+    ModuleLoad Diagnose(ReadOnlySpan<byte> bytes, WasmtimeException compileFailure)
+    {
+        var report = Module.Validate(Engine, bytes);
+        if (report is null)
+        {
+            return new ModuleLoad.Invalid(compileFailure.Message);
+        }
+
+        return Module.Validate(diagnostic.Value, bytes) is null
+            ? new ModuleLoad.Refused(new WasmRefusal.FeatureUnsupported(report))
+            : new ModuleLoad.Invalid(report);
+    }
+
+    static Engine CreateDiagnosticEngine() => new(new Config()
+        .WithWasmThreads(true)
+        .WithMemory64(true)
+        .WithMultiMemory(true)
+        .WithGc(true)
+        .WithFunctionReferences(true)
+        .WithExceptions(true)
+        .WithTailCalls(true)
+        .WithWideArithmetic(true)
+        .WithRelaxedSIMD(true, false)
+        .WithBranchHinting(true));
+
+    CompiledModule LoadKernel() => Load(ExtismKernel.Bytes.Span).Match(
+        compiled => compiled,
+        refused => throw new InvalidOperationException($"The engine refuses the embedded Extism kernel: {refused.Message}"),
+        invalid => throw new InvalidOperationException($"The engine cannot load the embedded Extism kernel: {invalid}"));
+}
