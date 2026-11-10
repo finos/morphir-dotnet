@@ -37,6 +37,7 @@
         <Compile Include="Receipt.fs" />
         <Compile Include="ManagerResult.fs" />
         <Compile Include="Bindings.fs" />
+        <Compile Include="RecipeTargets.fs" />
         <Compile Include="Resolution.fs" />
         <Compile Include="Planning.fs" />
         <Compile Include="Diagnostics.fs" />

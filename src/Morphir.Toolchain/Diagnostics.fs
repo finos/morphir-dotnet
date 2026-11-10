@@ -62,6 +62,27 @@ module Diagnostics =
                 | BindingProblem.LockRecipeMismatch -> $"The lock is not a closure its recipe allows at {path}."
 
             error (DiagnosticDetail.LockBinding(problem, refusal.Path)) text None
+    /// <summary>A diagnostic for a recipe target refusal: <c>unsupported-contract</c> for the reader codes (document
+    /// <c>recipe</c>), <c>trust-failure</c> naming <paramref name="repository"/> for the trust codes, and
+    /// <c>unsupported-artifact</c> for a channel that selects nothing.</summary>
+    let ofTargetRefusal (repository: Sha256) (platform: Platform) (on: Component) (refusal: TargetRefusal) =
+        let path = DocumentPath.render refusal.Path
+
+        match refusal.Code with
+        | Code.Reader code -> ofReaderRefusal DocumentKind.Recipe { Code = code; Path = refusal.Path }
+        | Code.Trust code ->
+            let at = if path = "" then "" else " at " + path
+
+            error
+                (DiagnosticDetail.TrustFailure(code, repository, None, None, None))
+                $"The recipe target was refused with {Code.name refusal.Code}{at}."
+                None
+        | _ ->
+            error
+                (DiagnosticDetail.UnsupportedArtifact(ArtifactProblem.Unsupported, on, platform, None))
+                $"No recipe target matches the request at {path}."
+                None
+
     /// An <c>unsupported-artifact</c> diagnostic for a resolution failure.
     let ofResolutionFailure (failure: ResolutionFailure) =
         let platform = Platform.name failure.Platform

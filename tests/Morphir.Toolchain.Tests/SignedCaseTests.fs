@@ -1,10 +1,11 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 /// <summary>
-/// The cases of the TEST-ONLY signed manifest that need no TUF client: resolution, frozen locks and lock-against-recipe
-/// checks over recipe bytes taken from <c>repository.json</c>, which these pure functions treat as already
-/// authenticated, and the one recipe check that only reads the document. Every other section is listed with the reason
-/// it is not run, and a test fails when the manifest has a section that is neither run nor listed.
+/// The cases of the TEST-ONLY signed manifest that need no metadata verification. The suite treats the targets
+/// metadata in <c>repository.json</c> as already authenticated, as a TUF client would hand it over, and runs every
+/// check that is a pure function of that metadata and the target bytes: resolution, frozen locks, lock against
+/// recipe, the recipe target rows, the provider repository row, target authentication and channel selection. Every
+/// other rule, operation and section is listed with the reason it is not run, and a test fails on anything unlisted.
 /// </summary>
 module Morphir.Toolchain.Tests.SignedCaseTests
 
@@ -15,39 +16,117 @@ open Morphir.Toolchain
 open Morphir.Toolchain.Tests.Manifest
 open Morphir.Toolchain.Tests.BindingCaseTests
 
-/// Sections this suite runs.
-let ranSections = [ "selection"; "frozen"; "lockRecipe"; "recipeChecks" ]
+/// Sections this suite runs, in whole or in part.
+let ranSections = [ "selection"; "frozen"; "lockRecipe"; "recipeChecks"; "trust"; "channelSelection" ]
+
+let private noV1Client =
+    "needs the tool release metadata v1 client, which does not exist in morphir-dotnet yet (task 4.2)"
 
 /// Sections this suite does not run, each with its reason.
 let notRunSections =
-    [ "trust",
-      "Loads and mutates the signed repository through a TUF client (signatures, snapshot links, expiry, revocation, target lengths and digests). No tool release metadata client exists in morphir-dotnet yet (task 4.2)."
-      "channelSelection",
-      "Selects a recipe target from the authenticated targets metadata's custom.morphir channels and status, which needs the TUF client to load that metadata."
-      "v1Client",
-      "Runs the tool release metadata v1 client by tool id, channel and v1 platform; that client does not exist here yet."
-      "v1Descriptors",
-      "Reads each release target through the TUF client and validates it against tool-release-v1.schema.json, which is not part of this pin." ]
+    [ "v1Client", $"Selects artifacts by tool id, channel and v1 platform: {noV1Client}."
+      "v1Descriptors", "Validates release targets against tool-release-v1.schema.json, which is not part of this pin, read through the TUF client." ]
 
 /// Members of the signed manifest that are data, not case sections.
 let metadataMembers = [ "contractVersion"; "repository"; "referenceClient" ]
 
-/// The recipe-check rule this suite runs: the others authenticate targets through the TUF client.
-let readerOnlyRecipeRule = "recipe-document-reads"
+/// Recipe check rules this suite runs: the recipe target rows that are pure functions of the authenticated
+/// metadata, and the first provider row.
+let ranRecipeRules =
+    set
+        [ "recipe-target-portable"
+          "recipe-target-authenticated"
+          "recipe-target-state"
+          "recipe-target-revoked"
+          "recipe-document-reads"
+          "recipe-document-identity"
+          "provider-repository" ]
+
+let private bindingRows =
+    "a host or provider binding row after the provider repository row; the host release and extension descriptor readers and the claims checks are task 4.3 and not implemented in this slice"
+
+/// Recipe check rules this suite does not run, each with its reason.
+let skippedRecipeRules =
+    [ for rule in
+          [ "host-release-authenticated"
+            "host-release-revoked"
+            "host-release-read"
+            "host-release-v1"
+            "host-target-authenticated"
+            "host-target-digest"
+            "host-target-listed"
+            "host-target-platform"
+            "host-target-metadata"
+            "provider-descriptor-bound"
+            "provider-descriptor-read"
+            "provider-descriptor-parses"
+            "provider-descriptor-identity"
+            "provider-descriptor-version"
+            "provider-claims-identity"
+            "provider-artifact-bound"
+            "provider-artifact-listed"
+            "provider-artifact-runtime"
+            "provider-artifact-digest-listed"
+            "provider-artifact-platform"
+            "provider-claims-kind"
+            "provider-claims-protocol"
+            "provider-claims-operand"
+            "provider-claims-model" ] ->
+          rule, bindingRows ]
+    |> Map.ofList
+
+/// Trust operations, and the check-recipe rules, that this suite does not run, with their reasons.
+let skippedTrust =
+    Map.ofList
+        [ "load", "loads the mutated repository through a TUF client: signatures, snapshot links and expiry are metadata verification"
+          "check-recipe-bindings", bindingRows ]
 
 let private manifest () = JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "cases.json")
 
+let private repositoryDocument () = JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "repository.json")
+
 /// The exact bytes of a target in the TEST-ONLY repository: the UTF-8 bytes of its <c>targetFiles</c> text.
 let targetBytes (target: string) =
-    use repository = JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "repository.json")
+    use repository = repositoryDocument ()
 
     match repository.RootElement.GetProperty("targetFiles").TryGetProperty target with
     | true, text -> Encoding.UTF8.GetBytes(nonNull (text.GetString()))
     | false, _ -> failtestf "repository.json has no target file %s" target
 
 let repositoryId () =
-    use repository = JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "repository.json")
+    use repository = repositoryDocument ()
     str repository.RootElement "repositoryId"
+
+let repository () =
+    match Sha256.tryParse (repositoryId ()) with
+    | Ok id -> id
+    | Error _ -> failtest "repository.json has no valid repositoryId"
+
+/// The targets of a metadata set (<c>metadata</c> or <c>learnedRevocation</c>), as the authenticated entries a TUF
+/// client would hand over.
+let authenticatedTargets (set: string) : Map<string, AuthenticatedTarget> =
+    use repository = repositoryDocument ()
+    let targets = repository.RootElement.GetProperty(set).GetProperty("targets").GetProperty("signed").GetProperty("targets")
+
+    [ for target in targets.EnumerateObject() ->
+          let custom =
+              match target.Value.TryGetProperty "custom" with
+              | true, custom ->
+                  match Syntax.parseJson (Encoding.UTF8.GetBytes(custom.GetRawText())) with
+                  | Ok value -> Some value
+                  | Error _ -> failtest "custom does not parse"
+              | false, _ -> None
+
+          let sha =
+              match Sha256.tryParse (nonNull (target.Value.GetProperty("hashes").GetProperty("sha256").GetString())) with
+              | Ok sha -> sha
+              | Error _ -> failtest "not a digest"
+
+          target.Name,
+          { Length = target.Value.GetProperty("length").GetUInt64()
+            Sha256 = sha
+            Custom = custom } ]
+    |> Map.ofList
 
 let signedRecipe (target: string) =
     RecipeDocument.read (targetBytes target) |> valid target
@@ -55,6 +134,42 @@ let signedRecipe (target: string) =
 let private cases (section: string) =
     use document = manifest ()
     [ for case in document.RootElement.GetProperty(section).EnumerateArray() -> case.Clone() ]
+
+let private targetOutcome (result: Result<'T, TargetRefusal>) =
+    match result with
+    | Ok _ -> Valid
+    | Error refusal -> Refused(Code.name refusal.Code, DocumentPath.render refusal.Path)
+
+/// The recipe target rows, then the provider repository row, over the recipe's authenticated metadata.
+let private recipeRows (listed: Map<string, AuthenticatedTarget>) (target: string) (bytes: byte array) =
+    RecipeTargets.check target (listed.TryFind target) bytes
+    |> Result.bind (fun (recipe, _) ->
+        Bindings.recipeProvidersInRepository recipe (repository ())
+        |> Result.mapError (fun refusal -> { Code = refusal.Code; Path = refusal.Path }))
+    |> targetOutcome
+
+/// The served bytes of a target after the case's target mutations.
+let private servedBytes (case: JsonElement) (target: string) =
+    let mutations =
+        match case.TryGetProperty "mutations" with
+        | true, m when m.ValueKind = JsonValueKind.Array -> [ for x in m.EnumerateArray() -> x ]
+        | true, m when m.ValueKind = JsonValueKind.Object -> [ m ]
+        | _ -> []
+
+    let mutable bytes = targetBytes target
+
+    for m in mutations do
+        if optStr m "target" = Some target then
+            match str m "op" with
+            | "replace-target-bytes" -> bytes <- targetBytes (str m "with")
+            | "replace-target-text" ->
+                let text = Encoding.UTF8.GetString bytes
+                let find = str m "find"
+                let at = text.IndexOf(find, System.StringComparison.Ordinal)
+                bytes <- Encoding.UTF8.GetBytes(text.Substring(0, at) + str m "replace" + text.Substring(at + find.Length))
+            | other -> failtestf "mutation %s on a target" other
+
+    bytes
 
 let private selectionTests () =
     [ for case in cases "selection" ->
@@ -113,23 +228,94 @@ let private lockRecipeTests () =
           testCase name (fun () ->
               let lockFile = str case "lock"
               let lock = LockDocument.read (Fixtures.bytesIn Fixtures.signed lockFile) |> valid lockFile
-              let repository = match Sha256.tryParse (repositoryId ()) with Ok id -> id | Error _ -> failtest "repositoryId"
-              let actual = Bindings.lockMatchesRecipe lock (signedRecipe (str case "recipe")) repository |> bindingOutcome
+              let actual = Bindings.lockMatchesRecipe lock (signedRecipe (str case "recipe")) (repository ()) |> bindingOutcome
               Expect.equal actual (Manifest.expected name case) name) ]
 
 let private recipeCheckTests () =
+    let listed = authenticatedTargets "metadata"
+
     [ for case in cases "recipeChecks" do
           let name = str case "name"
           requireKnown name [ "name"; "rule"; "recipe"; "expected" ] case
+          let rule = optStr case "rule"
 
-          if optStr case "rule" = Some readerOnlyRecipeRule then
-              testCase name (fun () ->
-                  let actual = DocumentCaseTests.outcome "recipe" (targetBytes (str case "recipe"))
-                  Expect.equal actual (Manifest.expected name case) name) ]
+          // Valid cases have no rule: they must pass the rows this suite runs.
+          if rule.IsNone || ranRecipeRules.Contains rule.Value then
+              yield
+                  testCase name (fun () ->
+                      let target = str case "recipe"
+                      let bytes = if listed.ContainsKey target then targetBytes target else [||]
+                      Expect.equal (recipeRows listed target bytes) (Manifest.expected name case) name) ]
+
+let private trustTests () =
+    [ for case in cases "trust" do
+          let name = str case "name"
+          requireKnown name [ "name"; "rule"; "metadata"; "mutations"; "action"; "expected" ] case
+          let action = case.GetProperty "action"
+          let op = str action "op"
+          let rule = optStr case "rule"
+          let listed = authenticatedTargets (str case "metadata")
+
+          match op, rule with
+          | "read", _ ->
+              yield
+                  testCase name (fun () ->
+                      let target = str action "target"
+                      let actual = RecipeTargets.authenticate (listed.TryFind target) (servedBytes case target) |> targetOutcome
+                      Expect.equal actual (Manifest.expected name case) name)
+          | "authenticate", _ ->
+              yield
+                  testCase name (fun () ->
+                      let actual =
+                          RecipeTargets.authenticate (listed.TryFind(str action "target")) (Encoding.UTF8.GetBytes(str action "text"))
+                          |> targetOutcome
+
+                      Expect.equal actual (Manifest.expected name case) name)
+          | "check-recipe", Some rule when ranRecipeRules.Contains rule ->
+              yield
+                  testCase name (fun () ->
+                      let target = str action "recipe"
+                      Expect.equal (recipeRows listed target (servedBytes case target)) (Manifest.expected name case) name)
+          | _ -> () ]
+
+let private channelTests () =
+    let listed = authenticatedTargets "metadata" |> Map.toList
+
+    [ for case in cases "channelSelection" ->
+          let name = str case "name"
+          requireKnown name [ "name"; "preset"; "channel"; "expected" ] case
+          let expected = case.GetProperty "expected"
+
+          testCase name (fun () ->
+              let preset =
+                  match Token.tryParse (str case "preset") with
+                  | Ok token -> token
+                  | Error _ -> failtest "preset"
+
+              let channel =
+                  match Channel.tryParse (str case "channel") with
+                  | Ok channel -> channel
+                  | Error _ -> failtest "channel"
+
+              let actual = RecipeTargets.select preset channel listed
+
+              match optStr expected "recipe" with
+              | Some recipe -> Expect.equal actual (Ok recipe) name
+              | None ->
+                  requireKnown name [ "code"; "path" ] expected
+                  Expect.equal (targetOutcome actual) (Refused(str expected "code", str expected "path")) name) ]
+
+/// Why a trust case is not run, or None when it is.
+let trustSkipReason (op: string) (rule: string option) =
+    match op, rule with
+    | ("read" | "authenticate"), _ -> None
+    | "check-recipe", Some rule when ranRecipeRules.Contains rule -> None
+    | "check-recipe", Some rule -> skippedRecipeRules.TryFind rule |> Option.orElse (Some "unlisted")
+    | _ -> skippedTrust.TryFind op |> Option.orElse (Some "unlisted")
 
 [<Tests>]
 let tests =
-    testList "Signed cases without a TUF client" [
+    testList "Signed cases without metadata verification" [
         testCase "every section of the signed manifest is run or listed with a reason" (fun () ->
             use document = manifest ()
             let sections = document.RootElement.EnumerateObject() |> Seq.map _.Name |> set
@@ -137,16 +323,30 @@ let tests =
             Expect.equal sections accounted "no section is silently skipped"
             Expect.equal (str document.RootElement "contractVersion") "0.1.0-draft.1" "the contract version")
 
-        testCase "exactly one recipe check reads the document alone" (fun () ->
-            let rules = cases "recipeChecks" |> List.choose (fun case -> optStr case "rule")
-            Expect.equal (rules |> List.filter ((=) readerOnlyRecipeRule) |> List.length) 1 "one reader-only recipe check")
+        testCase "every recipe check rule is run or listed with a reason, and no listed rule is stale" (fun () ->
+            let checkRecipe =
+                cases "trust"
+                |> List.filter (fun case -> (str (case.GetProperty "action") "op").StartsWith "check-recipe")
+                |> List.choose (fun case -> optStr case "rule")
+
+            let rules = (cases "recipeChecks" |> List.choose (fun case -> optStr case "rule")) @ checkRecipe |> set
+            let accounted = Set.union ranRecipeRules (skippedRecipeRules |> Map.keys |> set)
+            Expect.equal rules accounted "the manifest's rules are exactly the run and the skipped rules")
+
+        testCase "every trust case is run or listed with a reason" (fun () ->
+            let unlisted =
+                cases "trust"
+                |> List.filter (fun case -> trustSkipReason (str (case.GetProperty "action") "op") (optStr case "rule") = Some "unlisted")
+                |> List.map (fun case -> str case "name")
+
+            Expect.isEmpty unlisted "no trust case is silently skipped")
 
         testCase "every other recipe the signed repository publishes reads as a recipe" (fun () ->
-            use repository = JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "repository.json")
+            use repository = repositoryDocument ()
 
             let unreadable =
                 cases "recipeChecks"
-                |> List.filter (fun case -> optStr case "rule" = Some readerOnlyRecipeRule)
+                |> List.filter (fun case -> optStr case "rule" = Some "recipe-document-reads")
                 |> List.map (fun case -> str case "recipe")
                 |> set
 
@@ -162,5 +362,7 @@ let tests =
         testList "selection" (selectionTests ())
         testList "frozen" (frozenTests ())
         testList "lockRecipe" (lockRecipeTests ())
-        testList "recipeChecks (reader only)" (recipeCheckTests ())
+        testList "recipeChecks" (recipeCheckTests ())
+        testList "trust" (trustTests ())
+        testList "channelSelection" (channelTests ())
     ]
