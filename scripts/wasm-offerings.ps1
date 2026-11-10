@@ -31,7 +31,10 @@ param(
     [ValidateSet('native-aot', 'self-contained', 'framework-dependent', 'dotnet-tool')] [string[]] $Offerings =
         @('native-aot', 'self-contained', 'framework-dependent', 'dotnet-tool'),
     [string] $RunnerLabel = '',
-    [string] $Configuration = 'Release'
+    [string] $Configuration = 'Release',
+    # Diagnosis for win-x64 only: whether the launch executable is marked CET-compatible, and the corpus again from a copy
+    # whose launch executable has the mark cleared (editbin /CETCOMPAT:NO). Recorded, never counted as a pass or failure.
+    [switch] $DiagnoseCetCompat
 )
 
 $ErrorActionPreference = 'Stop'
@@ -106,6 +109,29 @@ function Get-GlibcFloor([string] $File) {
     return 'GLIBC_' + ($versions | Sort-Object { [version]$_ } | Select-Object -Last 1)
 }
 
+function Find-MsvcTool([string] $Name) {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+    & $vswhere -latest -products * -find "VC/Tools/MSVC/**/bin/Hostx64/x64/$Name" | Select-Object -First 1
+}
+
+# The CET diagnosis of one installed artifact; see -DiagnoseCetCompat.
+function Get-CetDiagnosis([string] $Offering, [object] $Installed) {
+    $dumpbin = Find-MsvcTool 'dumpbin.exe'; $editbin = Find-MsvcTool 'editbin.exe'
+    if (-not $dumpbin -or -not $editbin) { return [ordered]@{ problem = 'dumpbin or editbin not found' } }
+    $marked = [bool](& $dumpbin /nologo /headers $Installed.Launch | Select-String 'CET compatible')
+    $copy = Join-Path $installs "$Offering cet off"
+    if (Test-Path $copy) { Remove-Item -Recurse -Force $copy }
+    Copy-Item -Recurse $Installed.Directory $copy
+    $launch = Join-Path $copy ([System.IO.Path]::GetRelativePath($Installed.Directory, $Installed.Launch))
+    & $editbin /nologo /CETCOMPAT:NO $launch | Out-Null
+    $cleared = -not [bool](& $dumpbin /nologo /headers $launch | Select-String 'CET compatible')
+    $report = Join-Path $results "$Rid-$Offering-cet-off-wasm-host-report.json"
+    $run = Invoke-Json $launch @('mck', 'wasm-host', 'run', '--kit', $kit, '--host', $launch, '--offering', $Offering,
+        '--platform', $Rid, '--engine', "wasmtime $wasmtime", '--report', $report) "$Offering-cet-off-corpus-run"
+    Remove-Item -Recurse -Force $copy
+    [ordered]@{ launchMarkedCetCompatible = $marked; markCleared = $cleared; corpusExitCode = $run.ExitCode; corpusTotals = $run.Json.totals }
+}
+
 function Install-Artifact([string] $Offering, [object] $Launch) {
     $directory = Join-Path $installs "$Offering install"
     if (Test-Path $directory) { Remove-Item -Recurse -Force $directory }
@@ -173,6 +199,7 @@ function Test-Offering([string] $Offering) {
         corpus           = $null
         reportCheck      = $null
         glibc            = $null
+        cetDiagnosis     = $null
         failures         = [System.Collections.Generic.List[string]]::new()
     }
 
@@ -228,6 +255,7 @@ function Test-Offering([string] $Offering) {
             '--expect-offering', $Offering, '--expect-platform', $Rid) "$Offering-corpus-check"
         $result.reportCheck = [ordered]@{ exitCode = $check.ExitCode; valid = $check.Json.valid; problems = $check.Json.problems; totals = $check.Json.totals }
         if ($check.ExitCode -ne 0 -or $check.Json.valid -ne $true) { $result.failures.Add("report-check: exit $($check.ExitCode), valid $($check.Json.valid)") }
+        if ($DiagnoseCetCompat -and $Rid -eq 'win-x64') { $result.cetDiagnosis = Get-CetDiagnosis $Offering $installed }
 
         # 4. On Linux, the glibc that the launch executable and this platform's engine library need.
         if ($isLinuxRid) {
