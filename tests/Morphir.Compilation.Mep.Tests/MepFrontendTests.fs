@@ -318,6 +318,22 @@ let tests =
 
               Expect.isTrue frontend.HasExited "The guest process has exited after dispose"
 
+          testCase "A guest that never answers compileModel is a timeout at the deadline, and no process stays"
+          <| fun _ ->
+              let frontend = connect { fakeOptions "never-answers" with Deadline = TimeSpan.FromSeconds 3.0 }
+
+              try
+                  match (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend, CancellationToken.None).GetAwaiter().GetResult() with
+                  | FrontendOutcome.Failed failure ->
+                      Expect.equal
+                          (failure.Diagnostics |> Seq.map (fun diagnostic -> diagnostic.CodeOrNull |> string) |> List.ofSeq)
+                          [ "extension.timeout" ]
+                          "the code"
+                  | completed -> failtest $"Expected a timeout: {completed}"
+              finally
+                  dispose frontend
+
+              Expect.isTrue frontend.HasExited "The guest process has exited after dispose"
           testCase "An executable that does not exist is an unavailable extension"
           <| fun _ ->
               let options =

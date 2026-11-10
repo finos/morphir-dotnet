@@ -69,6 +69,17 @@ let private stdoutLog (output: IO.Stream) =
           Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
     )
 
+/// A guest that never answers compileModel and claims no cancellation, so it also ignores $/cancelRequest.
+let private neverAnswers () =
+    let handler =
+        Handlers.raw (fun _ _ -> TaskCompletionSource<Result<Text.Json.JsonElement, RpcError>>().Task)
+
+    Guest(
+        { Claims = FSharpGuest.claims
+          Capabilities = FSharpGuest.capabilities
+          Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
+    )
+
 /// Runs a scripted guest on stdin and stdout until the session ends.
 let run (scenario: string) =
     let output = Console.OpenStandardOutput()
@@ -80,6 +91,7 @@ let run (scenario: string) =
         | "only-v4" -> onlyV4 ()
         | "ion-only" -> ionOnly ()
         | "stdout-log" -> stdoutLog output
+        | "never-answers" -> neverAnswers ()
         | other -> failwith $"Unknown fake guest scenario {other}"
 
     guest.RunAsync(input, output, CancellationToken.None).GetAwaiter().GetResult() |> ignore

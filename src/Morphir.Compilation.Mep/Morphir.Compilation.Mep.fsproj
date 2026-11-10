@@ -3,7 +3,7 @@
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <RootNamespace>Morphir.Compilation.Mep</RootNamespace>
-        <Description>The MEP 0.2.0-draft.1 frontend adapter: an IFrontend over a guest process that serves morphir.frontend.compileModel. Trim-safe and AOT-safe.</Description>
+        <Description>The MEP 0.2.0-draft.1 host side of guest processes: the guest process and session, and the frontend adapter, an IFrontend over a guest that serves morphir.frontend.compileModel. Trim-safe and AOT-safe.</Description>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -22,6 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="MepGuestProcess.fs" />
         <Compile Include="MepFrontend.fs" />
     </ItemGroup>
 
