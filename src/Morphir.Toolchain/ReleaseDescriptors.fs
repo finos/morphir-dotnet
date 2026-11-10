@@ -170,3 +170,182 @@ module ToolReleaseDocument =
                 |> Result.bind body
         with _ ->
             refuse ReaderCode.InvalidDocument DocumentPath.root
+
+/// <summary>A capability kind of a claim set's <c>extension.types</c>. The protocol reads kinds strictly: any other
+/// is refused.</summary>
+[<RequireQualifiedAccess>]
+type CapabilityKind =
+    | Frontend
+    | Backend
+    | Transform
+    | Validator
+    | Workspace
+
+/// The identity a claim set states for its extension.
+type ClaimedExtension =
+    { Id: ExtensionId
+      Name: NonBlankText
+      Version: SemVer
+      Types: CapabilityKind list }
+
+/// What a claim set says about compiling: whether <c>compile</c> is <c>true</c>, and the ids of its languages.
+type FrontendClaims = { Compile: bool; Languages: string list }
+
+/// What a claim set says about generating: whether <c>generate</c> is <c>true</c>, and its targets.
+type BackendClaims = { Generate: bool; Targets: string list }
+
+/// <summary>
+/// A capability claim set (<c>claimsVersion</c> <c>0.1.0-draft.2</c>), as far as the recipe binding checks read it:
+/// what the extension claims about itself. It is not evidence that anyone ran the artifact; that is the
+/// artifact's claim check, a separate fact.
+/// </summary>
+type ClaimSet =
+    { ProtocolVersions: string list
+      Extension: ClaimedExtension
+      Frontend: FrontendClaims option
+      Backend: BackendClaims option
+      /// <summary><c>capabilities.modelTransport.tuples</c> as parsed values, which the binding check compares
+      /// exactly.</summary>
+      ModelTuples: Value list }
+
+/// <summary>
+/// The reader of a capability claim set, at <c>claimsVersion</c> <c>0.1.0-draft.2</c> only (the extension protocol,
+/// "Capability claims", at finos/morphir <c>9e1f853b7</c>). <c>extension.types</c> is read strictly;
+/// <c>capabilities</c> is carried as the protocol says, and only the members the checks use are read, each refused
+/// when it has the wrong shape. Unknown members are ignored. A <c>critical</c> path this reader does not read is
+/// refused, so a member that changes meaning is never ignored.
+/// </summary>
+/// <remarks>Left unread: <c>extension.name</c> beyond being non-blank; every capability member except
+/// <c>frontend.compile</c>, <c>frontend.languages[].id</c>, <c>backend.generate</c>, <c>backend.targets</c> and
+/// <c>modelTransport.tuples</c>. Provisional, the stricter reading: <c>requires.host</c> is refused (it must be in
+/// <c>critical</c>, and no binding check evaluates a requirement on the host), <c>protocolVersions</c> must be
+/// non-empty and distinct, and <c>extension.types</c> distinct.</remarks>
+module ClaimSetDocument =
+    open Reading
+
+    /// The current claim set format; no other is read or converted.
+    let claimsVersion = "0.1.0-draft.2"
+
+    /// The member paths this reader reads, which a <c>critical</c> list may name.
+    let understoodPaths =
+        set
+            [ "claimsVersion"
+              "protocolVersions"
+              "extension"
+              "extension.id"
+              "extension.name"
+              "extension.version"
+              "extension.types"
+              "capabilities"
+              "capabilities.frontend"
+              "capabilities.frontend.compile"
+              "capabilities.frontend.languages"
+              "capabilities.frontend.languages.id"
+              "capabilities.backend"
+              "capabilities.backend.generate"
+              "capabilities.backend.targets"
+              "capabilities.modelTransport"
+              "capabilities.modelTransport.tuples"
+              "critical" ]
+
+    let private boolean (n: Node) : Read<bool> =
+        match n.Value with
+        | Value.Boolean b -> Ok b
+        | _ -> refuse ReaderCode.InvalidDocument n.Path
+
+    let private nonBlank (n: Node) : Read<string> =
+        text n |> Result.bind (fun s -> if System.String.IsNullOrWhiteSpace s then refuse ReaderCode.InvalidValue n.Path else Ok s)
+
+    let private kinds =
+        [ "frontend", CapabilityKind.Frontend
+          "backend", CapabilityKind.Backend
+          "transform", CapabilityKind.Transform
+          "validator", CapabilityKind.Validator
+          "workspace", CapabilityKind.Workspace ]
+
+    let private extension (n: Node) : Read<ClaimedExtension> =
+        result {
+            let! o = asObject n
+            let! id = required "id" extensionId o
+            let! name = required "name" (validated NonBlankText.tryParse) o
+            let! version = required "version" version o
+            let! types = required "types" (distinctArray (tag kinds)) o
+            return { Id = id; Name = name; Version = version; Types = types }
+        }
+
+    let private frontend (n: Node) : Read<FrontendClaims> =
+        result {
+            let! o = asObject n
+            let! compile = optional "compile" boolean o
+            let languageId (l: Node) = asObject l |> Result.bind (required "id" text)
+            let! languages = optional "languages" (array languageId) o
+            return { Compile = defaultArg compile false; Languages = defaultArg languages [] }
+        }
+
+    let private backend (n: Node) : Read<BackendClaims> =
+        result {
+            let! o = asObject n
+            let! generate = optional "generate" boolean o
+            let! targets = optional "targets" (array text) o
+            return { Generate = defaultArg generate false; Targets = defaultArg targets [] }
+        }
+
+    let private tuples (n: Node) : Read<Value list> =
+        result {
+            let! o = asObject n
+            let tuple (t: Node) = asObject t |> Result.map (fun _ -> t.Value)
+            let! tuples = optional "tuples" (array tuple) o
+            return defaultArg tuples []
+        }
+
+    /// The claim set at a node, with refusals under its path.
+    let internal readAt (n: Node) : Read<ClaimSet> =
+        result {
+            let! o = asObject n
+
+            match tryMember "claimsVersion" o with
+            | Some { Value = Value.String version } when version = claimsVersion -> ()
+            | Some { Value = Value.String _; Path = path } -> return! refuse ReaderCode.UnsupportedContractVersion path
+            | _ -> return! refuse ReaderCode.InvalidDocument (o.Path.Child "claimsVersion")
+
+            let! critical = optional "critical" (distinctArray text) o
+            let critical = defaultArg critical []
+
+            match critical |> List.tryFind (understoodPaths.Contains >> not) with
+            | Some unknown -> return! refuse ReaderCode.UnsupportedCriticalMember (o.Path.Child unknown)
+            | None -> ()
+
+            // requires.host is a requirement on the host that must be listed as critical; it is never understood here.
+            match tryMember "requires" o with
+            | Some requires ->
+                let! r = asObject requires
+
+                if has "host" r then
+                    return! refuse ReaderCode.InconsistentDocument (o.Path.Child "critical")
+            | None -> ()
+
+            let! protocolVersions = required "protocolVersions" (distinctArray nonBlank) o
+
+            if protocolVersions.IsEmpty then
+                return! refuse ReaderCode.InconsistentDocument (o.Path.Child "protocolVersions")
+
+            let! extension = required "extension" extension o
+            let! capabilities = objectMember "capabilities" o
+            let! frontend = optional "frontend" frontend capabilities
+            let! backend = optional "backend" backend capabilities
+            let! modelTuples = optional "modelTransport" tuples capabilities
+
+            return
+                { ProtocolVersions = protocolVersions
+                  Extension = extension
+                  Frontend = frontend
+                  Backend = backend
+                  ModelTuples = defaultArg modelTuples [] }
+        }
+
+    /// <summary>Reads a claim set from a parsed value, with paths from its root. No exception leaves it.</summary>
+    let readValue (value: Value) : Result<ClaimSet, ReaderRefusal> =
+        try
+            readAt (node value DocumentPath.root)
+        with _ ->
+            refuse ReaderCode.InvalidDocument DocumentPath.root

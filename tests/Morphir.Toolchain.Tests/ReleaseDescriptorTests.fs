@@ -128,3 +128,79 @@ let toolReleaseTests =
         testCase "a descriptor over 1 MiB is refused before it is parsed" (fun () ->
             refusedWith ReaderCode.InvalidDocument "" (ToolReleaseDocument.read (Array.create (1024 * 1024 + 1) (byte ' '))))
     ]
+
+/// The claim set of the first artifact of an extension release descriptor of the signed repository.
+let private claimsOf (target: string) =
+    match memberOf "artifacts" (valueOf target) with
+    | Value.Array(first :: _) -> memberOf "claims" first
+    | _ -> failwith "artifacts"
+
+let private frontendClaims () = claimsOf "extensions/fsharp-frontend/0.6.0/release.json"
+let private readClaims (value: Value) = ClaimSetDocument.readValue value
+
+[<Tests>]
+let claimSetTests =
+    testList "Capability claim sets" [
+        testCase "the frontend's claims read" (fun () ->
+            match readClaims (frontendClaims ()) with
+            | Ok claims ->
+                Expect.equal claims.Extension.Id.Text "morphir-fsharp-frontend" "id"
+                Expect.equal claims.Extension.Version.Text "0.6.0" "version"
+                Expect.equal claims.Extension.Types [ CapabilityKind.Frontend ] "types"
+                Expect.equal claims.ProtocolVersions [ "0.2.0-draft.1" ] "protocol versions"
+                Expect.equal claims.Frontend (Some { Compile = true; Languages = [ "fsharp" ] }) "frontend"
+                Expect.equal claims.Backend None "no backend"
+                Expect.equal claims.ModelTuples.Length 1 "one tuple"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "the backend's claims read" (fun () ->
+            match readClaims (claimsOf "extensions/fsharp-backend/0.1.0/release.json") with
+            | Ok claims ->
+                Expect.equal claims.Extension.Types [ CapabilityKind.Backend ] "types"
+                Expect.isSome claims.Backend "backend"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "every claim set of the signed repository's descriptors reads" (fun () ->
+            use repository = System.Text.Json.JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "repository.json")
+
+            for target in repository.RootElement.GetProperty("targetFiles").EnumerateObject() do
+                if target.Name.EndsWith "/release.json" && target.Name.StartsWith "extensions/" then
+                    match memberOf "artifacts" (valueOf target.Name) with
+                    | Value.Array artifacts ->
+                        for artifact in artifacts do
+                            match readClaims (memberOf "claims" artifact) with
+                            | Ok _ -> ()
+                            | Error refusal -> failtestf "%s: %A" target.Name refusal
+                    | _ -> failtestf "%s has no artifacts" target.Name)
+
+        testList "a claim set outside 0.1.0-draft.2 is refused" [
+            for name, edit, code, path in
+                [ "claimsVersion 0.1.0-draft.1", setAt [ "claimsVersion" ] (str "0.1.0-draft.1"), ReaderCode.UnsupportedContractVersion, "claimsVersion"
+                  "no claimsVersion", removeAt [ "claimsVersion" ], ReaderCode.InvalidDocument, "claimsVersion"
+                  "an unknown capability kind", setAt [ "extension"; "types" ] (Value.Array [ str "linter" ]), ReaderCode.UnsupportedCase, "extension.types[0]"
+                  "a repeated capability kind", setAt [ "extension"; "types" ] (Value.Array [ str "frontend"; str "frontend" ]), ReaderCode.InconsistentDocument, "extension.types[1]"
+                  "an extension version that is not SemVer", setAt [ "extension"; "version" ] (str "0.6"), ReaderCode.InvalidValue, "extension.version"
+                  "a blank extension name", setAt [ "extension"; "name" ] (str " "), ReaderCode.InvalidValue, "extension.name"
+                  "no protocol versions", setAt [ "protocolVersions" ] (Value.Array []), ReaderCode.InconsistentDocument, "protocolVersions"
+                  "compile that is not a boolean", setAt [ "capabilities"; "frontend"; "compile" ] (str "true"), ReaderCode.InvalidDocument, "capabilities.frontend.compile"
+                  "a language without an id", setAt [ "capabilities"; "frontend"; "languages" ] (Value.Array [ Value.Object [] ]), ReaderCode.InvalidDocument, "capabilities.frontend.languages[0].id"
+                  "tuples that are not an array", setAt [ "capabilities"; "modelTransport"; "tuples" ] (str "x"), ReaderCode.InvalidDocument, "capabilities.modelTransport.tuples"
+                  "a critical member this reader does not understand", setAt [ "critical" ] (Value.Array [ str "capabilities.frontend.incremental" ]), ReaderCode.UnsupportedCriticalMember, "capabilities.frontend.incremental"
+                  "requires.host, whose host requirement no binding check evaluates",
+                  (setAt [ "requires" ] (Value.Object [ "host", Value.Array [ str ">=0.4.0" ] ]) >> setAt [ "critical" ] (Value.Array [ str "requires.host" ])),
+                  ReaderCode.UnsupportedCriticalMember,
+                  "requires.host"
+                  "requires.host that critical does not list", setAt [ "requires" ] (Value.Object [ "host", Value.Array [ str ">=0.4.0" ] ]), ReaderCode.InconsistentDocument, "critical" ] ->
+                testCase name (fun () -> refusedWith code path (readClaims (edit (frontendClaims ()))))
+        ]
+
+        testCase "unknown members and capabilities are ignored, as the protocol says" (fun () ->
+            let edited =
+                frontendClaims ()
+                |> setAt [ "note" ] (str "x")
+                |> setAt [ "extension"; "description" ] (str "x")
+                |> setAt [ "capabilities"; "frontend"; "incremental" ] (Value.Boolean false)
+                |> setAt [ "capabilities"; "workspace" ] (Value.Object [ "discover", Value.Boolean true ])
+
+            Expect.isOk (readClaims edited) "read")
+    ]
