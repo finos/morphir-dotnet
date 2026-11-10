@@ -148,7 +148,8 @@ partial class Build
 
     /// <summary>
     /// Run end-to-end tests against Morphir executables (BDD/Gherkin using Reqnroll)
-    /// Parameters: --executable-type (aot, trimmed, untrimmed, or all - default: all)
+    /// Parameters: --executable-type (aot, trimmed, untrimmed, tool, all - default: all; or a packaged release profile:
+    /// native-aot, self-contained, framework-dependent, dotnet-tool, or offerings for all four, which run from PackRelease artifacts)
     /// Note: Requires executables to be published first (PublishExecutable, PublishSingleFile, etc.)
     /// </summary>
     Target TestE2E => _ => _
