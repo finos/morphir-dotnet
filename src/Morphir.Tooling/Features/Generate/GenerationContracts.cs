@@ -235,18 +235,11 @@ public sealed record GenerationArtifacts(VFileTree Tree, ImmutableArray<Generati
 public sealed record GenerationPublication(ImmutableArray<string> Artifacts, ImmutableArray<string> Written,
     ImmutableArray<string> Unchanged, ImmutableArray<string> Removed);
 
+/// <summary>Report labels of model families and kinds. The names are the F# unions' own (WireValue), so C# does not test cases.</summary>
 internal static class ModelLabels
 {
-    public static string Family(ModelFamily family) => family switch
-    {
-        { IsClassic: true } => "Classic", { IsV4: true } => "V4",
-        _ => throw new ArgumentOutOfRangeException(nameof(family))
-    };
-    public static string Kind(DistributionKind kind) => kind switch
-    {
-        { IsLibrary: true } => "Library", { IsSpecs: true } => "Specs", { IsApplication: true } => "Application",
-        _ => throw new ArgumentOutOfRangeException(nameof(kind))
-    };
+    public static string Family(ModelFamily family) => family.WireValue;
+    public static string Kind(DistributionKind kind) => kind.WireValue;
 }
 
 public interface IGenerationPublisher
