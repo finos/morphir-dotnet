@@ -163,6 +163,50 @@ let tests =
               Expect.isLessThan watch.Elapsed (deadline + deadline + TimeSpan.FromSeconds 10.0) "generate and disposal end within about two deadlines"
               Expect.isTrue (guestGone (writer.ToString())) "The guest process is gone after dispose"
 
+          testCase "A model over the agreed decoded limit is not sent: extension.not_admitted names the limit"
+          <| fun _ ->
+              // The offered limits are lowered through the options, so a small fixture is over them; the agreed
+              // limits are then at most these.
+              let options =
+                  MepBackendOptions(
+                      dotnet,
+                      [| Path.Combine(AppContext.BaseDirectory, "Morphir.CodeGeneration.FSharp.Extension.Tests.dll"); "--fake-backend-guest"; "only-v4" |],
+                      TargetId.Create "fsharp",
+                      Deadline = TimeSpan.FromMinutes 1.0,
+                      Stderr = TextWriter.Synchronized stderr,
+                      WorkingDirectory = guestWork.Value.Work,
+                      OfferLimits =
+                          ({ MaxEncodedBytes = 4096
+                             MaxDecodedBytes = 100
+                             MaxDepth = 4096
+                             MaxNodes = 50_000_000 }
+                          : Morphir.Mep.ModelTransportLimits)
+                  )
+
+              let backend = connect options
+
+              try
+                  let failure = failureOf (generateWith backend (load (irFixture "daily-rate-v4.json")) [])
+                  Expect.equal (codes failure) [ "extension.not_admitted" ] "the code"
+                  Expect.stringContains (messages failure) "100" "the message names the limit"
+                  Expect.isFalse backend.HasExited "the guest still runs: nothing was sent that it could fail on"
+              finally
+                  dispose backend
+
+          testCase "A model file with a UTF-8 byte order mark is sent without it and gives the same files"
+          <| fun _ ->
+              let plain = File.ReadAllBytes(irFixture "daily-rate-v4.json")
+              let withMark = Path.Combine(guestWork.Value.Work, "daily-rate-v4-bom.json")
+              File.WriteAllBytes(withMark, Array.append [| 0xEFuy; 0xBBuy; 0xBFuy |] plain)
+              let backend = connect (realGuest ())
+
+              try
+                  let expected = filesOf (artifactsOf (generateWith backend (load (irFixture "daily-rate-v4.json")) [])).Tree
+                  let actual = filesOf (artifactsOf (generateWith backend (load withMark) [])).Tree
+                  Expect.equal actual expected "the same files with and without the byte order mark"
+              finally
+                  dispose backend
+
           testCase "The adapter names the guest by its own identity and declares the agreed tuples as capabilities"
           <| fun _ ->
               let backend = connect (realGuest ())

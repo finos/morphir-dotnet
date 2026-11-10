@@ -304,8 +304,13 @@ type MepGuestProcess
                     match! request with
                     | Ok result -> return MepGuestReply.Result result
                     | Error error -> return MepGuestReply.Error error
-                with :? OperationCanceledException when not cancellation.IsCancellationRequested ->
+                with
+                | :? OperationCanceledException when not cancellation.IsCancellationRequested ->
                     return MepGuestReply.Failed(MepGuestFailure.Timeout $"Extension {name} did not answer {method} within {options.Deadline}.")
+                // A request that faults for another reason, for example a message larger than one frame, is a
+                // protocol failure of this request. A user cancellation is not caught.
+                | error when not (error :? OperationCanceledException) ->
+                    return MepGuestReply.Failed(MepGuestFailure.ProtocolError $"Extension {name}: the {method} request could not be sent: {error.Message}")
         }
 
     /// <summary>

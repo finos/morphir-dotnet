@@ -32,6 +32,13 @@ public sealed record MepBackendOptions(string Executable, IReadOnlyList<string> 
 
     /// <summary>The host version that the session sends.</summary>
     public string HostVersion { get; init; } = "0.0.0";
+
+    /// <summary>
+    /// The model-transport limits that the host offers. The default fits in one 64 MiB frame: 60 MiB of base64,
+    /// 45 MiB decoded, depth 4096 and 50,000,000 nodes. The host admits each model against the agreed limits before
+    /// it sends it.
+    /// </summary>
+    public ModelTransportLimits OfferLimits { get; init; } = MepGenerationBackend.DefaultLimits;
 }
 
 /// <summary>
@@ -53,24 +60,33 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     private static readonly ModelTransportTuple V4Tuple = JsonTuple("4.0.0");
     private static readonly ModelTransportTuple ClassicTuple = JsonTuple("3.0.0");
 
-    /// <summary>The host offer, with bounds that fit in one 64 MiB frame, as the frontend adapter offers.</summary>
-    private static readonly ModelTransportSupport Offer = new(
-        [V4Tuple, ClassicTuple],
-        new ModelTransportLimits(60 * 1024 * 1024, 45 * 1024 * 1024, 4096, 50_000_000),
-        []);
+    /// <summary>The default host limits, which fit in one 64 MiB frame, as the frontend adapter offers.</summary>
+    public static ModelTransportLimits DefaultLimits { get; } = new(60 * 1024 * 1024, 45 * 1024 * 1024, 4096, 50_000_000);
+
+    /// <summary>The UTF-8 byte order mark, which is not part of the JSON that the host sends.</summary>
+    private static ReadOnlySpan<byte> Utf8Bom => [0xEF, 0xBB, 0xBF];
+
+    /// <summary>The bytes kept free in a frame for the JSON-RPC members around the request's params.</summary>
+    private const int FrameMargin = 1024;
 
     private readonly MepGuestProcess _guest;
     private readonly IReadOnlyList<ModelTransportTuple> _agreed;
+    private readonly ModelTransportLimits _limits;
 
     private sealed record PassedOptions(ImmutableDictionary<string, JsonElement> Values) : ValidatedBackendOptions;
 
-    private MepGenerationBackend(MepGuestProcess guest, BackendDescriptor descriptor, string version, IReadOnlyList<ModelTransportTuple> agreed)
+    private MepGenerationBackend(MepGuestProcess guest, BackendDescriptor descriptor, string version, IReadOnlyList<ModelTransportTuple> agreed,
+        ModelTransportLimits limits)
     {
         _guest = guest;
         Descriptor = descriptor;
         ExtensionVersion = version;
         _agreed = agreed;
+        _limits = limits;
     }
+
+    /// <summary>The host offer: JSON IR, IR 4.0.0 first, then classic 3.0.0, with the given limits.</summary>
+    private static ModelTransportSupport OfferWith(ModelTransportLimits limits) => new([V4Tuple, ClassicTuple], limits, []);
 
     /// <inheritdoc />
     public BackendDescriptor Descriptor { get; }
@@ -99,7 +115,8 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     {
         var guestOptions = MepGuestOptions.Create(options.Executable, options.Arguments, options.WorkingDirectory, options.Deadline,
             options.Stderr, options.HostName, options.HostVersion);
-        var start = await MepGuestProcess.StartCheckedAsync(guestOptions, Offer, ct);
+        var offer = OfferWith(options.OfferLimits);
+        var start = await MepGuestProcess.StartCheckedAsync(guestOptions, offer, ct);
         var guest = start.Match<MepGuestProcess?>(started => started, _ => null);
         if (guest is null)
             return start.Match(_ => throw new InvalidOperationException(), failed => Fail<MepGenerationBackend>(GenerationFailureKind.Operational, failed.Code, failed.Message));
@@ -135,7 +152,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
                 failure => $"unknown ({failure.Message})");
             return await Refuse("extension.tuple_unavailable",
                 $"Extension {label} is installed but not ready: it agreed no morphir.backend.generateModel tuple with the host. "
-                + $"The host offered: {Tuples(Offer.Tuples)}. The extension claims: {claimed}.");
+                + $"The host offered: {Tuples(offer.Tuples)}. The extension claims: {claimed}.");
         }
 
         var name = ExtensionName.TryParse(extension.Name, out var parsedName, out _) ? parsedName : ExtensionName.Create(id.Value);
@@ -156,7 +173,9 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         }
 
         var descriptor = new BackendDescriptor(id, name, options.Target, capabilities) { Description = description };
-        return new Outcome<MepGenerationBackend>.Success(new(guest, descriptor, extension.Version, agreed));
+        // The host admits each model against the agreed limits, which are at most its own offer.
+        var limits = session.Capabilities.ModelTransportOrNull()?.Limits ?? options.OfferLimits;
+        return new Outcome<MepGenerationBackend>.Success(new(guest, descriptor, extension.Version, agreed, limits));
     }
 
     /// <summary>Passes every option to the guest, which validates them; a refusal comes back from generation.</summary>
@@ -189,14 +208,25 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
                 $"Extension {Identity}: the host sends JSON IR, and this model was read as {model.Representation}. Generate from a JSON model.");
 
         var bytes = file.Entry.Memory;
-        if (bytes.Span.StartsWith("﻿"u8)) bytes = bytes[3..];
+        if (bytes.Span.StartsWith(Utf8Bom)) bytes = bytes[Utf8Bom.Length..];
         var envelope = ModelTransport.CreateDerivedEnvelope(tuple, "sha256:" + Sha256Digest.Compute(bytes.Span).Value, bytes);
         if (envelope.IsError)
             return Fail(GenerationFailureKind.Operational, "extension.protocol_error", $"Extension {Identity}: the model envelope cannot be made: {envelope.ErrorValue}");
 
-        var parameters = JsonSerializer.SerializeToElement(
+        // The host sends only what the session admits: the agreed encoded, decoded, depth and node limits.
+        var admitted = ModelTransport.Admit(tuple, _limits, envelope.ResultValue);
+        if (admitted.IsError)
+            return Fail(GenerationFailureKind.Invocation, "extension.not_admitted",
+                $"Extension {Identity}: the model is not sent, because it is over the limits that the session agreed ({admitted.ErrorValue.Code}): {admitted.ErrorValue}");
+
+        var serialized = JsonSerializer.SerializeToUtf8Bytes(
             new GenerateModelRequest(envelope.ResultValue, tuple, Descriptor.Target.Value, ContextDigest(Descriptor.Target, options.Values), [], options.Values),
             MepJson.Default.GenerateModelRequest);
+        if (serialized.Length > ContentLengthFraming.MaxBodyBytes - FrameMargin)
+            return Fail(GenerationFailureKind.Invocation, "extension.not_admitted",
+                $"Extension {Identity}: the generateModel request is {serialized.Length} bytes, over the {ContentLengthFraming.MaxBodyBytes}-byte frame limit.");
+        using var document = JsonDocument.Parse(serialized);
+        var parameters = document.RootElement;
 
         var reply = await _guest.SendAsync(Method.GenerateModel, parameters, ct);
         return reply.Match(

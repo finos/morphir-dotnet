@@ -130,7 +130,35 @@ let tests =
     testSequenced
     <| testList
         "MEP frontend adapter"
-        [ testCase "The session capability comes from the agreed tuples: v4 and classic versions 1 to 3"
+        [ testCase "A request too large for one frame is a protocol error of the guest process, not an exception"
+          <| fun _ ->
+              let options =
+                  MepGuestOptions.Create(
+                      host,
+                      [ Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-frontend.dll") ],
+                      guestWork.Value.Work,
+                      TimeSpan.FromMinutes 1.0,
+                      TextWriter.Synchronized stderr,
+                      "morphir-dotnet-tests",
+                      "1.0.0"
+                  )
+
+              let guest =
+                  match MepGuestProcess.StartAsync(options, Morphir.Frontend.FSharp.Extension.FSharpGuest.support, CancellationToken.None).GetAwaiter().GetResult() with
+                  | Ok guest -> guest
+                  | Error failure -> failtest $"The guest starts: {failure}"
+
+              try
+                  // One byte more than a frame holds, before the JSON-RPC envelope is added.
+                  use document = Text.Json.JsonDocument.Parse("\"" + String('a', ContentLengthFraming.MaxBodyBytes) + "\"")
+
+                  match guest.SendAsync(Method.CompileModel, document.RootElement, CancellationToken.None).GetAwaiter().GetResult() with
+                  | MepGuestReply.Failed(MepGuestFailure.ProtocolError message) -> Expect.stringContains message "compileModel" "names the request"
+                  | other -> failtest $"Expected a protocol error: {other}"
+              finally
+                  (guest :> IAsyncDisposable).DisposeAsync().AsTask().GetAwaiter().GetResult()
+
+          testCase "The session capability comes from the agreed tuples: v4 and classic versions 1 to 3"
           <| fun _ ->
               let frontend = connect (guestOptions ())
 
