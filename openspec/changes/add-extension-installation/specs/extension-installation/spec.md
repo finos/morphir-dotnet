@@ -319,4 +319,3 @@ Provisional pending Q-DIAG. Each refusal SHALL carry one stable code from this c
 #### Scenario: Code in the JSON report
 - **WHEN** an install fails because the digest differs
 - **THEN** the JSON report's `diagnostics` has one entry with `code` `extension.digest_mismatch`, `severity` `error` and the extension id
-</content>

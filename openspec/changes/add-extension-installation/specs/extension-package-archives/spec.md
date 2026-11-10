@@ -193,4 +193,3 @@ Provisional pending Q-PROVENANCE. For a global install from a file or staged fol
 #### Scenario: Generated WASM history
 - **WHEN** the generated history for a WASM package is read with the index record reader
 - **THEN** its artifact record has no `platform` member and is accepted
-</content>

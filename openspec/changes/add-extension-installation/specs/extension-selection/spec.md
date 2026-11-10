@@ -150,4 +150,3 @@ Writes of a pin file SHALL replace it atomically and SHALL be serialized by a lo
 #### Scenario: Two writers
 - **WHEN** two `extension use` commands change the same project pin file at once
 - **THEN** the file afterwards is the complete result of one of them followed by the other
-</content>

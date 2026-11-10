@@ -865,7 +865,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 
 <h2 id="migration">Migration plan</h2>
 <ol>
-<li>Group 1 records the maintainer's answers and raises the upstream asks. Groups 2 and 3 add the library and shared-state code with no command change, and 3.5 runs the first interoperability gate.</li>
+<li>Group 1 records the maintainer's answers and raises the upstream asks. Groups 2 and 3 add the library and shared-state code with no command change. Task 3.5 verifies the exact shared files through the standalone compatibility runner; it requires no Rust product host.</li>
 <li>Group 4 replaces the stubs. No release ever installed anything through them, so there is no user data to migrate. Files the old handlers could have written below the <code>OsPaths</code> folders are not read or deleted.</li>
 <li>Groups 5 to 7 add archives, staged folders, levels, activation and the hand-over. Task 8.1 waits for #1149's shared cases, and packages for #1151.</li>
 <li>The PRD's feature table and step 3 text are updated in the group that lands each part; <code>docs/content/docs/cli/management.md</code> is rewritten in task 4.8.</li>
@@ -895,7 +895,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <ul>
 <li>The wording of the stderr notes and the text output columns.</li>
 <li>Whether the AOT probe for the library joins <code>TestMepAot</code> or gets its own target.</li>
-<li>The exact name of the interoperability gate's workflow, and whether it also runs on a schedule.</li>
+
 </ul>
 
 <h2 id="references">References</h2>
@@ -918,4 +918,3 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 </main>
 </body>
 </html>
-</content>

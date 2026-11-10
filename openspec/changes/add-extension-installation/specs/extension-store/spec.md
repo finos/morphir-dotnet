@@ -240,4 +240,3 @@ A .NET host SHALL make its private run copies in directories named `morphir-dotn
 #### Scenario: Copy left by a crash
 - **WHEN** a .NET run copy from a crashed compile remains and no process uses it
 - **THEN** the next .NET activation removes it and leaves every `morphir-extension-*` directory in place
-</content>

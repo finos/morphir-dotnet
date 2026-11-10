@@ -8,9 +8,9 @@ No Beads id is recorded; do not invent one.
 
 Dependencies. The design groups its questions in two. One group follows today's reference behavior or an open parent proposal, which stands in for the shared contract until finos/morphir writes it down; those need no maintainer answer to start, and a change in the parent's review changes the named specs first. The other group needs the maintainer. Parent contracts are named where a task waits on them.
 
-- Can start now: group 1; 2.1 to 2.4 and 2.10; 3.1, 3.3 and 3.4; 5.1.
+- Can start now: group 1; 2.1 to 2.3 and 2.10; 3.3 and 3.4; 5.1.
 - Waits on parent contracts in finos/morphir:
-  - 2.5 to 2.8, 3.2, 3.5, 3.6, 4.1 and 4.9 on finos/morphir#1150 (open, read at `6e15650`). It gives the family's schema URLs (Decision 15A), the journal, the history rule and the old-state move (Decisions 10 and 11).
+  - 2.4 to 2.8, 3.1, 3.2, 3.5, 3.6, 4.1 and 4.9 on finos/morphir#1150 (open, read at `6e15650`). It gives the family's schema URLs (Decision 15A), the journal, the history rule and the old-state move (Decisions 10 and 11).
   - 2.7, 2.8 and 4.1 also on the member tables of finos/morphir#1149's task 1.4, which is not done yet. #1149 is merged, but its task 1.4 page is the authority for the catalog, lock and repositories members. Until then, the reference behavior is the only evidence.
   - 4.3 also on the claims `$schema` in `describe` answers: the probe refuses an answer without it, so the test guest, and every guest built on `Morphir.Mep`, must answer with it first (provisional on #1150).
   - 8.1 on the shared case manifest of #1149's task 1.2.
@@ -30,6 +30,7 @@ Dependencies. The design groups its questions in two. One group follows today's 
   - its task 3.3 needs 3.5, 5.2, 5.3 and 7.1, and the package contract of #1151;
   - its 3.4 needs 6.5;
   - its 4.4 needs 6.4.
+
 Commands follow the repository's build settings. Build one project with `dotnet build <project> -c Release -m:1 -p:UseSharedCompilation=false -nodeReuse:false`. Run Expecto assemblies with `dotnet exec <dll> --filter-test-list "<list>"` and TUnit assemblies with `dotnet exec <dll> --treenode-filter "<filter>"`, as `build/Build.Testing.cs` does. In the notes below:
 
 - `<inst>` stands for `tests/Morphir.Extensions.Installation.Tests/bin/Release/net10.0/Morphir.Extensions.Installation.Tests.dll`;
@@ -41,7 +42,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 - [ ] 1.1 Record the maintainer's answer to each question in the design's "needs the maintainer" group beside the question, and change the specs and tasks where an answer differs from the recommendation; verify with `mise exec -- openspec validate add-extension-installation --strict` and `mise run openspec:verify`.
 - [ ] 1.2 Raise the upstream asks of the design's "Raised upstream" list in finos/morphir, and the PRD superset proposal; verify that each question in `design.html` links its issue or proposal.
   - The asks:
-    - the maintainer decision MEP-1: MEP `0.1` is not supported, and the supported protocol is the whole 0.2 line (`>=0.2.0-0`, `<0.3.0`, under the npm and Cargo prerelease rule) as an explicit exception to the exact-match rule for prereleases. Say so in `protocol.md` and the extension README, and move the Rust host to the 0.2 line;
+    - the maintainer decision MEP-1: MEP `0.1` is not supported, and the supported protocol is the whole 0.2 line (`>=0.2.0-0`, `<0.3.0`, under the npm and Cargo prerelease rule) as an explicit exception to the exact-match rule for prereleases. Say so in `protocol.md` and the extension README; no Rust product host work is required (Decision 16A);
     - the remaining asks listed in the design's "Asks for the shared extension contract" (finos/morphir#1149 task 1.4 and #1150);
     - the overlay, the level pins and the receipt launch path, for the toolchain contract;
     - the rules that only the reference source specifies today and that #1150 does not yet cover, to be written into the contract pages: Q-PLATFORM, Q-REQHOST, Q-PROBELIMITS, Q-GC and Q-FIXTURES (#1150 covers Q-LOCKPRIM, Q-JOURNAL, Q-STRICTLOCK, Q-NUMBERS and the path spelling; Decision 15A retires Q-CATVER);
@@ -353,4 +354,3 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 - Follow AGENTS.md and `openspec/config.yaml` for review and explicit approval before merge.
 - Archive only after the implemented scope passes. Split 5.6, 7.2, 8.1 and 9.1 into a follow-up change if they are still waiting. Multi-file packages (finos/morphir#1151) get their own change once that contract is approved.
 - The `extension-registry` delta is written against the text of `add-deployment-and-acquisition`, which is active on main. If that change archives first, this delta applies as written. If this change archives first, the adoption change's MODIFIED block must take this one's installed-entry sentences.
-</content>

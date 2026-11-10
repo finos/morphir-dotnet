@@ -83,4 +83,3 @@ Without `--platform`, installed entries SHALL be those selected for the running 
 #### Scenario: Local listing
 - **WHEN** one extension is selected by the project pin and another only by the shared catalog, and a user runs `morphir extension list --local --json`
 - **THEN** the installed entries in the result are only the project one, and the built-ins are present
-</content>

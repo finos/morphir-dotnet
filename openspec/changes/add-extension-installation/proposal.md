@@ -109,4 +109,3 @@ Nothing here is shipped, released or qualified.
 - Removal from the extension path: `Features/Management/ExtensionHandlers.cs`, `ExtensionCommands.cs` and the extension use of `ArtifactPathResolver` and `Configuration/OsPaths.cs`.
 - Docs: `docs/content/docs/cli/management.md`, the extension-model PRD (step 3 status and corrections), and a new installation guide.
 - Upstream: issues and review comments for the asks the design lists, and language-neutral fixtures for the acquisition documents in finos/morphir.
-</content>
