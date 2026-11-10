@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Defines the runner that qualifies a WASM extension host against the shared execution profiles. The crafted modules and their fixed expectations are data in finos/morphir; this capability covers how the .NET runner reads that data, drives a host and records what it saw. It adopts the runner side of the capability `mck/wasm-host-qualification` of finos/morphir.
+Defines the runner that qualifies a WASM extension host against the shared execution profiles. The crafted modules and their fixed expectations are data in finos/morphir; this capability covers how the .NET runner turns that data into Gherkin cases, drives a host and records what it saw. It adopts the runner side of the capability `mck/wasm-host-qualification` of finos/morphir.
 
 ### One case, from data to verdict
 
-A crafted case names one module that does one wrong thing, the frames to send and the observation to expect. This one starts a module that imports a socket function:
+A crafted case names one module that does one wrong thing, the frames to send and the observation to expect. finos/morphir publishes the cases as JSON today:
 
 ```json
 {
@@ -23,14 +23,56 @@ A crafted case names one module that does one wrong thing, the frames to send an
 }
 ```
 
-The runner checks the module's digest, starts `<host> extension worker --module <wasm> --json`, writes the frame, reads stdout and the stderr events, and compares them with `expect`. It knows nothing about the host except its path and arguments, so the same run qualifies the MoonBit host and the .NET host.
+The kit's case format is Gherkin, so this repository generates a feature from each pinned case. The step wording here is illustrative; the step vocabulary fixes it.
+
+```gherkin
+Scenario: wasm-host-0001 classification/unknown-namespace
+  Given the module "env-open-socket" declared as "extism-kernel-v1"
+  When the worker is sent the frames "initialize"
+  Then the worker exits with status 3
+  And stdout is empty
+  And stderr has a "refused" event with code "extension.abi_unsupported" whose message includes "open_socket"
+  And stderr has no "fault" event
+```
+
+The runner checks the module's digest, starts `<host> extension worker --module <wasm> --json`, writes the frame, reads stdout and the stderr events, and compares them with the expectation. It knows nothing about the host except its path and arguments, so the same run qualifies the MoonBit host and the .NET host.
 
 No expectation ever comes from a host run. The runner compares; it never records.
 
 ## ADDED Requirements
 
-### Requirement: The crafted corpus is a pinned input
-The runner SHALL read the crafted corpus in the format finos/morphir publishes it and SHALL NOT need it converted. Before a case runs, the runner SHALL compare the SHA-256 of the module binary with the digest the corpus records, and SHALL refuse the case when they differ.
+### Requirement: Crafted cases are Gherkin features generated from the pinned corpus
+The crafted cases SHALL be Gherkin features in the kit's closed step vocabulary, generated from the pinned upstream corpus and never edited by hand. Reading the features and reading the pinned corpus SHALL give the same cases, frames and expectations. A check SHALL fail when the features differ from what the pinned corpus generates.
+
+#### Scenario: Both formats give the same cases
+- **WHEN** the generated features and the pinned corpus are each read into the runner's case model
+- **THEN** the two models are equal for every case, with no case in one and not in the other
+
+#### Scenario: Stale features
+- **WHEN** the pinned corpus changes and the features are not generated again
+- **THEN** the check fails and names each case that differs
+
+#### Scenario: Hand edit
+- **WHEN** a contributor changes an expectation in a generated feature by hand
+- **THEN** the check fails, and the expectation is not accepted until the upstream corpus holds it
+
+#### Scenario: Step outside the vocabulary
+- **WHEN** a feature of the suite uses a step the vocabulary does not define
+- **THEN** the reader refuses the feature and names the file and line
+
+### Requirement: Generated cases keep stable ids
+Each generated scenario SHALL have an id of the form `wasm-host-NNNN` and SHALL keep its upstream case id in its name. The number of a case SHALL NOT change when the corpus changes, and a number SHALL NOT be reused.
+
+#### Scenario: Case added upstream
+- **WHEN** the pinned corpus gains a case
+- **THEN** the new scenario takes the next unused number, and every existing scenario keeps its number
+
+#### Scenario: Case removed upstream
+- **WHEN** the pinned corpus loses a case
+- **THEN** its scenario is removed and its number stays reserved
+
+### Requirement: Module digests are checked before a case runs
+Before a case runs, the runner SHALL compare the SHA-256 of the module binary with the digest the corpus records, and SHALL refuse the case when they differ. A corpus or vocabulary version the runner does not implement SHALL stop the run before any case.
 
 #### Scenario: Binary does not match its text
 - **WHEN** a built module's digest differs from the recorded digest

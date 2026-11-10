@@ -29,7 +29,7 @@ Each arrow is work this change adds:
 - **`morphir extension worker`**, an internal and experimental stdio mode with the MoonBit worker's argument shape, in both executables. It is how a conformance runner drives a .NET-hosted guest, and the only way to reach the runtime in this change.
 - **A runtime availability report** and the failure `extension.runtime_unavailable`. An offering or platform without the engine says so when asked; it does not fail with a library loading error in the middle of a command.
 - **Packaging in all four offerings** (`native-aot`, `self-contained`, `framework-dependent`, `dotnet-tool`) on six platform pairs. `Morphir.Tool` becomes a set of platform-specific packages with a fallback package that has no engine.
-- **The crafted-case runner for host qualification**, in `src/Morphir.Conformance`. The cases and their fixed expectations stay in finos/morphir as data; this repository pins them and runs them through a host's worker mode.
+- **The crafted-case runner for host qualification**, in `src/Morphir.Conformance`. The cases and their fixed expectations stay in finos/morphir as data. This repository pins them, generates Gherkin features from them in the kit's step vocabulary, and runs those through a host's worker mode. The compatibility kit as a whole is planned to move from JSON to Gherkin; this change converts the crafted host corpus only.
 
 The four decisions of 9 November 2026:
 
@@ -64,7 +64,7 @@ The shared rules themselves (import tables, policy, bounds, failure codes) are n
 
 ## Impact
 
-- **New code:** `src/Morphir.Extensions.Wasm` (runtime) and its tests and Native AOT probe; a channel in `src/Morphir.Mep`; `extension worker` and `extension runtimes` in `src/Morphir.Tooling`, registered in both entry points; a worker adapter and crafted-kit reader in `src/Morphir.Conformance`; a `wasm` delivery in `src/Morphir.Extensions`.
+- **New code:** `src/Morphir.Extensions.Wasm` (runtime) and its tests and Native AOT probe; a channel in `src/Morphir.Mep`; `extension worker` and `extension runtimes` in `src/Morphir.Tooling`, registered in both entry points; a worker adapter, a feature generator and the `wasm-host` suite in `src/Morphir.Conformance`, with generated features under `conformance/suites/wasm-host/` and a new step vocabulary version; a `wasm` delivery in `src/Morphir.Extensions`.
 - **First native dependency.** NuGet `Wasmtime` 50.0.1 and the Wasmtime C API archive of the same version, pinned by SHA-256. The spike measured about 10.6 MB added to the Native AOT executable, on macOS arm64 only. Static linking on the other five platforms is unproven and is tried before other packaging work.
 - **Embedded third-party bytes.** The Extism kernel module from `moonrockz/extism` at the version finos/morphir-moonbit pins (`0.3.0` today), with its licence and notice.
 - **User-visible packaging change.** `Morphir.Tool` changes from one platform-neutral package to platform-specific packages plus a fallback. It needs release notes and updated installation guidance in the same release.

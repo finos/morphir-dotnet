@@ -131,7 +131,7 @@ svg .small { font-size: 11.5px; fill: var(--muted); }
 <rect class="box" x="20" y="182" width="230" height="64" rx="6"/><text x="135" y="204" text-anchor="middle">src/Morphir.Mep</text><text class="small" x="135" y="222" text-anchor="middle">new: message channel under</text><text class="small" x="135" y="237" text-anchor="middle">HostSession; streams are one channel</text>
 <rect class="new" x="270" y="182" width="230" height="64" rx="6"/><text x="385" y="204" text-anchor="middle">src/Morphir.Extensions.Wasm (new)</text><text class="small" x="385" y="222" text-anchor="middle">engine, classifier, bounds, kernel,</text><text class="small" x="385" y="237" text-anchor="middle">Extism adapter, policy, WASI</text>
 <rect class="box" x="270" y="272" width="230" height="40" rx="6"/><text x="385" y="296" text-anchor="middle">Wasmtime 50.0.1 + embedded kernel</text>
-<rect class="box" x="540" y="96" width="200" height="54" rx="6"/><text x="640" y="118" text-anchor="middle">src/Morphir.Conformance</text><text class="small" x="640" y="136" text-anchor="middle">new: worker adapter, kit reader</text>
+<rect class="box" x="540" y="96" width="200" height="54" rx="6"/><text x="640" y="118" text-anchor="middle">src/Morphir.Conformance</text><text class="small" x="640" y="136" text-anchor="middle">new: worker adapter, wasm-host suite</text>
 <rect class="box" x="540" y="182" width="200" height="64" rx="6"/><text x="640" y="204" text-anchor="middle">Pinned inputs</text><text class="small" x="640" y="222" text-anchor="middle">profile contract, crafted corpus,</text><text class="small" x="640" y="237" text-anchor="middle">49 modules (finos/morphir)</text>
 <path class="edge" d="M135 64v32M385 64v32M135 150v32M385 150v32M385 246v26M640 150v32"/>
 <path class="edge" d="M540 123h-40" stroke-dasharray="5 4"/><text class="small" x="520" y="88" text-anchor="middle">starts a host</text><text class="small" x="520" y="170" text-anchor="middle">as a process</text>
@@ -228,12 +228,35 @@ sha256 = "10acafa0...22b5"                 # optional; other bytes are refused b
 <li>The pin moves as one change, and qualification (group 6) runs only against a pin of a merged parent commit.</li>
 </ul>
 
-<h3 id="run-1">RUN-1. The crafted-case runner is new code in Morphir.Conformance, reading the upstream format</h3>
-<p>The corpus has no runner anywhere. It gets one here: a reader for the kit's JSON, an adapter that starts <code>&lt;host&gt; extension worker --module &lt;wasm&gt; --json</code> with the case's arguments, writes the frames, and collects stdout frames, stderr events, the exit status and timings, and a comparer for the kit's matchers. It reuses the project's process handling and report code.</p>
-<p>The kit is read as finos/morphir publishes it. <code>establish-morphir-compatibility-kit</code> makes Gherkin the normative format for cases authored in this repository, and it also says upstream kits are imported as reviewed inputs. The crafted corpus is such an input: its cases and expectations stay in finos/morphir as data, and converting them here would create a second copy to review.</p>
+<h3 id="run-1">RUN-1. The crafted-case runner is new code in Morphir.Conformance, and its cases are Gherkin</h3>
+<p>The corpus has no runner anywhere. It gets one here: an adapter that starts <code>&lt;host&gt; extension worker --module &lt;wasm&gt; --json</code> with the case's arguments, writes the frames, and collects stdout frames, stderr events, the exit status and timings, and a comparer for the kit's matchers. It reuses the project's process handling and report code.</p>
+<p><strong>Maintainer, 9 November 2026: the crafted cases are converted to Gherkin, and the compatibility kit as a whole is planned to move from JSON to Gherkin.</strong> The first draft of this change read the upstream JSON directly. This one generates features from it:</p>
+<figure>
+<svg viewBox="0 0 760 170" role="img" aria-labelledby="gen-title gen-desc">
+<title id="gen-title">From the pinned corpus to a verdict</title>
+<desc id="gen-desc">The pinned JSON corpus is read by a JSON reader and also passed to a generator that writes Gherkin features. A Gherkin reader reads the features. Both readers produce the same case model, which a test compares. The runner works on the case model.</desc>
+<rect class="box" x="20" y="20" width="170" height="50" rx="6"/><text x="105" y="42" text-anchor="middle">Pinned corpus (JSON)</text><text class="small" x="105" y="59" text-anchor="middle">tests/Fixtures/MepWasm</text>
+<rect class="new" x="20" y="104" width="170" height="50" rx="6"/><text x="105" y="126" text-anchor="middle">Generated features</text><text class="small" x="105" y="143" text-anchor="middle">conformance/suites/wasm-host</text>
+<rect class="box" x="300" y="20" width="150" height="50" rx="6"/><text x="375" y="50" text-anchor="middle">JSON reader</text>
+<rect class="box" x="300" y="104" width="150" height="50" rx="6"/><text x="375" y="134" text-anchor="middle">Gherkin reader</text>
+<rect class="box" x="560" y="62" width="180" height="50" rx="6"/><text x="650" y="84" text-anchor="middle">Case model</text><text class="small" x="650" y="101" text-anchor="middle">runner input</text>
+<path class="edge" d="M105 70v34M190 45h110M190 129h110M450 45c60 0 60 30 110 36M450 129c60 0 60 -30 110 -36"/>
+<text class="small" x="112" y="92">generate</text><text class="small" x="500" y="92" text-anchor="middle">must be equal</text>
+</svg>
+<figcaption>Figure 2. The JSON reader exists to generate and to check. The runner's input is the case model that the features give.</figcaption>
+</figure>
+<ul>
+<li><strong>Source and direction.</strong> While finos/morphir publishes the corpus as JSON, that JSON stays the hand-reviewed source and the features are generated from the pin. No expectation is ever written or changed in a feature by hand. When the kit itself moves to Gherkin, the features become the source and the generator is retired.</li>
+<li><strong>Guard.</strong> A test reads the pinned JSON and the generated features into one case model and requires them equal for every case. A check generates the features again and fails when they differ, so a generator defect cannot change an expectation unseen.</li>
+<li><strong>Vocabulary.</strong> Step vocabulary 1.1 is closed to the F# frontend suite. A new vocabulary version adds the <code>wasm-host</code> suite: a module with its declared ABI and worker limits, the frames to send, and one step for each matcher of the corpus (exit status, stdout byte count, stdout frames, stderr events, absent events, guest output, a timing range). Frames are <code>json</code> docstrings. This pulls a slice of <code>establish-morphir-compatibility-kit</code> forward (its tasks 1.2 and 2.1) and does not generalise the rest.</li>
+<li><strong>Ids.</strong> The kit's rule is <code>&lt;suite&gt;-NNNN</code>. A scenario is named <code>wasm-host-0001 classification/unknown-namespace</code>: a number that never changes and is never reused, and the upstream case id. A committed id map assigns the numbers.</li>
+<li><strong>Conditions.</strong> A case that applies only to a host that declares a profile, or whose expectation depends on what the host declares, becomes tagged scenarios (<code>@requires:</code>), one for each alternative. The runner selects by what the host's <code>started</code> event declares, as the corpus's conventions say.</li>
+</ul>
+<p>An example of a generated scenario is in the <a href="specs/wasm-host-qualification/spec.md">qualification spec</a>.</p>
+<p><em>What this change does not do.</em> It converts the crafted host corpus only. Moving the rest of the kit to Gherkin (the generic guest kit, the model-transport cases, and the data in finos/morphir itself) is the maintainer's stated direction and belongs to the kit's own migration, with <code>establish-morphir-compatibility-kit</code>. That migration also decides which repository holds the Gherkin source. The parent change still describes the corpus as JSON data in finos/morphir; that text is the parent's to update.</p>
 <p>The command surface is small and marked experimental, so that the compatibility-kit change can fold it into its general command:</p>
 <pre><code class="language-console">$ morphir mck wasm-host run \
-    --kit tests/Fixtures/MepWasm/wasm-host.cases.json \
+    --kit conformance/suites/wasm-host \
     --host /path/to/morphir \
     --report .dev/wasm-host-dotnet.json
 $ morphir mck wasm-host report-check --kit ... --report .dev/wasm-host-dotnet.json</code></pre>
@@ -264,6 +287,8 @@ $ morphir mck wasm-host report-check --kit ... --report .dev/wasm-host-dotnet.js
 <tr><td>The notification member is not fixed when group 3 is otherwise done.</td><td>Task 3.2 is separable. Group 3 without it already runs every published bundle (<a href="#ntfy-1">NTFY-1</a>).</td></tr>
 <tr><td>Two open changes edit the same registry requirement.</td><td>The edits are independent sentences. The second archive keeps both (<a href="#reg-1">REG-1</a>).</td></tr>
 <tr><td>Packaging collides with the deployment change's publish profiles.</td><td>Tasks 5.2 to 5.4 wait for those profiles to merge. Only the static-link trial runs earlier, in its own workflow (<a href="#seq-1">SEQ-1</a>).</td></tr>
+<tr><td>The generator turns a case into a feature that means something else.</td><td>Both formats are read into one case model and must be equal for every case, and stale or hand-edited features fail a check (<a href="#run-1">RUN-1</a>).</td></tr>
+<tr><td>The new step vocabulary version collides with the vocabulary work of <code>establish-morphir-compatibility-kit</code>.</td><td>This change adds one suite's steps as a new version and leaves the F# frontend steps untouched. The kit change generalises from both.</td></tr>
 <tr><td>The experimental <code>mck wasm-host</code> command shape differs from what the compatibility-kit change later wants.</td><td>It is hidden and experimental, and its logic is in the library. Folding it into a general command changes argument parsing only (<a href="#run-1">RUN-1</a>).</td></tr>
 <tr><td>Heavy builds exhaust disk on the development machine.</td><td>At most four workers at once, one publish at a time, and build output removed when a task no longer needs it.</td></tr>
 <tr><td>A change to <code>HostSession</code> breaks the F# frontend process guest.</td><td>Task 2.3 keeps the stream constructor and requires every existing process-guest test and replay to pass unchanged.</td></tr>
@@ -280,7 +305,7 @@ $ morphir mck wasm-host report-check --kit ... --report .dev/wasm-host-dotnet.js
 <thead><tr><th>Question</th><th>Recommendation written into this change</th><th>If answered otherwise</th></tr></thead>
 <tbody>
 <tr><td>1. Does this change port the generic guest kit's runner to .NET?</td><td>No. The Rust <code>guest-run</code> drives the .NET worker unchanged, and the port belongs to the compatibility-kit change (<a href="#run-2">RUN-2</a>).</td><td>Tasks 3.5 and 4.3 grow, and the qualification report holds the run instead of citing it.</td></tr>
-<tr><td>2. Is the crafted corpus read in its upstream JSON format, outside the Gherkin rule?</td><td>Yes, as a pinned upstream input (<a href="#run-1">RUN-1</a>).</td><td>A conversion step and a second review of 56 cases are added to task 1.5.</td></tr>
+<tr><td>2. Is the crafted corpus read in its upstream JSON format, outside the Gherkin rule?</td><td><strong>Decided, 9 November 2026: no.</strong> The cases are converted to Gherkin by a generator, and the kit as a whole is planned to move to Gherkin (<a href="#run-1">RUN-1</a>).</td><td>Already applied to the specs and to task 1.5.</td></tr>
 <tr><td>3. Does <code>extension list</code> show configured WASM modules now?</td><td>No. The registry gains the value only (<a href="#reg-1">REG-1</a>).</td><td>The registry delta gains a requirement and task 2.6 runs <code>describe</code> at list time.</td></tr>
 <tr><td>4. Are <code>abi</code> and <code>sha256</code> acceptable as local amendments to the configuration schema?</td><td>Yes, proposed upstream at the same time (<a href="#cfg-1">CFG-1</a>).</td><td>Task 2.6 declares them only through the worker's arguments, and the digest scenario waits for installation.</td></tr>
 <tr><td>5. Should a product command reach a configured module in this change, for example <code>morphir extension describe &lt;name&gt;</code>?</td><td>No. The parent keeps the runtime behind the worker mode. Task 2.6 is verified at the service level and through the worker.</td><td>One command, its spec and its documentation are added to group 2.</td></tr>
