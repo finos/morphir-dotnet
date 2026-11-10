@@ -63,7 +63,8 @@ jobs:
             # runner's own glibc, which moves with the ubuntu-latest label. The image gets clang and the zlib headers
             # there. CheckMorphirup then refuses an executable that needs a glibc above 2.35 and runs it in
             # debian:12-slim (glibc 2.36) and in the build image itself, the floor, after checking that neither image
-            # has .NET or libicu.
+            # has .NET, libicu, libssl or libcrypto: a Linux executable needs glibc and nothing else. ubuntu:22.04 ships
+            # libssl3, which the check purges in a derived image first.
             - name: Build and check morphirup for ${{ inputs.rid }}
               shell: bash
               env:
@@ -85,5 +86,6 @@ jobs:
                       ./artifacts/release-assets/morphirup-${{ inputs.rid }}
                       ./artifacts/release-assets/morphirup-${{ inputs.rid }}.exe
                       ./artifacts/release-assets/morphirup-${{ inputs.rid }}-v*.tar.gz
+                      ./artifacts/release-assets/morphirup-v*-THIRD-PARTY-NOTICES.txt
                   if-no-files-found: error
                   retention-days: ${{ inputs.retention-days }}

@@ -36,9 +36,36 @@ partial class Build
 
     AbsolutePath MorphirupPublishDirectory => RootDirectory / "artifacts" / "morphirup" / "publish" / Rid!;
 
+    AbsolutePath MorphirupProjectDirectory => RootDirectory / "src" / "Morphirup";
+
+    /// <summary>The response file of the Native AOT compiler for the last publish of <c>--rid</c>: what it linked.</summary>
+    AbsolutePath MorphirupIlcResponseFile => MorphirupProjectDirectory / "obj" / Configuration.ToString() / "net10.0" / Rid! / "native" / "morphirup.ilc.rsp";
+
+    /// <summary>
+    /// The packages the last publish of <c>--rid</c> linked, from the compiler's response file. Fails on a linked file
+    /// that is in neither a restored package nor this repository.
+    /// </summary>
+    IReadOnlyList<LinkedPackage> MorphirupLinkedPackages()
+    {
+        if (!File.Exists(MorphirupIlcResponseFile))
+            throw new Exception($"No Native AOT response file at {MorphirupIlcResponseFile}; run PackMorphirup first.");
+        var files = ThirdPartyNotices.LinkedFiles(File.ReadAllText(MorphirupIlcResponseFile), MorphirupProjectDirectory);
+        var (packages, unowned) = ThirdPartyNotices.Packages(files, RootDirectory);
+        if (unowned.Count > 0)
+            throw new Exception($"Native AOT linked files that are in no restored package and not in this repository, so they have no notices:{Environment.NewLine}{string.Join(Environment.NewLine, unowned)}");
+        return packages;
+    }
+
+    /// <summary>The changed and untracked paths of the working tree, as <c>git status --porcelain</c> lists them.</summary>
+    HashSet<string> WorkingTreeChanges() =>
+        [.. RunChecked("git", ["status", "--porcelain", "--untracked-files=all"], null, RootDirectory, "git status")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line => line.TrimEnd('\r'))];
+
     /// <summary>
     /// Publish morphirup with Native AOT for <c>--rid</c>, with the version of CHANGELOG.md, and write
-    /// <c>morphirup-{rid}[.exe]</c> and <c>morphirup-{rid}-v{version}.tar.gz</c> into the release assets folder.
+    /// <c>morphirup-{rid}[.exe]</c>, <c>morphirup-{rid}-v{version}.tar.gz</c> and
+    /// <c>morphirup-v{version}-THIRD-PARTY-NOTICES.txt</c> into the release assets folder. The third-party notices are
+    /// generated from the packages the compiler linked. The publish must leave the working tree as it found it.
     /// </summary>
     Target PackMorphirup => _ => _
         .Description("Publish morphirup with Native AOT for --rid and write its release assets")
@@ -48,6 +75,7 @@ partial class Build
             if (!TargetPlatform.TryParse(Rid, out var platform) || platform is null)
                 throw new Exception($"--rid must be one of {string.Join(", ", TargetPlatform.All.Select(platform => platform.Rid))}; got '{Rid}'.");
 
+            var before = WorkingTreeChanges();
             var publish = MorphirupPublishDirectory;
             publish.CreateOrCleanDirectory();
             // Native AOT, without the native symbol file; a RID-specific publish keeps its lock files under obj/.
@@ -69,8 +97,18 @@ partial class Build
             if (!File.Exists(executable))
                 throw new Exception($"The publish wrote no {MorphirupRelease.LaunchName(Rid!)} into {publish}.");
 
+            // A RID-specific restore must not rewrite the committed lock files, and the publish writes nothing else that git sees.
+            var changed = WorkingTreeChanges().Except(before).Order(StringComparer.Ordinal).ToArray();
+            if (changed.Length > 0)
+                throw new Exception($"The publish of morphirup for {Rid} changed the working tree:{Environment.NewLine}{string.Join(Environment.NewLine, changed)}");
+
+            var packages = MorphirupLinkedPackages();
             var version = Version.ToString();
-            var written = MorphirupRelease.WriteAssets(executable, Rid!, version, ReleaseAssetsDir);
+            var notices = ThirdPartyNotices.Write(version, Rid!, packages, RootDirectory / "build" / "notices",
+                File.ReadAllText(RootDirectory / "tests" / "Fixtures" / "Unicode" / "17.0.0" / "LICENSE.txt"));
+            var written = MorphirupRelease.WriteAssets(executable, Rid!, version, ReleaseAssetsDir, RootDirectory / "LICENSE", RootDirectory / "NOTICE", notices);
+            Serilog.Log.Information("Linked packages, named in the third-party notices: {Packages}",
+                string.Join(", ", packages.Select(package => $"{package.Id} {package.Version}")));
             foreach (var name in written)
                 Serilog.Log.Information("✓ {Asset}: {Bytes:N0} bytes", ReleaseAssetsDir / name, new FileInfo(ReleaseAssetsDir / name).Length);
         });
@@ -91,6 +129,12 @@ partial class Build
         if (!File.Exists(Path.Combine(sdk, "dotnet")))
             throw new Exception($"No dotnet in {sdk}, the .NET root of this build.");
         var owner = $"{RunChecked("id", ["-u"], null, RootDirectory, "id -u").Trim()}:{RunChecked("id", ["-g"], null, RootDirectory, "id -g").Trim()}";
+        // The packages restore into this machine's NuGet folder, at its own path, so the third-party notices can read
+        // the packages that the compiler's response file names after the container is gone.
+        var packages = Environment.GetEnvironmentVariable("NUGET_PACKAGES") is { Length: > 0 } configured
+            ? Path.GetFullPath(configured)
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
+        Directory.CreateDirectory(packages);
 
         const string script = """
             set -eu
@@ -101,13 +145,14 @@ partial class Build
             echo "Publishing in $(. /etc/os-release && echo "$PRETTY_NAME"), $(ldd --version | head -n 1)"
             status=0
             dotnet "$@" || status=$?
-            chown -R "$MORPHIRUP_OWNER" "$MORPHIRUP_REPOSITORY"
+            chown -R "$MORPHIRUP_OWNER" "$MORPHIRUP_REPOSITORY" "$NUGET_PACKAGES"
             exit "$status"
             """;
         List<string> docker =
         [
             "run", "--rm",
             "--volume", $"{RootDirectory}:{RootDirectory}", "--workdir", RootDirectory,
+            "--volume", $"{packages}:{packages}", "--env", $"NUGET_PACKAGES={packages}",
             "--env", $"MORPHIRUP_OWNER={owner}", "--env", $"MORPHIRUP_REPOSITORY={RootDirectory}",
             "--env", $"DOTNET_ROOT={sdk}", "--env", $"PATH={sdk}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             "--env", "DOTNET_NOLOGO=1", "--env", "DOTNET_CLI_TELEMETRY_OPTOUT=1", "--env", "DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1",
@@ -149,17 +194,32 @@ partial class Build
             if (!OperatingSystem.IsWindows())
                 File.SetUnixFileMode(launch, ReleaseArchive.ExecutableMode);
 
-            // The tarball holds exactly the bare executable, at {rid}/{name}, executable.
+            // The tarball holds exactly the executable, LICENSE, NOTICE and the third-party notices, under {rid}/.
             var extracted = root / "from the tarball";
             Directory.CreateDirectory(extracted);
             using (var gzip = new GZipStream(File.OpenRead(archive), CompressionMode.Decompress))
                 TarFile.ExtractToDirectory(gzip, extracted, overwriteFiles: false);
             var entries = Directory.GetFiles(extracted, "*", SearchOption.AllDirectories)
-                .Select(path => Path.GetRelativePath(extracted, path).Replace('\\', '/')).ToArray();
-            if (entries.Length != 1 || entries[0] != $"{rid}/{MorphirupRelease.LaunchName(rid)}")
-                throw new Exception($"{archive} holds [{string.Join(", ", entries)}], not only {rid}/{MorphirupRelease.LaunchName(rid)}.");
+                .Select(path => Path.GetRelativePath(extracted, path).Replace('\\', '/')).Order(StringComparer.Ordinal).ToArray();
+            if (!entries.SequenceEqual(MorphirupRelease.ArchiveEntries(rid)))
+                throw new Exception($"{archive} holds [{string.Join(", ", entries)}], not exactly [{string.Join(", ", MorphirupRelease.ArchiveEntries(rid))}].");
             if (ReleaseArchive.Sha256(extracted / rid / MorphirupRelease.LaunchName(rid)) != ReleaseArchive.Sha256(bare))
                 throw new Exception($"The executable in {archive} differs from {bare}.");
+            foreach (var name in new[] { "LICENSE", "NOTICE" })
+                if (ReleaseArchive.Sha256(extracted / rid / name) != ReleaseArchive.Sha256(RootDirectory / name))
+                    throw new Exception($"{name} in {archive} differs from the repository's.");
+
+            // The third-party notices: the same text as the release's notices file, and naming every package linked in.
+            var noticesAsset = ReleaseAssetsDir / MorphirupRelease.NoticesFileName(version);
+            var notices = File.ReadAllText(extracted / rid / MorphirupRelease.NoticesEntry);
+            if (!File.Exists(noticesAsset) || File.ReadAllText(noticesAsset) != notices)
+                throw new Exception($"{MorphirupRelease.NoticesEntry} in {archive} differs from {noticesAsset}, or that file is missing.");
+            var linked = MorphirupLinkedPackages();
+            var unnamed = ThirdPartyNotices.Missing(notices, linked, rid);
+            if (linked.Count == 0 || unnamed.Count > 0)
+                throw new Exception($"The third-party notices of {rid} do not name every linked package: {(linked.Count == 0 ? "none were found" : string.Join(", ", unnamed))}.");
+            Serilog.Log.Information("✓ {Rid}: the archive holds [{Entries}]; the notices name all {Count} linked packages",
+                rid, string.Join(", ", entries), linked.Count);
 
             if (rid.StartsWith("linux-", StringComparison.Ordinal))
             {
@@ -208,11 +268,30 @@ partial class Build
             if (!OperatingSystem.IsLinux())
                 throw new Exception("--morphirup-containers runs only on Linux.");
 
-            foreach (var image in MorphirupContainers)
+            foreach (var (pinned, index) in MorphirupContainers.Select((image, index) => (image, index)))
             {
-                // The image must be the clean environment it claims to be: no .NET and no libicu.
+                // A Linux executable needs glibc and nothing else, so the check removes OpenSSL where the image ships it
+                // (ubuntu:22.04 has libssl3), in a derived image; the precondition below then checks what is left.
+                var container = $"morphirup-check-{rid}-{index}";
+                var image = $"morphirup-check-{rid}:{index}";
+                var purge = RunChecked("docker", ["run", "--name", container, pinned, "sh", "-c", """
+                    removed=""
+                    for package in libssl3 libssl1.1; do
+                        if dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'install ok installed'; then
+                            dpkg --purge --force-depends "$package" > /dev/null 2>&1
+                            removed="$removed $package"
+                        fi
+                    done
+                    echo "$removed"
+                    """], null, root, $"removing OpenSSL from {pinned}").Trim();
+                RunChecked("docker", ["commit", container, image], null, root, $"committing {image}");
+                RunChecked("docker", ["rm", container], null, root, $"removing the container {container}");
+                Serilog.Log.Information("{Image}: {Removed}", pinned, purge.Length > 0 ? $"removed {purge} (dpkg --purge --force-depends) in {image}" : "ships no OpenSSL package");
+
+                // The image must be the clean environment it claims to be: glibc and no .NET, libicu, libssl or libcrypto.
                 var leftovers = RunChecked("docker", ["run", "--rm", image, "sh", "-c",
-                    "ls /usr/lib/*/libicu* /lib/*/libicu* /usr/lib/libicu* /usr/share/dotnet /usr/lib/dotnet 2>/dev/null; command -v dotnet || true"],
+                    "ls -d /usr/lib/*/libicu* /lib/*/libicu* /usr/lib/libicu* /usr/lib/*/libssl.so* /lib/*/libssl.so* /usr/lib/libssl.so* "
+                    + "/usr/lib/*/libcrypto.so* /lib/*/libcrypto.so* /usr/lib/libcrypto.so* /usr/share/dotnet /usr/lib/dotnet 2>/dev/null; command -v dotnet || true"],
                     null, root, $"the check of the image {image}").Trim();
                 if (leftovers.Length > 0)
                     throw new Exception($"The image {image} is not clean: it has {leftovers}.");
@@ -228,7 +307,8 @@ partial class Build
                     throw new Exception($"In {image}, --version printed '{containerVersion.Trim()}', not '{hostVersion.Trim()}'.");
                 if (containerPlan != hostPlan)
                     throw new Exception($"In {image}, the plan output differs from the runner's.");
-                Serilog.Log.Information("✓ {Rid} in {Image} ({Glibc}), with no .NET and no libicu: the same version and plan", rid, image, glibc);
+                Serilog.Log.Information("✓ {Rid} in {Image} ({Glibc}), with no .NET, libicu, libssl or libcrypto: the same version and plan", rid, pinned, glibc);
+                RunChecked("docker", ["rmi", image], null, root, $"removing the image {image}");
             }
         });
 
@@ -247,6 +327,23 @@ partial class Build
                 .ToArray();
             if (missing.Length > 0)
                 throw new Exception($"Missing morphirup assets in {ReleaseAssetsDir}: {string.Join(", ", missing)}");
+
+            // One notices file serves every executable: each archive must hold the same text.
+            var noticesAsset = ReleaseAssetsDir / MorphirupRelease.NoticesFileName(version);
+            if (!File.Exists(noticesAsset))
+                throw new Exception($"Missing {noticesAsset}.");
+            var released = File.ReadAllText(noticesAsset);
+            foreach (var rid in MorphirupPlatforms)
+            {
+                using var gzip = new GZipStream(File.OpenRead(ReleaseAssetsDir / MorphirupRelease.ArchiveName(rid, version)), CompressionMode.Decompress);
+                using var tar = new TarReader(gzip);
+                string? inArchive = null;
+                while (tar.GetNextEntry() is { } entry)
+                    if (entry.Name == $"{rid}/{MorphirupRelease.NoticesEntry}")
+                        inArchive = new StreamReader(entry.DataStream!).ReadToEnd();
+                if (inArchive != released)
+                    throw new Exception($"The third-party notices in the {rid} archive differ from {noticesAsset}.");
+            }
 
             var checksums = MorphirupRelease.WriteChecksums(ReleaseAssetsDir, version);
             var problems = MorphirupRelease.VerifyChecksums(ReleaseAssetsDir, checksums);

@@ -84,3 +84,14 @@ tests/Fixtures/Unicode/17.0.0/NormalizationTest.txt is copied unchanged from it.
 Copyright (c) 1991-2026 Unicode, Inc. Distributed under the Unicode License v3,
 retained in tests/Fixtures/Unicode/17.0.0/LICENSE.txt. Source URLs and SHA-256
 values are in the generated file and in tests/Fixtures/Unicode/17.0.0/PROVENANCE.md.
+
+morphirup release executables
+Copyright 2026 FINOS
+Distributed under the repository's Apache-2.0 license. Native AOT compiles
+third-party packages, the .NET runtime and libraries, and the Unicode data of
+the NFC tables above into each morphirup executable. Their licenses and
+notices are in THIRD-PARTY-NOTICES.txt beside the executable in each release
+archive, and in the release asset morphirup-v<version>-THIRD-PARTY-NOTICES.txt.
+build/Helpers/ThirdPartyNotices.cs generates that file from the assemblies the
+compiler linked; the license texts that a package does not ship are kept, with
+their sources, in build/notices/.
