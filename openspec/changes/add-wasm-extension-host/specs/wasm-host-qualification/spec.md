@@ -39,7 +39,7 @@ The runner checks the module's digest, starts `<host> extension worker --module 
 
 No expectation ever comes from a host run. The runner compares; it never records.
 
-At finos/morphir `48d10706f` the corpus has 58 cases and 50 modules. 48 cases are for `extism-kernel-v1` and apply to every host; 10 are for `morphir-bytes-v1`.
+At finos/morphir `8d678d2b` the corpus has 59 cases and 51 modules. 49 cases are for `extism-kernel-v1` and apply to every host; 10 are for `morphir-bytes-v1`.
 
 The generic guest kit is a separate kit with its own runner. Its legacy tier negotiates MEP `0.1`, which this host does not support, so that tier is not run against this host, and a run of its model tier is not reported as a complete run of that kit.
 
