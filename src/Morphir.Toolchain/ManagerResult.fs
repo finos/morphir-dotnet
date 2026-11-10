@@ -772,6 +772,10 @@ module ResultDocument =
                 | _, ComponentSource.ExternalOwner -> Ok()
                 | _, ComponentSource.BuiltIn -> refuse ReaderCode.InconsistentDocument (at.Child "source")
 
+            // The locked provider of each operation, looked up once per component rather than by a scan.
+            let lockedFor =
+                closure.Providers |> List.map (fun provider -> provider.Operation, provider) |> dict
+
             for index, planned in List.indexed plan.Components do
                 let at = componentsPath.At index
 
@@ -787,7 +791,7 @@ module ResultDocument =
 
                     do! boundTo at SourceRole.Host closure.Host host.Source
                 | PlannedComponent.Provider(operation, id, delivery, provider) ->
-                    let locked = closure.Providers |> List.find (fun p -> p.Operation = operation)
+                    let locked = lockedFor[operation]
 
                     if
                         id <> locked.ExtensionId

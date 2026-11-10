@@ -44,9 +44,146 @@ let recipeWithEntries (member': string) (entry: int -> string) (count: int) =
     let empty = text.[at + marker.Length] = ']'
     Encoding.UTF8.GetBytes(text.Insert(at + marker.Length, if empty then extra else extra + ", "))
 
+let private parsed (bytes: byte array) =
+    match Syntax.parseJson bytes with
+    | Ok value -> value
+    | Error refusal -> failtestf "does not parse: %A" refusal
+
+let private objectMembers (value: Value) =
+    match value with
+    | Value.Object members -> members
+    | _ -> failtest "not an object"
+
+let private memberOf (name: string) (value: Value) = objectMembers value |> List.find (fst >> (=) name) |> snd
+
+let private withMember (name: string) (replacement: Value) (value: Value) =
+    Value.Object(objectMembers value |> List.map (fun (n, v) -> if n = name then n, replacement else n, v))
+
+let private arrayItems (value: Value) =
+    match value with
+    | Value.Array items -> items
+    | _ -> failtest "not an array"
+
+/// <summary>The synthetic recipe reduced to its native-aot offering, whose built-ins perform
+/// <paramref name="count"/> compile operations besides its generate operation, so it reads, resolves and locks.</summary>
+let manyBuiltIns (count: int) =
+    let recipe = parsed (Fixtures.bytes "recipe/fsharp-synthetic.json")
+    let host = (arrayItems (memberOf "hosts" recipe)).Head
+    let generate = arrayItems (memberOf "builtIns" host)
+
+    let compile (i: int) =
+        Value.Object
+            [ "operation", Value.String "compile"
+              "language", Value.String $"l{i}"
+              "extensionId", Value.String "morphir-dotnet.fsharp"
+              "version", Value.String "1.2.3"
+              "modelOutput", Value.Object [ "profile", Value.String "morphir-ir"; "codec", Value.String "morphir-json"; "irVersion", Value.String "4.0.0" ] ]
+
+    let operations =
+        [ for i in 1..count -> Value.Object [ "operation", Value.String "compile"; "language", Value.String $"l{i}" ] ]
+        @ [ Value.Object [ "operation", Value.String "generate"; "target", Value.String "fsharp" ] ]
+
+    recipe
+    |> withMember "operations" (Value.Array operations)
+    |> withMember "hosts" (Value.Array [ host |> withMember "builtIns" (Value.Array([ for i in 1..count -> compile i ] @ generate)) ])
+    |> JsonText.toBytes
+
+let private requestFor (choices: int) =
+    let choice (i: int) = $"[[toolset.providers]]\noperation = \"compile\"\nlanguage = \"l{i}\"\ndelivery = \"built-in\"\n"
+
+    Encoding.UTF8.GetBytes(
+        "schemaVersion = \"0.1.0-draft.1\"\n[host]\nimplementation = \"dotnet\"\ndeployment = \"native-aot\"\nchannel = \"stable\"\n[toolset]\npreset = \"fsharp\"\n"
+        + String.concat "" [ for i in 1..choices -> choice i ]
+    )
+
+let private ok (what: string) (result: Result<'T, 'E>) =
+    match result with
+    | Ok value -> value
+    | Error error -> failtestf "%s: %A" what error
+
 [<Tests>]
 let tests =
     testList "Review hardening" [
+        testCase "a recipe of 100,000 operations is refused in linear time" (fun () ->
+            // The repeated-operation check compared each operation with every earlier one.
+            let recipe = parsed (Fixtures.bytes "recipe/fsharp-synthetic.json")
+            let operations = [ for i in 1..100_000 -> Value.Object [ "operation", Value.String "compile"; "language", Value.String $"l{i}" ] ]
+            let bytes = JsonText.toBytes (withMember "operations" (Value.Array operations) recipe)
+
+            match withinBudget 20.0 "reading 100,000 operations" (fun () -> RecipeDocument.read bytes) with
+            | Error refusal ->
+                // No offering performs l1, so the candidate rule refuses it, after the repetition check has run.
+                Expect.equal (refusal.Code, DocumentPath.render refusal.Path) (ReaderCode.InconsistentDocument, "operations[0]") "no candidate"
+            | Ok _ -> failtest "an operation without a candidate was read")
+
+        testCase "a recipe of 1,000 unfit providers and 100,000 MEP versions is read in linear time" (fun () ->
+            // Every fit check scanned the offering's MEP versions.
+            let recipe = parsed (recipeWithEntries "protocolVersions" (fun i -> $"0.2.0-{i}") 100_000)
+            let providers = arrayItems (memberOf "providers" recipe)
+
+            let unfit =
+                [ for i in 1..1_000 ->
+                      providers.Head
+                      |> withMember "version" (Value.String $"0.7.{i}")
+                      |> withMember "protocolVersion" (Value.String "0.2.9") ]
+
+            let bytes = JsonText.toBytes (withMember "providers" (Value.Array(unfit @ providers)) recipe)
+
+            match withinBudget 20.0 "reading 1,000 unfit providers" (fun () -> RecipeDocument.read bytes) with
+            | Ok recipe -> Expect.equal recipe.Providers.Length 1_003 "every provider"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "a request of 100,000 provider choices reads in linear time" (fun () ->
+            let bytes = requestFor 100_000
+
+            match withinBudget 20.0 "reading 100,000 choices" (fun () -> RequestDocument.read bytes) with
+            | Ok request -> Expect.equal request.Toolset.Providers.Length 100_000 "every choice"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "50,000 built-in operations read, resolve, lock, bind and plan in linear time" (fun () ->
+            // The candidate rule, resolution, the closure checks, the lock against its recipe and the plan against its
+            // lock each looked an operation up by a list scan.
+            withinBudget 60.0 "50,000 built-in operations" (fun () ->
+                let recipe = RecipeDocument.read (manyBuiltIns 50_000) |> ok "the recipe"
+                let request = RequestDocument.read (requestFor 50_000) |> ok "the request"
+                let target = TargetPath.tryParse "toolchains/recipes/fsharp/1.0.0.json" |> ok "target"
+                let repository = Sha256.tryParse (String.replicate 64 "b") |> ok "repository"
+                let lock, _ = Resolution.lock recipe repository target request Platform.WinX64 |> ok "the lock"
+                Bindings.lockMatchesRecipe lock recipe repository |> ok "the lock binds its recipe"
+
+                let digested, _ =
+                    Planning.plan
+                        { Recipe = recipe
+                          RecipeRepository = repository
+                          RecipeTarget = target
+                          Request = request
+                          Platform = Platform.WinX64
+                          Sizes = fun _ -> Some { DownloadBytes = 1UL; InstalledBytes = 1UL }
+                          MetadataRefresh = MetadataRefresh.Required }
+                    |> ok "the plan"
+
+                let result = ResultDocument.create Command.Setup Outcome.Planned (Some digested) None [] |> ok "the result"
+                let read = ResultDocument.read (JsonText.toBytes (ResultDocument.value result)) |> ok "the result reads"
+                Expect.isSome read.Plan "the plan reads back against its lock")
+            |> ignore)
+
+        testCase "a lock whose closure has 100,000 providers reads in linear time" (fun () ->
+            let lock = parsed (Fixtures.bytes "lock/built-in-frontend.json")
+            let platforms = memberOf "platforms" lock
+            let platform, closure = (objectMembers platforms).Head
+            let provider = (arrayItems (memberOf "providers" closure)).Head
+
+            let providers =
+                [ for i in 1..100_000 -> provider |> withMember "language" (Value.String $"l{i}") ]
+
+            let edited =
+                lock |> withMember "platforms" (Value.Object [ platform, closure |> withMember "providers" (Value.Array providers) ])
+
+            let bytes = JsonText.toBytes edited
+
+            match withinBudget 20.0 "reading 100,000 locked providers" (fun () -> LockDocument.read bytes) with
+            | Ok lock -> Expect.equal (lock.Platforms.Items.Head |> snd).Providers.Length 100_000 "every provider"
+            | Error refusal -> failtestf "refused: %A" refusal)
         testCase "a recipe offering with 100,000 MEP versions reads in linear time" (fun () ->
             // Review of #582, R1: the duplicate check compared each element with every earlier one.
             let bytes = recipeWithEntries "protocolVersions" (fun i -> $"0.2.0-{i}") 100_000
