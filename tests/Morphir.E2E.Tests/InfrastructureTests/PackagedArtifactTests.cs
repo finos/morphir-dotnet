@@ -3,6 +3,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Morphir.E2E.Tests.Infrastructure;
+using Morphir.TestSupport;
 
 namespace Morphir.E2E.Tests.InfrastructureTests;
 
@@ -57,7 +58,11 @@ public sealed class PackagedArtifactTests
 
     private sealed class ReleaseFolder : IDisposable
     {
-        public string Root { get; } = Directory.CreateTempSubdirectory("morphir release ").FullName;
+        private readonly TestSandbox _sandbox = TestSandbox.Create("morphir release ");
+
+        public ReleaseFolder() => Root = Directory.CreateDirectory(_sandbox.PathOf("release")).FullName;
+
+        public string Root { get; }
 
         public void Write(string deployment, string platform, string artifact, string release = "1.2.3") =>
             File.WriteAllText(Path.Combine(Root, $"{artifact}.build-launch.json"), JsonSerializer.Serialize(new
@@ -78,6 +83,6 @@ public sealed class PackagedArtifactTests
                 inProcessFSharpFrontend = deployment != "native-aot",
             }));
 
-        public void Dispose() => Directory.Delete(Root, true);
+        public void Dispose() => _sandbox.Dispose();
     }
 }

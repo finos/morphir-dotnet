@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using FluentAssertions;
 using Morphir.E2E.Tests.Infrastructure;
+using Morphir.TestSupport;
 
 namespace Morphir.E2E.Tests.InfrastructureTests;
 
@@ -89,12 +90,12 @@ public sealed class HostTraceTests
     /// <summary>Placeholder paths of the fixtures, mapped to this machine's path syntax.</summary>
     private sealed class TracePaths : IDisposable
     {
-        private readonly string _root = Directory.CreateTempSubdirectory("morphir trace ").FullName;
+        private readonly TestSandbox _sandbox = TestSandbox.Create("morphir trace ");
 
         public TracePaths()
         {
-            InstallDirectory = Directory.CreateDirectory(Path.Combine(_root, "self-contained install")).FullName;
-            MachineDirectory = Directory.CreateDirectory(Path.Combine(_root, "machine dotnet")).FullName;
+            InstallDirectory = Directory.CreateDirectory(_sandbox.PathOf("self-contained install")).FullName;
+            MachineDirectory = Directory.CreateDirectory(_sandbox.PathOf("machine dotnet")).FullName;
         }
 
         public string InstallDirectory { get; }
@@ -109,9 +110,9 @@ public sealed class HostTraceTests
         {
             var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "InfrastructureTests", "Fixtures", name));
             if (!OperatingSystem.IsWindows()) text = text.Replace('\\', '/');
-            return text.Replace("<INSTALL>", InstallDirectory).Replace("<MACHINE>", MachineDirectory).Replace("<WORK>", Path.Combine(_root, "work"));
+            return text.Replace("<INSTALL>", InstallDirectory).Replace("<MACHINE>", MachineDirectory).Replace("<WORK>", _sandbox.Work);
         }
 
-        public void Dispose() => Directory.Delete(_root, true);
+        public void Dispose() => _sandbox.Dispose();
     }
 }

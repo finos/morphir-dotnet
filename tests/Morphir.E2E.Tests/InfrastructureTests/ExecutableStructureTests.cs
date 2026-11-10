@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using FluentAssertions;
 using Morphir.E2E.Tests.Infrastructure;
+using Morphir.TestSupport;
 
 namespace Morphir.E2E.Tests.InfrastructureTests;
 
@@ -23,30 +24,24 @@ public sealed class ExecutableStructureTests
     [Test]
     public void TheMarkersDecideTheKind()
     {
-        var root = Directory.CreateTempSubdirectory("morphir executable ").FullName;
-        try
+        using var sandbox = TestSandbox.Create("morphir executable ");
+        var root = sandbox.Root;
+        string Write(string name, params byte[][] parts)
         {
-            string Write(string name, params byte[][] parts)
-            {
-                var path = Path.Combine(root, name);
-                File.WriteAllBytes(path, [.. parts.SelectMany(part => part)]);
-                return path;
-            }
-
-            byte[] padding = new byte[64];
-            byte[] Offset(long value) => BitConverter.GetBytes(value);
-            var debugHeader = "\0DotNetRuntimeDebugHeader\0"u8.ToArray();
-
-            ExecutableStructure.Of(Write("aot", padding, debugHeader, padding)).Should().Be(ExecutableKind.NativeAot);
-            ExecutableStructure.Of(Write("bundle", padding, Offset(4096), ExecutableStructure.BundleSignature, padding)).Should().Be(ExecutableKind.SingleFileBundle);
-            ExecutableStructure.Of(Write("apphost", padding, Offset(0), ExecutableStructure.BundleSignature, padding)).Should().Be(ExecutableKind.AppHost);
-            ExecutableStructure.Of(Write("both", padding, Offset(4096), ExecutableStructure.BundleSignature, debugHeader)).Should().Be(ExecutableKind.SingleFileBundle,
-                "a bundle signature wins over the export name");
-            ExecutableStructure.Of(Write("other", padding)).Should().Be(ExecutableKind.Other);
+            var path = Path.Combine(root, name);
+            File.WriteAllBytes(path, [.. parts.SelectMany(part => part)]);
+            return path;
         }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
+
+        byte[] padding = new byte[64];
+        byte[] Offset(long value) => BitConverter.GetBytes(value);
+        var debugHeader = "\0DotNetRuntimeDebugHeader\0"u8.ToArray();
+
+        ExecutableStructure.Of(Write("aot", padding, debugHeader, padding)).Should().Be(ExecutableKind.NativeAot);
+        ExecutableStructure.Of(Write("bundle", padding, Offset(4096), ExecutableStructure.BundleSignature, padding)).Should().Be(ExecutableKind.SingleFileBundle);
+        ExecutableStructure.Of(Write("apphost", padding, Offset(0), ExecutableStructure.BundleSignature, padding)).Should().Be(ExecutableKind.AppHost);
+        ExecutableStructure.Of(Write("both", padding, Offset(4096), ExecutableStructure.BundleSignature, debugHeader)).Should().Be(ExecutableKind.SingleFileBundle,
+            "a bundle signature wins over the export name");
+        ExecutableStructure.Of(Write("other", padding)).Should().Be(ExecutableKind.Other);
     }
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using FluentAssertions;
 using Morphir.E2E.Tests.Infrastructure;
+using Morphir.TestSupport;
 
 namespace Morphir.E2E.Tests.InfrastructureTests;
 
@@ -43,13 +44,15 @@ public sealed class PackagedInstallationTests
 
     private sealed class ToolPath : IDisposable
     {
-        private readonly string _scratch = Directory.CreateTempSubdirectory("morphir tool ").FullName;
+        private readonly TestSandbox _sandbox = TestSandbox.Create("morphir tool ");
 
-        public string Root => Path.Combine(_scratch, "tool path");
+        private string Scratch => _sandbox.Root;
+
+        public string Root => Path.Combine(Scratch, "tool path");
 
         public string Packed(string content)
         {
-            var path = Path.Combine(_scratch, "Morphir.Tool.0.4.0-alpha.3.nupkg");
+            var path = Path.Combine(Scratch, "Morphir.Tool.0.4.0-alpha.3.nupkg");
             File.WriteAllText(path, content);
             return path;
         }
@@ -60,6 +63,6 @@ public sealed class PackagedInstallationTests
             File.WriteAllText(Path.Combine(folder, $"morphir.tool.{version}.nupkg"), content);
         }
 
-        public void Dispose() => Directory.Delete(_scratch, true);
+        public void Dispose() => _sandbox.Dispose();
     }
 }

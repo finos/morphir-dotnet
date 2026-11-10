@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Text.Json;
 using FluentAssertions;
 using Morphir.Build.Helpers;
+using Morphir.TestSupport;
 using TUnit.Core;
 
 namespace Morphir.Build.Tests.Helpers;
@@ -23,62 +24,50 @@ public class PackagedContentsTests
     [Arguments(ArchiveFormat.TarGz)]
     public async Task TheContentsListEveryPackagedFileWithItsSize(ArchiveFormat format)
     {
-        var root = Directory.CreateTempSubdirectory("morphir-packaged-");
-        try
-        {
-            var source = Directory.CreateDirectory(Path.Combine(root.FullName, "publish dir"));
-            await File.WriteAllBytesAsync(Path.Combine(source.FullName, "morphir"), new byte[1234]);
-            Directory.CreateDirectory(Path.Combine(source.FullName, "de"));
-            await File.WriteAllBytesAsync(Path.Combine(source.FullName, "de", "strings.resources.dll"), new byte[56]);
-            await File.WriteAllBytesAsync(Path.Combine(source.FullName, "empty.txt"), []);
-            var archive = Path.Combine(root.FullName, format == ArchiveFormat.Zip ? "a.zip" : "a.tar.gz");
-            ReleaseArchive.Create(source.FullName, archive, format, ReleaseArchive.ExecutablesFor("morphir"));
+        await using var sandbox = TestSandbox.Create("morphir-packaged-");
+        var root = new DirectoryInfo(sandbox.Root);
+        var source = Directory.CreateDirectory(Path.Combine(root.FullName, "publish dir"));
+        await File.WriteAllBytesAsync(Path.Combine(source.FullName, "morphir"), new byte[1234]);
+        Directory.CreateDirectory(Path.Combine(source.FullName, "de"));
+        await File.WriteAllBytesAsync(Path.Combine(source.FullName, "de", "strings.resources.dll"), new byte[56]);
+        await File.WriteAllBytesAsync(Path.Combine(source.FullName, "empty.txt"), []);
+        var archive = Path.Combine(root.FullName, format == ArchiveFormat.Zip ? "a.zip" : "a.tar.gz");
+        ReleaseArchive.Create(source.FullName, archive, format, ReleaseArchive.ExecutablesFor("morphir"));
 
-            var contents = PackagedContents.Read(Artifact("linux-x64"), archive, Origin);
+        var contents = PackagedContents.Read(Artifact("linux-x64"), archive, Origin);
 
-            contents.Files.Select(file => (file.Path, file.Bytes)).Should().Equal(("de/strings.resources.dll", 56L), ("empty.txt", 0L), ("morphir", 1234L));
-            contents.FileCount.Should().Be(3);
-            contents.ExtractedBytes.Should().Be(1290);
-            contents.ArchiveBytes.Should().Be(new FileInfo(archive).Length);
-            contents.Deployment.Should().Be("self-contained");
-            contents.Platform.Should().Be("linux-x64");
-            contents.Release.Should().Be("1.2.3");
-            contents.Sha256.Should().Be(ReleaseArchive.Sha256(archive));
-            contents.Origin.Should().Be(Origin);
-        }
-        finally
-        {
-            root.Delete(true);
-        }
+        contents.Files.Select(file => (file.Path, file.Bytes)).Should().Equal(("de/strings.resources.dll", 56L), ("empty.txt", 0L), ("morphir", 1234L));
+        contents.FileCount.Should().Be(3);
+        contents.ExtractedBytes.Should().Be(1290);
+        contents.ArchiveBytes.Should().Be(new FileInfo(archive).Length);
+        contents.Deployment.Should().Be("self-contained");
+        contents.Platform.Should().Be("linux-x64");
+        contents.Release.Should().Be("1.2.3");
+        contents.Sha256.Should().Be(ReleaseArchive.Sha256(archive));
+        contents.Origin.Should().Be(Origin);
     }
 
     [Test]
     public async Task AToolPackageListsEveryPackageEntryAndCountsThePackageMetadata()
     {
-        var root = Directory.CreateTempSubdirectory("morphir-packaged-");
-        try
+        await using var sandbox = TestSandbox.Create("morphir-packaged-");
+        var root = new DirectoryInfo(sandbox.Root);
+        var package = Path.Combine(root.FullName, "Morphir.Tool.1.2.3.nupkg");
+        using (var zip = ZipFile.Open(package, ZipArchiveMode.Create))
         {
-            var package = Path.Combine(root.FullName, "Morphir.Tool.1.2.3.nupkg");
-            using (var zip = ZipFile.Open(package, ZipArchiveMode.Create))
-            {
-                await using (var entry = zip.CreateEntry("tools/net10.0/any/dotnet-morphir.dll").Open()) await entry.WriteAsync(new byte[10]);
-                await using (var entry = zip.CreateEntry("Morphir.Tool.nuspec").Open()) await entry.WriteAsync(new byte[3]);
-                await using (var entry = zip.CreateEntry("_rels/.rels").Open()) await entry.WriteAsync(new byte[2]);
-                zip.CreateEntry("tools/net10.0/any/"); // a folder entry is not a file
-            }
-
-            var tool = ((ArtifactResolution.Defined)ReleaseArtifacts.Resolve(Deployment.DotnetTool, null, "1.2.3")).Artifact;
-            var contents = PackagedContents.Read(tool, package, Origin);
-
-            contents.Files.Select(file => file.Path).Should().Equal("Morphir.Tool.nuspec", "_rels/.rels", "tools/net10.0/any/dotnet-morphir.dll");
-            contents.ExtractedBytes.Should().Be(15);
-            contents.Platform.Should().Be("any");
-            contents.PackageMetadataEntries.Should().Be(2, "the nuspec and the package relationships are package plumbing, not tool files");
+            await using (var entry = zip.CreateEntry("tools/net10.0/any/dotnet-morphir.dll").Open()) await entry.WriteAsync(new byte[10]);
+            await using (var entry = zip.CreateEntry("Morphir.Tool.nuspec").Open()) await entry.WriteAsync(new byte[3]);
+            await using (var entry = zip.CreateEntry("_rels/.rels").Open()) await entry.WriteAsync(new byte[2]);
+            zip.CreateEntry("tools/net10.0/any/"); // a folder entry is not a file
         }
-        finally
-        {
-            root.Delete(true);
-        }
+
+        var tool = ((ArtifactResolution.Defined)ReleaseArtifacts.Resolve(Deployment.DotnetTool, null, "1.2.3")).Artifact;
+        var contents = PackagedContents.Read(tool, package, Origin);
+
+        contents.Files.Select(file => file.Path).Should().Equal("Morphir.Tool.nuspec", "_rels/.rels", "tools/net10.0/any/dotnet-morphir.dll");
+        contents.ExtractedBytes.Should().Be(15);
+        contents.Platform.Should().Be("any");
+        contents.PackageMetadataEntries.Should().Be(2, "the nuspec and the package relationships are package plumbing, not tool files");
     }
 
     [Test]
@@ -86,25 +75,19 @@ public class PackagedContentsTests
     [Arguments(TarEntryType.HardLink)]
     public async Task ATarLinkEntryIsRefusedNotDropped(TarEntryType type)
     {
-        var root = Directory.CreateTempSubdirectory("morphir-packaged-");
-        try
+        await using var sandbox = TestSandbox.Create("morphir-packaged-");
+        var root = new DirectoryInfo(sandbox.Root);
+        var archive = Path.Combine(root.FullName, "a.tar.gz");
+        await using (var output = File.Create(archive))
+        await using (var gzip = new GZipStream(output, CompressionLevel.Fastest))
+        await using (var tar = new TarWriter(gzip, TarEntryFormat.Ustar))
         {
-            var archive = Path.Combine(root.FullName, "a.tar.gz");
-            await using (var output = File.Create(archive))
-            await using (var gzip = new GZipStream(output, CompressionLevel.Fastest))
-            await using (var tar = new TarWriter(gzip, TarEntryFormat.Ustar))
-            {
-                await tar.WriteEntryAsync(new UstarTarEntry(TarEntryType.RegularFile, "morphir") { DataStream = new MemoryStream(new byte[4]) });
-                await tar.WriteEntryAsync(new UstarTarEntry(type, "morphir-link") { LinkName = "morphir" });
-            }
+            await tar.WriteEntryAsync(new UstarTarEntry(TarEntryType.RegularFile, "morphir") { DataStream = new MemoryStream(new byte[4]) });
+            await tar.WriteEntryAsync(new UstarTarEntry(type, "morphir-link") { LinkName = "morphir" });
+        }
 
-            FluentActions.Invoking(() => PackagedContents.Read(Artifact("linux-x64"), archive, Origin))
-                .Should().Throw<InvalidDataException>().WithMessage("*morphir-link*link*");
-        }
-        finally
-        {
-            root.Delete(true);
-        }
+        FluentActions.Invoking(() => PackagedContents.Read(Artifact("linux-x64"), archive, Origin))
+            .Should().Throw<InvalidDataException>().WithMessage("*morphir-link*link*");
     }
 
     [Test]

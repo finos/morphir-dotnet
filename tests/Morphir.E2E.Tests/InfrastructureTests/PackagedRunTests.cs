@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using FluentAssertions;
 using Morphir.E2E.Tests.Infrastructure;
+using Morphir.TestSupport;
 
 namespace Morphir.E2E.Tests.InfrastructureTests;
 
@@ -12,37 +13,31 @@ public sealed class PackagedRunTests
     [Test]
     public void HidingTheRuntimeRemovesEveryVariableAndPathEntryThatReachesIt()
     {
-        var root = Directory.CreateTempSubdirectory("morphir hide ").FullName;
-        try
-        {
-            var withDotnet = Directory.CreateDirectory(Path.Combine(root, "dotnet root")).FullName;
-            File.WriteAllText(Path.Combine(withDotnet, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet"), "");
-            var other = Directory.CreateDirectory(Path.Combine(root, "tools")).FullName;
-            var empty = Directory.CreateDirectory(Path.Combine(root, "empty program files")).FullName;
+        using var sandbox = TestSandbox.Create("morphir hide ");
+        var root = sandbox.Root;
+        var withDotnet = Directory.CreateDirectory(Path.Combine(root, "dotnet root")).FullName;
+        File.WriteAllText(Path.Combine(withDotnet, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet"), "");
+        var other = Directory.CreateDirectory(Path.Combine(root, "tools")).FullName;
+        var empty = Directory.CreateDirectory(Path.Combine(root, "empty program files")).FullName;
 
-            var start = new ProcessStartInfo("morphir");
-            start.Environment.Clear();
-            start.Environment["PATH"] = string.Join(Path.PathSeparator, withDotnet, other, "");
-            start.Environment["DOTNET_ROOT"] = withDotnet;
-            start.Environment["DOTNET_ROOT_ARM64"] = withDotnet;
-            start.Environment["DOTNET_HOST_PATH"] = Path.Combine(withDotnet, "dotnet");
-            start.Environment["MORPHIR_HOME"] = Path.Combine(root, "home");
+        var start = new ProcessStartInfo("morphir");
+        start.Environment.Clear();
+        start.Environment["PATH"] = string.Join(Path.PathSeparator, withDotnet, other, "");
+        start.Environment["DOTNET_ROOT"] = withDotnet;
+        start.Environment["DOTNET_ROOT_ARM64"] = withDotnet;
+        start.Environment["DOTNET_HOST_PATH"] = Path.Combine(withDotnet, "dotnet");
+        start.Environment["MORPHIR_HOME"] = Path.Combine(root, "home");
 
-            PackagedRun.HideRuntime(start, empty);
+        PackagedRun.HideRuntime(start, empty);
 
-            start.Environment.Keys.Should().NotContain(key => key.StartsWith("DOTNET_ROOT", StringComparison.OrdinalIgnoreCase) || key == "DOTNET_HOST_PATH");
-            start.Environment["DOTNET_MULTILEVEL_LOOKUP"].Should().Be("0");
-            start.Environment["PATH"].Should().Be(other);
-            start.Environment["MORPHIR_HOME"].Should().Be(Path.Combine(root, "home"), "variables that do not reach .NET stay");
-            if (OperatingSystem.IsWindows())
-                start.Environment["ProgramW6432"].Should().Be(empty, "the Windows apphost takes its default location from ProgramW6432");
-            else
-                start.Environment.Should().NotContainKey("ProgramW6432");
-        }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
+        start.Environment.Keys.Should().NotContain(key => key.StartsWith("DOTNET_ROOT", StringComparison.OrdinalIgnoreCase) || key == "DOTNET_HOST_PATH");
+        start.Environment["DOTNET_MULTILEVEL_LOOKUP"].Should().Be("0");
+        start.Environment["PATH"].Should().Be(other);
+        start.Environment["MORPHIR_HOME"].Should().Be(Path.Combine(root, "home"), "variables that do not reach .NET stay");
+        if (OperatingSystem.IsWindows())
+            start.Environment["ProgramW6432"].Should().Be(empty, "the Windows apphost takes its default location from ProgramW6432");
+        else
+            start.Environment.Should().NotContainKey("ProgramW6432");
     }
 
     [Test]
