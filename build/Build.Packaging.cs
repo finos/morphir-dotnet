@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -165,9 +166,17 @@ partial class Build
         });
 
     /// <summary>
+    /// The MSBuild property that every RID-specific publish of the build sets to true. src/Directory.Build.props then
+    /// writes the publish's lock files under obj/publish-lock/&lt;rid&gt;/, so the committed packages.lock.json files
+    /// do not change. The same name is <c>TargetSettings.RidSpecificPublishProperty</c> on feat/release-profiles.
+    /// </summary>
+    const string RidSpecificPublishProperty = "MorphirRidSpecificPublish";
+
+    /// <summary>
     /// Publishes an extension project with a publish profile (by default SelfContainedProcess, which the project
-    /// defines) for one runtime identifier, then archives the folder. The archive has one root directory, the
-    /// runtime identifier. Returns the folder and the archive; logs the file count and sizes of both.
+    /// defines) for one runtime identifier, then archives the folder with its files at the archive root. The lock
+    /// file of the publish is kept beside the archive as <c>{name}-{version}-{rid}.packages.lock.json</c>. Returns the
+    /// folder and the archive; logs the file count and sizes of both.
     /// </summary>
     (AbsolutePath Folder, AbsolutePath Archive) PublishExtensionProcess(
         AbsolutePath project, string name, string rid, string profile = "SelfContainedProcess")
@@ -182,6 +191,7 @@ partial class Build
             .SetConfiguration(Configuration)
             .SetRuntime(rid)
             .SetProperty("PublishProfile", profile)
+            .SetProperty(RidSpecificPublishProperty, "true")
             .SetOutput(folder));
 
         var executable = rid.StartsWith("win-", StringComparison.OrdinalIgnoreCase) ? $"{name}.exe" : name;
@@ -190,13 +200,45 @@ partial class Build
             throw new Exception($"{name}: the executable {executable} is not in {folder}");
         }
 
-        var archive = ExtensionProcessesDir / $"{name}-{versionString}-{rid}{ProcessArchive.ExtensionFor(rid)}";
-        ProcessArchive.Create(folder, archive, rid, rid, executable, "createdump");
+        var stem = $"{name}-{versionString}-{rid}";
+        var archive = ExtensionProcessesDir / $"{stem}{ProcessArchive.ExtensionFor(rid)}";
+        ProcessArchive.Create(folder, archive, rid, ProcessArchive.ExecutablesFor(executable));
+
+        var lockFile = project.Parent / "obj" / "publish-lock" / rid / "packages.lock.json";
+        if (!File.Exists(lockFile))
+        {
+            throw new Exception($"{name}: the publish wrote no lock file at {lockFile}");
+        }
+        File.Copy(lockFile, ExtensionProcessesDir / $"{stem}.packages.lock.json", overwrite: true);
 
         var (files, bytes) = ProcessArchive.Measure(folder);
         Serilog.Log.Information($"✓ {folder}: {files} files, {bytes} bytes");
         Serilog.Log.Information($"✓ {archive}: {new FileInfo(archive).Length} bytes");
         return (folder, archive);
+    }
+
+    /// <summary>
+    /// The portable runtime identifier of this machine (win-, linux- or osx- and the process architecture), not the
+    /// distribution-specific one that a source-built runtime can report.
+    /// </summary>
+    static string HostRid()
+    {
+        var os = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux";
+        return $"{os}-{RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()}";
+    }
+
+    /// <summary>
+    /// For the Test target: publishes the F# frontend as a self-contained process for this machine, once, outside the
+    /// test, and returns the folder that MORPHIR_FSHARP_FRONTEND_PROCESS_DIR names for the extension tests. The
+    /// self-contained test runs on Windows and Linux only, so other platforms publish nothing and get null.
+    /// </summary>
+    AbsolutePath? PublishFSharpFrontendProcessForTests()
+    {
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux()) return null;
+        var started = Stopwatch.StartNew();
+        var (folder, _) = PublishExtensionProcess(FSharpFrontendExtensionProject, "morphir-fsharp-frontend", HostRid());
+        Serilog.Log.Information($"✓ Published the self-contained F# frontend for the tests in {started.Elapsed.TotalSeconds:0}s");
+        return folder;
     }
 
     /// <summary>

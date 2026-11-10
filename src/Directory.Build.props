@@ -20,12 +20,13 @@
     </PropertyGroup>
 
     <!--
-      A self-contained process publish (PublishProfile=SelfContainedProcess, which reaches every project of the
-      publish) restores for one runtime identifier, and NuGet would add a section for that RID to each committed
-      packages.lock.json. Write those lock files under obj/ instead. Package versions stay pinned centrally in
-      Directory.Packages.props. Other builds and publishes keep the committed lock files.
+      A publish for one runtime identifier (MorphirRidSpecificPublish=true, which the build's RID-specific publish
+      targets set and which reaches every project of the publish) restores for that RID, and NuGet would add a section
+      for it to each committed packages.lock.json. Write those lock files under obj/ instead. Package versions stay
+      pinned centrally in Directory.Packages.props, with transitive pinning. Other builds and publishes keep the
+      committed lock files.
     -->
-    <PropertyGroup Condition="'$(PublishProfile)' == 'SelfContainedProcess' and '$(RuntimeIdentifier)' != ''">
+    <PropertyGroup Condition="'$(MorphirRidSpecificPublish)' == 'true' and '$(RuntimeIdentifier)' != ''">
         <NuGetLockFilePath>$(MSBuildProjectDirectory)/obj/publish-lock/$(RuntimeIdentifier)/packages.lock.json</NuGetLockFilePath>
     </PropertyGroup>
 </Project>
