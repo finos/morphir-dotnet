@@ -22,7 +22,8 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 /// dotnet run --project build/_build.csproj -- --target PackRelease --deployment framework-dependent --rid osx-arm64
 /// dotnet run --project build/_build.csproj -- --target PackRelease --deployment dotnet-tool
 /// </code>
-/// Output: artifacts/release/{archive} and artifacts/release/{archive}.build-launch.json, from the publish folder
+/// Output: artifacts/release/{archive}, {archive}.build-launch.json and {archive}.build-contents.json, and the size report
+/// artifacts/release/size-report.md over every artifact packed there, from the publish folder
 /// artifacts/release/publish/{deployment}/{rid}/. The native-aot and managed profiles publish different projects that
 /// both build an assembly named morphir, so their publish folders are separate.
 /// </remarks>
@@ -113,6 +114,13 @@ partial class Build
             var sha256 = ReleaseArchive.Sha256(output);
             File.WriteAllText(ReleaseDir / BuildLaunchInfo.FileNameFor(artifact.FileName), BuildLaunchInfo.ToJson(artifact.Launch, sha256));
             Serilog.Log.Information($"✓ {artifact.FileName}: {new FileInfo(output).Length:N0} bytes, sha256 {sha256}");
+
+            // Every shipped file, read from the artifact, and the size report over every artifact packed so far (task 2.4).
+            var contents = ShippedContents.Read(artifact, output);
+            File.WriteAllText(ReleaseDir / ShippedContents.FileNameFor(artifact.FileName), ShippedContents.ToJson(contents));
+            var all = Directory.GetFiles(ReleaseDir, "*.build-contents.json").Select(path => ShippedContents.Parse(File.ReadAllText(path)));
+            File.WriteAllText(ReleaseDir / "size-report.md", ShippedContents.SizeReport(all));
+            Serilog.Log.Information($"✓ {artifact.FileName}: {contents.FileCount} files, {contents.ExtractedBytes:N0} bytes extracted; see {ReleaseDir / "size-report.md"}");
         });
 
     /// <summary>The artifact that <c>--deployment</c> and <c>--rid</c> name, or a build failure that says why there is none.</summary>
