@@ -1,0 +1,80 @@
+name: "WASM trap on win-x64"
+
+# The diagnosis of issue #563 on branch ci/wasm-win-x64-trap: on win-x64 a WASM guest that traps makes the host process
+# die with 0xC0000409. spikes/wasm-win-x64-trap/run.ps1 builds a small reproduction as each launch kind, runs every
+# kind of trap in its own process, reads the crash, and changes one thing at a time. windows-11-arm is the control.
+# A process that dies is data: the jobs record it and go on, and they pass when the script wrote its results.
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - ci/wasm-win-x64-trap
+        paths:
+            - .github/workflows/wasm-win-x64-trap.yml
+            - spikes/wasm-win-x64-trap/**
+
+permissions:
+    contents: read
+
+concurrency:
+    group: wasm-win-x64-trap-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    diagnose:
+        name: diagnose (${{ matrix.rid }})
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 120
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - rid: win-x64
+                      runner: windows-2025
+                    - rid: win-arm64
+                      runner: windows-11-arm
+        env:
+            DOTNET_NOLOGO: "1"
+            DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.1.0
+              with:
+                  fetch-depth: 0
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+
+            - name: Cache Nuget Packages
+              uses: actions/cache@v5
+              with:
+                  path: ~/.nuget/packages
+                  key: ${{ runner.os }}-${{ runner.arch }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-${{ runner.arch }}-nuget
+
+            # The Native AOT link on Windows needs vswhere.exe, which the ILCompiler targets call by name.
+            - name: Put vswhere on PATH
+              shell: pwsh
+              run: '"${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer" >> $env:GITHUB_PATH'
+
+            - name: Run the diagnosis
+              shell: pwsh
+              run: ./spikes/wasm-win-x64-trap/run.ps1 -Rid ${{ matrix.rid }} -WorkDirectory (Join-Path $env:RUNNER_TEMP 'trap')
+
+            - name: Upload the results
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: wasm-win-x64-trap-${{ matrix.rid }}
+                  path: |
+                      ${{ runner.temp }}/trap/results.json
+                      ${{ runner.temp }}/trap/summary.md
+                      ${{ runner.temp }}/trap/logs/
+                      ${{ runner.temp }}/trap/dumps/
+                      ${{ runner.temp }}/trap/corpus-*.json
+                  if-no-files-found: warn
+                  retention-days: 30
