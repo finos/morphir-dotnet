@@ -111,7 +111,7 @@ Check in both `.morphir/toolchain.toml` and `.morphir/toolchain.lock.json`. The 
 
 ## Commands
 
-`setup --plan` and `doctor` write one manager result document (`0.1.0-draft.1`, see the [contract](https://github.com/finos/morphir/blob/9e1f853b7ef64c160bd3ec9c238e246d84a23802/docs/spec/toolchain/manager-result.md), a draft in the unmerged [finos/morphir#1147](https://github.com/finos/morphir/pull/1147), at the commit this build is pinned to) to standard output and their progress to standard error. `--version`, `--help` and a command line that cannot be parsed write no result document. JSON is the only output format of this build; `--json` is accepted.
+`setup --plan` (or `setup --dry-run`) and `doctor` write one manager result document (`0.1.0-draft.1`, see the [contract](https://github.com/finos/morphir/blob/9e1f853b7ef64c160bd3ec9c238e246d84a23802/docs/spec/toolchain/manager-result.md), a draft in the unmerged [finos/morphir#1147](https://github.com/finos/morphir/pull/1147), at the commit this build is pinned to) to standard output and their progress to standard error. `--version`, `--help` and a command line that cannot be parsed write no result document. JSON is the only output format of this build; `--json` is accepted.
 
 | Exit code | Meaning |
 | --- | --- |
@@ -126,7 +126,7 @@ Exit code 2 means that `morphirup` did not run the command. That happens when:
 
 - no command is given, or the command is not `setup` or `doctor`;
 - an option is unknown, given twice, or has no value. A value never starts with `--`, so `--project --plan` is a missing value, not a folder named `--plan`;
-- `setup` is run without `--plan`, or with `--yes`;
+- `setup` is run without `--plan` or `--dry-run`, or with `--yes`;
 - `--platform` is not one of the eight [platform ids](#platforms-and-prerequisites), or this machine is not one of them and `--platform` is not given;
 - the value of `--repository-id`, `--expect-plan`, `--implementation`, `--deployment`, `--preset`, `--channel` or `--version` is not valid;
 - `setup` has no `--repository-id` or no `--recipe`, or `doctor` has `--recipe` without `--repository-id`;
@@ -174,21 +174,29 @@ Without `--boundary`, discovery searches up to the root of the file system: `/` 
 
 `doctor` reads the lock beside the request: the one it found, or the file given with `--request`, unless `--lock` names another.
 
+### Dry runs
+
+Every `morphirup` command that creates, updates, repairs or removes persistent state has a `--dry-run` option. A dry run takes the same planning and validation path as the command itself. It refuses whatever the command would refuse, with the same codes, paths and exit codes, and it makes no persistent change: it writes no request, lock, receipt, journal, cache, home or activation file, downloads nothing and runs no readiness probe. Its result reports only what is true: an action it would take is `planned`, never `succeeded`, and an action it cannot complete is reported with the diagnostic that blocks it.
+
+In this build, only `setup` could change state, and it only plans, so `setup --dry-run` is `setup --plan` under another name (see below). `doctor` reads and never changes anything, so it has no `--dry-run`. A future `doctor --fix`, and every later command that installs, activates, updates, rolls back, repairs or removes, will come with `--dry-run` from the start; none of them is implemented yet.
+
 ### `morphirup --version`
 
 Prints the version and nothing else.
 
-### `morphirup setup --plan`
+### `morphirup setup --plan` and `--dry-run`
 
 ```text
-morphirup setup --plan --recipe <file> --repository-id <sha256> --artifact-sizes <file>
+morphirup setup (--plan | --dry-run) --recipe <file> --repository-id <sha256> --artifact-sizes <file>
                 [--project <dir> [--boundary <dir>] | --request <file> | <selector options>]
                 [--platform <rid>] [--expect-plan <sha256>] [--recipe-target <path>]
 ```
 
 Reads the request, resolves it against the recipe for every platform the lock would record (the request's `platforms` plus the platform being set up), and prints a `planned` result with the plan and its `planSha256`. The plan names the host artifact, each provider, where each comes from, its sizes, its update owner, the prerequisites that apply on its platform and its probe. It also carries the complete lock setup would write, with every platform's closure, so `planSha256` pins all of it. The host and every `process` or `dotnet-tool` provider are `process-with-user-rights`: setup's readiness checks would run that code with your rights. A built-in or WASM provider is `in-host`. Planning runs nothing.
 
-Plan-only setup is the only setup in this build: without `--plan`, or with `--yes`, it exits with code 2 and changes nothing. Installing is not implemented yet.
+Plan-only setup is the only setup in this build: without `--plan` or `--dry-run`, or with `--yes`, it exits with code 2 and changes nothing. Installing is not implemented yet.
+
+`--dry-run` is the same request as `--plan`: the same plan and `planSha256`, the same result bytes, the same refusals and the same exit codes. Both may be given together and mean the same; each may be given once. Neither permits `--yes`, so a dry run can never install or activate anything. A dry run reads only the request, recipe and sizes files, and creates, changes or removes nothing in the project or the Morphir home.
 
 | Option | Meaning |
 | --- | --- |
@@ -207,6 +215,7 @@ A request the recipe cannot satisfy gives a `failed` result with an `unsupported
 
 ```powershell
 morphirup setup --plan --recipe fsharp-1.0.0.json --repository-id <sha256> --artifact-sizes sizes.json
+morphirup setup --dry-run --recipe fsharp-1.0.0.json --repository-id <sha256> --artifact-sizes sizes.json
 morphirup setup --plan --implementation dotnet --deployment native-aot --preset fsharp --channel stable `
     --recipe fsharp-1.0.0.json --repository-id <sha256> --artifact-sizes sizes.json --expect-plan <sha256>
 ```
@@ -248,7 +257,7 @@ The executable needs no .NET runtime, no ICU and no OpenSSL: it is built in inva
 
 ## Common errors
 
-- `this build plans only`: pass `--plan`. Installing is not implemented yet.
+- `this build plans only`: pass `--plan` or `--dry-run`, without `--yes`. Installing is not implemented yet.
 - `document_unavailable`: the named request, lock or recipe does not exist, is over the bound in [Files](#files), or is not a regular file. Without `--request`, check where [discovery](#finding-the-project) looked.
 - `request_changed` with `cause` `crlf-line-endings`: Git converted the request's line endings. Add `.morphir/toolchain.toml text eol=lf` and `.morphir/toolchain.lock.json text eol=lf` to `.gitattributes` and check the files out again.
 - `the size of <target> is unknown`: add the target to the `--artifact-sizes` file.
