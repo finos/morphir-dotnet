@@ -887,6 +887,9 @@ module ResultDocument =
                             refuse ReaderCode.InconsistentDocument shaPath
                         else
                             Ok(Some { Plan = plan; Canonical = canonical; Sha256 = actual }))
+                // A plan without planSha256 lacks a required member (manager-result.md); a planSha256 without a
+                // plan is out of place.
+                | Some _, None, _ -> refuse ReaderCode.InvalidDocument shaPath
                 | _ -> refuse ReaderCode.InconsistentDocument shaPath
 
             if not (outcomeIsConsistent outcome digested diagnostics) then
