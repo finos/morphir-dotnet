@@ -1,0 +1,8 @@
+{"formatVersion":4,"distribution":{"Library":{"packageName":"car/rental","dependencies":{},"def":{"modules":{
+  "alpha":{"access":"Public","types":{},"values":{
+    "total":{"access":"Public","ExpressionBody":{"inputTypes":{},"outputType":"morphir/SDK:basics#int","body":{"Reference":"car/rental:zeta#base"}}}
+  }},
+  "zeta":{"access":"Public","types":{},"values":{
+    "base":{"access":"Public","ExpressionBody":{"inputTypes":{},"outputType":"morphir/SDK:basics#int","body":{"Apply":{"function":{"Apply":{"function":{"Reference":"morphir/SDK:basics#add"},"argument":{"Literal":{"WholeNumberLiteral":20}}}},"argument":{"Literal":{"WholeNumberLiteral":22}}}}}}
+  }}
+}}}}}

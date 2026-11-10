@@ -238,6 +238,7 @@ partial class Build
             "Morphir.Tests",
             "Morphir.Managed.Tests",
             "Morphir.CodeGeneration.FSharp.Tests",
+            "Morphir.CodeGeneration.FSharp.Extension.Tests",
             "Morphir.CodeGeneration.CSharp.Tests",
             "Morphir.Ion.Tests",
             "Morphir.Myriad.Tests",
