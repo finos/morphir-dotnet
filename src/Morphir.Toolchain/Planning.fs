@@ -33,11 +33,19 @@ type PlanRequest =
 /// </summary>
 module Planning =
 
+    /// <summary>A prerequisite applies on a platform when it names no platforms or names that one. A plan lists only
+    /// the prerequisites of its own platform: they are inside <c>planSha256</c>.</summary>
+    let appliesOn (platform: Platform) (prerequisite: Prerequisite) =
+        prerequisite.Platforms |> Option.forall (List.contains platform)
+
+    let private on platform prerequisites =
+        prerequisites |> List.filter (appliesOn platform)
+
     let private plannedProvider (sizes: TargetPath -> ArtifactSize option) (selected: Selected) =
         let sized (target: TargetPath) =
             sizes target |> Option.map Ok |> Option.defaultValue (Error(PlanFailure.SizeUnknown target))
 
-        let provider (provider: RecipeProvider) delivery (bound: TargetBinding) probe =
+        let provider (platform: Platform) (provider: RecipeProvider) delivery (bound: TargetBinding) probe =
             sized bound.Target
             |> Result.map (fun size ->
                 PlannedComponent.Provider(
@@ -49,7 +57,7 @@ module Planning =
                       DownloadBytes = size.DownloadBytes
                       InstalledBytes = size.InstalledBytes
                       UpdateOwner = Ownership.ManagerOwned
-                      Prerequisites = provider.Prerequisites
+                      Prerequisites = on platform provider.Prerequisites
                       Probe = probe }
                 ))
 
@@ -75,10 +83,10 @@ module Planning =
                 | RecipeDelivery.Process platforms ->
                     // Resolution selected this provider only because it has an artifact for the platform.
                     let artifact = platforms |> List.find (fst >> (=) platform) |> snd
-                    provider recipeProvider Delivery.Process artifact Probe.ProcessWithUserRights
-                | RecipeDelivery.Wasm(_, artifact) -> provider recipeProvider Delivery.Wasm artifact Probe.InHost
+                    provider platform recipeProvider Delivery.Process artifact Probe.ProcessWithUserRights
+                | RecipeDelivery.Wasm(_, artifact) -> provider platform recipeProvider Delivery.Wasm artifact Probe.InHost
                 | RecipeDelivery.DotnetTool package ->
-                    provider recipeProvider Delivery.DotnetTool { Target = package.Target; Sha256 = package.Sha256 } Probe.ProcessWithUserRights
+                    provider platform recipeProvider Delivery.DotnetTool { Target = package.Target; Sha256 = package.Sha256 } Probe.ProcessWithUserRights
 
     /// The plan for one platform and the lock setup would write, which records every platform of the request and the
     /// platform being set up.
@@ -111,7 +119,7 @@ module Planning =
                       DownloadBytes = hostSize.DownloadBytes
                       InstalledBytes = hostSize.InstalledBytes
                       UpdateOwner = Ownership.ManagerOwned
-                      Prerequisites = offering.Prerequisites
+                      Prerequisites = on input.Platform offering.Prerequisites
                       Probe = Probe.None }
                 )
 

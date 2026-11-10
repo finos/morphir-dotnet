@@ -31,6 +31,38 @@ let planFor (request: string) (platform: Platform) sizes =
           Sizes = sizes
           MetadataRefresh = MetadataRefresh.Required }
 
+/// A plan with the synthetic members masked: every SHA-256, and the sizes, which the fixture states and the recipe
+/// does not carry.
+let rec masked (value: Value) =
+    match value with
+    | Value.Object members ->
+        Value.Object
+            [ for name, item in members ->
+                  match name with
+                  | "sha256" -> name, Value.String "<sha256>"
+                  | "downloadBytes"
+                  | "installedBytes" -> name, Value.Number "0"
+                  | _ -> name, masked item ]
+    | Value.Array items -> Value.Array(items |> List.map masked)
+    | other -> other
+
+let canonical value =
+    match Canonical.bytes value with
+    | Ok bytes -> System.Text.Encoding.UTF8.GetString bytes
+    | Error _ -> failtest "not canonical"
+
+/// The plan member of a result fixture, as a value.
+let fixturePlan (relative: string) =
+    match Syntax.parseJson (Fixtures.bytes relative) with
+    | Ok(Value.Object members) -> members |> List.find (fst >> (=) "plan") |> snd
+    | _ -> failtest "the fixture does not parse"
+
+let prerequisiteNames (plan: Plan) =
+    [ for planned in plan.Components ->
+          match planned with
+          | PlannedComponent.Host(_, _, p)
+          | PlannedComponent.Provider(_, _, _, p) -> p.Prerequisites |> List.map _.Name.Text ]
+
 let planned request platform =
     match planFor request platform everySize with
     | Ok(digested, lock) -> digested, lock
@@ -39,6 +71,21 @@ let planned request platform =
 [<Tests>]
 let tests =
     testList "Planning" [
+        testCase "the approved request on win-x64 plans exactly the approved setup-plan fixture, digests and sizes aside" (fun () ->
+            let digested, _ = planned "request/approved.toml" Platform.WinX64
+
+            Expect.equal
+                (canonical (masked (ResultDocument.planValue digested.Plan)))
+                (canonical (masked (fixturePlan "result/setup-plan.json")))
+                "every member the plan digest covers")
+
+        testCase "a prerequisite limited to other platforms is not in the plan, and one for this platform is" (fun () ->
+            let windows, _ = planned "request/approved.toml" Platform.WinX64
+            Expect.equal (prerequisiteNames windows.Plan) [ []; []; [] ] "glibc applies only to linux-x64 and linux-arm64"
+
+            let linux, _ = planned "request/approved.toml" Platform.LinuxX64
+            Expect.equal (prerequisiteNames linux.Plan) [ [ "glibc" ]; [ "glibc" ]; [] ] "the host and the frontend need glibc on linux-x64")
+
         testCase "the approved request plans the Native AOT host, the process frontend and the built-in generator" (fun () ->
             let digested, _ = planned "request/approved.toml" Platform.WinArm64
 
