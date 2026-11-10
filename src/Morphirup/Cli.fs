@@ -151,7 +151,9 @@ let private readFile (io: Io) (limit: int64) (path: string) : Result<byte array,
         || (not (OperatingSystem.IsWindows())
             && [ "/dev/"; "/proc/"; "/sys/" ] |> List.exists (fun prefix -> candidate.StartsWith(prefix, StringComparison.Ordinal)))
 
-    if isDeviceName full then
+    // The path as written is checked too. Off Windows, GetFullPath turns \\.\pipe\x into a file name under the current
+    // directory, and a path written as a Windows device is refused by name on every system, not looked up.
+    if isDeviceName path || isDeviceName full then
         Error $"{full} is not a regular file"
     else
         try
