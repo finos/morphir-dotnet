@@ -89,6 +89,7 @@ Parent tasks 1.1 to 1.4, 1.6 and 1.7 belong to finos/morphir and are dependencie
 - [ ] 3.5 Run the generic guest kit's model tier in-process for the Python `0.6.0` guest and the SDK fixture. Verify IR equal to the kit's expectations for each claimed IR version, and document the Extism profile's resident memory bound of twice the ceiling in the host's extension guide.
   - In-process means through `HostSession`, which speaks MEP `0.2.0-draft.1` only. The kit's legacy tier is recorded as not run, and the result is not reported as a complete run of the kit (design MEP-1). The kit's documents and expected IR are fixed data; the comparison applies the kit's three stated rules and no other.
   - Design: RUN-2.
+  - State on 10 November 2026 (`evidence/3.5-generic-guest-kit.md`): on the Python `0.6.0` guest all 16 model-tier steps pass at IR `3.0.0` and `4.0.0`, with the compiled IR equal to the kit's expected text. The SDK fixture guest is not run: the committed module in finos/morphir-moonbit speaks MEP `0.1` only and refuses a `0.2.0-draft.1` offer. The task stays open until that guest is rebuilt for `0.2.0-draft.1` or the parent drops it from this task.
 
 ## 4. Worker mode and runtime report, morphir-dotnet
 
