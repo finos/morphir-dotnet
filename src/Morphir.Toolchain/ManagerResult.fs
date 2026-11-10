@@ -675,7 +675,9 @@ module ResultDocument =
         }
 
     /// <summary>The plan against its lock (manager result page, plans): the lock is for the plan's recipe, host and
-    /// platform, and the components are exactly that platform's closure, from the recipe's repository.</summary>
+    /// platform, and the components are exactly that platform's closure, from the recipe's repository. The host
+    /// component names the lock's implementation, deployment and version, so a plan cannot describe another host
+    /// than the closure it binds.</summary>
     let private agreesWithLock (path: DocumentPath) (plan: Plan) : Read<unit> =
         let lockPath = path.Child "lock"
         let componentsPath = path.Child "components"
@@ -726,8 +728,13 @@ module ResultDocument =
                 let at = componentsPath.At index
 
                 match planned with
-                | PlannedComponent.Host(_, _, host) ->
-                    if host.Version <> lock.Host.Version then
+                | PlannedComponent.Host(implementation, deployment, host) ->
+                    // The host component is the lock's host release: its implementation, deployment and version.
+                    if
+                        implementation <> lock.Host.Implementation
+                        || deployment <> lock.Host.Deployment
+                        || host.Version <> lock.Host.Version
+                    then
                         return! refuse ReaderCode.InconsistentDocument at
 
                     do! boundTo at closure.Host host.Source

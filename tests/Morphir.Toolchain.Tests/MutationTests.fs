@@ -20,6 +20,34 @@ let private refusalOf (result: Result<'T, ReaderRefusal>) =
     | Ok _ -> failtest "expected a refusal"
     | Error refusal -> Code.readerName refusal.Code, DocumentPath.render refusal.Path
 
+/// A JSON value with the member or element at a path replaced.
+let rec private setAt (path: string list) (replacement: Value) (value: Value) =
+    match path, value with
+    | [], _ -> replacement
+    | head :: rest, Value.Object members ->
+        if not (members |> List.exists (fst >> (=) head)) then failtestf "no member %s" head
+        Value.Object(members |> List.map (fun (name, item) -> if name = head then name, setAt rest replacement item else name, item))
+    | head :: rest, Value.Array items ->
+        let index = int head
+        Value.Array(items |> List.mapi (fun i item -> if i = index then setAt rest replacement item else item))
+    | _ -> failtestf "no element at %A" path
+
+/// The setup-plan fixture with one plan member replaced and planSha256 recomputed, so only the change is refused.
+let private setupPlanWith (path: string list) (replacement: Value) =
+    match Syntax.parseJson (Fixtures.bytes "result/setup-plan.json") with
+    | Ok result ->
+        let changed = setAt ("plan" :: path) replacement result
+
+        let plan =
+            match changed with
+            | Value.Object members -> members |> List.find (fst >> (=) "plan") |> snd
+            | _ -> failtest "no plan"
+
+        match Canonical.bytes plan with
+        | Ok canonical -> JsonText.toBytes (setAt [ "planSha256" ] (Value.String (Sha256.ofBytes canonical).Text) changed)
+        | Error _ -> failtest "not canonical"
+    | Error _ -> failtest "the fixture does not parse"
+
 let private resolutionFailure (result: Result<Resolved, ResolutionFailure>) =
     match result with
     | Ok _ -> failtest "expected a resolution failure"
@@ -89,6 +117,16 @@ let tests =
                 (Refused("lock_changed", "lockSha256"))
                 "lockSha256 is compared before recipe")
 
+        testList "a plan's host component names the lock's host" [
+            yield testCase "the fixture with a recomputed digest still reads" (fun () ->
+                let unchanged = setupPlanWith [ "metadataRefresh" ] (Value.String "required")
+                Expect.isOk (ResultDocument.read unchanged) "only the digest was recomputed")
+
+            for name, value in [ "deployment", "self-contained"; "implementation", "other-host" ] do
+                yield testCase $"another {name}" (fun () ->
+                    let bytes = setupPlanWith [ "components"; "0"; "component"; name ] (Value.String value)
+                    Expect.equal (refusalOf (ResultDocument.read bytes)) ("inconsistent_document", "plan.components[0]") "the host component")
+        ]
         testCase "a WASM provider's readiness probe runs in the host" (fun () ->
             match
                 Planning.plan
