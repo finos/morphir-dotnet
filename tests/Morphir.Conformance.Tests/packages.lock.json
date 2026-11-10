@@ -129,6 +129,9 @@
           "Morphir.Compilation": "[1.0.0, )"
         }
       },
+      "morphir.conformance.fakeworker": {
+        "type": "Project"
+      },
       "morphir.models": {
         "type": "Project",
         "dependencies": {

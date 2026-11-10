@@ -28,6 +28,10 @@
     <Compile Include="WasmHost/FeatureWriter.fs" />
     <Compile Include="WasmHost/Generation.fs" />
     <Compile Include="WasmHost/FeatureReader.fs" />
+    <Compile Include="WasmHost/Worker.fs" />
+    <Compile Include="WasmHost/Comparer.fs" />
+    <Compile Include="WasmHost/Judge.fs" />
+    <Compile Include="WasmHost/HostRunner.fs" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />

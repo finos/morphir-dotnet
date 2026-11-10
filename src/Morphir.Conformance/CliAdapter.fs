@@ -136,6 +136,19 @@ module CliAdapter =
                 }
 
     /// <summary>
+    /// Stops a process and every descendant that it started, and waits a bounded time for the process to end.
+    /// A process that has already exited is left as it is. Returns whether the process has ended.
+    /// </summary>
+    let stopProcessTree (proc: Process) (wait: TimeSpan) =
+        try
+            proc.Kill true
+        with
+        | :? InvalidOperationException
+        | :? ComponentModel.Win32Exception -> ()
+
+        proc.WaitForExit wait
+
+    /// <summary>
     /// Runs a process without a shell. It reads both streams to their end, and stops the process tree when
     /// <paramref name="timeout"/> expires or the token is cancelled.
     /// </summary>
@@ -176,10 +189,8 @@ module CliAdapter =
                     StandardError = error
                 }
             with :? OperationCanceledException ->
-                try
-                    proc.Kill true
-                with :? InvalidOperationException ->
-                    ()
+                stopProcessTree proc (TimeSpan.FromSeconds 10.0)
+                |> ignore
 
                 cancellationToken.ThrowIfCancellationRequested()
 
