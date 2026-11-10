@@ -111,8 +111,9 @@ Parent tasks 1.1 to 1.4, 1.6 and 1.7 belong to finos/morphir and are dependencie
 
 ## 5. Packaging across offerings, morphir-dotnet
 
-- [ ] 5.1 Try the static link of the engine into the Native AOT executable on all six platforms before other packaging work, with the C API archive pinned by SHA-256 and its version checked against the managed package. Verify each platform's result on its own runner and record, per platform, static link or separate library and the shipped size.
+- [x] 5.1 Try the static link of the engine into the Native AOT executable on all six platforms before other packaging work, with the C API archive pinned by SHA-256 and its version checked against the managed package. Verify each platform's result on its own runner and record, per platform, static link or separate library and the shipped size.
   - A workflow of its own that publishes the AOT probe per runner. It does not touch the release profiles (design SEQ-1).
+  - Result, 10 November 2026 (`evidence/5.1-static-link.md`): the static link works on all six platforms, each on its own runner; the executable runs with no engine library beside it. The pin and the link live in `build/wasmtime/`; the workflow is `.github/workflows/wasm-engine-static-link.yml`. Wiring the same link into the released Native AOT `morphir` is part of tasks 5.2 and 5.3.
 - [ ] 5.2 Package the engine for the `self-contained` and `framework-dependent` offerings on all six platforms. Verify each released archive on a clean machine of its platform, including first-run extraction with a read-only install directory.
 - [ ] 5.3 Add release metadata for native assets and single-file claims per offering and platform, as `deployment/dotnet-profiles` requires. Verify a platform that ships a separate library does not claim single-file delivery and that the release check rejects a report cited for another offering.
   - In this repository the capability is `dotnet-deployment-profiles` of `add-deployment-and-acquisition`.
