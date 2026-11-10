@@ -113,6 +113,66 @@ public class GenerateFormattingTests
         return await ChildProcess.RunAsync(start, TimeSpan.FromMinutes(2));
     }
 
+    /// <summary>The pinned finos/morphir toolchain case fsharp-compile-generate.</summary>
+    private static string CaseDirectory =>
+        Path.Combine(GenerateSteps.RepositoryRoot(), "tests", "Fixtures", "Toolchain", "workflows", "fsharp-compile-generate");
+
+    /// <summary>
+    /// The frozen generated file of the case at finos/morphir 9e1f853b7. main's pin (1451c081f) does not have
+    /// expected/generated/Pricing.fs yet; it arrives with #582, and then the bytes are compared with it too.
+    /// </summary>
+    private const int FrozenLength = 112;
+    private const string FrozenSha256 = "64e08313f3e57be2c18995a2e8b275db9d921341958da2c8cd960c601c066de0";
+
+    /// <summary>The bytes as the publisher wrote them to disk: one Pricing.fs, UTF-8 without a BOM, LF only, one final LF.</summary>
+    private static async Task ExpectFrozenOnDisk(string output, IEnumerable<string> artifacts, string label)
+    {
+        artifacts.Should().Equal(["Pricing.fs"], label);
+        var bytes = await File.ReadAllBytesAsync(Path.Combine(output, "Pricing.fs"));
+        bytes.Length.Should().Be(FrozenLength, label);
+        bytes.Take(3).Should().NotEqual(new byte[] { 0xEF, 0xBB, 0xBF }, $"{label}: no byte order mark");
+        bytes.Should().NotContain((byte)'\r', $"{label}: LF only");
+        bytes[^1].Should().Be((byte)'\n', $"{label}: one final LF");
+        bytes[^2].Should().NotBe((byte)'\n', $"{label}: exactly one final LF");
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)).Should().Be(FrozenSha256, label);
+        var frozen = Path.Combine(CaseDirectory, "expected", "generated", "Pricing.fs");
+        if (File.Exists(frozen))
+            bytes.Should().Equal(await File.ReadAllBytesAsync(frozen), $"{label}: the pinned expected/generated/Pricing.fs");
+    }
+
+    /// <summary>Runs the JIT <c>morphir</c> of this configuration as a child process.</summary>
+    private static async Task<ChildProcessResult> RunCli(TestSandbox sandbox, params string[] arguments)
+    {
+        var configuration = typeof(GenerateFormattingTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
+        var bin = Path.Combine(GenerateSteps.RepositoryRoot(), "src", "Morphir", "bin", configuration, "net10.0");
+        var start = ChildProcess.StartInfo("dotnet", ["exec", Path.Combine(bin, "morphir.dll"), .. arguments]);
+        start.WorkingDirectory = sandbox.Work;
+        sandbox.Apply(start);
+        return await ChildProcess.RunAsync(start, TimeSpan.FromMinutes(2));
+    }
+
+    [Test]
+    public async Task WithFormatFalseThePublisherWritesTheFrozenBytesOfTheToolchainCaseForTheBuiltInAndTheGuest()
+    {
+        using var sandbox = TestSandbox.Create("morphir-format-case-");
+        var ir = Path.Combine(CaseDirectory, "expected", "ir-4.0.0.json");
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(ir, "fsharp", sandbox.PathOf("built-in"), null, ["format=false"]), new InvocationContext(sandbox.Work)),
+            new CliGenerationSettingsResolver(), new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([new FSharpGenerationBackend()]), new GenerationPublisher(), default);
+        var builtIn = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString()).Subject.Value;
+        await ExpectFrozenOnDisk(builtIn.OutputDirectory, builtIn.Publication.Artifacts, "the built-in backend");
+
+        var guest = Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-backend.dll");
+        var run = await RunCli(sandbox, "generate", "--input", ir, "--target", "fsharp", "--output", sandbox.PathOf("guest"),
+            "--extension", guest, "--option", "format=false", "--json");
+        run.ExitCode.Should().Be(0, run.CombinedOutput);
+        var report = JsonNode.Parse(run.StandardOutput)!;
+        report["backendTransport"]!.GetValue<string>().Should().Be("mep");
+        await ExpectFrozenOnDisk(sandbox.PathOf("guest"), report["artifacts"]!.AsArray().Select(item => item!.GetValue<string>()), "the guest");
+    }
+
     [Test]
     public async Task OnAHostThatCannotFormatTheDefaultWarnsOnStderrOnlyAndTheJsonReportSaysUnavailable()
     {

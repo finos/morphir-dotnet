@@ -3,12 +3,14 @@
 /// The compile step of the finos/morphir toolchain case fsharp-compile-generate, checked through the compatibility
 /// kit: the case's source compiles with the in-process F# frontend (the library adapter) to the case's expected IR,
 /// compared by the kit's runner. The case files are those of the pinned contract, under
-/// tests/Fixtures/Toolchain/workflows (see tests/Fixtures/Toolchain/PROVENANCE.md).
+/// tests/Fixtures/Toolchain/workflows (see tests/Fixtures/Toolchain/PROVENANCE.md). The package, the exposed modules,
+/// the sources, the input kind, the IR version and the digests come from the pinned case.json, not from this file.
 module Morphir.Frontend.FSharp.Tests.ToolchainCaseTests
 
 open System
 open System.IO
 open System.Security.Cryptography
+open System.Text.Json
 open System.Threading
 open Expecto
 open Morphir.Compilation
@@ -28,34 +30,97 @@ let private caseDirectory =
 let private sha256 (path: string) =
     Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes path))
 
+/// A source of the case: its URI, its file under the case folder and the SHA-256 that case.json names.
+type private CaseSource = { Uri: string; File: string; Sha256: string }
+
+/// What the compile step of the case asks for, as case.json states it.
+type private CompileCase =
+    { Package: string
+      ExposedModules: string list
+      Sources: CaseSource list
+      InputKind: string
+      IrVersion: string
+      ExpectedIr: string
+      ExpectedIrSha256: string }
+
+let private text (element: JsonElement) (name: string) =
+    match element.GetProperty(name).GetString() with
+    | null -> failtest $"case.json: {name} is a string"
+    | value -> value
+
+/// The compile step of a case.json document.
+let private compileCase (json: string) : CompileCase =
+    use document = JsonDocument.Parse json
+    let root = document.RootElement
+    let package = root.GetProperty "package"
+
+    let step =
+        root.GetProperty("steps").EnumerateArray()
+        |> Seq.filter (fun step -> text step "operation" = "compile")
+        |> Seq.exactlyOne
+
+    let ir = step.GetProperty("expected").GetProperty "ir"
+
+    { Package = text package "name"
+      ExposedModules = [ for item in package.GetProperty("exposedModules").EnumerateArray() -> string (item.GetString()) ]
+      Sources =
+        [ for source in root.GetProperty("sources").EnumerateArray() ->
+              { Uri = text source "uri"; File = text source "file"; Sha256 = text source "sha256" } ]
+      InputKind = text step "input"
+      IrVersion = string (ir.GetProperty("formatVersion").GetInt32())
+      ExpectedIr = text ir "file"
+      ExpectedIrSha256 = text ir "sha256" }
+
+let private pinned () =
+    compileCase (File.ReadAllText(Path.Combine(caseDirectory, "case.json")))
+
+/// The kit's input for a compile case, with the case's source texts.
+let private inputOf (case: CompileCase) =
+    { Package = case.Package
+      ExposedModules = case.ExposedModules
+      Documents =
+        [ for source in case.Sources ->
+              { Uri = source.Uri
+                Text = File.ReadAllText(Path.Combine(caseDirectory, source.File)) } ]
+      InputKind = case.InputKind
+      IrVersion = case.IrVersion }
+
 [<Tests>]
 let tests =
     testList "Toolchain case fsharp-compile-generate" [
         test "The fixture files are the case's: their SHA-256 are those that case.json names" {
-            Expect.equal
-                (sha256 (Path.Combine(caseDirectory, "source", "Pricing.fs")))
-                "f924e05d37b0517ac8777b495691ad86207f2b1dc7f5b6e038e6f6e370817d6c"
-                "source/Pricing.fs"
+            let case = pinned ()
+            Expect.isNonEmpty case.Sources "the case has sources"
 
-            Expect.equal
-                (sha256 (Path.Combine(caseDirectory, "expected", "ir-4.0.0.json")))
-                "b1035d065ecfddc557476d7203afe29c83a9340abc27300aaeeb911490c30cb7"
-                "expected/ir-4.0.0.json"
+            for source in case.Sources do
+                Expect.equal (sha256 (Path.Combine(caseDirectory, source.File))) source.Sha256 source.File
+
+            Expect.equal (sha256 (Path.Combine(caseDirectory, case.ExpectedIr))) case.ExpectedIrSha256 case.ExpectedIr
         }
 
-        test "Through the kit: source/Pricing.fs compiles with the F# frontend to expected/ir-4.0.0.json" {
-            let input = {
-                Package = "acme/demo"
-                ExposedModules = [ "Pricing" ]
-                Documents = [
-                    {
-                        Uri = "Pricing.fs"
-                        Text = File.ReadAllText(Path.Combine(caseDirectory, "source", "Pricing.fs"))
-                    }
-                ]
-                InputKind = "files"
-                IrVersion = "4"
-            }
+        test "The kit's input comes from case.json: another package, other modules or another IR version reach the input" {
+            let json = File.ReadAllText(Path.Combine(caseDirectory, "case.json"))
+            let case = compileCase json
+            Expect.equal (inputOf case).Package case.Package "the package of case.json"
+
+            let changed =
+                compileCase (
+                    json
+                        .Replace($"\"name\": \"{case.Package}\"", "\"name\": \"acme/changed\"")
+                        .Replace("\"exposedModules\": [\"Pricing\"]", "\"exposedModules\": [\"Changed\"]")
+                        .Replace("\"formatVersion\": 4", "\"formatVersion\": 3")
+                )
+
+            let input = inputOf changed
+            Expect.equal input.Package "acme/changed" "the package"
+            Expect.equal input.ExposedModules [ "Changed" ] "the exposed modules"
+            Expect.equal input.IrVersion "3" "the IR version"
+        }
+
+        test "Through the kit: the case's source compiles with the F# frontend to its expected IR" {
+            let compile = pinned ()
+            let input = inputOf compile
+            let expectedIr = Path.Combine(caseDirectory, compile.ExpectedIr)
 
             let case = {
                 Id = "fsharp-compile-generate"
@@ -66,7 +131,7 @@ let tests =
                     Success = true
                     Diagnostics = []
                     AllowNonErrorDiagnostics = false
-                    ModelJson = Some(File.ReadAllText(Path.Combine(caseDirectory, "expected", "ir-4.0.0.json")))
+                    ModelJson = Some(File.ReadAllText expectedIr)
                 }
                 Calls = []
                 Exclusion = None
@@ -74,7 +139,7 @@ let tests =
 
             let suite = {
                 Cases = [ case ]
-                Sha256 = sha256 (Path.Combine(caseDirectory, "expected", "ir-4.0.0.json"))
+                Sha256 = sha256 expectedIr
                 VocabularyVersion = "1.1"
             }
 
