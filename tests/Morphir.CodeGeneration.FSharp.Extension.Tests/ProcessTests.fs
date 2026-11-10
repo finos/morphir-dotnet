@@ -182,7 +182,7 @@ let tests =
               | Error error -> failtest $"describe: {error}"
 
               Expect.equal session.ProtocolVersion (ProtocolVersion.Create "0.2.0-draft.1") "The agreed MEP version"
-              Expect.equal session.Extension.Id "org.finos.morphir.fsharp-backend" "The guest identity"
+              Expect.equal session.Extension.Id FSharpGuest.extension.Id "The guest identity"
               Expect.equal session.Capabilities.Backend (Some FSharpGuest.backend) "The backend capability"
 
               Expect.sequenceEqual

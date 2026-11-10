@@ -144,7 +144,7 @@ let tests =
 
               let claims = reply["result"] |> nonNull
               let extension = claims["extension"] |> nonNull
-              Expect.equal ((extension["id"] |> nonNull).ToJsonString()) "\"org.finos.morphir.fsharp-backend\"" "extension id"
+              Expect.equal ((extension["id"] |> nonNull).GetValue<string>()) Morphir.CodeGeneration.FSharp.Extension.FSharpGuest.extension.Id "extension id"
               Expect.equal ((extension["version"] |> nonNull).ToJsonString()) $"\"{version}\"" "The extension version is the package version"
 
               let tuples = ((claims["capabilities"] |> nonNull)["modelTransport"] |> nonNull)["tuples"]

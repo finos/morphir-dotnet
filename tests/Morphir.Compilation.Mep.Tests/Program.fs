@@ -13,6 +13,12 @@ let main args =
     | [| "--fake-guest"; scenario |] -> FakeGuests.run scenario
     | _ ->
         let tripwire = MachineTripwire.Capture()
-        let result = runTestsInAssemblyWithCLIArgs [] args
+
+        let result =
+            try
+                runTestsInAssemblyWithCLIArgs [] args
+            finally
+                MepFrontendTests.disposeGuestWork ()
+
         tripwire.AssertUnchanged()
         result

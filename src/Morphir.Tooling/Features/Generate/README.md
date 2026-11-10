@@ -82,9 +82,14 @@ semantic, invocation, operational or cancellation classification. Diagnostics
 carry stable codes and available path/location context. They do not carry raw
 exceptions or retained payloads.
 
-TOML/YAML configuration discovery and MEP host/guest adapters are future work.
-They should produce the same resolved settings and backend requests. No config
-syntax or protocol envelope is admitted by these contracts automatically.
+`MepGenerationBackend` is the host adapter for a MEP backend guest: an
+`IGenerationBackend` over `morphir.backend.generateModel`, built on the shared
+guest-process lifecycle (`MepGuestProcess`) that `MepFrontend` also uses.
+`GenerateHandler` uses it only when the settings name a backend extension
+(`--extension` or `[codegen.<target>].extension`). It then resolves the target
+against that one backend, and the built-in registry is not consulted. Without a
+selection, generation is unchanged. YAML configuration discovery is future work.
+No protocol envelope is admitted by these contracts automatically.
 
 ## Public model loader
 

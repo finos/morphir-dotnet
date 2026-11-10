@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `morphir generate --extension` and the configuration key `[codegen.<target>].extension` select a MEP backend extension (a command name, a path, or a `.dll`, as for `compile --extension`), for example `morphir-fsharp-backend`. The option wins over the key; without either, the built-in backend runs as before. Every entry point has the option. The generate report names the extension by its own id and adds `backendTransport` (`mep`) and `backendVersion`. Failures have the codes `extension.unavailable`, `extension.protocol_error`, `extension.timeout`, `extension.tuple_unavailable`, `extension.not_admitted`, `extension.unsafe_artifact` and `invalid-extension`. An extension cannot be selected by an installed extension id yet
+- `MepGenerationBackend` in `Morphir.Tooling`: an `IGenerationBackend` over a MEP guest's `morphir.backend.generateModel`. It sends the model's JSON IR (IR `4.0.0` or `3.0.0`) only within the limits that the session agreed (`MepBackendOptions.OfferLimits`), accepts at most 10,000 artifacts in one result, and checks every returned artifact path before publication, including Windows-equivalent names, reserved device names and file/directory conflicts. `MepBackendOptions.Environment` sets the guest's whole environment. A guest that gives the id of a built-in backend is refused
+- `MepGuestProcess` in `Morphir.Compilation.Mep`: the guest-process lifecycle (start, initialize, describe, request with a deadline, shutdown or kill of the process tree) that `MepFrontend` and `MepGenerationBackend` share. `MepGuestOptions.Environment`, and an additive `MepFrontend.ConnectAsync` overload, set the guest's whole environment
+
+### Changed
+- `morphir generate --input` now loads the project configuration (from `--project`, `--config` or discovery) to read `[codegen.<target>].extension` when `--extension` is absent. With `--project` or `--config`, a configuration that fails to load fails the command with exit code 2. With neither, a discovered configuration that does not load is a warning on stderr and the built-in backend runs, as before
+- `compile --extension`, from the shared guest-process lifecycle: a user cancellation (Ctrl+C) while the guest initializes is now a cancelled compile (exit code 130) instead of `extension.unavailable`, and a guest that honors `$/cancelRequest` at the deadline now gives `extension.timeout` instead of `extension.protocol_error`
+- `compile --target` does not run a backend extension: it runs the built-in backend of the target, as before. When the project configuration sets `[codegen.<target>].extension` for that target, it now prints a note on stderr saying so
+
+### Fixed
+- `compile --extension`: a frontend guest that never answers `compileModel` now fails with `extension.timeout` at the deadline, and a guest that does not answer `shutdown` or take `exit` within the deadline (for example one whose handler blocks its read loop) has its process tree stopped. Before, the host could wait indefinitely in both cases. The same holds for `generate --extension`, so a timed-out request ends within about two deadlines
+- A frontend or backend guest that fails to start or initialize no longer leaves its stderr reader or process handle behind
+- `compile`: for a language id with a dot, `[frontend."acme.lang"].extension` and `project_file` are now read from that quoted table; before, the id was split at the dot, so the keys were looked up under `[frontend.acme.lang]` and the quoted table was ignored. A project file key that is not read for lack of a language is now named with the quotes too
+
+### Security
+- `compile --extension`, `generate --extension` and the `extension` configuration keys: a command name without a directory (for example `morphir-fsharp-backend`) is now searched only in the absolute `PATH` directories, and the resolved absolute path starts. Before, process start also looked in the directory of `morphir` and in the current directory first (CreateProcess on Windows, and .NET on Unix), so a checkout could plant a binary of that name and have it run. A `.dll` extension's `dotnet` host is resolved the same way when `DOTNET_HOST_PATH` is not set. A name that is not on `PATH` now fails with `extension.unavailable` before any process starts. `MepFrontendExtensionConnector.Resolve` throws `FileNotFoundException` for such a name instead of returning it unchanged
+
 ## [0.4.0-alpha.4] - 2026-11-10
 
 ### Added

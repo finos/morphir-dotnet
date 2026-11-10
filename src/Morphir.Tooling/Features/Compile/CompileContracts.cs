@@ -209,6 +209,11 @@ public sealed record CompileSettings
     /// Source selection names them when it finds no documents.
     /// </summary>
     public ImmutableArray<string> UnreadProjectFileKeys { get; init; } = [];
+    /// <summary>
+    /// The <c>[codegen.&lt;target&gt;].extension</c> of the requested <c>--target</c>, or null. <c>compile --target</c> does
+    /// not use it: it runs the built-in backend, and only <c>morphir generate</c> runs a backend extension.
+    /// </summary>
+    public Setting<string>? IgnoredBackendExtension { get; init; }
     /// <summary>The project root, or null outside any project.</summary>
     public string? ProjectRoot { get; init; }
     /// <summary>The out root of the workspace (REC-1), for example <c>&lt;workspace&gt;/.morphir/out</c>.</summary>
