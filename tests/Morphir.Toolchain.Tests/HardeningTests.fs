@@ -49,6 +49,31 @@ let tests =
                     | Error refusal -> failtestf "refused: %A" refusal)
         ]
 
+        testList "deep nesting is refused before any parser recurses" [
+            let approved = Encoding.UTF8.GetString(Fixtures.bytes "request/approved.toml")
+
+            for name, text in
+                [ "TOML arrays 10,000 deep", "a = " + String.replicate 10000 "[" + String.replicate 10000 "]"
+                  "TOML inline tables 10,000 deep", "a = " + String.replicate 10000 "{b = " + "1" + String.replicate 10000 "}"
+                  "TOML arrays 65 deep", "a = " + String.replicate 65 "[" + String.replicate 65 "]" ] ->
+                testCase name (fun () ->
+                    Expect.equal (refusal (Syntax.parseToml (Encoding.UTF8.GetBytes text))) ("invalid_document", "") "refused at the document")
+
+            yield testCase "TOML arrays 60 deep still parse" (fun () ->
+                let text = "a = " + String.replicate 60 "[" + String.replicate 60 "]"
+                Expect.isOk (Syntax.parseToml (Encoding.UTF8.GetBytes text)) "within the bound")
+
+            yield testCase "JSON 10,000 deep" (fun () ->
+                let text = String.replicate 10000 "{\"a\":" + "1" + String.replicate 10000 "}"
+                Expect.equal (refusal (Syntax.parseJson (Encoding.UTF8.GetBytes text))) ("invalid_document", "") "refused at the document")
+
+            yield testCase "brackets inside TOML strings and comments do not count" (fun () ->
+                let deep = String.replicate 10000 "["
+                let text =
+                    approved
+                    + $"\nnote = \"{deep}\"\nliteral = '{deep}'\nmulti = \"\"\"\n{deep}\"\"\"\"\nraw = '''{deep}'''\n# {deep}\n"
+                Expect.isOk (RequestDocument.read (Encoding.UTF8.GetBytes(text.Replace("[host]", "x = 1\n[host]")))) "a valid request")
+        ]
         testCase "only the exact draft text is supported; build metadata is refused" (fun () ->
             Expect.equal (ContractVersion.check "0.1.0-draft.1") (Ok()) "the draft"
             Expect.equal (ContractVersion.check "0.1.0-draft.1+meta") (Error ReaderCode.UnsupportedContractVersion) "build metadata"

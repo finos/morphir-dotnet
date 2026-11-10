@@ -87,10 +87,9 @@ module Syntax =
                     match value with
                     | Value.Object _ -> Ok value
                     | _ -> refuse
-        with
-        | :? JsonException
-        | :? DecoderFallbackException
-        | :? InvalidOperationException -> refuse
+        with _ ->
+            // Any parser failure is a refusal, never a crash: Utf8JsonReader stops at depth 64 before recursing.
+            refuse
 
     let rec private readToml (node: CsToml.TomlDocumentNode) (depth: int) : Value =
         if depth > 64 then
@@ -122,22 +121,82 @@ module Syntax =
                 Value.Array [ for index in 0 .. count - 1 -> readToml node[index] (depth + 1) ]
             | other -> Value.Other(other.ToString())
 
+    /// The deepest nesting a document may have: the JSON reader's limit, and the TOML bound below.
+    let maxDepth = 64
+
+    /// <summary>
+    /// Whether TOML bytes nest arrays and inline tables deeper than <paramref name="limit"/>. CsToml parses nested
+    /// values recursively: 10,000 levels overflow the stack, which ends the process and cannot be caught, and such a
+    /// document is only about 20 KB. So the brackets and braces are counted first, outside strings and comments, with
+    /// TOML's own lexical rules: basic strings with escapes, literal strings, both multi-line forms (whose closing
+    /// delimiter may be followed by up to two more quotes) and comments to the end of the line.
+    /// </summary>
+    let internal tomlNestsDeeperThan (limit: int) (bytes: byte array) =
+        let n = bytes.Length
+        let at i = if i < n then bytes[i] else 0uy
+        let mutable i = 0
+        let mutable depth = 0
+        let mutable deeper = false
+
+        let triple (quote: byte) j = at j = quote && at (j + 1) = quote && at (j + 2) = quote
+
+        while not deeper && i < n do
+            match bytes[i] with
+            | 0x23uy -> // '#': a comment runs to the end of the line
+                while i < n && bytes[i] <> 0x0Auy do
+                    i <- i + 1
+            | (0x22uy | 0x27uy) as quote when triple quote i -> // a multi-line string
+                let escapes = quote = 0x22uy
+                i <- i + 3
+
+                while i < n && not (triple quote i) do
+                    i <- i + (if escapes && bytes[i] = 0x5Cuy then 2 else 1)
+
+                i <- i + 3
+
+                // """"" closes with up to two quotes of content before the delimiter.
+                let mutable extra = 0
+
+                while extra < 2 && at i = quote do
+                    i <- i + 1
+                    extra <- extra + 1
+
+                i <- i - 1
+            | (0x22uy | 0x27uy) as quote -> // a one-line string ends at its quote or the end of the line
+                let escapes = quote = 0x22uy
+                i <- i + 1
+
+                while i < n && bytes[i] <> quote && bytes[i] <> 0x0Auy do
+                    i <- i + (if escapes && bytes[i] = 0x5Cuy then 2 else 1)
+            | 0x5Buy
+            | 0x7Buy -> // '[' or '{'
+                depth <- depth + 1
+                deeper <- depth > limit
+            | 0x5Duy
+            | 0x7Duy -> depth <- max 0 (depth - 1)
+            | _ -> ()
+
+            i <- i + 1
+
+        deeper
+
     /// <summary>
     /// Parses TOML 1.0.0 bytes. Bytes that are not strict UTF-8 or not TOML 1.0.0, including repeated keys, are
-    /// <c>invalid_document</c> at the empty path. A TOML document's root is always a table.
+    /// <c>invalid_document</c> at the empty path, and so is nesting deeper than <see cref="maxDepth"/>, which is refused
+    /// before CsToml sees the bytes. Any exception the parser raises is a refusal, never a crash. A TOML document's
+    /// root is always a table.
     /// </summary>
     let parseToml (bytes: byte array) : Result<Value, ReaderRefusal> =
         try
             strictUtf8.GetString bytes |> ignore
-            let document = CsToml.CsTomlSerializer.Deserialize<CsToml.TomlDocument>(ReadOnlySpan bytes, null)
-            Ok(readToml document.RootNode 0)
-        with
-        | :? DecoderFallbackException
-        | :? CsToml.Error.CsTomlException
-        | :? InvalidDataException
-        | :? InvalidOperationException
-        | :? FormatException -> refuse
 
+            if tomlNestsDeeperThan maxDepth bytes then
+                refuse
+            else
+                let document = CsToml.CsTomlSerializer.Deserialize<CsToml.TomlDocument>(ReadOnlySpan bytes, null)
+                Ok(readToml document.RootNode 0)
+        with _ ->
+            refuse
 /// Writing values as indented JSON for standard output and files.
 module JsonText =
 
