@@ -761,10 +761,13 @@ module ResultDocument =
                 | SourceRole.Provider, ComponentSource.RepositoryTarget _ -> refuse ReaderCode.InconsistentDocument (at.Child "source")
                 | _, ComponentSource.RepositoryTarget(repositoryId, target, sha)
                 | _, ComponentSource.RecipeDigest(repositoryId, target, sha) ->
-                    if target <> expected.Target || sha <> expected.Sha256 then
-                        match role with
-                        | SourceRole.Host -> refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "target")
-                        | SourceRole.Provider -> refuse ReaderCode.InconsistentDocument (at.Child "source")
+                    // The page gives source.target for a host source that names another target. A source with the
+                    // right target and another digest is reported at source (provisional: the contract author is asked
+                    // to confirm; review of #582, R5).
+                    if role = SourceRole.Host && target <> expected.Target then
+                        refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "target")
+                    elif target <> expected.Target || sha <> expected.Sha256 then
+                        refuse ReaderCode.InconsistentDocument (at.Child "source")
                     elif repositoryId <> plan.Recipe.RepositoryId then
                         refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "repositoryId")
                     else
