@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 /// The compile step of the finos/morphir toolchain case fsharp-compile-generate, checked through the compatibility
 /// kit: the case's source compiles with the in-process F# frontend (the library adapter) to the case's expected IR,
-/// compared by the kit's runner. The case files are copied in tests/Fixtures/Toolchain (see PROVENANCE.md there).
+/// compared by the kit's runner. The case files are those of the pinned contract, under
+/// tests/Fixtures/Toolchain/workflows (see tests/Fixtures/Toolchain/PROVENANCE.md).
 module Morphir.Frontend.FSharp.Tests.ToolchainCaseTests
 
 open System
@@ -22,7 +23,7 @@ let private caseDirectory =
         | found when File.Exists(Path.Combine(found.FullName, "Morphir.slnx")) -> found.FullName
         | found -> find found.Parent
 
-    Path.Combine(find (DirectoryInfo AppContext.BaseDirectory), "tests", "Fixtures", "Toolchain", "fsharp-compile-generate")
+    Path.Combine(find (DirectoryInfo AppContext.BaseDirectory), "tests", "Fixtures", "Toolchain", "workflows", "fsharp-compile-generate")
 
 let private sha256 (path: string) =
     Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes path))

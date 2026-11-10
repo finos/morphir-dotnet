@@ -208,31 +208,43 @@ let tests =
 
           testCase "The fixed generated set of the toolchain case fsharp-compile-generate is pinned, for the built-in and the guest"
           <| fun _ ->
-              // The case's expected IR (tests/Fixtures/Toolchain, copied from finos/morphir) with format false gives one
-              // unformatted LF file. These bytes are the set handed to the case author; see .dev/out/fixed-generated-fsharp.
+              // The case's expected IR, from the pinned finos/morphir contract in tests/Fixtures/Toolchain/workflows, with
+              // format false gives one unformatted LF file.
               let rec root (directory: DirectoryInfo | null) =
                   match directory with
                   | null -> failtest "The repository root has no Morphir.slnx"
                   | found when File.Exists(Path.Combine(found.FullName, "Morphir.slnx")) -> found.FullName
                   | found -> root found.Parent
 
-              let ir =
-                  Path.Combine(root (DirectoryInfo AppContext.BaseDirectory), "tests", "Fixtures", "Toolchain", "fsharp-compile-generate", "expected", "ir-4.0.0.json")
+              let case =
+                  Path.Combine(root (DirectoryInfo AppContext.BaseDirectory), "tests", "Fixtures", "Toolchain", "workflows", "fsharp-compile-generate")
 
+              let ir = Path.Combine(case, "expected", "ir-4.0.0.json")
+
+              // main's pin (finos/morphir 1451c081f) has the case's source and expected IR but not its frozen generated set;
+              // that arrives with the re-pin to finos/morphir 9e1f853b7 (#582), as expected/generated/Pricing.fs. Until
+              // then the size and SHA-256 of the frozen file are here; once the pin has the file, the bytes are compared too.
               let pinned = [ "Pricing.fs", 112, "64e08313f3e57be2c18995a2e8b275db9d921341958da2c8cd960c601c066de0" ]
+              let frozen = Path.Combine(case, "expected", "generated", "Pricing.fs")
 
-              let observed (artifacts: GenerationArtifacts) =
-                  [ for path, text in filesOf artifacts.Tree ->
-                        let bytes = Text.Encoding.UTF8.GetBytes(text: string)
-                        path, bytes.Length, Convert.ToHexStringLower(Security.Cryptography.SHA256.HashData bytes) ]
+              let expectFrozen (label: string) (artifacts: GenerationArtifacts) =
+                  let files = [ for path, text in filesOf artifacts.Tree -> path, Text.Encoding.UTF8.GetBytes(text: string) ]
+
+                  let observed =
+                      [ for path, bytes in files -> path, bytes.Length, Convert.ToHexStringLower(Security.Cryptography.SHA256.HashData bytes) ]
+
+                  Expect.equal observed pinned $"{label}: the frozen size and SHA-256"
+
+                  if File.Exists frozen then
+                      Expect.equal files [ "Pricing.fs", File.ReadAllBytes frozen ] $"{label}: the bytes of the pinned expected/generated/Pricing.fs"
 
               let model = load ir
-              Expect.equal (observed (artifactsOf (generateWith (FSharpGenerationBackend()) model [ "format", "false" ]))) pinned "the built-in backend"
+              expectFrozen "the built-in backend" (artifactsOf (generateWith (FSharpGenerationBackend()) model [ "format", "false" ]))
 
               let backend = connect (realGuest ())
 
               try
-                  Expect.equal (observed (artifactsOf (generateWith backend model [ "format", "false" ]))) pinned "the external guest"
+                  expectFrozen "the external guest" (artifactsOf (generateWith backend model [ "format", "false" ]))
               finally
                   dispose backend
 
