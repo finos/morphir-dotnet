@@ -76,9 +76,14 @@ function Invoke-Build([string[]] $Arguments, [string] $Log, [hashtable] $Environ
     [pscustomobject]@{ ExitCode = $exitCode; Seconds = [math]::Round($clock.Elapsed.TotalSeconds) }
 }
 
+# A log line without its colours and without a GitHub annotation prefix such as '::warning::'.
+function Get-PlainLines([string] $Log) {
+    Get-Content $Log | ForEach-Object { ($_ -replace '\x1b\[[0-9;]*m', '') -replace '^::\w+[^:]*::', '' }
+}
+
 # The distinct IL warnings of a publish log. The build prints each warning more than once, with different prefixes.
 function Get-IlWarnings([string] $Log) {
-    @(Get-Content $Log | ForEach-Object {
+    @(Get-PlainLines $Log | ForEach-Object {
             if ($_ -match '(?<where>\S+\(\d+,\d+\)|\S+\.dll|ILC)\s*:\s*warning (?<code>IL\d{4}):(?<message>[^\[]*)') {
                 "$($matches.where): $($matches.code):$($matches.message.TrimEnd())"
             }
@@ -88,7 +93,7 @@ function Get-IlWarnings([string] $Log) {
 # The test totals of the last 'Test run summary' in an E2E log.
 function Get-TestTotals([string] $Log) {
     $totals = [ordered]@{ total = $null; succeeded = $null; failed = $null; skipped = $null }
-    foreach ($line in Get-Content $Log) {
+    foreach ($line in Get-PlainLines $Log) {
         if ($line -match '\b(?<name>total|succeeded|failed|skipped):\s*(?<count>\d+)\s*$') { $totals[$matches.name] = [int]$matches.count }
     }
     return $totals
