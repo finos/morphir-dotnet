@@ -111,6 +111,12 @@ morphir mck wasm-host run --kit conformance/suites/wasm-host \
   --report .dev/wasm-host.json
 
 morphir mck wasm-host report-check --kit conformance/suites/wasm-host --report .dev/wasm-host.json
+
+# A .NET executable, here the Native AOT morphir. It runs extism-kernel-v1 only, so no --host-profile.
+morphir mck wasm-host run --kit conformance/suites/wasm-host \
+  --host artifacts/executables/win-arm64/morphir.exe \
+  --offering native-aot --platform win-arm64 --engine "wasmtime 50.0.1" \
+  --report .dev/wasm-host-native-aot.json
 ```
 
 ## Related

@@ -36,6 +36,7 @@
     <Compile Include="GuestKit/Kit.fs" />
     <Compile Include="GuestKit/IrComparison.fs" />
     <Compile Include="GuestKit/ModelTier.fs" />
+    <Compile Include="GuestKit/WorkerSessions.fs" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />

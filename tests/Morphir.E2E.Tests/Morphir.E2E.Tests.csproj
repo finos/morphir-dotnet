@@ -42,6 +42,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+    <!-- The generic guest kit's model-tier runner and its worker session factory (add-wasm-extension-host, task 4.3). -->
+    <ProjectReference Include="../../src/Morphir.Conformance/Morphir.Conformance.fsproj" />
   </ItemGroup>
 
 </Project>
