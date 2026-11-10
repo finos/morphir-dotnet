@@ -69,21 +69,45 @@ public sealed class WasmEngine
             return Diagnose(bytes, exception);
         }
 
-        var compiled = new CompiledModule(this, digest, bytes.Length, module);
+        var (runModule, memoryName) = GuestMemory(module, bytes);
+        var compiled = new CompiledModule(this, digest, bytes.Length, module, runModule, memoryName);
         var kept = modules.GetOrAdd(digest, compiled);
         if (!ReferenceEquals(kept, compiled))
         {
+            runModule?.Dispose();
             module.Dispose();
         }
 
         return new ModuleLoad.Compiled(kept);
     }
 
-    /// <summary>The number of epoch ticks that covers <paramref name="deadline"/>, at least one.</summary>
-    internal static ulong EpochTicks(TimeSpan deadline)
+    /// <summary>
+    /// Where the host reads the guest's own memory: the module's exported memory, or, for a module that defines a
+    /// memory without exporting it, a second module compiled from the same bytes with that memory exported
+    /// (<see cref="GuestMemoryExport"/>). A module with an imported memory gets neither; classification refuses it.
+    /// </summary>
+    (Module? RunModule, string? MemoryName) GuestMemory(Module module, ReadOnlySpan<byte> bytes)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(deadline, TimeSpan.Zero);
-        return (ulong)Math.Max(1, (deadline.Ticks + EpochInterval.Ticks - 1) / EpochInterval.Ticks);
+        if (module.Exports.OfType<MemoryExport>().FirstOrDefault() is { } exported)
+        {
+            return (null, exported.Name);
+        }
+
+        if (module.Imports.OfType<MemoryImport>().Any())
+        {
+            return (null, null);
+        }
+
+        var name = GuestMemoryExport.Name;
+        var names = module.Exports.Select(export => export.Name).ToHashSet(StringComparer.Ordinal);
+        for (var suffix = 1; names.Contains(name); suffix++)
+        {
+            name = $"{GuestMemoryExport.Name}-{suffix}";
+        }
+
+        return GuestMemoryExport.Exported(bytes, name) is { } exposed
+            ? (Module.FromBytes(Engine, $"{module.Name}+{name}", exposed), name)
+            : (null, null);
     }
 
     /// <summary>

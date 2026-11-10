@@ -20,6 +20,7 @@ public sealed class WasmProfileContract
 
     readonly FrozenDictionary<WasmAbi, WasmProfileSurface> profiles;
     readonly FrozenDictionary<string, ulong> instructionBudgets;
+    readonly FrozenDictionary<string, ContractFault> faults;
 
     WasmProfileContract(
         string id,
@@ -32,8 +33,10 @@ public sealed class WasmProfileContract
         long kernelMemoryCeilingBytes,
         FrozenDictionary<string, ulong> instructionBudgets,
         FrozenSet<string> refusalCodes,
+        FrozenDictionary<string, ContractFault> faults,
         FrozenDictionary<WasmAbi, WasmProfileSurface> profiles)
     {
+        this.faults = faults;
         Id = id;
         Version = version;
         Sha256 = sha256;
@@ -76,6 +79,12 @@ public sealed class WasmProfileContract
 
     /// <summary>The refusal codes the contract defines for a module that is refused before any request.</summary>
     public IReadOnlySet<string> RefusalCodes { get; }
+
+    /// <summary>The fault kinds the contract defines, each with its host code or host outcome.</summary>
+    public IReadOnlyCollection<ContractFault> Faults => faults.Values;
+
+    /// <summary>The fault the contract defines as <paramref name="kind"/>, such as <c>budget-exhausted</c>.</summary>
+    public ContractFault Fault(string kind) => faults[kind];
 
     /// <summary>The import surface and call rules of <paramref name="profile"/>.</summary>
     public WasmProfileSurface Profile(WasmAbi profile) => profiles[profile];
@@ -142,6 +151,17 @@ public sealed class WasmProfileContract
             throw Invalid($"it lacks the refusal code {code}");
         }
 
+        var faults = root.GetProperty("faults").EnumerateArray()
+            .Select(fault => new ContractFault(
+                fault.GetProperty("kind").GetString()!,
+                fault.TryGetProperty("hostCode", out var code) ? code.GetString() : null,
+                fault.TryGetProperty("hostOutcome", out var outcome) ? outcome.GetString() : null))
+            .ToFrozenDictionary(fault => fault.Kind, StringComparer.Ordinal);
+        foreach (var kind in Enum.GetValues<GuestFailureKind>().Select(GuestFailure.FaultKindOf).OfType<string>().Where(kind => !faults.ContainsKey(kind)))
+        {
+            throw Invalid($"it lacks the fault kind {kind}");
+        }
+
         var handle = root.GetProperty("handleExport");
         return new WasmProfileContract(
             root.GetProperty("contract").GetString()!,
@@ -154,6 +174,7 @@ public sealed class WasmProfileContract
             kernelCeiling,
             budgets,
             refusalCodes,
+            faults,
             profiles.ToFrozenDictionary());
     }
 
@@ -186,6 +207,12 @@ public sealed class WasmProfileContract
     static InvalidOperationException Invalid(string reason) =>
         new($"The embedded WASM execution profile contract cannot be used: {reason}.");
 }
+
+/// <summary>A fault kind of the contract: how a worker names it and what the host session reports.</summary>
+/// <param name="Kind">The fault kind, such as <c>trap</c> or <c>call-deadline</c>.</param>
+/// <param name="HostCode">The host code, such as <c>extension.guest_trap</c>, or null when the fault is an outcome.</param>
+/// <param name="HostOutcome">The host outcome, such as <c>deadline</c>, or null when the fault has a code.</param>
+public sealed record ContractFault(string Kind, string? HostCode, string? HostOutcome);
 
 /// <summary>The name of an import: its module and its name, written <c>module.name</c>.</summary>
 /// <param name="Module">The import module, such as <c>extism:host/env</c>.</param>

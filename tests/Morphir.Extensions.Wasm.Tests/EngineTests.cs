@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text;
-using Wasmtime;
 
 namespace Morphir.Extensions.Wasm.Tests;
 
@@ -20,6 +19,23 @@ public class EngineTests
         WasmHost.Admit(Compile(CraftedCorpus.ModuleBytes(module)), WasmAbi.ExtismKernel).Match(
             admitted => admitted,
             refused => throw new InvalidOperationException(refused.Message));
+
+    private static SessionStore Open(ExtismModule module, SessionLimits limits) =>
+        SessionStore.Open(module, limits).Match(
+            session => session,
+            failure => throw new InvalidOperationException(failure.Message));
+
+    private static HandleCallResult Completed(HandleOutcome outcome) =>
+        outcome.Match(
+            completed => completed.Result,
+            failed => throw new InvalidOperationException(failed.Message),
+            notRun => throw new InvalidOperationException(notRun.Message));
+
+    private static GuestFailure Failed(HandleOutcome outcome) =>
+        outcome.Match(
+            completed => throw new InvalidOperationException($"The call completed with return code {completed.Result.ReturnCode}."),
+            failed => failed,
+            notRun => throw new InvalidOperationException(notRun.Message));
 
     [Test]
     public async Task The_shared_engine_is_one_instance()
@@ -87,13 +103,13 @@ public class EngineTests
     {
         var module = AdmitExtism("extism-echo");
 
-        using var first = SessionStore.Open(module, SessionLimits.Default);
+        using var first = Open(module, SessionLimits.Default);
         var firstBlock = first.Alloc(4096);
         var secondBlock = first.Alloc(4096);
         first.KernelMemory.GetSpan(firstBlock, 4)[0] = 0x2a;
-        var firstReply = first.CallHandle(Encoding.UTF8.GetBytes("""{"first":1}"""));
+        var firstReply = Completed(first.CallHandle(Encoding.UTF8.GetBytes("""{"first":1}""")));
 
-        using var second = SessionStore.Open(module, SessionLimits.Default);
+        using var second = Open(module, SessionLimits.Default);
         var fresh = second.Alloc(4096);
 
         await Assert.That(secondBlock).IsNotEqualTo(firstBlock);
@@ -101,7 +117,7 @@ public class EngineTests
         await Assert.That(second.KernelMemory.GetSpan(fresh, 4)[0]).IsEqualTo((byte)0);
         await Assert.That(ReferenceEquals(first.KernelMemory, second.KernelMemory)).IsFalse();
 
-        var secondReply = second.CallHandle(Encoding.UTF8.GetBytes("""{"second":2}"""));
+        var secondReply = Completed(second.CallHandle(Encoding.UTF8.GetBytes("""{"second":2}""")));
         await Assert.That(Encoding.UTF8.GetString(firstReply.Output)).IsEqualTo("""{"first":1}""");
         await Assert.That(Encoding.UTF8.GetString(secondReply.Output)).IsEqualTo("""{"second":2}""");
     }
@@ -111,8 +127,8 @@ public class EngineTests
     {
         var module = AdmitExtism("extism-echo");
 
-        using var first = SessionStore.Open(module, SessionLimits.Default);
-        using var second = SessionStore.Open(module, SessionLimits.Default);
+        using var first = Open(module, SessionLimits.Default);
+        using var second = Open(module, SessionLimits.Default);
 
         await Assert.That(ReferenceEquals(first.Module, second.Module)).IsTrue();
         await Assert.That(ReferenceEquals(first.Guest, second.Guest)).IsFalse();
@@ -121,37 +137,37 @@ public class EngineTests
     [Test]
     public async Task The_engine_meters_fuel_against_the_session_budget()
     {
-        using var session = SessionStore.Open(AdmitExtism("extism-spin"),
+        using var session = Open(AdmitExtism("extism-spin"),
             SessionLimits.Default with { InstructionBudget = 100_000 });
 
-        var trap = await Assert.That(() => session.CallHandle([])).Throws<TrapException>();
+        var failure = Failed(session.CallHandle([]));
 
-        await Assert.That(trap!.Type).IsEqualTo(TrapCode.OutOfFuel);
+        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.BudgetExhausted);
     }
 
     [Test]
     public async Task The_engine_interrupts_a_call_at_the_session_deadline()
     {
-        using var session = SessionStore.Open(AdmitExtism("extism-spin"),
+        using var session = Open(AdmitExtism("extism-spin"),
             SessionLimits.Default with { InstructionBudget = ulong.MaxValue, CallDeadline = TimeSpan.FromMilliseconds(200) });
 
         var clock = Stopwatch.StartNew();
-        var trap = await Assert.That(() => session.CallHandle([])).Throws<TrapException>();
+        var failure = Failed(session.CallHandle([]));
         clock.Stop();
 
-        await Assert.That(trap!.Type).IsEqualTo(TrapCode.Interrupt);
+        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.CallDeadline);
         await Assert.That(clock.Elapsed).IsLessThan(TimeSpan.FromSeconds(2));
     }
 
     [Test]
     public async Task Each_call_gets_the_full_budget_again()
     {
-        using var session = SessionStore.Open(AdmitExtism("extism-echo"),
+        using var session = Open(AdmitExtism("extism-echo"),
             SessionLimits.Default with { InstructionBudget = 2_000_000 });
 
         for (var call = 0; call < 5; call++)
         {
-            var reply = session.CallHandle(Encoding.UTF8.GetBytes(new string('x', 10_000)));
+            var reply = Completed(session.CallHandle(Encoding.UTF8.GetBytes(new string('x', 10_000))));
             await Assert.That(reply.ReturnCode).IsEqualTo(0);
         }
     }

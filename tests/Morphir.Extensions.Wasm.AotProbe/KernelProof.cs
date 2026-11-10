@@ -23,6 +23,9 @@ public static partial class KernelProof
     /// release <c>extension/python/v0.4.2</c>, asset <c>morphir-python-binding-0.4.2.wasm.sha256</c>).</summary>
     public const string PythonGuestSha256 = "10acafa0f0282c5240e9620a5f2bb21629cc7580b9add528e7b77c7e54db22b5";
 
+    /// <summary>The SHA-256 of the crafted <c>extism-spin.wasm</c>, as the pinned corpus records it.</summary>
+    public const string SpinGuestSha256 = "013df84b7cdecce0386f1b20b6395d663df1533c01fcac16141019ce87d3e11e";
+
     const long PageBytes = 65536;
 
     /// <summary>The memory ceiling of the store that runs the call, as in the runtime report sample of the
@@ -42,12 +45,12 @@ public static partial class KernelProof
         NotChecked,
     }
 
-    /// <summary>Runs the proof. Arguments: <c>&lt;guest.wasm&gt; [--publish-log &lt;file&gt;] [--source &lt;path&gt;]...</c>.</summary>
+    /// <summary>Runs the proof. Arguments: <c>&lt;guest.wasm&gt; [--publish-log &lt;file&gt;] [--source &lt;path&gt;]... [--bounds &lt;extism-spin.wasm&gt;]</c>.</summary>
     public static int Run(string[] args, TextWriter output)
     {
-        if (!TryParse(args, out var guestPath, out var publishLog, out var sources))
+        if (!TryParse(args, out var guestPath, out var publishLog, out var sources, out var spinPath))
         {
-            output.WriteLine("usage: Morphir.Extensions.Wasm.AotProbe <guest.wasm> [--publish-log <file>] [--source <path>]...");
+            output.WriteLine("usage: Morphir.Extensions.Wasm.AotProbe <guest.wasm> [--publish-log <file>] [--source <path>]... [--bounds <extism-spin.wasm>]");
             return 2;
         }
 
@@ -95,12 +98,66 @@ public static partial class KernelProof
         var claim2 = Check(output, "claim 2", () => CheckMemoryLimit(output, guest, MemoryMinimumPages(kernelModule)));
         var claim3 = Check(output, "claim 3", () => CheckHandle(output, guest));
         var claim1 = Check(output, "claim 1", () => CheckNoTrimWarnings(output, publishLog, sources));
+        var bounds = spinPath is null ? Verdict.NotChecked : Check(output, "bounds", () => CheckBounds(output, spinPath));
 
         output.WriteLine("summary:");
         output.WriteLine($"claim 1, zero IL warnings and no suppressions: {Text(claim1)}");
         output.WriteLine($"claim 2, the store limit covers the kernel's memory: {Text(claim2)}");
         output.WriteLine($"claim 3, the host reads the result of handle directly: {Text(claim3)}");
-        return claim1 == Verdict.Holds && claim2 == Verdict.Holds && claim3 == Verdict.Holds ? 0 : 1;
+        output.WriteLine($"bounds (task 2.5), budget, deadline and cancellation stop a spinning guest: {Text(bounds)}");
+        return claim1 == Verdict.Holds && claim2 == Verdict.Holds && claim3 == Verdict.Holds && bounds != Verdict.Fails ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Task 2.5 under the same executable: the crafted spinning guest is stopped by the instruction budget, by an
+    /// explicit short deadline through the epoch callback, and by cancellation through the same callback.
+    /// </summary>
+    static Verdict CheckBounds(TextWriter output, string spinPath)
+    {
+        var bytes = File.ReadAllBytes(spinPath);
+        var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        output.WriteLine($"  spinning guest: {Path.GetFileName(spinPath)}, sha256 {digest}");
+        if (digest != SpinGuestSha256)
+        {
+            output.WriteLine($"  FAILED: expected the corpus digest {SpinGuestSha256}");
+            return Verdict.Fails;
+        }
+
+        var spin = WasmEngine.Shared.Load(bytes).Match(
+            compiled => WasmHost.Admit(compiled, WasmAbi.ExtismKernel).Match(m => m, r => throw new InvalidOperationException(r.Message)),
+            refused => throw new InvalidOperationException(refused.Message),
+            invalid => throw new InvalidOperationException(invalid));
+        var request = Encoding.UTF8.GetBytes(InitializeRequest);
+        var ok = true;
+        void Expect(bool condition, string what)
+        {
+            output.WriteLine($"  {(condition ? "ok" : "FAILED")}: {what}");
+            ok &= condition;
+        }
+
+        GuestFailure? Fail(SessionLimits limits, CancellationToken cancellation, out TimeSpan elapsed)
+        {
+            using var session = Opened(SessionStore.Open(spin, limits));
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var failure = session.CallHandle(request, cancellation).Match<GuestFailure?>(_ => null, failed => failed, _ => null);
+            elapsed = clock.Elapsed;
+            output.WriteLine($"  {failure?.Message ?? "the call did not fail"} ({elapsed.TotalMilliseconds:0} ms)");
+            return failure;
+        }
+
+        var budget = Fail(SessionLimits.Default with { InstructionBudget = 10_000_000 }, CancellationToken.None, out _);
+        Expect(budget?.Code == "extension.budget_exhausted", "a budget of 10,000,000 ends the call with extension.budget_exhausted");
+
+        var deadline = TimeSpan.FromMilliseconds(200);
+        var late = Fail(SessionLimits.Default with { InstructionBudget = ulong.MaxValue, CallDeadline = deadline }, CancellationToken.None, out var lateElapsed);
+        Expect(late?.Outcome == "deadline" && lateElapsed >= deadline && lateElapsed < deadline + TimeSpan.FromSeconds(2),
+            "a 200 ms deadline ends the call with outcome deadline within the corpus margin of 2 s");
+
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+        var cancelled = Fail(SessionLimits.Default with { InstructionBudget = ulong.MaxValue }, cancellation.Token, out var cancelElapsed);
+        Expect(cancelled?.Outcome == "cancelled" && cancelElapsed < TimeSpan.FromMilliseconds(1200),
+            "cancellation after 200 ms ends the call with outcome cancelled within one second");
+        return ok ? Verdict.Holds : Verdict.Fails;
     }
 
     static string Text(Verdict verdict) => verdict switch
@@ -130,10 +187,11 @@ public static partial class KernelProof
         return verdict;
     }
 
-    static bool TryParse(string[] args, out string guestPath, out string? publishLog, out List<string> sources)
+    static bool TryParse(string[] args, out string guestPath, out string? publishLog, out List<string> sources, out string? spinPath)
     {
         guestPath = "";
         publishLog = null;
+        spinPath = null;
         sources = [];
         for (var i = 0; i < args.Length; i++)
         {
@@ -144,6 +202,9 @@ public static partial class KernelProof
                     break;
                 case "--source" when i + 1 < args.Length:
                     sources.Add(args[++i]);
+                    break;
+                case "--bounds" when i + 1 < args.Length:
+                    spinPath = args[++i];
                     break;
                 case var path when !path.StartsWith("--", StringComparison.Ordinal) && guestPath.Length == 0:
                     guestPath = path;
@@ -218,7 +279,7 @@ public static partial class KernelProof
         var growPages = ceilingPages - guestMinimum + 1;
         output.WriteLine($"  test ceiling: {ceiling} bytes ({ceilingPages} pages) for each memory; kernel alloc request {request} bytes; guest grow {growPages} pages from its minimum {guestMinimum}");
 
-        using (var limited = SessionStore.Open(guest, SessionLimits.Default with { MemoryCeilingBytes = ceiling }))
+        using (var limited = Opened(SessionStore.Open(guest, SessionLimits.Default with { MemoryCeilingBytes = ceiling })))
         {
             var guestMemory = limited.Guest.GetMemory(guestMemoryName) ?? throw new InvalidOperationException("the guest memory is not exported");
             output.WriteLine($"  small store after instantiation: kernel memory {limited.KernelMemory.GetLength()} bytes, guest memory {guestMemory.GetLength()} bytes");
@@ -252,7 +313,7 @@ public static partial class KernelProof
         }
 
         var largeCeiling = 4 * ceiling;
-        using (var large = SessionStore.Open(guest, SessionLimits.Default with { MemoryCeilingBytes = largeCeiling }))
+        using (var large = Opened(SessionStore.Open(guest, SessionLimits.Default with { MemoryCeilingBytes = largeCeiling })))
         {
             var guestMemory = large.Guest.GetMemory(guestMemoryName) ?? throw new InvalidOperationException("the guest memory is not exported");
             var handle = large.Alloc(request);
@@ -273,21 +334,31 @@ public static partial class KernelProof
 
     /// <summary>Claim 3. One <c>handle</c> call with the initialize request; the host reads the i32 result, the
     /// output and the error value from the kernel itself. The output must be one JSON-RPC response to id 1.</summary>
+    static SessionStore Opened(SessionOpening opening) => opening.Match(
+        session => session,
+        failure => throw new InvalidOperationException($"the session did not open: {failure.Message}"));
+
     static Verdict CheckHandle(TextWriter output, ExtismModule guest)
     {
         var guestModule = guest.Compiled.Module;
-        using var store = SessionStore.Open(guest, SessionLimits.Default with { MemoryCeilingBytes = CallCeilingBytes });
+        using var store = Opened(SessionStore.Open(guest, SessionLimits.Default with { MemoryCeilingBytes = CallCeilingBytes }));
         var guestMemory = store.GuestMemory;
         output.WriteLine($"  store: {CallCeilingBytes} bytes ceiling for each memory; 2 instances (kernel, guest); memories: kernel 1, guest {guestModule.Exports.OfType<MemoryExport>().Count()} exported, {guestModule.Imports.OfType<MemoryImport>().Count()} imported");
         output.WriteLine($"  request ({Encoding.UTF8.GetByteCount(InitializeRequest)} bytes): {InitializeRequest}");
 
-        var result = store.CallHandle(Encoding.UTF8.GetBytes(InitializeRequest));
+        var outcome = store.CallHandle(Encoding.UTF8.GetBytes(InitializeRequest));
+        var completed = outcome.Match(
+            completed => completed,
+            failed => throw new InvalidOperationException($"handle failed: {failed.Message}"),
+            notRun => throw new InvalidOperationException($"handle did not run: {notRun.Message}"));
+        var result = completed.Result;
         output.WriteLine($"  guest initialization: {store.Initialization}");
         output.WriteLine($"  handle returned i32: {result.ReturnCode}");
         output.WriteLine($"  kernel error value: error_get() = {result.ErrorHandle}, {result.Error.Length} bytes{(result.Error.Length > 0 ? ": " + Encoding.UTF8.GetString(result.Error) : "")}");
         output.WriteLine($"  kernel output: output_offset() = {result.OutputOffset}, output_length() = {result.Output.Length}");
         output.WriteLine($"  output bytes (UTF-8): {Encoding.UTF8.GetString(result.Output)}");
         output.WriteLine($"  memory after the call: kernel {store.KernelMemory.GetLength()} bytes, guest {guestMemory?.GetLength().ToString() ?? "unknown"} bytes");
+        output.WriteLine($"  fuel used by the call: {completed.FuelUsed} of {store.Limits.InstructionBudget}");
         output.WriteLine($"  host functions outside the kernel and WASI that the guest called: {(store.UnprovidedCalls.Count == 0 ? "none" : string.Join(", ", store.UnprovidedCalls))}");
 
         var ok = true;

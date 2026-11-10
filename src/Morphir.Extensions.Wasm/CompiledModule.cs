@@ -29,12 +29,14 @@ public readonly record struct ModuleDigest
 /// </summary>
 public sealed class CompiledModule
 {
-    internal CompiledModule(WasmEngine engine, ModuleDigest digest, long byteLength, Module module)
+    internal CompiledModule(WasmEngine engine, ModuleDigest digest, long byteLength, Module module, Module? runModule, string? guestMemoryName)
     {
         Engine = engine;
         Digest = digest;
         ByteLength = byteLength;
         Module = module;
+        RunModule = runModule ?? module;
+        GuestMemoryName = guestMemoryName;
     }
 
     /// <summary>The engine that compiled the module.</summary>
@@ -48,6 +50,19 @@ public sealed class CompiledModule
 
     /// <summary>The compiled module, with the imports and exports the engine validated.</summary>
     public Module Module { get; }
+
+    /// <summary>
+    /// Whether the host runs a copy of the module that also exports its memory, because the module defines a
+    /// memory and does not export it (see <c>GuestMemoryExport</c>). The digest and classification are always
+    /// the original module's.
+    /// </summary>
+    public bool ExportsGuestMemoryForTheHost => !ReferenceEquals(RunModule, Module);
+
+    /// <summary>The module a session instantiates: <see cref="Module"/>, or its copy that exports the memory.</summary>
+    internal Module RunModule { get; }
+
+    /// <summary>The export name of the guest's memory in <see cref="RunModule"/>, or null when it defines none.</summary>
+    internal string? GuestMemoryName { get; }
 }
 
 /// <summary>What the engine made of a module's bytes.</summary>
