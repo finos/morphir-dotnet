@@ -129,6 +129,28 @@ let tests =
                   ">=10.0.0 <11.0.0"; ">=1.0.0 || <0.5.0"; "1.0.0 - 2.0.0"; "latest"; "" ] do
                 Expect.equal (Comparator.tryParse invalid |> Result.map ignore) (Error ReaderCode.InvalidValue) invalid)
 
+        testCase "the MEP 0.2 line agrees with Semver's npm ranges except on build metadata, which the page refuses" (fun () ->
+            // index.md#mep-versions defines the line directly; as comparators it is >=0.2.0-0 <0.3.0-0, read with
+            // the prerelease rule that a prerelease matches only a comparator naming its own major, minor and patch.
+            let range = Semver.SemVersionRange.ParseNpm ">=0.2.0-0 <0.3.0-0"
+
+            let inRange (text: string) =
+                let mutable version = Unchecked.defaultof<Semver.SemVersion>
+                Semver.SemVersion.TryParse(text, Semver.SemVersionStyles.Strict, &version) && range.Contains version
+
+            let onLine (text: string) = ProtocolVersion.tryParse text |> Result.isOk
+
+            for text in [ "0.2.0-draft.1"; "0.2.0-draft.2"; "0.2.0-rc.1"; "0.2.0"; "0.2.3" ] do
+                Expect.isTrue (onLine text) $"{text} is on the line"
+                Expect.isTrue (inRange text) $"{text} is in the range"
+
+            for text in [ "0.1"; "0.1.0"; "0.2.1-rc.1"; "0.3.0-draft.1"; "0.3.0"; "1.0.0"; "v0.2.0" ] do
+                Expect.isFalse (onLine text) $"{text} is off the line"
+                Expect.isFalse (inRange text) $"{text} is outside the range"
+
+            // The one disagreement: SemVer precedence ignores build metadata, so the range admits it.
+            Expect.isFalse (onLine "0.2.0+build.1") "the page refuses build metadata"
+            Expect.isTrue (inRange "0.2.0+build.1") "the range admits it")
         testCase "credential names match ASCII case-insensitively and nothing else" (fun () ->
             for name in [ "token"; "TOKEN"; "Authorization"; "APIKEY"; "Api_Key"; "cookie" ] do
                 Expect.isTrue (Reading.isCredential name) name

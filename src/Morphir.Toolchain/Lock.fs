@@ -6,7 +6,7 @@ namespace Morphir.Toolchain
 [<RequireQualifiedAccess>]
 type LockedDelivery =
     /// The model the built-in writes (compile) or reads (generate); the operation names the member.
-    | BuiltIn of model: ModelInput
+    | BuiltIn of model: ModelFormat
     | Process of release: ReleaseBinding * artifact: TargetBinding * protocol: Protocol
     | Wasm of abi: Token * release: ReleaseBinding * artifact: TargetBinding * protocol: Protocol
     /// The release's extension descriptor, whose claims describe the guest, and the package bytes.
@@ -196,24 +196,23 @@ module LockedProviderDocument =
         | Operation.Compile language -> [ "operation", Value.String "compile"; "language", Value.String language.Text ]
         | Operation.Generate target -> [ "operation", Value.String "generate"; "target", Value.String target.Text ]
 
-    let internal modelInputValue (input: ModelInput) =
+    let internal modelFormatValue (input: ModelFormat) =
         Value.Object
             [ "profile", Value.String input.Profile.Text
               "codec", Value.String input.Codec.Text
               "irVersion", Value.String input.IrVersion.Text ]
 
     let internal protocolMembers (protocol: Protocol) =
-        match protocol with
-        | Protocol.Mep01 input -> [ "protocolVersion", Value.String "0.1"; "modelInput", modelInputValue input ]
-        | Protocol.Mep020Draft1 tuple ->
-            [ "protocolVersion", Value.String "0.2.0-draft.1"
-              "modelTuple",
-              Value.Object
-                  [ "operation", Value.String(ModelOperation.text tuple.Operation)
-                    "profile", Value.String tuple.Profile.Text
-                    "codec", Value.String tuple.Codec.Text
-                    "envelopeVersion", Value.String tuple.EnvelopeVersion.Text
-                    "irVersion", Value.String tuple.IrVersion.Text ] ]
+        let tuple = protocol.Tuple
+
+        [ "protocolVersion", Value.String protocol.Version.Text
+          "modelTuple",
+          Value.Object
+              [ "operation", Value.String(ModelOperation.text tuple.Operation)
+                "profile", Value.String tuple.Profile.Text
+                "codec", Value.String tuple.Codec.Text
+                "envelopeVersion", Value.String tuple.EnvelopeVersion.Text
+                "irVersion", Value.String tuple.IrVersion.Text ] ]
 
     let private releaseMembers (release: ReleaseBinding) =
         [ "repositoryId", Value.String release.RepositoryId.Text
@@ -232,7 +231,7 @@ module LockedProviderDocument =
               "extensionId", Value.String provider.ExtensionId.Text
               "version", Value.String provider.Version.Text
               match provider.Delivery with
-              | LockedDelivery.BuiltIn model -> builtInModelMember provider.Operation, modelInputValue model
+              | LockedDelivery.BuiltIn model -> builtInModelMember provider.Operation, modelFormatValue model
               | LockedDelivery.Process(release, artifact, protocol) ->
                   yield! releaseMembers release
                   yield! artifactMembers artifact

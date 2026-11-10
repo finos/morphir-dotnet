@@ -218,7 +218,7 @@ module internal Reading =
                 return Operation.Generate target
         }
 
-    let modelInput (n: Node) : Read<ModelInput> =
+    let modelFormat (n: Node) : Read<ModelFormat> =
         result {
             let! o = asObject n
             let! profile = required "profile" token o
@@ -240,14 +240,14 @@ module internal Reading =
 
     /// <summary>A built-in's model: the member its operation names, required; the other member present is
     /// <c>inconsistent_document</c> at that member.</summary>
-    let builtInModel (operation: Operation) (o: ObjectNode) : Read<ModelInput> =
+    let builtInModel (operation: Operation) (o: ObjectNode) : Read<ModelFormat> =
         let wanted = builtInModelMember operation
         let other = if wanted = "modelInput" then "modelOutput" else "modelInput"
 
         if has other o then
             refuse ReaderCode.InconsistentDocument (o.Path.Child other)
         else
-            required wanted modelInput o
+            required wanted modelFormat o
 
     let modelTuple (n: Node) : Read<ModelTuple> =
         result {
@@ -267,34 +267,27 @@ module internal Reading =
         }
 
     /// <summary>
-    /// <c>protocolVersion</c> and exactly one compatibility member: <c>modelInput</c> for MEP 0.1, <c>modelTuple</c>
-    /// for MEP 0.2.0-draft.1. The other member present is <c>inconsistent_document</c> at that member; the member
-    /// the version needs, absent, is <c>invalid_document</c> at it. A tuple whose operation does not perform the
-    /// provider's operation is <c>inconsistent_document</c> at <c>modelTuple.operation</c>.
+    /// An external provider's protocol members: <c>protocolVersion</c>, a MEP version on the 0.2 line
+    /// (<c>unsupported_case</c> off it), and one <c>modelTuple</c>. An external provider that declares
+    /// <c>modelInput</c> or <c>modelOutput</c> is <c>inconsistent_document</c> at that member; those belong to
+    /// built-ins. A tuple whose operation does not perform the provider's operation is <c>inconsistent_document</c> at
+    /// <c>modelTuple.operation</c>.
     /// </summary>
     let protocol (operation: Operation) (o: ObjectNode) : Read<Protocol> =
         result {
             let! protocolVersion = required "protocolVersion" (validated ProtocolVersion.tryParse) o
 
-            match protocolVersion with
-            | ProtocolVersion.Mep01 ->
-                if has "modelTuple" o then
-                    return! refuse ReaderCode.InconsistentDocument (o.Path.Child "modelTuple")
+            for name in [ "modelInput"; "modelOutput" ] do
+                if has name o then
+                    return! refuse ReaderCode.InconsistentDocument (o.Path.Child name)
 
-                let! input = required "modelInput" modelInput o
-                return Protocol.Mep01 input
-            | ProtocolVersion.Mep020Draft1 ->
-                if has "modelInput" o then
-                    return! refuse ReaderCode.InconsistentDocument (o.Path.Child "modelInput")
+            let! tuple = required "modelTuple" modelTuple o
 
-                let! tuple = required "modelTuple" modelTuple o
+            if not (ModelOperation.performs operation tuple.Operation) then
+                return! refuse ReaderCode.InconsistentDocument ((o.Path.Child "modelTuple").Child "operation")
 
-                if not (ModelOperation.performs operation tuple.Operation) then
-                    return! refuse ReaderCode.InconsistentDocument ((o.Path.Child "modelTuple").Child "operation")
-
-                return Protocol.Mep020Draft1 tuple
+            return { Version = protocolVersion; Tuple = tuple }
         }
-
     let comparators (n: Node) = array (validated Comparator.tryParse) n
 
     [<RequireQualifiedAccess>]

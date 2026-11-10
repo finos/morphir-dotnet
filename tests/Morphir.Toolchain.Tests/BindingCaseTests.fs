@@ -114,6 +114,15 @@ let run (case: BindingCase) =
         let present = files |> List.map segments |> set
         let found = Discovery.request (segments boundary) (segments start) present.Contains
         Expect.equal (found |> Option.map (String.concat "/")) request name
+    | MepVersion(name, version, expected) ->
+        let actual =
+            match ProtocolVersion.tryParse version with
+            | Ok parsed ->
+                Expect.equal (ProtocolVersion.text parsed) version $"{name}: the text round-trips"
+                Valid
+            | Error code -> Refused(Code.readerName code, "")
+
+        Expect.equal actual expected name
 
 [<Tests>]
 let tests =
@@ -125,7 +134,7 @@ let tests =
 
             Expect.equal
                 kinds
-                (set [ "lock-request"; "lock-platform"; "receipt-lock"; "resolve"; "plan-canonical"; "lock-request-bytes"; "plan-lock"; "discover" ])
+                (set [ "lock-request"; "lock-platform"; "receipt-lock"; "resolve"; "plan-canonical"; "lock-request-bytes"; "plan-lock"; "discover"; "mep-version" ])
                 "every kind")
 
         testList "cases" [ for case in cases -> testCase case.Name (fun () -> run case) ]

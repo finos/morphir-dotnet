@@ -39,6 +39,8 @@ type BindingCase =
     | PlanLock of name: string * result: string * lock: string * expected: Expected
     /// Files under one synthetic root, and the request discovery finds from start, if any.
     | Discover of name: string * files: string list * boundary: string * start: string * request: string option
+    /// Whether a MEP version is on the supported 0.2 line.
+    | MepVersion of name: string * version: string * expected: Expected
 
     member this.Name =
         match this with
@@ -49,7 +51,8 @@ type BindingCase =
         | PlanCanonical(name, _, _, _)
         | LockRequestBytes(name, _, _, _, _)
         | PlanLock(name, _, _, _)
-        | Discover(name, _, _, _, _) -> name
+        | Discover(name, _, _, _, _)
+        | MepVersion(name, _, _) -> name
 
     member this.Kind =
         match this with
@@ -61,6 +64,7 @@ type BindingCase =
         | LockRequestBytes _ -> "lock-request-bytes"
         | PlanLock _ -> "plan-lock"
         | Discover _ -> "discover"
+        | MepVersion _ -> "mep-version"
 
 let private members (element: JsonElement) =
     element.EnumerateObject() |> Seq.map (fun p -> p.Name) |> Set.ofSeq
@@ -185,4 +189,7 @@ let bindings () : BindingCase list =
                   str case "start",
                   (if request.ValueKind = JsonValueKind.Null then None else Some(nonNull (request.GetString())))
               )
+          | "mep-version" ->
+              requireKnown name (common @ [ "version" ]) case
+              MepVersion(name, str case "version", expected name case)
           | other -> failwithf "binding %s has kind %s, which this suite does not run" name other ]

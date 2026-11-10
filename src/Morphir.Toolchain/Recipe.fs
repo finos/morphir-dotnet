@@ -26,7 +26,7 @@ type BuiltIn =
     { Operation: Operation
       ExtensionId: ExtensionId
       Version: SemVer
-      Model: ModelInput }
+      Model: ModelFormat }
 
 /// A host offering: one implementation, release and deployment, with its artifact for each supported platform.
 type HostOffering =
@@ -118,7 +118,7 @@ module Fit =
     let onPlatform (offering: HostOffering) (platform: Platform) (provider: RecipeProvider) =
         match provider.Delivery with
         | RecipeDelivery.Wasm(abi, _) when not (List.contains abi offering.WasmAbis) -> Some(Misfit.AbiUnavailable abi)
-        | _ when not (List.contains (Protocol.version provider.Protocol) offering.ProtocolVersions) -> Some Misfit.Protocol
+        | _ when not (List.contains provider.Protocol.Version offering.ProtocolVersions) -> Some Misfit.Protocol
         | RecipeDelivery.Process platforms when not (platforms |> List.exists (fst >> (=) platform)) -> Some Misfit.NoArtifact
         | _ -> None
 

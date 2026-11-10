@@ -485,26 +485,50 @@ module Operation =
         | Operation.Compile language -> $"compile {language.Text}"
         | Operation.Generate target -> $"generate {target.Text}"
 
-/// A MEP version a host speaks or a provider uses.
-[<RequireQualifiedAccess>]
+/// <summary>
+/// A MEP version on the supported 0.2 line (overview page, MEP versions): in canonical SemVer spelling without build
+/// metadata, major <c>0</c> and minor <c>2</c>, with no prerelease or a prerelease of <c>0.2.0</c>. So
+/// <c>0.2.0-draft.1</c>, <c>0.2.0</c> and <c>0.2.3</c> are on it, and <c>0.1</c>, <c>0.2.1-rc.1</c> and <c>0.3.0</c>
+/// are not. The line is defined directly, not through a range library, because range libraries differ on
+/// prereleases. Membership is exact: two versions on the line are different versions.
+/// </summary>
+[<CustomEquality; NoComparison>]
 type ProtocolVersion =
-    /// The frozen legacy MEP <c>0.1</c>, which never enables model transport.
-    | Mep01
-    /// MEP <c>0.2.0-draft.1</c>.
-    | Mep020Draft1
+    private
+    | ProtocolVersion of SemVer
+
+    member this.Text =
+        let (ProtocolVersion version) = this
+        version.Text
+
+    override this.ToString() = this.Text
+
+    override this.Equals(other) =
+        match other with
+        | :? ProtocolVersion as version -> String.Equals(this.Text, version.Text, StringComparison.Ordinal)
+        | _ -> false
+
+    override this.GetHashCode() = StringComparer.Ordinal.GetHashCode this.Text
 
 module ProtocolVersion =
+    /// The version, or <c>unsupported_case</c> for anything off the line, text that is not SemVer included.
     let tryParse (text: string) =
-        match text with
-        | "0.1" -> Ok ProtocolVersion.Mep01
-        | "0.2.0-draft.1" -> Ok ProtocolVersion.Mep020Draft1
-        | _ -> Error ReaderCode.UnsupportedCase
+        match SemVer.tryParse text with
+        | Ok version ->
+            let v = version.SemVersion
 
-    let text (version: ProtocolVersion) =
-        match version with
-        | ProtocolVersion.Mep01 -> "0.1"
-        | ProtocolVersion.Mep020Draft1 -> "0.2.0-draft.1"
+            if
+                v.Major.IsZero
+                && v.Minor = Numerics.BigInteger 2
+                && v.MetadataIdentifiers.Count = 0
+                && (not v.IsPrerelease || v.Patch.IsZero)
+            then
+                Ok(ProtocolVersion version)
+            else
+                Error ReaderCode.UnsupportedCase
+        | Error _ -> Error ReaderCode.UnsupportedCase
 
+    let text (version: ProtocolVersion) = version.Text
 /// The MEP model operation of a model tuple.
 [<RequireQualifiedAccess>]
 type ModelOperation =
@@ -531,10 +555,11 @@ module ModelOperation =
         | Operation.Generate _, ModelOperation.GenerateModel -> true
         | _ -> false
 
-/// The model a built-in or MEP 0.1 provider reads.
-type ModelInput = { Profile: Token; Codec: Token; IrVersion: SemVer }
+/// <summary>The model a built-in exchanges with its host in process: the model a compile built-in writes or a
+/// generate built-in reads. Readiness compares its IR version with what the staged host reports.</summary>
+type ModelFormat = { Profile: Token; Codec: Token; IrVersion: SemVer }
 
-/// A MEP 0.2.0-draft.1 model tuple; its five members are compared exactly.
+/// A MEP 0.2 model tuple; its five members are compared exactly.
 type ModelTuple =
     { Operation: ModelOperation
       Profile: Token
@@ -542,20 +567,11 @@ type ModelTuple =
       EnvelopeVersion: SemVer
       IrVersion: SemVer }
 
-/// The protocol members of an external provider: the MEP version and exactly one compatibility member.
-[<RequireQualifiedAccess>]
+/// <summary>The protocol members of an external provider: a MEP version on the 0.2 line and one model tuple. MEP
+/// <c>0.1</c> is not supported, and an external provider never has <c>modelInput</c> or <c>modelOutput</c>.</summary>
 type Protocol =
-    /// MEP 0.1 with the model it reads.
-    | Mep01 of input: ModelInput
-    /// MEP 0.2.0-draft.1 with its model tuple.
-    | Mep020Draft1 of tuple: ModelTuple
-
-module Protocol =
-    let version (protocol: Protocol) =
-        match protocol with
-        | Protocol.Mep01 _ -> ProtocolVersion.Mep01
-        | Protocol.Mep020Draft1 _ -> ProtocolVersion.Mep020Draft1
-
+    { Version: ProtocolVersion
+      Tuple: ModelTuple }
 /// Text with at least one character that is not white space.
 type NonBlankText =
     private
