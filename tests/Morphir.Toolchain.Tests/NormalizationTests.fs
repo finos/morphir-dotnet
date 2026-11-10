@@ -131,6 +131,9 @@ let tests =
                 let run = marks (List.replicate repeat [ 0x0301; 0x0316; 0x0300; 0x0317 ] |> List.concat)
                 let expected = marks (List.replicate repeat [ 0x0316; 0x0317 ] |> List.concat) + marks (List.replicate repeat [ 0x0301; 0x0300 ] |> List.concat)
                 Expect.equal (Nfc.normalize ("x" + run)) ("x" + expected) $"{repeat} groups")
+        testCase "every code point below U+0300 has combining class 0, so the fast path never skips a reordering" (fun () ->
+            let marked = [ for cp in 0 .. 0x2FF do if Nfc.combiningClass cp <> 0 then yield $"U+%04X{cp}" ]
+            Expect.isEmpty marked "code points below U+0300 with a non-zero class")
         testCase "unassigned code points pass through with combining class 0" (fun () ->
             // U+0378 is unassigned in 17.0.0, and U+FFFE and U+10FFFF are noncharacters.
             for cp in [ 0x0378; 0xFFFE; 0x10FFFF ] do
