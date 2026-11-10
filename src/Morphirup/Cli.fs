@@ -144,12 +144,14 @@ let private readFile (io: Io) (limit: int64) (path: string) : Result<byte array,
     let full = Path.GetFullPath(path, io.CurrentDirectory)
     io.Error.WriteLine $"morphirup: reading {full}"
 
-    let deviceName =
-        full.StartsWith(@"\\.\", StringComparison.Ordinal)
+    // Device trees, by name: .NET does not mark a Unix device file with FileAttributes.Device. A link is checked by
+    // the path it resolves to as well, so a link to /dev/null is refused like /dev/null.
+    let isDeviceName (candidate: string) =
+        candidate.StartsWith(@"\\.\", StringComparison.Ordinal)
         || (not (OperatingSystem.IsWindows())
-            && [ "/dev/"; "/proc/"; "/sys/" ] |> List.exists (fun prefix -> full.StartsWith(prefix, StringComparison.Ordinal)))
+            && [ "/dev/"; "/proc/"; "/sys/" ] |> List.exists (fun prefix -> candidate.StartsWith(prefix, StringComparison.Ordinal)))
 
-    if deviceName then
+    if isDeviceName full then
         Error $"{full} is not a regular file"
     else
         try
@@ -167,7 +169,7 @@ let private readFile (io: Io) (limit: int64) (path: string) : Result<byte array,
                 Error $"{full} is a directory, not a file"
             elif not target.Exists then
                 Error $"{full} does not exist"
-            elif target.Attributes.HasFlag FileAttributes.Device then
+            elif isDeviceName target.FullName || target.Attributes.HasFlag FileAttributes.Device then
                 Error $"{full} is not a regular file"
             else
                 // At most limit + 1 bytes are read, so an endless file stops one byte past the limit.

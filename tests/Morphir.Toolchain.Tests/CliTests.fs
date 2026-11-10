@@ -304,6 +304,21 @@ let tests =
                 | { Detail = DiagnosticDetail.DocumentUnavailable DocumentKind.Request; Message = message } :: _ ->
                     Expect.stringContains message.Text "is in use by another process" "the cause, in words"
                 | other -> failtestf "expected document_unavailable for the request, got %A" other)
+        testCase "a link to a device is not a regular file (Linux and macOS)" (fun () ->
+            if OperatingSystem.IsWindows() then
+                skiptest "Unix device files"
+
+            use sandbox = tempDirectory ()
+
+            for device in [ "/dev/null"; "/dev/zero" ] do
+                let link = Path.Combine(sandbox.Work, nonNull (Path.GetFileName device) + ".toml")
+                File.CreateSymbolicLink(link, device) |> ignore
+                let run = runIn sandbox.Work Platform.LinuxX64 [ "doctor"; "--request"; link; "--lock"; fixture "lock/two-platforms-bound.json" ]
+
+                match (readResult run).Diagnostics with
+                | { Detail = DiagnosticDetail.DocumentUnavailable DocumentKind.Request; Message = message } :: _ ->
+                    Expect.stringContains message.Text "is not a regular file" $"a link to {device}"
+                | other -> failtestf "expected document_unavailable for a link to %s, got %A" device other)
         testCase "a non-portable recipe target is non_portable_path at the recipe, checked before any file is read" (fun () ->
             use sandbox = tempDirectory ()
 
