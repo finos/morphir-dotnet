@@ -23,11 +23,13 @@ open Morphir.TestSupport
 /// process-tree cleanup) inside a test sandbox. The host messages go to stdin as Content-Length frames, in order.
 /// Like a host, the exchange waits for the replies to all earlier requests before it sends morphir.shutdown or
 /// morphir.exit: the guest cancels the requests that still run when the session ends. Stdin closes after the last
-/// message. The result is the reply frames in order and the exit code.
-let internal exchangeWith (start: Diagnostics.ProcessStartInfo) (running: unit -> unit) (messages: string list) : JsonNode list * int =
+/// message. <c>running</c> gets the guest's process id after its first reply, while it still runs. The result is the
+/// reply frames in order and the exit code.
+let internal exchangeWith (start: Diagnostics.ProcessStartInfo) (running: int -> unit) (messages: string list) : JsonNode list * int =
     start.StandardInputEncoding <- UTF8Encoding false
     start.StandardOutputEncoding <- UTF8Encoding false
     let replies = ResizeArray<JsonNode>()
+    let processId = ref 0
 
     let refused failure (output: string) =
         failtest $"The guest wrote output that is not a frame ({failure}): {output}"
@@ -59,7 +61,7 @@ let internal exchangeWith (start: Diagnostics.ProcessStartInfo) (running: unit -
                     | FrameRead.Message body ->
                         let node = JsonNode.Parse(ReadOnlySpan body) |> nonNull
                         replies.Add node
-                        if replies.Count = 1 then running ()
+                        if replies.Count = 1 then running processId.Value
                         idOf node |> Option.iter (pending.Remove >> ignore)
                         return true
                     | FrameRead.EndOfStream -> return false
@@ -94,7 +96,14 @@ let internal exchangeWith (start: Diagnostics.ProcessStartInfo) (running: unit -
 
     let result =
         ChildProcess
-            .ConverseAsync(start, TimeSpan.FromMinutes 3.0, Func<_, _, _, _> converse, CancellationToken.None, null)
+            .ConverseAsync(
+                start,
+                TimeSpan.FromMinutes 3.0,
+                Func<_, _, _, _> converse,
+                CancellationToken.None,
+                null,
+                Action<int>(fun id -> processId.Value <- id)
+            )
             .GetAwaiter()
             .GetResult()
 

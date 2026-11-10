@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 /// The self-contained process delivery of the guest (deployment task 3.1): a folder published with the
 /// SelfContainedProcess profile runs from a clean directory whose path has a space, in an environment where no
-/// dotnet can be found, and gives the same IR and diagnostics as the framework-dependent delivery.
+/// dotnet can be found, and at the same runtime version gives the same IR and diagnostics as the framework-dependent
+/// delivery. The folder is published once by the build's Test target (MORPHIR_FSHARP_FRONTEND_PROCESS_DIR); the
+/// negative control is a separate test, reported as skipped with its reason where it cannot run.
 module Morphir.Frontend.FSharp.Extension.Tests.SelfContainedTests
 
 open System
@@ -69,43 +71,111 @@ let private configuration =
     let index = Array.LastIndexOf(parts, "bin")
     if index >= 0 && index + 1 < parts.Length then parts[index + 1] else "Debug"
 
-/// The published self-contained folder for this machine's runtime identifier. MORPHIR_FSHARP_FRONTEND_PROCESS_DIR
-/// names a folder that is already published (for example a release artifact); otherwise the test publishes the
-/// guest with the SelfContainedProcess profile, as the PublishFSharpFrontendProcess build target does.
-let private publish (output: string) =
-    match Environment.GetEnvironmentVariable "MORPHIR_FSHARP_FRONTEND_PROCESS_DIR" with
-    | NonNull folder when folder.Length > 0 -> folder
+/// The variable that names a published self-contained folder. The Test target of the build publishes the folder
+/// once, before the test assemblies run, and sets it for this assembly.
+let private processDirVariable = "MORPHIR_FSHARP_FRONTEND_PROCESS_DIR"
+
+/// The variable that asks the test to publish the folder itself, as a local fallback: set it to "local".
+let private publishVariable = "MORPHIR_FSHARP_FRONTEND_PROCESS_PUBLISH"
+
+/// The portable runtime identifier of this machine (win-, linux- or osx- and the process architecture), as the build's
+/// HostRid gives it, not the distribution-specific one that a source-built runtime can report.
+let private portableRid () =
+    let os =
+        if OperatingSystem.IsWindows() then "win"
+        elif OperatingSystem.IsMacOS() then "osx"
+        else "linux"
+
+    $"{os}-{RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()}"
+
+/// The published self-contained folder for this machine. MORPHIR_FSHARP_FRONTEND_PROCESS_DIR names a folder that is
+/// already published (by the Test target, or a release artifact). Only when MORPHIR_FSHARP_FRONTEND_PROCESS_PUBLISH
+/// is "local" does the test publish the guest itself, for the portable RID, with its intermediate files in the
+/// sandbox, which the test deletes. Otherwise the test is skipped and says how to run it.
+let private publishedFolder (sandbox: TestSandbox) =
+    match Environment.GetEnvironmentVariable processDirVariable, Environment.GetEnvironmentVariable publishVariable with
+    | NonNull folder, _ when folder.Length > 0 -> folder
+    | _, NonNull "local" ->
+        let project =
+            Path.Combine(repository, "src", "Morphir.Frontend.FSharp.Extension", "Morphir.Frontend.FSharp.Extension.fsproj")
+
+        let dotnet =
+            match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
+            | null -> "dotnet"
+            | path -> path
+
+        let output = sandbox.PathOf "publish"
+
+        let start =
+            ChildProcess.StartInfo(
+                dotnet,
+                "publish",
+                project,
+                "-c",
+                configuration,
+                "-r",
+                portableRid (),
+                "-p:PublishProfile=SelfContainedProcess",
+                "-p:MorphirRidSpecificPublish=true",
+                "--artifacts-path",
+                sandbox.PathOf "artifacts",
+                "-o",
+                output,
+                "--disable-build-servers",
+                "-maxcpucount:4",
+                "-nologo"
+            )
+
+        start.WorkingDirectory <- repository
+        start.Environment["MSBUILDDISABLENODEREUSE"] <- "1"
+        let result = ChildProcess.RunAsync(start, TimeSpan.FromMinutes 10.0).GetAwaiter().GetResult()
+        Expect.equal result.ExitCode 0 $"dotnet publish: {result.CombinedOutput}"
+        output
     | _ ->
+        skiptest
+            $"No published self-contained folder: set {processDirVariable} to one (the build's Test target does), or set {publishVariable}=local to publish it in the test."
 
-             let project =
-                 Path.Combine(repository, "src", "Morphir.Frontend.FSharp.Extension", "Morphir.Frontend.FSharp.Extension.fsproj")
+/// Final paths: symbolic links, junctions and short names resolved, as the operating system names the open file.
+module private FinalPath =
+    [<DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)>]
+    extern uint32 GetFinalPathNameByHandleW(Microsoft.Win32.SafeHandles.SafeFileHandle file, Text.StringBuilder path, uint32 length, uint32 flags)
 
-             let dotnet =
-                 match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
-                 | null -> "dotnet"
-                 | path -> path
+    [<DllImport("libc", SetLastError = true)>]
+    extern nativeint realpath(string path, nativeint resolved)
 
-             let start =
-                 ChildProcess.StartInfo(
-                     dotnet,
-                     "publish",
-                     project,
-                     "-c",
-                     configuration,
-                     "-r",
-                     RuntimeInformation.RuntimeIdentifier,
-                     "-p:PublishProfile=SelfContainedProcess",
-                     "-o",
-                     output,
-                     "-maxcpucount:4",
-                     "-nologo"
-                 )
+    [<DllImport("libc")>]
+    extern void free(nativeint pointer)
 
-             start.WorkingDirectory <- repository
-             start.Environment["MSBUILDDISABLENODEREUSE"] <- "1"
-             let result = ChildProcess.RunAsync(start, TimeSpan.FromMinutes 10.0).GetAwaiter().GetResult()
-             Expect.equal result.ExitCode 0 $"dotnet publish: {result.CombinedOutput}"
-             output
+    /// The final path of an existing file.
+    let ofFile (path: string) =
+        if OperatingSystem.IsWindows() then
+            use handle =
+                File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite ||| FileShare.Delete)
+
+            let buffer = Text.StringBuilder 1024
+            let length = GetFinalPathNameByHandleW(handle, buffer, uint32 buffer.Capacity, 0u)
+
+            if length = 0u || length >= uint32 buffer.Capacity then
+                failtest $"GetFinalPathNameByHandle failed for {path}: {Marshal.GetLastPInvokeError()}"
+
+            match buffer.ToString() with
+            | unc when unc.StartsWith(@"\\?\UNC\", StringComparison.Ordinal) -> @"\\" + unc.Substring 8
+            | local when local.StartsWith(@"\\?\", StringComparison.Ordinal) -> local.Substring 4
+            | other -> other
+        else
+            let resolved = realpath (path, 0n)
+
+            if resolved = 0n then
+                failtest $"realpath failed for {path}: {Marshal.GetLastPInvokeError()}"
+
+            try
+                Marshal.PtrToStringUTF8 resolved |> nonNull
+            finally
+                free resolved
+
+    /// How final paths compare on this platform.
+    let comparison =
+        if OperatingSystem.IsWindows() then StringComparison.OrdinalIgnoreCase else StringComparison.Ordinal
 
 let rec private copy (source: string) (target: string) =
     Directory.CreateDirectory target |> ignore
@@ -181,55 +251,73 @@ let private strippedStart (sandbox: TestSandbox) (folder: string) =
     start.Environment["PATH"] <- String.Join(Path.PathSeparator, path)
     start, packages
 
-/// True when Windows has a global .NET install that a framework-dependent apphost finds without PATH or
-/// DOTNET_ROOT: the default folder or a registered install location.
-let private globalInstallExists () =
-    let folder =
-        File.Exists(Path.Combine(Environment.GetFolderPath Environment.SpecialFolder.ProgramFiles, "dotnet", "dotnet.exe"))
+/// The architecture of a Windows executable, from its PE header, as the dotnet install keys name it.
+let private architectureOf (executable: string) =
+    use stream = File.OpenRead executable
+    use reader = new Reflection.PortableExecutable.PEReader(stream)
+
+    match reader.PEHeaders.CoffHeader.Machine with
+    | Reflection.PortableExecutable.Machine.Amd64 -> "x64"
+    | Reflection.PortableExecutable.Machine.Arm64 -> "arm64"
+    | Reflection.PortableExecutable.Machine.I386 -> "x86"
+    | other -> failtest $"{executable} has the machine type {other}"
+
+/// Where a framework-dependent Windows apphost of the architecture finds a global .NET without PATH or DOTNET_ROOT,
+/// if anywhere: the install location registered under HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\<arch>, which the
+/// installer writes and hostfxr reads in the 32-bit registry view, or the default folder of the architecture
+/// (Program Files\dotnet; Program Files\dotnet\x64 for x64 on ARM64; Program Files (x86)\dotnet for x86).
+let private globalInstall (architecture: string) : string option =
+    let hasHost folder = Directory.Exists(Path.Combine(folder, "host", "fxr"))
 
     let registered =
-        OperatingSystem.IsWindows()
-        && (let architecture = RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant()
+        use hive =
+            Microsoft.Win32.RegistryKey.OpenBaseKey(Microsoft.Win32.RegistryHive.LocalMachine, Microsoft.Win32.RegistryView.Registry32)
 
-            use key =
-                Microsoft.Win32.Registry.LocalMachine.OpenSubKey($@"SOFTWARE\dotnet\Setup\InstalledVersions\{architecture}")
+        use key = hive.OpenSubKey($@"SOFTWARE\dotnet\Setup\InstalledVersions\{architecture}")
 
-            match key with
-            | null -> false
-            | key -> not (isNull (key.GetValue "InstallLocation")))
+        match key with
+        | null -> None
+        | key ->
+            match key.GetValue "InstallLocation" with
+            | :? string as location when location.Length > 0 && hasHost location ->
+                Some $"the registered InstallLocation {location} (32-bit view, InstalledVersions\\{architecture})"
+            | _ -> None
 
-    folder || registered
+    let programFiles = Environment.GetFolderPath Environment.SpecialFolder.ProgramFiles
+    let osArchitecture = RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant()
 
-/// The native modules that load the .NET runtime, by file name.
+    let defaultFolder =
+        match architecture with
+        | "x86" -> Path.Combine(Environment.GetFolderPath Environment.SpecialFolder.ProgramFilesX86, "dotnet")
+        | "x64" when osArchitecture = "arm64" -> Path.Combine(programFiles, "dotnet", "x64")
+        | _ -> Path.Combine(programFiles, "dotnet")
+
+    registered
+    |> Option.orElse (if hasHost defaultFolder then Some $"the default folder {defaultFolder}" else None)
+
+/// The native modules that load the .NET runtime, by file name: the host resolver, the host policy, the runtime and
+/// its JIT.
 let private runtimeModules =
-    set
-        [ "coreclr.dll"; "clrjit.dll"; "hostpolicy.dll"; "hostfxr.dll"
-          "libcoreclr.so"; "libclrjit.so"; "libhostpolicy.so"; "libhostfxr.so" ]
+    if OperatingSystem.IsWindows() then
+        [ "coreclr.dll"; "clrjit.dll"; "hostfxr.dll"; "hostpolicy.dll" ]
+    else
+        [ "libcoreclr.so"; "libclrjit.so"; "libhostfxr.so"; "libhostpolicy.so" ]
 
 let private within (folder: string) (path: string) =
     let folder = Path.TrimEndingDirectorySeparator(Path.GetFullPath folder) + string Path.DirectorySeparatorChar
     Path.GetFullPath(path).StartsWith(folder, StringComparison.OrdinalIgnoreCase)
 
-/// The modules of the running guest started from the executable, observed from outside the guest.
-let private modulesOf (executable: string) =
-    let candidates =
-        [ for proc in Process.GetProcessesByName(Path.GetFileNameWithoutExtension executable) do
-              let path =
-                  try
-                      proc.MainModule |> Option.ofObj |> Option.map _.FileName
-                  with _ ->
-                      None
+/// The modules of the guest process with the id that the harness gave, observed from outside the guest. The process
+/// must run the executable: their final paths are equal.
+let private modulesOf (processId: int) (executable: string) =
+    use guest = Process.GetProcessById processId
+    let main = guest.MainModule |> nonNull |> _.FileName
 
-              match path with
-              | Some path when String.Equals(Path.GetFullPath path, Path.GetFullPath executable, StringComparison.OrdinalIgnoreCase) ->
-                  yield proc
-              | _ -> proc.Dispose() ]
+    Expect.isTrue
+        (String.Equals(FinalPath.ofFile main, FinalPath.ofFile executable, FinalPath.comparison))
+        $"The process {processId} runs {main}, which is the guest executable {executable}"
 
-    match candidates with
-    | [ guest ] ->
-        use guest = guest
-        [ for item in guest.Modules |> Seq.cast<ProcessModule> -> item.FileName ]
-    | other -> failtest $"Expected one running guest from {executable}, found {other.Length}"
+    [ for item in guest.Modules |> Seq.cast<ProcessModule> -> item.FileName ]
 
 /// The messages of the readiness check: describe, initialize with JSON tuples for 4.0.0 and 3.0.0, the fixed
 /// package at both versions, a probe that names a namespace of the guest's own assemblies, then shutdown and exit.
@@ -270,14 +358,36 @@ let tests =
     testSequenced
     <| testList
         "F# MEP guest, self-contained process delivery"
-        [ testCase "Without any dotnet, the self-contained guest loads its own runtime and compiles the fixed package as the framework-dependent guest does"
+        [ testCase "Negative control: in the stripped environment, the framework-dependent apphost of the same guest cannot start"
+          <| fun _ ->
+              // If it could start, the environment would not hide this machine's runtime, and the self-contained run
+              // below would prove nothing.
+              if not (OperatingSystem.IsWindows()) then
+                  skiptest
+                      "The negative control runs on Windows only: on Linux and macOS a framework-dependent apphost also looks in /etc/dotnet/install_location and the default install folders, which this control does not check."
+
+              let apphost = executableIn AppContext.BaseDirectory
+              let architecture = architectureOf apphost
+
+              match globalInstall architecture with
+              | Some found ->
+                  skiptest
+                      $"This machine has a global .NET install for {architecture} that the framework-dependent apphost finds without PATH or DOTNET_ROOT ({found}), so the stripped environment cannot hide it."
+              | None ->
+                  use sandbox = TestSandbox.Create "morphir-frontend-sc-control-"
+                  let control, _ = strippedStart sandbox AppContext.BaseDirectory
+                  let result = ChildProcess.RunAsync(control, TimeSpan.FromMinutes 1.0, standardInput = "").GetAwaiter().GetResult()
+                  Expect.notEqual result.ExitCode 0 "The framework-dependent apphost does not start without dotnet"
+                  Expect.stringContains result.CombinedOutput "You must install .NET" "The apphost found no .NET"
+
+          testCase "Without any dotnet, the self-contained guest loads its own runtime and compiles the fixed package as the framework-dependent guest does"
           <| fun _ ->
               if not applicable then
                   skiptest "The runtime modules of a child process are observed on Windows and Linux only."
 
               use sandbox = TestSandbox.Create "morphir-frontend-sc-run-"
               let folder = sandbox.PathOf("clean dir with space", "morphir-fsharp-frontend")
-              copy (publish (sandbox.PathOf "publish")) folder
+              copy (publishedFolder sandbox) folder
 
               let roots = systemDotnetRoots ()
               Expect.isNonEmpty roots "The machine's dotnet locations are known"
@@ -295,32 +405,26 @@ let tests =
                   (start.Environment.Keys |> Seq.exists (fun key -> key.StartsWith("DOTNET_ROOT", StringComparison.OrdinalIgnoreCase)))
                   "No DOTNET_ROOT variable"
 
-              // Negative control: on a machine with no global .NET install, the framework-dependent apphost of the
-              // same guest cannot start in the same stripped environment. If it could, the environment would not
-              // hide this machine's runtime.
-              if OperatingSystem.IsWindows() && not (globalInstallExists ()) then
-                  let control, _ = strippedStart sandbox AppContext.BaseDirectory
-                  control.WorkingDirectory <- sandbox.Work
-                  let result = ChildProcess.RunAsync(control, TimeSpan.FromMinutes 1.0, standardInput = "").GetAwaiter().GetResult()
-                  Expect.notEqual result.ExitCode 0 "The framework-dependent apphost does not start without dotnet"
-                  Expect.stringContains result.CombinedOutput "You must install .NET" "The apphost found no .NET"
-
+              let executable = executableIn folder
               let loaded = ref []
               let sent = messages ()
-              let replies, exitCode = exchangeWith start (fun () -> loaded.Value <- modulesOf (executableIn folder)) sent
+              let replies, exitCode = exchangeWith start (fun processId -> loaded.Value <- modulesOf processId executable) sent
               Expect.equal exitCode 0 "The self-contained guest exits with 0 after exit"
 
-              // The evidence that no system runtime ran: the runtime's native modules in the guest process are the
-              // copies in the clean folder, and no module of the guest comes from a dotnet location of this machine.
-              let runtime =
-                  loaded.Value |> List.filter (fun path -> runtimeModules.Contains(Path.GetFileName path |> nonNull))
+              // The evidence that no system runtime ran: each native module that loads the runtime is in the guest
+              // process, as the copy in the clean folder, and no module of the guest comes from a dotnet location of
+              // this machine.
+              let finalFolder = Path.GetDirectoryName(FinalPath.ofFile executable) |> nonNull
 
-              Expect.isTrue
-                  (runtime |> List.exists (fun path -> (Path.GetFileName path |> nonNull).Contains("coreclr")))
-                  $"The guest loaded coreclr: {loaded.Value}"
+              for name in runtimeModules do
+                  let copies =
+                      loaded.Value
+                      |> List.filter (fun path -> String.Equals(Path.GetFileName path, name, FinalPath.comparison))
 
-              for path in runtime do
-                  Expect.isTrue (within folder path) $"{path} is loaded from the clean folder"
+                  Expect.isNonEmpty copies $"The guest loaded {name}: {loaded.Value}"
+
+                  for path in copies do
+                      Expect.isTrue (within finalFolder (FinalPath.ofFile path)) $"{path} is loaded from the clean folder {finalFolder}"
 
               for path in loaded.Value do
                   for root in roots do
