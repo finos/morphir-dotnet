@@ -84,7 +84,8 @@ module CaseIds =
     let parse (path: string) (bytes: byte array) : Result<CaseIdMap, CorpusIssue list> =
         let text (element: JsonElement) (name: string) =
             match element.TryGetProperty name with
-            | true, value when value.ValueKind = JsonValueKind.String -> Ok(nonNull (value.GetString()))
+            | true, value when value.ValueKind = JsonValueKind.String ->
+                Ok(nonNull (value.GetString()))
             | _ -> Error [ issue path $"The member \"{name}\" is a required string" ]
 
         let only (element: JsonElement) (names: string list) =
