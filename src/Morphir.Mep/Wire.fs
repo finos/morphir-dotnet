@@ -962,6 +962,64 @@ type CompileModelRequest =
     /// Stable text for diagnostics.
     override this.ToString() = $"Compile {this.Package} ({this.LanguageId}) to {this.Output}"
 
+/// Parameters of morphir.backend.generateModel: generation from a retained model in one agreed input tuple. The
+/// model's profile, codec, envelope version and IR version must match the input tuple. Use GenerateModel.admit
+/// before generation: it checks the tuple, admits the envelope and establishes the required guarantees.
+type GenerateModelRequest =
+    {
+        /// The model to generate from.
+        Model: MorphirModel
+        /// The selected input tuple. It must be a generateModel tuple of the session agreement.
+        Input: ModelTransportTuple
+        /// The exact advertised target id. A backend does not guess a default.
+        Target: string
+        /// The SHA-256 of the dependency and configuration context. Evidence must bind it.
+        ContextDigest: Sha256Digest
+        /// The guarantees that must be established before generation. Read as empty when absent.
+        [<JsonDefaultEmpty>]
+        RequiredGuarantees: IReadOnlyList<ModelGuaranteeRequirement>
+        /// Backend options. Read as empty when absent.
+        [<JsonDefaultEmpty>]
+        Options: IReadOnlyDictionary<string, System.Text.Json.JsonElement>
+    }
+
+    /// Stable text for diagnostics.
+    override this.ToString() = $"Generate {this.Target} from {this.Model}"
+
+/// A generated file. Its path is relative to the output directory. When binary is true, content is base64;
+/// otherwise it is text. An absent binary is read as false.
+type Artifact =
+    {
+        /// The path, relative to the output directory.
+        Path: string
+        /// The text, or base64 when binary is true.
+        Content: string
+        /// True when content is base64. Always written, read as false when absent.
+        [<JsonDefaultValue(false)>]
+        Binary: bool
+    }
+
+    /// Stable text for diagnostics.
+    override this.ToString() = this.Path
+
+/// Result of morphir.backend.generate and morphir.backend.generateModel. Absent artifacts or diagnostics are read
+/// as empty.
+type GenerateResult =
+    {
+        /// True when generation succeeded.
+        Success: bool
+        /// The generated files. Read as empty when absent.
+        [<JsonDefaultEmpty>]
+        Artifacts: IReadOnlyList<Artifact>
+        /// The diagnostics. Read as empty when absent.
+        [<JsonDefaultEmpty>]
+        Diagnostics: IReadOnlyList<Diagnostic>
+    }
+
+    /// Stable text for diagnostics.
+    override this.ToString() =
+        $"Generated {this.Artifacts.Count} artifacts (success {this.Success})"
+
 /// An error code of a JSON-RPC error object. The value is the wire integer.
 type ErrorCode =
     /// JSON-RPC: the bytes are not JSON.

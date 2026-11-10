@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-deployment-and-acquisition</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; vertical-align: top; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+.table-wrap { overflow-x: auto; }
+figure { margin: 1.5rem 0; overflow-x: auto; }
+figcaption { color: var(--muted); font-size: .95rem; }
+figure svg { display: block; width: 100%; min-width: 640px; }
+.toc ol { padding-left: 1.3rem; }
+.note { border-left: 4px solid var(--link); padding-left: 1rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>add-deployment-and-acquisition</h1>
+<p class="meta">Adoption design for morphir-dotnet | 9 November 2026 | Proposed in this repository; not yet approved here. Commands and document shapes below come from the approved finos/morphir change and are proposals, not shipped interfaces.</p>
+<p><a href="proposal.md">Proposal</a> · <a href="tasks.md">Tasks</a> ·
+<a href="specs/dotnet-deployment-profiles/spec.md">Deployment profiles</a> ·
+<a href="specs/toolchain-management/spec.md">Toolchain management</a> ·
+<a href="specs/project-toolchains/spec.md">Project toolchains</a> ·
+<a href="specs/toolset-setup/spec.md">Toolset setup</a> ·
+<a href="specs/extension-registry/spec.md">Registry delta</a> ·
+<a href="specs/cli-model-compilation/spec.md">Compile delta</a></p>
+
+<nav class="toc" aria-label="Contents"><ol>
+<li><a href="#context">Context</a></li>
+<li><a href="#current">What the code does today</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Adopted decisions and their mapping</a></li>
+<li><a href="#mapping">Repository mapping</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#review-questions">Questions for review</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+<li><a href="#references">References</a></li>
+</ol></nav>
+
+<h2 id="context">Context</h2>
+<p class="note">The approved finos/morphir change <code>add-deployment-and-acquisition</code> (approved 9 November 2026) is the source of truth. This page maps its decisions DEP-1, UP-1, UP-2, FS-1, LOCK-1, PATH-1 and QUAL-1 onto this repository. It does not change their meaning and adds no product decision. Where this page and the approved change disagree, the approved change wins and this page is wrong.</p>
+<p>See <a href="proposal.md">the proposal</a> for why. The approved design inspected main at <code>4e3321f</code>. This page inspected main at <code>d819bac</code>. Between the two, the frontend guest project became <code>Morphir.Frontend.FSharp.Extension</code> (#552), the release <code>v0.4.0-alpha.3</code> was prepared (#555), and single-file executables load <code>System.Native</code> by the runtime's name (#556). No build ran for this inspection. Facts that only a build or a published artifact can give are marked as such.</p>
+<p>The approved distinction still frames everything: the host a user runs, the runtime arrangement of that host (the offering), the channel that installed it and the language toolset it can use. Today the code knows only two of these, and only by command name.</p>
+
+<h2 id="current">What the code does today</h2>
+
+<h3 id="cur-entry">Entry points and composition</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Item</th><th>Where</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td>Shared composition</td><td><code>src/Morphir/Program.cs</code> (<code>Program.CreateApp</code>, <code>Program.Run</code>)</td><td>Registers the scenarios of <code>src/Morphir.Tooling/Scenarios</code> (IR tooling, generation, compilation, management, validation, configuration, project, workspace) and the <code>info</code> command, then applies a host-specific <code>extend</code> action. It lives inside the executable project whose assembly is <code>morphir</code>.</td></tr>
+<tr><td>AOT entry point</td><td><code>src/Morphir/Program.cs</code> (<code>Main</code>, <code>NativeComposition</code>), <code>src/Morphir/Morphir.csproj</code></td><td>Host <code>MorphirHost.Native</code>. Adds a <code>FrontendHint</code> that says <code>dotnet-morphir</code> has an F# frontend. AOT and trimming are set only on the publish command line. The project is also packed to NuGet as the library package <code>Morphir</code>.</td></tr>
+<tr><td>Tool entry point</td><td><code>src/Morphir.Tool/Program.cs</code>, <code>Morphir.Tool.csproj</code></td><td>Host <code>MorphirHost.DotnetTool</code>. Calls <code>Morphir.Program.Run</code> and adds <code>FSharpFrontendScenario</code>. References <code>src/Morphir/Morphir.csproj</code>, so <code>dotnet-morphir</code> ships <code>morphir.dll</code>.</td></tr>
+<tr><td>Where FCS enters</td><td><code>src/Morphir.Tool/Morphir.Tool.csproj</code> references <code>src/Morphir.Frontend.FSharp</code>, which references <code>FSharp.Compiler.Service</code></td><td><code>FSharpFrontendScenario</code> registers <code>FSharpFrontend.Registration</code> (identity <code>morphir-dotnet.fsharp</code>) as an <code>IFrontend</code>. Nothing else in <code>src/Morphir</code>'s graph references FCS.</td></tr>
+<tr><td>What keeps FCS out of AOT</td><td><code>tests/Morphir.Tests/Hosts/HostFrontendCompositionTests.cs</code></td><td>A reflection walk of <code>typeof(Morphir.Program).Assembly</code> references asserts no <code>FSharp.Compiler.Service</code> and no <code>Morphir.Frontend.FSharp</code>. It checks the reference graph of the build output, not a published AOT artifact. No pull request job publishes <code>morphir</code> with Native AOT. Only <code>.github/workflows/manual-aot-test.yml</code> runs <code>PublishExecutable</code>.</td></tr>
+<tr><td>Host identity</td><td><code>src/Morphir.Extensions/Registry.fs</code> (<code>MorphirHost</code>, <code>HostIdentity</code>, <code>HostAvailability</code>)</td><td>Two cases, <code>Native</code> (wire value <code>morphir</code>) and <code>DotnetTool</code> (<code>dotnet-morphir</code>). <code>HostIdentity</code> carries only the host and release version. <code>--version</code> prints only the version string.</td></tr>
+</tbody></table></div>
+
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-labelledby="comp-title comp-desc">
+<title id="comp-title">Composition today and after task 2.1</title>
+<desc id="comp-desc">Today the tool references the AOT executable project and adds the F# frontend. After extraction a shared composition library sits under three entry points, and only the two managed entry points reference the managed composition that contains FCS.</desc>
+<g fill="var(--panel)" stroke="var(--line)">
+<rect x="10" y="40" width="160" height="50" rx="8"/><rect x="10" y="130" width="160" height="50" rx="8"/><rect x="10" y="230" width="160" height="50" rx="8"/><rect x="200" y="130" width="140" height="50" rx="8"/>
+<rect x="400" y="230" width="170" height="50" rx="8"/><rect x="400" y="130" width="160" height="50" rx="8"/><rect x="590" y="130" width="160" height="50" rx="8"/>
+<rect x="400" y="30" width="110" height="50" rx="8"/><rect x="520" y="30" width="110" height="50" rx="8"/><rect x="640" y="30" width="110" height="50" rx="8"/>
+</g>
+<g fill="var(--fg)" font-size="14" text-anchor="middle">
+<text x="90" y="20" font-size="15">Today</text>
+<text x="90" y="62">Morphir.Tool</text><text x="90" y="80">dotnet-morphir</text>
+<text x="90" y="152">src/Morphir (exe)</text><text x="90" y="170">morphir.dll + CreateApp</text>
+<text x="90" y="252">Morphir.Tooling</text><text x="90" y="270">scenarios</text>
+<text x="270" y="152">Frontend.FSharp</text><text x="270" y="170">+ FCS</text>
+<text x="575" y="20" font-size="15">After 2.1</text>
+<text x="455" y="52">src/Morphir</text><text x="455" y="70">AOT morphir</text>
+<text x="575" y="52">Morphir.Managed</text><text x="575" y="70">managed morphir</text>
+<text x="695" y="52">Morphir.Tool</text><text x="695" y="70">dotnet-morphir</text>
+<text x="480" y="152">MorphirApplication</text><text x="480" y="170">shared, in Tooling</text>
+<text x="670" y="152">Tooling.Managed</text><text x="670" y="170">F# frontend + FCS</text>
+<text x="485" y="252">Morphir.Tooling</text><text x="485" y="270">scenarios</text>
+</g>
+<g fill="none" stroke="var(--link)" stroke-width="2">
+<path d="M90 90V130M90 180V230M170 60Q190 60 200 135M455 80V130M575 80 500 130M575 80 650 130M695 80 690 130M695 80 520 130M480 180V230"/>
+</g>
+</svg>
+<figcaption>Today the shared composition is inside the executable that also defines the AOT host. A second executable named <code>morphir</code> cannot reference it, so task 2.1 moves the bodies into <code>Morphir.Tooling</code> and the F# part into <code>Morphir.Tooling.Managed</code>, and keeps <code>Morphir.Program</code> as a thin entry point (COMP-1).</figcaption>
+</figure>
+
+<h3 id="cur-release">Build, publish and release today</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Path</th><th>Project and mode</th><th>Platforms</th><th>Output and artifact name</th><th>Who uses it</th></tr></thead>
+<tbody>
+<tr><td><code>PublishExecutable</code> (<code>build/Build.cs</code>)</td><td><code>src/Morphir</code>, self-contained, single file, trimmed, <code>PublishAot=true</code></td><td>Any <code>--rid</code></td><td><code>artifacts/executables/{rid}/morphir[.exe]</code></td><td><code>manual-aot-test.yml</code> only</td></tr>
+<tr><td><code>PublishSingleFile</code> (<code>build/Build.cs</code>)</td><td><code>src/Morphir</code> (the AOT composition, no F# frontend), self-contained, single file, trimmed with <code>TrimMode=partial</code>, <code>TreatWarningsAsErrors=false</code>, JIT</td><td><code>deployment.yml</code>: linux-x64, linux-arm64, win-x64, osx-arm64</td><td><code>artifacts/single-file/{rid}/morphir[.exe]</code></td><td>Every release, <code>manual-e2e-test.yml</code>, <code>manual-aot-test.yml</code></td></tr>
+<tr><td><code>PublishSingleFileUntrimmed</code> (<code>build/Build.cs</code>)</td><td><code>src/Morphir</code>, self-contained, single file, untrimmed, JIT</td><td>Any <code>--rid</code></td><td><code>artifacts/single-file-untrimmed/{rid}/</code></td><td><code>manual-aot-test.yml</code> baseline</td></tr>
+<tr><td><code>PackPlatformTarballs</code>, <code>CreateGitHubRelease</code> (<code>build/Build.Packaging.cs</code>, <code>Build.Publishing.cs</code>)</td><td>Tars <code>artifacts/single-file/{rid}</code></td><td>Whatever is present</td><td><code>morphir-{rid}-v{version}.tar.gz</code></td><td>Not called by <code>deployment.yml</code>, which builds its assets inline. The release notes it writes name a <code>dotnet-morphir</code> NuGet package (the package is <code>Morphir.Tool</code>) and osx-x64 support that no workflow builds.</td></tr>
+<tr><td><code>deployment.yml</code> <code>create-github-release</code></td><td>Copies the <code>PublishSingleFile</code> output</td><td>The four RIDs above</td><td><code>morphir-{rid}[.exe]</code> and <code>morphir-{rid}-v{version}.tar.gz</code> (a <code>{rid}/</code> prefix inside, for the proto plugin's <code>archive_prefix</code>)</td><td>GitHub releases, the proto plugin, <code>scripts/install-*</code></td></tr>
+<tr><td><code>PackTool</code>, <code>PublishTool</code></td><td><code>Morphir.Tool</code> and <code>Morphir.Frontend.FSharp.Extension</code> as framework-dependent tools</td><td>Portable</td><td><code>Morphir.Tool.{v}.nupkg</code>, <code>Morphir.Frontend.FSharp.Extension.{v}.nupkg</code></td><td>NuGet.org (trusted publishing)</td></tr>
+<tr><td><code>PackLibs</code></td><td>All library packages including <code>Morphir</code> (the executable project as a library package)</td><td>Portable</td><td><code>Morphir.{v}.nupkg</code> and others</td><td>NuGet.org</td></tr>
+<tr><td><code>scripts/publish-single-file.cs</code>, <code>publish-single-file-untrimmed.cs</code></td><td><code>src/Morphir</code>, same modes as the Nuke targets</td><td>Any RID</td><td><code>artifacts/single-file[-untrimmed]/{rid}</code></td><td>Nothing in Nuke or CI. They first run <code>morphir codegen write</code> for WolverineFx, a command that no longer exists, and ignore its failure. Only <code>README.md</code>, <code>scripts/README.md</code> and <code>NUKE_MIGRATION.md</code> mention them.</td></tr>
+<tr><td><code>scripts/install-linux.sh</code>, <code>install-macos.sh</code>, <code>install-windows.ps1</code></td><td>Default source <code>nuget</code>, package <code>morphir</code>, looking for <code>tools/*/{rid}/morphir</code>; or <code>--source github</code>, asset <code>morphir-{rid}</code></td><td>Linux x64/arm64, macOS x64/arm64, Windows AMD64 only</td><td>Copies one executable to a bin folder</td><td>The NuGet path appears broken, because the <code>Morphir</code> package is a plain library package with no RID executables (not verified by running it). The GitHub path checks no digest. The macOS script offers osx-x64, which releases do not contain. The Windows script refuses ARM64.</td></tr>
+</tbody></table></div>
+<p>The released <code>morphir</code> executables are therefore managed, trimmed, self-contained single-file builds of the AOT composition. They are not Native AOT, and they have no F# frontend. They still report <code>MorphirHost.Native</code>, whose comment says "The Native AOT executable". <code>docs/content/docs/getting-started/installation.md</code> calls them the native executable. None of the four approved offerings describes these bytes. The E2E suite (<code>tests/Morphir.E2E.Tests/Infrastructure/ExecutableLocator.cs</code>) knows the types <code>aot</code>, <code>trimmed</code>, <code>untrimmed</code> and <code>tool</code>, and releases test <code>trimmed</code> only.</p>
+
+<h3 id="cur-fsharp">F# frontend guest and backend</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Item</th><th>Where</th><th>State</th></tr></thead>
+<tbody>
+<tr><td>Frontend guest</td><td><code>src/Morphir.Frontend.FSharp.Extension</code></td><td>Package <code>Morphir.Frontend.FSharp.Extension</code>, executable and tool command <code>morphir-fsharp-frontend</code>, extension id <code>org.finos.morphir.fsharp-frontend</code>, MEP <code>0.2.0-draft.1</code>, claims <code>0.1.0-draft.2</code>, <code>morphir.frontend.compileModel</code> with JSON tuples for IR <code>4.0.0</code> and <code>3.0.0</code>, Content-Length framing on stdio. Framework-dependent .NET tool with <code>RollForward=Major</code>. Version from its informational version, so it follows the repository release version today.</td></tr>
+<tr><td>How the AOT host uses it</td><td><code>src/Morphir.Tooling/Features/Compile/MepFrontendExtensionConnector.cs</code>, <code>src/Morphir.Compilation.Mep/MepFrontend.fs</code></td><td><code>morphir compile --extension &lt;path&gt;</code> or <code>[frontend.fsharp].extension</code> starts the guest by path, without a shell. There is no lookup by extension id or store.</td></tr>
+<tr><td>Compiler references</td><td><code>src/Morphir.Frontend.FSharp/CompilerEdge.fs</code> (<code>references</code>)</td><td>Takes every trusted platform assembly in <code>RuntimeEnvironment.GetRuntimeDirectory()</code> except <code>FSharp.*</code>, plus <code>FSharp.Core</code> and <code>Morphir.FSharp.Annotations</code> by <code>Assembly.Location</code>. The frontend identity text includes <code>RuntimeInformation.FrameworkDescription</code>.</td></tr>
+<tr><td>Built-in F# backend</td><td><code>src/Morphir.Tooling/Features/Generate/FSharpGenerationBackend.cs</code>, registered in <code>Scenarios/GenerationScenario.cs</code></td><td>Id <code>morphir.fsharp</code>, target <code>fsharp</code>, classic and v4 library inputs, option <code>optimize</code>. Calls <code>Transpiler.generateModelWith</code> in <code>src/Morphir.CodeGeneration.FSharp</code>. <code>BackendExtensionSource</code> turns each backend into a built-in registry entry.</td></tr>
+<tr><td>MEP backend methods</td><td><code>src/Morphir.Mep/Wire.fs</code></td><td>Method names <code>morphir.backend.generate</code> and <code>morphir.backend.generateModel</code>, <code>BackendCapability</code>, and the model operation <code>GenerateModel</code>. No typed request, result or artifact records. The pinned contract (<code>tests/Fixtures/Mep/mep.ir.json</code>, finos/morphir <code>cde7722e</code>) defines <code>generate-model-request</code>, <code>generate-result</code> and <code>artifact</code>.</td></tr>
+<tr><td>Host-side backend adapter</td><td>none</td><td><code>IGenerationBackend</code> implementations are registered statically. Nothing connects an external backend process.</td></tr>
+</tbody></table></div>
+
+<h3 id="cur-registry">Registry, installation and stores</h3>
+<ul>
+<li><code>openspec/specs/extension-registry/spec.md</code> fixes delivery to <code>built-in</code> and hosts to <code>morphir</code> and <code>dotnet-morphir</code>. <code>ExtensionCapability</code> has only <code>Backend</code> and <code>Validator</code>. The in-process F# frontend is not a registry entry.</li>
+<li><code>morphir dist|tool|extension install/use/remove/which</code> fail with "not implemented" (<code>src/Morphir.Tooling/Scenarios/ManagementScenario.cs</code>; issues #490, #491 and #492 wire them to the existing handlers). Those handlers in <code>src/Morphir.Tooling/Features/Management</code> download a URL with an optional unchecked SHA-256 into <code>{global}/{type}/{rid}/{name}/{version}</code>. That is not the upstream store, catalog, lock or claims check.</li>
+<li>The extension-model PRD (<code>docs/content/contributing/design/prds/morphir-extension-model.md</code>) plans the store, catalog, global locks, level locks, staged folders and the <code>[extension_install] staged</code> setting as step 3. Status: planned, with no tracking issue yet; #492 wires the existing handlers and is not step 3. The staged auto-install policy that the approved <code>toolset-setup</code> spec mentions does not exist in .NET yet.</li>
+<li>Reusable pieces exist: <code>TaskLock</code> (<code>src/Morphir.Tooling/Features/TaskRecords/TaskLock.cs</code>), install locks under <code>MORPHIR_HOME/locks/install</code>, the <code>safe-tree-publication</code> spec, and Morphir home and discovery in <code>src/Morphir.Configuration.IO</code> (<code>MachineLocations</code>, <code>ProjectSystem</code>).</li>
+<li>No TUF or authenticated tool release metadata client exists in this repository.</li>
+</ul>
+
+<h3 id="cur-tests">Tests that carry verification</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Project</th><th>Framework</th><th>Relevant today</th></tr></thead>
+<tbody>
+<tr><td><code>tests/Morphir.Tests/Hosts</code></td><td>TUnit</td><td>Host identity, composition and FCS closure checks for both entry points</td></tr>
+<tr><td><code>tests/Morphir.Build.Tests</code></td><td>TUnit, references <code>build/_build.csproj</code></td><td>Package structure, metadata, local install and publishing workflow; runs in <code>TestBuild</code> after <code>PackAll</code></td></tr>
+<tr><td><code>tests/Morphir.E2E.Tests</code></td><td>Reqnroll</td><td>Executable types <code>aot</code>, <code>trimmed</code>, <code>untrimmed</code>, <code>tool</code>; <code>ExecutableExtensionList.feature</code> lists exactly three ids; AOT and trimming features</td></tr>
+<tr><td><code>tests/Morphir.Frontend.FSharp.Extension.Tests</code></td><td>Expecto</td><td>Guest protocol, process replay, and a pack-install-describe test of the .NET tool</td></tr>
+<tr><td><code>tests/Morphir.Mep.Tests</code></td><td>Expecto</td><td>Wire round trips and <code>ContractTests.fs</code> against the pinned <code>mep.ir.json</code></td></tr>
+<tr><td><code>tests/Morphir.Mep.AotProbe</code></td><td>Console probe</td><td>Native AOT session check run by <code>TestMepAot</code> on pull requests</td></tr>
+<tr><td><code>src/Morphir.Conformance</code>, <code>conformance/</code></td><td>Compatibility kit runner and adapters</td><td><code>cli</code>, <code>library</code> and <code>mep-guest</code> adapters, a local runner and the <code>frontend-fsharp</code> suite. No generation or backend adapter yet. <code>establish-morphir-compatibility-kit</code> plans more (0 of 32 tasks done).</td></tr>
+</tbody></table></div>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals.</strong> Give each approved task in groups 2 to 6 a home in this codebase: the projects and files it touches, what it must extract or add first, the test project that carries its failing test and the narrowest command that runs it. Keep the approved behavior and examples unchanged. Name every place where the code makes the approved plan harder.</p>
+<p><strong>Non-goals.</strong> The shared contracts and fixed examples (approved group 1, finos/morphir). The WASM join (approved group 7). Choosing names, endpoints, signing-key custody or size targets that the approved design leaves to release preparation.</p>
+
+<h2 id="decisions">Adopted decisions and their mapping</h2>
+<p>Each heading below is an approved decision. The first paragraph restates its meaning in short. The rest says where it lands here.</p>
+
+<h3 id="dep-1">DEP-1. Separate deployment from acquisition and toolsets</h3>
+<p><em>Approved meaning.</em> Ada downloads Morphir on a machine without .NET and can choose AOT or managed self-contained execution. Both expose <code>morphir</code>. Ben keeps a .NET runtime and chooses the framework-dependent apphost. Chen keeps <code>dotnet tool install Morphir.Tool</code>. One shared command layer and one separate managed composition that includes FCS. The AOT entry point excludes FCS and uses the process frontend. Managed profiles with FCS start untrimmed. Archives distinguish implementation, release, deployment and platform, for example <code>morphir-dotnet-1.2.3-native-aot-win-x64.zip</code> (1.2.3 is illustrative). Existing release assets are not renamed in place.</p>
+<div class="table-wrap"><table><thead><tr><th>Offering</th><th>Invocation</th><th>Runtime arrangement</th><th>F# frontend default</th><th>Built from, after this change</th></tr></thead><tbody>
+<tr><td>native-aot</td><td>morphir</td><td>Native compiled, no installed .NET</td><td>Self-contained process guest</td><td><code>src/Morphir</code>, Native AOT</td></tr>
+<tr><td>self-contained</td><td>morphir</td><td>Managed/JIT, bundled runtime</td><td>Managed built-in when compatible</td><td>New managed entry point, self-contained, untrimmed</td></tr>
+<tr><td>framework-dependent</td><td>morphir</td><td>Managed/JIT, compatible installed runtime</td><td>Same managed composition</td><td>Same managed entry point, framework-dependent apphost</td></tr>
+<tr><td>dotnet-tool</td><td>dotnet-morphir; dotnet morphir</td><td>Current managed tool; SDK to install</td><td>Existing managed built-in</td><td><code>src/Morphir.Tool</code>, unchanged identity</td></tr>
+</tbody></table></div>
+<p><em>Here.</em> Task 2.1 extracts the composition (COMP-1). Task 2.2 replaces the three publish targets and two scripts with four named profiles in Nuke (REL-1). Task 2.3 adds the offering to host identity and to <code>extension list</code> as the wire member <code>deployment</code> (HOST-1, and the <a href="specs/extension-registry/spec.md">registry delta</a>). Task 2.4 qualifies native dependencies from packaged artifacts. The <code>System.Native</code> fix in #556 is the kind of single-file loading behavior that needs that evidence. Task 2.5 extends the release with a catalog of the four offerings and six platforms.</p>
+
+<h3 id="up-1">UP-1. Make morphirup a small standalone coordinator</h3>
+<p><em>Approved meaning.</em> Ada first gets <code>morphirup</code>, a Native AOT executable built in morphir-dotnet that needs no Morphir or .NET. It owns bootstrap, selection and lifecycle. A pure resolver produces a plan, and bounded adapters authenticate, download, extract, install extensions and activate. The manager contains no compiler or generator. It coordinates the existing tool and extension authorities and writes no new extension installer. NuGet and package managers keep ownership of what they installed. Interrupted self-update stages a new manager executable and replaces it only through a platform-qualified helper after the old executable exits.</p>
+<p><em>Here.</em> A new project (MGR-1) that does not reference <code>Morphir.Tooling</code>, because that project brings the generators and the compile pipeline. It can reference <code>Morphir.Configuration</code> and <code>Morphir.Configuration.IO</code> for Morphir home and discovery boundaries. The "existing extension authority" in .NET is the PRD step 3 installer, which does not exist yet. The tool authority needs an AOT-safe client for the tool release metadata profile, which also does not exist. Both are dependencies of group 4 (see <a href="#review-questions">questions</a>).</p>
+
+<h3 id="up-2">UP-2. Plan, verify and activate one complete generation</h3>
+<p><em>Approved meaning.</em> Planning can refresh metadata but never runs a downloaded artifact or changes the selection. Applying setup stages the whole candidate and runs readiness checks before activation. Public recipes are authenticated targets binding host and extension descriptors and artifact hashes. Immutable generations live under <code>MORPHIR_HOME/toolchains/generations/&lt;id&gt;/</code> with user-default and project pointers. Hosts read a generation-scoped selection overlay and keep reading the global catalog. <code>--yes</code> authorizes the displayed setup operation in automation. It never means bypass signatures, ignore incompatibility, modify unrelated installations or install a system SDK. If the resolved plan changes before execution, the final receipt records the actual exact plan; an <code>--expect-plan</code> digest refuses a mismatch for approval-sensitive automation.</p>
+<pre><code class="language-console"># Proposed interface. These commands do not exist yet.
+morphirup setup --implementation dotnet --deployment native-aot --preset fsharp --channel stable --plan
+morphirup setup --implementation dotnet --deployment native-aot --preset fsharp --channel stable --yes
+morphirup show --json
+morphirup doctor --json</code></pre>
+<p><em>Here.</em> Activation publishes with the stage-then-move pattern of <code>safe-tree-publication</code> and serializes on an interprocess lock built the same way as <code>TaskLock</code>, under <code>MORPHIR_HOME/locks</code>. The overlay that the managed and AOT hosts read is a change to the extension selection code that PRD step 3 adds. Task 4.4 cannot finish before that code exists.</p>
+
+<h3 id="fs-1">FS-1. Deliver F# as capabilities with a standalone process option</h3>
+<p><em>Approved meaning.</em> With the AOT host, setup resolves the self-contained <code>morphir-fsharp-frontend</code> process guest, which carries FCS and its runtime and uses the existing Content-Length MEP transport. The default generator stays the built-in <code>morphir.fsharp</code>. A separate self-contained F# backend process guest, proposed <code>morphir-fsharp-backend</code>, reuses <code>Morphir.CodeGeneration.FSharp</code> and the existing MEP backend methods, with exact claims and no invented protocol members. Compilation means supported F# source to Morphir IR, not arbitrary <code>.fsproj</code> builds.</p>
+<p><em>Here.</em> Task 3.1 publishes a folder-layout self-contained archive from <code>Morphir.Frontend.FSharp.Extension</code> and first fixes how <code>CompilerEdge</code> picks references (FSF-1). Task 3.2 adds the pinned contract's <code>generateModel</code> records to <code>Morphir.Mep</code>, a backend guest project, and a host-side backend adapter with explicit selection (FSB-1).</p>
+
+<h3 id="lock-1">LOCK-1. Keep requests, portable locks and local receipts distinct</h3>
+<p><em>Approved meaning.</em> Ada commits the project request and portable lock. The request can say stable. The lock records the exact resolved host and providers per platform. Frozen restore refuses a platform absent from the lock. Request identity is SHA-256 of the request file's UTF-8 bytes. Selection order is CLI selector, <code>MORPHIRUP_TOOLCHAIN</code>, nearest project file within established discovery boundaries, then the user default. Existing <code>[toolchain.&lt;name&gt;]</code> sections in <code>morphir.toml</code> keep their meaning. Toolchains live in Morphir home, build outputs in the configured out root. The local receipt binds the SHA-256 of the exact lock bytes, the platform and every installed object identity. Generation ids are local opaque ids, not public release versions.</p>
+<pre><code class="language-toml"># Proposed .morphir/toolchain.toml
+schemaVersion = "0.1.0-draft.1"
+[host]
+implementation = "dotnet"
+deployment = "native-aot"
+channel = "stable"
+[toolset]
+preset = "fsharp"</code></pre>
+<details><summary>Illustrative portable lock fragment (approved example, unchanged)</summary>
+<p>This fragment shows one platform. A complete lock repeats the full dependency closure for every recorded platform. Digests and versions are synthetic example data, not released downloads. The lock members belong to the finos/morphir contract.</p>
+<pre><code class="language-json">{
+  "schemaVersion": "0.1.0-draft.1",
+  "critical": ["host", "platforms"],
+  "requestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "recipe": {
+    "repositoryId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "target": "toolchains/recipes/fsharp/1.0.0.json",
+    "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "host": {
+    "implementation": "dotnet",
+    "version": "1.2.3",
+    "deployment": "native-aot"
+  },
+  "platforms": {
+    "win-x64": {
+      "hostTarget": "artifacts/morphir-dotnet-native-aot/1.2.3/win-x64.zip",
+      "hostSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "providers": [
+        {
+          "operation": "compile",
+          "language": "fsharp",
+          "delivery": "process",
+          "extensionId": "org.finos.morphir.fsharp-frontend",
+          "version": "0.6.0",
+          "repositoryId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "descriptorTarget": "extensions/fsharp-frontend/0.6.0/release.json",
+          "descriptorSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "artifactTarget": "extensions/fsharp-frontend/0.6.0/win-x64.zip",
+          "artifactSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "protocolVersion": "0.2.0-draft.1",
+          "modelTuple": {
+            "operation": "morphir.frontend.compileModel",
+            "profile": "morphir-ir",
+            "codec": "morphir-json",
+            "envelopeVersion": "0.1.0-draft.1",
+            "irVersion": "4.0.0"
+          }
+        },
+        {
+          "operation": "generate",
+          "target": "fsharp",
+          "delivery": "built-in",
+          "extensionId": "morphir.fsharp",
+          "version": "1.2.3",
+          "modelInput": {
+            "profile": "morphir-ir",
+            "codec": "morphir-json",
+            "irVersion": "4.0.0"
+          }
+        }
+      ]
+    }
+  }
+}</code></pre></details>
+<pre><code class="language-console"># Proposed CI workflow after acquiring morphirup
+morphirup restore --locked
+morphirup run -- compile
+morphirup run -- generate --target fsharp
+
+# Offline replay once exact artifacts are present
+morphirup restore --locked --offline
+morphirup run --offline -- compile</code></pre>
+<p><em>Here.</em> The colleague in CI restores this lock and runs offline. Discovery of the nearest <code>.morphir/toolchain.toml</code> reuses <code>ProjectSystem</code> and the <code>MORPHIR_DISCOVERY_BOUNDARY</code> and <code>MORPHIR_ISOLATED</code> controls that <code>add-discovery-containment</code> adds. The <code>[toolchain.&lt;name&gt;]</code> task adapters belong to the configuration schema in <code>src/Morphir.Configuration/Schema.fs</code>. Group 5 tests must show that <code>morphirup</code> never writes them. The out root stays <code>.morphir/out</code> by default, and task records keep their paths.</p>
+
+<h3 id="path-1">PATH-1. One proxy, explicit ownership and predictable dispatch</h3>
+<p><em>Approved meaning.</em> The manager owns a bin folder with <code>morphirup</code> and an optional <code>morphir</code> proxy. It never renames the NuGet tool. An external tool install stays externally owned. On Windows the proxy is a real executable that spawns the selected absolute path with an argument vector and no shell, suppresses child windows and kills the owned process tree on cancellation. Persistent PATH edits need <code>morphirup env --install</code>.</p>
+<p><em>Here.</em> Process start code exists in <code>MepFrontend.ConnectAsync</code> and in the conformance <code>cli</code> adapter. Both use argument lists without a shell and set <code>CreateNoWindow</code>. Neither ties the child to a Windows job object for process-tree cleanup, so task 5.4 adds that. A selected <code>dotnet-tool</code> generation launches the installed tool's <code>dotnet-morphir</code> by absolute path. The E2E tests do something different: <code>ExecutableLocator.GetToolPath</code> finds the built apphost under <code>src/Morphir.Tool/bin</code>, not an installed tool, so dispatch to an installed tool needs its own test.</p>
+
+<h3 id="qual-1">QUAL-1. Verify language readiness and runtime hosting separately</h3>
+<p><em>Approved meaning.</em> Setup reports acquired, verified, capability-checked and workflow-qualified states. It never calls a toolchain ready because it extracted archives. A process probe runs with the user's rights. The fixed smoke workflow compiles known F# to known IR and known generated F#. A failed probe keeps the previous generation. WASM ABIs qualify separately. Broad platform qualification belongs in manual or release lanes, not a new pull request job per profile.</p>
+<p><em>Here.</em> The fixed F# package and expected outputs come from approved task 1.4 in finos/morphir. This repository's verification runs through the compatibility kit runner in <code>src/Morphir.Conformance</code> (its <code>cli</code>, <code>library</code> and <code>mep-guest</code> adapters) and the corpus in <code>conformance/</code>, which the active change <code>establish-morphir-compatibility-kit</code> extends. The maintainer decided on 9 November 2026 that the compatibility kit's runner lives in this repository, in the .NET host, instead of finos/morphir's Rust <code>morphir mck</code>; the cases, fixed expectations and report contracts stay in finos/morphir as data. finos/morphir's AGENTS.md and the approved task wording still describe the earlier Rust-runner arrangement. As the approved text requires, fixed expectations are product data independent of the implementation under test, each implementation takes part through an explicit adapter, and this change adds no checker beyond the kit runner already here. What remains open is <a href="#review-questions">review question 5</a>. Release qualification extends <code>deployment.yml</code> and the manual workflows, and keeps the pull request lane to the closure test, the AOT probes and focused unit tests.</p>
+
+<h2 id="mapping">Repository mapping</h2>
+<p>These notes choose how to carry out the approved decisions in this code. Each is reviewed in the task named. Some are repository-level choices beyond the approved text, listed in the proposal under "Repository-level choices for review".</p>
+
+<h3 id="comp-1">COMP-1. Move the shared composition out of the executable project (task 2.1)</h3>
+<p>The managed <code>morphir</code> offerings need the F# composition and the assembly name <code>morphir</code>. <code>src/Morphir</code> already produces <code>morphir.dll</code>, and <code>Morphir.Tool</code> references it. A second executable named <code>morphir</code> that references it would put two <code>morphir.dll</code> files in one output. So the bodies of <code>Program.CreateApp</code>, <code>Program.Run</code>, the <code>info</code> command and the <code>--version</code> path move into the shared library <code>Morphir.Tooling</code> as <code>MorphirApplication</code>. <code>FSharpFrontendScenario</code> moves into a managed composition library, <code>src/Morphir.Tooling.Managed</code> (<code>ManagedComposition</code>), the only command-line project that references <code>Morphir.Frontend.FSharp</code>. <code>Morphir.Program</code> stays in <code>src/Morphir</code> with the same public signatures (<code>Main</code>, <code>NativeComposition</code>, <code>Run</code>, <code>CreateApp</code>) and delegates to <code>MorphirApplication</code>. A new JIT-only entry point, <code>src/Morphir.Managed</code> (assembly <code>morphir</code>), and <code>Morphir.Tool</code> reference the two libraries. <code>Morphir.Tool</code> no longer references <code>src/Morphir</code>. Each entry point keeps generating its own <code>VersionInfo</code>, and tests of the managed entry point live in their own project, because no output folder can hold both <code>morphir.dll</code> files. Task 2.1 implements this arrangement on its own branch (<code>feat/managed-composition</code>), reviewed as a separate pull request.</p>
+<p>Alternative: one project with an MSBuild switch that adds the F# reference for managed builds. Rejected because the same project would have two dependency graphs, the closure test could not tell them apart, and a wrong property during publish would put FCS in the AOT output. The approved DEP-1 also asks to extend the reference arrangement rather than risk FCS in the AOT graph.</p>
+<p>Cost: none to public API. <code>Morphir.Program</code> keeps its public surface, and <code>Morphir.Tooling</code> gains a public type. Only if this arrangement proved infeasible would the type have to move, which is a breaking change to the <code>Morphir</code> package and needs maintainer review under AGENTS.md section 2 first.</p>
+
+<h3 id="host-1">HOST-1. Add the deployment beside the host, not as a host case (task 2.3)</h3>
+<p><code>MorphirHost</code> stays two cases with wire values <code>morphir</code> and <code>dotnet-morphir</code>. A new closed union for the offering (<code>native-aot</code>, <code>self-contained</code>, <code>framework-dependent</code>, <code>dotnet-tool</code>) joins <code>HostIdentity</code>. Its wire member is <code>deployment</code>, the name every approved document shape uses (<code>--deployment</code>, <code>deployment = "native-aot"</code>). Execution mode and platform join <code>HostIdentity</code> with it. Each entry point states its offering at compile time. A runtime check guards the value: for example, a build that claims <code>native-aot</code> but has dynamic code supported fails a test. <code>HostAvailability</code> becomes availability by offering, which <code>ExtensionEntry.IsAvailableIn</code> uses. The <code>MorphirHost.Native</code> comment changes, because that case also runs in the two managed <code>morphir</code> offerings. <code>--version</code> keeps printing only the version string, which <code>HostVersionTests</code> assert. The full identity report needs a separate form (see <a href="#review-questions">questions</a>). F# code that C# calls follows the <code>fsharp-csharp-interop</code> skill.</p>
+<p>Alternative: add cases <code>NativeAot</code>, <code>SelfContained</code> and <code>FrameworkDependent</code> to <code>MorphirHost</code>. Rejected because it changes what the top-level <code>host</code> string means, which the approved change forbids.</p>
+
+<h3 id="rel-1">REL-1. Four named release profiles, legacy assets kept (tasks 2.2 and 2.5)</h3>
+<p>One Nuke target per offering and RID, with the publish settings in one table: Native AOT for <code>src/Morphir</code>; self-contained untrimmed and framework-dependent for the managed entry point; <code>PackTool</code> unchanged for <code>Morphir.Tool</code>. Archives follow the approved naming pattern. <code>Morphir.Build.Tests</code> checks that names and launch metadata are unique across release, offering and platform. <code>scripts/publish-single-file*.cs</code> go away or become thin wrappers over the targets, and the README files say which. <code>PackPlatformTarballs</code> and <code>CreateGitHubRelease</code> either take over the inline steps in <code>deployment.yml</code> or go away, so one code path builds release assets. The existing <code>morphir-{rid}[.exe]</code> and <code>morphir-{rid}-v{version}.tar.gz</code> assets of published releases stay as they are. Metadata for them states what they are: managed, trimmed, self-contained, single file, without the F# frontend.</p>
+
+<h3 id="fsf-1">FSF-1. A folder-layout self-contained frontend archive (task 3.1)</h3>
+<p><code>CompilerEdge</code> reads compiler references from the trusted platform assemblies in the runtime folder. In a self-contained folder publish, the runtime folder is the application folder, so the list would also hold <code>Morphir.*</code>, <code>Morphir.Mep</code> and other application assemblies. Those would become references of the user's F# code and could change name resolution. In a single-file publish, <code>Assembly.Location</code> is empty for bundled assemblies, so <code>FSharp.Core</code> and the annotations reference would be empty paths. The first failing test therefore runs the published self-contained guest with no <code>dotnet</code> on PATH, no <code>DOTNET_ROOT</code> and no NuGet cache, compiles the fixed package, and compares IR and diagnostics with the framework-dependent tool. The fix selects framework references from an explicit list (the runtime's own framework assemblies) instead of "everything in the runtime folder". The archive is a folder, not a single file, until a single-file arrangement is qualified with extraction. FCS stays untrimmed.</p>
+
+<h3 id="fsb-1">FSB-1. The backend guest needs pinned wire types and a host adapter (task 3.2)</h3>
+<p>Three pieces, in order. First, add <code>GenerateModelRequest</code>, <code>GenerateResult</code> and <code>Artifact</code> to <code>src/Morphir.Mep/Wire.fs</code> from the pinned contract, with generated codecs, and extend <code>ContractTests.fs</code> to cover them. This invents no member, because the pinned contract defines them. Second, a guest project beside the frontend guest, executable <code>morphir-fsharp-backend</code>, calling <code>Transpiler.generateModelWith</code> and returning artifacts with relative paths, with its own version line. Third, a host-side MEP backend adapter in <code>Morphir.Tooling</code> that checks artifacts and publishes them through <code>GenerationPublisher</code>, with an explicit selection that never replaces <code>morphir.fsharp</code> as the default. The extension-model PRD step 4 ("Generator first") plans the same capability, so this task should record that it delivers that step's generator part for F#.</p>
+
+<h3 id="mgr-1">MGR-1. A separate Native AOT manager project (group 4)</h3>
+<p>A new executable project for <code>morphirup</code> and a test project beside it. Pure modules (plan, resolution, lock reading, selection precedence) carry most tests without I/O. Adapters (download, verify, extract, install through the .NET extension installer, activate) sit behind interfaces with fixture implementations. Archive extraction follows the rules already written in the PRD's extension package archive section: no absolute paths, no <code>..</code>, no links, size and ratio limits, digest checks before the store. The project gets its own AOT probe in the pull request lane, like <code>Morphir.Mep.AotProbe</code>, because its whole point is to run without .NET.</p>
+
+<figure>
+<svg viewBox="0 0 760 250" role="img" aria-labelledby="dep-title dep-desc">
+<title id="dep-title">Task group dependencies, including dependencies outside this change</title>
+<desc id="dep-desc">Group 1 in finos/morphir feeds groups 4 and 6 and parts of groups 2 and 3. Tasks 2.1 to 2.4 and 3.1 can start now. Group 4 needs groups 1, 2 and 3 and also PRD step 3 and a tool metadata client. Group 5 needs group 4. Group 6 integrates. Group 7 is a separate follow-up.</desc>
+<g fill="var(--panel)" stroke="var(--line)">
+<rect x="10" y="20" width="170" height="54" rx="8"/><rect x="10" y="100" width="170" height="54" rx="8"/><rect x="10" y="180" width="170" height="54" rx="8"/>
+<rect x="250" y="100" width="150" height="54" rx="8"/><rect x="440" y="100" width="130" height="54" rx="8"/><rect x="610" y="100" width="140" height="54" rx="8"/>
+<rect x="250" y="190" width="150" height="54" rx="8" stroke-dasharray="6 4"/><rect x="610" y="190" width="140" height="54" rx="8" stroke-dasharray="6 4"/>
+<rect x="250" y="10" width="150" height="54" rx="8" stroke-dasharray="6 4"/>
+</g>
+<g fill="var(--fg)" font-size="14" text-anchor="middle">
+<text x="95" y="44">1. Shared contracts</text><text x="95" y="62">finos/morphir</text>
+<text x="95" y="124">2. Four offerings</text><text x="95" y="142">2.5 waits on 1.2</text>
+<text x="95" y="204">3. F# deliveries</text><text x="95" y="222">3.2, 3.3 wait on 1.x</text>
+<text x="325" y="124">4. morphirup</text><text x="325" y="142">lifecycle</text>
+<text x="505" y="124">5. Project</text><text x="505" y="142">selection</text>
+<text x="680" y="124">6. Qualification</text><text x="680" y="142">integrates</text>
+<text x="325" y="214">PRD step 3 installer</text><text x="325" y="232">no issue yet</text>
+<text x="325" y="34">Tool metadata</text><text x="325" y="52">client (none yet)</text>
+<text x="680" y="214">7. WASM join</text><text x="680" y="232">separate follow-up</text>
+</g>
+<g fill="none" stroke="var(--link)" stroke-width="2">
+<path d="M180 47Q220 60 250 115M180 127H250M180 207Q220 190 250 140M325 64V100M325 190V154M400 127H440M570 127H610M180 40Q450 -10 640 100"/>
+</g>
+</svg>
+<figcaption>Dashed boxes are outside this change. Tasks 2.1 to 2.4 and 3.1 can start now; task 2.5, the shared-runner check of 3.2 and task 3.3 wait for group 1 tasks. Group 4 waits for the shared contracts, the packaged fixtures of groups 2 and 3, and two pieces this repository does not have yet.</figcaption>
+</figure>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Risk found in the code</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>Released <code>morphir</code> executables are managed trimmed single-file builds of the AOT composition, reported as <code>MorphirHost.Native</code> and documented as native. No approved offering matches them.</td><td>Record their real identity in release metadata (REL-1). Fix the comment and the installation page in task 2.2 or 2.3. Ask how future releases treat the legacy names (<a href="#review-questions">questions</a>).</td></tr>
+<tr><td>Extracting the composition could break the public API of the <code>Morphir</code> NuGet package.</td><td><code>Morphir.Program</code> keeps its public signatures and delegates (COMP-1). Maintainer review only if that proves infeasible.</td></tr>
+<tr><td>The FCS closure check is a reflection walk of build output, and no pull request job publishes Native AOT <code>morphir</code>.</td><td>Keep the closure test for both entry points, add a published-files check in the manual AOT lane and the release lane, and never add a per-profile pull request job (QUAL-1).</td></tr>
+<tr><td>The frontend's reference selection widens in a self-contained folder and breaks in a single file.</td><td>FSF-1: failing test first, explicit framework list, folder archive.</td></tr>
+<tr><td>Self-contained FCS archives are large, and FCS stays untrimmed.</td><td>Report full shipped sizes per offering and platform. Measure trimming later as separate work.</td></tr>
+<tr><td><code>Morphir.Mep</code> lacks the <code>generateModel</code> records, and the host has no backend adapter.</td><td>FSB-1 adds them from the pinned contract and covers them with <code>ContractTests.fs</code>.</td></tr>
+<tr><td>The .NET extension store, catalog, locks, claims check and staged policy are not implemented. The approved toolset and manager requirements assume them.</td><td>Group 4 and tasks 3.3 and 3.4 depend on PRD step 3. The order needs a decision (<a href="#review-questions">questions</a>).</td></tr>
+<tr><td>No authenticated tool release metadata client exists, and choosing one is a security dependency.</td><td>Task 4.2 records the choice with AOT warning counts and size, and gets security review under AGENTS.md sections 2 and 12.</td></tr>
+<tr><td>Releases build four RIDs. Windows ARM64 and macOS x64 are missing, and the Windows installer refuses ARM64. Issue #264 says Native AOT is not supported on Linux and Windows ARM64, which conflicts with the approved six-pair matrix.</td><td>Task 2.5 adds the missing runners and records evidence per pair. Combinations without evidence stay visibly unsupported. Re-check #264 against a real AOT publish on those runners before closing or adopting it.</td></tr>
+<tr><td>The NuGet path of the install scripts appears broken, and the GitHub path checks no digest.</td><td>Task 6.3 validates the public instructions against candidate artifacts. Task 4.2 makes bootstrap verify digests and authenticity.</td></tr>
+<tr><td>The frontend guest's version follows the repository release, but the approved plan versions the backend guest independently, and the lock example shows the frontend at its own version.</td><td>Task 3.2 gives the backend its own version source. Task 3.3 records how each guest version is set. Changing the frontend's version line needs a decision (<a href="#review-questions">questions</a>).</td></tr>
+<tr><td><code>ExecutableExtensionList.feature</code> expects exactly three ids, and registering the F# frontend adds a fourth.</td><td>Task 2.3 updates the feature with the registry delta.</td></tr>
+</tbody></table></div>
+
+<h2 id="migration">Migration plan</h2>
+<ol>
+<li>Tasks 2.1 to 2.4 and 3.1 land first, in any order; 2.5, the shared-runner check of 3.2 and 3.3 follow their group 1 tasks. Existing commands, the <code>Morphir.Tool</code> package id, the <code>dotnet-morphir</code> command and the frontend tool keep working throughout.</li>
+<li>The first release with named profiles publishes the new archives beside the legacy asset names. The proto plugin and install scripts keep working until they move to the new names.</li>
+<li>Group 4 starts when the shared contracts from finos/morphir group 1, PRD step 3 and the tool metadata client are available. Then group 5, then group 6.</li>
+<li>Rollback: every group adds new entry points or targets beside existing ones. Reverting a group's commits restores the earlier release shape. Published artifacts are never rewritten.</li>
+</ol>
+
+<h2 id="review-questions">Questions for review</h2>
+<p>These questions change the order or content of tasks, so they need answers before the named task starts. The approved change does not settle them.</p>
+<ol>
+<li><strong>Legacy release names (task 2.2, 2.5).</strong> Future releases can keep publishing <code>morphir-{rid}[.exe]</code> and <code>morphir-{rid}-v{version}.tar.gz</code> for the proto plugin and install scripts. Which offering's bytes should those names carry from then on, or should they stop with an announced migration?</li>
+<li><strong>Extension installation (tasks 3.3, 3.4, group 4).</strong> The approved plan reuses the host's extension store, claims and locks. In .NET they are the planned PRD step 3, not code. Should step 3 land as its own change first, or does this change take it on?</li>
+<li><strong>Identity report form (task 2.3).</strong> <code>--version</code> prints one line that tests assert. Where should the full identity (implementation, release, offering, platform, execution mode) appear, for example a JSON form of <code>--version</code> or of <code>info</code>?</li>
+<li><strong>External backend selection (task 3.2).</strong> The compile command selects an external frontend with <code>--extension</code> and <code>[frontend.&lt;language&gt;].extension</code>. Should <code>generate</code> follow the same pattern, and what extension id does the backend guest take (the frontend uses <code>org.finos.morphir.fsharp-frontend</code>)?</li>
+<li><strong>Kit adapters and cases (tasks 3.2, 6.1).</strong> The maintainer decided on 9 November 2026 that the kit runner lives in this repository (the .NET host), with the cases, fixed expectations and report contracts kept in finos/morphir as data, so this repository's verification uses the runner in <code>src/Morphir.Conformance</code>. Still open: are the backend adapter and the fixed F# workflow cases tracked under <code>establish-morphir-compatibility-kit</code> or under this change?</li>
+<li><strong>Public registry id <code>morphir-dotnet.fsharp</code> (task 2.3).</strong> The registry delta makes the in-process F# frontend a built-in entry with the id <code>morphir-dotnet.fsharp</code>, the frontend identity that the compile report shows today. The approved change does not ask for frontend entries or name this id. Should it become a public registry id, and under that name?</li> Should the frontend guest keep the repository release version, or move to an independent version as the backend guest does?</li>
+</ol>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>Exact names of the projects that later tasks add (the backend guest, the manager). Task 2.1 settled its own names on its branch. Each task settles them in review without changing the specs.</li>
+<li>Signing-key custody, endpoint names and size targets, which the approved design leaves to release preparation.</li>
+<li>Whether the manual AOT workflow or the release workflow carries the published-files FCS check. Either satisfies QUAL-1.</li>
+</ul>
+
+<h2 id="references">References</h2>
+<ul>
+<li>Approved change: finos/morphir <code>openspec/changes/add-deployment-and-acquisition/</code> (proposal, design, tasks and the four specs), approved 9 November 2026.</li>
+<li>Extension-model PRD: <code>docs/content/contributing/design/prds/morphir-extension-model.md</code>, especially discovery levels, the extension package archive and delivery steps 3 and 4.</li>
+<li>Current specs: <code>openspec/specs/extension-registry</code>, <code>cli-model-compilation</code>, <code>mep-frontend-sessions</code>, <code>mep-protocol</code>, <code>safe-tree-publication</code>.</li>
+<li>Issues: #208, #212, #264, #490, #491, #492.</li>
+<li>Active changes: <code>add-discovery-containment</code>, <code>establish-morphir-compatibility-kit</code>, <code>add-fsharp-morphir-analyzers</code>.</li>
+</ul>
+</main>
+</body>
+</html>

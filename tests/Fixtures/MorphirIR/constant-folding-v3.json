@@ -1,0 +1,66 @@
+{
+  "formatVersion": 3,
+  "distribution": [
+    "Library",
+    [["car"], ["rental"]],
+    [],
+    {
+      "modules": [
+        [
+          [["alpha"]],
+          {
+            "access": "Public",
+            "value": {
+              "types": [],
+              "values": [
+                [
+                  ["total"],
+                  {
+                    "access": "Public",
+                    "value": {
+                      "inputTypes": [],
+                      "outputType": ["Reference", {}, [[["morphir"], ["s", "d", "k"]], [["basics"]], ["int"]], []],
+                      "body": ["Reference", {}, [[["car"], ["rental"]], [["zeta"]], ["base"]]]
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        [
+          [["zeta"]],
+          {
+            "access": "Public",
+            "value": {
+              "types": [],
+              "values": [
+                [
+                  ["base"],
+                  {
+                    "access": "Public",
+                    "value": {
+                      "inputTypes": [],
+                      "outputType": ["Reference", {}, [[["morphir"], ["s", "d", "k"]], [["basics"]], ["int"]], []],
+                      "body": [
+                        "Apply",
+                        {},
+                        [
+                          "Apply",
+                          {},
+                          ["Reference", {}, [[["morphir"], ["s", "d", "k"]], [["basics"]], ["add"]]],
+                          ["Literal", {}, ["WholeNumberLiteral", 20]]
+                        ],
+                        ["Literal", {}, ["WholeNumberLiteral", 22]]
+                      ]
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

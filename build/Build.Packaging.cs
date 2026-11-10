@@ -128,6 +128,21 @@ partial class Build
                 throw new Exception($"Morphir.Frontend.FSharp.Extension package not found: {extensionPackagePath}");
             }
 
+            // The F# backend extension: the MEP guest that serves generateModel for hosts without the built-in morphir.fsharp.
+            Serilog.Log.Information("Packing Morphir.CodeGeneration.FSharp.Extension as dotnet tool...");
+            DotNetPack(s => s
+                .SetProject(FSharpBackendExtensionProject)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(OutputDir)
+                .SetProperty("DebugType", "none")
+                .SetProperty("IncludeSymbols", "false"));
+
+            var backendPackagePath = OutputDir / $"Morphir.CodeGeneration.FSharp.Extension.{versionString}.nupkg";
+            if (!File.Exists(backendPackagePath))
+            {
+                throw new Exception($"Morphir.CodeGeneration.FSharp.Extension package not found: {backendPackagePath}");
+            }
+
             // Validate the tool package structure
             var toolPackagePath = PathHelper.GetToolPackagePath(versionString, OutputDir);
             if (File.Exists(toolPackagePath))
