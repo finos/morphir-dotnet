@@ -45,12 +45,38 @@ let expectValid (contract: string) (what: string) (value: Value) =
     let valid, failure = validates contract value
     Expect.isTrue valid $"{what} validates against the {contract} schema: {failure}"
 
-/// The value a fixture parses to: JSON, or the JSON value a TOML request parses to.
-let private parsed (contract: string) (bytes: byte array) =
-    let value = if contract = "request" then Syntax.parseToml bytes else Syntax.parseJson bytes
+/// <summary>JSON as a schema validator sees it: a parser that keeps one of two members with the same name, the last.
+/// The readers refuse a repeated name, so a case the schema accepts for that reason is validated this way.</summary>
+let rec private keepingOne (element: JsonElement) : Value =
+    match element.ValueKind with
+    | JsonValueKind.Object ->
+        let members = [ for p in element.EnumerateObject() -> p.Name, keepingOne p.Value ]
+        let last name = members |> List.findBack (fst >> (=) name) |> snd
+        Value.Object(members |> List.map fst |> List.distinct |> List.map (fun name -> name, last name))
+    | JsonValueKind.Array -> Value.Array [ for item in element.EnumerateArray() -> keepingOne item ]
+    | JsonValueKind.String -> Value.String(nonNull (element.GetString()))
+    | JsonValueKind.Number -> Value.Number(element.GetRawText())
+    | JsonValueKind.True -> Value.Boolean true
+    | JsonValueKind.False -> Value.Boolean false
+    | _ -> Value.Null
 
-    match value with
+/// The value a fixture parses to: JSON, or the JSON value a TOML request parses to.
+let private tryParsed (contract: string) (bytes: byte array) =
+    if contract = "request" then Syntax.parseToml bytes else Syntax.parseJson bytes
+
+let private parsed (contract: string) (bytes: byte array) =
+    match tryParsed contract bytes with
     | Ok value -> value
+    | Error _ -> failtest "the fixture does not parse"
+
+/// The value a schema validates for a case the schema accepts: the strict parse, or for JSON with a repeated member
+/// name, which the readers refuse, the value a parser that keeps one member gives.
+let private accepted (contract: string) (bytes: byte array) =
+    match tryParsed contract bytes with
+    | Ok value -> value
+    | Error _ when contract <> "request" ->
+        use document = JsonDocument.Parse(bytes, JsonDocumentOptions(AllowDuplicateProperties = true))
+        keepingOne document.RootElement
     | Error _ -> failtest "the fixture does not parse"
 
 let private written (contract: string) (bytes: byte array) : Value =
@@ -74,12 +100,18 @@ let tests =
                 | _, Some "accepts" ->
                     yield
                         testCase $"accepts {case.Document}" (fun () ->
-                            expectValid case.Contract case.Document (parsed case.Contract (Fixtures.bytes case.Document)))
+                            expectValid case.Contract case.Document (accepted case.Contract (Fixtures.bytes case.Document)))
                 | _, Some "rejects" ->
                     yield
                         testCase $"rejects {case.Document}" (fun () ->
                             let valid, _ = validates case.Contract (parsed case.Contract (Fixtures.bytes case.Document))
                             Expect.isFalse valid $"{case.Document} is refused by the {case.Contract} schema")
+                | _, Some "unparsable" ->
+                    // No schema applies to bytes that are not JSON or TOML at all, such as JSON with a byte order mark.
+                    yield
+                        testCase $"cannot parse {case.Document}" (fun () ->
+                            Expect.isError (tryParsed case.Contract (Fixtures.bytes case.Document)) $"{case.Document} does not parse")
+                | _, Some other -> failwithf "%s has a schema claim this suite does not understand: %s" case.Document other
                 | _ -> ()
         ]
 
