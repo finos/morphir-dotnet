@@ -101,9 +101,75 @@ let private ok (what: string) (result: Result<'T, 'E>) =
     | Ok value -> value
     | Error error -> failtestf "%s: %A" what error
 
+/// <summary>The second review's shapes for the candidate rule (review of #583, B1), over the signed F# recipe: n
+/// offerings that differ only in their implementation, each reduced to one platform and no built-ins, so that many fit
+/// in a recipe. Shape A has n compile operations and one fitting <c>dotnet-tool</c> provider for each; shape B has one
+/// operation, n providers whose MEP version no offering speaks, and then one that fits.</summary>
+let candidateShape (shape: char) (n: int) =
+    let recipe = parsed (SignedCaseTests.targetBytes "toolchains/recipes/fsharp/1.0.0.json")
+    let host0 = (arrayItems (memberOf "hosts" recipe)).Head
+    let firstPlatform = (objectMembers (memberOf "platforms" host0)).Head
+    let dotnetProvider = arrayItems (memberOf "providers" recipe) |> List.item 1
+
+    let host (i: int) =
+        host0
+        |> withMember "implementation" (Value.String $"i{i}")
+        |> withMember "builtIns" (Value.Array [])
+        |> withMember "platforms" (Value.Object [ firstPlatform ])
+
+    let compile (language: string) = Value.Object [ "operation", Value.String "compile"; "language", Value.String language ]
+
+    let operations, providers =
+        match shape with
+        | 'A' ->
+            [ for i in 1..n -> compile $"l{i}" ],
+            [ for i in 1..n ->
+                  dotnetProvider |> withMember "language" (Value.String $"l{i}") |> withMember "extensionId" (Value.String $"x{i}") ]
+        | _ ->
+            [ compile "fsharp" ],
+            [ for i in 1..n ->
+                  dotnetProvider
+                  |> withMember "extensionId" (Value.String $"x{i}")
+                  |> withMember "protocolVersion" (Value.String "0.2.0-unspoken") ]
+            @ [ dotnetProvider |> withMember "extensionId" (Value.String "fits") ]
+
+    recipe
+    |> withMember "hosts" (Value.Array [ for i in 1..n -> host i ])
+    |> withMember "operations" (Value.Array operations)
+    |> withMember "providers" (Value.Array providers)
+    |> Canonical.bytes
+    |> ok "canonical"
+
 [<Tests>]
 let tests =
     testList "Review hardening" [
+        testCase "the candidate rule is linear in offerings times operations (shape A)" (fun () ->
+            // Review of #583, B1: every offering was checked for every operation.
+            let bytes = candidateShape 'A' 10_000
+            Expect.isLessThan bytes.Length (16 * 1024 * 1024) "within the recipe bound"
+
+            match withinBudget 10.0 "the candidate rule over 10,000 offerings and operations" (fun () -> RecipeDocument.read bytes) with
+            | Ok recipe -> Expect.equal recipe.Operations.Length 10_000 "every operation"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "the candidate rule is linear in offerings times unfit providers (shape B)" (fun () ->
+            let bytes = candidateShape 'B' 10_000
+            Expect.isLessThan bytes.Length (16 * 1024 * 1024) "within the recipe bound"
+
+            match withinBudget 10.0 "the candidate rule over 10,000 offerings and unfit providers" (fun () -> RecipeDocument.read bytes) with
+            | Ok recipe -> Expect.equal recipe.Providers.Length 10_001 "every provider"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "an operation one offering cannot perform is still refused" (fun () ->
+            // Control: the classes of offerings must not hide one that no candidate fits.
+            let recipe = parsed (candidateShape 'B' 3)
+            let hosts = arrayItems (memberOf "hosts" recipe)
+            let deaf = hosts.Head |> withMember "protocolVersions" (Value.Array [ Value.String "0.2.0-other" ])
+            let edited = recipe |> withMember "hosts" (Value.Array(hosts @ [ deaf |> withMember "implementation" (Value.String "deaf") ]))
+
+            match RecipeDocument.read (Canonical.bytes edited |> ok "canonical") with
+            | Error refusal -> Expect.equal (refusal.Code, DocumentPath.render refusal.Path) (ReaderCode.InconsistentDocument, "operations[0]") "no candidate fits"
+            | Ok _ -> failtest "an offering without a candidate was read")
         testCase "a recipe of 100,000 operations is refused in linear time" (fun () ->
             // The repeated-operation check compared each operation with every earlier one.
             let recipe = parsed (Fixtures.bytes "recipe/fsharp-synthetic.json")
