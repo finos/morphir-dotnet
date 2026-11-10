@@ -366,6 +366,102 @@ module RecipeDocument =
     /// The index of the first element that repeats an earlier one by <paramref name="key"/>, in linear time.
     let private firstRepeat (key: 'T -> 'K) (items: 'T list) = firstRepeatBy key items
 
+    /// <summary>
+    /// The index of the first operation that some offering can perform with neither a built-in nor a provider that
+    /// fits it on some platform, or None. Whether a provider fits an offering depends only on the offering's MEP
+    /// versions, WASM ABIs and platforms, and on the provider's MEP version, ABI and platforms. So offerings with the
+    /// same three sets form one class, providers with the same fit key behave alike, and each class is checked once per
+    /// key, never once per offering. An operation passes when the offerings its candidates' classes cover, with those
+    /// that have a built-in for it, are every offering. Checking every offering for every operation was quadratic in
+    /// offerings (review of #583, B1).
+    /// </summary>
+    let private firstUnperformed (recipe: Recipe) : int option =
+        let hosts = Array.ofList recipe.Hosts
+
+        let signature (host: HostOffering) =
+            (host.ProtocolVersions |> List.map ProtocolVersion.text |> List.distinct |> List.sort),
+            (host.WasmAbis |> List.map _.Text |> List.distinct |> List.sort),
+            (host.Platforms |> List.map (fst >> Platform.order) |> List.distinct |> List.sort)
+
+        let classOf = System.Collections.Generic.Dictionary<_, int>(HashIdentity.Structural)
+        let representative = ResizeArray<HostOffering>()
+        let size = ResizeArray<int>()
+
+        let hostClass =
+            hosts
+            |> Array.map (fun host ->
+                let key = signature host
+
+                match classOf.TryGetValue key with
+                | true, c ->
+                    size[c] <- size[c] + 1
+                    c
+                | false, _ ->
+                    let c = representative.Count
+                    classOf[key] <- c
+                    representative.Add host
+                    size.Add 1
+                    c)
+
+        let fitKey (provider: RecipeProvider) =
+            ProtocolVersion.text provider.Protocol.Version,
+            match provider.Delivery with
+            | RecipeDelivery.Wasm(abi, _) -> "wasm " + abi.Text
+            | RecipeDelivery.Process platforms ->
+                "process " + (platforms |> List.map (fst >> Platform.order >> string) |> List.distinct |> List.sort |> String.concat ",")
+            | RecipeDelivery.DotnetTool _ -> "dotnet-tool"
+
+        // For each fit key, the classes it fits and how many offerings they hold, computed once.
+        let fitting = System.Collections.Generic.Dictionary<_, int list * int>(HashIdentity.Structural)
+
+        let fits (provider: RecipeProvider) =
+            let key = fitKey provider
+
+            match fitting.TryGetValue key with
+            | true, found -> found
+            | false, _ ->
+                let classes = [ for c in 0 .. representative.Count - 1 do if Fit.onSomePlatform representative[c] provider then c ]
+                let found = classes, classes |> List.sumBy (fun c -> size[c])
+                fitting[key] <- found
+                found
+
+        let builtIns = System.Collections.Generic.Dictionary<Operation, ResizeArray<int>>(HashIdentity.Structural)
+
+        hosts
+        |> Array.iteri (fun index host ->
+            for builtIn in host.BuiltIns do
+                match builtIns.TryGetValue builtIn.Operation with
+                | true, list -> list.Add index
+                | false, _ -> builtIns[builtIn.Operation] <- ResizeArray [ index ])
+
+        let providersFor = recipe.Providers |> List.groupBy _.Operation |> dict
+
+        let performedByAll (operation: Operation) =
+            let candidates =
+                match providersFor.TryGetValue operation with
+                | true, providers -> providers |> List.distinctBy fitKey
+                | false, _ -> []
+
+            if candidates |> List.exists (fun provider -> snd (fits provider) = hosts.Length) then
+                true
+            else
+                let covered = System.Collections.Generic.HashSet<int>()
+
+                for provider in candidates do
+                    for c in fst (fits provider) do
+                        covered.Add c |> ignore
+
+                let byClass = covered |> Seq.sumBy (fun c -> size[c])
+
+                let byBuiltIn =
+                    match builtIns.TryGetValue operation with
+                    | true, list -> list |> Seq.filter (fun h -> not (covered.Contains hostClass[h])) |> Seq.length
+                    | false, _ -> 0
+
+                byClass + byBuiltIn = hosts.Length
+
+        recipe.Operations |> List.tryFindIndex (performedByAll >> not)
+
     /// The consistency rules marked "after reading", in the order of their table.
     let private consistency (path: DocumentPath) (recipe: Recipe) : Read<Recipe> =
         let operations = path.Child "operations"
@@ -407,29 +503,9 @@ module RecipeDocument =
                 if builtInIds.Contains provider.ExtensionId then
                     return! fail ((providers.At index).Child "extensionId")
 
-            // Each operation's built-ins and providers are looked up once, so the rule is linear in the recipe rather
-            // than in operations times built-ins and providers.
-            let builtInOperations =
-                recipe.Hosts
-                |> List.map (fun host ->
-                    System.Collections.Generic.HashSet<Operation>(host.BuiltIns |> List.map _.Operation, HashIdentity.Structural))
-
-            let providersFor =
-                recipe.Providers
-                |> List.groupBy _.Operation
-                |> dict
-
-            for index, operation in List.indexed recipe.Operations do
-                let candidates =
-                    match providersFor.TryGetValue operation with
-                    | true, providers -> providers
-                    | false, _ -> []
-
-                let performs (host: HostOffering, builtIns: System.Collections.Generic.HashSet<Operation>) =
-                    builtIns.Contains operation || candidates |> List.exists (Fit.onSomePlatform host)
-
-                if not (List.forall performs (List.zip recipe.Hosts builtInOperations)) then
-                    return! fail (operations.At index)
+            match firstUnperformed recipe with
+            | Some index -> return! fail (operations.At index)
+            | None -> ()
 
             return recipe
         }

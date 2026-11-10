@@ -22,10 +22,12 @@ let private schemaFiles =
           "result", "morphirup-result-0.1.0-draft.1.schema.json"
           "workflow-case", "toolchain-workflow-case-0.1.0-draft.1.schema.json" ]
 
-/// <summary>A schema's text with every pattern anchored as ECMA-262 anchors it: a final <c>$</c> without the m flag
-/// matches only at the end, where .NET's, which JsonSchema.Net uses, also matches before a final line feed. So the
-/// final unescaped <c>$</c> of each pattern becomes <c>\z</c>.</summary>
-let ecmaAnchored (text: string) =
+/// <summary>A schema's text with every pattern's end anchored as ECMA-262 anchors it: a final <c>$</c> without the m
+/// flag matches only at the end, where .NET's, which JsonSchema.Net uses, also matches before a final line feed. So
+/// the final unescaped <c>$</c> of each pattern becomes <c>\z</c>. This is anchoring only, not ECMA-262 matching: an
+/// inner <c>$</c>, <c>.</c> (which in .NET also matches a carriage return, U+2028 and U+2029) and <c>\s</c> (which
+/// differs for U+0085 and U+FEFF) still follow .NET (review of #583, B2).</summary>
+let endAnchored (text: string) =
     let root = Nodes.JsonNode.Parse text |> nonNull
 
     let rec walk (node: Nodes.JsonNode | null) =
@@ -49,7 +51,7 @@ let ecmaAnchored (text: string) =
 
 let private schema (contract: string) =
     let text = File.ReadAllText(Path.Combine(Fixtures.schemas, schemaFiles[contract]))
-    JsonSchema.FromText(ecmaAnchored text, BuildOptions(SchemaRegistry = SchemaRegistry()))
+    JsonSchema.FromText(endAnchored text, BuildOptions(SchemaRegistry = SchemaRegistry()))
 
 /// Whether a value validates, with the first failing location for the message.
 let validates (contract: string) (value: Value) =
@@ -305,13 +307,13 @@ let workflowCaseTests =
             use case = JsonDocument.Parse(File.ReadAllText(Path.Combine(Fixtures.workflow, "case.json")).Replace("\"bytes\": 112", "\"bytes\": 113"))
             Expect.contains (workflowProblems case.RootElement) "expected/generated/Pricing.fs does not have its stated byte count" "the size")
 
-        testCase "ECMA-262 anchoring refuses a trailing line feed the .NET pattern accepts" (fun () ->
+        testCase "anchoring a pattern's end refuses a trailing line feed the .NET pattern accepts" (fun () ->
             let schema = """{"type":"string","pattern":"^a$"}"""
             let evaluate (text: string) (instance: string) =
                 use document = JsonDocument.Parse(JsonSerializer.Serialize instance)
                 (JsonSchema.FromText text).Evaluate(document.RootElement).IsValid
 
             Expect.isTrue (evaluate schema "a\n") ".NET's $ accepts a final line feed"
-            Expect.isFalse (evaluate (ecmaAnchored schema) "a\n") "anchored, it is refused"
-            Expect.isTrue (evaluate (ecmaAnchored schema) "a") "and the value itself still matches")
+            Expect.isFalse (evaluate (endAnchored schema) "a\n") "anchored, it is refused"
+            Expect.isTrue (evaluate (endAnchored schema) "a") "and the value itself still matches")
     ]
