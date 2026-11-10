@@ -57,9 +57,9 @@ Among releases matching the selection, the installer SHALL take the highest SemV
 - **WHEN** the newest release has process artifacts only for `x86_64-unknown-linux-gnu` and the host runs on `win-x64`
 - **THEN** the install fails with `extension.no_matching_artifact` naming `win-x64`
 
-#### Scenario: Only legacy MEP versions
-- **WHEN** every matching release speaks only MEP `0.1`, which this host does not support
-- **THEN** the install fails with `extension.no_compatible_mep_version` naming the versions the host supports
+#### Scenario: Only the deprecated MEP version
+- **WHEN** every matching release speaks only MEP `0.1`, which is deprecated and which this host does not support
+- **THEN** the install fails with `extension.no_compatible_mep_version`, naming the versions the host supports and saying that MEP `0.1` is deprecated
 
 ### Requirement: Repository paths stay inside the repository
 The installer SHALL canonicalize the history file and each artifact source path, and SHALL refuse one that resolves outside the repository directory, for example through a symbolic link or `..`, with `extension.path_escape`. A declared source path SHALL be relative, use `/`, and have at most 512 UTF-8 bytes and 240 UTF-16 code units.

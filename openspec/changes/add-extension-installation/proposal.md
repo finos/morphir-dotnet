@@ -12,6 +12,8 @@ On 9 November 2026 the maintainer decided that the .NET installer is built insid
 
 A developer on Windows adds a local extension repository and installs a process backend from it. A second project pins a newer version of the same backend without changing the global selection, and a `morphirup` toolchain generation selects its own versions over the shared store. A teammate who clones a repository with an extension package archive in `.morphir/extensions/staged/` gets a clear message, and no code from the clone runs until they install it.
 
+MEP `0.1` is officially deprecated (maintainer decision, 9 November 2026). New work targets `0.2.0-draft.1`, this host never implements `0.1`, and messages about an extension that speaks only `0.1` say that it is deprecated. Deprecated is not removed, though: released Rust CLIs read only `0.1`, and they stay in use.
+
 The .NET and Rust CLIs share Morphir Home's formats and its store. They share use of an installed extension only when both can run it. The Rust CLI supports only MEP `0.1`, and this host speaks only `0.2.0-draft.1`. One catalog entry that the Rust reader cannot run makes every Rust `compile`, `generate` and `extension list` on that Morphir Home fail. So a global install enters the shared catalog only when the reference reader can read and run it. Every other global install goes to a .NET global layer beside the catalog. For the extensions this repository builds today, that means a shared store and format, not shared use.
 
 ```text

@@ -139,11 +139,11 @@ The installer and the host SHALL read catalogs and records with the parent rules
 - **THEN** reading fails and names the entry
 
 ### Requirement: A shared entry this host cannot run does not hide the others
-When a shared catalog entry's `mepVersions` holds no version this host speaks, the host SHALL keep reading the catalog, list the entry as unavailable with a `reason` that names its MEP versions, and refuse to activate it with `extension.no_compatible_mep_version`. Other entries SHALL resolve as usual.
+When a shared catalog entry's `mepVersions` holds no version this host speaks, the host SHALL keep reading the catalog, list the entry as unavailable with a `reason` that names its MEP versions, and refuse to activate it with `extension.no_compatible_mep_version`. A reason for an entry that speaks only `0.1` SHALL say that MEP `0.1` is deprecated. Other entries SHALL resolve as usual.
 
 #### Scenario: A Rust-installed legacy extension
 - **WHEN** the Rust CLI installed `morphir-elm` with `mepVersions` `["0.1"]` and another entry speaks `0.2.0-draft.1`
-- **THEN** `extension list --json` succeeds, shows `morphir-elm` with `available` false and its reason, and shows the other entry as available
+- **THEN** `extension list --json` succeeds, shows `morphir-elm` with `available` false and a reason saying it speaks only the deprecated MEP `0.1`, and shows the other entry as available
 - **AND** a command that selects `morphir-elm` fails with `extension.no_compatible_mep_version` and starts no process
 
 ### Requirement: A catalog entry and its lock agree

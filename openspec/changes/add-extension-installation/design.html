@@ -61,7 +61,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <li><a href="#journey">A worked journey</a></li>
 <li><a href="#failures">Failure and recovery paths</a></li>
 <li><a href="#mapping">Mapping the parent contract to this codebase</a></li>
-<li><a href="#decisions">Decisions</a></li>
+<li><a href="#decisions">Decisions</a> (including <a href="#mep-1">MEP-1: MEP 0.1 is deprecated</a>)</li>
 <li><a href="#questions">Questions</a>: <a href="#needs-maintainer">needs the maintainer</a>, <a href="#divergence">deliberate divergence</a>, <a href="#follows-reference">follows the reference</a>, <a href="#settled">settled</a>, <a href="#upstream">raised upstream</a></li>
 <li><a href="#fsharp-frontend">The path to installing the F# frontend without .NET</a></li>
 <li><a href="#verifiable">What a .NET implementation can be verified against</a></li>
@@ -117,7 +117,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 </tbody>
 </table>
 <p>So one .NET global install of a guest built on <code>Morphir.Mep</code> into <code>catalog/extensions.json</code> would make every Rust <code>compile</code>, <code>generate</code> and <code>extension list</code> on that Morphir Home fail. The reverse gives nothing either: an extension the Rust CLI installed that speaks only <code>0.1</code> cannot run in .NET. The failure is in the catalog only. Rust reads a lock only for an id the catalog names, and never enumerates <code>locks/extensions/</code> or the store (no <code>read_dir</code> over either in <code>morphir-distribution</code>). Index records reach a Rust reader only through a repository it is configured to read, and its resolver filters MEP versions per release (<code>resolver.rs:49-64</code>), so an incompatible record fails only the install of that id.</p>
-<p>This change therefore admits to the shared catalog only entries that the pinned reference reader can read and run, and puts every other global install in a .NET global layer beside it (<a href="#share-1">SHARE-1</a>, <a href="#q-shared">Q-SHARED</a>). Store objects stay shared, because they are content-addressed and nothing enumerates them. Today an extension enters the shared catalog only if it also speaks <code>0.1</code>. For the extensions this repository builds, "shared" means a shared store and a shared format, not shared use.</p>
+<p>MEP <code>0.1</code> is deprecated (<a href="#mep-1">MEP-1</a>), but the released Rust CLIs that read only <code>0.1</code> stay in use. This change therefore admits to the shared catalog only entries that the pinned reference reader can read and run, and puts every other global install in a .NET global layer beside it (<a href="#share-1">SHARE-1</a>, <a href="#q-shared">Q-SHARED</a>). Store objects stay shared, because they are content-addressed and nothing enumerates them. Today an extension enters the shared catalog only if it also speaks <code>0.1</code>. For the extensions this repository builds, "shared" means a shared store and a shared format, not shared use.</p>
 
 <h2 id="goals">Goals and non-goals</h2>
 <p><strong>Goals.</strong></p>
@@ -509,6 +509,16 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>For a <code>morphirup</code> hand-over, the installer takes the caller's statement and returns it unchanged. The statement is <code>repository-target</code> with <code>repositoryId</code> and <code>targetsVersion</code>, or <code>recipe-digest</code>. The one-repository-per-binding check and <code>repository_mismatch</code> stay with the manager.</p>
 <p>This is where the installer touches the TUF client: the client authenticates the targets and hands over bytes and a statement, and the installer rechecks the bound digests. The shared lock has no member for authentication, so this fact lives only in the manager's receipt and the .NET inventory.</p>
 
+<h3 id="mep-1">MEP-1. MEP 0.1 is deprecated</h3>
+<p>The maintainer decided on 9 November 2026 that MEP <code>0.1</code> is officially deprecated. <span class="tag obs">Observed</span> Upstream calls it "the frozen legacy protocol" (finos/morphir <code>docs/design/draft/extensions/protocol.md:878</code> on main at <code>04143a238</code>) and does not yet use the word deprecated. Recording the deprecation there is an upstream ask (task 1.2).</p>
+<p>What deprecation means in this change:</p>
+<ul>
+<li><strong>New work targets <code>0.2.0-draft.1</code>.</strong> This host never implements <code>0.1</code>, and the .NET guests never add it. That closes off Q-SHARED's option (c).</li>
+<li><strong>Deprecated is not removed.</strong> Released Rust CLIs read only <code>0.1</code>, and users will keep running them. So the admission rule (<a href="#share-1">SHARE-1</a>) still protects those readers. An extension that offers both <code>0.1</code> and <code>0.2.0-draft.1</code> is the bridge, and it is still admitted to the shared catalog.</li>
+<li><strong>The words users see say so.</strong> A reason or refusal about an extension that speaks only <code>0.1</code> says that <code>0.1</code> is deprecated and that a release speaking <code>0.2.0-draft.1</code> is needed. Codes do not change: <code>extension.no_compatible_mep_version</code> stays.</li>
+<li><strong>The path out is upstream.</strong> The Rust host's installed-state checks move to <code>0.2.0-draft.1</code>, and list an entry that speaks only <code>0.1</code> with a deprecation warning instead of failing on it. When the pinned Rust reader supports <code>0.2.0-draft.1</code>, the admission constant moves with the submodule pin, and new installs of <code>0.2</code> guests enter the shared catalog.</li>
+</ul>
+
 <h3 id="id-1">ID-1. The id rule is chosen by document version, and dotted ids follow finos/morphir#1149</h3>
 <p>The registry keeps its dotted rule for built-ins. The installer parses ids with the rule of the version it reads. For <code>1.0</code>, <code>2.0.0-draft.1</code> and <code>2.0.0-draft.2</code>, an id is one token of at most 238 characters that is not a Windows device name by the reference rule (<code>domain/identity.rs:237-286</code>, which also refuses <code>CONIN$</code>, <code>CONOUT$</code> and superscript-digit forms).</p>
 <p>Dotted ids are read from the drafts #1149 introduces once it is approved: the descriptor, index record and catalog at <code>2.0.0-draft.3</code>, and the lock at <code>2.0.0-draft.1</code>. Where a dotted-id install is written follows the <a href="#q-shared">Q-SHARED</a> answer and the revised #1149. #1149 adds the device-name rule for the first segment, which morphir-dotnet adopts in its task 5.1.</p>
@@ -535,7 +545,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <ul>
 <li><strong>(a)</strong> Admit to the shared catalog only entries that the pinned reference reader can read and run, and install every other global install into a .NET global layer beside it: the inventory plus <code>data/morphir-dotnet/extensions/global.json</code> (<a href="#share-1">SHARE-1</a>). This works today with every released Rust CLI and changes nothing upstream. Cost: a second global place in .NET, a stderr note when it is used, and no shared use until extensions speak a common version.</li>
 <li><strong>(b)</strong> Wait for an upstream change that makes <code>list_installed</code> skip entries it cannot run and report them, instead of failing. It is cheaper for .NET, but released Rust CLIs keep failing on a shared Morphir Home. It also does not help #1149, because a reader that skips entries still cannot read a catalog whose <code>schemaVersion</code> it refuses.</li>
-<li><strong>(c)</strong> Make the .NET guests also speak MEP <code>0.1</code>. Rejected: the PRD forbids implementing the legacy protocol, and it does not help dotted ids.</li>
+<li><strong>(c)</strong> Make the .NET guests also speak MEP <code>0.1</code>. Rejected: <code>0.1</code> is deprecated (<a href="#mep-1">MEP-1</a>), the PRD forbids implementing it, and it does not help dotted ids.</li>
 </ul>
 <p><strong>One mechanism for both problems.</strong> Option (a) answers both, if the side layer is treated as the place for entries that need newer readers. The upstream ask that goes with it is to standardize that layer as a catalog file that only readers of the new drafts open, beside a legacy catalog that every released reader can still read. #1149 could then write dotted ids there instead of promoting <code>catalog/extensions.json</code>. Readers of the new drafts would read both files, and old readers would read only the legacy file. If upstream adopts that file, the .NET global layer moves into it in a single transaction under the state lock. Until then it stays .NET-owned.</p>
 <p><strong>Recommendation:</strong> (a) now, with the specs written to it as provisional. Raise (b) and the standard side layer upstream in task 1.2, as an issue and as a review comment on #1149.</p>
@@ -657,6 +667,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>The claim check after <code>update</code> (Q-CLAIMCHECK).</li>
 <li>The reference-only rules: Q-LOCKPRIM, Q-JOURNAL, Q-STRICTLOCK, Q-CATVER, Q-NUMBERS, Q-PLATFORM, Q-REQHOST, Q-PROBELIMITS, Q-GC, Q-FIXTURES.</li>
 <li>Stable codes (Q-DIAG), offered for both CLIs.</li>
+<li>The deprecation of MEP <code>0.1</code> (MEP-1): say so in <code>protocol.md</code> and the extension README, and move the Rust host's installed-state checks to <code>0.2.0-draft.1</code>, listing an entry that speaks only <code>0.1</code> with a deprecation warning instead of failing on it.</li>
 </ul>
 
 <h2 id="fsharp-frontend">The path to installing the F# frontend without .NET</h2>
@@ -776,7 +787,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li><strong>Receipt launch path.</strong> A receipt's <code>launch.program</code> for an installed provider would be the store path, while the host runs a private copy (SEL-3). Raised upstream with the overlay and pins.</li>
 <li><strong>The developer label and manager-owned storage.</strong> The receipt admits a developer artifact only into manager-owned storage (<code>installation-receipt.md:49</code>). An extension that the user installed with the host CLI has no ownership case, so a manager cannot copy the host's <code>local-developer</code> label into a receipt for it.</li>
 <li><strong>requires.host across implementations.</strong> A provider's <code>requires.host</code> cannot say which implementation it targets (Q-REQHOST).</li>
-<li><strong>MEP 0.1-only extensions.</strong> This host speaks only <code>0.2.0-draft.1</code>, so the published process extensions pinned upstream resolve to <code>extension.no_compatible_mep_version</code>, and Rust-installed ones are listed as unavailable. The approved qualification matrix should not count them for .NET.</li>
+<li><strong>MEP 0.1-only extensions.</strong> MEP <code>0.1</code> is deprecated (MEP-1), and this host speaks only <code>0.2.0-draft.1</code>. So the published process extensions pinned upstream resolve to <code>extension.no_compatible_mep_version</code>, and Rust-installed ones are listed as unavailable with a deprecation reason. The approved qualification matrix should not count them for .NET, and their publishers need releases that speak <code>0.2.0-draft.1</code>.</li>
 <li><strong>Two changes modify one registry requirement.</strong> This change's MODIFIED block for "An entry states its delivery and hosts" is now written against the adoption change's text on main, and adds <code>deployments</code> and <code>reason</code> for installed entries.</li>
 </ol>
 

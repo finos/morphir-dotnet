@@ -60,7 +60,7 @@ An installed entry's `deployments` SHALL list the offerings of the running relea
 
 #### Scenario: A legacy entry from the Rust CLI
 - **WHEN** the shared catalog holds an entry that speaks only MEP `0.1`
-- **THEN** its entry has `deployments` `[]`, `available` false and a `reason` naming MEP `0.1`, and the list exits with code 0
+- **THEN** its entry has `deployments` `[]`, `available` false and a `reason` saying that it speaks only MEP `0.1`, which is deprecated, and the list exits with code 0
 
 #### Scenario: WASM entry
 - **WHEN** a WASM extension is installed and the running release has no WASM runtime

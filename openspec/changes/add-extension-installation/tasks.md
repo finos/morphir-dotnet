@@ -36,6 +36,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 - [ ] 1.1 Record the maintainer's answer to each question in the design's "needs the maintainer" group beside the question, and change the specs and tasks where an answer differs from the recommendation; verify with `mise exec -- openspec validate add-extension-installation --strict` and `mise run openspec:verify`.
 - [ ] 1.2 Raise the upstream asks of the design's "Raised upstream" list in finos/morphir, and the PRD superset proposal; verify that each question in `design.html` links its issue or proposal.
   - The asks:
+    - the deprecation of MEP `0.1` (design MEP-1): say so in `protocol.md` and the extension README, and move the Rust host's installed-state checks to `0.2.0-draft.1`, listing an entry that speaks only `0.1` with a deprecation warning instead of failing on it;
     - the shared catalog's legacy-reader rule (Q-SHARED), as an issue and as a review comment on finos/morphir#1149;
     - the overlay, the level pins and the receipt launch path, for the toolchain contract;
     - the reference-only rules: Q-LOCKPRIM, Q-JOURNAL, Q-STRICTLOCK, Q-CATVER, Q-NUMBERS, Q-PLATFORM, Q-REQHOST, Q-PROBELIMITS, Q-GC and Q-FIXTURES;
