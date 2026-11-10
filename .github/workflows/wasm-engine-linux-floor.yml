@@ -1,0 +1,95 @@
+name: "WASM engine Linux floor"
+
+# A measurement for the packaging tasks 5.2 to 5.4 of the OpenSpec change add-wasm-extension-host: what the Native AOT
+# probe with the Wasmtime engine linked in (and, for comparison, with libwasmtime.so beside it) needs from a Linux
+# machine, linked on the runner and inside ubuntu:22.04 (glibc 2.35, pinned by digest), and whether it starts with no
+# network in debian:12-slim and ubuntu:22.04 without OpenSSL. It publishes tests/Morphir.Extensions.Wasm.AotProbe
+# only. A failed link or a crashing probe does not fail the job: the result is the data, in result.json and the job
+# summary.
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - ci/wasm-engine-linux-floor
+        paths:
+            - .github/workflows/wasm-engine-linux-floor.yml
+            - scripts/wasm-engine-linux-floor.ps1
+            - scripts/wasm-engine-linux-floor/**
+
+permissions:
+    contents: read
+
+concurrency:
+    group: wasm-engine-linux-floor-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    floor:
+        name: Linux floor (${{ matrix.rid }})
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 75
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - rid: linux-x64
+                      runner: ubuntu-24.04
+                    - rid: linux-arm64
+                      runner: ubuntu-24.04-arm
+        env:
+            DOTNET_NOLOGO: "1"
+            DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+            # The published Python 0.6.0 extension, as finos/morphir pins it in .config/published-extension-bundles.toml.
+            GUEST_URL: https://github.com/finos/morphir-python/releases/download/extension/python/v0.6.0/morphir-python-binding-0.6.0.wasm
+            GUEST_SHA256: ce0cba07f0395ff8179b42eb021ade05c68197f69b8e9c0c8bc369d2a035727c
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.1.0
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+
+            - name: Install the Native AOT prerequisites and binutils
+              run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev binutils
+
+            - name: Download and verify the Python 0.6.0 guest
+              shell: pwsh
+              run: |
+                  $directory = Join-Path $env:RUNNER_TEMP 'guest'
+                  New-Item -ItemType Directory -Force $directory | Out-Null
+                  $file = Join-Path $directory 'morphir-python-binding-0.6.0.wasm'
+                  Invoke-WebRequest -Uri $env:GUEST_URL -OutFile $file
+                  $actual = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+                  if ($actual -ne $env:GUEST_SHA256) { throw "guest SHA-256 $actual, expected $env:GUEST_SHA256" }
+                  Write-Host "guest $file, SHA-256 $actual verified"
+
+            - name: Fetch and verify the pinned Wasmtime C API archive
+              shell: pwsh
+              run: >-
+                  dotnet msbuild tests/Morphir.Extensions.Wasm.AotProbe/Morphir.Extensions.Wasm.AotProbe.csproj
+                  -t:MorphirWasmtimeFetchStaticLibrary -p:MorphirProbeAot=true -p:MorphirWasmtimeStaticLink=true
+                  -p:RuntimeIdentifier=${{ matrix.rid }} -nologo -tl:off -v:m -nodeReuse:false
+
+            - name: Measure the Linux floor
+              shell: pwsh
+              run: >-
+                  ./scripts/wasm-engine-linux-floor.ps1 -Rid ${{ matrix.rid }} -RunnerLabel ${{ matrix.runner }}
+                  -Guest (Join-Path $env:RUNNER_TEMP 'guest/morphir-python-binding-0.6.0.wasm')
+                  -WorkDirectory (Join-Path $env:RUNNER_TEMP 'floor')
+
+            - name: Upload the result
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: wasm-engine-linux-floor-${{ matrix.rid }}
+                  path: |
+                      ${{ runner.temp }}/floor/result.json
+                      ${{ runner.temp }}/floor/result.md
+                      ${{ runner.temp }}/floor/*.log
+                      ${{ runner.temp }}/floor/probe-*.txt
+                      ${{ runner.temp }}/floor/libwasmtime.a-undefined.txt*
+                  if-no-files-found: warn
+                  retention-days: 30
