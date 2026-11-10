@@ -93,7 +93,11 @@ jobs:
 
     test-executables:
         needs: [setup]
-        timeout-minutes: 30
+        # offerings packs four profiles and runs the suite four times. On a win-arm64 developer machine that took
+        # about 4.5 minutes after the build (native-aot 125 s, self-contained 50 s, framework-dependent 49 s,
+        # dotnet-tool 45 s, each with its pack). The 60 minutes allow for the Compile and Restore targets, slower
+        # hosted runners and the clean-container pull, with headroom; one offering or the legacy type keeps 30.
+        timeout-minutes: ${{ github.event.inputs.executable-type == 'offerings' && 60 || 30 }}
         strategy:
             fail-fast: false
             matrix: ${{fromJson(needs.setup.outputs.matrix)}}
