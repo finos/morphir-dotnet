@@ -40,6 +40,27 @@ public class EntryPointGuardTests
     }
 
     [Test]
+    public async Task TheManagedReleaseProfilesPassTheGuard()
+    {
+        foreach (var deployment in new[] { Morphir.Build.Helpers.Deployment.SelfContained, Morphir.Build.Helpers.Deployment.FrameworkDependent })
+        {
+            deployment.Project.Should().Be(ManagedProject);
+            var result = await MsBuild(Path.Combine(TestFixture.GetRepositoryRoot(), ManagedProject), AotGuard, Properties(deployment.BuildProperties));
+            result.ExitCode.Should().Be(0, $"{deployment.Id}: {result.CombinedOutput}");
+        }
+    }
+
+    [Test]
+    public async Task TheNativeAotProfileCannotPublishTheManagedMorphir()
+    {
+        var result = await MsBuild(Path.Combine(TestFixture.GetRepositoryRoot(), ManagedProject), AotGuard,
+            Properties(Morphir.Build.Helpers.Deployment.NativeAot.BuildProperties));
+        result.ExitCode.Should().NotBe(0, result.CombinedOutput);
+    }
+
+    private static string[] Properties(IReadOnlyDictionary<string, string> properties) =>
+        [.. properties.Select(property => $"-p:{property.Key}={property.Value}")];
+    [Test]
     public async Task TwoMorphirAssembliesInOneProjectFail()
     {
         var result = await MsBuild(await SyntheticProject(
