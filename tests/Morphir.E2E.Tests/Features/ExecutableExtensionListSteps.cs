@@ -60,14 +60,15 @@ public sealed class ExecutableExtensionListSteps(ScenarioContext scenarioContext
             .Should().OnlyContain(entry => entry.GetProperty("available").GetBoolean());
 
     /// <summary>
-    /// The in-process F# frontend is in the managed composition only: the tool has it; the AOT-compatible
-    /// <c>morphir</c>, published as Native AOT or as the legacy single file, lists it as unavailable with the reason.
+    /// The in-process F# frontend is in the managed composition only: the tool and the packaged managed offerings have
+    /// it; the AOT-compatible <c>morphir</c>, published as Native AOT or as the legacy single file, lists it as
+    /// unavailable with the reason.
     /// </summary>
     [Then("the in-process F# frontend should be available exactly when the executable under test has it")]
     public void ThenTheInProcessFSharpFrontendShouldBeAvailableExactlyWhenTheExecutableHasIt()
     {
         var entry = Extension("morphir-dotnet.fsharp");
-        var expected = ExecutableLocator.CurrentType == "tool";
+        var expected = ExecutableLocator.CurrentType is "tool" or "self-contained" or "framework-dependent" or "dotnet-tool";
         entry.GetProperty("available").GetBoolean().Should().Be(expected);
         if (expected)
             entry.TryGetProperty("reason", out _).Should().BeFalse();
@@ -77,17 +78,20 @@ public sealed class ExecutableExtensionListSteps(ScenarioContext scenarioContext
 
     /// <summary>
     /// The deployment comes from the build: <c>aot</c> is published by PublishExecutable with the native-aot profile's
-    /// settings; the legacy single-file builds and the development build of the tool come from no named profile and
-    /// state no deployment.
+    /// settings, and each packaged type (<see cref="ExecutableLocator.PackagedTypes"/>) is its own release profile's
+    /// output, so it reports its own name; the legacy single-file builds and the development build of the tool come from
+    /// no named profile and state no deployment.
     /// </summary>
     [Then("the listed deployment should be the deployment of the executable under test")]
     public void ThenTheListedDeploymentShouldBeTheDeploymentOfTheExecutableUnderTest()
     {
         var root = Document(Result);
-        if (ExecutableLocator.CurrentType == "aot")
+        var type = ExecutableLocator.CurrentType;
+        if (type == "aot" || ExecutableLocator.PackagedTypes.Contains(type))
         {
-            root.GetProperty("deployment").GetString().Should().Be("native-aot");
-            root.GetProperty("execution").GetString().Should().Be("native-aot");
+            var deployment = type == "aot" ? "native-aot" : type;
+            root.GetProperty("deployment").GetString().Should().Be(deployment);
+            root.GetProperty("execution").GetString().Should().Be(deployment == "native-aot" ? "native-aot" : "jit");
         }
         else
         {
