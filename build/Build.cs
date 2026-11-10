@@ -42,6 +42,9 @@ partial class Build : NukeBuild
     [Parameter("Output directory for untrimmed single-file executables")]
     readonly AbsolutePath SingleFileUntrimmedDir = RootDirectory / "artifacts" / "single-file-untrimmed";
 
+    [Parameter("Output directory for self-contained extension process folders and archives")]
+    readonly AbsolutePath ExtensionProcessesDir = RootDirectory / "artifacts" / "extension-processes";
+
     [Parameter("Output directory for tool DLLs")]
     readonly AbsolutePath ToolDllDir = RootDirectory / "artifacts" / "tool-dll";
 

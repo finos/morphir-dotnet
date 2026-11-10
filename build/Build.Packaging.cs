@@ -149,6 +149,57 @@ partial class Build
         });
 
     /// <summary>
+    /// Publish the F# frontend extension as a self-contained process for one runtime identifier: a folder with the
+    /// guest, the F# compiler service and its own .NET runtime, and a deterministic archive of that folder. The
+    /// framework-dependent dotnet tool from PackTool is unchanged.
+    /// Requires: --rid (e.g., win-arm64, linux-x64, osx-arm64)
+    /// Output: artifacts/extension-processes/morphir-fsharp-frontend/{rid}/ and
+    ///         artifacts/extension-processes/morphir-fsharp-frontend-{version}-{rid}.zip (win-*) or .tar.gz
+    /// </summary>
+    Target PublishFSharpFrontendProcess => _ => _
+        .Description("Publish the F# frontend extension as a self-contained process folder and archive (requires --rid)")
+        .Requires(() => Rid)
+        .Executes(() =>
+        {
+            PublishExtensionProcess(FSharpFrontendExtensionProject, "morphir-fsharp-frontend", Rid!);
+        });
+
+    /// <summary>
+    /// Publishes an extension project with a publish profile (by default SelfContainedProcess, which the project
+    /// defines) for one runtime identifier, then archives the folder. The archive has one root directory, the
+    /// runtime identifier. Returns the folder and the archive; logs the file count and sizes of both.
+    /// </summary>
+    (AbsolutePath Folder, AbsolutePath Archive) PublishExtensionProcess(
+        AbsolutePath project, string name, string rid, string profile = "SelfContainedProcess")
+    {
+        var versionString = Version.ToString();
+        var folder = ExtensionProcessesDir / name / rid;
+        folder.CreateOrCleanDirectory();
+
+        Serilog.Log.Information($"Publishing {name} {versionString} for {rid} with the {profile} profile...");
+        DotNetPublish(s => s
+            .SetProject(project)
+            .SetConfiguration(Configuration)
+            .SetRuntime(rid)
+            .SetProperty("PublishProfile", profile)
+            .SetOutput(folder));
+
+        var executable = rid.StartsWith("win-", StringComparison.OrdinalIgnoreCase) ? $"{name}.exe" : name;
+        if (!File.Exists(folder / executable))
+        {
+            throw new Exception($"{name}: the executable {executable} is not in {folder}");
+        }
+
+        var archive = ExtensionProcessesDir / $"{name}-{versionString}-{rid}{ProcessArchive.ExtensionFor(rid)}";
+        ProcessArchive.Create(folder, archive, rid, rid, executable, "createdump");
+
+        var (files, bytes) = ProcessArchive.Measure(folder);
+        Serilog.Log.Information($"✓ {folder}: {files} files, {bytes} bytes");
+        Serilog.Log.Information($"✓ {archive}: {new FileInfo(archive).Length} bytes");
+        return (folder, archive);
+    }
+
+    /// <summary>
     /// Pack all projects (libraries and tool)
     /// Equivalent to running PackLibs and PackTool
     /// Output: artifacts/packages/

@@ -46,6 +46,7 @@
         "PrepareRelease",
         "PublishAll",
         "PublishExecutable",
+        "PublishFSharpFrontendProcess",
         "PublishLibs",
         "PublishLocalAll",
         "PublishLocalLibs",
@@ -150,6 +151,10 @@
         "ExecutableType": {
           "type": "string",
           "description": "Executable type for E2E tests: aot, trimmed, untrimmed, or all"
+        },
+        "ExtensionProcessesDir": {
+          "type": "string",
+          "description": "Output directory for self-contained extension process folders and archives"
         },
         "Global": {
           "type": "boolean",
