@@ -248,7 +248,7 @@ let tests =
               finally
                   dispose backend
 
-          testCase "With format false the guest writes the same bytes as the built-in backend, and the adapter reports off"
+          testCase "With format false the guest writes the same bytes as the built-in backend, and the adapter reports no formatting"
           <| fun _ ->
               let backend = connect (realGuest ())
 
@@ -256,7 +256,8 @@ let tests =
                   for fixture in [ "daily-rate-v4.json"; "daily-rate-v3.json" ] do
                       let model = load (irFixture fixture)
                       let external = artifactsOf (generateWith backend model [ "format", "false" ])
-                      Expect.equal external.Formatting "off" $"{fixture}: the adapter reports off"
+                      // A MEP generate result does not say whether the guest formatted, so the host reports nothing.
+                      Expect.isNull external.Formatting $"{fixture}: the adapter reports no formatting it did not observe"
 
                       let builtIn =
                           artifactsOf (generateWith (FSharpGenerationBackend()) model [ "format", "false" ])

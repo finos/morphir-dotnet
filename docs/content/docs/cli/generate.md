@@ -257,9 +257,10 @@ JSON mode writes one document containing `success`, `exitCode`, target/backend,
 input/output, source version/family/kind/representation, ordered `artifacts`,
 `written`, `unchanged`, `removed`, `diagnostics` and `failureKind`, for a selected
 backend extension `backendTransport` and `backendVersion`, and `formatting` when the backend reports it:
-`applied` (formatted), `off` (`format=false`) or `unavailable` (the host cannot run the formatter). For an
-external backend the host reports only `off`, because a MEP generate result does not say whether the guest
-formatted. Logs and warnings use stderr, never stdout.
+`applied` (formatted), `off` (`format=false`) or `unavailable` (the host cannot run the formatter). Only a
+built-in backend reports it. An external backend (`backendTransport` `mep`) has no `formatting` member, even
+with `format=false`: a MEP generate result does not say whether the guest formatted, and the host does not report
+what it did not observe. Logs and warnings use stderr, never stdout.
 Failed reports contain no successful artifact list. Parsed JSON-mode invocation
 errors also produce a report.
 

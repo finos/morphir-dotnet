@@ -75,6 +75,20 @@ public sealed class GenerateSteps : IDisposable
     [When("I generate F# with the external F# backend extension")]
     public async Task GenerateWithExtension() => await Invoke(null, $"--extension \"{BackendGuest}\"");
 
+    [When("I generate F# with the external F# backend extension and the option {string}")]
+    public async Task GenerateWithExtensionAndOption(string option) => await Invoke(null, $"--extension \"{BackendGuest}\"", $"--option {option}");
+
+    /// <summary>
+    /// The host reports formatting only from a backend it observes (the built-in): a MEP generate result does not say
+    /// whether the guest formatted, so the report of an external backend has no <c>formatting</c> member.
+    /// </summary>
+    [Then("the report has no formatting member")]
+    public void HasNoFormatting()
+    {
+        using var json = JsonDocument.Parse(_run.Result!.StandardOutput);
+        json.RootElement.TryGetProperty("formatting", out _).Should().BeFalse(_run.Result.StandardOutput);
+    }
+
     [Given("a project whose configuration selects the external F# backend")]
     public void ProjectSelectsExtension() => File.WriteAllText(Path.Combine(_directory, "morphir.toml"),
         $"[project]\nname = \"car/rental\"\n\n[codegen.fsharp]\nextension = '{BackendGuest}'\n");

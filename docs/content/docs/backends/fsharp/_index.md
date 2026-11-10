@@ -143,7 +143,9 @@ and for the extension alike. The files are the generator's own text:
 - the same bytes on every operating system, under JIT and Native AOT, and in
   every current culture.
 
-The generate report says `"formatting": "off"`. The default formats when the
+For the built-in backend the generate report says `"formatting": "off"`; the report of
+the extension has no `formatting` member, because the host cannot observe what
+the guest did. The default formats when the
 host can run Fantomas (`"applied"`); the Native AOT `morphir` cannot, so under
 the default it writes the same unformatted text, reports `"unavailable"` and
 warns on stderr. Formatting the generated files with a tool of your choice
