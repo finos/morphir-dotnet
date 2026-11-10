@@ -30,7 +30,7 @@ reference is [morphir mck wasm-host]({{< relref "/docs/cli/mck-wasm-host" >}}).
 dotnet build src/Morphir/Morphir.csproj -c Release
 src/Morphir/bin/Release/net10.0/morphir mck wasm-host run \
   --kit conformance/suites/wasm-host --host /path/to/host \
-  --host-profile morphir-bytes-v1 --offering native-cli --engine "<engine>" \
+  --host-profile morphir-bytes-v1 --offering native-cli --platform <rid> --engine "<engine>" \
   --report .dev/wasm-host.json
 src/Morphir/bin/Release/net10.0/morphir mck wasm-host report-check \
   --kit conformance/suites/wasm-host --report .dev/wasm-host.json
@@ -46,6 +46,8 @@ for the 10- and 30-second call deadlines.
   `stdoutFrames`, `events`, `noEvents`, `guestOutput`, `guestOutputIncludes`, `noGuestOutput`,
   `withinSeconds`) or a convention check (`started.moduleSha256`, `started.bounds`,
   `fault.members`).
+- A run with alternatives passes on one alternative that applies to the host; the report names it in
+  `satisfied`, and a failure names its alternative.
 - Record each difference as a runner defect, a contract question or a host defect before you compare
   another host. The first run, against the MoonBit native CLI, is in
   `openspec/changes/add-wasm-extension-host/evidence/1.5-moonbit-run.md`.
