@@ -21,8 +21,8 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
 
     /// <summary>
     /// Whether the backend formatted the generated files: <c>applied</c>, <c>off</c> (the backend option turned it off) or
-    /// <c>unavailable</c> (formatting was asked for, but this host cannot run the formatter). Written only when the
-    /// backend reports it.
+    /// <c>unavailable</c> (formatting was asked for, but this host cannot run the formatter). Written only for a built-in
+    /// backend: the host does not observe what an external backend did.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Formatting { get; init; }

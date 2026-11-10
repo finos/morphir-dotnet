@@ -263,6 +263,41 @@ public sealed class CompileTargetTests
     }
 
     [Test]
+    public async Task OnAHostThatCannotFormatCompileTargetWarnsOnStderrOnlyAndTheReportSaysUnavailable()
+    {
+        using var workspace = Project();
+        void Unformattable(IServiceCollection services) =>
+            services.AddSingleton<IGenerationBackendResolver>(new RegisteredBackendResolver([new UnformattableFSharpBackend()]));
+
+        var human = await Compile(workspace, $"{Inputs} --target fsharp --generate-output gen", Unformattable);
+        human.Exit.Should().Be(0, human.Output.Error);
+        human.Output.Error.Should().Contain("warning:").And.Contain("format=false");
+        human.Output.Text.Should().NotContain("warning", "warnings never go to stdout");
+
+        var json = await Compile(workspace, $"--json {Inputs} --target fsharp --generate-output gen", Unformattable);
+        json.Exit.Should().Be(0, json.Output.Error);
+        json.Output.Error.Should().Contain("warning:");
+        using var report = JsonDocument.Parse(json.Output.Text);
+        report.RootElement.GetProperty("generation").GetProperty("formatting").GetString().Should().Be("unavailable");
+    }
+
+    [Test]
+    public async Task TheCompileReportNamesTheFormattingOfTheBuiltInBackendAndDoesNotWarnWhenItFormatted()
+    {
+        using var workspace = Project();
+        var formatted = await Compile(workspace, $"--json {Inputs} --target fsharp --generate-output gen");
+        formatted.Exit.Should().Be(0, formatted.Output.Error);
+        formatted.Output.Error.Should().NotContain("warning:");
+        using (var report = JsonDocument.Parse(formatted.Output.Text))
+            report.RootElement.GetProperty("generation").GetProperty("formatting").GetString().Should().Be("applied", "this test host runs JIT");
+
+        var off = await Compile(workspace, $"--json {Inputs} --target fsharp --generate-output gen --option format=false");
+        off.Exit.Should().Be(0, off.Output.Error);
+        using (var report = JsonDocument.Parse(off.Output.Text))
+            report.RootElement.GetProperty("generation").GetProperty("formatting").GetString().Should().Be("off");
+    }
+
+    [Test]
     public async Task ARunnerWithoutGenerationServicesRefusesATargetAfterPublication()
     {
         using var workspace = Project();
@@ -278,6 +313,24 @@ public sealed class CompileTargetTests
         result.ExitCode.Should().Be(2);
         CompileRunners.ErrorCodes(result).Should().Equal("compile.generation_unavailable");
         File.Exists(CompileReport.From(result).Output).Should().BeTrue("the IR was published before the generation stages");
+    }
+
+    /// <summary>
+    /// The built-in F# backend as on the Native AOT host, which cannot run Fantomas: the same files, recorded as
+    /// <c>unavailable</c>. The dynamic-code switch cannot change inside a running test host.
+    /// </summary>
+    private sealed class UnformattableFSharpBackend : IGenerationBackend
+    {
+        private readonly FSharpGenerationBackend _inner = new();
+
+        public BackendDescriptor Descriptor => _inner.Descriptor;
+
+        public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options) => _inner.ValidateOptions(options);
+
+        public async ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct) =>
+            await _inner.GenerateAsync(request, ct) is Outcome<GenerationArtifacts>.Success success
+                ? new Outcome<GenerationArtifacts>.Success(success.Value with { Formatting = Morphir.CodeGeneration.FSharp.FSharpFormatting.Unavailable.WireValue })
+                : throw new InvalidOperationException("The F# backend generates the project.");
     }
 
     /// <summary>A backend that records its requests and generates one file.</summary>

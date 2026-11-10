@@ -243,7 +243,9 @@ Both give the same files with the same bytes, and both reports name the same bac
 configuration selects no backend extension. `compile --target` always runs the built-in backend of the target
 and does not read `[codegen.<target>].extension`; when that key is set, the command prints a note on stderr,
 and only `morphir generate` runs the extension. Classic IR versions
-(`1`, `2` and `3`) give a classic model, and the backend uses its classic path.
+(`1`, `2` and `3`) give a classic model, and the backend uses its classic path. As in `generate`, the
+`generation` member says whether the built-in backend formatted the files (`formatting`: `applied`, `off` or
+`unavailable`), and a host that cannot run the formatter (the Native AOT `morphir`) writes a warning on stderr, on stdout or in the JSON output; pass `--option format=false` for the unformatted files without the warning.
 
 - Generation does not run when the compile fails.
 - When generation fails, the compiled IR stays published. The report has `success: false`, the `output`
@@ -406,7 +408,7 @@ The report members are:
 | `diagnostics` | Every diagnostic of the run, ordered by stage, then document, then position. |
 | `failureKind` | `source`, `invocation`, `configuration`, `operational` or `cancelled`, or null. |
 | `origins` | Where each setting came from: `cli` with its `flag`, `configuration` with its `file` and `key`, or `default`. |
-| `generation` | Only with `--target`: `target`, `backend` (null when selection failed), `output`, and the `generate` report members `sourceVersion`, `family`, `distributionKind`, `representation`, `artifacts`, `written`, `unchanged` and `removed`. |
+| `generation` | Only with `--target`: `target`, `backend` (null when selection failed), `output`, and the `generate` report members `sourceVersion`, `family`, `distributionKind`, `representation`, `artifacts`, `written`, `unchanged` and `removed`, and `formatting` when the backend reports it. |
 
 Diagnostics have the frontend (MEP) shape: `severity`, `code`, `message`, and optional `location` (a
 document `uri` and a zero-based `range` in UTF-16 code units), `related` and `data`. A location `uri` is

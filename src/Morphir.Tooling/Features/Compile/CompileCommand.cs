@@ -103,6 +103,10 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
             if (compiled.Settings?.IgnoredBackendExtension is { } ignored && generation?.Target is Morphir.Tooling.Features.Generate.RequestedTarget.Valid requested)
                 await output.StandardError.WriteLineAsync(
                     $"note: compile --target {requested.Id.Value} runs the built-in backend. {ProjectCompileSettingsResolver.Describe(ignored.Origin)} sets {ProjectCompileSettingsResolver.CodegenExtensionKey(requested.Id.Value)} = {ignored.Value}, which only morphir generate runs.");
+            // As in generate: a host that cannot run the formatter says so on stderr, in every mode.
+            if (report.Generation is { } generated)
+                foreach (var warning in Morphir.Tooling.Features.Generate.GenerateCommand.FormattingWarnings(generated.Formatting, generated.Backend ?? generated.Target))
+                    await output.StandardError.WriteLineAsync(warning);
             await RenderAsync(output, report, mode, CancellationToken.None);
             return report.ExitCode;
         });
