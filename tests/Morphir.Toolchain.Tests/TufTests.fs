@@ -231,6 +231,9 @@ let private rootVersion (version: uint64) (rootKeys: TestKey list) (threshold: i
 
     envelope signed signers
 
+let private identityOfRoot (root: Value) =
+    TufMetadata.repositoryIdentity (TufMetadata.readRoot (canonical root) |> expectOk "root")
+
 let private anchor () =
     match TrustAnchor.load TrustAnchorPurpose.TestOnly (canonical (metadataSet "metadata").Root) with
     | Ok(trusted, _) -> trusted
@@ -369,7 +372,7 @@ let anchorTests =
             | Error refusal -> failtestf "refused: %A" refusal)
 
         testCase "a fixture key cannot be loaded as a production root" (fun () ->
-            match TrustAnchor.load TrustAnchorPurpose.Production (canonical (metadataSet "metadata").Root) with
+            match TrustAnchor.load (TrustAnchorPurpose.Production(identityOfRoot (metadataSet "metadata").Root)) (canonical (metadataSet "metadata").Root) with
             | Error(TrustAnchorRefusal.TestOnlyKey _) -> ()
             | other -> failtestf "expected the TEST-ONLY key to be refused, got %A" other)
 
@@ -378,7 +381,7 @@ let anchorTests =
             // A root whose only root key is not a fixture key, with threshold 1.
             let root = envelope (memberOf "signed" (rootVersion 1UL [ only ] 1 [])) [ only ]
 
-            match TrustAnchor.load TrustAnchorPurpose.Production (canonical root) with
+            match TrustAnchor.load (TrustAnchorPurpose.Production(identityOfRoot root)) (canonical root) with
             | Error TrustAnchorRefusal.RootThresholdBelowTwo -> ()
             | other -> failtestf "expected RootThresholdBelowTwo, got %A" other)
 
@@ -674,4 +677,75 @@ let reviewT2Tests =
                         Timestamp = setAt [ "signed"; "version" ] (number 3UL) newer.Timestamp }
 
             Expect.equal (refused (refresh trusted (sourceOf set []))) (TufFailure.Rollback TufRole.Snapshot) "targets v1 after v2")
+    ]
+
+/// A root whose keys are all new TEST-ONLY labels, none of the five fixture keys: root keys and an online key for the
+/// other roles.
+let private freshRoot (version: uint64) (rootKeys: TestKey list) (threshold: int) (signers: TestKey list) =
+    let online = newTestKey "online"
+    let role (keys: TestKey list) (n: int) = Value.Object [ "keyids", Value.Array(keys |> List.map (fun key -> text key.KeyId)); "threshold", number (uint64 n) ]
+
+    let signed =
+        memberOf "signed" (metadataSet "metadata").Root
+        |> setAt [ "version" ] (number version)
+        |> setAt [ "keys" ] (Value.Object [ for key in (rootKeys @ [ online ]) |> List.distinctBy _.KeyId -> key.KeyId, keyValue key ])
+        |> setAt [ "roles" ] (Value.Object [ "root", role rootKeys threshold; "timestamp", role [ online ] 1; "snapshot", role [ online ] 1; "targets", role [ online ] 1 ])
+
+    envelope signed signers
+
+let private identityOf (root: Value) =
+    TufMetadata.repositoryIdentity (TufMetadata.readRoot (canonical root) |> expectOk "root")
+
+[<Tests>]
+let reviewT3Tests =
+    // Review of #581, T3: the purpose is carried in the trusted set and every root accepted in rotation meets its
+    // rules; production needs the repository the caller names, not the deny list alone.
+    let rootA, rootB = newTestKey "root-a", newTestKey "root-b"
+    let first () = freshRoot 1UL [ rootA; rootB ] 2 [ rootA; rootB ]
+
+    let productionAnchor () =
+        match TrustAnchor.load (TrustAnchorPurpose.Production(identityOf (first ()))) (canonical (first ())) with
+        | Ok(trusted, _) -> trusted
+        | Error refusal -> failtestf "the fresh root does not load for the repository it is: %A" refusal
+
+    testList "T3 production rules hold for every trusted root" [
+        testCase "a root is not production on the strength of the deny list: it must be the repository named" (fun () ->
+            // None of the five fixture keys, threshold 2: the deny list and the threshold pass.
+            let other = identityOf ((metadataSet "metadata").Root)
+
+            match TrustAnchor.load (TrustAnchorPurpose.Production other) (canonical (first ())) with
+            | Error(TrustAnchorRefusal.OtherRepository actual) -> Expect.equal actual (identityOf (first ())) "the root's own identity"
+            | other -> failtestf "expected another repository, got %A" other
+
+            Expect.equal (productionAnchor ()).Purpose (TrustAnchorPurpose.Production(identityOf (first ()))) "the purpose is carried")
+
+        testCase "the fixture root is refused for production even when it is the repository named" (fun () ->
+            let fixture = (metadataSet "metadata").Root
+
+            match TrustAnchor.load (TrustAnchorPurpose.Production(identityOf fixture)) (canonical fixture) with
+            | Error(TrustAnchorRefusal.TestOnlyKey _) -> ()
+            | other -> failtestf "expected the TEST-ONLY key to be refused, got %A" other)
+
+        testCase "a production trusted set does not rotate to the fixture's TEST-ONLY root" (fun () ->
+            // The fixture root at version 2, signed by the production root keys and the fixture's root keys.
+            let v2 = rootVersion 2UL (keysOf "root") 2 ([ rootA; rootB ] @ keysOf "root")
+            let source = { sourceOf (metadataSet "metadata") [] with Root = fun version -> if version = 2UL then Some(canonical v2) else None }
+
+            match TufClient.refresh referenceTime (productionAnchor ()) source with
+            | RefreshResult.Failed(TufFailure.RootRotationInvalid(2UL, _), trusted) -> Expect.equal trusted.Root.Version 1UL "v1 is kept"
+            | other -> failtestf "expected the rotation to a TEST-ONLY root to be refused, got %A" other)
+
+        testCase "a production trusted set does not rotate to a root threshold of 1" (fun () ->
+            let v2 = freshRoot 2UL [ rootA; rootB ] 1 [ rootA; rootB ]
+            let source = { sourceOf (metadataSet "metadata") [] with Root = fun version -> if version = 2UL then Some(canonical v2) else None }
+
+            match TufClient.refresh referenceTime (productionAnchor ()) source with
+            | RefreshResult.Failed(TufFailure.RootRotationInvalid(2UL, _), _) -> ()
+            | other -> failtestf "expected the rotation to threshold 1 to be refused, got %A" other)
+
+        testCase "control: a TEST-ONLY trusted set may rotate to a root threshold of 1" (fun () ->
+            let v2 = rootVersion 2UL (keysOf "root") 1 (keysOf "root")
+            let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ v2 ]))
+            Expect.equal trusted.Root.Version 2UL "v2"
+            Expect.equal trusted.Purpose TrustAnchorPurpose.TestOnly "still TEST-ONLY")
     ]

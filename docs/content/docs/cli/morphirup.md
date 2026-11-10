@@ -246,6 +246,13 @@ The executable needs no .NET runtime, no ICU and no OpenSSL: it is built in inva
 
 `Morphir.Toolchain` has the verification part of a TUF client for the tool release metadata v1 profile: it reads root, timestamp, snapshot and targets metadata, checks Ed25519 signature thresholds, follows root rotation, and checks rollback, links and expiry. No `morphirup` command uses it yet, and nothing in this release downloads or authenticates repository metadata. **This code has not had a security review. It must not be used to authenticate a production release until it has.**
 
+A trust anchor has a purpose, `TestOnly` or `Production`, and every root the client later accepts by rotation must meet the same rules as the anchor. A production anchor must be the repository whose identity the caller names: no root is production on the strength of the checks below alone, and no production identity ships with this build. The production checks then refuse:
+
+- a root threshold below two, at the anchor and at every rotation;
+- any of the five public keys of this repository's TEST-ONLY signed fixture, wherever a root lists them.
+
+That deny list stops those five keys and nothing else. It does not stop any other published test seed, of which this repository has several, and it says nothing about which repository is meant. That is why production also needs the repository identity.
+
 ## Related
 
 - [Toolchain acquisition contracts](https://github.com/finos/morphir/blob/1451c081f56cf5b74618302d315dcdbe573028a1/docs/spec/toolchain/index.md) in finos/morphir: a draft, in the unmerged [finos/morphir#1147](https://github.com/finos/morphir/pull/1147), at the commit this build is pinned to

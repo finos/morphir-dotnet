@@ -58,11 +58,65 @@ module TufSignatures =
             // Fails closed: a defect never counts a signature.
             false
 
-/// <summary>The trusted metadata a refresh starts from and returns: always a root, and the last trusted timestamp,
-/// snapshot and targets once a refresh has completed. A value in and a value out; keeping it durable is the
-/// caller's.</summary>
+/// <summary>What a trust anchor is for, carried in every trusted set it starts.</summary>
+[<RequireQualifiedAccess>]
+type TrustAnchorPurpose =
+    /// A fixture or test repository, explicitly configured.
+    | TestOnly
+    /// <summary>The repository whose identity the caller names, to authenticate real releases. A root is never
+    /// production on the strength of the TEST-ONLY deny list and the threshold alone: it must be the repository named.
+    /// Where a production identity comes from (pinned in the binary, or configured) is the maintainer's decision; no
+    /// production identity ships with this build.</summary>
+    | Production of repository: Sha256
+
+/// Why a root was refused as a trust anchor.
+[<RequireQualifiedAccess>]
+type TrustAnchorRefusal =
+    /// The root does not read, or does not meet its own root threshold.
+    | Unreadable of failure: TufFailure
+    /// A production root that is not the repository the caller named.
+    | OtherRepository of actual: Sha256
+    /// A production root that lists a published TEST-ONLY fixture key.
+    | TestOnlyKey of keyId: string
+    /// A production root whose root threshold is below the two signatures the profile requires of the official
+    /// repository.
+    | RootThresholdBelowTwo
+
+/// <summary>The rules a root must meet for its purpose, at the anchor and at every rotation. For production: a root
+/// threshold of at least two, and none of the published TEST-ONLY fixture keys.</summary>
+/// <remarks>What the deny list does: it refuses the five public keys of this repository's TEST-ONLY signed fixture,
+/// wherever a production root lists them. What it does not do: it does not refuse any other published test seed (this
+/// repository has several), and it says nothing about which repository is meant. That is why production also needs
+/// the repository identity the caller names.</remarks>
+module TrustRules =
+    /// The Ed25519 public keys of the TEST-ONLY signed repository of the toolchain contracts. They are published with
+    /// their seeds' labels, so anyone can sign with them.
+    let testOnlyPublicKeys =
+        set
+            [ "f9db72b56a2dc2a43424eb6391d3821584c62194d2e539f748bafc9159e865a0"
+              "c27cf17ad50b98201df9c5f35993ad472cf1dc45ac2678df17cdb2249900b173"
+              "139a7bf84b988c484391e5b513b8ccc357ba531f042f6a6fef04949a9c1fa50c"
+              "a0e75c13e50d16e9b8810b56a0364a1786d80ed5e04c2b18345571172801d3f1"
+              "c7bbb4edb1d3835582259412da5a09e50393b90ed506afb539a615bfee833317" ]
+
+    /// Why a root breaks its purpose's rules, or None. The repository identity is checked at the anchor only.
+    let refusal (purpose: TrustAnchorPurpose) (root: TufRoot) : TrustAnchorRefusal option =
+        match purpose with
+        | TrustAnchorPurpose.TestOnly -> None
+        | TrustAnchorPurpose.Production _ ->
+            if root.Roles[TufRole.Root].Threshold < 2 then
+                Some TrustAnchorRefusal.RootThresholdBelowTwo
+            else
+                root.Keys
+                |> Map.tryFindKey (fun _ publicKey -> testOnlyPublicKeys.Contains(Convert.ToHexStringLower publicKey))
+                |> Option.map TrustAnchorRefusal.TestOnlyKey
+
+/// <summary>The trusted metadata a refresh starts from and returns: always a root and the anchor's purpose, and the
+/// last trusted timestamp, snapshot and targets once a refresh has verified them. A value in and a value out; keeping
+/// it durable is the caller's.</summary>
 type TufTrustedSet =
-    { Root: TufRoot
+    { Purpose: TrustAnchorPurpose
+      Root: TufRoot
       Timestamp: TufTimestamp option
       Snapshot: TufSnapshot option
       Targets: TufTargets option }
@@ -156,7 +210,7 @@ module TufClient =
     /// <summary>Root rotation (5.3): from trusted version N, only N + 1, then one version at a time. Each new root
     /// must have the next version and meet the old root's threshold and its own. After 32 accepted roots, when another
     /// follows, the refresh pauses.</summary>
-    let private rotate (trusted: TufRoot) (source: MetadataSource) (accept: TufRoot -> unit) : Result<bool, TufFailure> =
+    let private rotate (purpose: TrustAnchorPurpose) (trusted: TufRoot) (source: MetadataSource) (accept: TufRoot -> unit) : Result<bool, TufFailure> =
         let rec next (root: TufRoot) (accepted: int) =
             let version = root.Version + 1UL
 
@@ -176,8 +230,11 @@ module TufClient =
                     elif not (TufSignatures.thresholdMet read.Signed TufRole.Root read) then
                         Error(TufFailure.RootRotationInvalid(version, "the new root's own threshold is not met"))
                     else
-                        accept read.Signed
-                        next read.Signed (accepted + 1)
+                        match TrustRules.refusal purpose read.Signed with
+                        | Some refusal -> Error(TufFailure.RootRotationInvalid(version, $"the new root breaks the anchor's purpose: %A{refusal}"))
+                        | None ->
+                            accept read.Signed
+                            next read.Signed (accepted + 1)
 
         next trusted 0
 
@@ -208,7 +265,7 @@ module TufClient =
 
         let steps () : Result<RefreshResult, TufFailure> =
             result {
-                let! paused = rotate trusted.Root source accept
+                let! paused = rotate trusted.Purpose trusted.Root source accept
 
                 if paused then
                     return RefreshResult.RootRotationPaused current.Value
@@ -303,40 +360,16 @@ module TufClient =
         match outcome with
         | Ok outcome -> outcome
         | Error failure -> RefreshResult.Failed(failure, current.Value)
-/// What a trust anchor is for.
-[<RequireQualifiedAccess>]
-type TrustAnchorPurpose =
-    /// A fixture or test repository, explicitly configured.
-    | TestOnly
-    /// A repository whose roots authenticate real releases. No production root exists in this build.
-    | Production
-
-/// Why a root was refused as a trust anchor.
-[<RequireQualifiedAccess>]
-type TrustAnchorRefusal =
-    /// The root does not read, or does not meet its own root threshold.
-    | Unreadable of failure: TufFailure
-    /// A production root that lists a published TEST-ONLY fixture key.
-    | TestOnlyKey of keyId: string
-    /// A production root whose root threshold is below the two signatures the profile requires of the official
-    /// repository.
-    | RootThresholdBelowTwo
-
 /// <summary>Loading the first trusted root, delivered out of band. A root must read and meet its own root threshold.
-/// For production, its root threshold must be at least two, and it must list none of the published TEST-ONLY fixture
-/// keys. No production root ships with this build.</summary>
+/// For production, it must be the repository the caller names, and meet <c>TrustRules</c>: a root threshold of at
+/// least two and none of the published TEST-ONLY fixture keys. Every root the refresh later accepts must meet the same
+/// rules. No production identity ships with this build.</summary>
 /// <remarks>SECURITY: this code has not had a security review. It must not be used to authenticate a production
 /// release until it has.</remarks>
 module TrustAnchor =
     /// The Ed25519 public keys of the TEST-ONLY signed repository of the toolchain contracts. They are published with
     /// their seeds' labels, so anyone can sign with them.
-    let testOnlyPublicKeys =
-        set
-            [ "f9db72b56a2dc2a43424eb6391d3821584c62194d2e539f748bafc9159e865a0"
-              "c27cf17ad50b98201df9c5f35993ad472cf1dc45ac2678df17cdb2249900b173"
-              "139a7bf84b988c484391e5b513b8ccc357ba531f042f6a6fef04949a9c1fa50c"
-              "a0e75c13e50d16e9b8810b56a0364a1786d80ed5e04c2b18345571172801d3f1"
-              "c7bbb4edb1d3835582259412da5a09e50393b90ed506afb539a615bfee833317" ]
+    let testOnlyPublicKeys = TrustRules.testOnlyPublicKeys
 
     /// The trusted set the anchor starts, and the repository identity.
     let private loadOf (purpose: TrustAnchorPurpose) (bytes: byte array) : Result<TufTrustedSet * Sha256, TrustAnchorRefusal> =
@@ -345,19 +378,21 @@ module TrustAnchor =
         | Ok read when not (TufSignatures.thresholdMet read.Signed TufRole.Root read) ->
             Error(TrustAnchorRefusal.Unreadable(TufFailure.SignatureInvalid TufRole.Root))
         | Ok read ->
-            let testKey =
-                read.Signed.Keys |> Map.tryFindKey (fun _ publicKey -> testOnlyPublicKeys.Contains(Convert.ToHexStringLower publicKey))
+            let identity = TufMetadata.repositoryIdentity read
 
-            match purpose, testKey with
-            | TrustAnchorPurpose.Production, _ when read.Signed.Roles[TufRole.Root].Threshold < 2 -> Error TrustAnchorRefusal.RootThresholdBelowTwo
-            | TrustAnchorPurpose.Production, Some keyId -> Error(TrustAnchorRefusal.TestOnlyKey keyId)
+            match purpose with
+            | TrustAnchorPurpose.Production named when identity <> named -> Error(TrustAnchorRefusal.OtherRepository identity)
             | _ ->
+            match TrustRules.refusal purpose read.Signed with
+            | Some refusal -> Error refusal
+            | None ->
                 Ok(
-                    { Root = read.Signed
+                    { Purpose = purpose
+                      Root = read.Signed
                       Timestamp = None
                       Snapshot = None
                       Targets = None },
-                    TufMetadata.repositoryIdentity read
+                    identity
                 )
 
     let load (purpose: TrustAnchorPurpose) (bytes: byte array) : Result<TufTrustedSet * Sha256, TrustAnchorRefusal> =
