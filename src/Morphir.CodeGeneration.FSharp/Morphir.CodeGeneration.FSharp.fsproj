@@ -2,6 +2,8 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- C# (Morphir.Tooling) calls this project: nullable metadata lets it see FSharpGeneration.Formatting's null. -->
+    <Nullable>enable</Nullable>
     <Description>Morphir classic and v4 IR to F# code generation</Description>
   </PropertyGroup>
   <ItemGroup>

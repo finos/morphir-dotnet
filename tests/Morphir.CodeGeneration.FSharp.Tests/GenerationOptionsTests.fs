@@ -178,6 +178,21 @@ let tests =    testList "Generation options" [
             Expect.equal (List.map fst files) (List.map fst formatted) "the same files in the same order"
             Expect.notEqual (List.map snd files) (List.map snd formatted) "the text is not the formatter's"
 
+        testCase "FSharpGeneration.Formatting, for C# callers, gives the recorded text, or null when nothing is recorded"
+        <| fun () ->
+            let tree = Morphir.CodeGeneration.FSharp.Transpiler.generateModelWith off (typedV4 "daily-rate-v4.json") (VFile.fromPath "model.json")
+            Expect.equal (FSharpGeneration.Formatting tree) "off" "the recorded formatting"
+            Expect.isNull (FSharpGeneration.Formatting VFileTree.empty) "null when the tree records none"
+
+        testCase "FSharpGeneration.WithRequiredSemantics, for C# callers, records the required semantics on the context"
+        <| fun () ->
+            let context = FSharpGeneration.WithRequiredSemantics(VFile.fromPath "model.json", [| "b"; "a"; "b" |])
+
+            Expect.equal
+                (VFile.tryGet Morphir.CodeGeneration.FSharp.Transpiler.requiredSemantics context)
+                (Some(set [ "a"; "b" ]))
+                "the semantics, as a set"
+
         testCase "Format false writes the emitter's own text for classic models too, from memory and from a file"
         <| fun () ->
             for version in [ "1"; "2"; "3" ] do

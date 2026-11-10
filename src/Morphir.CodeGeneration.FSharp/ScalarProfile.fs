@@ -85,7 +85,7 @@ module internal ScalarProfile =
             | StringLiteral value -> TargetSyntax.stringLiteral value
             | CharLiteral value ->
                 if
-                    isNull value
+                    String.IsNullOrEmpty value
                     || value.Length
                        <> 1
                     || Char.IsSurrogate value[0]

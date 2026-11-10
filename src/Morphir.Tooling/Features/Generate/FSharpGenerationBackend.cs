@@ -1,7 +1,6 @@
 using Morphir.Extensions;
 using System.Collections.Immutable;
 using System.Text.Json;
-using Microsoft.FSharp.Collections;
 using Morphir.CodeGeneration.FSharp;
 using Morphir.IR.Model;
 using Morphir.IR.Pipeline;
@@ -49,7 +48,7 @@ public sealed class FSharpGenerationBackend : IGenerationBackend
             return ValueTask.FromResult(Fail(GenerationFailureKind.Invocation, "invalid-backend-request", "The request does not contain validated F# options and target."));
 
         var context = VFileModule.fromPath(request.Model.Original.SourcePath);
-        context = VFileModule.set(Transpiler.requiredSemantics, SetModule.OfSeq(request.Model.Descriptor.RequiredSemantics), context);
+        context = FSharpGeneration.WithRequiredSemantics(context, request.Model.Descriptor.RequiredSemantics);
         var tree = Transpiler.generateModelWith(new GenerationOptions(options.Optimize, options.Format), request.Model.Model, context);
         var diagnostics = tree.Messages.Select(message => new GenerationDiagnostic(
             message.RuleId?.Value ?? "generation", message.Message, message.Path?.Value, message.Location?.Value,
@@ -58,10 +57,6 @@ public sealed class FSharpGenerationBackend : IGenerationBackend
             return ValueTask.FromResult(Fail(GenerationFailureKind.Cancelled, "cancelled", "Generation was cancelled."));
         return ValueTask.FromResult<Outcome<GenerationArtifacts>>(VFileTreeModule.hasErrors(tree)
             ? new Outcome<GenerationArtifacts>.Failure(new(GenerationFailureKind.Semantic, diagnostics))
-            : new Outcome<GenerationArtifacts>.Success(new(tree, diagnostics) { Formatting = FormattingOf(tree) }));
+            : new Outcome<GenerationArtifacts>.Success(new(tree, diagnostics) { Formatting = FSharpGeneration.Formatting(tree) }));
     }
-
-    /// <summary>What the generator recorded about formatting: applied, off or unavailable.</summary>
-    private static string? FormattingOf(VFileTree tree) =>
-        VFileTreeModule.tryGet(Transpiler.formatting, tree) is { } recorded ? recorded.Value : null;
 }

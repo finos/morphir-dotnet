@@ -48,7 +48,13 @@ module Transpiler =
         match error with
         | GenerationFailure(category, location, message) -> Some(category, location, message)
         | :? JsonException as ex ->
-            Some("parse", (if isNull ex.Path then "$" else ex.Path), ex.Message)
+            Some(
+                "parse",
+                (match ex.Path with
+                 | null -> "$"
+                 | path -> path),
+                ex.Message
+            )
         | :? System.InvalidOperationException as ex -> Some("decode", "$", ex.Message)
         | :? System.FormatException as ex -> Some("decode", "$", ex.Message)
         | _ -> None
@@ -321,3 +327,21 @@ module Transpiler =
     /// Generates with the optimizer on or off, so tests can compare behaviour.
     let internal generateWith (optimize: bool) (input: VFile) : VFileTree =
         generateWithOptions { GenerationOptions.Default with Optimize = optimize } input
+
+/// <summary>
+/// The generation metadata of <see cref="Transpiler"/> for C# callers (the built-in F# generation backend): the members
+/// take and return .NET types, so C# reads no F# option and builds no F# set.
+/// </summary>
+[<AbstractClass; Sealed>]
+type FSharpGeneration =
+
+    /// <summary>
+    /// What the generator recorded about formatting (<see cref="Transpiler.formatting"/>): <c>applied</c>, <c>off</c> or
+    /// <c>unavailable</c>; null when the tree records nothing.
+    /// </summary>
+    static member Formatting(tree: VFileTree) : string | null =
+        VFileTree.tryGet Transpiler.formatting tree |> Option.toObj
+
+    /// <summary>The context with its required semantics (<see cref="Transpiler.requiredSemantics"/>), given as any sequence.</summary>
+    static member WithRequiredSemantics(context: VFile, semantics: seq<string>) : VFile =
+        VFile.set Transpiler.requiredSemantics (Set.ofSeq semantics) context
