@@ -286,6 +286,24 @@ let tests =
                     | other -> failtestf "expected one document_unavailable for %A, got %A" document other)
         ]
 
+        testCase "a file another process holds open is document_unavailable in morphirup's own words" (fun () ->
+            use sandbox = tempDirectory ()
+            let request = Path.Combine(sandbox.Work, "toolchain.toml")
+            File.Copy(fixture "request/approved.toml", request)
+
+            // On Windows no other handle may open it; elsewhere FileShare is advisory, so the read may succeed.
+            use held = new FileStream(request, FileMode.Open, FileAccess.ReadWrite, FileShare.None)
+            let run = runIn sandbox.Work Platform.WinX64 [ "doctor"; "--request"; request; "--lock"; fixture "lock/two-platforms-bound.json" ]
+
+            for diagnostic in (readResult run).Diagnostics do
+                Expect.isFalse (diagnostic.Message.Text.Contains "IO_") $"no .NET resource key: {diagnostic.Message.Text}"
+                Expect.isFalse (diagnostic.Message.Text.Contains "_File") $"no .NET resource key: {diagnostic.Message.Text}"
+
+            if OperatingSystem.IsWindows() then
+                match (readResult run).Diagnostics with
+                | { Detail = DiagnosticDetail.DocumentUnavailable DocumentKind.Request; Message = message } :: _ ->
+                    Expect.stringContains message.Text "is in use by another process" "the cause, in words"
+                | other -> failtestf "expected document_unavailable for the request, got %A" other)
         testCase "a non-portable recipe target is non_portable_path at the recipe, checked before any file is read" (fun () ->
             use sandbox = tempDirectory ()
 

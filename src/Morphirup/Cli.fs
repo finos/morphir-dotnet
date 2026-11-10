@@ -124,6 +124,22 @@ let private parse (known: string list) (flags: string list) (args: string list) 
 /// Unix device trees are refused by name; anything else that does not open within five seconds, such as a FIFO, is
 /// refused as not a regular file.
 /// </summary>
+/// <summary>Why a file cannot be read, in morphirup's own words. Exception messages are not used: with
+/// UseSystemResourceKeys they are .NET resource keys such as IO_SharingViolation_File, which mean nothing to a
+/// user.</summary>
+let private unreadable (error: exn) =
+    // Windows reports a file another process holds open as ERROR_SHARING_VIOLATION (32) or ERROR_LOCK_VIOLATION (33).
+    let code = error.HResult &&& 0xFFFF
+
+    match error with
+    | :? FileNotFoundException
+    | :? DirectoryNotFoundException -> "does not exist"
+    | :? PathTooLongException -> "cannot be read: its path is too long for this system"
+    | :? UnauthorizedAccessException -> "cannot be read: access is denied"
+    | :? IOException when code = 32 || code = 33 -> "cannot be read: it is in use by another process"
+    | :? IOException -> $"cannot be read: input or output failed (error 0x{error.HResult:X8})"
+    | _ -> $"cannot be read ({error.GetType().Name})"
+
 let private readFile (io: Io) (limit: int64) (path: string) : Result<byte array, string> =
     let full = Path.GetFullPath(path, io.CurrentDirectory)
     io.Error.WriteLine $"morphirup: reading {full}"
@@ -182,10 +198,9 @@ let private readFile (io: Io) (limit: int64) (path: string) : Result<byte array,
                         Ok bytes
         with
         | :? AggregateException as error when (error.InnerException :? IOException || error.InnerException :? UnauthorizedAccessException) ->
-            let inner = error.InnerException |> Option.ofObj |> Option.map _.Message |> Option.defaultValue error.Message
-            Error $"{full} cannot be read: {inner}"
+            Error $"{full} {unreadable (nonNull error.InnerException)}"
         | :? IOException
-        | :? UnauthorizedAccessException as error -> Error $"{full} cannot be read: {error.Message}"
+        | :? UnauthorizedAccessException as error -> Error $"{full} {unreadable error}"
 
 let private platformOption (io: Io) (options: Options) : Result<Platform, Usage> =
     match options.TryGet "--platform", io.Platform with
