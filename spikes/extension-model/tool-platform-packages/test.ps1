@@ -201,3 +201,5 @@ foreach ($k in $disk.Keys) {
 }
 $md.ToString() | Set-Content (Join-Path $WorkDirectory 'result.md')
 Write-Host $md.ToString()
+# A failed step is recorded above; do not let its exit code become the script's (GitHub's pwsh wrapper exits with it).
+$global:LASTEXITCODE = 0
