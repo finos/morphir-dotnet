@@ -82,8 +82,11 @@ public sealed class MepExtensionCompileTests
     public void AnExtensionSettingResolvesToAProcessWithoutAShell()
     {
         var directory = Path.GetTempPath();
-        MepFrontendExtensionConnector.Resolve("morphir-fsharp-frontend", directory)
-            .Should().Be(("morphir-fsharp-frontend", Array.Empty<string>()), "a name without a directory is looked up on PATH");
+        // A name without a directory is searched on PATH only, and the absolute path starts; a name that is not
+        // there is refused before any process starts (ExtensionCommandResolutionTests has the cases).
+        var absent = "morphir-no-such-guest-" + Guid.NewGuid().ToString("N");
+        var refused = () => MepFrontendExtensionConnector.Resolve(absent, directory);
+        refused.Should().Throw<FileNotFoundException>().WithMessage($"*{absent}*PATH*");
 
         var relative = MepFrontendExtensionConnector.Resolve(Path.Combine("tools", "guest"), directory);
         relative.Executable.Should().Be(Path.GetFullPath(Path.Combine(directory, "tools", "guest")));

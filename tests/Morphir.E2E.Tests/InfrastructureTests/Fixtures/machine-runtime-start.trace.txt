@@ -1,0 +1,63 @@
+Tracing enabled @ Tue Nov 10 02:09:08 2026 GMT
+--- Invoked apphost [version: 10.0.14 @Commit: 0427b9abbead3fa64c6655eb4290c537397131fa] main = {
+<INSTALL>\morphir.exe
+--version
+}
+Redirecting errors to custom writer.
+The managed DLL bound to this executable is: 'morphir.dll'
+.NET root search location options: 0
+Using environment variable DOTNET_ROOT=[<MACHINE>] as runtime location.
+Reading fx resolver directory=[<MACHINE>\host\fxr]
+Considering fxr version=[10.0.13]...
+Considering fxr version=[10.0.14]...
+Detected latest fxr version=[<MACHINE>\host\fxr\10.0.14]...
+Resolved fxr [<MACHINE>\host\fxr\10.0.14\hostfxr.dll]...
+Loaded library from <MACHINE>\host\fxr\10.0.14\hostfxr.dll
+Invoking fx resolver [<MACHINE>\host\fxr\10.0.14\hostfxr.dll] hostfxr_main_startupinfo
+Host path: [<INSTALL>\morphir.exe]
+Dotnet path: [<MACHINE>]
+App path: [<INSTALL>\morphir.dll]
+Tracing enabled @ Tue Nov 10 02:09:08 2026 GMT
+--- Invoked hostfxr_main_startupinfo [version: 10.0.14 @Commit: 0427b9abbead3fa64c6655eb4290c537397131fa]
+Checking if CoreCLR path exists=[<MACHINE>\coreclr.dll]
+--- Executing in a native executable mode...
+Using dotnet root path [<MACHINE>]
+App runtimeconfig.json from [<INSTALL>\morphir.dll]
+Runtime config is cfg=<INSTALL>\morphir.runtimeconfig.json dev=<INSTALL>\morphir.runtimeconfig.dev.json
+Attempting to read dev runtime config: <INSTALL>\morphir.runtimeconfig.dev.json
+Attempting to read runtime config: <INSTALL>\morphir.runtimeconfig.json
+Runtime config [<INSTALL>\morphir.runtimeconfig.json] is valid=[1]
+--- The specified framework 'Microsoft.NETCore.App', version '10.0.0', apply_patches=1, version_compatibility_range=minor is compatible with the previously referenced version '10.0.0'.
+--- Resolving FX directory, name 'Microsoft.NETCore.App' version '10.0.0'
+Searching FX directory in [<MACHINE>]
+Attempting FX roll forward starting from version='[10.0.0]', apply_patches=1, version_compatibility_range=minor, roll_to_highest_version=0, prefer_release=1
+'Roll forward' enabled with version_compatibility_range [minor]. Looking for the lowest release greater than or equal version to [10.0.0]
+Found version [10.0.13]
+Applying patch roll forward from [10.0.13] on release only
+Inspecting version... [10.0.13]
+Inspecting version... [10.0.14]
+Changing Selected FX version from [] to [<MACHINE>\shared\Microsoft.NETCore.App\10.0.14]
+Chose FX version [<MACHINE>\shared\Microsoft.NETCore.App\10.0.14]
+Runtime config is cfg=<MACHINE>\shared\Microsoft.NETCore.App\10.0.14\Microsoft.NETCore.App.runtimeconfig.json dev=<MACHINE>\shared\Microsoft.NETCore.App\10.0.14\Microsoft.NETCore.App.runtimeconfig.dev.json
+Attempting to read dev runtime config: <MACHINE>\shared\Microsoft.NETCore.App\10.0.14\Microsoft.NETCore.App.runtimeconfig.dev.json
+Attempting to read runtime config: <MACHINE>\shared\Microsoft.NETCore.App\10.0.14\Microsoft.NETCore.App.runtimeconfig.json
+Runtime config [<MACHINE>\shared\Microsoft.NETCore.App\10.0.14\Microsoft.NETCore.App.runtimeconfig.json] is valid=[1]
+--- Summary of all frameworks:
+     framework:'Microsoft.NETCore.App', lowest requested version='10.0.0', found version='10.0.14', effective reference version='10.0.0' apply_patches=1, version_compatibility_range=minor, roll_to_highest_version=0, folder=<MACHINE>\shared\Microsoft.NETCore.App\10.0.14
+Executing as a framework-dependent app as per config file [<INSTALL>\morphir.runtimeconfig.json]
+--- Resolving hostpolicy.dll version from deps json [<MACHINE>\shared\Microsoft.NETCore.App\10.0.14\Microsoft.NETCore.App.deps.json]
+Dependency manifest <MACHINE>\shared\Microsoft.NETCore.App\10.0.14\Microsoft.NETCore.App.deps.json does not contain an entry for runtime.win-arm64.Microsoft.NETCore.DotNetHostPolicy
+The expected hostpolicy.dll directory is [<MACHINE>\shared\Microsoft.NETCore.App\10.0.14]
+Loaded library from <MACHINE>\shared\Microsoft.NETCore.App\10.0.14\hostpolicy.dll
+Tracing enabled @ Tue Nov 10 02:09:08 2026 GMT
+Reading from host interface version: [0x16041101:248] to initialize policy version: [0x16041101:248]
+--- Invoked hostpolicy [version: 10.0.14 @Commit: 0427b9abbead3fa64c6655eb4290c537397131fa] corehost_main = {
+<INSTALL>\morphir.exe
+--version
+}
+Mode: apphost
+Deps file: 
+-- arguments_t: app_root='<INSTALL>\' deps='<INSTALL>\morphir.deps.json' mgd_app='<INSTALL>\morphir.dll'
+...
+CoreCLR path = '<MACHINE>\shared\Microsoft.NETCore.App\10.0.14\coreclr.dll', CoreCLR dir = '<MACHINE>\shared\Microsoft.NETCore.App\10.0.14\'
+Loaded library from <MACHINE>\shared\Microsoft.NETCore.App\10.0.14\coreclr.dll

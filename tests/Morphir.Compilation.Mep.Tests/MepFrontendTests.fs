@@ -23,10 +23,30 @@ let private host =
 
 let private stderr = new StringWriter()
 
+/// The working folder of the guests that the adapter starts: a test sandbox shared by these tests, removed after the
+/// run by Program.fs. The adapter under test starts the guest process itself, so the guest cannot be confined with
+/// TestSandbox.Apply; it runs in the sandbox, and the run's MachineTripwire checks the machine folders.
+let private guestWork = lazy (Morphir.TestSupport.TestSandbox.Create "morphir-frontend-adapter-guests-")
+
+/// Removes the guests' working folder, if a test made it.
+let internal disposeGuestWork () =
+    if guestWork.IsValueCreated then
+        guestWork.Value.Dispose()
+
+/// The sandbox's environment for the guests that the adapter starts: the inherited variables, with the sandbox's
+/// home and machine folders and its MORPHIR_* settings (TestSandbox.EnvironmentSnapshot).
+let private sandboxEnvironment () : Collections.Generic.IReadOnlyDictionary<string, string> =
+    let inherited =
+        readOnlyDict
+            [ for entry in Environment.GetEnvironmentVariables() |> Seq.cast<Collections.DictionaryEntry> ->
+                  string entry.Key, string entry.Value ]
+
+    guestWork.Value.EnvironmentSnapshot inherited
+
 let private optionsFor (arguments: string list) : MepFrontendOptions =
     { Executable = host
       Arguments = Array.ofList arguments
-      WorkingDirectory = null
+      WorkingDirectory = guestWork.Value.Work
       Deadline = TimeSpan.FromMinutes 2.0
       Stderr = TextWriter.Synchronized stderr
       Host =
@@ -41,7 +61,7 @@ let private fakeOptions (scenario: string) =
     optionsFor [ Path.Combine(AppContext.BaseDirectory, "Morphir.Compilation.Mep.Tests.dll"); "--fake-guest"; scenario ]
 
 let private connect (options: MepFrontendOptions) =
-    match MepFrontend.ConnectAsync(options, CancellationToken.None).GetAwaiter().GetResult() with
+    match MepFrontend.ConnectAsync(options, sandboxEnvironment (), CancellationToken.None).GetAwaiter().GetResult() with
     | Ok frontend -> frontend
     | Error failure -> failtest $"The guest connects: {failure.Message}"
 
@@ -120,7 +140,36 @@ let tests =
     testSequenced
     <| testList
         "MEP frontend adapter"
-        [ testCase "The session capability comes from the agreed tuples: v4 and classic versions 1 to 3"
+        [ testCase "A request too large for one frame is a protocol error of the guest process, not an exception"
+          <| fun _ ->
+              let options =
+                  MepGuestOptions.Create(
+                      host,
+                      [ Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-frontend.dll") ],
+                      guestWork.Value.Work,
+                      TimeSpan.FromMinutes 1.0,
+                      TextWriter.Synchronized stderr,
+                      "morphir-dotnet-tests",
+                      "1.0.0",
+                      sandboxEnvironment ()
+                  )
+
+              let guest =
+                  match MepGuestProcess.StartAsync(options, Morphir.Frontend.FSharp.Extension.FSharpGuest.support, CancellationToken.None).GetAwaiter().GetResult() with
+                  | Ok guest -> guest
+                  | Error failure -> failtest $"The guest starts: {failure}"
+
+              try
+                  // One byte more than a frame holds, before the JSON-RPC envelope is added.
+                  use document = Text.Json.JsonDocument.Parse("\"" + String('a', ContentLengthFraming.MaxBodyBytes) + "\"")
+
+                  match guest.SendAsync(Method.CompileModel, document.RootElement, CancellationToken.None).GetAwaiter().GetResult() with
+                  | MepGuestReply.Failed(MepGuestFailure.ProtocolError message) -> Expect.stringContains message "compileModel" "names the request"
+                  | other -> failtest $"Expected a protocol error: {other}"
+              finally
+                  (guest :> IAsyncDisposable).DisposeAsync().AsTask().GetAwaiter().GetResult()
+
+          testCase "The session capability comes from the agreed tuples: v4 and classic versions 1 to 3"
           <| fun _ ->
               let frontend = connect (guestOptions ())
 
@@ -318,13 +367,89 @@ let tests =
 
               Expect.isTrue frontend.HasExited "The guest process has exited after dispose"
 
+          testCase "A guest that never answers compileModel is a timeout at the deadline, and no process stays"
+          <| fun _ ->
+              let frontend = connect { fakeOptions "never-answers" with Deadline = TimeSpan.FromSeconds 3.0 }
+
+              try
+                  match (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend, CancellationToken.None).GetAwaiter().GetResult() with
+                  | FrontendOutcome.Failed failure ->
+                      Expect.equal
+                          (failure.Diagnostics |> Seq.map (fun diagnostic -> diagnostic.CodeOrNull |> string) |> List.ofSeq)
+                          [ "extension.timeout" ]
+                          "the code"
+                  | completed -> failtest $"Expected a timeout: {completed}"
+              finally
+                  dispose frontend
+
+              Expect.isTrue frontend.HasExited "The guest process has exited after dispose"
+
+          testCase "A guest that blocks its read loop: compile is a timeout, and disposal stops the process within about two deadlines"
+          <| fun _ ->
+              // The guest never reads shutdown or exit, so disposal must not wait for it beyond its deadline.
+              let deadline = TimeSpan.FromSeconds 3.0
+              let writer = new StringWriter()
+
+              let options =
+                  { fakeOptions "blocks-read-loop" with
+                      Deadline = deadline
+                      Stderr = TextWriter.Synchronized writer }
+
+              let watch = Stopwatch.StartNew()
+              let frontend = connect options
+
+              try
+                  match (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend, CancellationToken.None).GetAwaiter().GetResult() with
+                  | FrontendOutcome.Failed failure ->
+                      Expect.equal
+                          (failure.Diagnostics |> Seq.map (fun diagnostic -> diagnostic.CodeOrNull |> string) |> List.ofSeq)
+                          [ "extension.timeout" ]
+                          "the code"
+                  | completed -> failtest $"Expected a timeout: {completed}"
+              finally
+                  dispose frontend
+
+              watch.Stop()
+              Expect.isLessThan watch.Elapsed (deadline + deadline + TimeSpan.FromSeconds 10.0) "compile and disposal end within about two deadlines"
+
+              let id =
+                  match Text.RegularExpressions.Regex.Match(writer.ToString(), @"fake-guest-pid=(\d+)") with
+                  | found when found.Success -> int found.Groups[1].Value
+                  | _ -> failtest $"The guest wrote its process id: {writer}"
+
+              let running =
+                  try
+                      use guestProcess = Process.GetProcessById id
+                      not guestProcess.HasExited
+                  with :? ArgumentException ->
+                      false
+
+              Expect.isFalse running $"The guest process {id} is gone after dispose"
+
+          testCase "A guest diagnostic position beyond a signed 32-bit number is kept at the largest position, not an exception"
+          <| fun _ ->
+              let frontend = connect (fakeOptions "huge-position")
+
+              try
+                  match (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend, CancellationToken.None).GetAwaiter().GetResult() with
+                  | FrontendOutcome.Completed result ->
+                      let diagnostic =
+                          Checked.diagnostics result |> List.find (fun diagnostic -> string diagnostic.CodeOrNull = "fake.huge")
+
+                      let range = diagnostic.LocationOrNull |> nonNull |> _.Range
+                      Expect.equal range.Start.Line Int32.MaxValue "the start line"
+                      Expect.equal range.End.Character Int32.MaxValue "the end character"
+                  | failed -> failtest $"Expected the guest's failed compilation: {failed}"
+              finally
+                  dispose frontend
+
           testCase "An executable that does not exist is an unavailable extension"
           <| fun _ ->
               let options =
                   { guestOptions () with
                       Executable = Path.Combine(AppContext.BaseDirectory, "no-such-guest") }
 
-              match MepFrontend.ConnectAsync(options, CancellationToken.None).GetAwaiter().GetResult() with
+              match MepFrontend.ConnectAsync(options, sandboxEnvironment (), CancellationToken.None).GetAwaiter().GetResult() with
               | Error failure ->
                   Expect.equal
                       (failure.Diagnostics |> Seq.map (fun diagnostic -> diagnostic.CodeOrNull |> string) |> List.ofSeq)
