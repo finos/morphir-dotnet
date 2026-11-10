@@ -23,21 +23,13 @@ open Morphir.TestSupport
 /// process-tree cleanup) inside a test sandbox. The host messages go to stdin as Content-Length frames, in order.
 /// Like a host, the exchange waits for the replies to all earlier requests before it sends morphir.shutdown or
 /// morphir.exit: the guest cancels the requests that still run when the session ends. Stdin closes after the last
-/// message. The result is the reply frames in order and the exit code.
-let internal exchange (messages: string list) : JsonNode list * int =
-    let host =
-        match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
-        | null -> "dotnet"
-        | path -> path
-
-    use sandbox = TestSandbox.Create "morphir-guest-"
-    let start = ChildProcess.StartInfo(host, Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-frontend.dll"))
-    start.WorkingDirectory <- sandbox.Work
+/// message. <c>running</c> gets the guest's process id after its first reply, while it still runs. The result is the
+/// reply frames in order and the exit code.
+let internal exchangeWith (start: Diagnostics.ProcessStartInfo) (running: int -> unit) (messages: string list) : JsonNode list * int =
     start.StandardInputEncoding <- UTF8Encoding false
     start.StandardOutputEncoding <- UTF8Encoding false
-    sandbox.Apply start
-
     let replies = ResizeArray<JsonNode>()
+    let processId = ref 0
 
     let refused failure (output: string) =
         failtest $"The guest wrote output that is not a frame ({failure}): {output}"
@@ -69,6 +61,7 @@ let internal exchange (messages: string list) : JsonNode list * int =
                     | FrameRead.Message body ->
                         let node = JsonNode.Parse(ReadOnlySpan body) |> nonNull
                         replies.Add node
+                        if replies.Count = 1 then running processId.Value
                         idOf node |> Option.iter (pending.Remove >> ignore)
                         return true
                     | FrameRead.EndOfStream -> return false
@@ -103,7 +96,14 @@ let internal exchange (messages: string list) : JsonNode list * int =
 
     let result =
         ChildProcess
-            .ConverseAsync(start, TimeSpan.FromMinutes 3.0, Func<_, _, _, _> converse, CancellationToken.None, null)
+            .ConverseAsync(
+                start,
+                TimeSpan.FromMinutes 3.0,
+                Func<_, _, _, _> converse,
+                CancellationToken.None,
+                null,
+                Action<int>(fun id -> processId.Value <- id)
+            )
             .GetAwaiter()
             .GetResult()
 
@@ -116,6 +116,19 @@ let internal exchange (messages: string list) : JsonNode list * int =
         | FrameRead.Refused failure -> refused failure result.CombinedOutput
 
     List.ofSeq replies @ frames [], result.ExitCode
+
+/// Runs the framework-dependent guest (dotnet morphir-fsharp-frontend.dll) in a test sandbox; see exchangeWith.
+let internal exchange (messages: string list) : JsonNode list * int =
+    let host =
+        match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
+        | null -> "dotnet"
+        | path -> path
+
+    use sandbox = TestSandbox.Create "morphir-guest-"
+    let start = ChildProcess.StartInfo(host, Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-frontend.dll"))
+    start.WorkingDirectory <- sandbox.Work
+    sandbox.Apply start
+    exchangeWith start ignore messages
 
 type private Direction =
     | HostToExtension

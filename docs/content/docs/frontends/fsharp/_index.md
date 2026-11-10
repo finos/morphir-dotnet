@@ -97,7 +97,11 @@ units. An error stops the compilation, and the frontend writes no model.
 Warnings and information diagnostics come with a successful model.
 
 F# compiler errors have the code `fsharp.compiler`. Refused constructs have the
-codes in the [coverage reference](coverage/).
+codes in the [coverage reference](coverage/). When the frontend cannot give the
+compiler its references, for example in a self-contained folder whose deps
+file is missing or unreadable, compilation fails with one
+`fsharp.references_unavailable` error that names the cause, and the compiler
+does not run.
 
 ## Run the frontend as a MEP extension
 
@@ -106,6 +110,15 @@ Install the guest as a dotnet tool. It needs the .NET runtime.
 ```sh
 dotnet tool install --global Morphir.Frontend.FSharp.Extension
 ```
+
+The same guest also has a self-contained folder delivery that carries its own
+.NET runtime, for machines without .NET. See
+[Compile without .NET installed]({{< relref "/docs/getting-started/compile-fsharp#compile-without-net-installed" >}}).
+Both deliveries compile with the same references (the .NET framework,
+FSharp.Core and `Morphir.FSharp.Annotations`), so at the same .NET runtime
+version they give the same IR and diagnostics. The model revision names the
+frontend identity, which includes the runtime version, so it is equal only on
+the same runtime patch.
 
 The guest speaks only MEP `0.2.0-draft.1`, over stdio with `Content-Length`
 framing. It serves `morphir.frontend.compileModel` and claims:

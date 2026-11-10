@@ -48,6 +48,8 @@ type internal CheckedDocument = {
 type internal CheckedProject =
     {
         Kind: CheckKind
+        /// <summary>The compiler references of the check; the analysis check uses those of the original.</summary>
+        References: string array
         Documents: CheckedDocument list
         Results: FSharpCheckProjectResults
         Uses: FSharpSymbolUse array
@@ -118,38 +120,164 @@ module internal CompilerEdge =
 
              $"FSharp.Compiler.Service {compiler}; FSharp.Core {core}; Morphir.FSharp.Annotations {annotations}; {RuntimeInformation.FrameworkDescription}; evidence {EvidenceRevision}")
 
-    let private references =
+    /// <summary>
+    /// The file names of the framework's runtime assemblies (Microsoft.NETCore.App), from the texts of deps files.
+    /// A self-contained application lists them under its runtime pack
+    /// (<c>runtimepack.Microsoft.NETCore.App.Runtime.&lt;rid&gt;</c>); the shared framework of a framework-dependent
+    /// application lists them in its own deps file (<c>Microsoft.NETCore.App.Runtime.&lt;rid&gt;</c>). An
+    /// application deps file alone names none.
+    /// </summary>
+    let frameworkAssemblies (depsFiles: string seq) : Set<string> =
+        let isFramework (library: string) =
+            library.StartsWith("runtimepack.Microsoft.NETCore.App.Runtime.", StringComparison.OrdinalIgnoreCase)
+            || library.StartsWith("Microsoft.NETCore.App.Runtime.", StringComparison.OrdinalIgnoreCase)
+
+        set [
+            for text in depsFiles do
+                use document = JsonDocument.Parse text
+
+                match document.RootElement.TryGetProperty "targets" with
+                | true, targets when targets.ValueKind = JsonValueKind.Object ->
+                    for target in targets.EnumerateObject() do
+                        if target.Value.ValueKind = JsonValueKind.Object then
+                            for library in target.Value.EnumerateObject() do
+                                match library.Value.TryGetProperty "runtime" with
+                                | true, runtime when isFramework library.Name && runtime.ValueKind = JsonValueKind.Object ->
+                                    for asset in runtime.EnumerateObject() do
+                                        yield asset.Name.Substring(asset.Name.LastIndexOf '/' + 1)
+                                | _ -> ()
+                | _ -> ()
+        ]
+
+    /// <summary>Why the frontend cannot give the compiler its references. Each case is a frontend error.</summary>
+    [<RequireQualifiedAccess>]
+    type ReferenceError =
+        /// <summary>FSharp.Core or the Morphir F# annotations have no file location (a single-file bundle).</summary>
+        | NoFileLocation
+        /// <summary>A self-contained folder, and no deps file lists the framework assemblies.</summary>
+        | NoFrameworkList
+        /// <summary>The host runtime does not list its trusted platform assemblies.</summary>
+        | NoTrustedAssemblies
+        /// <summary>The host lists a deps file that cannot be read or is not a deps file.</summary>
+        | UnreadableDepsFile of path: string * reason: string
+
+        /// <summary>The message of the frontend's error diagnostic.</summary>
+        member this.Message =
+            match this with
+            | NoFileLocation ->
+                "FSharp.Core or the Morphir F# annotations have no file location, as in a single-file bundle; the F# frontend needs its references as files."
+            | NoFrameworkList ->
+                "The runtime directory is the application folder (a self-contained application), and no deps file lists the framework assemblies, so the framework references cannot be told from the application's own assemblies."
+            | NoTrustedAssemblies -> "The host runtime does not list its trusted platform assemblies."
+            | UnreadableDepsFile(path, reason) ->
+                $"The host lists the deps file '{path}', which the F# frontend cannot read: {reason}"
+
+    /// <summary>
+    /// The paths of an APP_CONTEXT_DEPS_FILES value. hostpolicy joins them with ';' on every platform
+    /// (<c>hostpolicy_context.cpp</c>), as <c>DependencyContextPaths</c> reads them; it is not the path
+    /// separator, which is ':' on Unix and may occur inside a path.
+    /// </summary>
+    let parseDepsFiles (value: string) : string list =
+        value.Split(';', StringSplitOptions.RemoveEmptyEntries)
+        |> List.ofArray
+
+    /// <summary>
+    /// The framework assemblies that the host's deps files name (see <c>frameworkAssemblies</c>), from an
+    /// APP_CONTEXT_DEPS_FILES value. No value lists no deps file and gives an empty set; <c>selectReferences</c>
+    /// decides whether a layout needs the list. A listed file that is missing, unreadable or not JSON is an
+    /// error: the host loaded it, so skipping it would give a guessed reference set.
+    /// </summary>
+    let hostFramework (value: obj | null) : Result<Set<string>, ReferenceError> =
+        let read path =
+            try
+                Ok(frameworkAssemblies [ File.ReadAllText path ])
+            with
+            | :? IOException
+            | :? UnauthorizedAccessException
+            | :? JsonException as error -> Error(ReferenceError.UnreadableDepsFile(path, error.Message))
+
+        match value with
+        | :? string as paths ->
+            parseDepsFiles paths
+            |> List.fold
+                (fun result path ->
+                    match result with
+                    | Error _ -> result
+                    | Ok names -> read path |> Result.map (Set.union names))
+                (Ok Set.empty)
+        | _ -> Ok Set.empty
+
+    /// <summary>What the reference selection reads from the hosting process.</summary>
+    type ReferenceLayout = {
+        /// <summary>The runtime directory: the shared framework folder, or the application folder when self-contained.</summary>
+        RuntimeDirectory: string
+        /// <summary>The application folder.</summary>
+        ApplicationDirectory: string
+        /// <summary>The trusted platform assemblies, as full paths.</summary>
+        Trusted: string list
+        /// <summary>The file names of the framework's runtime assemblies; empty when no deps file names them.</summary>
+        Framework: Set<string>
+        /// <summary>The location of the FSharp.Core that the host loaded.</summary>
+        FSharpCore: string
+        /// <summary>The location of the Morphir F# annotations.</summary>
+        Annotations: string
+    }
+
+    /// <summary>
+    /// The compiler references: the trusted framework assemblies of the runtime directory in ordinal path order, then
+    /// FSharp.Core and the Morphir attributes. The framework assemblies are the trusted assemblies in the runtime
+    /// directory, except FSharp.*, that the framework list names. For a framework-dependent host every such assembly
+    /// is a framework assembly, so the list changes nothing. For a self-contained folder the runtime directory is
+    /// the application folder, and the list keeps the application's own assemblies (Morphir.*, the compiler service)
+    /// out. A self-contained folder without a framework list, and an assembly without a location (a single-file
+    /// bundle), are refused rather than given a guessed reference set.
+    /// </summary>
+    let selectReferences (layout: ReferenceLayout) : Result<string array, ReferenceError> =
+        let trim (path: string) = Path.TrimEndingDirectorySeparator path
+
+        let sameDirectory (left: string) (right: string) =
+            String.Equals(trim left, trim right, StringComparison.OrdinalIgnoreCase)
+
+        if String.IsNullOrEmpty layout.FSharpCore || String.IsNullOrEmpty layout.Annotations then
+            Error ReferenceError.NoFileLocation
+        elif Set.isEmpty layout.Framework && sameDirectory layout.RuntimeDirectory layout.ApplicationDirectory then
+            Error ReferenceError.NoFrameworkList
+        else
+            let framework =
+                layout.Trusted
+                |> List.filter (fun path ->
+                    match Path.GetDirectoryName path, Path.GetFileName path with
+                    | null, _
+                    | _, null -> false
+                    | directory, name ->
+                        sameDirectory directory layout.RuntimeDirectory
+                        && not (name.StartsWith("FSharp.", StringComparison.OrdinalIgnoreCase))
+                        && (Set.isEmpty layout.Framework || layout.Framework.Contains name))
+                |> List.sortWith (fun left right -> String.CompareOrdinal(left, right))
+
+            // FSharp.Core and the Morphir attributes (MorphirNameAttribute) are the only non-framework references.
+            Ok(Array.ofList (framework @ [ layout.FSharpCore; layout.Annotations ]))
+
+    /// <summary>
+    /// The compiler references of this process (see <c>selectReferences</c>), or why there are none. The trusted
+    /// platform assemblies are joined with the path separator (hostpolicy's <c>PATH_SEPARATOR</c>), unlike the
+    /// deps files.
+    /// </summary>
+    let references: Lazy<Result<string array, ReferenceError>> =
         lazy
-            (let runtime =
-                Path.TrimEndingDirectorySeparator(RuntimeEnvironment.GetRuntimeDirectory())
-
-             let trusted =
-                 match AppContext.GetData "TRUSTED_PLATFORM_ASSEMBLIES" with
-                 | :? string as paths ->
-                     paths.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-                 | _ -> invalidOp "The host runtime does not list its trusted platform assemblies."
-
-             let framework =
-                 trusted
-                 |> Array.filter (fun path ->
-                     match Path.GetDirectoryName path, Path.GetFileName path with
-                     | null, _
-                     | _, null -> false
-                     | directory, name ->
-                         String.Equals(
-                             Path.TrimEndingDirectorySeparator directory,
-                             runtime,
-                             StringComparison.OrdinalIgnoreCase
-                         )
-                         && not (name.StartsWith("FSharp.", StringComparison.OrdinalIgnoreCase))
-                 )
-                 |> Array.sortWith (fun left right -> String.CompareOrdinal(left, right))
-
-             // FSharp.Core and the Morphir attributes (MorphirNameAttribute) are the only non-framework references.
-             Array.append framework [|
-                 typeof<unit>.Assembly.Location
-                 typeof<Morphir.MorphirNameAttribute>.Assembly.Location
-             |])
+            (match AppContext.GetData "TRUSTED_PLATFORM_ASSEMBLIES" with
+             | :? string as paths ->
+                 hostFramework (AppContext.GetData "APP_CONTEXT_DEPS_FILES")
+                 |> Result.bind (fun framework ->
+                     selectReferences {
+                         RuntimeDirectory = RuntimeEnvironment.GetRuntimeDirectory()
+                         ApplicationDirectory = AppContext.BaseDirectory
+                         Trusted = paths.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
+                         Framework = framework
+                         FSharpCore = typeof<unit>.Assembly.Location
+                         Annotations = typeof<Morphir.MorphirNameAttribute>.Assembly.Location
+                     })
+             | _ -> Error ReferenceError.NoTrustedAssemblies)
 
     let private options = [|
         "--targetprofile:netcore"
@@ -238,6 +366,7 @@ module internal CompilerEdge =
         member this.Check
             (
                 kind: CheckKind,
+                references: string array,
                 texts: string list,
                 cancellationToken: CancellationToken
             ) : Task<CheckedProject> =
@@ -265,7 +394,7 @@ module internal CompilerEdge =
                 let arguments =
                     Array.concat [
                         options
-                        references.Force()
+                        references
                         |> Array.map (fun reference -> $"-r:{reference}")
                         documents
                         |> List.map (fun (_, _, _, path) -> path)
@@ -310,6 +439,7 @@ module internal CompilerEdge =
 
                 return {
                     Kind = kind
+                    References = references
                     Documents = List.ofSeq parsed
                     Results = results
                     Uses = results.GetAllUsesOfAllSymbols(cancellationToken)
@@ -447,20 +577,32 @@ module internal CompilerEdge =
         |> order session.Documents
 
     /// <summary>
-    /// Checks the original documents. F# errors fail the result. Warnings and information pass with it.
+    /// Checks the original documents with the given references. F# errors fail the result. Warnings and
+    /// information pass with it. A reference error fails it with one <c>fsharp.references_unavailable</c>
+    /// error, which has no location, and the compiler does not run.
     /// </summary>
-    let checkOriginal
+    let checkOriginalWith
+        (references: Result<string array, ReferenceError>)
         (session: Session)
         (cancellationToken: CancellationToken)
         : Task<Checked<CheckedProject>> =
         task {
-            let! project =
-                session.Check(
-                    CheckKind.Original,
-                    session.Documents
-                    |> List.map (fun document -> document.Text),
-                    cancellationToken
-                )
+            match references with
+            | Error error ->
+                return Checked.fail [ Diagnostic.error FSharpCodes.referencesUnavailable error.Message ]
+            | Ok references ->
+                let! project =
+                    session.Check(
+                        CheckKind.Original,
+                        references,
+                        session.Documents
+                        |> List.map (fun document -> document.Text),
+                        cancellationToken
+                    )
 
-            return Checked.ofDiagnostics project (diagnostics session project)
+                return Checked.ofDiagnostics project (diagnostics session project)
         }
+
+    /// <summary>Checks the original documents with the references of this process (see <c>checkOriginalWith</c>).</summary>
+    let checkOriginal (session: Session) (cancellationToken: CancellationToken) : Task<Checked<CheckedProject>> =
+        checkOriginalWith (references.Force()) session cancellationToken

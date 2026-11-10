@@ -64,10 +64,6 @@ dotnet fsi scripts/validate-changelog.fsx --verbose
 
 Generates Wolverine framework code.
 
-#### `publish-single-file.cs` / `publish-single-file-untrimmed.cs`
-
-Publishes single-file executables (trimmed/untrimmed variants).
-
 #### `run-e2e-tests.cs`
 
 Runs end-to-end tests.

@@ -1022,7 +1022,7 @@ module internal Evidence =
                         |> List.map (fun (document, insertions) -> apply document.Text insertions)
                         |> rewrite prefix
 
-                    let! analysis = session.Check(CheckKind.Analysis, texts, cancellationToken)
+                    let! analysis = session.Check(CheckKind.Analysis, original.References, texts, cancellationToken)
 
                     let maps =
                         List.map2

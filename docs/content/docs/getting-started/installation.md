@@ -31,6 +31,27 @@ F# frontend extension:
 dotnet tool install --global Morphir.Frontend.FSharp.Extension --prerelease
 ```
 
+The extension tool needs the .NET runtime. On a machine without .NET, use the
+self-contained frontend folder instead. Releases do not publish it yet; see
+[Compile without .NET installed]({{< relref "/docs/getting-started/compile-fsharp#compile-without-net-installed" >}})
+for how to build it and what it supports: compiling supported F# source files
+to Morphir IR, not building `.fsproj` projects. The folder is not trimmed and
+is not a single file. For `win-arm64` it is about 120 MB, and its zip archive
+about 47 MB. The exact file count and sizes of a build are in the log of the
+build target `PublishFSharpFrontendProcess`, which prints them for the folder
+and the archive.
+
+| Platform | Self-contained F# frontend |
+| --- | --- |
+| Windows ARM64 (`win-arm64`) | Checked on Windows 11 ARM64 with the machine's .NET hidden from the frontend (no `dotnet` on `PATH`, no `DOTNET_ROOT`, no global install); not run on a machine with no .NET at all |
+| Windows x64 (`win-x64`) | Builds; ran under x64 emulation on Windows 11 ARM64 only, not qualified |
+| Linux glibc x64 (`linux-x64`) | Builds; not run, not qualified |
+| Linux glibc ARM64, macOS x64, macOS ARM64 | Not qualified |
+
+The operating system must still meet the .NET 10 runtime requirements. On
+Linux these include glibc and ICU (`libicu`), which the folder does not
+contain; this is not verified yet.
+
 Both hosts generate F# with their built-in backend. A separate F# backend
 extension, `Morphir.CodeGeneration.FSharp.Extension` (command
 `morphir-fsharp-backend`), is for other MEP hosts that have no built-in F#
