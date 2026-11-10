@@ -1,0 +1,36 @@
+<Project>
+  <!--
+    EXPERIMENT, not a product change (add-wasm-extension-host, the Linux floor measurement, point 4). Nothing in the
+    repository imports this file. scripts/wasm-engine-linux-floor.ps1 passes it to one publish of the AOT probe as
+
+      -p:CustomAfterMicrosoftCommonTargets=<this file> -p:MorphirExperimentManagedCrypto=probe|library|library-random
+
+    which MSBuild imports at the end of every project of that publish. It compiles shadow classes into one project, so
+    that the unqualified calls there resolve to them and not to System.Security.Cryptography, which calls OpenSSL on
+    Linux. No tracked project file or source changes.
+
+      probe           ManagedSha256.cs in the probe (namespace Morphir.Extensions.Wasm.AotProbe): the probe's own
+                      digests only. Shows which call of the library is the first to need OpenSSL.
+      library         ManagedSha256.cs in Morphir.Extensions.Wasm (public, so the probe, in a child namespace, uses it
+                      too). Shows what other than SHA-256 needs OpenSSL.
+      library-random  as library, and UrandomRandomNumberGenerator.cs: RandomNumberGenerator.Fill and GetBytes from
+                      /dev/urandom. Shows whether anything else needs OpenSSL.
+
+    ManagedSha256.cs is a class named SHA256 whose HashData is BouncyCastle's managed Sha256Digest, the digest
+    Morphir.Toolchain uses.
+  -->
+  <PropertyGroup>
+    <_MorphirExperimentInLibrary Condition="('$(MorphirExperimentManagedCrypto)' == 'library' or '$(MorphirExperimentManagedCrypto)' == 'library-random') and '$(MSBuildProjectName)' == 'Morphir.Extensions.Wasm'">true</_MorphirExperimentInLibrary>
+    <_MorphirExperimentInProbe Condition="'$(MorphirExperimentManagedCrypto)' == 'probe' and '$(MSBuildProjectName)' == 'Morphir.Extensions.Wasm.AotProbe'">true</_MorphirExperimentInProbe>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_MorphirExperimentInLibrary)' == 'true'">
+    <DefineConstants>$(DefineConstants);MORPHIR_EXPERIMENT_MANAGED_SHA256_LIBRARY</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(_MorphirExperimentInLibrary)' == 'true' or '$(_MorphirExperimentInProbe)' == 'true'">
+    <PackageReference Include="BouncyCastle.Cryptography" />
+    <Compile Include="$(MSBuildThisFileDirectory)ManagedSha256.cs" Link="Experiment/ManagedSha256.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MorphirExperimentManagedCrypto)' == 'library-random' and '$(MSBuildProjectName)' == 'Morphir.Extensions.Wasm'">
+    <Compile Include="$(MSBuildThisFileDirectory)UrandomRandomNumberGenerator.cs" Link="Experiment/UrandomRandomNumberGenerator.cs" />
+  </ItemGroup>
+</Project>
