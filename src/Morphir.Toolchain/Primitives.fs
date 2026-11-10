@@ -221,8 +221,7 @@ type ComparatorOperator =
 /// <summary>
 /// One version comparator: exactly one of <c>=</c>, <c>&gt;</c>, <c>&gt;=</c>, <c>&lt;</c> or <c>&lt;=</c>, then a complete
 /// version in canonical SemVer spelling, with no space. <c>^</c>, <c>~</c>, wildcards, partial versions and combined
-/// ranges are <c>invalid_value</c>, because Rust, TypeScript and .NET read them differently. This slice only reads and
-/// writes comparators; it never evaluates one.
+/// ranges are <c>invalid_value</c>, because Rust, TypeScript and .NET read them differently.
 /// </summary>
 [<CustomEquality; NoComparison>]
 type Comparator =
@@ -275,6 +274,36 @@ module Comparator =
             SemVer.tryParse (text.Substring symbol.Length) |> Result.map (fun version -> Comparator(operator, version)))
         |> Option.defaultValue (Error ReaderCode.InvalidValue)
         |> Result.mapError (fun _ -> ReaderCode.InvalidValue)
+
+    /// Whether a version satisfies one comparator by SemVer precedence.
+    let satisfies (version: SemVer) (comparator: Comparator) =
+        let order = SemVersion.ComparePrecedence(version.SemVersion, comparator.Version.SemVersion)
+
+        match comparator.Operator with
+        | ComparatorOperator.Equal -> order = 0
+        | ComparatorOperator.Greater -> order > 0
+        | ComparatorOperator.GreaterOrEqual -> order >= 0
+        | ComparatorOperator.Less -> order < 0
+        | ComparatorOperator.LessOrEqual -> order <= 0
+
+    /// <summary>Whether an installed version meets a comparator list: it satisfies every comparator by SemVer
+    /// precedence and, if it is a prerelease, at least one comparator names its own major, minor and patch with a
+    /// prerelease. This is the rule of the Rust <c>semver</c> crate and of npm, so <c>[">=10.0.0", "&lt;11.0.0"]</c>
+    /// is not met by <c>11.0.0-preview.1</c>. An empty list is always met.</summary>
+    let allMet (comparators: Comparator list) (installed: SemVer) =
+        let version = installed.SemVersion
+
+        let namesThisPrerelease (comparator: Comparator) =
+            let named = comparator.Version.SemVersion
+
+            named.IsPrerelease
+            && named.Major = version.Major
+            && named.Minor = version.Minor
+            && named.Patch = version.Patch
+
+        List.forall (satisfies installed) comparators
+        && (not version.IsPrerelease || comparators.IsEmpty || List.exists namesThisPrerelease comparators)
+
 /// A platform, in .NET runtime identifier spelling.
 [<RequireQualifiedAccess>]
 type Platform =
