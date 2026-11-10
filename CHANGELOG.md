@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `morphir-fsharp-backend`: the F# generator as a MEP `0.2.0-draft.1` guest, packaged as the framework-dependent dotnet tool `Morphir.CodeGeneration.FSharp.Extension` with the extension id `org.finos.morphir.fsharp-backend`. It serves `morphir.backend.generateModel` for the target `fsharp` with JSON model tuples for IR `4.0.0` and `3.0.0`, for hosts that have no built-in F# backend. The built-in `morphir.fsharp` stays the backend of `morphir generate`, which does not start the extension. Releases publish the package next to `Morphir.Tool`
-- `Morphir.Mep` backend messages: the pinned `generateModel` request, generate result and artifact types, and `GenerateModel.admit`, the guest check of a request
+- `Morphir.Mep` backend messages: the pinned `generateModel` request, generate result and artifact types, and `GenerateModel.admit`, the guest check of a request. Compatibility note for F# code that opens `Morphir.Mep`: like the other wire types, the new records `GenerateModelRequest`, `GenerateResult`, `Artifact` and `AdmittedGenerateRequest` are at the top level of the namespace, and their labels (`Model`, `Input`, `Target`, `Options`, `Path`, `Content`, `Binary`, `Success`, `Artifacts`, `Diagnostics`, `Request`, `Guarantees`) can change which record type F# infers for an unannotated record expression or member access. Annotate the record type where that happens. The type name `Artifact` also exists as `Morphir.Conformance.Artifact`; qualify it when both namespaces are open
 
 ## [0.4.0-alpha.3] - 2026-11-09
 

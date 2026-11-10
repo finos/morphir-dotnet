@@ -15,7 +15,10 @@ The generator has two deliveries. Both run the same generator code.
 
 - **Built in.** `morphir.fsharp` is the backend of the `morphir` and
   `dotnet-morphir` hosts. It is the default: `morphir generate --target fsharp`
-  always uses it. It reads JSON and Ion models.
+  always uses it. It reads JSON and Ion models. The managed host
+  `dotnet-morphir` formats the generated source with Fantomas. The Native AOT
+  `morphir` cannot run Fantomas, so it writes the same declarations
+  unformatted: its files differ from the extension's in formatting.
 - **MEP extension.** `morphir-fsharp-backend` is a Morphir Extension Protocol
   (MEP) `0.2.0-draft.1` guest with its own extension id,
   `org.finos.morphir.fsharp-backend`. It is for hosts that do not have the
@@ -32,7 +35,7 @@ Install the guest as a dotnet tool. It is framework dependent, so it needs the
 .NET 10 runtime.
 
 ```sh
-dotnet tool install --global Morphir.CodeGeneration.FSharp.Extension
+dotnet tool install --global Morphir.CodeGeneration.FSharp.Extension --prerelease
 ```
 
 The guest speaks only MEP `0.2.0-draft.1`, over stdio with `Content-Length`
@@ -73,8 +76,21 @@ Without an agreed `generateModel` tuple, the request is `-32013`. A model that
 the generator rejects, or a model that is not a Library (such as a Specs
 model), gives a result with `success: false`, error diagnostics and no
 artifacts. A successful result has one text artifact for each generated file,
-with a path relative to the output directory. The guest never writes files; it
-returns them to the host.
+in the generator's dependency order, the order in which the built-in backend
+lists its files. Each path is relative to the output directory, with `/` as the
+separator; the guest checks that it has no empty, `.` or `..` segment and no
+`\` or `:`, and returns `-32603` instead of an artifact that fails the check.
+The guest never writes files; it returns them to the host.
+
+The text is formatted by Fantomas, as in `dotnet-morphir`, so its line endings
+are those of the platform the guest runs on: CRLF on Windows, LF elsewhere.
+
+Generation runs beside the session: while a `generateModel` runs, the guest
+reads and answers other messages, such as `morphir.ping` and
+`morphir.shutdown`. The generator cannot stop part way. The guest checks for a
+cancelled session (for example Ctrl+C) before and after it generates, and then
+answers `-32800`. It does not claim `cancellation`, so it does not act on
+`$/cancelRequest` and serves a request that a host asks to cancel.
 
 The guest makes no trimming or Native AOT claim. It is not published as a
 self-contained executable yet.
@@ -84,10 +100,16 @@ self-contained executable yet.
 The tests in `tests/Morphir.CodeGeneration.FSharp.Extension.Tests` start the
 guest as a process behind the `Morphir.Mep` host session. They check the claim
 set, the negotiated tuples, and that an unagreed tuple is refused and not
-served. For the checked-in daily-rate models at IR 3 and IR 4, with and without
-`optimize`, they check that the guest returns the same files, with the same
-text, as the built-in backend. A further test packs and installs the tool and
-reads its claims.
+served. They compare the guest's files (paths, order and text) with those of
+the managed built-in backend, through `FSharpGenerationBackend`, on the same
+machine, for these checked-in models: the daily-rate models at IR 3 and IR 4
+with default options, and the two-module constant-folding models at IR 3 and
+IR 4 with `optimize` true and with `optimize` false. For the constant-folding
+models they also check that the two settings give different text. There is no
+comparison with the Native AOT `morphir`, whose files are unformatted. Other
+tests check malformed params, a model nested just under the agreed `maxDepth`,
+generation beside a ping, and the path check. A further test packs and installs
+the tool and reads its claims.
 
 The guest is not qualified with the shared compatibility runner of
 `finos/morphir` yet: its frozen expected F# files do not exist yet. See
