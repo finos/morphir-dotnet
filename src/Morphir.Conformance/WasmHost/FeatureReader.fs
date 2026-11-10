@@ -586,10 +586,10 @@ module FeatureReader =
     let private descriptionLine =
         Regex($"^(Requirement|Spec scenario|Contract element|Gap): ({literal})$")
 
-    let private descriptionOf (text: string) =
-        if isNull text then
-            []
-        else
+    let private descriptionOf (text: string | null) =
+        match text with
+        | null -> []
+        | text ->
             text.Split('\n')
             |> Array.map (fun line -> line.Trim())
             |> Array.filter (fun line -> line <> "")
@@ -1113,7 +1113,7 @@ module FeatureReader =
                     }
             ]
 
-        let group = Path.GetFileNameWithoutExtension path
+        let group = nonNull (Path.GetFileNameWithoutExtension path)
 
         let parsed =
             try

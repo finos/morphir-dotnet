@@ -570,7 +570,7 @@ module Json =
         | System.Text.Json.JsonValueKind.Number -> Ok(JsonValue.Number(element.GetRawText()))
         | System.Text.Json.JsonValueKind.String ->
             try
-                Ok(JsonValue.String(element.GetString()))
+                Ok(JsonValue.String(nonNull (element.GetString())))
             with :? InvalidOperationException as error ->
                 Error $"{path}: {error.Message}"
         | System.Text.Json.JsonValueKind.Array ->

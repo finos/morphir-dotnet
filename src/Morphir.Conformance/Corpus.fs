@@ -22,9 +22,9 @@ module Corpus =
                 let finish = range.GetProperty("end")
 
                 yield {
-                    Severity = diagnostic.GetProperty("severity").GetString()
-                    Code = diagnostic.GetProperty("code").GetString()
-                    Uri = location.GetProperty("uri").GetString()
+                    Severity = nonNull (diagnostic.GetProperty("severity").GetString())
+                    Code = nonNull (diagnostic.GetProperty("code").GetString())
+                    Uri = nonNull (location.GetProperty("uri").GetString())
                     StartLine = start.GetProperty("line").GetInt32()
                     StartCharacter = start.GetProperty("character").GetInt32()
                     EndLine = finish.GetProperty("line").GetInt32()
@@ -720,8 +720,10 @@ module Corpus =
                                                         let path =
                                                             Path
                                                                 .Combine(
-                                                                    Path.GetDirectoryName
-                                                                        artifact.Path,
+                                                                    nonNull (
+                                                                        Path.GetDirectoryName
+                                                                            artifact.Path
+                                                                    ),
                                                                     relative
                                                                 )
                                                                 .Replace(

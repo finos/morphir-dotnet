@@ -139,7 +139,7 @@ module CorpusJson =
     let private text (path: string) (element: JsonElement) =
         if element.ValueKind = JsonValueKind.String then
             try
-                Ok(element.GetString())
+                Ok(nonNull (element.GetString()))
             with :? InvalidOperationException ->
                 invalid path "A string is not valid UTF-16"
         else

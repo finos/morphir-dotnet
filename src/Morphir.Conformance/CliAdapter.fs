@@ -569,7 +569,7 @@ module CliAdapter =
                 |> Option.defaultValue ""
 
             return {
-                Name = Path.GetFileNameWithoutExtension implementation
+                Name = nonNull (Path.GetFileNameWithoutExtension implementation)
                 Version = line
                 Sha256 = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes implementation))
             }
