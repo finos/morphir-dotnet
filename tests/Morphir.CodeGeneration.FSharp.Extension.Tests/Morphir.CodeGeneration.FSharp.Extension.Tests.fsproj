@@ -26,6 +26,7 @@
   <ItemGroup>
     <Compile Include="GuestSupport.fs" />
     <Compile Include="GuestTests.fs" />
+    <Compile Include="ConcurrencyTests.fs" />
     <Compile Include="ProcessTests.fs" />
     <Compile Include="PackageTests.fs" />
     <Compile Include="Program.fs" />

@@ -208,6 +208,18 @@ module FSharpGuest =
           Artifacts = [||]
           Diagnostics = diagnostics }
 
+    /// Checks an artifact path before it leaves the guest: relative, with / as the only separator, no empty, . or ..
+    /// segment, and no \ or :. The generator's names make every path safe today; this check does not rely on that.
+    let checkArtifactPath (path: string) : Result<unit, string> =
+        if String.IsNullOrEmpty path then
+            Error "An artifact path is empty."
+        elif path.IndexOfAny [| '\\'; ':' |] >= 0 then
+            Error $"The artifact path '{path}' has a \\ or a :."
+        else
+            match path.Split '/' |> Array.tryFind (fun segment -> segment = "" || segment = "." || segment = "..") with
+            | Some segment -> Error $"The artifact path '{path}' has the segment '{segment}'; it must be relative, with no empty, . or .. segment."
+            | None -> Ok()
+
     /// The files of a generated tree, in the generator's declared order, then any others by path. Every file is text.
     let artifacts (tree: VFileTree) : Result<IReadOnlyList<Artifact>, RpcError> =
         let files = Morphir.IR.Pipeline.VFileTree.toFileMap tree
@@ -219,29 +231,32 @@ module FSharpGuest =
 
         let order = declared @ (files |> Map.keys |> Seq.filter (fun key -> not (List.contains key declared)) |> List.ofSeq)
 
+        let artifact (location: string) : Result<Artifact, RpcError> =
+            match checkArtifactPath location, Morphir.IR.Pipeline.VFile.readText files[location] with
+            | Error reason, _ -> Error(RpcErrors.withMessage ErrorCode.InternalError reason)
+            | Ok(), Error failure ->
+                Error(RpcErrors.withMessage ErrorCode.InternalError $"The generated file {location} cannot be read: {failure}")
+            | Ok(), Ok text ->
+                Ok
+                    { Path = location
+                      Content = text
+                      Binary = false }
+
         order
         |> List.fold
             (fun (result: Result<Artifact list, RpcError>) location ->
-                result
-                |> Result.bind (fun done' ->
-                    match Morphir.IR.Pipeline.VFile.readText files[location] with
-                    | Ok text ->
-                        Ok(
-                            done'
-                            @ [ { Path = location
-                                  Content = text
-                                  Binary = false } ]
-                        )
-                    | Error failure ->
-                        Error(RpcErrors.withMessage ErrorCode.InternalError $"The generated file {location} cannot be read: {failure}")))
+                result |> Result.bind (fun done' -> artifact location |> Result.map (fun item -> done' @ [ item ])))
             (Ok [])
         |> Result.map (fun items -> Array.ofList items :> IReadOnlyList<Artifact>)
+
+    let private cancelled = RpcErrors.create ErrorCode.RequestCancelled
 
     /// Serves one generateModel request. A request that the session does not admit, a target other than fsharp,
     /// invalid options or a payload that is not IR of the input tuple is -32602, and nothing is generated. A model
     /// that the generator rejects is a failed result with its diagnostics. A failure to read the output is -32603.
-    let generate (agreed: ModelTransportSupport option) (request: GenerateModelRequest) : Result<GenerateResult, RpcError> =
+    let generate (agreed: ModelTransportSupport option) (request: GenerateModelRequest) (cancellation: System.Threading.CancellationToken) : Result<GenerateResult, RpcError> =
         match GenerateModel.admit agreed trustNone request with
+        | _ when cancellation.IsCancellationRequested -> Error cancelled
         | Error failure -> Error(failure.ToRpcError())
         | Ok _ when not (String.Equals(request.Target, Target, StringComparison.Ordinal)) ->
             Error(invalidParams $"The F# backend generates only the target '{Target}'; the request names '{request.Target}'.")
@@ -266,7 +281,11 @@ module FSharpGuest =
                 let tree = Transpiler.generateModelWith generation model Morphir.IR.Pipeline.VFile.empty
                 let diagnostics: IReadOnlyList<Diagnostic> = [| for message in tree.Messages -> diagnostic message |]
 
-                if Morphir.IR.Pipeline.VFileTree.hasErrors tree then
+                // The generator cannot stop part way, so the token is checked before and after it, as the built-in
+                // backend does.
+                if cancellation.IsCancellationRequested then
+                    Error cancelled
+                elif Morphir.IR.Pipeline.VFileTree.hasErrors tree then
                     Ok(failed diagnostics)
                 else
                     artifacts tree
@@ -275,8 +294,10 @@ module FSharpGuest =
                           Artifacts = files
                           Diagnostics = diagnostics })
 
-    /// A guest whose generateModel handler reads the agreed tuples of its session.
-    let registration () : Guest =
+    /// A guest whose generateModel handler reads the agreed tuples of its session and calls serve.
+    let create
+        (serve: ModelTransportSupport option -> GenerateModelRequest -> System.Threading.CancellationToken -> Result<GenerateResult, RpcError>)
+        : Guest =
         let mutable guest: Guest option = None
 
         let agreed () =
@@ -288,8 +309,10 @@ module FSharpGuest =
             | None -> None
 
         let handler =
-            Handlers.request MepJson.Default.GenerateModelRequest MepJson.Default.GenerateResult (fun request _ ->
-                Task.FromResult(generate (agreed ()) request))
+            Handlers.request MepJson.Default.GenerateModelRequest MepJson.Default.GenerateResult (fun request cancellation ->
+                // Off the connection's read loop: while it runs, the guest reads and answers other frames, and a
+                // $/cancelRequest reaches the token.
+                Task.Run((fun () -> serve (agreed ()) request cancellation), cancellation))
 
         let created =
             Guest(
@@ -300,3 +323,6 @@ module FSharpGuest =
 
         guest <- Some created
         created
+
+    /// The guest over the generator.
+    let registration () : Guest = create generate

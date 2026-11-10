@@ -282,3 +282,72 @@ let tests =
               Expect.isFalse result.Success "success is false"
               Expect.isEmpty result.Artifacts "No artifacts"
               Expect.exists result.Diagnostics (fun item -> item.Code = Some "unsupported-distribution") "The distribution is named" ]
+
+/// The guest's own check of artifact paths, and malformed params of generateModel.
+[<Tests>]
+let edgeTests =
+    testList
+        "F# backend MEP guest edges"
+        [ testCase "An artifact path must be relative, /-separated, with no empty, . or .. segment, and no \\ or :"
+          <| fun _ ->
+              for path in [ "Inventory.fs"; "Car/Rental/Inventory.fs" ] do
+                  Expect.isOk (FSharpGuest.checkArtifactPath path) $"{path} is a safe path"
+
+              for path in
+                  [ ""
+                    "/Inventory.fs"
+                    "Car//Inventory.fs"
+                    "Car/Inventory.fs/"
+                    "./Inventory.fs"
+                    "Car/./Inventory.fs"
+                    ".."
+                    "Car/../../Inventory.fs"
+                    @"Car\Inventory.fs"
+                    "C:/Inventory.fs"
+                    "C:Inventory.fs" ] do
+                  Expect.isError (FSharpGuest.checkArtifactPath path) $"'{path}' is refused"
+
+          testCase "A generated tree with an unsafe path is -32603, not artifacts"
+          <| fun _ ->
+              let tree =
+                  Morphir.IR.Pipeline.VFileTree.fromFileMap (
+                      Map.ofList [ "Car:Inventory.fs", Morphir.IR.Pipeline.VFile.ofText "Car:Inventory.fs" "module X" ]
+                  )
+
+              match FSharpGuest.artifacts tree with
+              | Error error -> Expect.equal error.Code -32603 "-32603"
+              | Ok artifacts -> failtest $"An unsafe path is not an artifact: {List.ofSeq artifacts}"
+
+          testCase "Malformed generateModel params are -32602, and the session stays usable"
+          <| fun _ ->
+              let guest = initialized ()
+              let valid = JsonNode.Parse(generateMessage 1 (generateRequest "4.0.0")) |> nonNull
+
+              let withParams (change: JsonObject -> unit) =
+                  let message = valid.DeepClone().AsObject()
+                  change ((message["params"] |> nonNull).AsObject())
+                  message.ToJsonString()
+
+              let replace (value: string) =
+                  let message = valid.DeepClone().AsObject()
+                  message["params"] <- JsonNode.Parse value
+                  message.ToJsonString()
+
+              let malformed =
+                  [ "no target", withParams (fun parameters -> parameters.Remove "target" |> ignore)
+                    "no model", withParams (fun parameters -> parameters.Remove "model" |> ignore)
+                    "a bad contextDigest", withParams (fun parameters -> parameters["contextDigest"] <- JsonValue.Create "xyz")
+                    "params an array", replace "[1,2]"
+                    "no params", (let message = valid.DeepClone().AsObject() in message.Remove "params" |> ignore; message.ToJsonString()) ]
+
+              for label, message in malformed do
+                  let reply = dispatch guest message |> Option.get
+                  Expect.equal (codeOf reply) (Some -32602) $"{label}: -32602"
+                  Expect.isNull reply["result"] $"{label}: no result"
+
+              // JSON-RPC 2.0: params is an object or an array, so a string makes the request itself invalid.
+              let invalid = dispatch guest (replace "\"fsharp\"") |> Option.get
+              Expect.equal (codeOf invalid) (Some -32600) "params a string: -32600"
+
+              let served = dispatch guest (generateMessage 2 (generateRequest "4.0.0")) |> Option.get
+              Expect.isTrue (resultOf served).Success "A valid request after the malformed ones is served" ]
