@@ -295,7 +295,10 @@ module internal Emit =
     let render (formatting: Formatting) source =
         try
             match formatting with
-            | Formatting.Applied -> formatCore source
+            // The check stays here, around the only call of Fantomas: Native AOT compiles IsDynamicCodeSupported to
+            // false and removes this branch, so Fantomas and its reflection are not in the native image.
+            | Formatting.Applied when System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported -> formatCore source
+            | Formatting.Applied -> source
             | Formatting.Off -> unformatted source
             // The default under Native AOT keeps the bytes that it wrote before formatting became a setting.
             | Formatting.Unavailable -> source
