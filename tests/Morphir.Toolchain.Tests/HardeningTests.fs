@@ -86,6 +86,20 @@ let tests =
 
             Expect.isOk (TargetPath.tryParse ("notes/a" + noncharacter + ".txt")) "an NFC target path that holds it"
             Expect.equal (TargetPath.tryParse ("notes/a" + noncharacter + decomposed) |> Result.map ignore) (Error ReaderCode.NonPortablePath) "and one that is not NFC")
+        testCase "a host plan component with a recipe-digest source is inconsistent_document at its source" (fun () ->
+            // manager-result.md: a host's source is repository-target or external-owner. No fixture pins recipe-digest.
+            let text = Encoding.UTF8.GetString(Fixtures.bytes "result/setup-plan.json")
+            let at = text.IndexOf "\"repository-target\""
+            Expect.isGreaterThan at 0 "the host's source"
+            let edited = text.Substring(0, at) + "\"recipe-digest\"" + text.Substring(at + "\"repository-target\"".Length)
+
+            match ResultDocument.read (Encoding.UTF8.GetBytes edited) with
+            | Error refusal ->
+                Expect.equal
+                    (refusal.Code, DocumentPath.render refusal.Path)
+                    (ReaderCode.InconsistentDocument, "plan.components[0].source")
+                    "refused at the host's source"
+            | Ok _ -> failtest "a host authenticated by the recipe's digest was read")
         testCase "only the exact draft text is supported; build metadata is refused" (fun () ->
             Expect.equal (ContractVersion.check "0.1.0-draft.1") (Ok()) "the draft"
             Expect.equal (ContractVersion.check "0.1.0-draft.1+meta") (Error ReaderCode.UnsupportedContractVersion) "build metadata"

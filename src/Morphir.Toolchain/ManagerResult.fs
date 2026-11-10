@@ -386,6 +386,12 @@ type ManagerResult =
     member this.Selection = this.selection
     member this.Diagnostics = this.diagnostics
 /// The manager result reader and writer (manager-result page).
+/// The role whose source kinds a plan component is checked against.
+[<RequireQualifiedAccess>]
+type internal SourceRole =
+    | Host
+    | Provider
+
 module ResultDocument =
     open Reading
 
@@ -745,19 +751,23 @@ module ResultDocument =
             then
                 return! refuse ReaderCode.InconsistentDocument componentsPath
 
-            // A bound source names the expected bytes, from the recipe's repository.
-            let boundTo (at: DocumentPath) (expected: TargetBinding) (source: ComponentSource) =
-                match source with
-                | ComponentSource.RepositoryTarget(repositoryId, target, sha)
-                | ComponentSource.RecipeDigest(repositoryId, target, sha) ->
+            // A source has a kind its component's role allows (manager-result.md): a host release is authenticated by
+            // its own TUF target, an external provider by the recipe's digest, and either may be externally owned.
+            // A bound source then names the expected bytes, from the recipe's repository.
+            let boundTo (at: DocumentPath) (role: SourceRole) (expected: TargetBinding) (source: ComponentSource) =
+                match role, source with
+                | SourceRole.Host, ComponentSource.RecipeDigest _
+                | SourceRole.Provider, ComponentSource.RepositoryTarget _ -> refuse ReaderCode.InconsistentDocument (at.Child "source")
+                | _, ComponentSource.RepositoryTarget(repositoryId, target, sha)
+                | _, ComponentSource.RecipeDigest(repositoryId, target, sha) ->
                     if target <> expected.Target || sha <> expected.Sha256 then
                         refuse ReaderCode.InconsistentDocument (at.Child "source")
                     elif repositoryId <> plan.Recipe.RepositoryId then
                         refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "repositoryId")
                     else
                         Ok()
-                | ComponentSource.ExternalOwner -> Ok()
-                | ComponentSource.BuiltIn -> refuse ReaderCode.InconsistentDocument (at.Child "source")
+                | _, ComponentSource.ExternalOwner -> Ok()
+                | _, ComponentSource.BuiltIn -> refuse ReaderCode.InconsistentDocument (at.Child "source")
 
             for index, planned in List.indexed plan.Components do
                 let at = componentsPath.At index
@@ -772,7 +782,7 @@ module ResultDocument =
                     then
                         return! refuse ReaderCode.InconsistentDocument at
 
-                    do! boundTo at closure.Host host.Source
+                    do! boundTo at SourceRole.Host closure.Host host.Source
                 | PlannedComponent.Provider(operation, id, delivery, provider) ->
                     let locked = closure.Providers |> List.find (fun p -> p.Operation = operation)
 
@@ -788,9 +798,9 @@ module ResultDocument =
                         if provider.Source <> ComponentSource.BuiltIn then
                             return! refuse ReaderCode.InconsistentDocument (at.Child "source")
                     | LockedDelivery.Process(_, artifact, _)
-                    | LockedDelivery.Wasm(_, _, artifact, _) -> do! boundTo at artifact provider.Source
+                    | LockedDelivery.Wasm(_, _, artifact, _) -> do! boundTo at SourceRole.Provider artifact provider.Source
                     | LockedDelivery.DotnetTool(_, package, _) ->
-                        do! boundTo at { Target = package.Target; Sha256 = package.Sha256 } provider.Source
+                        do! boundTo at SourceRole.Provider { Target = package.Target; Sha256 = package.Sha256 } provider.Source
         }
 
     let private plan (n: Node) : Read<Plan> =
