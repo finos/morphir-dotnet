@@ -10,7 +10,7 @@
 | [Establish .NET SDK conformance](establish-dotnet-sdk-conformance.md) | In Progress | Cleanup pending | #462 and archive #463 landed; coordinator retains policy-blocked directory cleanup, #460 |
 | [Introduce F# SDK package](introduce-fsharp-sdk-package.md) | Implementation and archive landed | Cleanup pending | #469 and archive #472 landed; implementation worktree/artifacts removed; empty archive directory cleanup pending |
 | [CLI model generation](cli-model-generation.md) | Completed | Delivered | Repository review |
-| [Morphir extension model](morphir-extension-model.md) | In Progress | Step 1 | MEP foundation implemented for review; wire types, JSON-RPC/session and validate follow (#512) |
+| [Morphir extension model](morphir-extension-model.md) | In Progress | Step 2a (WASM runtime) | `add-wasm-extension-host` approved: the host runs `extism-kernel-v1` only, [#563](https://github.com/finos/morphir-dotnet/issues/563); configured WASM extensions in `extension list` planned, [#565](https://github.com/finos/morphir-dotnet/issues/565) |
 | [Morphir application architect skill](morphir-application-architect-skill.md) | Draft | Design | Skill proposal |
 | [morphir-dotnet as the default Morphir CLI](morphir-dotnet-default-cli.md) | Draft | Proof criteria | ADR 0001 proposed; first proof point is add-fsharp-compile |
 

@@ -11,6 +11,8 @@ Status: Decided. In step 2b, the .NET guest SDK targets only the `process` runti
 
 This spike is the ".NET guest toolchains" spike in [Spikes before step 2](../../prds/morphir-extension-model.md#spikes-before-step-2) of the Morphir extension model PRD. The probe sources are in `spikes/extension-model/dotnet-guest-toolchains/`.
 
+**Note, 9 November 2026.** This spike tested guests against `morphir-bytes-v1`, which was the host's planned profile on 7 November. The maintainer has since decided that the morphir-dotnet host runs `extism-kernel-v1` only and refuses a `morphir-bytes-v1` module with `extension.abi_unsupported` (see [Runtimes](../../prds/morphir-extension-model.md#runtimes) in the PRD). The decision of this spike is unchanged: the .NET guest SDK targets the `process` runtime. A later .NET WASM guest would have to be an Extism module to run in this host. The findings below are unchanged; they record what the spike measured.
+
 ## The guest contract
 
 The host loads a `morphir-bytes-v1` guest (upstream `finos/morphir-moonbit`, [`pkgs/morphir-host/worker/wasm/README.mbt.md`](https://github.com/finos/morphir-moonbit/blob/main/pkgs/morphir-host/worker/wasm/README.mbt.md) and [`profile.mbt`](https://github.com/finos/morphir-moonbit/blob/main/pkgs/morphir-host/worker/wasm/profile.mbt)). The guest must obey these rules:
