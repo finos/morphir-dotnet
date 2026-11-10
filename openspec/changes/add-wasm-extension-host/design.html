@@ -119,7 +119,7 @@ svg .small { font-size: 11.5px; fill: var(--muted); }
 </tbody></table></div>
 
 <h2 id="decisions">Decisions made in this repository</h2>
-<p>The running example is the parent's: the published Python extension <code>0.4.2</code>, one 4.7 MB Extism module. Each decision below is a point where the parent design meets this codebase and something had to be chosen.</p>
+<p>The running example is the parent's: the published Python extension, one 4.7 MB Extism module. The parent names release <code>0.4.2</code>; this host uses <code>0.6.0</code>, for the reason in <a href="#mep-1">MEP-1</a>. Each decision below is a point where the parent design meets this codebase and something had to be chosen.</p>
 
 <figure>
 <svg viewBox="0 0 760 330" role="img" aria-labelledby="lay-title lay-desc">
@@ -151,10 +151,19 @@ svg .small { font-size: 11.5px; fill: var(--muted); }
 <p>Three consequences for existing text in this repository, all handled by task 0.1:</p>
 <ul>
 <li>The PRD's Runtimes section, step 2a and step 5 change. Step 2a keeps its analyzer scope but its guests are Extism modules. Step 5 keeps host grants only.</li>
-<li>The PRD's step 2a reference guest, the morphir-elm <code>morphir-bytes-v1</code> release, can no longer run in this host. The Python <code>0.4.2</code> module takes its place as the guest this repository did not write.</li>
+<li>The PRD's step 2a reference guest, the morphir-elm <code>morphir-bytes-v1</code> release, can no longer run in this host. The published Python extension takes its place as the guest this repository did not write (release <code>0.6.0</code>, see <a href="#mep-1">MEP-1</a>).</li>
 <li>The spike's advice to write a <code>LibraryImport</code> binding for three per-byte callbacks is void. An Extism guest moves its bytes through the kernel, inside WASM, and the host is called only for the rare functions. Untyped callbacks, which give zero AOT warnings, are fast enough for those.</li>
 </ul>
 
+<h3 id="mep-1">MEP-1. MEP 0.2.0-draft.1 only</h3>
+<p><strong>Maintainer, 9 November 2026:</strong> morphir-dotnet targets MEP <code>0.2.0-draft.1</code> and does not implement, bridge or test MEP <code>0.1</code>. Nobody depends on <code>0.1</code>, so a second version is cost with no user. The maintainer confirmed on the same day that this applies to this change. It was decided after the change was approved, and it changes four things:</p>
+<ul>
+<li><strong>One instruction budget.</strong> The contract gives 5,000,000,000 for a <code>0.2.0-draft.1</code> session and 1,000,000,000 for a <code>0.1</code> session. The host has the first only.</li>
+<li><strong>The reference guest is the Python extension <code>0.6.0</code>,</strong> the release finos/morphir pins in <code>.config/published-extension-bundles.toml</code>. Release <code>0.4.2</code>, which the parent's tasks 2.2, 3.1 and 3.5 name, speaks <code>0.1</code> only (measured in <a href="evidence/2.5-bounds.md">the bounds evidence</a>). The kernel proof ran on <code>0.4.2</code> with a raw <code>0.1</code> message before this decision; its probe moves to <code>0.6.0</code>, and the first run stays in the evidence as it was made.</li>
+<li><strong>A published guest accepts <code>0.2.0-draft.1</code> only when <code>morphir.initialize</code> carries a model transport offer.</strong> Without the offer, the pinned bundles refuse with error -32011. Sessions on these guests always send the offer.</li>
+<li><strong>The generic guest kit's legacy tier is not run against this host.</strong> Only its <code>0.2.0-draft.1</code> tier is (<a href="#run-2">RUN-2</a>).</li>
+</ul>
+<p>The parent's task wording is kept as written in <a href="tasks.md">the tasks</a>, with a note under each task that this decision changes. The parent still names <code>0.4.2</code> and the <code>0.1</code> budget; that text is the parent's to update.</p>
 <h3 id="lay-1">LAY-1. One new C# project for the runtime</h3>
 <p>The runtime goes into <code>src/Morphir.Extensions.Wasm</code>, a C# project marked trimmable and AOT-compatible, with <code>tests/Morphir.Extensions.Wasm.Tests</code> (TUnit) and <code>tests/Morphir.Extensions.Wasm.AotProbe</code>. It references <code>Morphir.Mep</code> for the channel and the wire types. Nothing references it except <code>Morphir.Tooling</code> and tests.</p>
 <p>C# is chosen because almost every line touches the Wasmtime .NET API or native memory: delegates as host callbacks, spans over linear memory, disposal order. The closed sets the domain needs (profile, refusal, fault kind, outcome) are small and are modeled as sealed record hierarchies, as AGENTS.md shows. The F# types it consumes from <code>Morphir.Mep</code> follow the <code>fsharp-csharp-interop</code> skill, and the reviewer agent runs on each diff that crosses that boundary.</p>
@@ -216,7 +225,7 @@ sha256 = "10acafa0...22b5"                 # optional; other bytes are refused b
 <p>The parent's sample calls the offering member <code>offering</code>. Here it is <code>deployment</code>, the name PR #559 gives the same value in <code>extension list</code>, so one executable does not report one fact under two names. The unavailable reasons are <code>platform_unsupported</code>, <code>engine_missing</code>, <code>engine_load_failed</code> and <code>disabled</code>. The engine is probed once, on first need, and never at start-up.</p>
 
 <h3 id="wrk-2">WRK-2. The worker relays messages; it is not a second MEP host</h3>
-<p>In worker mode the MEP host is the runner at the other end of stdio. The worker reads one frame, passes its body to the WASM channel and writes the reply as a frame. It does not negotiate, and it does not use <code>HostSession</code>, which speaks only <code>0.2.0-draft.1</code>: the generic guest kit's legacy tier speaks MEP <code>0.1</code> through the same worker, and the worker must carry it.</p>
+<p>In worker mode the MEP host is the runner at the other end of stdio. The worker reads one frame, passes its body to the WASM channel and writes the reply as a frame. It does not negotiate, and it does not use <code>HostSession</code>: the crafted cases send frames that a session would never send, and the worker must carry them as they are. The worker has one instruction budget and is not told which MEP version the runner speaks (<a href="#mep-1">MEP-1</a>).</p>
 <p>The worker looks inside a message only where the profile contract requires it: the method name, to know a notification from a request and to see <code>morphir.exit</code>; and the <code>morphir.initialize</code> result, for the protocol version that selects the instruction budget and for the notification advertisement. The channel, the adapter, the bounds and the policy are the same objects a product command will use, which is what the parent means by "not a second implementation".</p>
 <p>The command is registered in both entry points before the CLI host is built, so that no log line or banner can reach stdout. It is hidden from help and documented in the contributor guide as internal and experimental.</p>
 
@@ -265,7 +274,7 @@ $ morphir mck wasm-host report-check --kit ... --report .dev/wasm-host-dotnet.js
 <p>Parent task 1.5 asks that the corpus first be run against the MoonBit native CLI's worker mode, because that host exists. Each difference is recorded as a contract question or a MoonBit issue before any .NET result is compared. That needs a MoonBit native CLI build on the machine that runs it.</p>
 
 <h3 id="run-2">RUN-2. The generic guest kit keeps today's runner</h3>
-<p>Positive evidence comes from the generic guest kit: describe, a legacy tier on MEP <code>0.1</code>, a model tier on <code>0.2.0-draft.1</code>, generate, and compiling the generated files again, with semantic IR comparison. Its runner is the Rust <code>morphir mck mep guest-run</code>. That runner already drives any stdio host by path and arguments, so driving the .NET worker needs no new runner code, and parent task 4.3 asks exactly that the invocation differ only in the host path.</p>
+<p>Positive evidence comes from the generic guest kit: describe, a legacy tier on MEP <code>0.1</code>, a model tier on <code>0.2.0-draft.1</code>, generate, and compiling the generated files again, with semantic IR comparison. Against this host only the <code>0.2.0-draft.1</code> tier is run (<a href="#mep-1">MEP-1</a>); if the runner cannot leave its legacy tier out, that is raised with the parent before task 4.3. Its runner is the Rust <code>morphir mck mep guest-run</code>. That runner already drives any stdio host by path and arguments, so driving the .NET worker needs no new runner code, and parent task 4.3 asks exactly that the invocation differ only in the host path.</p>
 <p>This change therefore does not port <code>guest-run</code>. Porting it is part of moving the kit, which <code>establish-morphir-compatibility-kit</code> owns. The host qualification report cites the generic kit run by its report digest, and the check ties both to the same host executable digest.</p>
 <p>Task 3.5 runs the same kit package in-process, in this repository's tests, on <code>0.2.0-draft.1</code> only, since that is the one version <code>HostSession</code> speaks. It reuses the kit's documents and expected IR as fixed data and the conformance project's JSON comparison with the kit's three stated comparison rules.</p>
 
@@ -317,7 +326,7 @@ $ morphir mck wasm-host report-check --kit ... --report .dev/wasm-host-dotnet.js
 <p>None of these changes the specs or the task breakdown. Each is settled with evidence inside the task named.</p>
 <ul>
 <li>How the WASI surface is supplied (task 3.4). The engine's own WASI is the first choice if it can capture stdout and stderr into a bounded buffer and return an error code for every other call. If it cannot, the preview 1 imports are defined as host functions in managed code, which gives exact control at the cost of more code. Either way the crafted sandbox cases decide.</li>
-<li>Where the Python <code>0.4.2</code> module and the SDK fixture are cached for tests, and whether a test without them skips outside CI and fails in CI, as the MoonBit tests do (task 2.2).</li>
+<li>Where the Python <code>0.6.0</code> module and the SDK fixture are cached for tests, and whether a test without them skips outside CI and fails in CI, as the MoonBit tests do (task 2.2).</li>
 <li>The fuel value. The contract's number comes from another engine and the unit is engine-defined. Task 2.5 measures the published guests' fuel use and records it; a .NET-specific value needs no contract change.</li>
 </ul>
 

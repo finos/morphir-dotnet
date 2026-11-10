@@ -50,6 +50,7 @@ Parent tasks 1.1 to 1.4 and 1.6 belong to finos/morphir and are dependencies onl
   - Files: `src/Morphir.Extensions.Wasm/` (new C# project: the engine, the embedded kernel, the minimum linking for one call), `tests/Morphir.Extensions.Wasm.AotProbe/` (new, modeled on `tests/Morphir.Mep.AotProbe`), `Directory.Packages.props` (`Wasmtime` 50.0.1), `Morphir.slnx`, the kernel's licence and notice beside its bytes.
   - Record: the `moonrockz/extism` version (`0.3.0` in finos/morphir-moonbit today), the kernel module's SHA-256, how the bytes were obtained, the publish log's warning count, the probe's output and the runner it ran on.
   - The Python module is downloaded and checked against its published digest. It is not committed.
+  - Done on the Python `0.4.2` module with a raw MEP `0.1` message, before decision MEP-1. The probe then moves to the Python `0.6.0` module and a `0.2.0-draft.1` initialize; both runs are in the evidence.
   - Design: KPF-1, LAY-1.
 - [x] 2.3 Add failing tests for a message-based host channel in `Morphir.Mep`, then implement it and move the stream framing behind it. Verify every existing process-guest test and replay passes unchanged, and that a fake single-message guest completes initialize, a request and shutdown.
   - Files: `src/Morphir.Mep/Peers.fs`, `src/Morphir.Mep/Connection.fs`, a new channel file, `src/Morphir.Mep/README.md`.
@@ -61,7 +62,7 @@ Parent tasks 1.1 to 1.4 and 1.6 belong to finos/morphir and are dependencies onl
   - The classifier reads its import table from the pinned contract file, not from a second copy in code. The `classification/` cases of the pinned corpus are the test data.
   - Specs: `dotnet-wasm-host`, `extension-registry`. Design: REG-1.
 - [ ] 2.5 Implement the bounds and their mapping: fuel, epoch deadline, cancellation, the per-memory limit and the at-ceiling memory rule, with memory size on every failure. Verify the crafted bounds cases, that Ctrl+C stops a spinning guest within one second with exit status 130, and record the published guests' fuel use and compile time on the kit package in the change's evidence.
-  - The instruction budget is 5,000,000,000 on MEP `0.2.0-draft.1` and 1,000,000,000 on MEP `0.1`, from the parent spec. Deadline cases use the corpus margin; do not shorten a deadline in a way that hides a missing bound.
+  - The instruction budget is 5,000,000,000. The host has no MEP `0.1` budget (design MEP-1). Deadline cases use the corpus margin; do not shorten a deadline in a way that hides a missing bound.
   - Evidence goes in `openspec/changes/add-wasm-extension-host/evidence/`.
 - [ ] 2.6 Load a module from `extensions.<name>.path` by content, with an optional declared ABI and digest, and separate guest output from command results. Verify a text file at the path, a replaced module and a guest that logs 10 MiB under `--json`, and document the configuration beside the existing extension settings.
   - Files: `src/Morphir.Configuration/Schema.fs` and its generator `scripts/configuration/generate-schema.py` (the `abi` and `sha256` amendments), `src/Morphir.Tooling/Features/Extensions/` (the loader), the configuration reference under `docs/content/docs/`.
@@ -72,6 +73,7 @@ Parent tasks 1.1 to 1.4 and 1.6 belong to finos/morphir and are dependencies onl
 
 - [ ] 3.1 Implement the Extism adapter on the proven kernel: one instance per session, input and output through the kernel, Extism errors as session failures and `exit` ending the instance. Verify a compile session on the Python guest makes one `handle` call per request and that a guest which advertises nothing receives no notification.
   - Files: `src/Morphir.Extensions.Wasm/`. The adapter is the WASM implementation of the channel from 2.3.
+  - "The Python guest" is release `0.6.0`, on MEP `0.2.0-draft.1` with a model transport offer (design MEP-1).
   - The `extism/` and `limits/` cases of the pinned corpus are the test data.
 - [ ] 3.2 Implement negotiated notifications: read the guest's advertisement from its `morphir.initialize` result, deliver each notification as one `handle` call and fail the session when it returns output. Verify the crafted cases for a guest that accepts notifications, one that answers a notification, and a published guest that advertises nothing.
   - Waits for the pinned contract to hold the fixed member name and the notification cases. Do not invent the member (design NTFY-1).
@@ -80,7 +82,7 @@ Parent tasks 1.1 to 1.4 and 1.6 belong to finos/morphir and are dependencies onl
 - [ ] 3.4 Configure the WASI sandbox with no preopens, arguments, environment or stdin, and bounded capture of stdout and stderr. Verify `path_open` returns an error with the session continuing, clocks and random bytes work, and guest stdout never reaches a MEP response.
   - Decide here, with the crafted cases as evidence, whether the engine's WASI or managed host functions supply the surface (design, open questions).
 - [ ] 3.5 Run the generic guest kit in-process for the Python guest and the SDK fixture. Verify IR equal to the kit's expectations for each claimed IR version, and document the Extism profile's resident memory bound of twice the ceiling in the host's extension guide.
-  - In-process means through `HostSession`, so on MEP `0.2.0-draft.1` only. The kit's documents and expected IR are fixed data; the comparison applies the kit's three stated rules and no other.
+  - In-process means through `HostSession`, so on MEP `0.2.0-draft.1` only, with the Python `0.6.0` guest (design MEP-1). The kit's documents and expected IR are fixed data; the comparison applies the kit's three stated rules and no other.
   - Design: RUN-2.
 
 ## 4. Worker mode and runtime report, morphir-dotnet
@@ -93,6 +95,7 @@ Parent tasks 1.1 to 1.4 and 1.6 belong to finos/morphir and are dependencies onl
   - Design: RPT-1. The `deployment` value needs the build identity of `add-deployment-and-acquisition`; until it merges, report the identities that exist and say so in the evidence.
 - [ ] 4.3 Drive the worker from the kit's runner with the same worker arguments used for the MoonBit host, changing only the host path. Verify the generic guest kit and the crafted corpus both complete with no runner change, and document the command in the contributor guide as internal and experimental.
   - The crafted corpus runs through the runner of task 1.5. The generic guest kit runs through the Rust `morphir mck mep guest-run`, unchanged (design RUN-2, review question 1).
+  - Only the kit's `0.2.0-draft.1` tier is run against this host (design MEP-1). If the runner cannot leave its legacy tier out, raise that with the parent first.
 
 ## 5. Packaging across offerings, morphir-dotnet
 

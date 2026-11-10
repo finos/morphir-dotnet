@@ -120,7 +120,7 @@ The `add-fsharp-compile` change already uses this rule for frontends. The rule a
 Upstream limits that the host must apply:
 
 - `process`: a payload of at most 64 MiB and headers of at most 8192 bytes (the Rust host, `crates/morphir-host-native/src/process/frame.rs` in `finos/morphir-rust`).
-- `wasm`: the three bounds of the shared WASM execution profile contract, each with its own failure code: an instruction budget, a deadline for each call (30 s) and a ceiling of 256 MiB for each memory. The parent spec sets the instruction budget at 5,000,000,000 on MEP `0.2.0-draft.1` and 1,000,000,000 on MEP `0.1`. The OpenSpec change `add-wasm-extension-host` pins the contract by commit. See [open points](#open-points).
+- `wasm`: the three bounds of the shared WASM execution profile contract, each with its own failure code: an instruction budget, a deadline for each call (30 s) and a ceiling of 256 MiB for each memory. The instruction budget is 5,000,000,000. morphir-dotnet speaks MEP `0.2.0-draft.1` only, so it does not carry the contract's smaller budget for MEP `0.1` sessions. The OpenSpec change `add-wasm-extension-host` pins the contract by commit. See [open points](#open-points).
 - Request ids are an unsigned 64-bit number or a string. Keep the full u64 range.
 
 Upstream WASM ABIs (`finos/morphir-moonbit`, `pkgs/morphir-host/worker/wasm/README.mbt.md`):
@@ -254,7 +254,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 - The user names the extension in configuration: `extensions.<name>.path`. There is no folder discovery in this step. Configuration layering already covers every level.
 - **Configured WASM extensions in `extension list` (decided 9 November 2026).** `morphir extension list` does not show configured WASM extensions yet. The listing is planned in [#565](https://github.com/finos/morphir-dotnet/issues/565). It lands with the first command that consumes configured extensions, which is `morphir validate` in this step, or with [installation](#step-3-installation), whichever comes first.
 - A sample analyzer in Rust or MoonBit, with an MCK suite.
-- **Reference guest from upstream.** The published Python extension `0.4.2`, one 4.7 MB Extism module, is the guest that morphir-dotnet did not write. The host tests run `morphir.initialize` on it under Native AOT first, then a compile session and the generic guest kit. A guest that morphir-dotnet did not write is the best check that the host follows MEP. The `morphir-elm` `morphir-bytes-v1` release that the user noted on 2026-11-07 (see the [WASM runtime spike](../spikes/extension-model/wasm-runtime.md#reference-guest-morphir-elm)) no longer runs in this host, which refuses it.
+- **Reference guest from upstream.** The published Python extension `0.6.0`, one 4.8 MB Extism module that `finos/morphir` pins, is the guest that morphir-dotnet did not write. Release `0.4.2`, which the parent design names, speaks MEP `0.1` only, and morphir-dotnet does not support `0.1` (decided 9 November 2026). The host tests run `morphir.initialize` on it under Native AOT first, then a compile session and the generic guest kit. A guest that morphir-dotnet did not write is the best check that the host follows MEP. The `morphir-elm` `morphir-bytes-v1` release that the user noted on 2026-11-07 (see the [WASM runtime spike](../spikes/extension-model/wasm-runtime.md#reference-guest-morphir-elm)) no longer runs in this host, which refuses it.
 - Depends on: the upstream validate payload, the WASM runtime spike and the change `add-wasm-extension-host`.
 
 ### Step 2b: Process analyzers
@@ -333,7 +333,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 
 | Point | Who decides | Note |
 | --- | --- | --- |
-| Fuel limit: 100M or 1B | Closed on 9 November 2026 by the parent spec, adopted in `add-wasm-extension-host` | The instruction budget is 5,000,000,000 on MEP `0.2.0-draft.1` and 1,000,000,000 on MEP `0.1`. The change measures the published guests' fuel use and records it with its evidence. |
+| Fuel limit: 100M or 1B | Closed on 9 November 2026 by the parent spec, adopted in `add-wasm-extension-host` | The instruction budget is 5,000,000,000. The contract's 1,000,000,000 for MEP `0.1` sessions is not used, because morphir-dotnet does not support `0.1`. The change measures the published guests' fuel use and records it with its evidence. |
 | A project lock that refers to a staged file | Step 3 design | A second machine has no repository to get the bytes from. Options include a vendored folder in the repository or a required publish step. |
 | Auto-install of files from a cloned repository | Step 3 design | With `auto`, cloning a repository that has `staged/` files and running a command installs them. The WASM limits reduce the risk. A process guest has no sandbox. The step 3 design must decide whether `auto` applies to process guests. |
 | The validate payload shape | morphir-dotnet proposes, upstream accepts | Step 2 can build against the draft PR. |
