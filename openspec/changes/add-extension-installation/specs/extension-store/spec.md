@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Keeps installed extensions under Morphir Home in the upstream store, catalog and lock formats, so that a reader never sees partial state. The .NET and Rust CLIs share the format of these files. They share use of an installed extension only when both can run it, so the shared catalog admits only entries that every supported reader can read and run, and a .NET global layer holds the rest.
+Keeps installed extensions under Morphir Home in the upstream store, catalog and lock formats, so that a reader never sees partial state and the .NET and Rust CLIs share global installs. MEP `0.1` is not supported (maintainer decision, 9 November 2026), so a shared Morphir Home serves only readers that speak `0.2.0-draft.1`; this change does not protect readers that speak only `0.1`.
 
 ## ADDED Requirements
 
@@ -51,33 +51,6 @@ The installer and the host SHALL refuse a store root, digest directory or stored
 - **WHEN** a digest directory in the store is a symbolic link to a directory outside Morphir Home
 - **THEN** an install or activation that uses it fails with `extension.path_escape` and writes nothing
 
-### Requirement: The shared catalog admits only entries every supported reader can run
-Provisional pending design question Q-SHARED. A global install SHALL write a shared catalog entry and lock only when the entry's `mepVersions` holds a version the pinned reference reader supports (`0.1` at `c9f79da`), its id is valid at the catalog version that reader reads, and the catalog stays at a version that reader reads. Otherwise it SHALL install into the .NET global layer and write no shared entry or lock.
-
-#### Scenario: A guest that speaks only MEP 0.2
-- **WHEN** a user installs globally a process extension whose `mepVersions` is `["0.2.0-draft.1"]`
-- **THEN** the catalog and `locks/extensions/` are unchanged, the .NET global layer selects it, and the report says `layer` `dotnet-global` with the reason `mep-version`
-- **AND** a Rust `morphir extension list` on the same Morphir Home succeeds and does not list it
-
-#### Scenario: A guest that speaks both versions
-- **WHEN** a user installs globally an extension whose `mepVersions` is `["0.1", "0.2.0-draft.1"]`
-- **THEN** the shared catalog and its lock hold the entry, and both CLIs list it
-
-#### Scenario: A dotted id
-- **WHEN** a user installs globally an extension with the id `org.finos.morphir.fsharp-backend` from a descriptor version that allows dotted ids
-- **THEN** the shared catalog is unchanged and the .NET global layer selects it, with the reason `id-version`
-
-### Requirement: The .NET global layer selects what the shared catalog cannot hold
-Provisional pending Q-SHARED. The installer SHALL keep the .NET global layer in `data/morphir-dotnet/extensions/global.json` below Morphir Home, mapping each id to one inventory record by digest, sorted by id, under the state lock. A global install SHALL refuse an id already selected in the shared catalog or this layer with `extension.already_installed`.
-
-#### Scenario: Same id in the shared catalog
-- **WHEN** the Rust CLI installed `acme-backend` into the shared catalog and a user installs a 0.2-only `acme-backend` globally with the .NET host
-- **THEN** the install fails with `extension.already_installed` naming the shared catalog, and nothing is written
-
-#### Scenario: No shared file changes
-- **WHEN** an install writes the .NET global layer
-- **THEN** no file below `catalog/` or `locks/extensions/` changes
-
 ### Requirement: The catalog holds one active record per extension
 The shared catalog SHALL be `catalog/extensions.json` below Morphir Home, with `schemaVersion` and `extensions` sorted by id, one entry per id, and the members the reference writer writes. `critical` and `requires` SHALL be written when the release has `requires.host`, with `critical` naming `requires.host`. An entry whose claims were only converted from a version 1 record SHALL have no `claims`, `claimCheck` or `probeSource`.
 
@@ -108,19 +81,19 @@ The installer SHALL write catalog `schemaVersion` `"2.0.0-draft.2"` when any ent
 - **WHEN** one installed entry has a claim set supplied by its descriptor
 - **THEN** the catalog `schemaVersion` is `"2.0.0-draft.2"`
 
-### Requirement: Each shared lock has exactly the upstream members
-For each shared catalog entry the installer SHALL write `locks/extensions/<id>.json` below Morphir Home with `schemaVersion` `"1.0"` and only the members `schemaVersion`, `selection`, `extensionId`, `name`, `version`, `index`, `source`, `runtime`, `platform`, `args`, `digest`, `capabilities`, `mepVersions`, `frontend`, `backend` and `executable`, because upstream lock readers refuse other members (Q-STRICTLOCK, follows the reference).
+### Requirement: Each global lock has exactly the upstream members
+For each catalog entry the installer SHALL write `locks/extensions/<id>.json` below Morphir Home with `schemaVersion` `"1.0"` and only the members `schemaVersion`, `selection`, `extensionId`, `name`, `version`, `index`, `source`, `runtime`, `platform`, `args`, `digest`, `capabilities`, `mepVersions`, `frontend`, `backend` and `executable`, because upstream lock readers refuse other members (Q-STRICTLOCK, follows the reference).
 
 #### Scenario: No extra member
 - **WHEN** an extension is installed from a package archive
-- **THEN** its shared lock has no member beyond that list, and the archive's own digest is not in it
+- **THEN** its global lock has no member beyond that list, and the archive's own digest is not in it
 
 #### Scenario: Claims pinned under index
 - **WHEN** the installed artifact has a supplied claim set
 - **THEN** the lock's `index.claims` holds that claim set, and the lock has no top-level `claims` member
 
 #### Scenario: Portable WASM platform
-- **WHEN** a WASM artifact is installed into the shared catalog
+- **WHEN** a WASM artifact is installed globally
 - **THEN** its lock has `"platform": null`, `"args": []` and `"executable": false`
 
 ### Requirement: Upstream records are read with the parent compatibility rules
@@ -139,15 +112,15 @@ The installer and the host SHALL read catalogs and records with the parent rules
 - **THEN** reading fails and names the entry
 
 ### Requirement: A shared entry this host cannot run does not hide the others
-When a shared catalog entry's `mepVersions` holds no version this host speaks, the host SHALL keep reading the catalog, list the entry as unavailable with a `reason` that names its MEP versions, and refuse to activate it with `extension.no_compatible_mep_version`. A reason for an entry that speaks only `0.1` SHALL say that MEP `0.1` is deprecated. Other entries SHALL resolve as usual.
+When a shared catalog entry's `mepVersions` holds no version this host speaks, the host SHALL keep reading the catalog, list the entry as unavailable with a `reason` that names its MEP versions, and refuse to activate it with `extension.no_compatible_mep_version`. A reason for an entry that speaks only `0.1` SHALL say that MEP `0.1` is not supported. Other entries SHALL resolve as usual.
 
 #### Scenario: A Rust-installed legacy extension
 - **WHEN** the Rust CLI installed `morphir-elm` with `mepVersions` `["0.1"]` and another entry speaks `0.2.0-draft.1`
-- **THEN** `extension list --json` succeeds, shows `morphir-elm` with `available` false and a reason saying it speaks only the deprecated MEP `0.1`, and shows the other entry as available
+- **THEN** `extension list --json` succeeds, shows `morphir-elm` with `available` false and a reason saying it speaks only MEP `0.1`, which is not supported, and shows the other entry as available
 - **AND** a command that selects `morphir-elm` fails with `extension.no_compatible_mep_version` and starts no process
 
 ### Requirement: A catalog entry and its lock agree
-A host SHALL use a shared entry only when its lock exists and agrees with it on id, name, version, runtime, platform, arguments, digest, capabilities, MEP versions, index provenance, frontend and backend metadata, executable mode and pinned claims. Otherwise it SHALL report `extension.state_mismatch` naming the id and SHALL start no guest.
+A host SHALL use a global entry only when its lock exists and agrees with it on id, name, version, runtime, platform, arguments, digest, capabilities, MEP versions, index provenance, frontend and backend metadata, executable mode and pinned claims. Otherwise it SHALL report `extension.state_mismatch` naming the id and SHALL start no guest.
 
 #### Scenario: Lock edited by hand
 - **WHEN** the lock of `acme-backend` names another digest than its catalog entry
@@ -155,7 +128,7 @@ A host SHALL use a shared entry only when its lock exists and agrees with it on 
 - **AND** no command starts that extension
 
 ### Requirement: One interprocess lock serializes extension state
-Every read and write of the catalog, shared locks, the .NET global layer and the .NET inventory SHALL hold an exclusive operating-system lock on `locks/extensions.state.lock` below Morphir Home, opened for read and write without truncation and taken as the reference implementation takes it, so that a .NET and a Rust process exclude each other (Q-LOCKPRIM, follows the reference).
+Every read and write of the catalog, shared locks and the .NET inventory SHALL hold an exclusive operating-system lock on `locks/extensions.state.lock` below Morphir Home, opened for read and write without truncation and taken as the reference implementation takes it, so that a .NET and a Rust process exclude each other (Q-LOCKPRIM, follows the reference).
 
 #### Scenario: Another process holds the lock
 - **WHEN** a helper process holds the state lock with the reference implementation's primitive and a user runs `morphir extension install`
@@ -171,7 +144,7 @@ Every read and write of the catalog, shared locks, the .NET global layer and the
 - **THEN** the command exits without changing any extension state
 
 ### Requirement: Lock and catalog change as one transaction
-The installer SHALL change a shared lock and the catalog together through the reference journal `locks/extensions/<id>.json.transaction`, with `schemaVersion` 1, `nextLock` and `nextCatalog` as byte arrays or `null` for a deletion, and no other member. Each holder of the state lock SHALL first apply every journal it finds, whichever CLI wrote it, and then remove it (Q-JOURNAL, follows the reference).
+The installer SHALL change a global lock and the catalog together through the reference journal `locks/extensions/<id>.json.transaction`, with `schemaVersion` 1, `nextLock` and `nextCatalog` as byte arrays or `null` for a deletion, and no other member. Each holder of the state lock SHALL first apply every journal it finds, whichever CLI wrote it, and then remove it (Q-JOURNAL, follows the reference).
 
 #### Scenario: Interrupted install
 - **WHEN** an install is stopped after it wrote the new lock and before it wrote the catalog
@@ -186,7 +159,7 @@ The installer SHALL change a shared lock and the catalog together through the re
 - **THEN** the journal has `nextLock` `null`, and applying it deletes the lock and writes the catalog without the entry
 
 ### Requirement: Shared files are replaced atomically
-The installer SHALL write each catalog, lock, journal, .NET global layer, inventory and pin file to a temporary file in the same directory, flush it, and rename it over the target, so that a reader sees the old or the new file and never a partial one.
+The installer SHALL write each catalog, lock, journal, inventory and pin file to a temporary file in the same directory, flush it, and rename it over the target, so that a reader sees the old or the new file and never a partial one.
 
 #### Scenario: Reader during a write
 - **WHEN** a host reads the catalog while an install replaces it
@@ -200,12 +173,12 @@ Uninstall, update and selection changes SHALL NOT delete objects from the store.
 - **THEN** its catalog entry and lock are gone and its store object remains
 
 ### Requirement: The .NET inventory records every installed version
-The installer SHALL record each installed artifact in `data/morphir-dotnet/extensions/installed/<id>/<digest>.json` below Morphir Home, holding the entry and lock it would write globally and its source. A later install of the same id and digest with other arguments, claims or index SHALL replace the record and warn. For a shared entry the catalog and lock SHALL win over the record.
+The installer SHALL record each installed artifact in `data/morphir-dotnet/extensions/installed/<id>/<digest>.json` below Morphir Home, holding the entry and lock it would write globally and its source. A later install of the same id and digest with other arguments, claims or index SHALL replace the record and warn. For a global entry the catalog and lock SHALL win over the record.
 
 #### Scenario: Project-level install
 - **WHEN** a user installs version 0.2.0 at the project level while 0.1.0 is installed globally
 - **THEN** the inventory has a record for each of the two digests
-- **AND** the global selection still names 0.1.0
+- **AND** the global catalog and lock still name 0.1.0
 
 #### Scenario: Record rebuilt after a Rust install
 - **WHEN** the shared catalog has an entry that the inventory lacks

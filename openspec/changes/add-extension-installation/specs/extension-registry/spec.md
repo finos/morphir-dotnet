@@ -41,7 +41,7 @@ A host SHALL NOT register two extensions with the same id. If the composition ha
 ## ADDED Requirements
 
 ### Requirement: Installed extensions are listed with their selection
-`extension list` SHALL include one entry for each installed extension that the selection layers select, beside the built-ins. An installed entry SHALL take its id, name, version, description, types and claims from its installed claim set, and SHALL have an `installation` member with `level`, `layer`, `digest`, `storePath`, `claimCheck`, `selection` and `source`.
+`extension list` SHALL include one entry for each installed extension that the selection layers select, beside the built-ins. An installed entry SHALL take its id, name, version, description, types and claims from its installed claim set, and SHALL have an `installation` member with `level`, `digest`, `storePath`, `claimCheck`, `selection` and `source`.
 
 #### Scenario: Installed backend in the list
 - **WHEN** `acme-backend` 0.1.0 is installed globally from repository `local-dev` and a user runs `morphir extension list --json`
@@ -60,7 +60,7 @@ An installed entry's `deployments` SHALL list the offerings of the running relea
 
 #### Scenario: A legacy entry from the Rust CLI
 - **WHEN** the shared catalog holds an entry that speaks only MEP `0.1`
-- **THEN** its entry has `deployments` `[]`, `available` false and a `reason` saying that it speaks only MEP `0.1`, which is deprecated, and the list exits with code 0
+- **THEN** its entry has `deployments` `[]`, `available` false and a `reason` saying that it speaks only MEP `0.1`, which is not supported, and the list exits with code 0
 
 #### Scenario: WASM entry
 - **WHEN** a WASM extension is installed and the running release has no WASM runtime

@@ -57,9 +57,9 @@ Among releases matching the selection, the installer SHALL take the highest SemV
 - **WHEN** the newest release has process artifacts only for `x86_64-unknown-linux-gnu` and the host runs on `win-x64`
 - **THEN** the install fails with `extension.no_matching_artifact` naming `win-x64`
 
-#### Scenario: Only the deprecated MEP version
-- **WHEN** every matching release speaks only MEP `0.1`, which is deprecated and which this host does not support
-- **THEN** the install fails with `extension.no_compatible_mep_version`, naming the versions the host supports and saying that MEP `0.1` is deprecated
+#### Scenario: Only MEP 0.1
+- **WHEN** every matching release speaks only MEP `0.1`, which this host does not support
+- **THEN** the install fails with `extension.no_compatible_mep_version`, naming the versions the host supports and saying that MEP `0.1` is not supported
 
 ### Requirement: Repository paths stay inside the repository
 The installer SHALL canonicalize the history file and each artifact source path, and SHALL refuse one that resolves outside the repository directory, for example through a symbolic link or `..`, with `extension.path_escape`. A declared source path SHALL be relative, use `/`, and have at most 512 UTF-8 bytes and 240 UTF-16 code units.
@@ -105,7 +105,7 @@ The installer SHALL map the host's runtime identifier to the descriptor target t
 - **THEN** the install fails with `extension.no_matching_artifact` naming `linux-musl-x64`
 
 ### Requirement: Bytes are verified while they are staged
-The installer SHALL copy the selected artifact into a private directory below `tmp/` in Morphir Home, hashing while it copies, refuse more than 256 MiB, and compare the digest with the record. A mismatch SHALL stop the install before the store, catalog, locks, .NET global layer, inventory or pins change. Later steps SHALL use only the staged copy.
+The installer SHALL copy the selected artifact into a private directory below `tmp/` in Morphir Home, hashing while it copies, refuse more than 256 MiB, and compare the digest with the record. A mismatch SHALL stop the install before the store, catalog, locks, inventory or pins change. Later steps SHALL use only the staged copy.
 
 #### Scenario: Substituted artifact
 - **WHEN** the repository file for the selected artifact has bytes whose SHA-256 differs from the record
@@ -117,7 +117,7 @@ The installer SHALL copy the selected artifact into a private directory below `t
 - **THEN** the install fails with `extension.artifact_too_large` after reading at most 256 MiB and one byte
 
 ### Requirement: Process artifacts are probed before they are recorded
-For a `process` artifact the installer SHALL start the staged copy and call `morphir.extension.describe` before shared state changes. The answer and the recorded claim set SHALL be compared over the typed claim set projection, as the reference compares them (Q-NUMBERS). A refusal with `-32601` or `-32014`, or a lifecycle refusal the reference recognizes by message, SHALL fall back to a session.
+For a `process` artifact the installer SHALL start the staged copy and call `morphir.extension.describe` before shared state changes. The answer and the recorded claim set SHALL be compared over the typed claim set projection, as the reference compares them (Q-NUMBERS). A refusal with `-32601` or `-32014` SHALL fall back to a session. Lifecycle refusals that older guests signal only by message SHALL NOT trigger a fallback, because those guests predate `0.2.0-draft.1`.
 
 #### Scenario: Claims agree
 - **WHEN** the staged guest answers `describe` with a claim set equal to the descriptor's
@@ -136,9 +136,9 @@ For a `process` artifact the installer SHALL start the staged copy and call `mor
 - **WHEN** the guest answers `describe` with error `-32601`
 - **THEN** the installer runs a session, checks it with the agreement rule, and records `probeSource` `session-fallback`
 
-#### Scenario: An older guest that refuses by message
+#### Scenario: A refusal by message only
 - **WHEN** the guest answers `describe` with code `-32600` and the message `not initialized`
-- **THEN** the installer falls back to a session, as the reference does
+- **THEN** the install fails with `extension.probe_failed`, which deliberately differs from the reference
 
 ### Requirement: The claim check records what this install did
 An installed record's `claimCheck` SHALL be `probed` only when this install or update ran the probe, and `unchecked` otherwise, whatever the index record says. This deliberately differs from the reference `update` (Q-CLAIMCHECK). `--no-probe` SHALL skip the probe and print a note on stderr. WASM artifacts SHALL NOT be probed and SHALL be recorded `unchecked`.
@@ -190,16 +190,12 @@ The installer SHALL refuse a release or claim set whose `requires.host` comparat
 - **THEN** the command fails with a usage error, exit code 2
 
 ### Requirement: Uninstall removes one selection
-`extension uninstall <id>`, and its alias `extension remove <id>`, SHALL remove the selection of `<id>` at the target level: at the global level the shared catalog entry and lock in one transaction, or the .NET global layer's entry; at another level the pin. An id not selected there SHALL fail with `extension.not_installed`.
+`extension uninstall <id>`, and its alias `extension remove <id>`, SHALL remove the selection of `<id>` at the target level: at the global level the catalog entry and lock in one transaction; at another level the pin. An id not selected there SHALL fail with `extension.not_installed`.
 
-#### Scenario: Global uninstall of a shared entry
-- **WHEN** a user runs `morphir extension uninstall acme-backend` and it is in the shared catalog
+#### Scenario: Global uninstall
+- **WHEN** a user runs `morphir extension uninstall acme-backend`
 - **THEN** the catalog entry and `locks/extensions/acme-backend.json` are removed together
 - **AND** a Rust CLI no longer lists it
-
-#### Scenario: Global uninstall from the .NET layer
-- **WHEN** `acme-backend` is selected by the .NET global layer
-- **THEN** uninstall removes that entry and changes no file below `catalog/` or `locks/extensions/`
 
 ### Requirement: Installation never uses the network
 No `extension` command SHALL download. An argument that is a URL SHALL be a usage error with exit code 2. `compile`, `generate` and `validate` SHALL NOT install an extension from a repository or a network.
@@ -238,7 +234,7 @@ When the release that an install reads has artifacts whose claim sets differ fro
 - **THEN** the install report on `linux-x64` names that member and `x86_64-pc-windows-msvc`
 
 ### Requirement: Info describes one installed extension
-`extension info <id>` SHALL report the selected record for `<id>`: level, layer, version, runtime, platform, digest, store path, claims, `claimCheck`, `probeSource`, source and selection, and the levels it shadows.
+`extension info <id>` SHALL report the selected record for `<id>`: level, version, runtime, platform, digest, store path, claims, `claimCheck`, `probeSource`, source and selection, and the levels it shadows.
 
 #### Scenario: Info as JSON
 - **WHEN** a user runs `morphir extension info acme-backend --json`
@@ -253,7 +249,7 @@ Provisional pending Q-COMMANDS and Q-DIAG. Every `extension` command SHALL write
 
 #### Scenario: JSON install
 - **WHEN** a user runs `morphir extension install --repository local-dev acme-backend --json`
-- **THEN** stdout parses as one JSON document with `operation` `install`, `extension`, `level`, `layer`, `digest`, `storePath`, `source`, `authentication`, `integrity`, `claimCheck` and `diagnostics`
+- **THEN** stdout parses as one JSON document with `operation` `install`, `extension`, `level`, `digest`, `storePath`, `source`, `authentication`, `integrity`, `claimCheck` and `diagnostics`
 - **AND** the waiting and probe notes are on stderr
 
 #### Scenario: Platform on install

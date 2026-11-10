@@ -12,21 +12,21 @@ On 9 November 2026 the maintainer decided that the .NET installer is built insid
 
 A developer on Windows adds a local extension repository and installs a process backend from it. A second project pins a newer version of the same backend without changing the global selection, and a `morphirup` toolchain generation selects its own versions over the shared store. A teammate who clones a repository with an extension package archive in `.morphir/extensions/staged/` gets a clear message, and no code from the clone runs until they install it.
 
-MEP `0.1` is officially deprecated (maintainer decision, 9 November 2026). New work targets `0.2.0-draft.1`, this host never implements `0.1`, and messages about an extension that speaks only `0.1` say that it is deprecated. Deprecated is not removed, though: released Rust CLIs read only `0.1`, and they stay in use.
+MEP `0.1` is not supported (maintainer decision, 9 November 2026): "we don't have users to support the cost of maintaining 2 versions". This host and its guests speak only `0.2.0-draft.1`. Nothing here implements, bridges or protects `0.1`.
 
-The .NET and Rust CLIs share Morphir Home's formats and its store. They share use of an installed extension only when both can run it. The Rust CLI supports only MEP `0.1`, and this host speaks only `0.2.0-draft.1`. One catalog entry that the Rust reader cannot run makes every Rust `compile`, `generate` and `extension list` on that Morphir Home fail. So a global install enters the shared catalog only when the reference reader can read and run it. Every other global install goes to a .NET global layer beside the catalog. For the extensions this repository builds today, that means a shared store and format, not shared use.
+The .NET and Rust CLIs share Morphir Home's formats, store and catalog, so a global install from either is a global install for both. That works fully once the Rust host speaks `0.2.0-draft.1`. Today the Rust host supports only `0.1`, and one catalog entry it cannot run makes every Rust `compile`, `generate` and `extension list` on that Morphir Home fail. Under the decision above, that cost is accepted: the install says so on stderr, the docs say so, and the upstream ask is for the Rust host to move to `0.2.0-draft.1`.
 
 ```text
 source (named repository | package archive | staged folder | manager handoff)
   -> read descriptor or index record -> select the artifact for this platform
   -> verify digests while staging -> describe probe (process, unless --no-probe)
-  -> copy into MORPHIR_HOME/store, hashing again -> admit to the shared catalog or not
-  -> write the shared pair, the .NET global layer or a pin, under the state lock
+  -> copy into MORPHIR_HOME/store, hashing again
+  -> write lock and catalog, or a pin, under the state lock
   -> resolve through selection layers -> verify again offline -> run a private copy
 ```
 
 - **The installer.** It writes the upstream store, catalog and shared locks under Morphir Home, in the format and with the interprocess lock that the Rust CLI uses.
-  - The shared catalog receives only entries that every supported reader can run. A .NET global layer holds the rest, and a shared entry this host cannot run is listed as unavailable instead of breaking the list.
+  - A shared entry this host cannot run, such as one the Rust CLI installed that speaks only `0.1`, is listed as unavailable instead of breaking the list.
   - It never downloads anything. Compile, generate and validate never install.
 - **Install sources.** Each source becomes the same resolved record before any byte is stored:
   - a named local-directory repository (the upstream path);
@@ -34,7 +34,7 @@ source (named repository | package archive | staged folder | manager handoff)
   - the `staged/` folders;
   - authenticated files that `morphirup` hands over.
 - **Claim checks.** They happen at install time, and are recorded as `probed` or `unchecked` by what this install did. That is a deliberate divergence from the reference `update`. WASM is not probed, as upstream decided. Publisher authentication is a separate fact, reported separately, and a checksum is never called authentication.
-- **Selection layers.** The layers are a generation-scoped overlay for `morphirup`, project and workspace pins, the .NET global layer, the shared catalog, and a system pin. One id resolves to one installed record, offline, with the bytes hashed again in the read that makes the private run copy. The overlay and the pins serve a contract that belongs in finos/morphir's toolchain specifications. Until that contract exists, they are provisional and raised upstream.
+- **Selection layers.** The layers are a generation-scoped overlay for `morphirup`, project and workspace pins, the shared catalog, and a system pin. One id resolves to one installed record, offline, with the bytes hashed again in the read that makes the private run copy. The overlay and the pins serve a contract that belongs in finos/morphir's toolchain specifications. Until that contract exists, they are provisional and raised upstream.
 - **Package archives.** They are read in zip and tar gzip, using only the base class library, with the PRD's entry rules plus ASCII-only names, zip header consistency and recorded size, count and ratio limits.
 - **Commands.**
   - The verbs are `extension install`, `update`, `uninstall` (with `remove` as an alias), `list`, `info`, `use`, `which` and `extension repository add|list|remove`.
@@ -47,14 +47,14 @@ The design groups its questions by what they need:
 - **Follows the reference.** The specs copy the reference implementation, the gap is raised upstream, and no maintainer answer is needed to start.
 - **Needs the maintainer.** The requirements that depend on these questions are marked provisional in the spec text, and each question names the tasks it blocks.
 
-The decision that matters most is Q-SHARED: what may enter the shared catalog. It also answers the same problem that finos/morphir#1149 raises for dotted ids. Nothing here is shipped, released or qualified.
+The decision that mattered most, what may enter the shared catalog (Q-SHARED), is now settled by the decision above: everything global goes to the shared catalog. The same reasoning bears on finos/morphir#1149, which is for its own review. Nothing here is shipped, released or qualified.
 
 ## Capabilities
 
 ### New Capabilities
 
 - `extension-installation`: the install, update, uninstall and info pipeline from each source: record reading, the id rule of the contract version, artifact selection, digest checks, claim probes, reports and diagnostics.
-- `extension-store`: Morphir Home state: the content-addressed store, the shared catalog and its admission rule, shared locks, the .NET global layer and inventory, the interprocess state lock, transaction recovery, and compatibility with upstream readers.
+- `extension-store`: the shared Morphir Home state: content-addressed store, catalog, global locks, the .NET inventory, the interprocess state lock, transaction recovery and compatibility with upstream readers.
 - `extension-package-archives`: the extension package archive and bare `.wasm` formats, archive safety rules and limits, and the `staged/` folders with their install policy.
 - `extension-selection`: level pins, the generation overlay, precedence, offline activation checks and launching only verified bytes.
 
