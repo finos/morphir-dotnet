@@ -25,12 +25,20 @@ public sealed class WasmEngine
 
     WasmEngine()
     {
-        Engine = new Engine(new Config()
+        var config = new Config()
             .WithFuelConsumption(true)
             .WithEpochInterruption(true)
             .WithWasmThreads(false)
             .WithMemory64(false)
-            .WithMultiMemory(false));
+            .WithMultiMemory(false);
+        // Experiment switch of the ci/wasm-win-x64-trap diagnosis, off by default: with the variable set to "false",
+        // the engine detects traps with explicit checks instead of exception handlers (Config.WithSignalsBasedTraps).
+        if (Environment.GetEnvironmentVariable(SignalsBasedTrapsExperimentVariable) == "false")
+        {
+            config = config.WithSignalsBasedTraps(false);
+        }
+
+        Engine = new Engine(config);
         kernel = new(LoadKernel, LazyThreadSafetyMode.ExecutionAndPublication);
         // A thread of its own, not a thread-pool timer: the pool adds no thread while every processor is busy, and
         // a guest that spins keeps one busy, so a pool timer can stop ticking exactly when a deadline is needed.
@@ -46,6 +54,9 @@ public sealed class WasmEngine
             Engine.IncrementEpoch();
         }
     }
+
+    /// <summary>The environment variable of the signals-based-traps experiment (ci/wasm-win-x64-trap only).</summary>
+    internal const string SignalsBasedTrapsExperimentVariable = "MORPHIR_WASM_EXPERIMENT_SIGNALS_BASED_TRAPS";
 
     /// <summary>The engine of this process.</summary>
     public static WasmEngine Shared => SharedEngine.Value;
