@@ -51,6 +51,17 @@ The installer and the host SHALL refuse a store root, digest directory or stored
 - **WHEN** a digest directory in the store is a symbolic link to a directory outside Morphir Home
 - **THEN** an install or activation that uses it fails with `extension.path_escape` and writes nothing
 
+### Requirement: Dotted extensions follow the home layout of finos/morphir#1149
+Provisional pending finos/morphir#1149 and its question 8. With #1149's partition, the installer SHALL write a dotted extension only to `catalog/extensions-dotted.json` and `locks/extensions-dotted/`, which holds its locks and journals, under the one state lock. One operation SHALL change one partition. A host SHALL recover each directory's journals into its own catalog, list both catalogs together, and refuse a file holding an id of the wrong form, naming it.
+
+#### Scenario: A dotted install leaves the single-segment files alone
+- **WHEN** a user installs `org.finos.morphir.fsharp-backend` into a home that holds `acme-backend`
+- **THEN** the installer writes `catalog/extensions-dotted.json` and `locks/extensions-dotted/org.finos.morphir.fsharp-backend.json`
+- **AND** `catalog/extensions.json` and every file in `locks/extensions/` keep their members and values
+
+#### Scenario: An id in the wrong partition
+- **WHEN** `catalog/extensions.json` holds an entry for a dotted id
+- **THEN** the host refuses that catalog and names it, and still lists and runs the extensions in the dotted partition
 ### Requirement: The catalog holds one active record per extension
 The shared catalog SHALL be `catalog/extensions.json` below Morphir Home, with `schemaVersion` and `extensions` sorted by id, one entry per id, and the members the reference writer writes. `critical` and `requires` SHALL be written when the release has `requires.host`, with `critical` naming `requires.host`. An entry this host does not read, such as one the Rust CLI converted from a version 1 record, SHALL be carried through unchanged when the installer rewrites the catalog.
 
@@ -144,7 +155,7 @@ Every read and write of the catalog, shared locks and the .NET inventory SHALL h
 - **THEN** the command exits without changing any extension state
 
 ### Requirement: Lock and catalog change as one transaction
-The installer SHALL change a global lock and the catalog together through the reference journal `locks/extensions/<id>.json.transaction`, with `schemaVersion` 1, `nextLock` and `nextCatalog` as byte arrays or `null` for a deletion, and no other member. Each holder of the state lock SHALL first apply every journal it finds, whichever CLI wrote it, and then remove it (Q-JOURNAL, follows the reference).
+The installer SHALL change a global lock and the catalog together through the reference journal `<id>.json.transaction` in its partition's lock directory, with `schemaVersion` 1, `nextLock` and `nextCatalog` as byte arrays or `null` for a deletion, and no other member. Each holder of the state lock SHALL first apply every journal it finds, whichever CLI wrote it, and then remove it (Q-JOURNAL, follows the reference).
 
 #### Scenario: Interrupted install
 - **WHEN** an install is stopped after it wrote the new lock and before it wrote the catalog

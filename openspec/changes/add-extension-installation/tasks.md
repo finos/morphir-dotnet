@@ -18,7 +18,7 @@ Dependencies. The design groups its questions in two: those whose answer follows
 - Waits on other work:
   - 5.6 on PRD step 2a, a WASM runtime in this host.
   - 7.2 on the adoption change's group 4 and the separately evaluated TUF client.
-  - 8.1 on finos/morphir#1149 being approved.
+  - 8.1 on finos/morphir#1149 being approved and on the maintainer's answer to its question 8 (dotted partition or one catalog that switches version home-wide).
 - The adoption change (`openspec/changes/add-deployment-and-acquisition`, on main) consumes this one:
   - its task 3.3 needs 3.5, 5.2, 5.3 and 7.1, and the Q-MULTIFILE answer;
   - its 3.4 needs 6.5;
@@ -36,11 +36,10 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 - [ ] 1.2 Raise the upstream asks of the design's "Raised upstream" list in finos/morphir, and the PRD superset proposal; verify that each question in `design.html` links its issue or proposal.
   - The asks:
     - the maintainer decision that MEP `0.1` is not supported (design MEP-1): say so in `protocol.md` and the extension README, and move the Rust host to `0.2.0-draft.1`, dropping `0.1`;
-    - a review comment on finos/morphir#1149 that MEP-1's reasoning (no users to protect) may also remove the need to protect older readers of the new drafts; that is the maintainer's call in that review;
+    - review comments on finos/morphir#1149, listed in the design's Q-SHARED entry: question 8 under MEP-1's reasoning; letting a reader drop earlier transient drafts (DOC-1); equal members and values instead of byte identity for this installer; and a mixed-home check that needs a Rust host speaking `0.2.0-draft.1`;
     - the overlay, the level pins and the receipt launch path, for the toolchain contract;
     - the reference-only rules: Q-LOCKPRIM, Q-JOURNAL, Q-STRICTLOCK, Q-CATVER, Q-NUMBERS, Q-PLATFORM, Q-REQHOST, Q-PROBELIMITS, Q-GC and Q-FIXTURES;
     - target and package archives (Q-ARCHIVE), multi-file packages (Q-MULTIFILE), and a provenance kind (Q-PROVENANCE);
-    - the developer label outside manager-owned storage (TRUST-1);
     - the claim check after `update` (Q-CLAIMCHECK).
   - Do not write issue numbers before they exist.
 
@@ -293,7 +292,11 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 ## 7. Hand-over for morphirup
 
 - [ ] 7.1 Add the in-process hand-over of a descriptor, one artifact and an authentication statement, installing through the same checks and returning the statement unchanged; verify the `HandOver` tests pass.
-  - First failing test: a hand-over with `recipe-digest` whose artifact bytes differ from the descriptor digest fails with `extension.digest_mismatch`; a successful one reports the caller's statement and the probe outcome separately.
+  - First failing tests:
+    - a hand-over with `recipe-digest` whose artifact bytes differ from the descriptor digest fails with `extension.digest_mismatch`;
+    - a successful one reports the caller's statement and the probe outcome separately;
+    - a statement of kind `local-developer` is refused;
+    - the "what would this write" answer names exactly the files the following install changes.
   - Command: `dotnet exec <inst> --filter-test-list "HandOver"`.
   - Docs: the hand-over contract in `src/Morphir.Extensions.Installation/README.md`. It says that the installer checks no signature and no repository identity: `repository_mismatch` is the manager's check.
 - [ ] 7.2 Exercise the hand-over from `morphirup setup` with descriptors and artifacts authenticated by the tool release metadata client; verify the adoption change's task 4.3 tests pass against this installer.
@@ -301,8 +304,8 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 
 ## 8. Dotted ids
 
-- [ ] 8.1 Read and write dotted ids at the drafts that finos/morphir#1149 defines; verify the `Identifiers` and `StateCodecs` tests gain #1149's shared cases and pass through `src/Morphir.Conformance`.
-  - Waits on #1149's approval.
+- [ ] 8.1 Read and write dotted ids at the drafts and in the home and repository layout that finos/morphir#1149 defines (its task 5.3); verify the `Identifiers`, `StateCodecs` and `Commit` tests gain #1149's shared cases, including its home-partition cases, and pass through `src/Morphir.Conformance`.
+  - Waits on #1149's approval and its question 8. With the partition: dotted extensions go to `catalog/extensions-dotted.json` and `locks/extensions-dotted/`, journals are recovered per directory, and a wrong-form id is refused per file. With one catalog: the catalog moves to `2.0.0-draft.3` when it first holds a dotted id, and this task shrinks to the codecs.
 
 ## 9. Integration checks
 

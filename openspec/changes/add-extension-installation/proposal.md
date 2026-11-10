@@ -49,7 +49,7 @@ The design groups its questions by what they need:
 - **Follows the reference.** The specs copy the reference implementation, the gap is raised upstream, and no maintainer answer is needed to start.
 - **Needs the maintainer.** The requirements that depend on these questions are marked provisional in the spec text, and each question names the tasks it blocks.
 
-The decision that mattered most, what may enter the shared catalog (Q-SHARED), is now settled by the decision above: everything global goes to the shared catalog. The same reasoning bears on finos/morphir#1149, which is for its own review. Nothing here is shipped, released or qualified.
+The decision that mattered most, what may enter the shared catalog (Q-SHARED), is now settled by the decision above: everything global goes to the shared catalog. The same reasoning bears on finos/morphir#1149's question 8: give a home a dotted partition that older hosts never read, or one catalog that switches version home-wide. The design's Q-SHARED entry gives the one decision that answers both, and recommends the home-wide switch. Nothing here is shipped, released or qualified.
 
 ## Capabilities
 
@@ -71,7 +71,7 @@ The decision that mattered most, what may enter the shared catalog (Q-SHARED), i
 - Beads: no id is recorded. Do not invent one.
 - Parent contract: finos/morphir `docs/design/draft/extensions/distribution-and-acquisition.md` and the reference implementation `ecosystem/morphir-rust/crates/morphir-distribution`, read at finos/morphir `c247aad39` (submodule `c9f79da`). The toolchain pages were read at finos/morphir `efdbc34da`.
 - Approved change: finos/morphir `openspec/changes/add-deployment-and-acquisition/` (tasks 3.3, 3.4, 4.4). Its adoption in this repository is on main (`b8ebd12cd`).
-- Dotted ids: finos/morphir#1149, under review and being revised for older readers.
+- Dotted ids: finos/morphir#1149, read at `6d58eec56`, which proposes a dotted home and repository partition (its task 5.3 is for this installer) and asks the partition question as its question 8. Toolchain contract pages: finos/morphir#1147 at `60d363059`.
 - Issues: #492 wires the existing handlers, which this change replaces for extensions; the design recommends closing #492 as superseded. #490 (`dist`) and #491 (`tool`) are not part of this change.
 
 ## Impact

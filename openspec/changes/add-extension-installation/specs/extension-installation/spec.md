@@ -7,7 +7,7 @@ Installs, updates, removes and describes external extensions from local sources 
 ## ADDED Requirements
 
 ### Requirement: Install reads a named local repository
-`extension install --repository <name> <id>` SHALL resolve `<id>` from the repository `<name>` configured in `config/extensions/repositories.json` below Morphir Home, reading `extensions/<id>.jsonl` below its directory. A disabled or unknown repository SHALL be refused with `extension.repository_unavailable`.
+`extension install --repository <name> <id>` SHALL resolve `<id>` from the repository `<name>` configured in `config/extensions/repositories.json` below Morphir Home, reading `extensions/<id>.jsonl` below its directory, or for a dotted id the `extensions-dotted/<id>.jsonl` that finos/morphir#1149 proposes. A disabled or unknown repository SHALL be refused with `extension.repository_unavailable`.
 
 #### Scenario: Repository configured by the Rust CLI
 - **WHEN** the Rust CLI configured repository `local-dev` and a user runs `morphir extension install --repository local-dev acme-backend`
@@ -213,14 +213,14 @@ No `extension` command SHALL download. An argument that is a URL SHALL be a usag
 - **THEN** compile fails with `extension.not_installed` and the install command to run, and opens no network connection
 
 ### Requirement: Authentication and claim checks are reported separately
-Provisional pending Q-DEVPOLICY. Each install report SHALL state `authentication` apart from `claimCheck`. An install from a local repository, a file or a staged folder SHALL report kind `local-developer` with `policy` `developer`. A matching checksum SHALL be reported as integrity, never as authentication. The label SHALL NOT be presented as a manager installation receipt.
+Provisional pending Q-DEVPOLICY. Each install report SHALL state `authentication` apart from `claimCheck`. An install from a local repository, a file or a staged folder SHALL report kind `local-developer` with `policy` `developer`. A matching checksum SHALL be reported as integrity, never as authentication. The label SHALL appear only in the installer's reports and inventory, never in a receipt.
 
 #### Scenario: Local repository install
 - **WHEN** a user installs from a local repository and the probe passes
 - **THEN** the report has `authentication` `{"kind": "local-developer", "policy": "developer"}`, `integrity` `verified` and `claimCheck` `probed`
 
 ### Requirement: A caller can hand over authenticated files
-The installer SHALL accept from an in-process caller, such as `morphirup`, a release descriptor, one artifact file and a statement of how the caller authenticated them (`repository-target` with `repositoryId` and `targetsVersion`, or `recipe-digest`), install them through the same checks, and report the statement unchanged. It SHALL NOT check signatures or repository identities itself.
+The installer SHALL accept from an in-process caller, such as `morphirup`, a release descriptor, one artifact file and a statement of how the caller authenticated them (`repository-target` or `recipe-digest`), install them through the same checks, and report the statement unchanged. It SHALL refuse any other kind, such as `local-developer`, and SHALL NOT check signatures or repository identities itself.
 
 #### Scenario: Recipe-bound artifact
 - **WHEN** a caller hands over a descriptor and artifact with authentication `recipe-digest` and the artifact's bytes differ from the descriptor's digest
@@ -230,6 +230,16 @@ The installer SHALL accept from an in-process caller, such as `morphirup`, a rel
 - **WHEN** the hand-over succeeds
 - **THEN** the report's `authentication` is the caller's statement and `claimCheck` is the probe outcome
 
+#### Scenario: A developer statement in a hand-over
+- **WHEN** a caller hands over files with authentication `local-developer`
+- **THEN** the hand-over is refused and nothing is written
+
+### Requirement: A caller can learn what an install would write
+Provisional pending the shared toolchain contract. Before it writes anything, the installer SHALL tell an in-process caller what a hand-over install would write: the store path, the catalog and lock or pin it would change, the inventory record, and whether the guest would run with the user's rights. The install that follows SHALL write nothing else, so that a manager's plan covers everything its command writes.
+
+#### Scenario: Plan then install
+- **WHEN** a caller asks what a hand-over would write and then performs it
+- **THEN** the files the install changes are exactly those the answer named
 ### Requirement: Platform differences are reported
 When the release that an install reads has artifacts whose claim sets differ from the installed artifact's, the install and `extension info` SHALL name the members that differ and the platforms they differ on.
 
