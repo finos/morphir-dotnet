@@ -304,7 +304,8 @@ module TufMetadata =
                     return signedMembers, canonical, signatures
                 }
 
-    /// <summary><c>_type</c>, <c>spec_version</c> (provisional: canonical SemVer 1.0.x, so 1.0.36 and not 1.1.0),
+    /// <summary><c>_type</c>, <c>spec_version</c> (provisional: canonical SemVer 1.0.x without a prerelease, so 1.0.36
+    /// and not 1.1.0 or 1.0.0-rc.1),
     /// a positive <c>version</c> and the exact <c>expires</c> format.</summary>
     let private common (role: TufRole) (signed: (string * Value) list) : Reader<uint64 * DateTimeOffset> =
         result {
@@ -325,7 +326,13 @@ module TufMetadata =
             let! spec = required role "spec_version" signed |> Result.bind (text role "spec_version")
 
             match SemVer.tryParse spec with
-            | Ok version when version.SemVersion.Major = Numerics.BigInteger.One && version.SemVersion.Minor.IsZero -> ()
+            // A release of TUF 1.0: a prerelease of the specification is not compatible with it (review, T11).
+            | Ok version when
+                version.SemVersion.Major = Numerics.BigInteger.One
+                && version.SemVersion.Minor.IsZero
+                && not version.SemVersion.IsPrerelease
+                ->
+                ()
             | _ -> return! Error(TufFailure.MetadataInvalid(role, $"spec_version {spec} is not compatible with 1.0"))
 
             let! version = required role "version" signed |> Result.bind (positive role "version")

@@ -935,3 +935,16 @@ let reviewT8Tests =
                 TufClient.refresh referenceTime { trusted with Root = { trusted.Root with Version = version } } source |> ignore
                 Expect.isEmpty asked $"no root after {version}")
     ]
+
+[<Tests>]
+let reviewT11Tests =
+    // Review of #581, T11: a prerelease of the specification is not "compatible with 1.0".
+    testList "T11 spec_version is a release of TUF 1.0" [
+        testCase "a prerelease spec_version is refused" (fun () ->
+            for spec in [ "1.0.0-rc.1"; "1.0.36-draft" ] do
+                invalid TufRole.Root (TufMetadata.readRoot (rootWith [ "spec_version" ] (text spec))))
+
+        testCase "control: 1.0.0 and 1.0.36 read" (fun () ->
+            for spec in [ "1.0.0"; "1.0.36" ] do
+                TufMetadata.readRoot (rootWith [ "spec_version" ] (text spec)) |> expectOk spec |> ignore)
+    ]
