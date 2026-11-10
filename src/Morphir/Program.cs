@@ -79,6 +79,8 @@ public static class Program
             .AddScenario<ConfigurationScenario>()
             .AddScenario<ProjectScenario>()
             .AddScenario<WorkspaceScenario>()
+            // Experimental and internal: morphir mck wasm-host run and report-check (add-wasm-extension-host 1.5).
+            .AddScenario<MckScenario>()
             .AddCommand(CreateInfoCommand());
         extend?.Invoke(builder);
         return builder.Build();

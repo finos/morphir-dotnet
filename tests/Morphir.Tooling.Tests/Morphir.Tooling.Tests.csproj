@@ -38,6 +38,8 @@
     <ProjectReference Include="..\..\src\Morphir.Frontend.FSharp\Morphir.Frontend.FSharp.fsproj" />
     <ProjectReference Include="..\..\src\Morphir.Frontend.FSharp.Extension\Morphir.Frontend.FSharp.Extension.fsproj" />
     <ProjectReference Include="..\..\src\Morphir.Conformance\Morphir.Conformance.fsproj" />
+    <!-- The scripted fake worker for the mck wasm-host command tests; run from this output with dotnet exec. -->
+    <ProjectReference Include="..\Morphir.Conformance.FakeWorker\Morphir.Conformance.FakeWorker.csproj" />
   </ItemGroup>
 
   <ItemGroup>

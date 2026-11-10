@@ -599,6 +599,9 @@
           "Morphir.Compilation": "[1.0.0, )"
         }
       },
+      "morphir.conformance.fakeworker": {
+        "type": "Project"
+      },
       "morphir.core": {
         "type": "Project",
         "dependencies": {
@@ -707,6 +710,7 @@
           "Morphir.Compilation.Mep": "[1.0.0, )",
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Configuration.IO": "[1.0.0, )",
+          "Morphir.Conformance": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
           "Morphir.Extensions": "[1.0.0, )",
           "Morphir.Extensions.Wasm": "[1.0.0, )",
