@@ -6,7 +6,7 @@ Feature: Packaged release artifacts
 
   # Task 2.4 of add-deployment-and-acquisition. These scenarios run when MORPHIR_EXECUTABLE_TYPE is one of
   # native-aot, self-contained, framework-dependent or dotnet-tool, against the artifact that the PackRelease target
-  # wrote to artifacts/release (or MORPHIR_RELEASE_DIR) for this machine's platform. Each expectation comes from the
+  # wrote to artifacts/release (or the MORPHIR_RELEASE_DIR folder, which run-e2e-tests.cs also packs into) for this machine's platform. Each expectation comes from the
   # artifact's own launch metadata, so a scenario also checks that the metadata tells the truth. A pass here is a
   # check of a local build run on the build machine. It does not qualify a release or a platform: that needs the exact
   # artifacts acquired the way a user acquires them.

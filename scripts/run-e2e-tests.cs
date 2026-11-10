@@ -144,9 +144,14 @@ else
     executableTypes.Add(executableType);
 }
 
-var releaseDir = Environment.GetEnvironmentVariable("MORPHIR_RELEASE_DIR") is { Length: > 0 } customRelease
+// The one release folder of this run: PackRelease writes into it (--release-dir) and the tests read from it
+// (MORPHIR_RELEASE_DIR, which ExecutableLocator.ReleaseDirectory resolves the same way). No trailing separator, so the
+// quoted argument of a path with spaces cannot end in \".
+var releaseDir = Path.TrimEndingDirectorySeparator(Environment.GetEnvironmentVariable("MORPHIR_RELEASE_DIR") is { Length: > 0 } customRelease
     ? Path.GetFullPath(customRelease)
-    : Path.Combine(projectRoot, "artifacts", "release");
+    : Path.Combine(projectRoot, "artifacts", "release"));
+var packCommand = (string deployment) =>
+    $"build --target PackRelease --deployment {deployment}{(deployment == "dotnet-tool" ? "" : $" --rid {rid}")} --release-dir \"{releaseDir}\"";
 
 // The launch metadata files that PackRelease wrote for this deployment on this platform (or the portable tool).
 List<string> PackagedLaunchFiles(string deployment) =>
@@ -210,7 +215,7 @@ bool CheckPackagedArtifact(string deployment, string launchFile)
     }
 
     Console.Error.WriteLine($"✗ Error: the packaged {deployment} artifact may be stale: {why}. Pack it again " +
-        $"(build --target PackRelease --deployment {deployment}{(deployment == "dotnet-tool" ? "" : $" --rid {rid}")}) " +
+        $"({packCommand(deployment)}) " +
         "or set MORPHIR_REUSE_PACKAGED_ARTIFACTS=true to test it as it is.");
     return false;
 }
@@ -273,7 +278,8 @@ foreach (var type in executableTypes)
             var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
                 ? Path.Combine(projectRoot, "build.cmd")
                 : Path.Combine(projectRoot, "build.sh");
-            var packArgs = new List<string> { "--target", "PackRelease", "--deployment", type, "--configuration", config };
+            Console.WriteLine($"  into {releaseDir}");
+            var packArgs = new List<string> { "--target", "PackRelease", "--deployment", type, "--configuration", config, "--release-dir", releaseDir };
             if (type != "dotnet-tool") packArgs.AddRange(new[] { "--rid", rid });
             var exitCode = RunCommand(buildScript, packArgs.ToArray());
             if (exitCode != 0)

@@ -23,14 +23,18 @@ Pack the profile for this machine's platform, then run the E2E suite with the of
 On Windows use `build.cmd`. The Native AOT link on Windows needs `vswhere.exe` on `PATH`
 (`%ProgramFiles(x86)%\Microsoft Visual Studio\Installer`).
 
-`scripts/run-e2e-tests.cs` (which `TestE2E` runs) packs an offering only when `artifacts/release` holds no artifact
-of it for this platform. An artifact that is already there is used as it is, so before each run the script prints
+`scripts/run-e2e-tests.cs` (which `TestE2E` runs) packs an offering only when the release folder holds no artifact
+of it for this platform. The release folder is `artifacts/release`, or the folder that `MORPHIR_RELEASE_DIR` names;
+the script packs into the same folder that it reads from, by passing it to `PackRelease` as `--release-dir`. To pack
+into another folder by hand, pass `--release-dir <folder>` to `PackRelease` as well. An artifact that is already
+there is used as it is, so before each run the script prints
 the release, the commit it was packed from, its SHA-256 and its pack time. It refuses an artifact packed from another
 commit than `HEAD`, or one whose pack commit is not recorded, unless `MORPHIR_REUSE_PACKAGED_ARTIFACTS=true` says to
 test it anyway. It only warns about an artifact packed with uncommitted changes, which it cannot compare.
 
 `MORPHIR_EXECUTABLE_TYPE` selects the offering for a direct run of the test assembly, and `MORPHIR_RELEASE_DIR`
-points at a release folder other than `artifacts/release`; a direct run does not check the pack commit. The run
+points it at a release folder other than `artifacts/release`; a direct run neither packs nor checks the pack commit.
+The run
 checks the archive's SHA-256 against its launch metadata, installs it into a new temporary folder whose path contains
 a space (`dotnet tool install --tool-path` for `dotnet-tool`, in a sandbox with its own NuGet packages folder), runs
 every non-manual scenario against it from a working folder whose path contains a space, and removes the folder
