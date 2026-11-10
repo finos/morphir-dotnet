@@ -13,6 +13,8 @@ type ParseFailure =
     | InvalidSegment of field: string * segment: int
     /// <summary>The text is not a canonical SemVer 2.0.0 version.</summary>
     | InvalidVersion of field: string * detail: string
+    /// <summary>The file extension at the index is null, or not a dot followed by at least one character.</summary>
+    | InvalidFileExtension of field: string * index: int
 
     /// <summary>The name of the value that was refused, for example "extension id".</summary>
     member this.Field =
@@ -21,7 +23,8 @@ type ParseFailure =
         | TooLong(field, _)
         | InvalidCharacter(field, _)
         | InvalidSegment(field, _)
-        | InvalidVersion(field, _) -> field
+        | InvalidVersion(field, _)
+        | InvalidFileExtension(field, _) -> field
 
     /// <summary>The rule that the text breaks.</summary>
     override this.ToString() =
@@ -34,3 +37,5 @@ type ParseFailure =
             $"{field} segment {segment} is not a lowercase portable token ([a-z]([a-z0-9-]*[a-z0-9])?)"
         | InvalidVersion(field, detail) ->
             $"{field} is not a canonical SemVer 2.0.0 version: {detail}"
+        | InvalidFileExtension(field, index) ->
+            $"{field} {index} is not a dot followed by at least one character"

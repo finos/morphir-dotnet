@@ -173,6 +173,44 @@ let tests =
                 "no dot"
         }
 
+        test "an unavailable reason parses untrusted text and refuses empty, padded or control text" {
+            let field = "unavailable reason"
+            Expect.equal (UnavailableReason.Parse "Use the process delivery." |> Result.map string) (Ok "Use the process delivery.") "parsed"
+            Expect.equal (UnavailableReason.Parse null) (Error(ParseFailure.Empty field)) "null"
+            Expect.equal (UnavailableReason.Parse "") (Error(ParseFailure.Empty field)) "empty"
+            Expect.equal (UnavailableReason.Parse " padded") (Error(ParseFailure.InvalidCharacter(field, 0))) "leading space"
+            Expect.equal (UnavailableReason.Parse "a\u0001b") (Error(ParseFailure.InvalidCharacter(field, 1))) "control"
+            Expect.equal (UnavailableReason.Parse(String.replicate 1025 "a")) (Error(ParseFailure.TooLong(field, 1024))) "too long"
+            let ok, parsed, failure = UnavailableReason.TryParse "Use the process delivery."
+            Expect.isTrue ok "TryParse parsed"
+            Expect.equal (string parsed) "Use the process delivery." "TryParse value"
+            Expect.isTrue (obj.ReferenceEquals(failure, null)) "no failure"
+            let refused, none, why = UnavailableReason.TryParse "  "
+            Expect.isFalse refused "TryParse refused"
+            Expect.isTrue (obj.ReferenceEquals(none, null)) "no value"
+            Expect.equal why (ParseFailure.InvalidCharacter(field, 0)) "TryParse failure"
+        }
+
+        test "a frontend language parses its file extensions and says which one is refused" {
+            let fsharp = Morphir.Compilation.LanguageId.Create "fsharp"
+            let field = "frontend file extension"
+            match FrontendLanguage.Parse(fsharp, [ ".fs"; ".fsi" ]) with
+            | Ok language -> Expect.sequenceEqual language.FileExtensions [ ".fs"; ".fsi" ] "parsed"
+            | Error failure -> failtest $"refused: {failure}"
+            Expect.equal (FrontendLanguage.Parse(fsharp, [])) (Error(ParseFailure.Empty "frontend file extensions")) "none"
+            Expect.equal (FrontendLanguage.Parse(fsharp, [ ".fs"; "fs" ])) (Error(ParseFailure.InvalidFileExtension(field, 1))) "no dot"
+            Expect.equal (FrontendLanguage.Parse(fsharp, [ "." ])) (Error(ParseFailure.InvalidFileExtension(field, 0))) "only a dot"
+            Expect.equal (FrontendLanguage.Parse(fsharp, [ null ])) (Error(ParseFailure.InvalidFileExtension(field, 0))) "null"
+            let ok, parsed, failure = FrontendLanguage.TryParse(fsharp, [ ".fs" ])
+            Expect.isTrue ok "TryParse parsed"
+            Expect.equal (string parsed) "fsharp (.fs)" "TryParse value"
+            Expect.isTrue (obj.ReferenceEquals(failure, null)) "no failure"
+            let refused, none, why = FrontendLanguage.TryParse(fsharp, [ "fs" ])
+            Expect.isFalse refused "TryParse refused"
+            Expect.isTrue (obj.ReferenceEquals(none, null)) "no value"
+            Expect.equal why (ParseFailure.InvalidFileExtension(field, 0)) "TryParse failure"
+        }
+
         test "an unavailable reason is never empty" {
             Expect.throwsT<System.ArgumentException> (fun () -> UnavailableReason.Create "  " |> ignore) "blank"
         }

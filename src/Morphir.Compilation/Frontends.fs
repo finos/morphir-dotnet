@@ -487,7 +487,7 @@ module FrontendTargets =
     /// frontend advertises exactly these. For F# and C# callers.
     /// </summary>
     [<CompiledName("Supported")>]
-    let supported (builders: Building.FamilyBuilderRegistry) (writers: WriterRegistry) : IrTarget array =
+    let supported (builders: Building.FamilyBuilderRegistry) (writers: WriterRegistry) : IReadOnlyList<IrTarget> =
         writers.DeclaredVersions
         |> Seq.choose (fun version ->
             match Checked.tryValue (writers.Resolve version) with
@@ -496,13 +496,15 @@ module FrontendTargets =
         )
         |> Seq.distinct
         |> Seq.toArray
+        |> System.Array.AsReadOnly
+        :> IReadOnlyList<IrTarget>
 
     /// <summary>
     /// The targets of the standard builders and writers of this release (classic and v4), which the in-process
     /// frontends use. The registry states these as a built-in frontend's IR versions without loading the frontend.
     /// </summary>
     [<CompiledName("Standard")>]
-    let standard: IrTarget array =
+    let standard: IReadOnlyList<IrTarget> =
         supported
             (Building.FamilyBuilderRegistry.Create [ Building.ClassicFamilyBuilder() :> Building.IFamilyBuilder; Building.V4FamilyBuilder() ])
             (WriterRegistry.Create [ ClassicIrWriter() :> IIrWriter; V4IrWriter() ])

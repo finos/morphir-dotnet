@@ -2,7 +2,9 @@ namespace Morphir.Extensions
 
 open System
 open System.Collections.Generic
+open System.Diagnostics.CodeAnalysis
 open System.Runtime.CompilerServices
+open System.Runtime.InteropServices
 open Morphir.Compilation
 
 /// <summary>How a host runs: native code, or managed code that the .NET runtime compiles just in time.</summary>
@@ -48,28 +50,42 @@ type SdkPhase =
     override this.ToString() = this.WireValue
 
 /// <summary>An installed .NET runtime that a delivery needs, with SemVer comparators for its versions.</summary>
+/// <remarks>Only <see cref="Deployment.Prerequisites"/> declares one, so the representation is private.</remarks>
 type RuntimePrerequisite =
-    {
-        /// <summary>The shared framework, for example <c>Microsoft.NETCore.App</c>.</summary>
-        Name: string
-        /// <summary>Single SemVer comparators that all hold, for example <c>&gt;=10.0.0</c> and <c>&lt;11.0.0</c>.</summary>
-        Versions: IReadOnlyList<string>
-    }
+    private
+        {
+            name: string
+            versions: string array
+        }
+
+    /// <summary>The shared framework, for example <c>Microsoft.NETCore.App</c>.</summary>
+    member this.Name = this.name
+
+    /// <summary>Single SemVer comparators that all hold, for example <c>&gt;=10.0.0</c> and <c>&lt;11.0.0</c>.</summary>
+    member this.Versions: IReadOnlyList<string> = this.versions
 
     /// <summary>The name and versions.</summary>
     override this.ToString() =
         $"""{this.Name} {String.Join(" ", this.Versions)}"""
 
 /// <summary>A .NET SDK that a delivery needs, and when.</summary>
+/// <remarks>Only <see cref="Deployment.Prerequisites"/> declares one, so the representation is private.</remarks>
 type SdkPrerequisite =
-    {
-        /// <summary>The SDK, for example <c>Microsoft.NET.Sdk</c>.</summary>
-        Name: string
-        /// <summary>Single SemVer comparators that all hold.</summary>
-        Versions: IReadOnlyList<string>
-        /// <summary>When the SDK is needed.</summary>
-        Phase: SdkPhase
-    }
+    private
+        {
+            name: string
+            versions: string array
+            phase: SdkPhase
+        }
+
+    /// <summary>The SDK, for example <c>Microsoft.NET.Sdk</c>.</summary>
+    member this.Name = this.name
+
+    /// <summary>Single SemVer comparators that all hold.</summary>
+    member this.Versions: IReadOnlyList<string> = this.versions
+
+    /// <summary>When the SDK is needed.</summary>
+    member this.Phase = this.phase
 
     /// <summary>The name, versions and phase.</summary>
     override this.ToString() =
@@ -80,15 +96,20 @@ type SdkPrerequisite =
 /// are not declared here: no platform has established them yet.
 /// </summary>
 type Prerequisites =
-    {
-        /// <summary>The .NET runtimes needed to run; empty when the delivery carries its runtime or is native code.</summary>
-        Runtime: IReadOnlyList<RuntimePrerequisite>
-        /// <summary>The .NET SDKs needed to install or run.</summary>
-        Sdk: IReadOnlyList<SdkPrerequisite>
-    }
+    private
+        {
+            runtime: RuntimePrerequisite array
+            sdk: SdkPrerequisite array
+        }
+
+    /// <summary>The .NET runtimes needed to run; empty when the delivery carries its runtime or is native code.</summary>
+    member this.Runtime: IReadOnlyList<RuntimePrerequisite> = this.runtime
+
+    /// <summary>The .NET SDKs needed to install or run.</summary>
+    member this.Sdk: IReadOnlyList<SdkPrerequisite> = this.sdk
 
     /// <summary>Nothing from .NET.</summary>
-    static member None: Prerequisites = { Runtime = [||]; Sdk = [||] }
+    static member None: Prerequisites = { runtime = [||]; sdk = [||] }
 
     /// <summary>True when nothing is needed.</summary>
     member this.IsEmpty = this.Runtime.Count = 0 && this.Sdk.Count = 0
@@ -141,16 +162,16 @@ type Deployment =
     /// The tool needs the SDK only to install it.
     /// </summary>
     member this.Prerequisites: Prerequisites =
-        let runtime: RuntimePrerequisite = { Name = "Microsoft.NETCore.App"; Versions = [| ">=10.0.0"; "<11.0.0" |] }
+        let runtime: RuntimePrerequisite = { name = "Microsoft.NETCore.App"; versions = [| ">=10.0.0"; "<11.0.0" |] }
 
         match this with
         | NativeAot
         | SelfContained -> Prerequisites.None
-        | FrameworkDependent -> { Runtime = [| runtime |]; Sdk = [||] }
+        | FrameworkDependent -> { runtime = [| runtime |]; sdk = [||] }
         | DotnetTool ->
             {
-                Runtime = [| runtime |]
-                Sdk = [| { Name = "Microsoft.NET.Sdk"; Versions = [| ">=10.0.100" |]; Phase = SdkPhase.Install } |]
+                runtime = [| runtime |]
+                sdk = [| { name = "Microsoft.NET.Sdk"; versions = [| ">=10.0.100" |]; phase = SdkPhase.Install } |]
             }
 
     /// <summary>The wire value.</summary>
@@ -239,12 +260,35 @@ type UnavailableReason =
         let (UnavailableReason text) = this
         text
 
-    /// <summary>A reason from a literal in source code. Throws <see cref="ArgumentException"/> for blank text.</summary>
-    static member Create(text: string) =
-        if String.IsNullOrWhiteSpace text then
-            invalidArg (nameof text) "An unavailable reason cannot be empty."
+    /// <summary>
+    /// Parses untrusted text: not empty, at most 1024 characters, no white space at its ends and no control character.
+    /// For F# callers.
+    /// </summary>
+    static member Parse(text: string | null) : Result<UnavailableReason, ParseFailure> =
+        Text.display "unavailable reason" 1024 text |> Result.map UnavailableReason
 
-        UnavailableReason(text.Trim())
+    /// <summary>Parses untrusted text. For C# callers.</summary>
+    static member TryParse
+        (
+            text: string | null,
+            [<Out; MaybeNullWhen(false)>] result: byref<UnavailableReason>,
+            [<Out; MaybeNullWhen(true)>] failure: byref<ParseFailure>
+        ) : bool =
+        match UnavailableReason.Parse text with
+        | Ok reason ->
+            result <- reason
+            failure <- Unchecked.defaultof<_>
+            true
+        | Error error ->
+            result <- Unchecked.defaultof<_>
+            failure <- error
+            false
+
+    /// <summary>A reason from a literal in source code. Throws <see cref="ArgumentException"/> on invalid text.</summary>
+    static member Create(literal: string) : UnavailableReason =
+        match UnavailableReason.Parse literal with
+        | Ok reason -> reason
+        | Error failure -> invalidArg (nameof literal) (Text.refusedLiteral "unavailable reason" literal failure)
 
     override this.Equals(other: obj | null) =
         match other with
@@ -288,11 +332,14 @@ type EntryDeployments =
         | Every -> true
         | Only(deployments, _) -> deployments.Contains deployment
 
-    /// <summary>The reason for the offerings that lack the extension, or none when every offering has it.</summary>
+    /// <summary>The reason for the offerings that lack the extension, or none when every offering has it. For F#; C# reads <see cref="ReasonOrNull"/>.</summary>
     member this.Reason =
         match this with
         | Every -> None
         | Only(_, reason) -> Some reason
+
+    /// <summary>For C# callers: the reason for the offerings that lack the extension, or null when every offering has it.</summary>
+    member this.ReasonOrNull: UnavailableReason | null = Option.toObj this.Reason
 
     /// <summary>The offerings.</summary>
     override this.ToString() =
@@ -314,18 +361,56 @@ type FrontendLanguage =
     member this.FileExtensions: IReadOnlyList<string> = this.fileExtensions
 
     /// <summary>
-    /// A language from literals in source code. Throws <see cref="ArgumentException"/> when there is no file extension
-    /// or one does not start with a dot.
+    /// Parses file extensions that may come from outside: at least one, each a dot followed by at least one character.
+    /// For F# callers.
     /// </summary>
-    static member Create(language: LanguageId, fileExtensions: string array) =
-        if fileExtensions.Length = 0 then
-            invalidArg (nameof fileExtensions) $"The language {language} needs at least one file extension."
+    static member Parse(language: LanguageId, fileExtensions: (string | null) seq) : Result<FrontendLanguage, ParseFailure> =
+        let extensions = Seq.toArray fileExtensions
 
-        for extension in fileExtensions do
-            if extension.Length < 2 || extension[0] <> '.' then
-                invalidArg (nameof fileExtensions) $"The file extension '{extension}' does not start with a dot."
+        if extensions.Length = 0 then
+            Error(ParseFailure.Empty "frontend file extensions")
+        else
+            let valid (extension: string | null) =
+                match extension with
+                | null -> false
+                | text -> text.Length >= 2 && text[0] = '.'
 
-        { language = language; fileExtensions = Array.copy fileExtensions }
+            match extensions |> Array.tryFindIndex (valid >> not) with
+            | Some index -> Error(ParseFailure.InvalidFileExtension("frontend file extension", index))
+            | None ->
+                Ok
+                    {
+                        language = language
+                        fileExtensions = extensions |> Array.map (fun extension -> nonNull extension)
+                    }
+
+    /// <summary>Parses file extensions that may come from outside. For C# callers.</summary>
+    static member TryParse
+        (
+            language: LanguageId,
+            fileExtensions: IEnumerable<string | null>,
+            [<Out; MaybeNullWhen(false)>] result: byref<FrontendLanguage>,
+            [<Out; MaybeNullWhen(true)>] failure: byref<ParseFailure>
+        ) : bool =
+        match FrontendLanguage.Parse(language, fileExtensions) with
+        | Ok parsed ->
+            result <- parsed
+            failure <- Unchecked.defaultof<_>
+            true
+        | Error error ->
+            result <- Unchecked.defaultof<_>
+            failure <- error
+            false
+
+    /// <summary>
+    /// A language from literals in source code. Throws <see cref="ArgumentException"/> when there is no file extension
+    /// or one is not a dot followed by at least one character.
+    /// </summary>
+    static member Create(language: LanguageId, fileExtensions: string array) : FrontendLanguage =
+        match FrontendLanguage.Parse(language, fileExtensions |> Seq.map (fun extension -> extension: string | null)) with
+        | Ok parsed -> parsed
+        | Error failure ->
+            invalidArg (nameof fileExtensions) $"""Invalid frontend language literal {language} ({String.Join(", ", fileExtensions)}): {failure}"""
 
     member private this.Key = $"""{this.language.Value}:{String.Join("|", this.fileExtensions)}"""
 
