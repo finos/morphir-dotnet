@@ -46,8 +46,8 @@ let initialized () =
     dispatch guest """{"jsonrpc":"2.0","method":"morphir.initialized","params":{}}""" |> ignore
     guest
 
-/// A compileModel request for F# documents, with the documented context digest.
-let compileRequest (version: string) (documents: (string * string) list) (exposed: string list option) =
+/// A compileModel request for F# documents of a package, with the documented context digest.
+let compileRequestFor (package: string) (version: string) (documents: (string * string) list) (exposed: string list option) =
     let request: CompileModelRequest =
         { LanguageId = "fsharp"
           Sources =
@@ -59,7 +59,7 @@ let compileRequest (version: string) (documents: (string * string) list) (expose
                          Version = 1UL
                          Text = text } |] }
           Package =
-            { Name = "acme/demo"
+            { Name = package
               ExposedModules = exposed |> Option.map Array.ofList |> Option.map (fun items -> items :> Collections.Generic.IReadOnlyList<string>) }
           Dependencies = [||]
           Options =
@@ -71,6 +71,10 @@ let compileRequest (version: string) (documents: (string * string) list) (expose
 
     { request with
         ContextDigest = CompileModel.contextDigest request }
+
+/// A compileModel request for F# documents of the package acme/demo.
+let compileRequest (version: string) (documents: (string * string) list) (exposed: string list option) =
+    compileRequestFor "acme/demo" version documents exposed
 
 /// The JSON-RPC text of a compileModel request.
 let compileMessage (id: int) (request: CompileModelRequest) =
