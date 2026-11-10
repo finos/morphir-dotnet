@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    A framework-dependent .NET tool packed as platform-specific packages with a fallback (task 5.4).
+    `dotnet pack` makes one pointer package, Spike.PlatformProbe, and one package per entry of
+    ToolPackageRuntimeIdentifiers, Spike.PlatformProbe.<rid>. See ../README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>spike-platform-probe</AssemblyName>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>spike-platform-probe</ToolCommandName>
+    <PackageId>Spike.PlatformProbe</PackageId>
+    <Version>1.0.0</Version>
+    <IsPackable>true</IsPackable>
+
+    <!-- The offering is framework-dependent: every package uses the installed .NET runtime. -->
+    <SelfContained>false</SelfContained>
+    <!--
+      Without an apphost the RID packages keep the portable tool's runner: `dotnet spike-platform-probe.dll`.
+      With one (SpikeAppHost=true) the SDK writes Runner="executable" and the tool starts through the apphost,
+      which finds the runtime through DOTNET_ROOT or the default install location, not through PATH.
+    -->
+    <UseAppHost Condition="'$(SpikeAppHost)' != 'true'">false</UseAppHost>
+
+    <!-- The six platforms the Wasmtime package has a native library for. -->
+    <SpikeEngineRids>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64</SpikeEngineRids>
+    <!-- SpikeLinuxPackages=false leaves Linux out, so that a Linux machine has no package of its own. -->
+    <SpikeEngineRids Condition="'$(SpikeLinuxPackages)' == 'false'">win-x64;win-arm64;osx-x64;osx-arm64</SpikeEngineRids>
+    <!-- Platforms with no engine that would otherwise resolve to an engine package through the RID graph. -->
+    <SpikeNoEngineRids Condition="'$(SpikeMuslPackages)' != 'false'">linux-musl-x64;linux-musl-arm64</SpikeNoEngineRids>
+    <!--
+      `any` adds the platform-neutral fallback package, which every other platform installs. It must be in
+      RuntimeIdentifiers too, or restore makes no `net10.0/any` target and the fallback's pack fails (NETSDK1047).
+    -->
+    <RuntimeIdentifiers>$(SpikeEngineRids);$(SpikeNoEngineRids);any</RuntimeIdentifiers>
+    <ToolPackageRuntimeIdentifiers>$(RuntimeIdentifiers)</ToolPackageRuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Wasmtime" Version="$(SpikeWasmtimeVersion)" />
+  </ItemGroup>
+
+  <!--
+    The packages for platforms without an engine carry none. The SDK does not do this by itself: the `any` build
+    is a portable build and would copy all six libraries (runtimes/<rid>/native), and the RID graph makes
+    linux-musl-x64 and linux-musl-arm64 inherit the glibc linux-x64 and linux-arm64 libraries. Removing the
+    package's native assets after they are resolved takes them out of the output and of the deps.json.
+    SpikeKeepEngineEverywhere=true turns this off to show what the SDK does alone.
+  -->
+  <Target Name="SpikeDropEngineWhereUnsupported"
+          AfterTargets="ResolvePackageAssets"
+          Condition="'$(RuntimeIdentifier)' != '' and !$(SpikeEngineRids.Contains('$(RuntimeIdentifier)')) and '$(SpikeKeepEngineEverywhere)' != 'true'">
+    <ItemGroup>
+      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)" Condition="'%(NativeCopyLocalItems.NuGetPackageId)' == 'Wasmtime'" />
+      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)" Condition="'%(RuntimeTargetsCopyLocalItems.NuGetPackageId)' == 'Wasmtime' and '%(RuntimeTargetsCopyLocalItems.AssetType)' == 'native'" />
+    </ItemGroup>
+  </Target>
+</Project>
