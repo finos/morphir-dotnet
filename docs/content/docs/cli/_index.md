@@ -16,6 +16,10 @@ The Morphir .NET CLI provides powerful command-line tools for working with Morph
 - [morphir validate](./validate/) - Check a model with the built-in analyzers, such as the type validator
 - [morphir extension list](./management/#extension-list) - List the built-in generators and analyzers of this host
 
+### Toolchain manager
+
+- [morphirup](./morphirup/) - The standalone toolchain manager. This build makes plan-only setups and checks a project's request and lock; it acquires and installs nothing yet
+
 ### IR Management
 
 - **[morphir ir verify](./ir-verify/)** - Validate Morphir IR JSON files against official schemas

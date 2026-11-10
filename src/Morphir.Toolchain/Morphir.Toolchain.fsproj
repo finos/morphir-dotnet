@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Morphir.Toolchain</RootNamespace>
+        <Description>Readers and writers for the morphirup toolchain acquisition contracts (toolset recipe, project request, portable lock, installation receipt and manager result 0.1.0-draft.1), and the pure resolution and planning over them</Description>
+        <PackageTags>$(PackageTags);morphir;fsharp;toolchain;morphirup</PackageTags>
+        <IsPackable>false</IsPackable>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="CsToml" />
+        <PackageReference Include="Semver" />
+        <PackageReference Include="BouncyCastle.Cryptography" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Morphir.Toolchain.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Prelude.fs" />
+        <Compile Include="Paths.fs" />
+        <Compile Include="Codes.fs" />
+        <Compile Include="NfcTables.fs" />
+        <Compile Include="Nfc.fs" />
+        <Compile Include="Values.fs" />
+        <Compile Include="Primitives.fs" />
+        <Compile Include="Reading.fs" />
+        <Compile Include="Request.fs" />
+        <Compile Include="Recipe.fs" />
+        <Compile Include="Lock.fs" />
+        <Compile Include="Receipt.fs" />
+        <Compile Include="ManagerResult.fs" />
+        <Compile Include="Bindings.fs" />
+        <Compile Include="RecipeTargets.fs" />
+        <Compile Include="Resolution.fs" />
+        <Compile Include="Planning.fs" />
+        <Compile Include="Diagnostics.fs" />
+        <Compile Include="Discovery.fs" />
+    </ItemGroup>
+
+</Project>

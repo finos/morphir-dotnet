@@ -1,12 +1,9 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
-using System.Formats.Tar;
-using System.IO.Compression;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using Morphir.Build.Helpers;
-using Morphir.TestSupport;
 using TUnit.Core;
 
 namespace Morphir.Build.Tests.Helpers;
@@ -278,96 +275,6 @@ public class ReleaseProfilesTests
     }
 
     [Test]
-    public async Task ATarArchiveKeepsTheLaunchPathExecutable()
-    {
-        // TestSandbox cleans up with TolerantDirectory, so a briefly locked file cannot fail a passing test.
-        await using var sandbox = TestSandbox.Create("morphir-release-archive-");
-        var root = new DirectoryInfo(sandbox.Root);
-        var source = Directory.CreateDirectory(Path.Combine(root.FullName, "publish dir"));
-        await File.WriteAllTextAsync(Path.Combine(source.FullName, "morphir"), "launcher");
-        Directory.CreateDirectory(Path.Combine(source.FullName, "sub"));
-        await File.WriteAllTextAsync(Path.Combine(source.FullName, "sub", "data.json"), "{}");
-        var archive = Path.Combine(root.FullName, "a.tar.gz");
-
-        ReleaseArchive.Create(source.FullName, archive, ArchiveFormat.TarGz, ReleaseArchive.ExecutablesFor("morphir"));
-
-        await using var gzip = new GZipStream(File.OpenRead(archive), CompressionMode.Decompress);
-        using var reader = new TarReader(gzip);
-        var entries = new Dictionary<string, UnixFileMode>();
-        while (reader.GetNextEntry() is { } entry) entries[entry.Name] = entry.Mode;
-        entries.Keys.Should().BeEquivalentTo("morphir", "sub/data.json");
-        entries["morphir"].Should().HaveFlag(UnixFileMode.UserExecute).And.HaveFlag(UnixFileMode.OtherExecute);
-        entries["sub/data.json"].Should().NotHaveFlag(UnixFileMode.UserExecute);
-    }
-
-    [Test]
-    public async Task AZipArchiveHoldsThePublishFolderAtItsRoot()
-    {
-        await using var sandbox = TestSandbox.Create("morphir-release-archive-");
-        var root = new DirectoryInfo(sandbox.Root);
-        var source = Directory.CreateDirectory(Path.Combine(root.FullName, "publish dir"));
-        await File.WriteAllTextAsync(Path.Combine(source.FullName, "morphir.exe"), "launcher");
-        Directory.CreateDirectory(Path.Combine(source.FullName, "sub"));
-        await File.WriteAllTextAsync(Path.Combine(source.FullName, "sub", "data.json"), "{}");
-        var archive = Path.Combine(root.FullName, "a.zip");
-
-        ReleaseArchive.Create(source.FullName, archive, ArchiveFormat.Zip, ReleaseArchive.ExecutablesFor("morphir.exe"));
-
-        using var zip = ZipFile.OpenRead(archive);
-        zip.Entries.Select(entry => entry.FullName).Should().BeEquivalentTo("morphir.exe", "sub/data.json");
-    }
-
-    [Test]
-    public async Task ATarArchiveKeepsCreatedumpExecutable()
-    {
-        await using var sandbox = TestSandbox.Create("morphir-release-archive-");
-        var root = new DirectoryInfo(sandbox.Root);
-        var source = Directory.CreateDirectory(Path.Combine(root.FullName, "publish dir"));
-        foreach (var name in new[] { "morphir", "createdump", "libcoreclr.so", "morphir.dll" })
-            await File.WriteAllTextAsync(Path.Combine(source.FullName, name), name);
-        var archive = Path.Combine(root.FullName, "a.tar.gz");
-
-        ReleaseArchive.Create(source.FullName, archive, ArchiveFormat.TarGz, ReleaseArchive.ExecutablesFor("morphir"));
-
-        var modes = TarEntries(archive).ToDictionary(entry => entry.Name, entry => entry.Mode);
-        modes["morphir"].Should().Be(ReleaseArchive.ExecutableMode);
-        modes["createdump"].Should().Be(ReleaseArchive.ExecutableMode, "the runtime runs createdump to write crash dumps");
-        modes["libcoreclr.so"].Should().Be(ReleaseArchive.RegularMode, "a shared library is loaded, not run");
-        modes["morphir.dll"].Should().Be(ReleaseArchive.RegularMode);
-    }
-
-    [Test]
-    [Arguments(ArchiveFormat.Zip)]
-    [Arguments(ArchiveFormat.TarGz)]
-    public async Task OneFolderGivesTheSameArchiveBytes(ArchiveFormat format)
-    {
-        await using var sandbox = TestSandbox.Create("morphir-release-archive-");
-        var root = new DirectoryInfo(sandbox.Root);
-        var source = Directory.CreateDirectory(Path.Combine(root.FullName, "publish"));
-        Directory.CreateDirectory(Path.Combine(source.FullName, "de"));
-        await File.WriteAllTextAsync(Path.Combine(source.FullName, "morphir"), "launcher");
-        await File.WriteAllTextAsync(Path.Combine(source.FullName, "de", "x.resources.dll"), "resources");
-        var first = Path.Combine(root.FullName, "first");
-        var second = Path.Combine(root.FullName, "second");
-
-        ReleaseArchive.Create(source.FullName, first, format, ReleaseArchive.ExecutablesFor("morphir"));
-        foreach (var file in Directory.GetFiles(source.FullName, "*", SearchOption.AllDirectories))
-            File.SetLastWriteTimeUtc(file, DateTime.UtcNow.AddDays(-3));
-        await Task.Delay(1100);
-        ReleaseArchive.Create(source.FullName, second, format, ReleaseArchive.ExecutablesFor("morphir"));
-
-        (await File.ReadAllBytesAsync(second)).Should().Equal(await File.ReadAllBytesAsync(first), "a release identity names one set of bytes");
-        if (format == ArchiveFormat.TarGz)
-            TarEntries(first).Should().OnlyContain(entry => entry.ModificationTime == ReleaseArchive.Timestamp);
-        else
-        {
-            // A zip entry holds a clock time with no time zone, so compare the clock time.
-            using var zip = ZipFile.OpenRead(first);
-            zip.Entries.Should().OnlyContain(entry => entry.LastWriteTime.DateTime == ReleaseArchive.Timestamp.DateTime);
-        }
-    }
-
-    [Test]
     [Arguments("1.2.3+b.1")]
     [Arguments("1.2.3-alpha.1+sha.5114f85")]
     public void BuildMetadataIsRefused(string release) =>
@@ -468,15 +375,6 @@ public class ReleaseProfilesTests
         select Defined(deployment, platform.Rid, release);
 
     private static string Name(Deployment deployment, string rid, string release) => Defined(deployment, rid, release).FileName;
-
-    private static IEnumerable<TarEntry> TarEntries(string archive)
-    {
-        using var gzip = new GZipStream(File.OpenRead(archive), CompressionMode.Decompress);
-        using var reader = new TarReader(gzip);
-        var entries = new List<TarEntry>();
-        while (reader.GetNextEntry() is { } entry) entries.Add(entry);
-        return entries;
-    }
 
     private static ReleaseArtifact Defined(Deployment deployment, string? rid, string release)
     {

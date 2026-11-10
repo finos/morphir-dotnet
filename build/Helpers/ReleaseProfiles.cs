@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Formats.Tar;
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NuGetSemanticVersion = NuGet.Versioning.SemanticVersion;
@@ -515,7 +516,8 @@ public sealed class LegacyAsset
 }
 
 /// <summary>
-/// Writes a publish folder into a release archive by the shared archive convention: files at the archive root with no
+/// The build's one archive writer, for the release profiles and the extension process folders alike. It writes a
+/// publish folder into an archive by the shared archive convention: files at the archive root with no
 /// top folder, <c>/</c> separators, ordinal entry order, one fixed time stamp, and explicit modes (0755 for the
 /// executables, 0644 for every other file). The same folder therefore gives the same bytes on every run.
 /// </summary>
@@ -536,20 +538,45 @@ public static class ReleaseArchive
     // S_IFREG, the regular-file type bits of a Unix mode in a zip entry's external attributes.
     private const int RegularFileType = 0x8000;
 
+    // Ustar fields: a name of at most 100 bytes, and a prefix of at most 155 bytes split off at a '/'.
+    private const int UstarName = 100;
+    private const int UstarPrefix = 155;
+
+    /// <summary>The archive format for a runtime identifier: zip for <c>win-*</c>, otherwise tar.gz.</summary>
+    public static ArchiveFormat FormatFor(string rid) =>
+        rid.StartsWith("win-", StringComparison.OrdinalIgnoreCase) ? ArchiveFormat.Zip : ArchiveFormat.TarGz;
+
+    /// <summary>The file extension of an archive format, with its dot: <c>.zip</c> or <c>.tar.gz</c>.</summary>
+    public static string ExtensionFor(ArchiveFormat format) => format == ArchiveFormat.Zip ? ".zip" : ".tar.gz";
+
+    /// <summary>The files of a folder as relative paths with <c>/</c> separators, in ordinal order: the archive's entries.</summary>
+    public static string[] Files(string folder) =>
+        Directory.GetFiles(folder, "*", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(folder, path).Replace('\\', '/'))
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
     /// <summary>The files that run as programs in a publish folder whose launch file is <paramref name="launchPath"/>.</summary>
     public static IReadOnlySet<string> ExecutablesFor(string launchPath) =>
         ImmutableSortedSet.Create(StringComparer.Ordinal, launchPath, CreateDump);
 
     /// <summary>
     /// Creates <paramref name="archive"/> from <paramref name="sourceDirectory"/>. A file whose archive path is in
-    /// <paramref name="executables"/> gets mode 0755; every other file gets 0644, whatever the build machine's modes.
+    /// <paramref name="executables"/> gets mode 0755; every other file gets 0644, whatever the build machine's modes. A
+    /// path that a ustar tar cannot hold fails with <see cref="InvalidOperationException"/> naming the path, before
+    /// anything is written, and no archive is left.
     /// </summary>
+    /// <remarks>
+    /// Determinism is scoped: archiving the same folder again with the same build machine OS and .NET version gives the
+    /// same bytes, whatever the files' times and modes on disk. Archives made on different operating systems or .NET
+    /// versions can differ in bytes (the zip "version made by" field, and the deflate output of the runtime's zlib), but
+    /// not in entry names, order, times, modes or content.
+    /// </remarks>
     public static void Create(string sourceDirectory, string archive, ArchiveFormat format, IReadOnlySet<string> executables)
     {
         if (File.Exists(archive)) File.Delete(archive);
-        var files = Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories)
-            .Select(path => (Path: path, Name: Path.GetRelativePath(sourceDirectory, path).Replace('\\', '/')))
-            .OrderBy(file => file.Name, StringComparer.Ordinal)
+        var files = Files(sourceDirectory)
+            .Select(name => (Path: Path.Combine(sourceDirectory, name), Name: name))
             .ToList();
         UnixFileMode ModeOf(string name) => executables.Contains(name) ? ExecutableMode : RegularMode;
 
@@ -568,6 +595,13 @@ public static class ReleaseArchive
             return;
         }
 
+        var unrepresentable = files.Select(file => file.Name).FirstOrDefault(name => !FitsUstar(name));
+        if (unrepresentable is not null)
+        {
+            throw new InvalidOperationException(
+                $"The path '{unrepresentable}' cannot be stored in a ustar tar: a ustar name holds at most {UstarName} bytes after a split at '/', with at most {UstarPrefix} bytes before it.");
+        }
+
         using var output = File.Create(archive);
         using var gzip = new GZipStream(output, CompressionLevel.Optimal);
         // Ustar, not PAX: a PAX entry also records access and change times, which differ between runs.
@@ -582,6 +616,20 @@ public static class ReleaseArchive
                 ModificationTime = Timestamp,
             });
         }
+    }
+
+    /// <summary>True when a ustar header can hold the path, in its name field or split into prefix and name at a '/'.</summary>
+    private static bool FitsUstar(string path)
+    {
+        if (Encoding.UTF8.GetByteCount(path) <= UstarName) return true;
+        for (var at = path.IndexOf('/'); at >= 0; at = path.IndexOf('/', at + 1))
+        {
+            if (Encoding.UTF8.GetByteCount(path.AsSpan(0, at)) <= UstarPrefix
+                && Encoding.UTF8.GetByteCount(path.AsSpan(at + 1)) <= UstarName)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>The lowercase hex SHA-256 of a file.</summary>

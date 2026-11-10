@@ -1,0 +1,130 @@
+{
+  "artifacts/morphir-dotnet-native-aot/1.2.3/win-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-native-aot/1.2.3/win-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-native-aot/1.2.3/osx-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-native-aot/1.2.3/osx-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-native-aot/1.2.3/linux-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-native-aot/1.2.3/linux-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-self-contained/1.2.3/win-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-self-contained/1.2.3/win-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-self-contained/1.2.3/osx-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-self-contained/1.2.3/osx-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-self-contained/1.2.3/linux-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-self-contained/1.2.3/linux-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-framework-dependent/1.2.3/win-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-framework-dependent/1.2.3/win-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-framework-dependent/1.2.3/osx-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-framework-dependent/1.2.3/osx-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-framework-dependent/1.2.3/linux-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "artifacts/morphir-dotnet-framework-dependent/1.2.3/linux-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "packages/nuget/morphir.tool/1.2.3/morphir.tool.1.2.3.nupkg": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-frontend/0.6.0/win-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-frontend/0.6.0/win-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-frontend/0.6.0/osx-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-frontend/0.6.0/osx-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-frontend/0.6.0/linux-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-frontend/0.6.0/linux-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "packages/nuget/morphir.frontend.fsharp.extension/0.6.0/morphir.frontend.fsharp.extension.0.6.0.nupkg": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-backend/0.1.0/win-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-backend/0.1.0/win-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-backend/0.1.0/osx-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-backend/0.1.0/osx-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-backend/0.1.0/linux-x64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  },
+  "extensions/fsharp-backend/0.1.0/linux-arm64.zip": {
+    "downloadBytes": 41943040,
+    "installedBytes": 104857600
+  }
+}
