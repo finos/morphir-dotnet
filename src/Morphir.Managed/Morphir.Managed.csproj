@@ -56,6 +56,14 @@
         </ItemGroup>
     </Target>
 
+    <!--
+      This executable holds FSharp.Compiler.Service, which is neither trim-safe nor AOT-safe, so the build refuses both.
+      The self-contained and framework-dependent release profiles publish it untrimmed and without Native AOT.
+    -->
+    <Target Name="MorphirRefuseAotAndTrimming" BeforeTargets="PrepareForBuild;PrepareForPublish"
+            Condition="'$(PublishAot)' == 'true' Or '$(PublishTrimmed)' == 'true'">
+        <Error Text="src/Morphir.Managed holds FSharp.Compiler.Service and cannot be published with PublishAot or PublishTrimmed (PublishAot='$(PublishAot)', PublishTrimmed='$(PublishTrimmed)'). Publish src/Morphir for Native AOT." />
+    </Target>
     <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Managed.Tests" />
     </ItemGroup>

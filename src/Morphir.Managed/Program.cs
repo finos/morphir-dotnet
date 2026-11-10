@@ -19,8 +19,16 @@ internal static class Program
     /// <summary>The composition of the managed morphir on top of the shared one.</summary>
     internal static void Compose(MorphirCliBuilder builder) => ManagedComposition.Compose(builder);
 
-    /// <summary>The application of the managed morphir, for tests.</summary>
-    internal static MorphirCliApp CreateApp(string[] args) => MorphirApplication.CreateApp(args, Host, Compose);
+    /// <summary>
+    /// The application of the managed morphir, for tests: the composition that <c>Main</c> runs, then <paramref name="observe"/>,
+    /// which only reads the builder.
+    /// </summary>
+    internal static MorphirCliApp CreateApp(string[] args, Action<MorphirCliBuilder>? observe = null) =>
+        MorphirApplication.CreateApp(args, Host, builder =>
+        {
+            Compose(builder);
+            observe?.Invoke(builder);
+        });
 
     private static int Main(string[] args) => MorphirApplication.Run(args, Host, Compose);
 }
