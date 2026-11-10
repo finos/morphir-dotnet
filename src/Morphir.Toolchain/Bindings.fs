@@ -213,6 +213,17 @@ module Bindings =
                     if set (closure.Providers |> List.map _.Operation) <> set recipe.Operations then
                         return! mismatch (at.Child "providers")
 
+                    // The closures this recipe allows on the platform, built once per platform: building and scanning
+                    // them per provider was quadratic in a recipe with many operations (review of #582, R1).
+                    let allowed =
+                        System.Collections.Generic.HashSet<LockedProvider>(
+                            [ yield! offering.BuiltIns |> List.map Locked.ofBuiltIn
+                              for candidate in recipe.Providers do
+                                  if Fit.onPlatform offering platform candidate |> Option.isNone then
+                                      yield! Locked.ofProvider platform candidate |> Option.toList ],
+                            HashIdentity.Structural
+                        )
+
                     for index, provider in List.indexed closure.Providers do
                         let providerPath = (at.Child "providers").At index
 
@@ -221,12 +232,6 @@ module Bindings =
                             return! wrongRepository repository DocumentKind.Lock (providerPath.Child "repositoryId")
                         | _ -> ()
 
-                        let allowed =
-                            [ yield! offering.BuiltIns |> List.map Locked.ofBuiltIn
-                              for candidate in recipe.Providers do
-                                  if Fit.onPlatform offering platform candidate |> Option.isNone then
-                                      yield! Locked.ofProvider platform candidate |> Option.toList ]
-
-                        if not (List.contains provider allowed) then
+                        if not (allowed.Contains provider) then
                             return! mismatch providerPath
         }

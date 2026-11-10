@@ -111,14 +111,33 @@ type Misfit =
 
 /// Whether providers fit host offerings (toolset recipe page, consistency rules).
 module Fit =
+    /// An offering's MEP versions and WASM ABIs as sets of their text, compared ordinally.
+    type private Speaks =
+        { Versions: System.Collections.Generic.HashSet<string>
+          Abis: System.Collections.Generic.HashSet<string> }
+
+    /// <summary>Each offering's sets, built once: a fit check that scanned the lists made reading a recipe with many
+    /// MEP versions and many providers quadratic (review of #582, R1).</summary>
+    let private speaking = System.Runtime.CompilerServices.ConditionalWeakTable<HostOffering, Speaks>()
+
+    let private speaks (offering: HostOffering) =
+        speaking.GetValue(
+            offering,
+            fun offering ->
+                { Versions = System.Collections.Generic.HashSet<string>(offering.ProtocolVersions |> List.map ProtocolVersion.text, System.StringComparer.Ordinal)
+                  Abis = System.Collections.Generic.HashSet<string>(offering.WasmAbis |> List.map _.Text, System.StringComparer.Ordinal) }
+        )
+
     /// <summary>The first reason a provider does not fit an offering on a platform, or <c>None</c> when it fits: the
     /// host speaks its MEP version, a process provider has an artifact for the platform, and a WASM provider's ABI is
     /// one the host lists. A <c>dotnet-tool</c> provider has no platform artifacts, so only the MEP version decides.
     /// A missing ABI is reported before any other reason.</summary>
     let onPlatform (offering: HostOffering) (platform: Platform) (provider: RecipeProvider) =
+        let speaks = speaks offering
+
         match provider.Delivery with
-        | RecipeDelivery.Wasm(abi, _) when not (List.contains abi offering.WasmAbis) -> Some(Misfit.AbiUnavailable abi)
-        | _ when not (List.contains provider.Protocol.Version offering.ProtocolVersions) -> Some Misfit.Protocol
+        | RecipeDelivery.Wasm(abi, _) when not (speaks.Abis.Contains abi.Text) -> Some(Misfit.AbiUnavailable abi)
+        | _ when not (speaks.Versions.Contains(ProtocolVersion.text provider.Protocol.Version)) -> Some Misfit.Protocol
         | RecipeDelivery.Process platforms when not (platforms |> List.exists (fst >> (=) platform)) -> Some Misfit.NoArtifact
         | _ -> None
 
@@ -344,12 +363,8 @@ module RecipeDocument =
                   Delivery = recipeDelivery }
         }
 
-    /// The index of the first element that repeats an earlier one by <paramref name="key"/>.
-    let private firstRepeat (key: 'T -> 'K) (items: 'T list) =
-        items
-        |> List.indexed
-        |> List.tryFind (fun (index, item) -> items |> List.take index |> List.exists (fun earlier -> key earlier = key item))
-        |> Option.map fst
+    /// The index of the first element that repeats an earlier one by <paramref name="key"/>, in linear time.
+    let private firstRepeat (key: 'T -> 'K) (items: 'T list) = firstRepeatBy key items
 
     /// The consistency rules marked "after reading", in the order of their table.
     let private consistency (path: DocumentPath) (recipe: Recipe) : Read<Recipe> =
@@ -392,13 +407,28 @@ module RecipeDocument =
                 if builtInIds.Contains provider.ExtensionId then
                     return! fail ((providers.At index).Child "extensionId")
 
-            for index, operation in List.indexed recipe.Operations do
-                let performs (host: HostOffering) =
-                    host.BuiltIns |> List.exists (fun builtIn -> builtIn.Operation = operation)
-                    || recipe.Providers
-                       |> List.exists (fun provider -> provider.Operation = operation && Fit.onSomePlatform host provider)
+            // Each operation's built-ins and providers are looked up once, so the rule is linear in the recipe rather
+            // than in operations times built-ins and providers.
+            let builtInOperations =
+                recipe.Hosts
+                |> List.map (fun host ->
+                    System.Collections.Generic.HashSet<Operation>(host.BuiltIns |> List.map _.Operation, HashIdentity.Structural))
 
-                if not (List.forall performs recipe.Hosts) then
+            let providersFor =
+                recipe.Providers
+                |> List.groupBy _.Operation
+                |> dict
+
+            for index, operation in List.indexed recipe.Operations do
+                let candidates =
+                    match providersFor.TryGetValue operation with
+                    | true, providers -> providers
+                    | false, _ -> []
+
+                let performs (host: HostOffering, builtIns: System.Collections.Generic.HashSet<Operation>) =
+                    builtIns.Contains operation || candidates |> List.exists (Fit.onSomePlatform host)
+
+                if not (List.forall performs (List.zip recipe.Hosts builtInOperations)) then
                     return! fail (operations.At index)
 
             return recipe

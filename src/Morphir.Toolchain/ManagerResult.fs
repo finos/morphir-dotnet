@@ -761,16 +761,23 @@ module ResultDocument =
                 | SourceRole.Provider, ComponentSource.RepositoryTarget _ -> refuse ReaderCode.InconsistentDocument (at.Child "source")
                 | _, ComponentSource.RepositoryTarget(repositoryId, target, sha)
                 | _, ComponentSource.RecipeDigest(repositoryId, target, sha) ->
-                    if target <> expected.Target || sha <> expected.Sha256 then
-                        match role with
-                        | SourceRole.Host -> refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "target")
-                        | SourceRole.Provider -> refuse ReaderCode.InconsistentDocument (at.Child "source")
+                    // The page gives source.target for a host source that names another target. A source with the
+                    // right target and another digest is reported at source (provisional: the contract author is asked
+                    // to confirm; review of #582, R5).
+                    if role = SourceRole.Host && target <> expected.Target then
+                        refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "target")
+                    elif target <> expected.Target || sha <> expected.Sha256 then
+                        refuse ReaderCode.InconsistentDocument (at.Child "source")
                     elif repositoryId <> plan.Recipe.RepositoryId then
                         refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "repositoryId")
                     else
                         Ok()
                 | _, ComponentSource.ExternalOwner -> Ok()
                 | _, ComponentSource.BuiltIn -> refuse ReaderCode.InconsistentDocument (at.Child "source")
+
+            // The locked provider of each operation, looked up once per component rather than by a scan.
+            let lockedFor =
+                closure.Providers |> List.map (fun provider -> provider.Operation, provider) |> dict
 
             for index, planned in List.indexed plan.Components do
                 let at = componentsPath.At index
@@ -787,7 +794,7 @@ module ResultDocument =
 
                     do! boundTo at SourceRole.Host closure.Host host.Source
                 | PlannedComponent.Provider(operation, id, delivery, provider) ->
-                    let locked = closure.Providers |> List.find (fun p -> p.Operation = operation)
+                    let locked = lockedFor[operation]
 
                     if
                         id <> locked.ExtensionId
