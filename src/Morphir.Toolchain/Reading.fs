@@ -124,17 +124,22 @@ module internal Reading =
     let array (read: Node -> Read<'T>) (n: Node) : Read<'T list> =
         items n |> Result.bind (Result.traverse read)
 
-    /// <summary>An array whose elements are read in index order and listed once each: an element equal to an earlier
-    /// one is <c>inconsistent_document</c> at the repetition, checked as it is read.</summary>
+    /// <summary>An array of strings whose elements are read in index order and listed once each: an element whose text
+    /// equals an earlier one's, compared ordinally, is <c>inconsistent_document</c> at the repetition, checked as it is
+    /// read. The earlier texts are kept in a hash set, so the check is linear in the array: a list scan made a recipe
+    /// of 453 KB take 85 s (review of #582, R1). The values read are compared by their text, which is how every value
+    /// read here is equal (<c>ProtocolVersion</c> and <c>Token</c>).</summary>
     let distinctArray (read: Node -> Read<'T>) (n: Node) : Read<'T list> =
+        let seen = System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal)
+
         let rec go (earlier: 'T list) (rest: Node list) =
             match rest with
             | [] -> Ok(List.rev earlier)
             | element :: rest ->
-                match read element with
-                | Error refusal -> Error refusal
-                | Ok value when List.contains value earlier -> refuse ReaderCode.InconsistentDocument element.Path
-                | Ok value -> go (value :: earlier) rest
+                match read element, element.Value with
+                | Error refusal, _ -> Error refusal
+                | Ok _, Value.String text when not (seen.Add text) -> refuse ReaderCode.InconsistentDocument element.Path
+                | Ok value, _ -> go (value :: earlier) rest
 
         items n |> Result.bind (go [])
 

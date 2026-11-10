@@ -23,9 +23,56 @@ let private resultWithPath (path: string) =
         $"""{{"schemaVersion":"0.1.0-draft.1","command":"doctor","outcome":"failed","diagnostics":[{{"kind":"unsupported-contract","code":"invalid_value","severity":"error","message":"m","document":"lock","path":"{path}"}}]}}"""
     )
 
+/// <summary>Runs a read under a time budget on its own task, so a quadratic check fails the test within the budget
+/// instead of hanging the suite. The budget is generous: a linear read takes well under a second.</summary>
+let withinBudget (seconds: float) (what: string) (read: unit -> 'T) : 'T =
+    let task = System.Threading.Tasks.Task.Run(fun () -> read ())
+
+    if task.Wait(System.TimeSpan.FromSeconds seconds) then
+        task.Result
+    else
+        failtestf "%s took longer than %.0f s" what seconds
+
+/// The synthetic recipe with <paramref name="count"/> distinct entries added to the first offering's array
+/// <paramref name="member'"/>, each spelled by <paramref name="entry"/>.
+let recipeWithEntries (member': string) (entry: int -> string) (count: int) =
+    let text = Encoding.UTF8.GetString(Fixtures.bytes "recipe/fsharp-synthetic.json")
+    let marker = $"\"{member'}\": ["
+    let at = text.IndexOf marker
+    Expect.isGreaterThan at 0 $"the recipe has {member'}"
+    let extra = String.concat ", " [ for i in 1..count -> $"\"{entry i}\"" ]
+    let empty = text.[at + marker.Length] = ']'
+    Encoding.UTF8.GetBytes(text.Insert(at + marker.Length, if empty then extra else extra + ", "))
+
 [<Tests>]
 let tests =
     testList "Review hardening" [
+        testCase "a recipe offering with 100,000 MEP versions reads in linear time" (fun () ->
+            // Review of #582, R1: the duplicate check compared each element with every earlier one.
+            let bytes = recipeWithEntries "protocolVersions" (fun i -> $"0.2.0-{i}") 100_000
+            Expect.isLessThan bytes.Length (16 * 1024 * 1024) "within the recipe bound"
+
+            match withinBudget 20.0 "reading 100,000 protocolVersions" (fun () -> RecipeDocument.read bytes) with
+            | Ok recipe -> Expect.equal recipe.Hosts.Head.ProtocolVersions.Length 100_001 "every version"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "a recipe offering with 100,000 WASM ABIs reads in linear time" (fun () ->
+            let bytes = recipeWithEntries "wasmAbis" (fun i -> $"abi-{i}") 100_000
+
+            match withinBudget 20.0 "reading 100,000 wasmAbis" (fun () -> RecipeDocument.read bytes) with
+            | Ok recipe -> Expect.equal recipe.Hosts.Head.WasmAbis.Length 100_000 "every ABI"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "a repeated entry among 100,000 is still refused at the repetition" (fun () ->
+            let bytes = recipeWithEntries "protocolVersions" (fun i -> if i = 100_000 then "0.2.0-1" else $"0.2.0-{i}") 100_000
+
+            match withinBudget 20.0 "refusing a repetition among 100,000" (fun () -> RecipeDocument.read bytes) with
+            | Error refusal ->
+                Expect.equal
+                    (refusal.Code, DocumentPath.render refusal.Path)
+                    (ReaderCode.InconsistentDocument, "hosts[0].protocolVersions[99999]")
+                    "the repetition"
+            | Ok _ -> failtest "a repeated version was read")
         testList "a refused critical path is reported exactly as written" [
             for critical in [ ".host"; "..x"; "host."; "a..b"; "platforms.*.unknownMember" ] ->
                 testCase critical (fun () ->
