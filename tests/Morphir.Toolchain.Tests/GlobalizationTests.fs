@@ -34,6 +34,20 @@ let private stringMembers (assembly: string) =
                   yield metadata.GetString reference.Name ]
     |> set
 
+/// The assemblies and type namespaces an assembly references.
+let private references (assembly: string) =
+    use stream = File.OpenRead(Path.Combine(output, assembly))
+    use pe = new PEReader(stream)
+    let metadata = pe.GetMetadataReader()
+
+    let assemblies =
+        [ for handle in metadata.AssemblyReferences -> metadata.GetString((metadata.GetAssemblyReference handle).Name) ]
+
+    let namespaces =
+        [ for handle in metadata.TypeReferences -> metadata.GetString((metadata.GetTypeReference handle).Namespace) ]
+
+    set assemblies, set namespaces
+
 let private probe = Path.Combine(__SOURCE_DIRECTORY__, "AotProbe")
 
 [<Tests>]
@@ -52,6 +66,17 @@ let tests =
                 let members = stringMembers assembly
                 Expect.isFalse (members.Contains "Normalize") $"{assembly} references String.Normalize"
                 Expect.isFalse (members.Contains "IsNormalized") $"{assembly} references String.IsNormalized")
+
+        testCase "neither morphirup nor Morphir.Toolchain uses the platform's cryptography library" (fun () ->
+            // On Linux, System.Security.Cryptography calls into the machine's OpenSSL, and a machine without libssl
+            // kills the process. SHA-256 comes from a managed digest instead.
+            for assembly in [ "Morphir.Toolchain.dll"; "morphirup.dll" ] do
+                let assemblies, namespaces = references assembly
+                Expect.isFalse (assemblies.Contains "System.Security.Cryptography") $"{assembly} references System.Security.Cryptography"
+
+                Expect.isEmpty
+                    (namespaces |> Set.filter (fun ns -> ns.StartsWith("System.Security.Cryptography", StringComparison.Ordinal)))
+                    $"{assembly} uses System.Security.Cryptography types")
 
         testCase "a morphirup that can load no ICU still plans the recorded digest" (fun () ->
             // An app-local ICU version that does not exist: a morphirup that used ICU would fail at its first
