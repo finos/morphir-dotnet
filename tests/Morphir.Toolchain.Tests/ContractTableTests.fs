@@ -38,7 +38,7 @@ let tests =
                 |> Seq.map (fun row -> row.Groups[1].Value, row.Groups[2].Value)
                 |> Seq.toList
 
-            Expect.equal (List.length rows) 34 "the page lists 34 codes"
+            Expect.equal (List.length rows) (List.length Code.all) "the page lists every code"
 
             let ours = Code.all |> List.map (fun (code, name) -> name, DiagnosticKind.name (Code.kind code))
             Expect.equal ours rows "the code-to-kind table")

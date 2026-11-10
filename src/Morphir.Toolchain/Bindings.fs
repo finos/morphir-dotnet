@@ -2,14 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 namespace Morphir.Toolchain
 
-/// A refusal from a check that compares one document with another. The problem fixes the code and the document whose
-/// member the path names.
+/// What a check that compares documents found.
+[<RequireQualifiedAccess>]
+type BindingFailure =
+    /// A <c>lock-binding</c> code.
+    | Binding of problem: BindingProblem
+    /// <c>repository_mismatch</c>: a document names a repository other than the one the check runs against, which is
+    /// carried here, as the <c>trust-failure</c> diagnostic reports it.
+    | RepositoryMismatch of repository: Sha256
+
+/// A refusal from a check that compares one document with another, or a document with the authenticated repository.
 type BindingRefusal =
-    { Problem: BindingProblem
+    { Failure: BindingFailure
       Path: DocumentPath }
 
-    member this.Code = BindingProblem.code this.Problem
-    member this.Document = BindingProblem.document this.Code
+    member this.Code =
+        match this.Failure with
+        | BindingFailure.Binding problem -> Code.Binding(BindingProblem.code problem)
+        | BindingFailure.RepositoryMismatch _ -> Code.Trust TrustCode.RepositoryMismatch
 
 /// The locked form of a recipe's built-ins and providers.
 module Locked =
@@ -36,11 +46,27 @@ module Locked =
         | RecipeDelivery.Wasm(abi, artifact) -> locked (LockedDelivery.Wasm(abi, provider.Release, artifact, provider.Protocol))
         | RecipeDelivery.DotnetTool package -> locked (LockedDelivery.DotnetTool(provider.Release, package, provider.Protocol))
 
-/// The checks that bind documents to each other (toolchain-lock and installation-receipt pages).
+    /// The repository a locked provider names, when its delivery has one; a built-in names none.
+    let repository (provider: LockedProvider) =
+        match provider.Delivery with
+        | LockedDelivery.BuiltIn _ -> None
+        | LockedDelivery.Process(release, _, _)
+        | LockedDelivery.Wasm(_, release, _, _)
+        | LockedDelivery.DotnetTool(release, _, _) -> Some release.RepositoryId
+
+/// The checks that bind documents to each other (toolchain-lock and installation-receipt pages) and to the one
+/// authenticated repository a binding check runs against (toolset-recipe page, "One repository per binding check").
 module Bindings =
 
     let private refuse problem (path: DocumentPath) : Result<'T, BindingRefusal> =
-        Error { Problem = problem; Path = path }
+        Error
+            { Failure = BindingFailure.Binding problem
+              Path = path }
+
+    let private wrongRepository repository (path: DocumentPath) : Result<'T, BindingRefusal> =
+        Error
+            { Failure = BindingFailure.RepositoryMismatch repository
+              Path = path }
 
     let private root = DocumentPath.root
 
@@ -59,6 +85,16 @@ module Bindings =
         | Some closure -> Ok closure
         | None -> refuse (BindingProblem.PlatformNotLocked platform) (root.Child "platforms")
 
+    /// <summary>A recipe's provider bindings name the authenticated repository the checks run against; a provider that
+    /// names another is <c>repository_mismatch</c> at <c>providers[i].repositoryId</c>. This is the first row of the
+    /// provider binding table, which a manager applies before it reads any descriptor.</summary>
+    let recipeProvidersInRepository (recipe: Recipe) (repository: Sha256) =
+        result {
+            for index, provider in List.indexed recipe.Providers do
+                if provider.Release.RepositoryId <> repository then
+                    return! wrongRepository repository (((root.Child "providers").At index).Child "repositoryId")
+        }
+
     /// <summary>A receipt binds the exact lock bytes and repeats the closure for its platform. Paths name receipt
     /// members, except <c>platforms</c>, which names the lock's.</summary>
     let receiptBindsLock (receipt: Receipt) (lock: Lock) =
@@ -68,6 +104,32 @@ module Bindings =
 
             if receipt.Recipe <> lock.Recipe then
                 return! refuse BindingProblem.ReceiptLockMismatch (root.Child "recipe")
+
+            // Bytes the receipt says a repository authenticated came from the lock's repository: the host first,
+            // then each provider in index order.
+            let authenticatedBy (installation: Installation) =
+                match installation.Authentication with
+                | Authentication.RepositoryTarget(repositoryId, _) -> Some repositoryId
+                | Authentication.RecipeDigest _
+                | Authentication.LocalDeveloper
+                | Authentication.ExternalOwner -> None
+
+            let authenticationPath (owner: DocumentPath) =
+                ((owner.Child "installation").Child "authentication").Child "repositoryId"
+
+            match authenticatedBy receipt.Host.Installation with
+            | Some repositoryId when repositoryId <> lock.Recipe.RepositoryId ->
+                return! wrongRepository lock.Recipe.RepositoryId (authenticationPath (root.Child "host"))
+            | _ -> ()
+
+            for index, provider in List.indexed receipt.Providers do
+                match provider.Installation with
+                | ProviderInstallation.Installed(installation, _) ->
+                    match authenticatedBy installation with
+                    | Some repositoryId when repositoryId <> lock.Recipe.RepositoryId ->
+                        return! wrongRepository lock.Recipe.RepositoryId (authenticationPath ((root.Child "providers").At index))
+                    | _ -> ()
+                | ProviderInstallation.PartOfHost -> ()
 
             let! closure = lockedClosure lock receipt.Platform
             let installed = receipt.Host.Identity
@@ -90,15 +152,18 @@ module Bindings =
                     return! refuse BindingProblem.ReceiptLockMismatch ((providers.At index).Child "identity")
         }
 
-    /// <summary>A lock checked against its recipe's exact bytes, refused with <c>lock_recipe_mismatch</c> at the
-    /// first failure. Closures are visited in platform table order: the host artifact, then the operations, then each
-    /// provider in index order.</summary>
-    let lockMatchesRecipe (lock: Lock) (recipe: Recipe) =
+    /// <summary>A lock checked against its recipe's exact bytes and the authenticated repository those bytes were read
+    /// from, refused at the first failure. Closures are visited in platform table order: the host artifact, then the
+    /// operations, then each provider in index order, its repository before its identity.</summary>
+    let lockMatchesRecipe (lock: Lock) (recipe: Recipe) (repository: Sha256) =
         let mismatch path = refuse BindingProblem.LockRecipeMismatch path
 
         result {
             if recipe.Sha256 <> lock.Recipe.Sha256 then
                 return! mismatch ((root.Child "recipe").Child "sha256")
+
+            if lock.Recipe.RepositoryId <> repository then
+                return! wrongRepository repository ((root.Child "recipe").Child "repositoryId")
 
             let offering =
                 recipe.Hosts
@@ -122,6 +187,13 @@ module Bindings =
                         return! mismatch (at.Child "providers")
 
                     for index, provider in List.indexed closure.Providers do
+                        let providerPath = (at.Child "providers").At index
+
+                        match Locked.repository provider with
+                        | Some named when named <> repository ->
+                            return! wrongRepository repository (providerPath.Child "repositoryId")
+                        | _ -> ()
+
                         let allowed =
                             [ yield! offering.BuiltIns |> List.map Locked.ofBuiltIn
                               for candidate in recipe.Providers do
@@ -129,5 +201,5 @@ module Bindings =
                                       yield! Locked.ofProvider platform candidate |> Option.toList ]
 
                         if not (List.contains provider allowed) then
-                            return! mismatch ((at.Child "providers").At index)
+                            return! mismatch providerPath
         }

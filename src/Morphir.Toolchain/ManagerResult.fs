@@ -519,7 +519,7 @@ module ResultDocument =
             let! downloadBytes = required "downloadBytes" integer o
             let! installedBytes = required "installedBytes" integer o
             let! updateOwner = required "updateOwner" ownership o
-            let! prerequisites = optional "prerequisites" (array prerequisite) o
+            let! prerequisites = required "prerequisites" (array prerequisite) o
 
             let! probe =
                 required "probe" (tag [ "none", Probe.None; "in-host", Probe.InHost; "process-with-user-rights", Probe.ProcessWithUserRights ]) o
@@ -530,7 +530,7 @@ module ResultDocument =
                   DownloadBytes = downloadBytes
                   InstalledBytes = installedBytes
                   UpdateOwner = updateOwner
-                  Prerequisites = defaultArg prerequisites []
+                  Prerequisites = prerequisites
                   Probe = probe }
 
             let inconsistent name = refuse ReaderCode.InconsistentDocument (n.Path.Child name)

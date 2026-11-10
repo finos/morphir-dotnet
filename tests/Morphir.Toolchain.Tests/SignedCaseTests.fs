@@ -113,7 +113,8 @@ let private lockRecipeTests () =
           testCase name (fun () ->
               let lockFile = str case "lock"
               let lock = LockDocument.read (Fixtures.bytesIn Fixtures.signed lockFile) |> valid lockFile
-              let actual = Bindings.lockMatchesRecipe lock (signedRecipe (str case "recipe")) |> bindingOutcome
+              let repository = match Sha256.tryParse (repositoryId ()) with Ok id -> id | Error _ -> failtest "repositoryId"
+              let actual = Bindings.lockMatchesRecipe lock (signedRecipe (str case "recipe")) repository |> bindingOutcome
               Expect.equal actual (Manifest.expected name case) name) ]
 
 let private recipeCheckTests () =

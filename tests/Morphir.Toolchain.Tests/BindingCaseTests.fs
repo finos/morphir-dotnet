@@ -23,7 +23,7 @@ let platformOf (text: string) =
 let bindingOutcome (result: Result<'T, BindingRefusal>) =
     match result with
     | Ok _ -> Valid
-    | Error refusal -> Refused(Code.bindingName refusal.Code, DocumentPath.render refusal.Path)
+    | Error refusal -> Refused(Code.name refusal.Code, DocumentPath.render refusal.Path)
 
 /// The members a manifest lists for a selected provider, from the locked provider.
 let project (provider: LockedProvider) =

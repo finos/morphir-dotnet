@@ -237,6 +237,10 @@ let private setup (io: Io) (args: string list) =
     match request, recipe with
     | Error refusal, _ -> failedWith io Command.Setup [ Diagnostics.ofReaderRefusal DocumentKind.Request refusal ]
     | _, Error refusal -> failedWith io Command.Setup [ Diagnostics.ofReaderRefusal DocumentKind.Recipe refusal ]
+    | Ok _, Ok recipe when Result.isError (Bindings.recipeProvidersInRepository recipe repository) ->
+        match Bindings.recipeProvidersInRepository recipe repository with
+        | Error refusal -> failedWith io Command.Setup [ Diagnostics.ofBindingRefusal refusal ]
+        | Ok() -> failwith "unreachable"
     | Ok request, Ok recipe ->
         let recipeTarget =
             match options.TryGet "--recipe-target" with
@@ -284,7 +288,7 @@ let private setup (io: Io) (args: string list) =
 
 let private doctor (io: Io) (args: string list) =
     let options =
-        parse [ "--project"; "--request"; "--lock"; "--recipe"; "--platform" ] [ "--json" ] args
+        parse [ "--project"; "--request"; "--lock"; "--recipe"; "--repository-id"; "--platform" ] [ "--json" ] args
 
     let platform = platformOption io options
 
@@ -318,7 +322,12 @@ let private doctor (io: Io) (args: string list) =
               match recipe with
               | Some(Error refusal) -> Diagnostics.ofReaderRefusal DocumentKind.Recipe refusal
               | Some(Ok recipe) ->
-                  match Bindings.lockMatchesRecipe lock recipe with
+                  let repository =
+                      match validatedOption "--repository-id" Sha256.tryParse options with
+                      | Some id -> id
+                      | None -> usage "--recipe needs --repository-id <sha256>, the repository the recipe was read from"
+
+                  match Bindings.lockMatchesRecipe lock recipe repository with
                   | Error refusal -> Diagnostics.ofBindingRefusal refusal
                   | Ok() -> ()
               | None -> () ]

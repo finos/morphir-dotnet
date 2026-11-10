@@ -46,6 +46,8 @@ type TrustCode =
     | TargetDigestMismatch
     | ReleaseDescriptorMismatch
     | ArtifactPlatformMismatch
+    /// A document names a repository identity other than the one the check runs against.
+    | RepositoryMismatch
     | ReleaseRevoked
     | MetadataSignatureInvalid
     | MetadataExpired
@@ -115,6 +117,7 @@ module Code =
           TrustCode.TargetDigestMismatch, "target_digest_mismatch"
           TrustCode.ReleaseDescriptorMismatch, "release_descriptor_mismatch"
           TrustCode.ArtifactPlatformMismatch, "artifact_platform_mismatch"
+          TrustCode.RepositoryMismatch, "repository_mismatch"
           TrustCode.ReleaseRevoked, "release_revoked"
           TrustCode.MetadataSignatureInvalid, "metadata_signature_invalid"
           TrustCode.MetadataExpired, "metadata_expired"

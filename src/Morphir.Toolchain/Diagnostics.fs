@@ -38,23 +38,30 @@ module Diagnostics =
 
         error (DiagnosticDetail.UnsupportedContract(refusal.Code, document, refusal.Path)) text None
 
-    /// A <c>lock-binding</c> diagnostic for a binding refusal.
+    /// <summary>A <c>lock-binding</c> diagnostic for a binding refusal, or a <c>trust-failure</c> diagnostic for
+    /// <c>repository_mismatch</c>, whose <c>repositoryId</c> is the repository the check ran against. Instructions name
+    /// only commands this build runs, so a refusal that needs setup or update says so in its message instead.</summary>
     let ofBindingRefusal (refusal: BindingRefusal) =
-        let text, instruction =
-            match refusal.Problem with
-            | BindingProblem.RequestChanged ->
-                "The request bytes no longer hash to the lock's requestSha256. Run an explicit setup or update.",
-                Some [ "morphirup"; "setup"; "--yes" ]
-            | BindingProblem.PlatformNotLocked platform ->
-                $"The lock records no {Platform.name platform} closure. Extend the lock with an explicit setup.",
-                Some [ "morphirup"; "setup"; "--platform"; Platform.name platform ]
-            | BindingProblem.LockChanged -> "The receipt was installed from other lock bytes.", None
-            | BindingProblem.ReceiptLockMismatch -> $"The receipt does not repeat the lock at {DocumentPath.render refusal.Path}.", None
-            | BindingProblem.LockRecipeMismatch ->
-                $"The lock is not a closure its recipe allows at {DocumentPath.render refusal.Path}.", None
+        let path = DocumentPath.render refusal.Path
 
-        error (DiagnosticDetail.LockBinding(refusal.Problem, refusal.Path)) text instruction
+        match refusal.Failure with
+        | BindingFailure.RepositoryMismatch repository ->
+            error
+                (DiagnosticDetail.TrustFailure(TrustCode.RepositoryMismatch, repository, None, None, None))
+                $"The document names another repository at {path} than {repository.Text}, the repository this check runs against."
+                None
+        | BindingFailure.Binding problem ->
+            let text =
+                match problem with
+                | BindingProblem.RequestChanged ->
+                    "The request bytes no longer hash to the lock's requestSha256. An explicit setup or update writes a new lock; this build does not implement them yet."
+                | BindingProblem.PlatformNotLocked platform ->
+                    $"The lock records no {Platform.name platform} closure. An explicit setup extends the lock; this build does not implement it yet (morphirup setup --plan --platform {Platform.name platform} shows the plan)."
+                | BindingProblem.LockChanged -> "The receipt was installed from other lock bytes."
+                | BindingProblem.ReceiptLockMismatch -> $"The receipt does not repeat the lock at {path}."
+                | BindingProblem.LockRecipeMismatch -> $"The lock is not a closure its recipe allows at {path}."
 
+            error (DiagnosticDetail.LockBinding(problem, refusal.Path)) text None
     /// An <c>unsupported-artifact</c> diagnostic for a resolution failure.
     let ofResolutionFailure (failure: ResolutionFailure) =
         let platform = Platform.name failure.Platform

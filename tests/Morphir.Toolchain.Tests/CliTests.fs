@@ -258,15 +258,16 @@ let tests =
                 let result = readResult run
                 Expect.equal (result.Command, result.Outcome, result.Diagnostics) (Command.Doctor, Outcome.Succeeded, []) "no diagnostics")
 
-            testCase "an unlocked platform is platform_not_locked with the setup instruction" (fun () ->
+            testCase "an unlocked platform is platform_not_locked, naming no command this build refuses" (fun () ->
                 let run = runIn (project "request/approved.toml") Platform.LinuxX64 [ "doctor" ]
                 Expect.equal run.Exit 1 "exit code"
 
                 match (readResult run).Diagnostics with
                 | [ { Detail = DiagnosticDetail.LockBinding(BindingProblem.PlatformNotLocked Platform.LinuxX64, path)
-                      Instruction = Some instruction } ] ->
+                      Instruction = None
+                      Message = message } ] ->
                     Expect.equal (DocumentPath.render path) "platforms" "the lock member"
-                    Expect.equal instruction [ "morphirup"; "setup"; "--platform"; "linux-x64" ] "the instruction"
+                    Expect.stringContains message.Text "does not implement it yet" "says that extending the lock is not implemented"
                 | other -> failtestf "unexpected diagnostics %A" other)
 
             testCase "a reformatted request is request_changed" (fun () ->
@@ -280,7 +281,7 @@ let tests =
 
             testCase "a lock checked against another recipe's bytes is lock_recipe_mismatch" (fun () ->
                 let run =
-                    runIn (project "request/approved.toml") Platform.WinX64 [ "doctor"; "--recipe"; fixture "recipe/fsharp-synthetic.json" ]
+                    runIn (project "request/approved.toml") Platform.WinX64 [ "doctor"; "--recipe"; fixture "recipe/fsharp-synthetic.json"; "--repository-id"; repositoryText ]
 
                 Expect.equal run.Exit 1 "exit code"
 
