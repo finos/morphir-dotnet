@@ -193,6 +193,16 @@ let tests =
               finally
                   dispose backend
 
+          testCase "A malformed describe while connecting is extension.protocol_error, and the guest process is gone"
+          <| fun _ ->
+              let writer = new StringWriter()
+
+              let failure =
+                  failureOf (connectOutcome (fakeGuestWith "malformed-describe" (TimeSpan.FromMinutes 1.0) writer))
+
+              Expect.equal (codes failure) [ "extension.protocol_error" ] "the code"
+              Expect.isTrue (guestGone (writer.ToString())) "The guest process is gone after the failed connect"
+
           testCase "A model file with a UTF-8 byte order mark is sent without it and gives the same files"
           <| fun _ ->
               let plain = File.ReadAllBytes(irFixture "daily-rate-v4.json")

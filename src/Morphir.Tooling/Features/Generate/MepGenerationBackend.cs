@@ -121,36 +121,60 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         if (guest is null)
             return start.Match(_ => throw new InvalidOperationException(), failed => Fail<MepGenerationBackend>(GenerationFailureKind.Operational, failed.Code, failed.Message));
 
+        // The connect owns the guest until it succeeds: a refusal, a cancellation or any other exception disposes
+        // it, so its process tree never outlives a failed connect.
+        var owned = true;
+        try
+        {
+            var outcome = await FromSession(guest, options, offer, ct);
+            owned = outcome is not Outcome<MepGenerationBackend>.Success;
+            return outcome;
+        }
+        finally
+        {
+            if (owned) await ((IAsyncDisposable)guest).DisposeAsync();
+        }
+    }
+
+    /// <summary>The backend over a started guest, or why it cannot serve the target. It does not dispose the guest.</summary>
+    private static async Task<Outcome<MepGenerationBackend>> FromSession(MepGuestProcess guest, MepBackendOptions options,
+        ModelTransportSupport offer, CancellationToken ct)
+    {
         var session = guest.Session;
         var extension = session.Extension;
         var label = $"{extension.Id} {extension.Version}";
 
-        async Task<Outcome<MepGenerationBackend>> Refuse(string code, string message)
-        {
-            await ((IAsyncDisposable)guest).DisposeAsync();
-            return Fail<MepGenerationBackend>(GenerationFailureKind.Operational, code, message);
-        }
+        static Outcome<MepGenerationBackend> Refuse(string code, string message) =>
+            Fail<MepGenerationBackend>(GenerationFailureKind.Operational, code, message);
 
         if (!ExtensionId.TryParse(extension.Id, out var id, out _))
-            return await Refuse("extension.unavailable", $"Extension {label}: its id is not a valid extension id.");
+            return Refuse("extension.unavailable", $"Extension {label}: its id is not a valid extension id.");
 
         var backend = session.Capabilities.BackendOrNull();
         if (backend is null || !backend.Targets.Contains(options.Target.Value, StringComparer.Ordinal))
         {
             var targets = backend is null ? "none" : string.Join(", ", backend.Targets);
-            return await Refuse("extension.unavailable", $"Extension {label} does not claim the backend target {options.Target.Value}. It claims: {targets}.");
+            return Refuse("extension.unavailable", $"Extension {label} does not claim the backend target {options.Target.Value}. It claims: {targets}.");
         }
 
         var agreed = ModelTransportExtensions.AgreedTuples(session.Capabilities, ModelOperation.GenerateModel);
         if (agreed.Count == 0)
         {
             var described = await guest.DescribeAsync(ct);
-            var claimed = described.Match(
-                claims => claims.Capabilities.TryGetValue("modelTransport", out var transport)
-                    ? Tuples(JsonSerializer.Deserialize(transport, MepJson.Default.ModelTransportSupport)?.Tuples ?? [])
-                    : "none",
-                failure => $"unknown ({failure.Message})");
-            return await Refuse("extension.tuple_unavailable",
+            string claimed;
+            try
+            {
+                claimed = described.Match(
+                    claims => claims.Capabilities.TryGetValue("modelTransport", out var transport)
+                        ? Tuples(JsonSerializer.Deserialize(transport, MepJson.Default.ModelTransportSupport)?.Tuples ?? [])
+                        : "none",
+                    failure => $"unknown ({failure.Message})");
+            }
+            catch (JsonException error)
+            {
+                return Refuse("extension.protocol_error", $"Extension {label}: its describe claims are malformed: the modelTransport claim is not a model transport ({error.Message}).");
+            }
+            return Refuse("extension.tuple_unavailable",
                 $"Extension {label} is installed but not ready: it agreed no morphir.backend.generateModel tuple with the host. "
                 + $"The host offered: {Tuples(offer.Tuples)}. The extension claims: {claimed}.");
         }

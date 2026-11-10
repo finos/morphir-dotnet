@@ -101,6 +101,28 @@ let run (scenario: string) =
                 (Handlers.raw (fun _ _ ->
                     Thread.Sleep Timeout.Infinite
                     TaskCompletionSource<Result<JsonElement, RpcError>>().Task))
+        // Agrees no tuple, so the host reads describe, whose modelTransport claim is the number 5.
+        | "malformed-describe" ->
+            eprintfn "fake-guest-pid=%d" Environment.ProcessId
+            use five = JsonDocument.Parse "5"
+
+            let claims =
+                { FSharpGuest.claims with
+                    Extension =
+                        { FSharpGuest.extension with
+                            Id = "org.example.fake-backend" }
+                    Capabilities =
+                        readOnlyDict
+                            [ "backend", JsonSerializer.SerializeToElement(FSharpGuest.backend, MepJson.Default.BackendCapability)
+                              "modelTransport", five.RootElement.Clone() ] }
+
+            Guest(
+                { Claims = claims
+                  Capabilities =
+                    { FSharpGuest.capabilities with
+                        ModelTransport = None }
+                  Methods = readOnlyDict [ Method.GenerateModel.WireValue, answer (result "[]") ] }
+            )
         // Never answers generateModel.
         | "never-answers" ->
             guestWith [ json4 ] (Handlers.raw (fun _ _ -> TaskCompletionSource<Result<JsonElement, RpcError>>().Task))
