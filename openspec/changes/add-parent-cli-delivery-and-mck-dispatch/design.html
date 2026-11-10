@@ -185,6 +185,14 @@ the stub and its grandchild.</li>
 enabled.</li>
 </ul>
 <p>Unset, the default stops competing publication at once. Setting the variable is the rollback, with no code change.</p>
+<p><strong>The legacy names are decided, not open.</strong> Under REL-1 of <code>add-deployment-and-acquisition</code>
+(maintainer decision of 9 November 2026, finos/morphir#1146), future official <code>morphir-&lt;rid&gt;</code> assets carry
+the same Native AOT bytes as the <code>native-aot</code> archive, published once, and the trimmed managed single-file
+build is retired as a product build. The assets of published releases stay as they are. The parent gets those bytes
+from the <code>native-aot</code> offering of <a href="#dlv-2">DLV-2</a> and publishes them under the legacy names; it does
+not need <code>PublishSingleFile</code>. The gated <code>build-executables</code> job here still runs
+<code>PublishSingleFile</code>: it is the earlier release path kept unchanged as a rollback, not the decided product
+build.</p>
 <p><strong>Alternative.</strong> Deleting the jobs. Rejected for now: the parent's channel is not yet live, and the jobs are the
 rollback.</p>
 
@@ -243,11 +251,6 @@ a tool it is a diagnostic.</li>
 
 <h2 id="open-questions">Open questions</h2>
 <ul>
-<li><strong>The legacy alias.</strong> The adopted design keeps the <code>morphir-&lt;rid&gt;</code> assets as an explicit alias
-(REL-1 of <code>add-deployment-and-acquisition</code>). Here they are published only with
-<code>MORPHIR_DOTNET_CLI_PUBLICATION=enabled</code>, and <code>cli-offering.yml</code> builds only the four offerings. Whether
-the parent keeps the alias (it can run <code>PublishSingleFile</code>) is the parent's and the maintainer's decision.
-Nothing in this change depends on the answer.</li>
 <li><strong>When the job definitions are deleted.</strong> The variable-gated jobs can be removed once the parent has published a
 release. That is a follow-up change, not part of this one.</li>
 </ul>

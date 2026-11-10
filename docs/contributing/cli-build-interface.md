@@ -93,11 +93,16 @@ The output is in `artifacts/release/`. The `Morphir.Tool` package id and its `do
 
 ## The legacy assets
 
-Releases of this repository have attached `morphir-<rid>` (a managed, trimmed single file of the Native AOT
-composition) and `morphir-<rid>-v<version>.tar.gz`. The adopted design keeps those names and bytes as an explicit
-alias (REL-1). `cli-offering.yml` builds only the four offerings. If the parent keeps the alias, it can build it with
-`./build.sh --target PublishSingleFile --rid <rid> --single-file-dir <dir>`, as `deployment.yml` does. Whether the
-parent keeps the alias is the parent's and the maintainer's decision.
+Releases of this repository have attached `morphir-<rid>` and `morphir-<rid>-v<version>.tar.gz`, which held a
+managed, trimmed single-file build of the Native AOT composition. The maintainer decided on 9 November 2026 (REL-1 of
+`add-deployment-and-acquisition`, finos/morphir#1146) that future official files under these names carry the same
+Native AOT bytes as the `native-aot` archive, and that the trimmed managed build is retired as a product build. The
+assets of published releases stay as they are.
+
+So the parent builds the `native-aot` offering with `cli-offering.yml` and publishes that executable under the legacy
+names too; it does not run `PublishSingleFile`. The gated `build-executables` job of `deployment.yml` still runs
+`PublishSingleFile`. That is the earlier release path kept unchanged as the rollback, and it is not the decided product
+build.
 
 ## The compatibility kit
 
