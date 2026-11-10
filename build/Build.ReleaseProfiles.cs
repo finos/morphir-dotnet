@@ -122,11 +122,12 @@ partial class Build
             File.WriteAllText(ReleaseDir / BuildLaunchInfo.FileNameFor(artifact.FileName), BuildLaunchInfo.ToJson(artifact.Launch, sha256));
             Serilog.Log.Information($"✓ {artifact.FileName}: {new FileInfo(output).Length:N0} bytes, sha256 {sha256}");
 
-            // Every shipped file, read from the artifact, and the size report over every artifact packed so far (task 2.4).
-            var contents = ShippedContents.Read(artifact, output);
-            File.WriteAllText(ReleaseDir / ShippedContents.FileNameFor(artifact.FileName), ShippedContents.ToJson(contents));
-            var all = Directory.GetFiles(ReleaseDir, "*.build-contents.json").Select(path => ShippedContents.Parse(File.ReadAllText(path)));
-            File.WriteAllText(ReleaseDir / "size-report.md", ShippedContents.SizeReport(all));
+            // Every file the artifact contains, read from the artifact, with the commit it was packed from, and the size
+            // report over every artifact packed so far (task 2.4). Artifacts of another release are shown apart.
+            var contents = PackagedContents.Read(artifact, output, CurrentPackOrigin());
+            File.WriteAllText(ReleaseDir / PackagedContents.FileNameFor(artifact.FileName), PackagedContents.ToJson(contents));
+            var all = Directory.GetFiles(ReleaseDir, "*.build-contents.json").Select(path => PackagedContents.Parse(File.ReadAllText(path)));
+            File.WriteAllText(ReleaseDir / "size-report.md", PackagedContents.SizeReport(all, artifact.Release));
             Serilog.Log.Information($"✓ {artifact.FileName}: {contents.FileCount} files, {contents.ExtractedBytes:N0} bytes extracted; see {ReleaseDir / "size-report.md"}");
         });
 
@@ -146,6 +147,32 @@ partial class Build
             ArtifactResolution.NotDefined notDefined => throw new Exception(notDefined.Reason),
             _ => throw new InvalidOperationException("Unknown artifact resolution."),
         };
+    }
+
+    /// <summary>
+    /// The commit of the working tree, whether it has uncommitted changes, and the time: recorded beside each artifact,
+    /// so a test run can tell an artifact of an older commit from a fresh one.
+    /// </summary>
+    static PackOrigin CurrentPackOrigin()
+    {
+        string Git(params string[] arguments)
+        {
+            var start = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = RootDirectory, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+            foreach (var argument in arguments) start.ArgumentList.Add(argument);
+            using var process = System.Diagnostics.Process.Start(start) ?? throw new Exception("git did not start");
+            var output = process.StandardOutput.ReadToEnd();
+            process.StandardError.ReadToEnd();
+            if (!process.WaitForExit(60_000))
+            {
+                process.Kill(entireProcessTree: true);
+                throw new Exception($"git {string.Join(' ', arguments)} timed out");
+            }
+
+            if (process.ExitCode != 0) throw new Exception($"git {string.Join(' ', arguments)} exited with {process.ExitCode}");
+            return output.Trim();
+        }
+
+        return new PackOrigin(Git("rev-parse", "HEAD"), Git("status", "--porcelain").Length == 0, DateTimeOffset.UtcNow);
     }
 
     AbsolutePath ReleasePublishDirectory(ReleaseArtifact artifact) =>
