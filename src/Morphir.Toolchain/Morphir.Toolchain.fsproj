@@ -42,6 +42,7 @@
         <Compile Include="Bindings.fs" />
         <Compile Include="RecipeTargets.fs" />
     <Compile Include="ReleaseDescriptors.fs" />
+    <Compile Include="RecipeBindings.fs" />
         <Compile Include="Resolution.fs" />
         <Compile Include="Planning.fs" />
         <Compile Include="Diagnostics.fs" />

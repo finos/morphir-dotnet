@@ -30,8 +30,8 @@ let notRunSections =
 /// Members of the signed manifest that are data, not case sections.
 let metadataMembers = [ "contractVersion"; "repository"; "referenceClient" ]
 
-/// Recipe check rules this suite runs: the recipe target rows that are pure functions of the authenticated
-/// metadata, and the first provider row.
+/// Recipe check rules this suite runs: the recipe target rows, the host binding rows and the provider binding rows,
+/// as pure functions of the authenticated metadata and the target bytes.
 let ranRecipeRules =
     set
         [ "recipe-target-portable"
@@ -40,6 +40,15 @@ let ranRecipeRules =
           "recipe-target-revoked"
           "recipe-document-reads"
           "recipe-document-identity"
+          "host-release-authenticated"
+          "host-release-revoked"
+          "host-release-read"
+          "host-release-v1"
+          "host-target-authenticated"
+          "host-target-digest"
+          "host-target-listed"
+          "host-target-platform"
+          "host-target-metadata"
           "provider-repository" ]
 
 let private bindingRows =
@@ -48,16 +57,7 @@ let private bindingRows =
 /// Recipe check rules this suite does not run, each with its reason.
 let skippedRecipeRules =
     [ for rule in
-          [ "host-release-authenticated"
-            "host-release-revoked"
-            "host-release-read"
-            "host-release-v1"
-            "host-target-authenticated"
-            "host-target-digest"
-            "host-target-listed"
-            "host-target-platform"
-            "host-target-metadata"
-            "provider-descriptor-bound"
+          [ "provider-descriptor-bound"
             "provider-descriptor-read"
             "provider-descriptor-parses"
             "provider-descriptor-identity"
@@ -86,12 +86,18 @@ let private manifest () = JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "c
 let private repositoryDocument () = JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "repository.json")
 
 /// The exact bytes of a target in the TEST-ONLY repository: the UTF-8 bytes of its <c>targetFiles</c> text.
-let targetBytes (target: string) =
+/// The exact bytes of a target, or None when the repository has no file for it.
+let tryTargetBytes (target: string) =
     use repository = repositoryDocument ()
 
     match repository.RootElement.GetProperty("targetFiles").TryGetProperty target with
-    | true, text -> Encoding.UTF8.GetBytes(nonNull (text.GetString()))
-    | false, _ -> failtestf "repository.json has no target file %s" target
+    | true, text -> Some(Encoding.UTF8.GetBytes(nonNull (text.GetString())))
+    | false, _ -> None
+
+let targetBytes (target: string) =
+    match tryTargetBytes target with
+    | Some bytes -> bytes
+    | None -> failtestf "repository.json has no target file %s" target
 
 let repositoryId () =
     use repository = repositoryDocument ()
@@ -140,12 +146,11 @@ let private targetOutcome (result: Result<'T, TargetRefusal>) =
     | Ok _ -> Valid
     | Error refusal -> Refused(Code.name refusal.Code, DocumentPath.render refusal.Path)
 
-/// The recipe target rows, then the provider repository row, over the recipe's authenticated metadata.
-let private recipeRows (listed: Map<string, AuthenticatedTarget>) (target: string) (bytes: byte array) =
-    RecipeTargets.check target (listed.TryFind target) bytes
-    |> Result.bind (fun (recipe, _) ->
-        Bindings.recipeProvidersInRepository recipe (repository ())
-        |> Result.mapError (fun refusal -> { Code = refusal.Code; Path = refusal.Path }))
+/// The recipe target rows, then the host and provider binding rows, over the authenticated metadata and the bytes the
+/// repository serves for each target.
+let private recipeRows (listed: Map<string, AuthenticatedTarget>) (target: string) (bytesOf: string -> byte array option) =
+    RecipeTargets.check target (listed.TryFind target) (defaultArg (bytesOf target) [||])
+    |> Result.bind (fun (recipe, _) -> RecipeBindings.check (repository ()) listed bytesOf recipe)
     |> targetOutcome
 
 /// The served bytes of a target after the case's target mutations.
@@ -170,6 +175,10 @@ let private servedBytes (case: JsonElement) (target: string) =
             | other -> failtestf "mutation %s on a target" other
 
     bytes
+
+/// The served bytes of a target after the case's target mutations, or None when the repository has no file for it.
+let private tryServedBytes (case: JsonElement) (target: string) =
+    tryTargetBytes target |> Option.map (fun _ -> servedBytes case target)
 
 let private selectionTests () =
     [ for case in cases "selection" ->
@@ -244,8 +253,7 @@ let private recipeCheckTests () =
               yield
                   testCase name (fun () ->
                       let target = str case "recipe"
-                      let bytes = if listed.ContainsKey target then targetBytes target else [||]
-                      Expect.equal (recipeRows listed target bytes) (Manifest.expected name case) name) ]
+                      Expect.equal (recipeRows listed target tryTargetBytes) (Manifest.expected name case) name) ]
 
 let private trustTests () =
     [ for case in cases "trust" do
@@ -275,7 +283,7 @@ let private trustTests () =
               yield
                   testCase name (fun () ->
                       let target = str action "recipe"
-                      Expect.equal (recipeRows listed target (servedBytes case target)) (Manifest.expected name case) name)
+                      Expect.equal (recipeRows listed target (tryServedBytes case)) (Manifest.expected name case) name)
           | "check-locked-generation", _ ->
               yield
                   testCase name (fun () ->
