@@ -438,6 +438,37 @@ let tests =
                 let run = runIn sandbox.Home Platform.OsxArm64 [ "doctor"; "--project"; nested; "--boundary"; sandbox.Work ]
                 Expect.equal run.Exit 0 $"found above the start, within the boundary; stdout: {run.Stdout}")
 
+            testCase "discovery stops at a directory named toolchain.toml and refuses it, never using an ancestor's" (fun () ->
+                use sandbox = project "request/approved.toml"
+                let memberMorphir = Directory.CreateDirectory(Path.Combine(sandbox.Work, "member", ".morphir")).FullName
+                Directory.CreateDirectory(Path.Combine(memberMorphir, "toolchain.toml")) |> ignore
+                let start = Directory.CreateDirectory(Path.Combine(sandbox.Work, "member", "sub")).FullName
+                let run = runIn start Platform.OsxArm64 [ "doctor"; "--boundary"; sandbox.Work ]
+                Expect.equal run.Exit 1 $"a failed result; stdout: {run.Stdout}"
+
+                match (readResult run).Diagnostics with
+                | { Detail = DiagnosticDetail.DocumentUnavailable DocumentKind.Request; Message = message } :: _ ->
+                    Expect.stringContains message.Text "is a directory" "the member's own entry is refused"
+                | other -> failtestf "expected document_unavailable for the request, got %A" other
+
+                Expect.isFalse (run.Stderr.Contains(Path.Combine(sandbox.Work, ".morphir", "toolchain.toml"))) "the ancestor's request is not read")
+
+            testCase "discovery stops at a dangling link named toolchain.toml and refuses it" (fun () ->
+                use sandbox = project "request/approved.toml"
+                let memberMorphir = Directory.CreateDirectory(Path.Combine(sandbox.Work, "member", ".morphir")).FullName
+                let link = Path.Combine(memberMorphir, "toolchain.toml")
+
+                try
+                    File.CreateSymbolicLink(link, Path.Combine(memberMorphir, "absent.toml")) |> ignore
+                with :? UnauthorizedAccessException | :? IOException ->
+                    skiptest "this account cannot create symbolic links"
+
+                let run = runIn (Path.Combine(sandbox.Work, "member")) Platform.OsxArm64 [ "doctor"; "--boundary"; sandbox.Work ]
+                Expect.equal run.Exit 1 $"a failed result; stdout: {run.Stdout}"
+
+                match (readResult run).Diagnostics |> List.map _.Detail with
+                | DiagnosticDetail.DocumentUnavailable DocumentKind.Request :: _ -> ()
+                | other -> failtestf "expected document_unavailable for the request, got %A" other)
             testCase "a request above the discovery boundary is never read" (fun () ->
                 use sandbox = project "request/approved.toml"
                 let member' = Directory.CreateDirectory(Path.Combine(sandbox.Work, "member")).FullName
