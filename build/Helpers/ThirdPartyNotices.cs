@@ -13,6 +13,19 @@ namespace Morphir.Build.Helpers;
 public sealed record LinkedPackage(string Id, string Version, string Directory);
 
 /// <summary>
+/// A native library that the link includes and that is not from a NuGet package, such as <c>libwasmtime.a</c> from a
+/// pinned C API archive. Declared in <c>build/notices/native/&lt;name&gt;.json</c>, with its license text beside it; the
+/// build fails when the link includes such a library without a declaration, or with another SHA-256.
+/// </summary>
+/// <param name="Name">The file name as linked, for example <c>libwasmtime.a</c>.</param>
+/// <param name="Version">The upstream version.</param>
+/// <param name="License">The SPDX license expression, for example <c>Apache-2.0 WITH LLVM-exception</c>.</param>
+/// <param name="LicenseFile">The license text file, in the declarations folder.</param>
+/// <param name="Source">Where it was obtained: the URL of the pinned archive.</param>
+/// <param name="Sha256">The SHA-256 of the linked file, lowercase hex.</param>
+public sealed record DeclaredNativeLibrary(string Name, string Version, string License, string LicenseFile, string Source, string Sha256);
+
+/// <summary>
 /// The third-party notices of a Native AOT executable, generated from what was linked into it so that they cannot go
 /// stale: the files of the ILC response file, each traced to the restored package that holds it, and each package's
 /// license and notice files. Where a package ships no license text, a committed fallback in <c>build/notices/</c> gives
@@ -68,10 +81,14 @@ public static class ThirdPartyNotices
     /// The notices text: a list of every package, then each package's license (its own file, or the committed
     /// fallback) and notice files, then the Unicode License of the data the NFC tables come from. The runtime identifier
     /// in a package id is written <c>&lt;rid&gt;</c>, so every platform's text is the same. Throws when a package has no
-    /// license text, or when its fallback is for another license than the one it declares.
+    /// license text, or when its fallback is for another license than the one it declares. <paramref name="natives"/> are
+    /// the declared native libraries the link includes that no package provides (see <see cref="DeclaredNativeLibrary"/>),
+    /// with their license text files in <paramref name="declarations"/>; none by default.
     /// </summary>
-    public static string Write(string version, string rid, IReadOnlyList<LinkedPackage> packages, string fallbacks, string unicodeLicense)
+    public static string Write(string version, string rid, IReadOnlyList<LinkedPackage> packages, string fallbacks, string unicodeLicense,
+        IReadOnlyList<DeclaredNativeLibrary>? natives = null, string? declarations = null)
     {
+        var declared = (natives ?? []).OrderBy(native => native.Name, StringComparer.Ordinal).ToList();
         var entries = packages
             .Select(package => (Package: package, Metadata: Metadata(package), Name: $"{DisplayId(package.Id, rid)} {package.Version}"))
             .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
@@ -84,6 +101,8 @@ public static class ThirdPartyNotices
         text.Append("that the Native AOT compiler linked into this build; each component's license and notices follow it.\n\n");
         foreach (var entry in entries)
             text.Append($"- {entry.Name}, {entry.Metadata.License}, {entry.Metadata.Project}\n");
+        foreach (var native in declared)
+            text.Append($"- {native.Name} {native.Version}, {native.License}, {native.Source}\n");
         text.Append("- Unicode Character Database 17.0.0, Unicode-3.0, https://www.unicode.org/ucd/ (the NFC tables of Morphir.Toolchain are generated from it)\n");
 
         // Packages built from one repository ship the same notices file; it is written out once.
@@ -107,8 +126,62 @@ public static class ThirdPartyNotices
             }
         }
 
+        foreach (var native in declared)
+        {
+            var licenseFile = Path.Combine(declarations ?? throw new ArgumentNullException(nameof(declarations), "Declared native libraries need their declarations folder."), native.LicenseFile);
+            text.Append($"\n{Rule}\n{native.Name} {native.Version}\nLicense: {native.License}\nSource: {native.Source}\nSHA-256: {native.Sha256}\n");
+            text.Append($"License text: build/notices/native/{native.LicenseFile} in morphir-dotnet\n{Rule}\n\n{Normal(File.ReadAllText(licenseFile))}");
+        }
+
         text.Append($"\n{Rule}\nUnicode Character Database 17.0.0\nLicense: Unicode-3.0\n{Rule}\n\n{Normal(unicodeLicense)}");
         return text.ToString();
+    }
+
+    /// <summary>
+    /// The declared native libraries in <paramref name="declarations"/>, one JSON file each:
+    /// <c>{ "name", "version", "license", "licenseFile", "source", "sha256" }</c>. <c>licenseFile</c> is a file in the same
+    /// folder. A missing folder declares none.
+    /// </summary>
+    public static IReadOnlyList<DeclaredNativeLibrary> ReadDeclaredNativeLibraries(string declarations)
+    {
+        if (!Directory.Exists(declarations)) return [];
+        var declared = new List<DeclaredNativeLibrary>();
+        foreach (var file in Directory.GetFiles(declarations, "*.json").Order(StringComparer.Ordinal))
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
+            string Text(string member) =>
+                document.RootElement.TryGetProperty(member, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? value.GetString()!
+                    : throw new InvalidOperationException($"{Path.GetFileName(file)} declares a native library without the string member '{member}'.");
+            declared.Add(new DeclaredNativeLibrary(Text("name"), Text("version"), Text("license"), Text("licenseFile"), Text("source"), Text("sha256")));
+        }
+
+        return declared;
+    }
+
+    /// <summary>
+    /// Why the native libraries that the link includes are not covered by notices: a library in a restored package is that
+    /// package's, and every other one needs a <see cref="DeclaredNativeLibrary"/> of the same file name whose SHA-256 is the
+    /// file's. Empty when every library is covered.
+    /// </summary>
+    public static IReadOnlyList<string> NativeLibraryProblems(IEnumerable<string> linkedNativeLibraries, string repository, IReadOnlyList<DeclaredNativeLibrary> declared)
+    {
+        var problems = new List<string>();
+        foreach (var library in linkedNativeLibraries)
+        {
+            if (PackageOf(library) is not null) continue;
+            var name = Path.GetFileName(library);
+            var shown = Path.GetRelativePath(repository, library).Replace('\\', '/');
+            var entry = declared.FirstOrDefault(native => string.Equals(native.Name, name, StringComparison.Ordinal));
+            if (entry is null)
+                problems.Add($"{shown} is linked into the executable, is in no restored package, and has no declared entry in build/notices/native/ (name, version, license, licenseFile, source and sha256).");
+            else if (!File.Exists(library))
+                problems.Add($"{shown} is declared but does not exist, so its SHA-256 cannot be checked.");
+            else if (!string.Equals(ReleaseArchive.Sha256(library), entry.Sha256, StringComparison.OrdinalIgnoreCase))
+                problems.Add($"{shown} has SHA-256 {ReleaseArchive.Sha256(library)}, not the declared {entry.Sha256}.");
+        }
+
+        return problems;
     }
 
     /// <summary>The packages (as <c>Id Version</c>) that <paramref name="notices"/> does not list.</summary>

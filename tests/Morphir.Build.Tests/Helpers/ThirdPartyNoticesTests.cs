@@ -112,6 +112,41 @@ public class ThirdPartyNoticesTests
             .Should().Equal("CsToml", "FSharp.Core", "Microsoft.Extensions.Primitives", "Semver", "System.IO.Hashing");
     }
 
+    [Test]
+    public async Task ALinkedNativeLibraryOutsideThePackagesNeedsADeclaredEntryWithItsDigest()
+    {
+        await using var sandbox = TestSandbox.Create("notices-");
+        var repository = Directory.CreateDirectory(sandbox.PathOf("repo")).FullName;
+        var runtime = Package(sandbox, "microsoft.netcore.app.runtime.nativeaot.linux-x64", "10.0.14", "Microsoft.NETCore.App.Runtime.NativeAOT.linux-x64", "MIT");
+        var fromPackage = Path.Combine(runtime, "runtimes", "linux-x64", "native", "libRuntime.WorkstationGC.a");
+        var wasmtime = sandbox.PathOf("native", "wasmtime-v30.0.0-x86_64-linux-c-api", "lib", "libwasmtime.a");
+        Directory.CreateDirectory(Path.GetDirectoryName(wasmtime)!);
+        await File.WriteAllBytesAsync(wasmtime, [1, 2, 3]);
+        var declarations = Directory.CreateDirectory(sandbox.PathOf("repo", "build", "notices", "native")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(declarations, "wasmtime.LICENSE.txt"), "Apache License\nVersion 2.0, January 2004\n");
+        DeclaredNativeLibrary wasmtimeEntry = new("libwasmtime.a", "30.0.0", "Apache-2.0 WITH LLVM-exception",
+            "wasmtime.LICENSE.txt", "https://github.com/bytecodealliance/wasmtime/releases/download/v30.0.0/wasmtime-v30.0.0-x86_64-linux-c-api.tar.xz",
+            ReleaseArchive.Sha256(wasmtime));
+
+        // A native library from a restored package is that package's; any other needs a declared entry.
+        ThirdPartyNotices.NativeLibraryProblems([fromPackage, wasmtime], repository, []).Should().ContainSingle()
+            .Which.Should().Contain("libwasmtime.a").And.Contain("build/notices/native");
+        ThirdPartyNotices.NativeLibraryProblems([fromPackage, wasmtime], repository, [wasmtimeEntry]).Should().BeEmpty();
+        ThirdPartyNotices.NativeLibraryProblems([wasmtime], repository, [wasmtimeEntry with { Sha256 = new string('0', 64) }])
+            .Should().ContainSingle().Which.Should().Contain("SHA-256");
+
+        // The declaration is read from a JSON file, and its license text is written into the notices.
+        await File.WriteAllTextAsync(Path.Combine(declarations, "wasmtime.json"), $$"""
+            { "name": "libwasmtime.a", "version": "30.0.0", "license": "Apache-2.0 WITH LLVM-exception",
+              "licenseFile": "wasmtime.LICENSE.txt", "source": "{{wasmtimeEntry.Source}}", "sha256": "{{wasmtimeEntry.Sha256}}" }
+            """);
+        ThirdPartyNotices.ReadDeclaredNativeLibraries(declarations).Should().Equal(wasmtimeEntry);
+        var notices = ThirdPartyNotices.Write("1.2.3", "linux-x64", [], Path.Combine(repository, "build", "notices"), "U",
+            [wasmtimeEntry], declarations);
+        notices.Should().Contain("- libwasmtime.a 30.0.0, Apache-2.0 WITH LLVM-exception, " + wasmtimeEntry.Source);
+        notices.Should().Contain("Apache License\nVersion 2.0, January 2004").And.Contain(wasmtimeEntry.Sha256);
+    }
+
     private static string Package(TestSandbox sandbox, string folder, string version, string id, string license)
     {
         var directory = Directory.CreateDirectory(sandbox.PathOf("packages", folder, version)).FullName;
