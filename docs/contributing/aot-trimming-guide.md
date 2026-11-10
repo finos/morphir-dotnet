@@ -61,7 +61,7 @@ The command line has three entry points. All of them run the same command layer,
 | Managed `morphir` | `src/Morphir.Managed` | `morphir` | `ManagedComposition` in `src/Morphir.Tooling.Managed`: the in-process F# frontend | No, JIT only |
 | .NET tool | `src/Morphir.Tool` | `dotnet-morphir` | `ManagedComposition` | No, JIT only |
 
-The `morphir` downloads that releases ship today, `morphir-<rid>[.exe]` and `morphir-<rid>-v<version>.tar.gz`, are none of these three. The `PublishSingleFile` target builds them from `src/Morphir` as managed, trimmed (`TrimMode=partial`), self-contained single-file executables, so they have no F# frontend and are not Native AOT.
+The `morphir` downloads that releases ship today, `morphir-<rid>[.exe]` and `morphir-<rid>-v<version>.tar.gz`, are none of these three. The `PublishSingleFile` target builds them from `src/Morphir` as managed, trimmed (`TrimMode=partial`), self-contained single-file executables, so they have no F# frontend and are not Native AOT. The release profile model (`build/Helpers/ReleaseProfiles.cs`) names them `LegacyAsset.TrimmedSingleFile`, an alias with honest metadata that is not one of the four offerings. The `PackRelease` target builds the archives of the four offerings (`native-aot` from `src/Morphir`, `self-contained` and `framework-dependent` from `src/Morphir.Managed`, `dotnet-tool` from `src/Morphir.Tool`), which releases do not publish yet.
 
 The F# frontend uses FSharp.Compiler.Service, which is neither trim-safe nor AOT-safe. Only `src/Morphir.Tooling.Managed` references it. Keep these rules:
 
