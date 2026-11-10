@@ -50,7 +50,7 @@ public sealed class ExecutableExtensionRuntimesTests
     {
         var copy = await Copy.Value;
         if (copy.Deleted.Count == 0)
-            Skip.Test($"{copy.Source} carries no engine library file to delete (a single-file bundle embeds it); run this test against a build that loads the engine from a file");
+            Skip.Test($"{copy.Source} carries no engine library file to delete (the engine is linked into the Native AOT executable, or a single-file bundle embeds it); run this test against a build that loads the engine from a file");
         return copy;
     }
 

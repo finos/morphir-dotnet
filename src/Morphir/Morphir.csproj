@@ -66,4 +66,7 @@
     <InternalsVisibleTo Include="Morphir.Tests" />
   </ItemGroup>
 
+  <!-- The native-aot release profile links the WASM engine into the executable (MorphirWasmtimeStaticLink=true); every other build keeps the package's library. -->
+  <Import Project="..\..\build\wasmtime\WasmtimeStaticLink.targets" Condition="'$(MorphirWasmtimeStaticLink)' == 'true'" />
+
 </Project>

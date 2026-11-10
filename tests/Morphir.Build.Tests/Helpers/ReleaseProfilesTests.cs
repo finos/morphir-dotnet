@@ -197,6 +197,18 @@ public class ReleaseProfilesTests
     }
 
     [Test]
+    public void OnlyTheNativeAotProfileLinksTheEngineIn()
+    {
+        // Task 5.2/5.3: the released Native AOT morphir carries the WASM engine inside its one file
+        // (build/wasmtime/WasmtimeStaticLink.targets); every other build keeps the package's library beside it.
+        Deployment.NativeAot.BuildProperties.Should().Contain("MorphirWasmtimeStaticLink", "true");
+        foreach (var deployment in Deployment.All.Where(deployment => deployment != Deployment.NativeAot))
+            deployment.BuildProperties.Should().NotContainKey("MorphirWasmtimeStaticLink", deployment.Id);
+        LegacyAsset.TrimmedSingleFile.BuildProperties.Should().NotContainKey("MorphirWasmtimeStaticLink");
+        LegacyAsset.UntrimmedSingleFile.BuildProperties.Should().NotContainKey("MorphirWasmtimeStaticLink");
+    }
+
+    [Test]
     public void TheLegacyAssetsKeepTheirNamesAndSayWhatTheyAre()
     {
         var legacy = LegacyAsset.TrimmedSingleFile;
