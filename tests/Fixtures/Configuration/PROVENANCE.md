@@ -35,6 +35,11 @@ applies these amendments to the parsed schema before it generates `src/Morphir.C
 - The definition `frontendLanguage` has the members `extension` and `project_file`. Every
   `[frontend.<language>]` table uses it, including `[frontend.elm]`. Upstream documents `extension` as
   valid under any language table; `project_file` is the proposed shared key.
+- The definition `codegenTarget` has the member `extension`, with the same value rule as
+  `[frontend.<language>].extension`. Every `[codegen.<target>]` table uses it (for example
+  `[codegen.fsharp]`), beside the upstream members `targets`, `template_dir` and `output_format`. It names
+  the backend extension that `generate` runs for that target, as `[frontend.<language>].extension` names a
+  frontend extension for `compile`. Upstream has no such key yet.
 
 ## Semantics and deliberate differences
 

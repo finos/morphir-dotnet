@@ -124,7 +124,7 @@ public sealed class GenerationExtensionSelectionTests
         public bool Generated { get; private set; }
         public bool Disposed { get; private set; }
         public BackendDescriptor Descriptor { get; } = new(ExtensionId.Create("org.example.stub-backend"), ExtensionName.Create("Stub backend"), TargetId.Create("fsharp"),
-            [new(Morphir.IR.Model.ModelFamily.V4, SourceFormatVersions.Create("4", "4.0.0"), Morphir.IR.Model.DistributionKind.Library)]);
+            [new(Morphir.IR.Model.ModelFamily.V4, Morphir.Extensions.SourceFormatVersions.Create("4", "4.0.0"), Morphir.IR.Model.DistributionKind.Library)]);
         public string ExtensionVersion => "9.9.9";
         public string Transport => "mep";
         public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options) => new Outcome<ValidatedBackendOptions>.Success(new Validated());

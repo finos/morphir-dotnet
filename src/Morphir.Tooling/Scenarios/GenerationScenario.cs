@@ -21,6 +21,8 @@ public sealed class GenerationScenario : IMorphirCliScenario
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IGenerationBackend, FSharpGenerationBackend>());
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IGenerationBackend, CSharpGenerationBackend>());
             services.TryAddSingleton<IGenerationBackendResolver, RegisteredBackendResolver>();
+            // A selected backend extension (generate --extension, [codegen.<target>].extension) runs as a MEP guest process.
+            services.TryAddSingleton<IBackendExtensionConnector, MepBackendExtensionConnector>();
             services.TryAddSingleton<IGenerationPublisher, GenerationPublisher>();
             // compile --target runs the same stages on the IR that it wrote (CLI-2).
             services.TryAddSingleton<Morphir.Tooling.Features.Compile.CompileGenerationStages>();

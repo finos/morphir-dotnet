@@ -18,9 +18,16 @@ public sealed record GenerationSuccess(string Target, string Backend, string Inp
 /// <summary>Coordinates generation through injectable application boundaries in the existing mediator.</summary>
 public static class GenerateHandler
 {
+    /// <summary>
+    /// Runs one generate. With a backend extension in the settings (<c>--extension</c> or
+    /// <c>[codegen.&lt;target&gt;].extension</c>), the extension connector connects it and the run resolves over that
+    /// backend alone; the result names it with its transport and version, and the run ends its session. Without
+    /// one, the registered backends of the target are resolved as before.
+    /// </summary>
     public static async Task<Outcome<GenerationSuccess>> Handle(GenerateRequest command,
         IGenerationSettingsResolver settingsResolver, IModelLoader loader, IGenerationBackendResolver backendResolver,
-        IGenerationPublisher publisher, CancellationToken ct, ILogger<GenerateRequest>? logger = null)
+        IGenerationPublisher publisher, CancellationToken ct, ILogger<GenerateRequest>? logger = null,
+        IBackendExtensionConnector? backendExtensions = null)
     {
         try
         {
@@ -30,6 +37,9 @@ public static class GenerateHandler
             var loaded = await LoadAsync(loader, settings, ct);
             if (loaded is Outcome<LoadedModel>.Failure loadFailure) return GenerationStages.Failed(loadFailure.Error, null);
             var model = ((Outcome<LoadedModel>.Success)loaded).Value;
+            if (settings.Extension is { } extension && settings.Target is RequestedTarget.Valid target)
+                return await RunWithExtension(extension, target.Id, command.Context, model, settings, publisher, ct, logger,
+                    backendExtensions ?? new MepBackendExtensionConnector());
             return await GenerationStages.RunFrom(model, settings, backendResolver, publisher, ct, logger);
         }
         catch (OperationCanceledException) { return GenerationStages.Cancelled(null); }
@@ -37,6 +47,31 @@ public static class GenerateHandler
         {
             return GenerationStages.Unexpected(error, null, logger);
         }
+    }
+
+    /// <summary>Connects the selected backend extension, runs the stages over it alone, and ends its session.</summary>
+    private static async Task<Outcome<GenerationSuccess>> RunWithExtension(Morphir.Tooling.Features.Compile.Setting<string> extension,
+        Morphir.Extensions.TargetId target, InvocationContext context, LoadedModel model, GenerationSettings settings,
+        IGenerationPublisher publisher, CancellationToken ct, ILogger? logger, IBackendExtensionConnector connector)
+    {
+        var connected = await connector.ConnectAsync(new BackendExtensionRequest(extension, target, context.WorkingDirectory), ct);
+        if (connected is Outcome<IExternalGenerationBackend>.Failure connectFailure) return GenerationStages.Failed(connectFailure.Error, null);
+        await using var backend = ((Outcome<IExternalGenerationBackend>.Success)connected).Value;
+        var outcome = await GenerationStages.RunFrom(model, settings, new RegisteredBackendResolver([backend]), publisher, ct, logger);
+        return outcome switch
+        {
+            Outcome<GenerationSuccess>.Success success => new Outcome<GenerationSuccess>.Success(success.Value with
+            {
+                BackendTransport = backend.Transport,
+                BackendVersion = backend.ExtensionVersion,
+            }),
+            Outcome<GenerationSuccess>.Failure failure => new Outcome<GenerationSuccess>.Failure(failure.Error with
+            {
+                BackendTransport = backend.Transport,
+                BackendVersion = backend.ExtensionVersion,
+            }),
+            _ => outcome
+        };
     }
 
     /// <summary>

@@ -81,7 +81,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     /// <summary>The transport: <c>mep</c>, a MEP 0.2.0-draft.1 guest process.</summary>
     public string Transport => "mep";
 
-    /// <summary>The guest's extension id and version, for example <c>org.finos.morphir.fsharp-backend 0.4.0</c>.</summary>
+    /// <summary>The guest's extension id and version, for example <c>org.example.backend 1.0.0</c>.</summary>
     public string Identity => $"{Descriptor.Id.Value} {ExtensionVersion}";
 
     /// <summary>The agreed generateModel tuples, in host order.</summary>

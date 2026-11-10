@@ -15,6 +15,11 @@ namespace Morphir.Tooling.Features.Generate;
 /// and gives the record's IR as the input. The lock is held until model loading ends, so a compile cannot clear
 /// <c>.dest</c> while the IR is read. A missing record or a tombstone fails with exit code 2 and tells the user
 /// to run <c>morphir compile</c> first.
+/// <para>
+/// In both modes, when <c>--extension</c> is absent, it loads the project configuration as compile does and
+/// takes the backend extension from <c>[codegen.&lt;target&gt;].extension</c>. A configuration that fails to
+/// load fails with exit code 2, also with <c>--input</c>.
+/// </para>
 /// </summary>
 public sealed class RecordGenerationSettingsResolver(
     IGenerationSettingsResolver inner, ICompileConfigurationLoader loader, TaskStoreOptions? options = null) : IGenerationSettingsResolver
@@ -26,18 +31,26 @@ public sealed class RecordGenerationSettingsResolver(
     {
         ArgumentNullException.ThrowIfNull(overrides);
         ArgumentNullException.ThrowIfNull(context);
-        if (!string.IsNullOrWhiteSpace(overrides.Input)) return await inner.ResolveAsync(overrides, context, ct);
 
         // The project and the out root, as compile finds them.
         var compileContext = context.Environment is { } environment
             ? new CompileContext(context.WorkingDirectory, environment)
             : CompileContext.Current() with { WorkingDirectory = context.WorkingDirectory };
-        var loaded = loader.Load(new CompileOverrides { Project = overrides.Project, Config = overrides.Config }, compileContext);
-        var errors = loaded.Diagnostics.Where(diagnostic => diagnostic.Severity == ConfigSeverity.Error).ToArray();
-        if (errors.Length > 0)
-            return new Outcome<GenerationSettings>.Failure(new GenerationFailure(GenerationFailureKind.Invocation,
-                [.. errors.Select(error => new GenerationDiagnostic(CompileCodes.Configuration.Value,
-                    $"{error.Source.Path}: {string.Join('.', error.KeyPath)}: {error.Message} ({error.Code})".Replace(": : ", ": ")))]));
+
+        if (!string.IsNullOrWhiteSpace(overrides.Input))
+        {
+            var explicitSettings = await inner.ResolveAsync(overrides, context, ct);
+            // --extension wins; without it, the project configuration may select a backend extension.
+            if (explicitSettings is not Outcome<GenerationSettings>.Success { Value: var settings } || settings.Extension is not null)
+                return explicitSettings;
+            var configuration = Load(overrides, compileContext);
+            if (configuration is Outcome<LoadedCompileConfiguration>.Failure loadFailure) return Fail(loadFailure.Error);
+            return WithConfiguredExtension(settings, ((Outcome<LoadedCompileConfiguration>.Success)configuration).Value);
+        }
+
+        var loadedOutcome = Load(overrides, compileContext);
+        if (loadedOutcome is Outcome<LoadedCompileConfiguration>.Failure configurationFailure) return Fail(configurationFailure.Error);
+        var loaded = ((Outcome<LoadedCompileConfiguration>.Success)loadedOutcome).Value;
         var located = CompileTaskLocator.Locate(loaded, compileContext, overrides.OutDir);
         if (located is Outcome<CompileTaskPlace>.Failure notLocated) return Fail(notLocated.Error);
         var store = ((Outcome<CompileTaskPlace>.Success)located).Value.Store(_options);
@@ -68,11 +81,43 @@ public sealed class RecordGenerationSettingsResolver(
                 format is null ? "compile.record_unsupported_format" : "generate.input_format_conflict", refusal, store.Location.Record));
         }
 
-        return new Outcome<GenerationSettings>.Success(valid.Value with
+        var fromRecord = valid.Value with
         {
             Input = new ModelInput(output.IrPath, format!.Value),
             InputLease = new RecordLease(output),
-        });
+        };
+        if (fromRecord.Extension is not null) return new Outcome<GenerationSettings>.Success(fromRecord);
+        var withExtension = WithConfiguredExtension(fromRecord, loaded);
+        if (withExtension is Outcome<GenerationSettings>.Failure) output.Dispose();
+        return withExtension;
+    }
+
+    /// <summary>Loads the configuration of the project that <c>--project</c> and <c>--config</c> select, as compile does.</summary>
+    private Outcome<LoadedCompileConfiguration> Load(GenerateOverrides overrides, CompileContext compileContext)
+    {
+        var loaded = loader.Load(new CompileOverrides { Project = overrides.Project, Config = overrides.Config }, compileContext);
+        var errors = loaded.Diagnostics.Where(diagnostic => diagnostic.Severity == ConfigSeverity.Error).ToArray();
+        return errors.Length > 0
+            ? new Outcome<LoadedCompileConfiguration>.Failure(new GenerationFailure(GenerationFailureKind.Invocation,
+                [.. errors.Select(error => new GenerationDiagnostic(CompileCodes.Configuration.Value,
+                    $"{error.Source.Path}: {string.Join('.', error.KeyPath)}: {error.Message} ({error.Code})".Replace(": : ", ": ")))]))
+            : new Outcome<LoadedCompileConfiguration>.Success(loaded);
+    }
+
+    /// <summary>
+    /// The settings with the backend extension of <c>[codegen.&lt;target&gt;].extension</c>, when the configuration
+    /// sets it for the requested target, as compile reads <c>[frontend.&lt;language&gt;].extension</c>. An empty
+    /// value is an invocation failure that names the file.
+    /// </summary>
+    private static Outcome<GenerationSettings> WithConfiguredExtension(GenerationSettings settings, LoadedCompileConfiguration loaded)
+    {
+        if (settings.Target is not RequestedTarget.Valid target) return new Outcome<GenerationSettings>.Success(settings);
+        var configured = new ProjectCompileSettingsResolver.ConfigurationView(loaded).String($"codegen.{target.Id.Value}.extension");
+        if (configured is null) return new Outcome<GenerationSettings>.Success(settings);
+        if (string.IsNullOrWhiteSpace(configured.Value))
+            return Fail(GenerationFailure.One(GenerationFailureKind.Invocation, "invalid-extension",
+                $"The backend extension from {ProjectCompileSettingsResolver.Describe(configured.Origin)} is empty."));
+        return new Outcome<GenerationSettings>.Success(settings with { Extension = configured });
     }
 
     private static Outcome<GenerationSettings> Fail(GenerationFailure failure) => new Outcome<GenerationSettings>.Failure(failure);

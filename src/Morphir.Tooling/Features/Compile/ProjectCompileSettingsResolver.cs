@@ -268,8 +268,8 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         config => config.File,
         _ => "the default");
 
-    /// <summary>Typed reads of the effective configuration, with origins.</summary>
-    private sealed class ConfigurationView(LoadedCompileConfiguration loaded)
+    /// <summary>Typed reads of the effective configuration, with origins. generate reads its keys through the same view.</summary>
+    internal sealed class ConfigurationView(LoadedCompileConfiguration loaded)
     {
         private static FSharpList<string> KeyPath(string key) => ListModule.OfSeq(key.Split('.'));
 
