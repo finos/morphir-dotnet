@@ -7,7 +7,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 
 public sealed class BackendExtensionSourceTests
 {
-    private static readonly HostIdentity Host = new(MorphirHost.DotnetTool, ReleaseVersion.Create("0.4.0-rc.1"));
+    private static readonly HostIdentity Host = TestHosts.Unprofiled(MorphirHost.DotnetTool, ReleaseVersion.Create("0.4.0-rc.1"));
 
     [Test]
     public void MakesOneBuiltInEntryForEachBackend()

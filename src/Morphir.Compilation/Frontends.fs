@@ -478,3 +478,31 @@ type IFrontend =
     /// </summary>
     abstract CompileAsync:
         request: CompileRequest * cancellationToken: CancellationToken -> Task<FrontendOutcome>
+
+/// <summary>The IR targets that an in-process frontend can produce.</summary>
+[<RequireQualifiedAccess>]
+module FrontendTargets =
+    /// <summary>
+    /// Every target that has both a registered writer and a registered builder, in writer order. An in-process
+    /// frontend advertises exactly these. For F# and C# callers.
+    /// </summary>
+    [<CompiledName("Supported")>]
+    let supported (builders: Building.FamilyBuilderRegistry) (writers: WriterRegistry) : IrTarget array =
+        writers.DeclaredVersions
+        |> Seq.choose (fun version ->
+            match Checked.tryValue (writers.Resolve version) with
+            | Some resolved when (builders.Resolve resolved.Target.Family).IsPassed -> Some resolved.Target
+            | _ -> None
+        )
+        |> Seq.distinct
+        |> Seq.toArray
+
+    /// <summary>
+    /// The targets of the standard builders and writers of this release (classic and v4), which the in-process
+    /// frontends use. The registry states these as a built-in frontend's IR versions without loading the frontend.
+    /// </summary>
+    [<CompiledName("Standard")>]
+    let standard: IrTarget array =
+        supported
+            (Building.FamilyBuilderRegistry.Create [ Building.ClassicFamilyBuilder() :> Building.IFamilyBuilder; Building.V4FamilyBuilder() ])
+            (WriterRegistry.Create [ ClassicIrWriter() :> IIrWriter; V4IrWriter() ])

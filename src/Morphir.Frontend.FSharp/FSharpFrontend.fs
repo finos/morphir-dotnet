@@ -33,16 +33,7 @@ module FSharpFrontend =
     }
 
     /// <summary>Every target that has both a registered writer and a registered builder, in writer order.</summary>
-    let private outputs (builders: FamilyBuilderRegistry) (writers: WriterRegistry) =
-        writers.DeclaredVersions
-        |> Seq.choose (fun version ->
-            match Checked.tryValue (writers.Resolve version) with
-            | Some resolved when (builders.Resolve resolved.Target.Family).IsPassed ->
-                Some resolved.Target
-            | _ -> None
-        )
-        |> Seq.distinct
-        |> Seq.toArray
+    let private outputs (builders: FamilyBuilderRegistry) (writers: WriterRegistry) = FrontendTargets.supported builders writers
 
     let private failure message : FrontendOutcome =
         FrontendOutcome.Failed

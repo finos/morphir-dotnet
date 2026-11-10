@@ -53,9 +53,48 @@ public sealed class ExecutableExtensionListSteps(ScenarioContext scenarioContext
         Extension(id).GetProperty("capabilities").GetProperty("validator").GetProperty("irVersions").EnumerateArray()
             .Select(version => version.GetString()).Should().Equal(versions.Split(", "));
 
-    [Then("every listed extension should be available in this host")]
-    public void ThenEveryListedExtensionShouldBeAvailableInThisHost() =>
-        Document(Result).GetProperty("extensions").EnumerateArray().Should().OnlyContain(entry => entry.GetProperty("available").GetBoolean());
+    [Then("every listed extension except \"(.*)\" should be available in this host")]
+    public void ThenEveryListedExtensionExceptShouldBeAvailableInThisHost(string except) =>
+        Document(Result).GetProperty("extensions").EnumerateArray()
+            .Where(entry => entry.GetProperty("id").GetString() != except)
+            .Should().OnlyContain(entry => entry.GetProperty("available").GetBoolean());
+
+    /// <summary>
+    /// The in-process F# frontend is in the managed composition only: the tool has it; the AOT-compatible
+    /// <c>morphir</c>, published as Native AOT or as the legacy single file, lists it as unavailable with the reason.
+    /// </summary>
+    [Then("the in-process F# frontend should be available exactly when the executable under test has it")]
+    public void ThenTheInProcessFSharpFrontendShouldBeAvailableExactlyWhenTheExecutableHasIt()
+    {
+        var entry = Extension("morphir-dotnet.fsharp");
+        var expected = ExecutableLocator.CurrentType == "tool";
+        entry.GetProperty("available").GetBoolean().Should().Be(expected);
+        if (expected)
+            entry.TryGetProperty("reason", out _).Should().BeFalse();
+        else
+            entry.GetProperty("reason").GetString().Should().Contain("morphir-fsharp-frontend");
+    }
+
+    /// <summary>
+    /// The deployment comes from the build: <c>aot</c> is published by PublishExecutable with the native-aot profile's
+    /// settings; the legacy single-file builds and the development build of the tool come from no named profile and
+    /// state no deployment.
+    /// </summary>
+    [Then("the listed deployment should be the deployment of the executable under test")]
+    public void ThenTheListedDeploymentShouldBeTheDeploymentOfTheExecutableUnderTest()
+    {
+        var root = Document(Result);
+        if (ExecutableLocator.CurrentType == "aot")
+        {
+            root.GetProperty("deployment").GetString().Should().Be("native-aot");
+            root.GetProperty("execution").GetString().Should().Be("native-aot");
+        }
+        else
+        {
+            root.TryGetProperty("deployment", out _).Should().BeFalse("no named release profile built this executable");
+            root.GetProperty("execution").GetString().Should().Be("jit");
+        }
+    }
 
     [When("I run \"(.*)\" with the other host")]
     public async Task WhenIRunWithTheOtherHost(string command)
@@ -71,13 +110,16 @@ public sealed class ExecutableExtensionListSteps(ScenarioContext scenarioContext
     {
         var other = (ExecutableExecutionResult)scenarioContext[OtherResultKey];
         other.ExitCode.Should().Be(0, other.CombinedOutput);
-        static string[] Shared(JsonElement document) => document.GetProperty("extensions").EnumerateArray()
-            .Where(entry => entry.GetProperty("hosts").GetArrayLength() == 2)
-            .Select(entry => entry.GetRawText()).ToArray();
-        var mine = Document(Result);
-        var theirs = Document(other);
-        mine.GetProperty("host").GetString().Should().NotBe(theirs.GetProperty("host").GetString());
-        Shared(mine).Should().NotBeEmpty();
-        Shared(mine).Should().Equal(Shared(theirs));
+        // The entries available in both results; an entry that one offering lacks differs in available and reason.
+        static Dictionary<string, string> Available(JsonElement document) => document.GetProperty("extensions").EnumerateArray()
+            .Where(entry => entry.GetProperty("available").GetBoolean())
+            .ToDictionary(entry => entry.GetProperty("id").GetString()!, entry => entry.GetRawText());
+        var mine = Available(Document(Result));
+        var theirs = Available(Document(other));
+        Document(Result).GetProperty("host").GetString().Should().NotBe(Document(other).GetProperty("host").GetString());
+        var shared = mine.Keys.Intersect(theirs.Keys).ToList();
+        shared.Should().NotBeEmpty();
+        foreach (var id in shared)
+            mine[id].Should().Be(theirs[id], id);
     }
 }
